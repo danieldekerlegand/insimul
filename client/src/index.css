@@ -1,0 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(248, 39%, 97%);
+  --foreground: hsl(222, 14%, 22%);
+  --card: hsl(220, 10%, 98%);
+  --card-foreground: hsl(222, 14%, 22%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(222, 14%, 22%);
+  --primary: hsl(221, 83%, 53%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(210, 40%, 95%);
+  --secondary-foreground: hsl(222, 14%, 22%);
+  --muted: hsl(210, 40%, 95%);
+  --muted-foreground: hsl(215, 16%, 47%);
+  --accent: hsl(210, 40%, 95%);
+  --accent-foreground: hsl(222, 14%, 22%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --border: hsl(214, 32%, 91%);
+  --input: hsl(214, 32%, 91%);
+  --ring: hsl(221, 83%, 53%);
+  --chart-1: hsl(221, 83%, 53%);
+  --chart-2: hsl(160, 100%, 36%);
+  --chart-3: hsl(42, 93%, 56%);
+  --chart-4: hsl(147, 78%, 42%);
+  --chart-5: hsl(341, 75%, 51%);
+  --radius: 0.75rem;
+  
+  /* Editor specific colors */
+  --editor-bg: hsl(0, 0%, 12%);
+  --editor-line: hsl(0, 0%, 18%);
+  --code-comment: hsl(114, 31%, 50%);
+  --code-keyword: hsl(207, 61%, 59%);
+  --code-string: hsl(17, 47%, 64%);
+  
+  /* Custom fonts */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', Monaco, Consolas, monospace;
+}
+
+.dark {
+  --background: hsl(222, 14%, 4%);
+  --foreground: hsl(210, 40%, 98%);
+  --card: hsl(222, 14%, 7%);
+  --card-foreground: hsl(210, 40%, 98%);
+  --popover: hsl(222, 14%, 7%);
+  --popover-foreground: hsl(210, 40%, 98%);
+  --primary: hsl(221, 83%, 53%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(217, 14%, 15%);
+  --secondary-foreground: hsl(210, 40%, 98%);
+  --muted: hsl(217, 14%, 15%);
+  --muted-foreground: hsl(215, 20%, 65%);
+  --accent: hsl(217, 14%, 15%);
+  --accent-foreground: hsl(210, 40%, 98%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --border: hsl(217, 14%, 15%);
+  --input: hsl(217, 14%, 15%);
+  --ring: hsl(221, 83%, 53%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: var(--font-sans);
+  }
+  
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+@layer components {
+  .editor-bg {
+    background-color: var(--editor-bg);
+  }
+  
+  .editor-line {
+    background-color: var(--editor-line);
+  }
+  
+  .code-comment {
+    color: var(--code-comment);
+  }
+  
+  .code-keyword {
+    color: var(--code-keyword);
+  }
+  
+  .code-string {
+    color: var(--code-string);
+  }
+}
+
+/* Monaco Editor Theme Overrides */
+.monaco-editor {
+  background-color: var(--editor-bg) !important;
+}
+
+.monaco-editor .margin {
+  background-color: var(--editor-line) !important;
+}
+
+.monaco-editor .line-numbers {
+  color: #6b7280 !important;
+}

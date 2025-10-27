@@ -1,0 +1,566 @@
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/hooks/use-toast';
+import { Globe, MapPin, Building2, Home, Plus, ChevronRight, Map } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
+interface LocationsTabProps {
+  worldId: string;
+}
+
+export function LocationsTab({ worldId }: LocationsTabProps) {
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState('countries');
+  
+  // Data states
+  const [countries, setCountries] = useState<any[]>([]);
+  const [states, setStates] = useState<any[]>([]);
+  const [settlements, setSettlements] = useState<any[]>([]);
+  const [lots, setLots] = useState<any[]>([]);
+  const [businesses, setBusinesses] = useState<any[]>([]);
+  
+  // Selected items
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
+  const [selectedSettlement, setSelectedSettlement] = useState<string | null>(null);
+  
+  // Dialog states
+  const [showCountryDialog, setShowCountryDialog] = useState(false);
+  const [showStateDialog, setShowStateDialog] = useState(false);
+  const [showSettlementDialog, setShowSettlementDialog] = useState(false);
+  const [showLotDialog, setShowLotDialog] = useState(false);
+  const [showBusinessDialog, setShowBusinessDialog] = useState(false);
+  
+  // Form states
+  const [countryForm, setCountryForm] = useState({
+    name: '', description: '', governmentType: '', economicSystem: '', foundedYear: new Date().getFullYear()
+  });
+  
+  const [stateForm, setStateForm] = useState({
+    name: '', description: '', stateType: 'province', terrain: 'plains', foundedYear: new Date().getFullYear()
+  });
+  
+  const [settlementForm, setSettlementForm] = useState({
+    name: '', description: '', settlementType: 'town' as 'village' | 'town' | 'city',
+    terrain: 'plains', population: 0, foundedYear: new Date().getFullYear()
+  });
+  
+  const [lotForm, setLotForm] = useState({ address: '', districtName: '', x: 0, y: 0 });
+  const [businessForm, setBusinessForm] = useState({ name: '', businessType: '', foundedYear: new Date().getFullYear() });
+
+  // Load data
+  useEffect(() => { if (worldId) { fetchCountries(); fetchSettlements(); } }, [worldId]);
+  useEffect(() => { if (selectedCountry) { fetchStates(selectedCountry); } }, [selectedCountry]);
+  useEffect(() => { if (selectedSettlement) { fetchLots(selectedSettlement); fetchBusinesses(selectedSettlement); } }, [selectedSettlement]);
+
+  const fetchCountries = async () => {
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/countries`);
+      if (res.ok) {
+        const data = await res.json();
+        console.log('Fetched countries:', data);
+        setCountries(data);
+      }
+    } catch (error) { console.error('Failed to fetch countries:', error); }
+  };
+  
+  const fetchStates = async (countryId: string) => {
+    try {
+      const res = await fetch(`/api/countries/${countryId}/states`);
+      if (res.ok) setStates(await res.json());
+    } catch (error) { console.error('Failed to fetch states:', error); }
+  };
+  
+  const fetchSettlements = async () => {
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/settlements`);
+      if (res.ok) setSettlements(await res.json());
+    } catch (error) { console.error('Failed to fetch settlements:', error); }
+  };
+  
+  const fetchLots = async (settlementId: string) => {
+    try {
+      const res = await fetch(`/api/settlements/${settlementId}/lots`);
+      if (res.ok) setLots(await res.json());
+    } catch (error) { console.error('Failed to fetch lots:', error); }
+  };
+  
+  const fetchBusinesses = async (settlementId: string) => {
+    try {
+      const res = await fetch(`/api/settlements/${settlementId}/businesses`);
+      if (res.ok) setBusinesses(await res.json());
+    } catch (error) { console.error('Failed to fetch businesses:', error); }
+  };
+
+  const handleCreateCountry = async () => {
+    console.log('Creating country with data:', countryForm);
+    console.log('World ID:', worldId);
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/countries`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(countryForm)
+      });
+      console.log('Response status:', res.status);
+      if (res.ok) {
+        const data = await res.json();
+        console.log('Country created:', data);
+        toast({ title: 'Country Created', description: `${countryForm.name} has been created` });
+        setShowCountryDialog(false);
+        setCountryForm({ name: '', description: '', governmentType: '', economicSystem: '', foundedYear: new Date().getFullYear() });
+        fetchCountries();
+      } else {
+        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('Country creation failed:', errorData);
+        toast({ title: 'Error', description: errorData.error || errorData.message || `Server returned ${res.status}`, variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Country creation exception:', error);
+      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to create country', variant: 'destructive' }); 
+    }
+  };
+  
+  const handleCreateState = async () => {
+    if (!selectedCountry) {
+      toast({ title: 'Error', description: 'Please select a country first', variant: 'destructive' });
+      return;
+    }
+    try {
+      const res = await fetch(`/api/countries/${selectedCountry}/states`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...stateForm, worldId })
+      });
+      if (res.ok) {
+        toast({ title: 'State Created', description: `${stateForm.name} has been created` });
+        setShowStateDialog(false);
+        setStateForm({ name: '', description: '', stateType: 'province', terrain: 'plains', foundedYear: new Date().getFullYear() });
+        fetchStates(selectedCountry);
+      } else {
+        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+        toast({ title: 'Error', description: errorData.error || errorData.message, variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to create state', variant: 'destructive' });
+    }
+  };
+
+  const handleCreateSettlement = async () => {
+    if (!selectedCountry) {
+      toast({ title: 'Error', description: 'Please select a country first', variant: 'destructive' });
+      return;
+    }
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/settlements`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...settlementForm, countryId: selectedCountry })
+      });
+      if (res.ok) {
+        toast({ title: 'Settlement Created', description: `${settlementForm.name} has been created` });
+        setShowSettlementDialog(false);
+        setSettlementForm({ name: '', description: '', settlementType: 'town', terrain: 'plains', population: 0, foundedYear: new Date().getFullYear() });
+        fetchSettlements();
+      }
+    } catch (error) { toast({ title: 'Error', description: 'Failed to create settlement', variant: 'destructive' }); }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Locations</h2>
+          <p className="text-muted-foreground">Manage geographical entities and locations</p>
+        </div>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="countries">Countries</TabsTrigger>
+          <TabsTrigger value="states">States</TabsTrigger>
+          <TabsTrigger value="settlements">Settlements</TabsTrigger>
+          <TabsTrigger value="lots">Lots</TabsTrigger>
+          <TabsTrigger value="businesses">Businesses</TabsTrigger>
+        </TabsList>
+
+        {/* Countries Tab */}
+        <TabsContent value="countries" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-lg font-semibold">Countries ({countries.length})</h3>
+              {selectedCountry && countries.length > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  ✓ Country selected - you can now create settlements in the Settlements tab
+                </p>
+              )}
+            </div>
+            <Button onClick={() => setShowCountryDialog(true)}>
+              <Plus className="w-4 h-4 mr-2" />Add Country
+            </Button>
+          </div>
+          <ScrollArea className="h-[600px]">
+            <div className="grid gap-4">
+              {countries.map((country) => (
+                <Card key={country.id} className={selectedCountry === country.id ? 'border-primary' : ''}>
+                  <CardHeader className="cursor-pointer" onClick={() => setSelectedCountry(country.id)}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Globe className="w-5 h-5" />
+                        <CardTitle>{country.name}</CardTitle>
+                      </div>
+                      {selectedCountry === country.id && <ChevronRight className="w-5 h-5 text-primary" />}
+                    </div>
+                    <CardDescription>{country.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div><span className="text-muted-foreground">Government:</span> {country.governmentType}</div>
+                      <div><span className="text-muted-foreground">Economy:</span> {country.economicSystem}</div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {countries.length === 0 && (
+                <Card><CardContent className="pt-6">
+                  <div className="text-center text-muted-foreground space-y-2">
+                    <p>No countries yet. Click "Add Country" above to create one!</p>
+                    <p className="text-xs">💡 Tip: Click on a country card to select it, then you can create settlements in that country.</p>
+                  </div>
+                </CardContent></Card>
+              )}
+            </div>
+          </ScrollArea>
+        </TabsContent>
+
+        {/* States Tab */}
+        <TabsContent value="states" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold">States ({states.length})</h3>
+            <div className="flex items-center gap-2">
+              {!selectedCountry && (
+                <p className="text-sm text-muted-foreground">Select a country first →</p>
+              )}
+              <Button onClick={() => setShowStateDialog(true)} disabled={!selectedCountry}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add State
+              </Button>
+            </div>
+          </div>
+          <ScrollArea className="h-[600px]">
+            <div className="grid gap-4">
+              {states.map((state) => (
+                <Card key={state.id}>
+                  <CardHeader>
+                    <div className="flex items-center gap-2">
+                      <Map className="w-5 h-5" />
+                      <CardTitle className="text-base">{state.name}</CardTitle>
+                    </div>
+                    <CardDescription>{state.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div><span className="text-muted-foreground">Type:</span> {state.stateType}</div>
+                      <div><span className="text-muted-foreground">Terrain:</span> {state.terrain || 'Not specified'}</div>
+                      <div><span className="text-muted-foreground">Founded:</span> {state.foundedYear || 'Unknown'}</div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {states.length === 0 && (
+                <Card>
+                  <CardContent className="pt-6">
+                    {selectedCountry ? (
+                      <div className="text-center text-muted-foreground space-y-2">
+                        <p>No states in this country yet. Click "Add State" above to create one!</p>
+                        <p className="text-xs">💡 States are optional - you can create settlements directly in a country.</p>
+                      </div>
+                    ) : (
+                      <div className="text-center text-muted-foreground space-y-2">
+                        <p>To create a state:</p>
+                        <ol className="text-sm list-decimal list-inside space-y-1">
+                          <li>Go to the "Countries" tab</li>
+                          <li>Click on a country to select it</li>
+                          <li>Come back to this tab and click "Add State"</li>
+                        </ol>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </ScrollArea>
+        </TabsContent>
+
+        {/* Settlements Tab */}
+        <TabsContent value="settlements" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold">Settlements ({settlements.length})</h3>
+            <div className="flex items-center gap-2">
+              {!selectedCountry && (
+                <p className="text-sm text-muted-foreground">Select a country first →</p>
+              )}
+              <Button onClick={() => setShowSettlementDialog(true)} disabled={!selectedCountry}>
+                <Plus className="w-4 h-4 mr-2" />Add Settlement
+              </Button>
+            </div>
+          </div>
+          <ScrollArea className="h-[600px]">
+            <div className="grid gap-4">
+              {settlements.map((settlement) => (
+                <Card key={settlement.id} className={selectedSettlement === settlement.id ? 'border-primary' : ''}>
+                  <CardHeader className="cursor-pointer" onClick={() => setSelectedSettlement(settlement.id)}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2"><MapPin className="w-5 h-5" /><CardTitle>{settlement.name}</CardTitle></div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 rounded">{settlement.settlementType}</span>
+                        {selectedSettlement === settlement.id && <ChevronRight className="w-5 h-5 text-primary" />}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div><span className="text-muted-foreground">Population:</span> {settlement.population?.toLocaleString() || 0}</div>
+                      <div><span className="text-muted-foreground">Terrain:</span> {settlement.terrain}</div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {settlements.length === 0 && (
+                <Card><CardContent className="pt-6">
+                  {selectedCountry ? (
+                    <p className="text-center text-muted-foreground">No settlements in this world yet. Click "Add Settlement" above to create one!</p>
+                  ) : (
+                    <div className="text-center text-muted-foreground space-y-2">
+                      <p>To create a settlement:</p>
+                      <ol className="text-sm list-decimal list-inside space-y-1">
+                        <li>Go to the "Countries" tab</li>
+                        <li>Create a country (if none exist)</li>
+                        <li>Click on a country to select it</li>
+                        <li>Come back to this tab and click "Add Settlement"</li>
+                      </ol>
+                    </div>
+                  )}
+                </CardContent></Card>
+              )}
+            </div>
+          </ScrollArea>
+        </TabsContent>
+
+        {/* Lots Tab */}
+        <TabsContent value="lots" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold">Lots ({lots.length})</h3>
+          </div>
+          {!selectedSettlement ? (
+            <Card><CardContent className="pt-6"><p className="text-center text-muted-foreground">Select a settlement first</p></CardContent></Card>
+          ) : (
+            <ScrollArea className="h-[600px]">
+              <div className="grid gap-4">
+                {lots.map((lot) => (
+                  <Card key={lot.id}>
+                    <CardHeader>
+                      <CardTitle className="text-base">{lot.address}</CardTitle>
+                      <CardDescription>District: {lot.districtName || 'None'}</CardDescription>
+                    </CardHeader>
+                  </Card>
+                ))}
+                {lots.length === 0 && (
+                  <Card><CardContent className="pt-6"><p className="text-center text-muted-foreground">No lots yet</p></CardContent></Card>
+                )}
+              </div>
+            </ScrollArea>
+          )}
+        </TabsContent>
+
+        {/* Businesses Tab */}
+        <TabsContent value="businesses" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold">Businesses ({businesses.length})</h3>
+          </div>
+          {!selectedSettlement ? (
+            <Card><CardContent className="pt-6"><p className="text-center text-muted-foreground">Select a settlement first</p></CardContent></Card>
+          ) : (
+            <ScrollArea className="h-[600px]">
+              <div className="grid gap-4">
+                {businesses.map((business) => (
+                  <Card key={business.id}>
+                    <CardHeader>
+                      <div className="flex items-center gap-2"><Building2 className="w-5 h-5" /><CardTitle className="text-base">{business.name}</CardTitle></div>
+                      <CardDescription>{business.businessType}</CardDescription>
+                    </CardHeader>
+                  </Card>
+                ))}
+                {businesses.length === 0 && (
+                  <Card><CardContent className="pt-6"><p className="text-center text-muted-foreground">No businesses yet</p></CardContent></Card>
+                )}
+              </div>
+            </ScrollArea>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* Country Dialog */}
+      <Dialog open={showCountryDialog} onOpenChange={setShowCountryDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Country</DialogTitle>
+            <DialogDescription>Add a new country to this world</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Name *</Label>
+              <Input value={countryForm.name} onChange={(e) => setCountryForm({ ...countryForm, name: e.target.value })} placeholder="Kingdom of Valoria" />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea value={countryForm.description} onChange={(e) => setCountryForm({ ...countryForm, description: e.target.value })} placeholder="A feudal kingdom..." />
+            </div>
+            <div className="space-y-2">
+              <Label>Founded Year</Label>
+              <Input type="number" value={countryForm.foundedYear} onChange={(e) => setCountryForm({ ...countryForm, foundedYear: parseInt(e.target.value) || new Date().getFullYear() })} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Government</Label>
+                <Select value={countryForm.governmentType} onValueChange={(v) => setCountryForm({ ...countryForm, governmentType: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monarchy">Monarchy</SelectItem>
+                    <SelectItem value="republic">Republic</SelectItem>
+                    <SelectItem value="democracy">Democracy</SelectItem>
+                    <SelectItem value="feudal">Feudal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Economy</Label>
+                <Select value={countryForm.economicSystem} onValueChange={(v) => setCountryForm({ ...countryForm, economicSystem: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="feudal">Feudal</SelectItem>
+                    <SelectItem value="mercantile">Mercantile</SelectItem>
+                    <SelectItem value="agricultural">Agricultural</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCountryDialog(false)}>Cancel</Button>
+            <Button onClick={handleCreateCountry} disabled={!countryForm.name}>Create</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* State Dialog */}
+      <Dialog open={showStateDialog} onOpenChange={setShowStateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create State / Province</DialogTitle>
+            <DialogDescription>Add a new region within {selectedCountry ? countries.find(c => c.id === selectedCountry)?.name : 'the selected country'}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Name *</Label>
+              <Input value={stateForm.name} onChange={(e) => setStateForm({ ...stateForm, name: e.target.value })} placeholder="Province of Aldermoor" />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea value={stateForm.description} onChange={(e) => setStateForm({ ...stateForm, description: e.target.value })} placeholder="A northern province..." />
+            </div>
+            <div className="space-y-2">
+              <Label>Founded Year</Label>
+              <Input type="number" value={stateForm.foundedYear} onChange={(e) => setStateForm({ ...stateForm, foundedYear: parseInt(e.target.value) || new Date().getFullYear() })} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select value={stateForm.stateType} onValueChange={(v) => setStateForm({ ...stateForm, stateType: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="province">Province</SelectItem>
+                    <SelectItem value="state">State</SelectItem>
+                    <SelectItem value="territory">Territory</SelectItem>
+                    <SelectItem value="region">Region</SelectItem>
+                    <SelectItem value="duchy">Duchy</SelectItem>
+                    <SelectItem value="county">County</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Terrain</Label>
+                <Select value={stateForm.terrain} onValueChange={(v) => setStateForm({ ...stateForm, terrain: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="plains">Plains</SelectItem>
+                    <SelectItem value="hills">Hills</SelectItem>
+                    <SelectItem value="mountains">Mountains</SelectItem>
+                    <SelectItem value="coast">Coast</SelectItem>
+                    <SelectItem value="river">River</SelectItem>
+                    <SelectItem value="forest">Forest</SelectItem>
+                    <SelectItem value="desert">Desert</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowStateDialog(false)}>Cancel</Button>
+            <Button onClick={handleCreateState} disabled={!stateForm.name}>Create</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Settlement Dialog */}
+      <Dialog open={showSettlementDialog} onOpenChange={setShowSettlementDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Settlement</DialogTitle>
+            <DialogDescription>Add a new settlement</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Name *</Label>
+              <Input value={settlementForm.name} onChange={(e) => setSettlementForm({ ...settlementForm, name: e.target.value })} placeholder="Goldspire" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select value={settlementForm.settlementType} onValueChange={(v: any) => setSettlementForm({ ...settlementForm, settlementType: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="village">Village</SelectItem>
+                    <SelectItem value="town">Town</SelectItem>
+                    <SelectItem value="city">City</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Terrain</Label>
+                <Select value={settlementForm.terrain} onValueChange={(v) => setSettlementForm({ ...settlementForm, terrain: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="plains">Plains</SelectItem>
+                    <SelectItem value="hills">Hills</SelectItem>
+                    <SelectItem value="mountains">Mountains</SelectItem>
+                    <SelectItem value="coast">Coast</SelectItem>
+                    <SelectItem value="river">River</SelectItem>
+                    <SelectItem value="forest">Forest</SelectItem>
+                    <SelectItem value="desert">Desert</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSettlementDialog(false)}>Cancel</Button>
+            <Button onClick={handleCreateSettlement} disabled={!settlementForm.name}>Create</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
