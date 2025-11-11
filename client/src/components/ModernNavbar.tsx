@@ -55,7 +55,8 @@ export function ModernNavbar({ currentWorld, activeTab, onTabChange, onChangeWor
 
   const simulationItems = [
     { id: 'simulations', label: 'Run Simulations', icon: Play },
-    { id: 'rpg-game', label: 'Explore World (RPG)', icon: Gamepad2 },
+    { id: 'rpg-game', label: 'Explore World (2D RPG)', icon: Gamepad2 },
+    { id: '3d-game', label: 'Explore World (3D)', icon: Gamepad2 },
   ];
 
   const dataItems = [
