@@ -121,21 +121,21 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
     if (!character) return '';
 
     const presentTruths = truths.filter(t => t.timestep === 0);
-    
+
     // Extract language fluency from truths
     // Check both sourceData.value and parse from content string
-    const frenchTruth = presentTruths.find(t => 
+    const frenchTruth = presentTruths.find(t =>
       (t.entryType === 'language' && t.title?.includes('French')) ||
       (t.content?.includes('French') && t.content?.includes('fluency'))
     );
-    const englishTruth = presentTruths.find(t => 
+    const englishTruth = presentTruths.find(t =>
       (t.entryType === 'language' && t.title?.includes('English')) ||
       (t.content?.includes('English') && t.content?.includes('fluency'))
     );
-    
+
     let frenchFluency = 85;
     let englishFluency = 50;
-    
+
     if (frenchTruth?.sourceData?.value) {
       frenchFluency = frenchTruth.sourceData.value;
     } else if (frenchTruth?.content) {
@@ -144,7 +144,7 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
         frenchFluency = parseInt(match[1]);
       }
     }
-    
+
     if (englishTruth?.sourceData?.value) {
       englishFluency = englishTruth.sourceData.value;
     } else if (englishTruth?.content) {
@@ -153,13 +153,15 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
         englishFluency = parseInt(match[1]);
       }
     }
-    
+
     const dominantLanguage = frenchFluency > englishFluency ? 'French' : 'English';
     const dominantFluency = Math.max(frenchFluency, englishFluency);
     const secondaryLanguage = dominantLanguage === 'French' ? 'English' : 'French';
     const secondaryFluency = Math.min(frenchFluency, englishFluency);
-    
+
     let prompt = `You are ${character.firstName} ${character.lastName} (${character.age || '?'} years old, ${character.gender}, ${character.occupation || 'no occupation'}).
+
+CURRENT LOCATION: ${character.currentLocation || 'Unknown'}
 
 LANGUAGE SKILLS:
 - French: ${frenchFluency}/100 (${frenchFluency >= 70 ? 'fluent' : frenchFluency >= 50 ? 'conversational' : 'basic'})
@@ -170,6 +172,7 @@ BEHAVIOR:
 1. Speak ${dominantLanguage} by default. Switch to ${secondaryLanguage} if user speaks it.
 2. ${secondaryFluency < 50 ? `Struggle with ${secondaryLanguage}: use simple words, make errors, apologize for poor skills.` : secondaryFluency < 70 ? `Show ${secondaryLanguage} limitations: occasional errors, simpler grammar.` : `Speak both languages fluently.`}
 3. Keep responses under 3 sentences unless asked for more.
+4. You can talk about your location, the world, your relationships, and your daily life.
 
 `;
 
@@ -184,6 +187,16 @@ BEHAVIOR:
       prompt += '\n';
     }
 
+    // Add world context - all truths (not just character-specific)
+    const worldTruths = truths.filter(t => t.timestep === 0 && !t.characterId);
+    if (worldTruths.length > 0) {
+      prompt += `Known facts about the world:\n`;
+      worldTruths.slice(0, 10).forEach(truth => {
+        prompt += `- ${truth.content}\n`;
+      });
+      prompt += '\n';
+    }
+
     if (character.personality && Object.keys(character.personality).length > 0) {
       prompt += `Personality Traits:\n`;
       Object.entries(character.personality).forEach(([key, value]) => {
@@ -192,7 +205,18 @@ BEHAVIOR:
       prompt += '\n';
     }
 
-    prompt += `QUEST SYSTEM: You can assign language quests using this format:
+    // Add relationships context
+    if (character.friendIds && character.friendIds.length > 0) {
+      prompt += `Friends: You have ${character.friendIds.length} friends in this world.\n`;
+    }
+    if (character.coworkerIds && character.coworkerIds.length > 0) {
+      prompt += `Coworkers: You work with ${character.coworkerIds.length} colleagues.\n`;
+    }
+    if (character.spouseId) {
+      prompt += `Family: You are married.\n`;
+    }
+
+    prompt += `\nQUEST SYSTEM: You can assign language quests using this format:
 **QUEST_ASSIGN**
 Title: [short title]
 Description: [1 sentence]
@@ -203,7 +227,7 @@ Language: French|English
 
 Only assign quests when natural in conversation. Base difficulty on player's skills.
 
-Stay in character. Show your language abilities authentically.`;
+Stay in character. Show your language abilities authentically. You can reference your location, the world, and your life experiences.`;
 
     return prompt;
   };
