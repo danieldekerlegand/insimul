@@ -16,6 +16,7 @@ import { SimulationCreateDialog } from '@/components/SimulationCreateDialog';
 import { SimulationConfigDialog } from '@/components/SimulationConfigDialog';
 import { SimulationTimelineView } from '@/components/SimulationTimelineView';
 import { PhaserRPGGame } from '@/components/PhaserRPGGame';
+import { Insimul3DGame } from '@/components/Insimul3DGame';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -316,12 +317,21 @@ export default function ModernEditor() {
           </Card>
         )}
 
-        {/* RPG Game Tab */}
+        {/* RPG Game Tab - 2D */}
         {activeTab === 'rpg-game' && selectedWorld && (
           <PhaserRPGGame
             worldId={selectedWorld}
             worldName={currentWorld?.name || 'Unknown World'}
             onBack={() => setActiveTab('simulations')}
+          />
+        )}
+
+        {/* 3D Game Tab */}
+        {activeTab === '3d-game' && selectedWorld && (
+          <Insimul3DGame
+            worldId={selectedWorld}
+            worldName={currentWorld?.name || 'Unknown World'}
+            onBack={() => setActiveTab('home')}
           />
         )}
 
