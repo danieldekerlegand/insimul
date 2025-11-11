@@ -141,22 +141,22 @@ export function Character3D({ character, position, onInteraction }: Character3DP
       {/* Left leg */}
       <group ref={leftLegRef} position={[-0.15, 0.5, 0]}>
         <Cylinder args={[0.1, 0.1, 0.5, 8]} position={[0, -0.25, 0]} castShadow>
-          <meshStandardMaterial color="#1e3a8a"} />
+          <meshStandardMaterial color="#1e3a8a" />
         </Cylinder>
         {/* Foot */}
         <Box args={[0.15, 0.1, 0.25]} position={[0, -0.55, 0.05]} castShadow>
-          <meshStandardMaterial color="#000000"} />
+          <meshStandardMaterial color="#000000" />
         </Box>
       </group>
 
       {/* Right leg */}
       <group ref={rightLegRef} position={[0.15, 0.5, 0]}>
         <Cylinder args={[0.1, 0.1, 0.5, 8]} position={[0, -0.25, 0]} castShadow>
-          <meshStandardMaterial color="#1e3a8a"} />
+          <meshStandardMaterial color="#1e3a8a" />
         </Cylinder>
         {/* Foot */}
         <Box args={[0.15, 0.1, 0.25]} position={[0, -0.55, 0.05]} castShadow>
-          <meshStandardMaterial color="#000000"} />
+          <meshStandardMaterial color="#000000" />
         </Box>
       </group>
 
