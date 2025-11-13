@@ -1,19 +1,22 @@
-import { createScript } from '@playcanvas/react/scripts';
+import { Script as PcScript } from 'playcanvas';
 import * as pc from 'playcanvas';
 
-interface PlayerMovementProps {
-  speed?: number;
-  cameraMode?: 'first-person' | 'third-person';
-  lookSpeed?: number;
-  onPositionChange?: (pos: { x: number; y: number; z: number }) => void;
-}
-
-export const PlayerMovement = createScript<PlayerMovementProps>('PlayerMovement', {
-  attributes: {
+export class PlayerMovement extends PcScript {
+  static attributes = {
     speed: { type: 'number', default: 5 },
     cameraMode: { type: 'string', default: 'third-person' },
     lookSpeed: { type: 'number', default: 0.25 },
-  },
+    onPositionChange: { type: 'object', default: null },
+  };
+
+  speed!: number;
+  cameraMode!: 'first-person' | 'third-person';
+  lookSpeed!: number;
+  onPositionChange!: ((pos: { x: number; y: number; z: number }) => void) | null;
+
+  private eulers!: pc.Vec3;
+  private force!: pc.Vec3;
+  private camera!: pc.Entity | null;
 
   initialize() {
     this.eulers = new pc.Vec3();
@@ -38,7 +41,7 @@ export const PlayerMovement = createScript<PlayerMovementProps>('PlayerMovement'
         }
       }, this);
     }
-  },
+  }
 
   _onMouseMove(event: pc.MouseEvent) {
     // Check if pointer is locked or left mouse button is down
@@ -49,7 +52,7 @@ export const PlayerMovement = createScript<PlayerMovementProps>('PlayerMovement'
       // Clamp pitch to prevent over-rotation
       this.eulers.y = Math.max(-85, Math.min(85, this.eulers.y));
     }
-  },
+  }
 
   update(dt: number) {
     if (!this.app.keyboard || !this.camera) return;
@@ -135,7 +138,7 @@ export const PlayerMovement = createScript<PlayerMovementProps>('PlayerMovement'
       );
       camera.lookAt(playerPos.x, playerPos.y + 1, playerPos.z);
     }
-  },
+  }
 
   destroy() {
     // Clean up event listeners
@@ -143,4 +146,4 @@ export const PlayerMovement = createScript<PlayerMovementProps>('PlayerMovement'
       this.app.mouse.off(pc.EVENT_MOUSEMOVE, this._onMouseMove, this);
     }
   }
-});
+}
