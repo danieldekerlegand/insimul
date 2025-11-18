@@ -156,6 +156,37 @@ export interface IStorage {
   createQuest(quest: InsertQuest): Promise<Quest>;
   updateQuest(id: string, quest: Partial<InsertQuest>): Promise<Quest | undefined>;
   deleteQuest(id: string): Promise<boolean>;
+
+  // Users
+  getUser(id: string): Promise<import("@shared/schema").User | undefined>;
+  getUserByUsername(username: string): Promise<import("@shared/schema").User | undefined>;
+  getUserByEmail(email: string): Promise<import("@shared/schema").User | undefined>;
+  createUser(user: import("@shared/schema").InsertUser): Promise<import("@shared/schema").User>;
+  updateUser(id: string, user: Partial<import("@shared/schema").InsertUser>): Promise<import("@shared/schema").User | undefined>;
+  deleteUser(id: string): Promise<boolean>;
+
+  // Player Progress
+  getPlayerProgress(id: string): Promise<import("@shared/schema").PlayerProgress | undefined>;
+  getPlayerProgressByUser(userId: string, worldId: string): Promise<import("@shared/schema").PlayerProgress | undefined>;
+  getPlayerProgressesByUser(userId: string): Promise<import("@shared/schema").PlayerProgress[]>;
+  createPlayerProgress(progress: import("@shared/schema").InsertPlayerProgress): Promise<import("@shared/schema").PlayerProgress>;
+  updatePlayerProgress(id: string, progress: Partial<import("@shared/schema").InsertPlayerProgress>): Promise<import("@shared/schema").PlayerProgress | undefined>;
+  deletePlayerProgress(id: string): Promise<boolean>;
+
+  // Player Sessions
+  getPlayerSession(id: string): Promise<import("@shared/schema").PlayerSession | undefined>;
+  getPlayerSessionsByUser(userId: string): Promise<import("@shared/schema").PlayerSession[]>;
+  createPlayerSession(session: import("@shared/schema").InsertPlayerSession): Promise<import("@shared/schema").PlayerSession>;
+  updatePlayerSession(id: string, session: Partial<import("@shared/schema").InsertPlayerSession>): Promise<import("@shared/schema").PlayerSession | undefined>;
+  endPlayerSession(id: string, duration: number): Promise<import("@shared/schema").PlayerSession | undefined>;
+
+  // Achievements
+  getAchievement(id: string): Promise<import("@shared/schema").Achievement | undefined>;
+  getAchievementsByWorld(worldId: string): Promise<import("@shared/schema").Achievement[]>;
+  getGlobalAchievements(): Promise<import("@shared/schema").Achievement[]>;
+  createAchievement(achievement: import("@shared/schema").InsertAchievement): Promise<import("@shared/schema").Achievement>;
+  updateAchievement(id: string, achievement: Partial<import("@shared/schema").InsertAchievement>): Promise<import("@shared/schema").Achievement | undefined>;
+  deleteAchievement(id: string): Promise<boolean>;
 }
 
 // Export MongoStorage as the default storage implementation

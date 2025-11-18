@@ -22,7 +22,15 @@ import {
   type Quest,
   type InsertQuest,
   type Truth,
-  type InsertTruth
+  type InsertTruth,
+  type User,
+  type InsertUser,
+  type PlayerProgress,
+  type InsertPlayerProgress,
+  type PlayerSession,
+  type InsertPlayerSession,
+  type Achievement,
+  type InsertAchievement
 } from "@shared/schema";
 
 // Mongoose Document interfaces
@@ -67,6 +75,22 @@ interface TruthDoc extends Omit<Truth, 'id'>, Document {
 }
 
 interface QuestDoc extends Omit<Quest, 'id'>, Document {
+  _id: string;
+}
+
+interface UserDoc extends Omit<User, 'id'>, Document {
+  _id: string;
+}
+
+interface PlayerProgressDoc extends Omit<PlayerProgress, 'id'>, Document {
+  _id: string;
+}
+
+interface PlayerSessionDoc extends Omit<PlayerSession, 'id'>, Document {
+  _id: string;
+}
+
+interface AchievementDoc extends Omit<Achievement, 'id'>, Document {
   _id: string;
 }
 
@@ -314,6 +338,69 @@ const QuestSchema = new Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
+const UserSchema = new Schema({
+  username: { type: String, required: true, unique: true },
+  email: { type: String, required: true, unique: true },
+  passwordHash: { type: String, required: true },
+  displayName: { type: String, default: null },
+  avatarUrl: { type: String, default: null },
+  isActive: { type: Boolean, default: true },
+  isVerified: { type: Boolean, default: false },
+  lastLoginAt: { type: Date, default: null },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+const PlayerProgressSchema = new Schema({
+  userId: { type: String, required: true },
+  worldId: { type: String, required: true },
+  characterId: { type: String, default: null },
+  level: { type: Number, default: 1 },
+  experience: { type: Number, default: 0 },
+  playtime: { type: Number, default: 0 },
+  currentPosition: { type: Schema.Types.Mixed, default: { x: 0, y: 0, z: 0 } },
+  currentLocation: { type: String, default: null },
+  questsCompleted: { type: [String], default: [] },
+  achievementsUnlocked: { type: [String], default: [] },
+  stats: { type: Schema.Types.Mixed, default: {} },
+  inventory: { type: Schema.Types.Mixed, default: [] },
+  lastCheckpoint: { type: Schema.Types.Mixed, default: {} },
+  saveData: { type: Schema.Types.Mixed, default: {} },
+  lastPlayedAt: { type: Date, default: Date.now },
+  sessionsCount: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+const PlayerSessionSchema = new Schema({
+  userId: { type: String, required: true },
+  worldId: { type: String, required: true },
+  progressId: { type: String, required: true },
+  startedAt: { type: Date, default: Date.now },
+  endedAt: { type: Date, default: null },
+  duration: { type: Number, default: 0 },
+  experienceGained: { type: Number, default: 0 },
+  questsCompletedInSession: { type: Number, default: 0 },
+  achievementsEarnedInSession: { type: Number, default: 0 },
+  sessionData: { type: Schema.Types.Mixed, default: {} },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const AchievementSchema = new Schema({
+  worldId: { type: String, default: null },
+  name: { type: String, required: true },
+  description: { type: String, required: true },
+  iconUrl: { type: String, default: null },
+  achievementType: { type: String, required: true },
+  criteria: { type: Schema.Types.Mixed, default: {} },
+  experienceReward: { type: Number, default: 0 },
+  rewards: { type: Schema.Types.Mixed, default: {} },
+  isHidden: { type: Boolean, default: false },
+  rarity: { type: String, default: 'common' },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
 // Mongoose Models
 const RuleModel = mongoose.model<RuleDoc>('Rule', RuleSchema);
 const GrammarModel = mongoose.model<GrammarDoc>('Grammar', GrammarSchema);
@@ -326,6 +413,10 @@ const SimulationModel = mongoose.model<SimulationDoc>('Simulation', SimulationSc
 const ActionModel = mongoose.model<ActionDoc>('Action', ActionSchema);
 const TruthModel = mongoose.model<TruthDoc>('Truth', TruthSchema);
 const QuestModel = mongoose.model<QuestDoc>('Quest', QuestSchema);
+const UserModel = mongoose.model<UserDoc>('User', UserSchema);
+const PlayerProgressModel = mongoose.model<PlayerProgressDoc>('PlayerProgress', PlayerProgressSchema);
+const PlayerSessionModel = mongoose.model<PlayerSessionDoc>('PlayerSession', PlayerSessionSchema);
+const AchievementModel = mongoose.model<AchievementDoc>('Achievement', AchievementSchema);
 
 // Helper to convert Mongoose doc to our type
 function docToRule(doc: RuleDoc): Rule {
@@ -369,6 +460,22 @@ function docToTruth(doc: TruthDoc): Truth {
 }
 
 function docToQuest(doc: QuestDoc): Quest {
+  return { ...doc.toObject(), id: doc._id.toString() };
+}
+
+function docToUser(doc: UserDoc): User {
+  return { ...doc.toObject(), id: doc._id.toString() };
+}
+
+function docToPlayerProgress(doc: PlayerProgressDoc): PlayerProgress {
+  return { ...doc.toObject(), id: doc._id.toString() };
+}
+
+function docToPlayerSession(doc: PlayerSessionDoc): PlayerSession {
+  return { ...doc.toObject(), id: doc._id.toString() };
+}
+
+function docToAchievement(doc: AchievementDoc): Achievement {
   return { ...doc.toObject(), id: doc._id.toString() };
 }
 
@@ -1166,6 +1273,152 @@ export class MongoStorage implements IStorage {
   async deleteQuest(id: string): Promise<boolean> {
     await this.connect();
     const result = await QuestModel.findByIdAndDelete(id);
+    return !!result;
+  }
+
+  // ===== User Management =====
+  async getUser(id: string): Promise<User | undefined> {
+    await this.connect();
+    const doc = await UserModel.findById(id);
+    return doc ? docToUser(doc) : undefined;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    await this.connect();
+    const doc = await UserModel.findOne({ username });
+    return doc ? docToUser(doc) : undefined;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    await this.connect();
+    const doc = await UserModel.findOne({ email });
+    return doc ? docToUser(doc) : undefined;
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    await this.connect();
+    const doc = await UserModel.create(user);
+    return docToUser(doc);
+  }
+
+  async updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined> {
+    await this.connect();
+    const doc = await UserModel.findByIdAndUpdate(id, { ...user, updatedAt: new Date() }, { new: true });
+    return doc ? docToUser(doc) : undefined;
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await UserModel.findByIdAndDelete(id);
+    return !!result;
+  }
+
+  // ===== Player Progress =====
+  async getPlayerProgress(id: string): Promise<PlayerProgress | undefined> {
+    await this.connect();
+    const doc = await PlayerProgressModel.findById(id);
+    return doc ? docToPlayerProgress(doc) : undefined;
+  }
+
+  async getPlayerProgressByUser(userId: string, worldId: string): Promise<PlayerProgress | undefined> {
+    await this.connect();
+    const doc = await PlayerProgressModel.findOne({ userId, worldId });
+    return doc ? docToPlayerProgress(doc) : undefined;
+  }
+
+  async getPlayerProgressesByUser(userId: string): Promise<PlayerProgress[]> {
+    await this.connect();
+    const docs = await PlayerProgressModel.find({ userId });
+    return docs.map(docToPlayerProgress);
+  }
+
+  async createPlayerProgress(progress: InsertPlayerProgress): Promise<PlayerProgress> {
+    await this.connect();
+    const doc = await PlayerProgressModel.create(progress);
+    return docToPlayerProgress(doc);
+  }
+
+  async updatePlayerProgress(id: string, progress: Partial<InsertPlayerProgress>): Promise<PlayerProgress | undefined> {
+    await this.connect();
+    const doc = await PlayerProgressModel.findByIdAndUpdate(id, { ...progress, updatedAt: new Date() }, { new: true });
+    return doc ? docToPlayerProgress(doc) : undefined;
+  }
+
+  async deletePlayerProgress(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await PlayerProgressModel.findByIdAndDelete(id);
+    return !!result;
+  }
+
+  // ===== Player Sessions =====
+  async getPlayerSession(id: string): Promise<PlayerSession | undefined> {
+    await this.connect();
+    const doc = await PlayerSessionModel.findById(id);
+    return doc ? docToPlayerSession(doc) : undefined;
+  }
+
+  async getPlayerSessionsByUser(userId: string): Promise<PlayerSession[]> {
+    await this.connect();
+    const docs = await PlayerSessionModel.find({ userId }).sort({ startedAt: -1 });
+    return docs.map(docToPlayerSession);
+  }
+
+  async createPlayerSession(session: InsertPlayerSession): Promise<PlayerSession> {
+    await this.connect();
+    const doc = await PlayerSessionModel.create(session);
+    return docToPlayerSession(doc);
+  }
+
+  async updatePlayerSession(id: string, session: Partial<InsertPlayerSession>): Promise<PlayerSession | undefined> {
+    await this.connect();
+    const doc = await PlayerSessionModel.findByIdAndUpdate(id, session, { new: true });
+    return doc ? docToPlayerSession(doc) : undefined;
+  }
+
+  async endPlayerSession(id: string, duration: number): Promise<PlayerSession | undefined> {
+    await this.connect();
+    const doc = await PlayerSessionModel.findByIdAndUpdate(
+      id,
+      { endedAt: new Date(), duration },
+      { new: true }
+    );
+    return doc ? docToPlayerSession(doc) : undefined;
+  }
+
+  // ===== Achievements =====
+  async getAchievement(id: string): Promise<Achievement | undefined> {
+    await this.connect();
+    const doc = await AchievementModel.findById(id);
+    return doc ? docToAchievement(doc) : undefined;
+  }
+
+  async getAchievementsByWorld(worldId: string): Promise<Achievement[]> {
+    await this.connect();
+    const docs = await AchievementModel.find({ worldId });
+    return docs.map(docToAchievement);
+  }
+
+  async getGlobalAchievements(): Promise<Achievement[]> {
+    await this.connect();
+    const docs = await AchievementModel.find({ worldId: null });
+    return docs.map(docToAchievement);
+  }
+
+  async createAchievement(achievement: InsertAchievement): Promise<Achievement> {
+    await this.connect();
+    const doc = await AchievementModel.create(achievement);
+    return docToAchievement(doc);
+  }
+
+  async updateAchievement(id: string, achievement: Partial<InsertAchievement>): Promise<Achievement | undefined> {
+    await this.connect();
+    const doc = await AchievementModel.findByIdAndUpdate(id, { ...achievement, updatedAt: new Date() }, { new: true });
+    return doc ? docToAchievement(doc) : undefined;
+  }
+
+  async deleteAchievement(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await AchievementModel.findByIdAndDelete(id);
     return !!result;
   }
 

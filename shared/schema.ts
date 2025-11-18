@@ -825,6 +825,112 @@ export const insertQuestSchema = createInsertSchema(quests).pick({
   tags: true,
 });
 
+// ============= USER AUTHENTICATION AND PLAYER PROGRESS =============
+
+// Users - authentication and account management
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  username: text("username").notNull().unique(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+
+  // Profile
+  displayName: text("display_name"),
+  avatarUrl: text("avatar_url"),
+
+  // Account status
+  isActive: boolean("is_active").default(true),
+  isVerified: boolean("is_verified").default(false),
+  lastLoginAt: timestamp("last_login_at"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Player Progress - tracks player progress across worlds and games
+export const playerProgress = pgTable("player_progress", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  worldId: varchar("world_id").notNull(),
+
+  // Player character association
+  characterId: varchar("character_id"), // The character this player controls in the game
+
+  // Progress metrics
+  level: integer("level").default(1),
+  experience: integer("experience").default(0),
+  playtime: integer("playtime").default(0), // in seconds
+
+  // Game state
+  currentPosition: jsonb("current_position").$type<{ x: number; y: number; z: number }>().default({ x: 0, y: 0, z: 0 }),
+  currentLocation: text("current_location"), // Settlement or location name
+
+  // Progress tracking
+  questsCompleted: jsonb("quests_completed").$type<string[]>().default([]),
+  achievementsUnlocked: jsonb("achievements_unlocked").$type<string[]>().default([]),
+  stats: jsonb("stats").$type<Record<string, number>>().default({}),
+  inventory: jsonb("inventory").$type<any[]>().default([]),
+
+  // Checkpoints and saves
+  lastCheckpoint: jsonb("last_checkpoint").$type<Record<string, any>>().default({}),
+  saveData: jsonb("save_data").$type<Record<string, any>>().default({}),
+
+  // Session tracking
+  lastPlayedAt: timestamp("last_played_at").defaultNow(),
+  sessionsCount: integer("sessions_count").default(0),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Player Sessions - tracks individual play sessions
+export const playerSessions = pgTable("player_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  worldId: varchar("world_id").notNull(),
+  progressId: varchar("progress_id").notNull(),
+
+  // Session details
+  startedAt: timestamp("started_at").defaultNow(),
+  endedAt: timestamp("ended_at"),
+  duration: integer("duration").default(0), // in seconds
+
+  // Session metrics
+  experienceGained: integer("experience_gained").default(0),
+  questsCompletedInSession: integer("quests_completed_in_session").default(0),
+  achievementsEarnedInSession: integer("achievements_earned_in_session").default(0),
+
+  // Session data
+  sessionData: jsonb("session_data").$type<Record<string, any>>().default({}),
+
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Achievements - defines available achievements
+export const achievements = pgTable("achievements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worldId: varchar("world_id"), // null for global achievements
+
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  iconUrl: text("icon_url"),
+
+  // Achievement criteria
+  achievementType: text("achievement_type").notNull(), // quest_completion, level_reached, time_played, social_interaction
+  criteria: jsonb("criteria").$type<Record<string, any>>().default({}),
+
+  // Rewards
+  experienceReward: integer("experience_reward").default(0),
+  rewards: jsonb("rewards").$type<Record<string, any>>().default({}),
+
+  // Metadata
+  isHidden: boolean("is_hidden").default(false),
+  rarity: text("rarity").default("common"), // common, uncommon, rare, epic, legendary
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas for Talk of the Town tables
 export const insertOccupationSchema = createInsertSchema(occupations).pick({
   worldId: true,
@@ -943,3 +1049,40 @@ export type InsertResidence = z.infer<typeof insertResidenceSchema>;
 
 export type Whereabouts = typeof whereabouts.$inferSelect;
 export type InsertWhereabouts = z.infer<typeof insertWhereaboutsSchema>;
+
+// User and Player Progress insert schemas
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPlayerProgressSchema = createInsertSchema(playerProgress).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPlayerSessionSchema = createInsertSchema(playerSessions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertAchievementSchema = createInsertSchema(achievements).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// User and Player Progress types
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type PlayerProgress = typeof playerProgress.$inferSelect;
+export type InsertPlayerProgress = z.infer<typeof insertPlayerProgressSchema>;
+
+export type PlayerSession = typeof playerSessions.$inferSelect;
+export type InsertPlayerSession = z.infer<typeof insertPlayerSessionSchema>;
+
+export type Achievement = typeof achievements.$inferSelect;
+export type InsertAchievement = z.infer<typeof insertAchievementSchema>;

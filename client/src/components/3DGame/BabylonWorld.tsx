@@ -38,6 +38,7 @@ interface BabylonWorldProps {
   worldId: string;
   worldName: string;
   worldType?: string;
+  userId?: string;
   onBack: () => void;
 }
 
