@@ -3,10 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Globe, Users, Map, Info, Trash2, Settings } from 'lucide-react';
+import { Globe, Users, Map, Info, Trash2, Settings, BarChart3 } from 'lucide-react';
 import { GenealogyViewer } from './visualization/GenealogyViewer';
 import { GeographyMap } from './visualization/GeographyMap';
 import { BaseResourcesConfig } from './BaseResourcesConfig';
+import { PlaythroughAnalytics } from './PlaythroughAnalytics';
 import { useToast } from '@/hooks/use-toast';
 
 interface WorldManagementTabProps {
@@ -16,7 +17,7 @@ interface WorldManagementTabProps {
 }
 
 export function WorldManagementTab({ worldId, worldName, onWorldDeleted }: WorldManagementTabProps) {
-  const [activeView, setActiveView] = useState<'overview' | 'genealogy' | 'map' | 'base-resources'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'genealogy' | 'map' | 'base-resources' | 'analytics'>('overview');
   const [settlements, setSettlements] = useState<any[]>([]);
   const [countries, setCountries] = useState<any[]>([]);
   const [totalPopulation, setTotalPopulation] = useState(0);
@@ -114,6 +115,10 @@ export function WorldManagementTab({ worldId, worldName, onWorldDeleted }: World
               <TabsTrigger value="base-resources">
                 <Settings className="w-4 h-4 mr-2" />
                 Base Resources
+              </TabsTrigger>
+              <TabsTrigger value="analytics">
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Analytics
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -237,6 +242,10 @@ export function WorldManagementTab({ worldId, worldName, onWorldDeleted }: World
           <div className="max-w-4xl mx-auto">
             <BaseResourcesConfig worldId={worldId} />
           </div>
+        )}
+
+        {activeView === 'analytics' && (
+          <PlaythroughAnalytics worldId={worldId} />
         )}
       </div>
 
