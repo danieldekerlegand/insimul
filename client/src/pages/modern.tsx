@@ -15,7 +15,6 @@ import { ImportDialog } from '@/components/ImportDialog';
 import { SimulationCreateDialog } from '@/components/SimulationCreateDialog';
 import { SimulationConfigDialog } from '@/components/SimulationConfigDialog';
 import { SimulationTimelineView } from '@/components/SimulationTimelineView';
-import { PhaserRPGGame } from '@/components/PhaserRPGGame';
 import { BabylonWorld } from '@/components/3DGame/BabylonWorld';
 import { AuthDialog } from '@/components/AuthDialog';
 import { PlaythroughsList } from '@/components/PlaythroughsList';
@@ -331,15 +330,6 @@ export default function ModernEditor() {
               </div>
             </CardContent>
           </Card>
-        )}
-
-        {/* RPG Game Tab - 2D */}
-        {activeTab === 'rpg-game' && selectedWorld && (
-          <PhaserRPGGame
-            worldId={selectedWorld}
-            worldName={currentWorld?.name || 'Unknown World'}
-            onBack={() => setActiveTab('simulations')}
-          />
         )}
 
         {/* 3D Game Tab */}
