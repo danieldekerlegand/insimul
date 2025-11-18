@@ -1,44 +1,7 @@
 import type { Express } from "express";
 import { storage } from '../db/storage';
 import { AuthService } from "../services/auth-service";
-
-/**
- * Helper function to check if a user can access a world
- */
-async function canAccessWorld(userId: string | undefined, worldId: string): Promise<boolean> {
-  const world = await storage.getWorld(worldId);
-  if (!world) return false;
-
-  // Public worlds are accessible to everyone
-  if (world.visibility === 'public') return true;
-
-  // No auth required and it's unlisted
-  if (!world.requiresAuth && world.visibility === 'unlisted') return true;
-
-  // Private worlds or auth-required worlds need a logged-in user
-  if (!userId) return false;
-
-  // Owner always has access
-  if (world.ownerId === userId) return true;
-
-  // Check if user is in allowed list
-  if (world.allowedUserIds && world.allowedUserIds.includes(userId)) return true;
-
-  return false;
-}
-
-/**
- * Helper function to check if a user can edit a world
- */
-async function canEditWorld(userId: string | undefined, worldId: string): Promise<boolean> {
-  if (!userId) return false;
-
-  const world = await storage.getWorld(worldId);
-  if (!world) return false;
-
-  // Only the owner can edit
-  return world.ownerId === userId;
-}
+import { canAccessWorld, canEditWorld } from "../middleware/permissions";
 
 export function registerPlaythroughRoutes(app: Express) {
 
