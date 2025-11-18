@@ -29,10 +29,12 @@ import { CharacterController } from "@/components/3D/src/CharacterController";
 import { DialogueActions } from "@/components/rpg/actions/DialogueActions";
 import { Action, ActionContext, ActionResult } from "@/components/rpg/types/actions";
 import { ActionManager } from "@/components/rpg/actions/ActionManager";
+import { TextureManager } from "@/components/3DGame/TextureManager";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import type { VisualAsset } from "@shared/schema";
 
 interface BabylonWorldProps {
   worldId: string;
@@ -236,6 +238,7 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
   const sceneRef = useRef<Scene | null>(null);
   const cameraRef = useRef<ArcRotateCamera | null>(null);
   const actionManagerRef = useRef<ActionManager | null>(null);
+  const textureManagerRef = useRef<TextureManager | null>(null);
   const playerControllerRef = useRef<CharacterController | null>(null);
   const playerMeshRef = useRef<Mesh | null>(null);
   const npcMeshesRef = useRef<Map<string, NPCInstance>>(new Map());
@@ -262,6 +265,10 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
   const [actionInProgress, setActionInProgress] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
+  const [availableTextures, setAvailableTextures] = useState<VisualAsset[]>([]);
+  const [selectedGroundTexture, setSelectedGroundTexture] = useState<string | null>(null);
+  const [showTexturePanel, setShowTexturePanel] = useState<boolean>(false);
+
   const worldTheme = useMemo(() => getWorldVisualTheme(worldType), [worldType]);
 
   const initializeScene = useCallback(() => {
@@ -280,6 +287,10 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
     try {
       const camera = setupScene(scene, canvas, worldTheme);
       cameraRef.current = camera;
+
+      // Initialize TextureManager
+      const textureManager = new TextureManager(scene);
+      textureManagerRef.current = textureManager;
 
       engine.runRenderLoop(() => {
         if (scene.activeCamera) {
@@ -306,6 +317,8 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
     initializeScene();
 
     return () => {
+      textureManagerRef.current?.dispose();
+      textureManagerRef.current = null;
       sceneRef.current?.dispose();
       engineRef.current?.dispose();
       sceneRef.current = null;
@@ -332,6 +345,39 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
     };
   }, []);
+
+  // Load available textures when scene is ready
+  useEffect(() => {
+    if (sceneStatus !== "ready" || !textureManagerRef.current) return;
+
+    let cancelled = false;
+
+    async function loadTextures() {
+      const textureManager = textureManagerRef.current;
+      if (!textureManager) return;
+
+      try {
+        const textures = await textureManager.fetchWorldTextures(worldId);
+        if (cancelled) return;
+        setAvailableTextures(textures);
+
+        // Auto-select first ground texture if available
+        const groundTexture = textures.find(t => t.assetType === 'texture_ground');
+        if (groundTexture) {
+          setSelectedGroundTexture(groundTexture.id);
+        }
+      } catch (error) {
+        if (cancelled) return;
+        console.error("Failed to load textures", error);
+      }
+    }
+
+    loadTextures();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sceneStatus, worldId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -754,6 +800,33 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
     }
   };
 
+  const handleApplyGroundTexture = useCallback(
+    (assetId: string) => {
+      const textureManager = textureManagerRef.current;
+      if (!textureManager) return;
+
+      const asset = textureManager.getAsset(assetId);
+      if (!asset) {
+        console.warn("Asset not found:", assetId);
+        return;
+      }
+
+      textureManager.applyGroundTexture(asset, {
+        uScale: 8,
+        vScale: 8,
+        useBump: true
+      });
+
+      setSelectedGroundTexture(assetId);
+
+      toast({
+        title: "Texture applied",
+        description: `Applied ${asset.name} to ground`
+      });
+    },
+    [toast]
+  );
+
   const handlePerformAction = useCallback(
     async (actionId: string) => {
       const manager = actionManagerRef.current;
@@ -814,6 +887,14 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
           </CardDescription>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowTexturePanel(!showTexturePanel)}
+            disabled={!sceneRef.current || availableTextures.length === 0}
+          >
+            {showTexturePanel ? "Hide Textures" : "Textures"}
+            {availableTextures.length > 0 && <Badge className="ml-2" variant="secondary">{availableTextures.length}</Badge>}
+          </Button>
           <Button variant="outline" onClick={handleToggleFullscreen} disabled={!sceneRef.current}>
             {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
           </Button>
@@ -868,6 +949,15 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
           sampleSocialActions={sampleSocialActions}
           errorMessage={worldError}
         />
+
+        {showTexturePanel && (
+          <TexturePanel
+            textures={availableTextures}
+            selectedGroundTexture={selectedGroundTexture}
+            onApplyGroundTexture={handleApplyGroundTexture}
+            worldId={worldId}
+          />
+        )}
       </CardContent>
     </Card>
   );
@@ -1808,6 +1898,116 @@ function Stat({ label, value }: { label: string; value: number | string }) {
     <div className="rounded-md bg-muted/30 p-3">
       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="text-lg font-semibold">{value}</p>
+    </div>
+  );
+}
+
+interface TexturePanelProps {
+  textures: VisualAsset[];
+  selectedGroundTexture: string | null;
+  onApplyGroundTexture: (assetId: string) => void;
+  worldId: string;
+}
+
+function TexturePanel({ textures, selectedGroundTexture, onApplyGroundTexture, worldId }: TexturePanelProps) {
+  const groundTextures = textures.filter(t => t.assetType === 'texture_ground');
+  const wallTextures = textures.filter(t => t.assetType === 'texture_wall');
+  const materialTextures = textures.filter(t => t.assetType === 'texture_material');
+
+  return (
+    <div className="p-4 border rounded-md bg-background space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="font-semibold">Texture Manager</p>
+          <p className="text-xs text-muted-foreground">
+            Apply AI-generated textures to the world
+          </p>
+        </div>
+        <Badge variant="outline">{textures.length} total</Badge>
+      </div>
+
+      {/* Ground Textures */}
+      {groundTextures.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Ground Textures ({groundTextures.length})</p>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+            {groundTextures.map(texture => (
+              <button
+                key={texture.id}
+                onClick={() => onApplyGroundTexture(texture.id)}
+                className={`relative aspect-square rounded-md border-2 overflow-hidden transition-all hover:scale-105 ${
+                  selectedGroundTexture === texture.id
+                    ? "border-primary ring-2 ring-primary"
+                    : "border-border hover:border-primary/50"
+                }`}
+                title={texture.name}
+              >
+                <img
+                  src={`/${texture.filePath}`}
+                  alt={texture.name}
+                  className="w-full h-full object-cover"
+                />
+                {selectedGroundTexture === texture.id && (
+                  <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                    <Badge className="text-[10px]">Active</Badge>
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Wall Textures */}
+      {wallTextures.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Wall Textures ({wallTextures.length})</p>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+            {wallTextures.map(texture => (
+              <div
+                key={texture.id}
+                className="relative aspect-square rounded-md border overflow-hidden"
+                title={texture.name}
+              >
+                <img
+                  src={`/${texture.filePath}`}
+                  alt={texture.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Material Textures */}
+      {materialTextures.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Material Textures ({materialTextures.length})</p>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+            {materialTextures.map(texture => (
+              <div
+                key={texture.id}
+                className="relative aspect-square rounded-md border overflow-hidden"
+                title={texture.name}
+              >
+                <img
+                  src={`/${texture.filePath}`}
+                  alt={texture.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {textures.length === 0 && (
+        <div className="text-center py-8 text-muted-foreground">
+          <p className="text-sm">No textures available yet.</p>
+          <p className="text-xs mt-1">Generate textures from the world management panel.</p>
+        </div>
+      )}
     </div>
   );
 }
