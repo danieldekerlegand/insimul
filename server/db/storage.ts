@@ -187,6 +187,29 @@ export interface IStorage {
   createAchievement(achievement: import("@shared/schema").InsertAchievement): Promise<import("@shared/schema").Achievement>;
   updateAchievement(id: string, achievement: Partial<import("@shared/schema").InsertAchievement>): Promise<import("@shared/schema").Achievement | undefined>;
   deleteAchievement(id: string): Promise<boolean>;
+
+  // Playthroughs
+  getPlaythrough(id: string): Promise<import("@shared/schema").Playthrough | undefined>;
+  getPlaythroughsByUser(userId: string): Promise<import("@shared/schema").Playthrough[]>;
+  getPlaythroughsByWorld(worldId: string): Promise<import("@shared/schema").Playthrough[]>;
+  getUserPlaythroughForWorld(userId: string, worldId: string): Promise<import("@shared/schema").Playthrough | undefined>;
+  createPlaythrough(playthrough: import("@shared/schema").InsertPlaythrough): Promise<import("@shared/schema").Playthrough>;
+  updatePlaythrough(id: string, playthrough: Partial<import("@shared/schema").InsertPlaythrough>): Promise<import("@shared/schema").Playthrough | undefined>;
+  deletePlaythrough(id: string): Promise<boolean>;
+
+  // Playthrough Deltas
+  getPlaythroughDelta(id: string): Promise<import("@shared/schema").PlaythroughDelta | undefined>;
+  getDeltasByPlaythrough(playthroughId: string): Promise<import("@shared/schema").PlaythroughDelta[]>;
+  getDeltasByEntityType(playthroughId: string, entityType: string): Promise<import("@shared/schema").PlaythroughDelta[]>;
+  createPlaythroughDelta(delta: import("@shared/schema").InsertPlaythroughDelta): Promise<import("@shared/schema").PlaythroughDelta>;
+  deletePlaythroughDelta(id: string): Promise<boolean>;
+
+  // Play Traces
+  getPlayTrace(id: string): Promise<import("@shared/schema").PlayTrace | undefined>;
+  getTracesByPlaythrough(playthroughId: string): Promise<import("@shared/schema").PlayTrace[]>;
+  getTracesByUser(userId: string): Promise<import("@shared/schema").PlayTrace[]>;
+  createPlayTrace(trace: import("@shared/schema").InsertPlayTrace): Promise<import("@shared/schema").PlayTrace>;
+  deletePlayTrace(id: string): Promise<boolean>;
 }
 
 // Export MongoStorage as the default storage implementation

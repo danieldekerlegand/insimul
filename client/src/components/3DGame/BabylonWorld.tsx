@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface BabylonWorldProps {
   worldId: string;
@@ -231,6 +232,7 @@ const INITIAL_ENERGY = 100;
 
 export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonWorldProps) {
   const { toast } = useToast();
+  const { token } = useAuth();
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<Engine | null>(null);
@@ -262,6 +264,7 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
   const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(null);
   const [actionInProgress, setActionInProgress] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [playthroughId, setPlaythroughId] = useState<string | null>(null);
 
   const worldTheme = useMemo(() => getWorldVisualTheme(worldType), [worldType]);
 
@@ -391,6 +394,37 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
       actionManagerRef.current = null;
     };
   }, [worldId]);
+
+  // Start or resume playthrough
+  useEffect(() => {
+    if (!token || !worldId) return;
+
+    async function startPlaythrough() {
+      try {
+        const response = await fetch(`/api/worlds/${worldId}/playthroughs/start`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: `${worldName} - Playthrough`,
+          }),
+        });
+
+        if (response.ok) {
+          const playthrough = await response.json();
+          setPlaythroughId(playthrough.id);
+        } else {
+          console.error('Failed to start playthrough:', await response.text());
+        }
+      } catch (error) {
+        console.error('Error starting playthrough:', error);
+      }
+    }
+
+    startPlaythrough();
+  }, [token, worldId, worldName]);
 
   useEffect(() => {
     if (sceneStatus !== "ready") {
@@ -786,6 +820,34 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
           setPlayerEnergy((energy) => Math.max(0, energy - result.energyUsed));
         }
 
+        // Record play trace if we have a playthrough
+        if (playthroughId && token) {
+          try {
+            await fetch(`/api/playthroughs/${playthroughId}/traces`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                actionType: 'action_performed',
+                actionId,
+                targetCharacterId: selectedNPCId,
+                metadata: {
+                  actionName,
+                  targetName,
+                  success: result.success,
+                  energyUsed: result.energyUsed,
+                  narrativeText: result.narrativeText,
+                },
+              }),
+            });
+          } catch (traceError) {
+            // Don't fail the action if trace recording fails
+            console.error('Failed to record play trace:', traceError);
+          }
+        }
+
         toast({
           title: result.success ? `${actionName} succeeded` : `${actionName} failed`,
           description: result.narrativeText || result.message,
@@ -802,7 +864,7 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
         setActionInProgress(false);
       }
     },
-    [playerEnergy, selectedNPCId, selectedNPC, toast, worldData]
+    [playerEnergy, selectedNPCId, selectedNPC, toast, worldData, playthroughId, token]
   );
 
   return (

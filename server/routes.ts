@@ -130,6 +130,7 @@ import {
 } from "./extensions/tott/business-system.js";
 import { WorldGenerator } from "./generators/world-generator.js";
 import { registerAuthRoutes } from "./routes/auth-routes.js";
+import { registerPlaythroughRoutes } from "./routes/playthrough-routes.js";
 
 // Helper function to generate narrative text from actual characters
 function generateNarrative(characters: any[]): string {
@@ -222,6 +223,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register authentication routes
   registerAuthRoutes(app);
+
+  // Register playthrough routes
+  registerPlaythroughRoutes(app);
 
   // Worlds (now the primary containers, replacing projects)
   app.get("/api/worlds", async (req, res) => {
