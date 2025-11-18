@@ -6,7 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Mic, MicOff, Send, Volume2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-interface Character {
+export interface Character {
   id: string;
   firstName: string;
   lastName: string;
