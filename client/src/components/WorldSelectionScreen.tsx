@@ -54,6 +54,15 @@ export function WorldSelectionScreen({ onWorldSelected }: WorldSelectionScreenPr
     try {
       setIsCreatingWorld(true);
 
+      // Enrich world config with high-level metadata so other views (e.g. 3D world) can style by theme
+      const enrichedConfig = {
+        ...(data.config || {}),
+        ...(worldType ? { worldType } : {}),
+        ...(gameType ? { gameType } : {}),
+        ...(customLabel ? { worldTypeLabel: customLabel } : {})
+      };
+      data.config = enrichedConfig;
+
       // First, create the world
       const response = await apiRequest('POST', '/api/worlds', data);
       const newWorld = await response.json();
