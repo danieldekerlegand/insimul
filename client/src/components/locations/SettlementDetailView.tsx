@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MapPinned, MapPin, Building2, Users, Home, Trash2, ChevronRight, Plus } from 'lucide-react';
+import { MapPinned, MapPin, Building2, Users, Home, Trash2, ChevronRight, Plus, Sparkles, Image as ImageIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import type { Character } from '@shared/schema';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { Character, VisualAsset } from '@shared/schema';
+import { VisualAssetGeneratorDialog } from '../VisualAssetGeneratorDialog';
+import { AssetBrowserDialog } from '../AssetBrowserDialog';
 
 interface SettlementDetailViewProps {
   settlement: any;
@@ -37,6 +41,21 @@ export function SettlementDetailView({
   onAddBusiness,
   onAddResidence
 }: SettlementDetailViewProps) {
+  const [showAssetGenerator, setShowAssetGenerator] = useState(false);
+  const [showAssetBrowser, setShowAssetBrowser] = useState(false);
+  const [assetType, setAssetType] = useState<'map_terrain' | 'map_political' | 'map_region'>('map_terrain');
+  const queryClient = useQueryClient();
+
+  // Fetch settlement visual assets
+  const { data: settlementAssets = [] } = useQuery<VisualAsset[]>({
+    queryKey: ['/api/assets', 'settlement', settlement.id],
+  });
+
+  const handleGenerateMap = (mapType: 'map_terrain' | 'map_political' | 'map_region') => {
+    setAssetType(mapType);
+    setShowAssetGenerator(true);
+  };
+
   return (
     <div className="space-y-6">
       {/* Settlement Info Card */}
@@ -78,6 +97,82 @@ export function SettlementDetailView({
           </div>
         </CardContent>
       </Card>
+
+      {/* Visual Assets Section */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold flex items-center gap-2">
+            <ImageIcon className="w-5 h-5 text-primary" />
+            Visual Assets ({settlementAssets.length})
+          </h3>
+          <div className="flex gap-2">
+            <Button onClick={() => setShowAssetBrowser(true)} variant="outline" size="sm">
+              <ImageIcon className="w-4 h-4 mr-2" />
+              Browse All
+            </Button>
+            <Button onClick={() => handleGenerateMap('map_terrain')} size="sm">
+              <Sparkles className="w-4 h-4 mr-2" />
+              Generate Map
+            </Button>
+          </div>
+        </div>
+
+        {settlementAssets.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <ImageIcon className="h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground mb-2">No visual assets yet</p>
+              <p className="text-sm text-muted-foreground mb-4">
+                Generate maps or landscape art for this settlement
+              </p>
+              <div className="flex gap-2">
+                <Button onClick={() => handleGenerateMap('map_terrain')} variant="outline" size="sm">
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Terrain Map
+                </Button>
+                <Button onClick={() => handleGenerateMap('map_political')} variant="outline" size="sm">
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Political Map
+                </Button>
+                <Button onClick={() => handleGenerateMap('map_region')} variant="outline" size="sm">
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Regional Map
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {settlementAssets.map(asset => (
+              <Card key={asset.id} className="overflow-hidden">
+                <CardContent className="p-0">
+                  <div className="relative aspect-video">
+                    <img
+                      src={`/${asset.filePath}`}
+                      alt={asset.name}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute top-2 right-2">
+                      <Badge variant="secondary">
+                        {asset.assetType.replace(/_/g, ' ')}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="p-3">
+                    <p className="text-sm font-medium truncate">{asset.name}</p>
+                    {asset.generationProvider && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                        <Sparkles className="h-3 w-3" />
+                        {asset.generationProvider}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Characters Section */}
       <div>
@@ -295,6 +390,27 @@ export function SettlementDetailView({
           )}
         </div>
       </div>
+
+      {/* Asset Generator Dialog */}
+      <VisualAssetGeneratorDialog
+        open={showAssetGenerator}
+        onOpenChange={setShowAssetGenerator}
+        entityType="settlement"
+        entityId={settlement.id}
+        entityName={settlement.name}
+        assetType={assetType}
+        onAssetGenerated={() => {
+          queryClient.invalidateQueries({ queryKey: ['/api/assets', 'settlement', settlement.id] });
+        }}
+      />
+
+      {/* Asset Browser Dialog */}
+      <AssetBrowserDialog
+        open={showAssetBrowser}
+        onOpenChange={setShowAssetBrowser}
+        entityType="settlement"
+        entityId={settlement.id}
+      />
     </div>
   );
 }
