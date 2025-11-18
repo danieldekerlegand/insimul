@@ -737,6 +737,67 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
     };
   }, []);
 
+  // Add proximity-based interaction with SPACE key
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code === 'Space' && !event.repeat) {
+        event.preventDefault();
+
+        // Find nearest NPC to player
+        const playerMesh = playerMeshRef.current;
+        if (!playerMesh) return;
+
+        const playerPos = playerMesh.position;
+        let nearestNPC: { id: string; distance: number } | null = null;
+        const maxInteractionDistance = 8; // units
+
+        npcMeshesRef.current.forEach((instance, npcId) => {
+          if (!instance.mesh) return;
+          const npcPos = instance.mesh.position;
+          const dx = playerPos.x - npcPos.x;
+          const dz = playerPos.z - npcPos.z;
+          const distance = Math.sqrt(dx * dx + dz * dz);
+
+          if (distance <= maxInteractionDistance) {
+            if (!nearestNPC || distance < nearestNPC.distance) {
+              nearestNPC = { id: npcId, distance };
+            }
+          }
+        });
+
+        if (nearestNPC) {
+          setSelectedNPCId(nearestNPC.id);
+
+          // Show a toast notification
+          const npc = npcInfos.find(n => n.id === nearestNPC.id);
+          if (npc) {
+            toast({
+              title: `Interacting with ${npc.name}`,
+              description: npc.occupation || "Character",
+              duration: 2000
+            });
+          }
+        } else {
+          toast({
+            title: "No one nearby",
+            description: "Move closer to an NPC to interact",
+            variant: "destructive",
+            duration: 2000
+          });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [npcInfos, toast]);
+
   useEffect(() => {
     npcMeshesRef.current.forEach((instance, npcId) => {
       if (!instance || !instance.mesh) return;
