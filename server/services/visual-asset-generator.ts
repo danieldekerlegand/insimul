@@ -563,6 +563,113 @@ export class VisualAssetGeneratorService {
   }
 
   /**
+   * Batch generate building exteriors for all businesses in a world
+   */
+  async batchGenerateBuildingExteriors(
+    worldId: string,
+    provider: GenerationProvider,
+    params?: Partial<ImageGenerationParams>
+  ): Promise<string[]> {
+    const businesses = await storage.getBusinessesByWorld(worldId);
+
+    const job = await storage.createGenerationJob({
+      worldId,
+      jobType: 'batch_generation',
+      assetType: 'building_exterior',
+      prompt: `Batch generate exteriors for ${businesses.length} buildings`,
+      generationProvider: provider,
+      generationParams: params || {},
+      batchSize: businesses.length,
+      status: 'processing',
+    });
+
+    const assetIds: string[] = [];
+    let completed = 0;
+
+    for (const business of businesses) {
+      try {
+        const assetId = await this.generateBuildingExterior(business.id, provider, params);
+        assetIds.push(assetId);
+        completed++;
+
+        // Update progress
+        await storage.updateGenerationJob(job.id, {
+          progress: completed / businesses.length,
+          completedCount: completed,
+        });
+      } catch (error) {
+        console.error(`Failed to generate exterior for business ${business.id}:`, error);
+      }
+    }
+
+    await storage.updateGenerationJob(job.id, {
+      status: 'completed',
+      progress: 1.0,
+      completedCount: completed,
+      generatedAssetIds: assetIds,
+      completedAt: new Date(),
+    });
+
+    return assetIds;
+  }
+
+  /**
+   * Batch generate all map types for a settlement
+   */
+  async batchGenerateSettlementMaps(
+    settlementId: string,
+    provider: GenerationProvider,
+    params?: Partial<ImageGenerationParams>
+  ): Promise<string[]> {
+    const settlement = await storage.getSettlement(settlementId);
+    if (!settlement) {
+      throw new Error(`Settlement ${settlementId} not found`);
+    }
+
+    const mapTypes: ('terrain' | 'political' | 'region')[] = ['terrain', 'political', 'region'];
+
+    const job = await storage.createGenerationJob({
+      worldId: settlement.worldId,
+      jobType: 'batch_generation',
+      assetType: 'map_terrain',
+      prompt: `Batch generate ${mapTypes.length} maps for settlement ${settlement.name}`,
+      generationProvider: provider,
+      generationParams: params || {},
+      batchSize: mapTypes.length,
+      status: 'processing',
+    });
+
+    const assetIds: string[] = [];
+    let completed = 0;
+
+    for (const mapType of mapTypes) {
+      try {
+        const assetId = await this.generateSettlementMap(settlementId, mapType, provider, params);
+        assetIds.push(assetId);
+        completed++;
+
+        // Update progress
+        await storage.updateGenerationJob(job.id, {
+          progress: completed / mapTypes.length,
+          completedCount: completed,
+        });
+      } catch (error) {
+        console.error(`Failed to generate ${mapType} map for settlement ${settlementId}:`, error);
+      }
+    }
+
+    await storage.updateGenerationJob(job.id, {
+      status: 'completed',
+      progress: 1.0,
+      completedCount: completed,
+      generatedAssetIds: assetIds,
+      completedAt: new Date(),
+    });
+
+    return assetIds;
+  }
+
+  /**
    * Get all visual assets for an entity
    */
   async getEntityAssets(
