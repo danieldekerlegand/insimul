@@ -164,6 +164,84 @@ export function generateTexturePrompt(
 }
 
 /**
+ * Generate a detailed prompt for a character sprite sheet
+ */
+export function generateSpritePrompt(
+  character: Character,
+  animationType: 'idle' | 'walk' | 'run' | 'jump' | 'attack',
+  viewAngle: 'side' | 'front' | 'back' | 'top-down' | 'isometric',
+  frameCount: number,
+  worldContext?: string
+): string {
+  const parts: string[] = [];
+
+  // Animation description
+  const animationDescriptions: Record<string, string> = {
+    idle: 'standing idle, subtle breathing motion',
+    walk: 'walking animation, natural gait cycle',
+    run: 'running animation, dynamic movement',
+    jump: 'jumping sequence, from ground to apex to landing',
+    attack: 'attack animation, combat motion',
+  };
+
+  // View angle description
+  const viewDescriptions: Record<string, string> = {
+    side: 'side view, profile perspective',
+    front: 'front-facing view',
+    back: 'back view',
+    'top-down': 'top-down view, overhead perspective',
+    isometric: 'isometric 3/4 view',
+  };
+
+  // Character description
+  parts.push(`${character.gender} character sprite`);
+
+  // Add personality-based appearance
+  const personality = character.personality as any;
+  if (personality) {
+    if (personality.extroversion > 0.5) {
+      parts.push('confident posture');
+    } else if (personality.extroversion < -0.5) {
+      parts.push('reserved stance');
+    }
+  }
+
+  // Add occupation-based details
+  if (character.occupation) {
+    parts.push(`${character.occupation} attire`);
+  }
+
+  // Physical traits
+  const physicalTraits = character.physicalTraits as any;
+  if (physicalTraits) {
+    if (physicalTraits.hairColor) parts.push(`${physicalTraits.hairColor} hair`);
+  }
+
+  // Animation and view
+  parts.push(animationDescriptions[animationType]);
+  parts.push(viewDescriptions[viewAngle]);
+
+  // Sprite sheet specifics
+  parts.push(`sprite sheet with ${frameCount} frames`);
+  parts.push('evenly spaced frames in a horizontal row');
+  parts.push('consistent character size across all frames');
+  parts.push('transparent background');
+  parts.push('pixel art style OR clean 2D game art style');
+
+  // World context
+  if (worldContext) {
+    parts.push(`${worldContext} setting`);
+  }
+
+  // Technical specs
+  parts.push('game sprite, character animation, sprite sheet format');
+  parts.push('clear silhouette, readable at small size');
+  parts.push('professional game asset quality');
+
+  return parts.join(', ');
+}
+
+/**
  * Generate a detailed prompt for an artifact image
  */
 export function generateArtifactPrompt(
@@ -704,6 +782,190 @@ export class VisualAssetGeneratorService {
     });
 
     return asset.id;
+  }
+
+  /**
+   * Generate a character sprite sheet
+   */
+  async generateCharacterSprite(
+    characterId: string,
+    animationType: 'idle' | 'walk' | 'run' | 'jump' | 'attack',
+    viewAngle: 'side' | 'front' | 'back' | 'top-down' | 'isometric',
+    frameCount: number,
+    provider: GenerationProvider,
+    params?: Partial<ImageGenerationParams>
+  ): Promise<string> {
+    // Get character data
+    const character = await storage.getCharacter(characterId);
+    if (!character) {
+      throw new Error(`Character ${characterId} not found`);
+    }
+
+    // Get world context
+    let worldContext = 'fantasy';
+    if (character.worldId) {
+      const world = await storage.getWorld(character.worldId);
+      if (world?.description) {
+        worldContext = world.description;
+      }
+    }
+
+    // Generate prompt
+    const prompt = generateSpritePrompt(character, animationType, viewAngle, frameCount, worldContext);
+
+    // Create generation job
+    const job = await storage.createGenerationJob({
+      worldId: character.worldId,
+      jobType: 'single_asset',
+      assetType: 'character_sprite',
+      targetEntityId: characterId,
+      targetEntityType: 'character',
+      prompt,
+      generationProvider: provider,
+      generationParams: params || {},
+      batchSize: 1,
+      status: 'processing',
+    });
+
+    // Calculate sprite sheet dimensions
+    // Typical sprite frame size: 64x64 or 128x128
+    const frameWidth = params?.width || 128;
+    const frameHeight = params?.height || 128;
+    const sheetWidth = frameWidth * frameCount;
+    const sheetHeight = frameHeight;
+
+    // Generate image
+    const result = await imageGenerator.generateImage(provider, {
+      prompt,
+      width: sheetWidth,
+      height: sheetHeight,
+      quality: 'high',
+      ...params,
+    });
+
+    if (!result.success || !result.images || result.images.length === 0) {
+      await storage.updateGenerationJob(job.id, {
+        status: 'failed',
+        errorMessage: result.error || 'Unknown error',
+        completedAt: new Date(),
+      });
+      throw new Error(result.error || 'Image generation failed');
+    }
+
+    // Save image to disk
+    const image = result.images[0];
+    const fileName = `sprite-${characterId}-${animationType}-${viewAngle}-${nanoid(10)}.png`;
+    const relativePath = await imageGenerator.saveImage(image, fileName);
+
+    // Create visual asset record
+    const asset = await storage.createVisualAsset({
+      worldId: character.worldId,
+      name: `${character.firstName} ${character.lastName} ${animationType} Sprite`,
+      description: `${animationType} animation sprite sheet (${viewAngle} view) with ${frameCount} frames`,
+      assetType: 'character_sprite',
+      characterId: character.id,
+      filePath: relativePath,
+      fileName,
+      fileSize: image.data.length,
+      mimeType: image.mimeType,
+      width: image.width,
+      height: image.height,
+      generationProvider: provider,
+      generationPrompt: prompt,
+      generationParams: params || {},
+      purpose: 'procedural',
+      usageContext: '2d_game',
+      tags: ['sprite', 'animation', animationType, viewAngle, character.occupation || 'character'].filter(Boolean) as string[],
+      status: 'completed',
+      metadata: {
+        animationType,
+        viewAngle,
+        frameCount,
+        frameWidth,
+        frameHeight,
+      },
+    });
+
+    // Update job as completed
+    await storage.updateGenerationJob(job.id, {
+      status: 'completed',
+      progress: 1.0,
+      completedCount: 1,
+      generatedAssetIds: [asset.id],
+      completedAt: new Date(),
+    });
+
+    return asset.id;
+  }
+
+  /**
+   * Batch generate sprite sheets for a character (all animations)
+   */
+  async batchGenerateCharacterSprites(
+    characterId: string,
+    viewAngle: 'side' | 'front' | 'back' | 'top-down' | 'isometric',
+    provider: GenerationProvider,
+    params?: Partial<ImageGenerationParams>
+  ): Promise<string[]> {
+    const character = await storage.getCharacter(characterId);
+    if (!character) {
+      throw new Error(`Character ${characterId} not found`);
+    }
+
+    const animations: Array<{ type: 'idle' | 'walk' | 'run' | 'jump' | 'attack'; frames: number }> = [
+      { type: 'idle', frames: 4 },
+      { type: 'walk', frames: 8 },
+      { type: 'run', frames: 8 },
+      { type: 'jump', frames: 6 },
+      { type: 'attack', frames: 6 },
+    ];
+
+    const job = await storage.createGenerationJob({
+      worldId: character.worldId,
+      jobType: 'batch_generation',
+      assetType: 'character_sprite',
+      prompt: `Batch generate ${animations.length} sprite animations for ${character.firstName} ${character.lastName}`,
+      generationProvider: provider,
+      generationParams: params || {},
+      batchSize: animations.length,
+      status: 'processing',
+    });
+
+    const assetIds: string[] = [];
+    let completed = 0;
+
+    for (const anim of animations) {
+      try {
+        const assetId = await this.generateCharacterSprite(
+          characterId,
+          anim.type,
+          viewAngle,
+          anim.frames,
+          provider,
+          params
+        );
+        assetIds.push(assetId);
+        completed++;
+
+        // Update progress
+        await storage.updateGenerationJob(job.id, {
+          progress: completed / animations.length,
+          completedCount: completed,
+        });
+      } catch (error) {
+        console.error(`Failed to generate ${anim.type} sprite for character ${characterId}:`, error);
+      }
+    }
+
+    await storage.updateGenerationJob(job.id, {
+      status: 'completed',
+      progress: 1.0,
+      completedCount: completed,
+      generatedAssetIds: assetIds,
+      completedAt: new Date(),
+    });
+
+    return assetIds;
   }
 
   /**
