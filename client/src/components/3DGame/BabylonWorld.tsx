@@ -267,6 +267,8 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
 
   const [availableTextures, setAvailableTextures] = useState<VisualAsset[]>([]);
   const [selectedGroundTexture, setSelectedGroundTexture] = useState<string | null>(null);
+  const [selectedWallTexture, setSelectedWallTexture] = useState<string | null>(null);
+  const [selectedRoadTexture, setSelectedRoadTexture] = useState<string | null>(null);
   const [showTexturePanel, setShowTexturePanel] = useState<boolean>(false);
 
   const worldTheme = useMemo(() => getWorldVisualTheme(worldType), [worldType]);
@@ -827,6 +829,58 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
     [toast]
   );
 
+  const handleApplyWallTexture = useCallback(
+    (assetId: string) => {
+      const textureManager = textureManagerRef.current;
+      if (!textureManager) return;
+
+      const asset = textureManager.getAsset(assetId);
+      if (!asset) {
+        console.warn("Asset not found:", assetId);
+        return;
+      }
+
+      textureManager.applySettlementTextures(asset, {
+        uScale: 2,
+        vScale: 2
+      });
+
+      setSelectedWallTexture(assetId);
+
+      toast({
+        title: "Texture applied",
+        description: `Applied ${asset.name} to settlements`
+      });
+    },
+    [toast]
+  );
+
+  const handleApplyRoadTexture = useCallback(
+    (assetId: string) => {
+      const textureManager = textureManagerRef.current;
+      if (!textureManager) return;
+
+      const asset = textureManager.getAsset(assetId);
+      if (!asset) {
+        console.warn("Asset not found:", assetId);
+        return;
+      }
+
+      textureManager.applyRoadTexture(asset, {
+        uScale: 4,
+        vScale: 4
+      });
+
+      setSelectedRoadTexture(assetId);
+
+      toast({
+        title: "Texture applied",
+        description: `Applied ${asset.name} to roads`
+      });
+    },
+    [toast]
+  );
+
   const handlePerformAction = useCallback(
     async (actionId: string) => {
       const manager = actionManagerRef.current;
@@ -954,7 +1008,11 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
           <TexturePanel
             textures={availableTextures}
             selectedGroundTexture={selectedGroundTexture}
+            selectedWallTexture={selectedWallTexture}
+            selectedRoadTexture={selectedRoadTexture}
             onApplyGroundTexture={handleApplyGroundTexture}
+            onApplyWallTexture={handleApplyWallTexture}
+            onApplyRoadTexture={handleApplyRoadTexture}
             worldId={worldId}
           />
         )}
@@ -1905,11 +1963,24 @@ function Stat({ label, value }: { label: string; value: number | string }) {
 interface TexturePanelProps {
   textures: VisualAsset[];
   selectedGroundTexture: string | null;
+  selectedWallTexture: string | null;
+  selectedRoadTexture: string | null;
   onApplyGroundTexture: (assetId: string) => void;
+  onApplyWallTexture: (assetId: string) => void;
+  onApplyRoadTexture: (assetId: string) => void;
   worldId: string;
 }
 
-function TexturePanel({ textures, selectedGroundTexture, onApplyGroundTexture, worldId }: TexturePanelProps) {
+function TexturePanel({
+  textures,
+  selectedGroundTexture,
+  selectedWallTexture,
+  selectedRoadTexture,
+  onApplyGroundTexture,
+  onApplyWallTexture,
+  onApplyRoadTexture,
+  worldId
+}: TexturePanelProps) {
   const groundTextures = textures.filter(t => t.assetType === 'texture_ground');
   const wallTextures = textures.filter(t => t.assetType === 'texture_wall');
   const materialTextures = textures.filter(t => t.assetType === 'texture_material');
@@ -1930,6 +2001,7 @@ function TexturePanel({ textures, selectedGroundTexture, onApplyGroundTexture, w
       {groundTextures.length > 0 && (
         <div className="space-y-2">
           <p className="text-sm font-medium">Ground Textures ({groundTextures.length})</p>
+          <p className="text-xs text-muted-foreground">Click to apply to terrain</p>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
             {groundTextures.map(texture => (
               <button
@@ -1958,15 +2030,21 @@ function TexturePanel({ textures, selectedGroundTexture, onApplyGroundTexture, w
         </div>
       )}
 
-      {/* Wall Textures */}
+      {/* Wall Textures - Apply to Settlements */}
       {wallTextures.length > 0 && (
         <div className="space-y-2">
-          <p className="text-sm font-medium">Wall Textures ({wallTextures.length})</p>
+          <p className="text-sm font-medium">Building Textures ({wallTextures.length})</p>
+          <p className="text-xs text-muted-foreground">Click to apply to all settlements and buildings</p>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
             {wallTextures.map(texture => (
-              <div
+              <button
                 key={texture.id}
-                className="relative aspect-square rounded-md border overflow-hidden"
+                onClick={() => onApplyWallTexture(texture.id)}
+                className={`relative aspect-square rounded-md border-2 overflow-hidden transition-all hover:scale-105 ${
+                  selectedWallTexture === texture.id
+                    ? "border-primary ring-2 ring-primary"
+                    : "border-border hover:border-primary/50"
+                }`}
                 title={texture.name}
               >
                 <img
@@ -1974,21 +2052,32 @@ function TexturePanel({ textures, selectedGroundTexture, onApplyGroundTexture, w
                   alt={texture.name}
                   className="w-full h-full object-cover"
                 />
-              </div>
+                {selectedWallTexture === texture.id && (
+                  <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                    <Badge className="text-[10px]">Active</Badge>
+                  </div>
+                )}
+              </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* Material Textures */}
+      {/* Road/Material Textures */}
       {materialTextures.length > 0 && (
         <div className="space-y-2">
-          <p className="text-sm font-medium">Material Textures ({materialTextures.length})</p>
+          <p className="text-sm font-medium">Road Textures ({materialTextures.length})</p>
+          <p className="text-xs text-muted-foreground">Click to apply to all roads connecting settlements</p>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
             {materialTextures.map(texture => (
-              <div
+              <button
                 key={texture.id}
-                className="relative aspect-square rounded-md border overflow-hidden"
+                onClick={() => onApplyRoadTexture(texture.id)}
+                className={`relative aspect-square rounded-md border-2 overflow-hidden transition-all hover:scale-105 ${
+                  selectedRoadTexture === texture.id
+                    ? "border-primary ring-2 ring-primary"
+                    : "border-border hover:border-primary/50"
+                }`}
                 title={texture.name}
               >
                 <img
@@ -1996,7 +2085,12 @@ function TexturePanel({ textures, selectedGroundTexture, onApplyGroundTexture, w
                   alt={texture.name}
                   className="w-full h-full object-cover"
                 />
-              </div>
+                {selectedRoadTexture === texture.id && (
+                  <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                    <Badge className="text-[10px]">Active</Badge>
+                  </div>
+                )}
+              </button>
             ))}
           </div>
         </div>
