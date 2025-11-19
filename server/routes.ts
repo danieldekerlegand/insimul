@@ -5992,6 +5992,42 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     }
   });
 
+  // Generate character portrait variants
+  app.post("/api/characters/:characterId/generate-portrait-variants", async (req, res) => {
+    try {
+      const { characterId } = req.params;
+      const { provider = 'flux', variantCount = 3, params } = req.body;
+
+      const assetIds = await visualAssetGenerator.generateCharacterPortraitVariants(
+        characterId,
+        provider,
+        variantCount,
+        params
+      );
+
+      const assets = await Promise.all(
+        assetIds.map(id => storage.getVisualAsset(id))
+      );
+
+      res.json({ assetIds, assets, count: assets.length });
+    } catch (error: any) {
+      console.error("Failed to generate character portrait variants:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete visual asset (for variant cleanup)
+  app.delete("/api/assets/:assetId", async (req, res) => {
+    try {
+      const { assetId } = req.params;
+      await storage.deleteVisualAsset(assetId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Failed to delete asset:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Generate building exterior
   app.post("/api/businesses/:businessId/generate-exterior", async (req, res) => {
     try {

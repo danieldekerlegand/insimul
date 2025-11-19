@@ -13,6 +13,7 @@ import { Sparkles, Image as ImageIcon, Loader2, CheckCircle2, XCircle, Settings 
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { VariantComparisonDialog } from './VariantComparisonDialog';
 import type { VisualAsset, GenerationJob, GenerationProvider } from '@shared/schema';
 
 interface VisualAssetGeneratorDialogProps {
@@ -36,6 +37,7 @@ export function VisualAssetGeneratorDialog({
 }: VisualAssetGeneratorDialogProps) {
   const [provider, setProvider] = useState<GenerationProvider>('flux');
   const [quality, setQuality] = useState<'standard' | 'high' | 'ultra'>('high');
+  const [variantCount, setVariantCount] = useState<number>(1);
   const [customPrompt, setCustomPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
   const [width, setWidth] = useState(1024);
@@ -49,6 +51,8 @@ export function VisualAssetGeneratorDialog({
   const [style, setStyle] = useState('');
 
   const [generatedAsset, setGeneratedAsset] = useState<VisualAsset | null>(null);
+  const [generatedVariants, setGeneratedVariants] = useState<VisualAsset[]>([]);
+  const [showVariantComparison, setShowVariantComparison] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
 
   const { toast } = useToast();
@@ -87,7 +91,13 @@ export function VisualAssetGeneratorDialog({
       const body: any = { provider, params };
 
       if (entityType === 'character') {
-        endpoint = `/api/characters/${entityId}/generate-portrait`;
+        // Use variants endpoint if generating multiple
+        if (variantCount > 1) {
+          endpoint = `/api/characters/${entityId}/generate-portrait-variants`;
+          body.variantCount = variantCount;
+        } else {
+          endpoint = `/api/characters/${entityId}/generate-portrait`;
+        }
       } else if (entityType === 'business') {
         endpoint = `/api/businesses/${entityId}/generate-exterior`;
       } else if (entityType === 'settlement') {
@@ -105,13 +115,25 @@ export function VisualAssetGeneratorDialog({
       const response = await apiRequest('POST', endpoint, body);
       return response.json();
     },
-    onSuccess: (asset: VisualAsset) => {
-      setGeneratedAsset(asset);
-      toast({
-        title: 'Asset generated successfully!',
-        description: `${asset.name} has been created.`
-      });
-      onAssetGenerated?.(asset);
+    onSuccess: (result: any) => {
+      // Check if we got multiple variants
+      if (result.assets && result.assets.length > 1) {
+        setGeneratedVariants(result.assets);
+        setShowVariantComparison(true);
+        toast({
+          title: 'Variants Generated!',
+          description: `Generated ${result.assets.length} variants. Select your favorite.`
+        });
+      } else {
+        // Single asset
+        const asset = result.assets ? result.assets[0] : result;
+        setGeneratedAsset(asset);
+        toast({
+          title: 'Asset generated successfully!',
+          description: `${asset.name} has been created.`
+        });
+        onAssetGenerated?.(asset);
+      }
     },
     onError: (error: any) => {
       toast({
@@ -243,6 +265,29 @@ export function VisualAssetGeneratorDialog({
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Variant Count (only for character portraits) */}
+            {entityType === 'character' && assetType === 'character_portrait' && (
+              <div className="space-y-2">
+                <Label>Number of Variants</Label>
+                <Select value={variantCount.toString()} onValueChange={(v) => setVariantCount(parseInt(v))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 (Single Image)</SelectItem>
+                    <SelectItem value="2">2 Variants</SelectItem>
+                    <SelectItem value="3">3 Variants</SelectItem>
+                    <SelectItem value="4">4 Variants</SelectItem>
+                  </SelectContent>
+                </Select>
+                {variantCount > 1 && (
+                  <p className="text-xs text-muted-foreground">
+                    Generate multiple options to choose from. Compare and select the best variant afterwards.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Map type for settlements */}
             {entityType === 'settlement' && (
@@ -438,12 +483,29 @@ export function VisualAssetGeneratorDialog({
             ) : (
               <>
                 <Sparkles className="mr-2 h-4 w-4" />
-                Generate
+                {variantCount > 1 ? `Generate ${variantCount} Variants` : 'Generate'}
               </>
             )}
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Variant Comparison Dialog */}
+      {showVariantComparison && (
+        <VariantComparisonDialog
+          open={showVariantComparison}
+          onOpenChange={setShowVariantComparison}
+          variants={generatedVariants}
+          title="Compare Portrait Variants"
+          description="Select your favorite portrait or keep multiple variants"
+          onComplete={() => {
+            // Refresh assets after variant selection
+            if (onAssetGenerated && generatedVariants.length > 0) {
+              onAssetGenerated(generatedVariants[0]);
+            }
+          }}
+        />
+      )}
     </Dialog>
   );
 }

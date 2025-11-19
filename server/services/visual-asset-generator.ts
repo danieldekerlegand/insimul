@@ -352,6 +352,19 @@ export class VisualAssetGeneratorService {
     provider: GenerationProvider,
     params?: Partial<ImageGenerationParams>
   ): Promise<string> {
+    const variants = await this.generateCharacterPortraitVariants(characterId, provider, 1, params);
+    return variants[0];
+  }
+
+  /**
+   * Generate multiple variants of a character portrait
+   */
+  async generateCharacterPortraitVariants(
+    characterId: string,
+    provider: GenerationProvider,
+    variantCount: number = 1,
+    params?: Partial<ImageGenerationParams>
+  ): Promise<string[]> {
     // Get character data
     const character = await storage.getCharacter(characterId);
     if (!character) {
@@ -373,73 +386,99 @@ export class VisualAssetGeneratorService {
     // Create generation job
     const job = await storage.createGenerationJob({
       worldId: character.worldId,
-      jobType: 'single_asset',
+      jobType: variantCount > 1 ? 'variant_generation' : 'single_asset',
       assetType: 'character_portrait',
       targetEntityId: characterId,
       targetEntityType: 'character',
       prompt,
       generationProvider: provider,
       generationParams: params || {},
-      batchSize: 1,
+      batchSize: variantCount,
       status: 'processing',
     });
 
-    // Generate image
-    const result = await imageGenerator.generateImage(provider, {
-      prompt,
-      width: 512,
-      height: 512,
-      quality: 'high',
-      ...params,
-    });
+    const assetIds: string[] = [];
 
-    if (!result.success || !result.images || result.images.length === 0) {
-      // Update job as failed
-      await storage.updateGenerationJob(job.id, {
-        status: 'failed',
-        errorMessage: result.error || 'Unknown error',
-        completedAt: new Date(),
-      });
-      throw new Error(result.error || 'Image generation failed');
+    // Generate variants
+    for (let i = 0; i < variantCount; i++) {
+      try {
+        // Generate image
+        const result = await imageGenerator.generateImage(provider, {
+          prompt,
+          width: 512,
+          height: 512,
+          quality: 'high',
+          ...params,
+        });
+
+        if (!result.success || !result.images || result.images.length === 0) {
+          console.error(`Failed to generate variant ${i + 1}:`, result.error);
+          continue;
+        }
+
+        // Save image to disk
+        const image = result.images[0];
+        const fileName = `character-${characterId}-variant${i + 1}-${nanoid(10)}.png`;
+        const relativePath = await imageGenerator.saveImage(image, fileName);
+
+        // Create visual asset record
+        const asset = await storage.createVisualAsset({
+          worldId: character.worldId,
+          name: `${character.firstName} ${character.lastName} Portrait${variantCount > 1 ? ` (Variant ${i + 1})` : ''}`,
+          description: `Portrait of ${character.firstName} ${character.lastName}`,
+          assetType: 'character_portrait',
+          characterId: character.id,
+          filePath: relativePath,
+          fileName,
+          fileSize: image.data.length,
+          mimeType: image.mimeType,
+          width: image.width,
+          height: image.height,
+          generationProvider: provider,
+          generationPrompt: prompt,
+          generationParams: params || {},
+          purpose: 'authorial',
+          usageContext: '2d_ui',
+          tags: ['character', 'portrait', character.occupation || 'civilian', variantCount > 1 ? 'variant' : ''].filter(Boolean) as string[],
+          status: 'completed',
+          metadata: {
+            variantIndex: i + 1,
+            variantCount,
+            jobId: job.id,
+          },
+        });
+
+        assetIds.push(asset.id);
+
+        // Update progress
+        await storage.updateGenerationJob(job.id, {
+          progress: (i + 1) / variantCount,
+          completedCount: i + 1,
+        });
+      } catch (error) {
+        console.error(`Failed to generate variant ${i + 1}:`, error);
+      }
     }
 
-    // Save image to disk
-    const image = result.images[0];
-    const fileName = `character-${characterId}-${nanoid(10)}.png`;
-    const relativePath = await imageGenerator.saveImage(image, fileName);
-
-    // Create visual asset record
-    const asset = await storage.createVisualAsset({
-      worldId: character.worldId,
-      name: `${character.firstName} ${character.lastName} Portrait`,
-      description: `Portrait of ${character.firstName} ${character.lastName}`,
-      assetType: 'character_portrait',
-      characterId: character.id,
-      filePath: relativePath,
-      fileName,
-      fileSize: image.data.length,
-      mimeType: image.mimeType,
-      width: image.width,
-      height: image.height,
-      generationProvider: provider,
-      generationPrompt: prompt,
-      generationParams: params || {},
-      purpose: 'authorial',
-      usageContext: '2d_ui',
-      tags: ['character', 'portrait', character.occupation || 'civilian'].filter(Boolean) as string[],
-      status: 'completed',
-    });
+    if (assetIds.length === 0) {
+      await storage.updateGenerationJob(job.id, {
+        status: 'failed',
+        errorMessage: 'All variant generations failed',
+        completedAt: new Date(),
+      });
+      throw new Error('Failed to generate any variants');
+    }
 
     // Update job as completed
     await storage.updateGenerationJob(job.id, {
       status: 'completed',
       progress: 1.0,
-      completedCount: 1,
-      generatedAssetIds: [asset.id],
+      completedCount: assetIds.length,
+      generatedAssetIds: assetIds,
       completedAt: new Date(),
     });
 
-    return asset.id;
+    return assetIds;
   }
 
   /**
