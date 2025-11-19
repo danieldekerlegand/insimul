@@ -32,8 +32,14 @@ The GenAI Visual Generation system allows you to procedurally generate visual as
    - `texture_wall`: Wall textures
    - `texture_material`: Material textures (wood, stone, metal, etc.)
 
-5. **Other Assets**
-   - `item_icon`, `item_image`: Item and artifact images
+5. **Artifact Assets**
+   - `artifact_image`: Visual representations of in-game artifacts
+   - Supported types: photographs, gravestones, wedding rings, letters, heirlooms, diaries, documents, paintings, books
+   - Generates historically appropriate imagery based on artifact type and description
+   - Integrates with Talk of the Town artifact system
+
+6. **Other Assets**
+   - `item_icon`, `item_image`: Item and inventory images
    - `landscape`: Landscape scenes
    - `skybox`: Skybox textures for 3D environments
 
@@ -162,6 +168,22 @@ Content-Type: application/json
 }
 ```
 
+### Generate Artifact Image
+
+```http
+POST /api/worlds/:worldId/artifacts/:artifactId/generate-image
+Content-Type: application/json
+
+{
+  "provider": "flux",
+  "params": {
+    "quality": "high",
+    "width": 768,
+    "height": 768
+  }
+}
+```
+
 ### Batch Generate Character Portraits
 
 ```http
@@ -175,6 +197,28 @@ Content-Type: application/json
   }
 }
 ```
+
+### Batch Generate Artifact Images
+
+```http
+POST /api/worlds/:worldId/batch-generate-artifacts
+Content-Type: application/json
+
+{
+  "provider": "flux",
+  "params": {
+    "quality": "high"
+  }
+}
+```
+
+### Get All Artifacts
+
+```http
+GET /api/worlds/:worldId/artifacts
+```
+
+Returns all artifacts in the world with their metadata.
 
 ### Get Visual Assets
 

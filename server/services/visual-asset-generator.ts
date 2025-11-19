@@ -164,6 +164,105 @@ export function generateTexturePrompt(
 }
 
 /**
+ * Generate a detailed prompt for an artifact image
+ */
+export function generateArtifactPrompt(
+  artifactType: string,
+  artifactName: string,
+  artifactDescription: string,
+  worldContext?: string
+): string {
+  const parts: string[] = [];
+
+  // Type-specific prompt elements
+  switch (artifactType) {
+    case 'photograph':
+      parts.push('Vintage photograph');
+      parts.push('sepia toned or black and white');
+      parts.push('showing people and places from the past');
+      parts.push('aged paper, slightly faded');
+      break;
+
+    case 'gravestone':
+      parts.push('Weathered stone gravestone');
+      parts.push('with carved inscription');
+      parts.push('cemetery setting, moss and age visible');
+      parts.push('solemn, memorial aesthetic');
+      break;
+
+    case 'wedding_ring':
+      parts.push('Elegant wedding ring');
+      parts.push('precious metal with fine detail');
+      parts.push('symbolic of eternal love');
+      parts.push('jewelry photography, detailed macro shot');
+      break;
+
+    case 'letter':
+      parts.push('Handwritten letter on aged paper');
+      parts.push('elegant cursive script');
+      parts.push('personal correspondence');
+      parts.push('vintage stationery, folded parchment');
+      break;
+
+    case 'heirloom':
+      parts.push('Precious family heirloom');
+      parts.push('antique object with sentimental value');
+      parts.push('ornate details, signs of age and care');
+      parts.push('treasured keepsake');
+      break;
+
+    case 'diary':
+      parts.push('Leather-bound diary or journal');
+      parts.push('worn pages filled with handwritten entries');
+      parts.push('personal memoir, intimate writings');
+      parts.push('vintage book aesthetic');
+      break;
+
+    case 'document':
+      parts.push('Official document or certificate');
+      parts.push('formal paper with stamps and seals');
+      parts.push('legal or historical record');
+      parts.push('aged parchment, official aesthetic');
+      break;
+
+    case 'painting':
+      parts.push('Classical painting');
+      parts.push('oil on canvas, ornate frame');
+      parts.push('artistic portrait or landscape');
+      parts.push('museum quality, fine art aesthetic');
+      break;
+
+    case 'book':
+      parts.push('Antique bound book');
+      parts.push('leather cover with gold lettering');
+      parts.push('weathered pages, treasured tome');
+      parts.push('library aesthetic, classic literature');
+      break;
+
+    default:
+      parts.push('Artifact or historical object');
+      break;
+  }
+
+  // Add artifact-specific details from description
+  if (artifactDescription && artifactDescription.length > 0) {
+    // Extract key descriptive elements (first 100 chars)
+    const descSnippet = artifactDescription.substring(0, 100);
+    parts.push(descSnippet);
+  }
+
+  // Add world context for styling
+  if (worldContext) {
+    parts.push(`in a ${worldContext} setting`);
+  }
+
+  // Technical specs for good images
+  parts.push('detailed, high quality, photorealistic rendering');
+
+  return parts.join(', ');
+}
+
+/**
  * Asset Generation Service
  */
 export class VisualAssetGeneratorService {
@@ -512,6 +611,102 @@ export class VisualAssetGeneratorService {
   }
 
   /**
+   * Generate an artifact image
+   */
+  async generateArtifactImage(
+    worldId: string,
+    artifactId: string,
+    artifactType: string,
+    artifactName: string,
+    artifactDescription: string,
+    provider: GenerationProvider,
+    params?: Partial<ImageGenerationParams>
+  ): Promise<string> {
+    // Get world context
+    let worldContext = 'historical';
+    const world = await storage.getWorld(worldId);
+    if (world?.description) {
+      worldContext = world.description;
+    }
+
+    // Generate prompt
+    const prompt = generateArtifactPrompt(artifactType, artifactName, artifactDescription, worldContext);
+
+    // Create generation job
+    const job = await storage.createGenerationJob({
+      worldId,
+      jobType: 'single_asset',
+      assetType: 'artifact_image',
+      targetEntityId: artifactId,
+      targetEntityType: 'artifact',
+      prompt,
+      generationProvider: provider,
+      generationParams: params || {},
+      batchSize: 1,
+      status: 'processing',
+    });
+
+    // Generate image
+    const result = await imageGenerator.generateImage(provider, {
+      prompt,
+      width: 768,
+      height: 768,
+      quality: 'high',
+      ...params,
+    });
+
+    if (!result.success || !result.images || result.images.length === 0) {
+      await storage.updateGenerationJob(job.id, {
+        status: 'failed',
+        errorMessage: result.error || 'Unknown error',
+        completedAt: new Date(),
+      });
+      throw new Error(result.error || 'Image generation failed');
+    }
+
+    // Save image to disk
+    const image = result.images[0];
+    const fileName = `artifact-${artifactId}-${nanoid(10)}.png`;
+    const relativePath = await imageGenerator.saveImage(image, fileName);
+
+    // Create visual asset record
+    const asset = await storage.createVisualAsset({
+      worldId,
+      name: `${artifactName} Image`,
+      description: artifactDescription,
+      assetType: 'artifact_image',
+      filePath: relativePath,
+      fileName,
+      fileSize: image.data.length,
+      mimeType: image.mimeType,
+      width: image.width,
+      height: image.height,
+      generationProvider: provider,
+      generationPrompt: prompt,
+      generationParams: params || {},
+      purpose: 'authorial',
+      usageContext: '2d_ui',
+      tags: ['artifact', artifactType, 'historical'].filter(Boolean) as string[],
+      status: 'completed',
+      metadata: {
+        artifactId,
+        artifactType,
+      },
+    });
+
+    // Update job as completed
+    await storage.updateGenerationJob(job.id, {
+      status: 'completed',
+      progress: 1.0,
+      completedCount: 1,
+      generatedAssetIds: [asset.id],
+      completedAt: new Date(),
+    });
+
+    return asset.id;
+  }
+
+  /**
    * Batch generate character portraits for all characters in a world
    */
   async batchGenerateCharacterPortraits(
@@ -655,6 +850,77 @@ export class VisualAssetGeneratorService {
         });
       } catch (error) {
         console.error(`Failed to generate ${mapType} map for settlement ${settlementId}:`, error);
+      }
+    }
+
+    await storage.updateGenerationJob(job.id, {
+      status: 'completed',
+      progress: 1.0,
+      completedCount: completed,
+      generatedAssetIds: assetIds,
+      completedAt: new Date(),
+    });
+
+    return assetIds;
+  }
+
+  /**
+   * Batch generate images for all artifacts in a world
+   */
+  async batchGenerateArtifactImages(
+    worldId: string,
+    provider: GenerationProvider,
+    params?: Partial<ImageGenerationParams>
+  ): Promise<string[]> {
+    // Get world data to access artifacts from customData
+    const world = await storage.getWorld(worldId);
+    if (!world) {
+      throw new Error(`World ${worldId} not found`);
+    }
+
+    const customData = (world as any).customData || {};
+    const artifacts = customData.artifacts as Record<string, any> || {};
+    const artifactList = Object.values(artifacts).filter((a: any) => !a.destroyed);
+
+    if (artifactList.length === 0) {
+      return [];
+    }
+
+    const job = await storage.createGenerationJob({
+      worldId,
+      jobType: 'batch_generation',
+      assetType: 'artifact_image',
+      prompt: `Batch generate images for ${artifactList.length} artifacts`,
+      generationProvider: provider,
+      generationParams: params || {},
+      batchSize: artifactList.length,
+      status: 'processing',
+    });
+
+    const assetIds: string[] = [];
+    let completed = 0;
+
+    for (const artifact of artifactList) {
+      try {
+        const assetId = await this.generateArtifactImage(
+          worldId,
+          artifact.id,
+          artifact.type,
+          artifact.name,
+          artifact.description,
+          provider,
+          params
+        );
+        assetIds.push(assetId);
+        completed++;
+
+        // Update progress
+        await storage.updateGenerationJob(job.id, {
+          progress: completed / artifactList.length,
+          completedCount: completed,
+        });
+      } catch (error) {
+        console.error(`Failed to generate image for artifact ${artifact.id}:`, error);
       }
     }
 
