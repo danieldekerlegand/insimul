@@ -8,7 +8,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Image as ImageIcon, Trash2, Download, Search, Filter, Grid3x3, List, Calendar, Tag, Sparkles } from 'lucide-react';
+import { Image as ImageIcon, Trash2, Download, Search, Filter, Grid3x3, List, Calendar, Tag, Sparkles, History, CheckCircle2, XCircle, Loader2, Clock } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
@@ -24,6 +25,22 @@ interface AssetBrowserDialogProps {
   onAssetSelected?: (asset: VisualAsset) => void;
 }
 
+interface GenerationJob {
+  id: string;
+  worldId: string;
+  jobType: string;
+  assetType: string;
+  status: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  progress: number;
+  batchSize: number;
+  completedCount: number;
+  generatedAssetIds: string[];
+  generationProvider?: string;
+  errorMessage?: string;
+  createdAt: Date;
+  completedAt?: Date;
+}
+
 export function AssetBrowserDialog({
   open,
   onOpenChange,
@@ -36,6 +53,7 @@ export function AssetBrowserDialog({
   const [assetTypeFilter, setAssetTypeFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedAsset, setSelectedAsset] = useState<VisualAsset | null>(null);
+  const [activeTab, setActiveTab] = useState<'assets' | 'history'>('assets');
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -48,6 +66,20 @@ export function AssetBrowserDialog({
         ? ['/api/worlds', worldId, 'assets', ...(assetTypeFilter !== 'all' ? [`?assetType=${assetTypeFilter}`] : [])]
         : ['/api/assets'],
     enabled: open
+  });
+
+  // Fetch generation jobs (only if worldId is provided)
+  const { data: generationJobs = [] } = useQuery<GenerationJob[]>({
+    queryKey: ['/api/worlds', worldId, 'generation-jobs'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/worlds/${worldId}/generation-jobs`);
+      return response.json();
+    },
+    enabled: open && !!worldId && activeTab === 'history',
+    refetchInterval: (query) => {
+      const jobs = query.state.data || [];
+      return jobs.some(j => j.status === 'processing') ? 3000 : false;
+    },
   });
 
   // Delete mutation
@@ -102,6 +134,34 @@ export function AssetBrowserDialog({
     return 'default';
   };
 
+  const getJobStatusIcon = (status: GenerationJob['status']) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+      case 'failed':
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      case 'processing':
+        return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+      case 'queued':
+        return <Clock className="h-4 w-4 text-yellow-500" />;
+      default:
+        return <XCircle className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  const getJobStatusBadge = (status: GenerationJob['status']): "default" | "secondary" | "destructive" | "outline" => {
+    switch (status) {
+      case 'completed':
+        return 'default';
+      case 'failed':
+        return 'destructive';
+      case 'processing':
+        return 'secondary';
+      default:
+        return 'outline';
+    }
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -116,7 +176,21 @@ export function AssetBrowserDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'assets' | 'history')}>
+            {worldId && (
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="assets">
+                  <ImageIcon className="h-4 w-4 mr-2" />
+                  Assets ({assets.length})
+                </TabsTrigger>
+                <TabsTrigger value="history">
+                  <History className="h-4 w-4 mr-2" />
+                  Generation History ({generationJobs.length})
+                </TabsTrigger>
+              </TabsList>
+            )}
+
+            <TabsContent value="assets" className="space-y-4 mt-4">
             {/* Search and Filters */}
             <div className="flex gap-2">
               <div className="relative flex-1">
@@ -252,7 +326,95 @@ export function AssetBrowserDialog({
                 </div>
               )}
             </ScrollArea>
-          </div>
+            </TabsContent>
+
+            {/* Generation History Tab */}
+            <TabsContent value="history" className="space-y-4 mt-4">
+              <ScrollArea className="h-[500px] pr-4">
+                {generationJobs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full gap-2">
+                    <History className="h-12 w-12 text-muted-foreground" />
+                    <p className="text-muted-foreground">No generation history</p>
+                    <p className="text-sm text-muted-foreground">Generated assets will appear here</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {generationJobs.map((job) => (
+                      <Card key={job.id}>
+                        <CardContent className="p-4">
+                          <div className="space-y-3">
+                            {/* Header */}
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-center gap-2 flex-1">
+                                {getJobStatusIcon(job.status)}
+                                <div className="flex-1">
+                                  <p className="font-medium">
+                                    {job.assetType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {job.jobType === 'batch_generation' ? 'Batch Generation' : 'Single Asset'}
+                                  </p>
+                                </div>
+                              </div>
+                              <Badge variant={getJobStatusBadge(job.status)}>
+                                {job.status}
+                              </Badge>
+                            </div>
+
+                            {/* Progress */}
+                            {job.status === 'processing' && (
+                              <div className="space-y-1">
+                                <Progress value={job.progress * 100} className="h-2" />
+                                <div className="flex justify-between text-xs text-muted-foreground">
+                                  <span>{job.completedCount} / {job.batchSize} completed</span>
+                                  <span>{Math.round(job.progress * 100)}%</span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Stats */}
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <p className="text-muted-foreground">Provider</p>
+                                <Badge variant="outline" className="mt-1">
+                                  <Sparkles className="h-3 w-3 mr-1" />
+                                  {job.generationProvider || 'N/A'}
+                                </Badge>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Created</p>
+                                <p className="font-medium mt-1">
+                                  {job.createdAt && format(new Date(job.createdAt), 'MMM d, HH:mm')}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Assets Generated</p>
+                                <p className="font-medium mt-1">{job.generatedAssetIds.length}</p>
+                              </div>
+                            </div>
+
+                            {/* Error Message */}
+                            {job.errorMessage && (
+                              <div className="p-2 bg-destructive/10 border border-destructive/20 rounded text-sm text-destructive">
+                                {job.errorMessage}
+                              </div>
+                            )}
+
+                            {/* Completed Info */}
+                            {job.status === 'completed' && job.completedAt && (
+                              <div className="text-xs text-muted-foreground">
+                                Completed {format(new Date(job.completedAt), 'MMM d, yyyy HH:mm:ss')}
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 
