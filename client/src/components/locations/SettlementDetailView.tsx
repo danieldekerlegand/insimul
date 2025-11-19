@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MapPinned, MapPin, Building2, Users, Home, Trash2, ChevronRight, Plus, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { MapPinned, MapPin, Building2, Users, Home, Trash2, ChevronRight, Plus, Sparkles, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Character, VisualAsset } from '@shared/schema';
 import { VisualAssetGeneratorDialog } from '../VisualAssetGeneratorDialog';
@@ -44,6 +45,8 @@ export function SettlementDetailView({
   const [showAssetGenerator, setShowAssetGenerator] = useState(false);
   const [showAssetBrowser, setShowAssetBrowser] = useState(false);
   const [assetType, setAssetType] = useState<'map_terrain' | 'map_political' | 'map_region'>('map_terrain');
+  const [mapZoom, setMapZoom] = useState(1);
+  const [activeMapTab, setActiveMapTab] = useState<'terrain' | 'political' | 'regional'>('terrain');
   const queryClient = useQueryClient();
 
   // Fetch settlement visual assets
@@ -51,10 +54,23 @@ export function SettlementDetailView({
     queryKey: ['/api/assets', 'settlement', settlement.id],
   });
 
+  // Organize maps by type
+  const maps = useMemo(() => {
+    return {
+      terrain: settlementAssets.find(a => a.assetType === 'map_terrain'),
+      political: settlementAssets.find(a => a.assetType === 'map_political'),
+      regional: settlementAssets.find(a => a.assetType === 'map_region')
+    };
+  }, [settlementAssets]);
+
   const handleGenerateMap = (mapType: 'map_terrain' | 'map_political' | 'map_region') => {
     setAssetType(mapType);
     setShowAssetGenerator(true);
   };
+
+  const handleZoomIn = () => setMapZoom(prev => Math.min(prev + 0.25, 3));
+  const handleZoomOut = () => setMapZoom(prev => Math.max(prev - 0.25, 0.5));
+  const handleResetZoom = () => setMapZoom(1);
 
   return (
     <div className="space-y-6">
@@ -98,81 +114,185 @@ export function SettlementDetailView({
         </CardContent>
       </Card>
 
-      {/* Visual Assets Section */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold flex items-center gap-2">
-            <ImageIcon className="w-5 h-5 text-primary" />
-            Visual Assets ({settlementAssets.length})
-          </h3>
-          <div className="flex gap-2">
+      {/* Settlement Maps Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <MapPin className="w-5 h-5" />
+              Settlement Maps
+            </CardTitle>
             <Button onClick={() => setShowAssetBrowser(true)} variant="outline" size="sm">
               <ImageIcon className="w-4 h-4 mr-2" />
-              Browse All
-            </Button>
-            <Button onClick={() => handleGenerateMap('map_terrain')} size="sm">
-              <Sparkles className="w-4 h-4 mr-2" />
-              Generate Map
+              Browse All ({settlementAssets.length})
             </Button>
           </div>
-        </div>
+          <CardDescription>
+            AI-generated maps showing terrain, political boundaries, and regional context
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {(maps.terrain || maps.political || maps.regional) ? (
+            <Tabs value={activeMapTab} onValueChange={(v) => setActiveMapTab(v as any)}>
+              <div className="flex items-center justify-between mb-4">
+                <TabsList>
+                  <TabsTrigger value="terrain" disabled={!maps.terrain}>
+                    Terrain {maps.terrain && '✓'}
+                  </TabsTrigger>
+                  <TabsTrigger value="political" disabled={!maps.political}>
+                    Political {maps.political && '✓'}
+                  </TabsTrigger>
+                  <TabsTrigger value="regional" disabled={!maps.regional}>
+                    Regional {maps.regional && '✓'}
+                  </TabsTrigger>
+                </TabsList>
 
-        {settlementAssets.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <ImageIcon className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground mb-2">No visual assets yet</p>
-              <p className="text-sm text-muted-foreground mb-4">
-                Generate maps or landscape art for this settlement
-              </p>
-              <div className="flex gap-2">
-                <Button onClick={() => handleGenerateMap('map_terrain')} variant="outline" size="sm">
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Terrain Map
-                </Button>
-                <Button onClick={() => handleGenerateMap('map_political')} variant="outline" size="sm">
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Political Map
-                </Button>
-                <Button onClick={() => handleGenerateMap('map_region')} variant="outline" size="sm">
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Regional Map
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={handleZoomOut} disabled={mapZoom <= 0.5}>
+                    <ZoomOut className="w-4 h-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleResetZoom}>
+                    <Maximize2 className="w-4 h-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleZoomIn} disabled={mapZoom >= 3}>
+                    <ZoomIn className="w-4 h-4" />
+                  </Button>
+                  <Badge variant="secondary">{Math.round(mapZoom * 100)}%</Badge>
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {settlementAssets.map(asset => (
-              <Card key={asset.id} className="overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="relative aspect-video">
-                    <img
-                      src={`/${asset.filePath}`}
-                      alt={asset.name}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute top-2 right-2">
-                      <Badge variant="secondary">
-                        {asset.assetType.replace(/_/g, ' ')}
-                      </Badge>
+
+              <TabsContent value="terrain" className="mt-0">
+                {maps.terrain ? (
+                  <div className="border rounded-lg overflow-hidden bg-muted/30">
+                    <div className="overflow-auto max-h-[600px]" style={{ cursor: 'grab' }}>
+                      <img
+                        src={`/${maps.terrain.filePath}`}
+                        alt={maps.terrain.name}
+                        style={{ transform: `scale(${mapZoom})`, transformOrigin: 'top left', transition: 'transform 0.2s' }}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="p-3 bg-background border-t">
+                      <p className="text-sm font-medium">{maps.terrain.name}</p>
+                      {maps.terrain.generationProvider && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                          <Sparkles className="h-3 w-3" />
+                          Generated by {maps.terrain.generationProvider}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="p-3">
-                    <p className="text-sm font-medium truncate">{asset.name}</p>
-                    {asset.generationProvider && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                        <Sparkles className="h-3 w-3" />
-                        {asset.generationProvider}
-                      </div>
-                    )}
+                ) : (
+                  <Card className="border-dashed">
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <MapPin className="h-12 w-12 text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground mb-2">No terrain map yet</p>
+                      <Button onClick={() => handleGenerateMap('map_terrain')} size="sm">
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Generate Terrain Map
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+
+              <TabsContent value="political" className="mt-0">
+                {maps.political ? (
+                  <div className="border rounded-lg overflow-hidden bg-muted/30">
+                    <div className="overflow-auto max-h-[600px]" style={{ cursor: 'grab' }}>
+                      <img
+                        src={`/${maps.political.filePath}`}
+                        alt={maps.political.name}
+                        style={{ transform: `scale(${mapZoom})`, transformOrigin: 'top left', transition: 'transform 0.2s' }}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="p-3 bg-background border-t">
+                      <p className="text-sm font-medium">{maps.political.name}</p>
+                      {maps.political.generationProvider && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                          <Sparkles className="h-3 w-3" />
+                          Generated by {maps.political.generationProvider}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+                ) : (
+                  <Card className="border-dashed">
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <MapPin className="h-12 w-12 text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground mb-2">No political map yet</p>
+                      <Button onClick={() => handleGenerateMap('map_political')} size="sm">
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Generate Political Map
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+
+              <TabsContent value="regional" className="mt-0">
+                {maps.regional ? (
+                  <div className="border rounded-lg overflow-hidden bg-muted/30">
+                    <div className="overflow-auto max-h-[600px]" style={{ cursor: 'grab' }}>
+                      <img
+                        src={`/${maps.regional.filePath}`}
+                        alt={maps.regional.name}
+                        style={{ transform: `scale(${mapZoom})`, transformOrigin: 'top left', transition: 'transform 0.2s' }}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="p-3 bg-background border-t">
+                      <p className="text-sm font-medium">{maps.regional.name}</p>
+                      {maps.regional.generationProvider && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                          <Sparkles className="h-3 w-3" />
+                          Generated by {maps.regional.generationProvider}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <Card className="border-dashed">
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <MapPin className="h-12 w-12 text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground mb-2">No regional map yet</p>
+                      <Button onClick={() => handleGenerateMap('map_region')} size="sm">
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Generate Regional Map
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <ImageIcon className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground mb-2">No maps yet</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Generate maps to visualize this settlement
+                </p>
+                <div className="flex gap-2">
+                  <Button onClick={() => handleGenerateMap('map_terrain')} variant="outline" size="sm">
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Terrain Map
+                  </Button>
+                  <Button onClick={() => handleGenerateMap('map_political')} variant="outline" size="sm">
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Political Map
+                  </Button>
+                  <Button onClick={() => handleGenerateMap('map_region')} variant="outline" size="sm">
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Regional Map
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Characters Section */}
       <div>
