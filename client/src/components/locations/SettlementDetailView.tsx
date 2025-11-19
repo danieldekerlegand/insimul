@@ -1,15 +1,16 @@
 import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MapPinned, MapPin, Building2, Users, Home, Trash2, ChevronRight, Plus, Sparkles, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { MapPinned, MapPin, Building2, Users, Home, Trash2, ChevronRight, Plus, Sparkles, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Layers, BarChart3 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import type { Character, VisualAsset } from '@shared/schema';
 import { VisualAssetGeneratorDialog } from '../VisualAssetGeneratorDialog';
 import { AssetBrowserDialog } from '../AssetBrowserDialog';
+import { JobQueueViewer } from '../JobQueueViewer';
 
 interface SettlementDetailViewProps {
   settlement: any;
@@ -46,11 +47,62 @@ export function SettlementDetailView({
 }: SettlementDetailViewProps) {
   const [showAssetGenerator, setShowAssetGenerator] = useState(false);
   const [showAssetBrowser, setShowAssetBrowser] = useState(false);
+  const [showJobQueue, setShowJobQueue] = useState(false);
   const [assetType, setAssetType] = useState<'map_terrain' | 'map_political' | 'map_region'>('map_terrain');
   const [mapZoom, setMapZoom] = useState(1);
   const [activeMapTab, setActiveMapTab] = useState<'terrain' | 'political' | 'regional'>('terrain');
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // Batch generate character portraits mutation
+  const batchGeneratePortraitsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/settlements/${settlement.id}/queue-batch-portraits`, {
+        provider: 'flux',
+        params: {}
+      });
+      return response.json();
+    },
+    onSuccess: (result: any) => {
+      toast({
+        title: 'Batch Generation Queued',
+        description: result.message,
+      });
+      setShowJobQueue(true);
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Failed to Queue Batch Generation',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Batch generate building exteriors mutation
+  const batchGenerateBuildingsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/settlements/${settlement.id}/queue-batch-buildings`, {
+        provider: 'flux',
+        params: {}
+      });
+      return response.json();
+    },
+    onSuccess: (result: any) => {
+      toast({
+        title: 'Batch Generation Queued',
+        description: result.message,
+      });
+      setShowJobQueue(true);
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Failed to Queue Batch Generation',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
 
   // Fetch settlement visual assets
   const { data: settlementAssets = [] } = useQuery<VisualAsset[]>({
@@ -80,19 +132,29 @@ export function SettlementDetailView({
       {/* Settlement Info Card */}
       <Card className="border-2 border-primary/20 shadow-lg">
         <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-primary/10 rounded-lg">
-              <MapPinned className="w-6 h-6 text-primary" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-primary/10 rounded-lg">
+                <MapPinned className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-2xl flex items-center gap-2">
+                  {settlement.name}
+                  <span className="text-sm px-2 py-1 bg-blue-100 dark:bg-blue-900 rounded">
+                    {settlement.settlementType}
+                  </span>
+                </CardTitle>
+                <CardDescription>{settlement.description}</CardDescription>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-2xl flex items-center gap-2">
-                {settlement.name}
-                <span className="text-sm px-2 py-1 bg-blue-100 dark:bg-blue-900 rounded">
-                  {settlement.settlementType}
-                </span>
-              </CardTitle>
-              <CardDescription>{settlement.description}</CardDescription>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowJobQueue(true)}
+            >
+              <BarChart3 className="w-4 h-4 mr-2" />
+              View Queue
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="pt-6">
@@ -304,12 +366,25 @@ export function SettlementDetailView({
             <Users className="w-5 h-5 text-primary" />
             Characters ({characters.length})
           </h3>
-          {onAddCharacter && (
-            <Button onClick={onAddCharacter} size="sm">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Character
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {characters.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => batchGeneratePortraitsMutation.mutate()}
+                disabled={batchGeneratePortraitsMutation.isPending}
+              >
+                <Layers className="w-4 h-4 mr-2" />
+                Batch Generate Portraits
+              </Button>
+            )}
+            {onAddCharacter && (
+              <Button onClick={onAddCharacter} size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Character
+              </Button>
+            )}
+          </div>
         </div>
         <div className="grid gap-3">
           {characters.slice(0, 10).map((character) => (
@@ -411,12 +486,25 @@ export function SettlementDetailView({
             <Building2 className="w-5 h-5 text-primary" />
             Businesses ({businesses.length})
           </h3>
-          {onAddBusiness && (
-            <Button onClick={onAddBusiness} size="sm">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Business
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {businesses.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => batchGenerateBuildingsMutation.mutate()}
+                disabled={batchGenerateBuildingsMutation.isPending}
+              >
+                <Layers className="w-4 h-4 mr-2" />
+                Batch Generate Buildings
+              </Button>
+            )}
+            {onAddBusiness && (
+              <Button onClick={onAddBusiness} size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Business
+              </Button>
+            )}
+          </div>
         </div>
         <div className="grid md:grid-cols-2 gap-4">
           {businesses.map((business) => {
@@ -585,6 +673,13 @@ export function SettlementDetailView({
         onOpenChange={setShowAssetBrowser}
         entityType="settlement"
         entityId={settlement.id}
+      />
+
+      {/* Job Queue Viewer */}
+      <JobQueueViewer
+        open={showJobQueue}
+        onOpenChange={setShowJobQueue}
+        worldId={settlement.worldId}
       />
     </div>
   );
