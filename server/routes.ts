@@ -6125,6 +6125,55 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     }
   });
 
+  // Generate character sprite sheet
+  app.post("/api/characters/:characterId/generate-sprite", async (req, res) => {
+    try {
+      const { characterId } = req.params;
+      const {
+        animationType = 'walk',
+        viewAngle = 'side',
+        frameCount = 8,
+        provider = 'flux',
+        params
+      } = req.body;
+
+      const assetId = await visualAssetGenerator.generateCharacterSprite(
+        characterId,
+        animationType,
+        viewAngle,
+        frameCount,
+        provider,
+        params
+      );
+
+      const asset = await storage.getVisualAsset(assetId);
+      res.json(asset);
+    } catch (error: any) {
+      console.error("Failed to generate character sprite:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Batch generate all sprite animations for a character
+  app.post("/api/characters/:characterId/generate-all-sprites", async (req, res) => {
+    try {
+      const { characterId } = req.params;
+      const { viewAngle = 'side', provider = 'flux', params } = req.body;
+
+      const assetIds = await visualAssetGenerator.batchGenerateCharacterSprites(
+        characterId,
+        viewAngle,
+        provider,
+        params
+      );
+
+      res.json({ assetIds, count: assetIds.length });
+    } catch (error: any) {
+      console.error("Failed to batch generate character sprites:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Generate single artifact image
   app.post("/api/worlds/:worldId/artifacts/:artifactId/generate-image", async (req, res) => {
     try {

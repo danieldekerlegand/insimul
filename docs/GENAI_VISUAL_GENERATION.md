@@ -13,9 +13,13 @@ The GenAI Visual Generation system allows you to procedurally generate visual as
 ### Asset Types
 
 1. **Character Assets**
-   - `character_portrait`: Profile/portrait images
+   - `character_portrait`: Profile/portrait images for UI and character sheets
    - `character_full_body`: Full-body character illustrations
-   - `character_sprite`: Sprite sheets for 2D games
+   - `character_sprite`: Animated sprite sheets for 2D games
+     - Supported animations: idle (4 frames), walk (8 frames), run (8 frames), jump (6 frames), attack (6 frames)
+     - View angles: side, front, back, top-down, isometric
+     - Automatically sized for frame-based animation
+     - Transparent backgrounds for game integration
 
 2. **Building Assets**
    - `building_exterior`: Building facade/exterior views
@@ -167,6 +171,44 @@ Content-Type: application/json
   }
 }
 ```
+
+### Generate Character Sprite
+
+```http
+POST /api/characters/:characterId/generate-sprite
+Content-Type: application/json
+
+{
+  "animationType": "walk",
+  "viewAngle": "side",
+  "frameCount": 8,
+  "provider": "flux",
+  "params": {
+    "quality": "high"
+  }
+}
+```
+
+**Animation Types**: `idle`, `walk`, `run`, `jump`, `attack`
+
+**View Angles**: `side`, `front`, `back`, `top-down`, `isometric`
+
+### Generate All Character Sprites
+
+```http
+POST /api/characters/:characterId/generate-all-sprites
+Content-Type: application/json
+
+{
+  "viewAngle": "side",
+  "provider": "flux",
+  "params": {
+    "quality": "high"
+  }
+}
+```
+
+Generates all 5 animation types (idle, walk, run, jump, attack) for the specified view angle.
 
 ### Generate Artifact Image
 
