@@ -6079,6 +6079,72 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     }
   });
 
+  // Batch generate building exteriors
+  app.post("/api/worlds/:worldId/batch-generate-buildings", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { provider = 'flux', params } = req.body;
+
+      const assetIds = await visualAssetGenerator.batchGenerateBuildingExteriors(
+        worldId,
+        provider,
+        params
+      );
+
+      res.json({ assetIds, count: assetIds.length });
+    } catch (error: any) {
+      console.error("Failed to batch generate buildings:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Batch generate settlement maps
+  app.post("/api/worlds/:worldId/batch-generate-maps", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { provider = 'flux', params } = req.body;
+
+      // Get all settlements in the world
+      const settlements = await storage.getSettlements(worldId);
+      const assetIds: string[] = [];
+
+      // Generate maps for each settlement
+      for (const settlement of settlements) {
+        const settlementAssetIds = await visualAssetGenerator.batchGenerateSettlementMaps(
+          settlement.id,
+          provider,
+          params
+        );
+        assetIds.push(...settlementAssetIds);
+      }
+
+      res.json({ assetIds, count: assetIds.length });
+    } catch (error: any) {
+      console.error("Failed to batch generate maps:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get world stats (for batch generation UI)
+  app.get("/api/worlds/:worldId/stats", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+
+      const characters = await storage.getCharacters(worldId);
+      const businesses = await storage.getBusinessesByWorld(worldId);
+      const settlements = await storage.getSettlements(worldId);
+
+      res.json({
+        characters: characters.length,
+        businesses: businesses.length,
+        settlements: settlements.length,
+      });
+    } catch (error: any) {
+      console.error("Failed to get world stats:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get generation jobs for a world
   app.get("/api/worlds/:worldId/generation-jobs", async (req, res) => {
     try {

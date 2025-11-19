@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { VisualAssetGeneratorDialog } from './VisualAssetGeneratorDialog';
 import { AssetBrowserDialog } from './AssetBrowserDialog';
+import { BatchGenerationDialog } from './BatchGenerationDialog';
 import type { World, VisualAsset } from '@shared/schema';
 
 interface WorldDetailsDialogProps {
@@ -48,6 +49,7 @@ export function WorldDetailsDialog({
   // Visual Assets state
   const [showAssetGenerator, setShowAssetGenerator] = useState(false);
   const [showAssetBrowser, setShowAssetBrowser] = useState(false);
+  const [showBatchGeneration, setShowBatchGeneration] = useState(false);
   const [assetType, setAssetType] = useState<'texture_ground' | 'texture_wall' | 'texture_material'>('texture_ground');
 
   // Fetch world visual assets
@@ -359,17 +361,27 @@ export function WorldDetailsDialog({
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold">AI-Generated Visual Assets</h3>
-                    <p className="text-sm text-muted-foreground">Generate and manage textures for the 3D game</p>
+                    <p className="text-sm text-muted-foreground">Generate and manage visual assets for your world</p>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowAssetBrowser(true)}
-                    disabled={worldAssets.length === 0}
-                  >
-                    <ImageIcon className="w-4 h-4 mr-2" />
-                    Browse All ({worldAssets.length})
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => setShowBatchGeneration(true)}
+                    >
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Batch Generation
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAssetBrowser(true)}
+                      disabled={worldAssets.length === 0}
+                    >
+                      <ImageIcon className="w-4 h-4 mr-2" />
+                      Browse All ({worldAssets.length})
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Quick Generate Buttons */}
@@ -533,6 +545,16 @@ export function WorldDetailsDialog({
           open={showAssetBrowser}
           onOpenChange={setShowAssetBrowser}
           worldId={world.id}
+        />
+      )}
+
+      {/* Batch Generation Dialog */}
+      {world && (
+        <BatchGenerationDialog
+          open={showBatchGeneration}
+          onOpenChange={setShowBatchGeneration}
+          worldId={world.id}
+          worldName={world.name}
         />
       )}
 
