@@ -6125,6 +6125,84 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     }
   });
 
+  // Generate single artifact image
+  app.post("/api/worlds/:worldId/artifacts/:artifactId/generate-image", async (req, res) => {
+    try {
+      const { worldId, artifactId } = req.params;
+      const { provider = 'flux', params } = req.body;
+
+      // Get world to access artifacts
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      const customData = (world as any).customData || {};
+      const artifacts = customData.artifacts as Record<string, any> || {};
+      const artifact = artifacts[artifactId];
+
+      if (!artifact) {
+        return res.status(404).json({ error: "Artifact not found" });
+      }
+
+      const assetId = await visualAssetGenerator.generateArtifactImage(
+        worldId,
+        artifactId,
+        artifact.type,
+        artifact.name,
+        artifact.description,
+        provider,
+        params
+      );
+
+      const asset = await storage.getVisualAsset(assetId);
+      res.json(asset);
+    } catch (error: any) {
+      console.error("Failed to generate artifact image:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Batch generate artifact images
+  app.post("/api/worlds/:worldId/batch-generate-artifacts", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { provider = 'flux', params } = req.body;
+
+      const assetIds = await visualAssetGenerator.batchGenerateArtifactImages(
+        worldId,
+        provider,
+        params
+      );
+
+      res.json({ assetIds, count: assetIds.length });
+    } catch (error: any) {
+      console.error("Failed to batch generate artifacts:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get all artifacts in a world
+  app.get("/api/worlds/:worldId/artifacts", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      const customData = (world as any).customData || {};
+      const artifacts = customData.artifacts as Record<string, any> || {};
+      const artifactList = Object.values(artifacts).filter((a: any) => !a.destroyed);
+
+      res.json(artifactList);
+    } catch (error: any) {
+      console.error("Failed to get artifacts:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get world stats (for batch generation UI)
   app.get("/api/worlds/:worldId/stats", async (req, res) => {
     try {
@@ -6134,10 +6212,17 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       const businesses = await storage.getBusinessesByWorld(worldId);
       const settlements = await storage.getSettlements(worldId);
 
+      // Get artifact count
+      const world = await storage.getWorld(worldId);
+      const customData = (world as any)?.customData || {};
+      const artifacts = customData.artifacts as Record<string, any> || {};
+      const artifactCount = Object.values(artifacts).filter((a: any) => !a.destroyed).length;
+
       res.json({
         characters: characters.length,
         businesses: businesses.length,
         settlements: settlements.length,
+        artifacts: artifactCount,
       });
     } catch (error: any) {
       console.error("Failed to get world stats:", error);

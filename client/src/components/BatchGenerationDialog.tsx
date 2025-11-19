@@ -59,6 +59,7 @@ export function BatchGenerationDialog({ open, onOpenChange, worldId, worldName }
     characters: number;
     businesses: number;
     settlements: number;
+    artifacts: number;
   }>({
     queryKey: ['/api/worlds', worldId, 'stats'],
     queryFn: async () => {
@@ -167,6 +168,31 @@ export function BatchGenerationDialog({ open, onOpenChange, worldId, worldName }
     },
   });
 
+  // Batch artifact generation mutation
+  const generateArtifactsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/worlds/${worldId}/batch-generate-artifacts`, {
+        provider,
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Artifact Generation Started',
+        description: `Generating images for ${worldStats?.artifacts || 0} artifacts`,
+      });
+      setActiveJobs(prev => new Set(prev).add(data.jobId));
+      refetchJobs();
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Generation Failed',
+        description: error.message || 'Failed to start artifact generation',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const getAssetCount = (assetType: string): number => {
     return existingAssets.filter(a => a.assetType.includes(assetType)).length;
   };
@@ -174,6 +200,7 @@ export function BatchGenerationDialog({ open, onOpenChange, worldId, worldName }
   const portraitCount = getAssetCount('character_portrait');
   const buildingCount = getAssetCount('building_exterior');
   const mapCount = getAssetCount('map_');
+  const artifactCount = getAssetCount('artifact_image');
 
   const getJobStatusIcon = (status: GenerationJob['status']) => {
     switch (status) {
@@ -224,7 +251,7 @@ export function BatchGenerationDialog({ open, onOpenChange, worldId, worldName }
           </Card>
 
           {/* Batch Generation Options */}
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Character Portraits */}
             <Card>
               <CardHeader>
@@ -354,6 +381,51 @@ export function BatchGenerationDialog({ open, onOpenChange, worldId, worldName }
                     <>
                       <Sparkles className="mr-2 h-4 w-4" />
                       Generate All Maps
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Artifact Images */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Image className="h-4 w-4" />
+                  Artifact Images
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Total Artifacts</span>
+                    <Badge variant="secondary">{worldStats?.artifacts || 0}</Badge>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Existing Images</span>
+                    <Badge variant="outline">{artifactCount}</Badge>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Missing</span>
+                    <Badge variant="destructive">
+                      {Math.max(0, (worldStats?.artifacts || 0) - artifactCount)}
+                    </Badge>
+                  </div>
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => generateArtifactsMutation.mutate()}
+                  disabled={generateArtifactsMutation.isPending || (worldStats?.artifacts || 0) === 0}
+                >
+                  {generateArtifactsMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Starting...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Generate All Images
                     </>
                   )}
                 </Button>
