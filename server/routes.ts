@@ -6352,6 +6352,134 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     }
   });
 
+  // Cancel a generation job
+  app.post("/api/generation-jobs/:jobId/cancel", async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const { jobQueueManager } = await import('./services/job-queue-manager.js');
+
+      await jobQueueManager.cancelJob(jobId);
+      const job = await storage.getGenerationJob(jobId);
+
+      res.json(job);
+    } catch (error: any) {
+      console.error("Failed to cancel generation job:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get queue status for a world
+  app.get("/api/worlds/:worldId/queue-status", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { jobQueueManager } = await import('./services/job-queue-manager.js');
+
+      const status = await jobQueueManager.getQueueStatus(worldId);
+      res.json(status);
+    } catch (error: any) {
+      console.error("Failed to get queue status:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Queue batch portrait generation for settlement
+  app.post("/api/settlements/:settlementId/queue-batch-portraits", async (req, res) => {
+    try {
+      const { settlementId } = req.params;
+      const { provider = 'flux', params } = req.body;
+
+      // Get all characters in the settlement
+      const settlement = await storage.getSettlement(settlementId);
+      if (!settlement) {
+        return res.status(404).json({ error: "Settlement not found" });
+      }
+
+      const characters = await storage.getCharacters(settlement.worldId);
+      const settlementCharacters = characters.filter(c =>
+        c.residenceId && c.residenceId === settlementId
+      );
+
+      if (settlementCharacters.length === 0) {
+        return res.status(400).json({ error: "No characters found in settlement" });
+      }
+
+      const targetEntityIds = settlementCharacters.map(c => c.id);
+
+      // Create batch generation job
+      const job = await storage.createGenerationJob({
+        worldId: settlement.worldId,
+        jobType: 'batch_generation',
+        assetType: 'character_portrait',
+        targetEntityId: settlementId,
+        targetEntityType: 'settlement',
+        prompt: `Batch generate portraits for ${settlementCharacters.length} characters in ${settlement.name}`,
+        generationProvider: provider,
+        generationParams: {
+          ...params,
+          targetEntityIds,
+        },
+        batchSize: settlementCharacters.length,
+        status: 'queued',
+      });
+
+      res.json({
+        job,
+        characterCount: settlementCharacters.length,
+        message: `Queued batch generation for ${settlementCharacters.length} character portraits`,
+      });
+    } catch (error: any) {
+      console.error("Failed to queue batch portrait generation:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Queue batch building exterior generation
+  app.post("/api/settlements/:settlementId/queue-batch-buildings", async (req, res) => {
+    try {
+      const { settlementId } = req.params;
+      const { provider = 'flux', params } = req.body;
+
+      const settlement = await storage.getSettlement(settlementId);
+      if (!settlement) {
+        return res.status(404).json({ error: "Settlement not found" });
+      }
+
+      const businesses = await storage.getBusinesses(settlement.worldId);
+      const settlementBusinesses = businesses.filter(b => b.settlementId === settlementId);
+
+      if (settlementBusinesses.length === 0) {
+        return res.status(400).json({ error: "No businesses found in settlement" });
+      }
+
+      const targetEntityIds = settlementBusinesses.map(b => b.id);
+
+      const job = await storage.createGenerationJob({
+        worldId: settlement.worldId,
+        jobType: 'batch_generation',
+        assetType: 'building_exterior',
+        targetEntityId: settlementId,
+        targetEntityType: 'settlement',
+        prompt: `Batch generate building exteriors for ${settlementBusinesses.length} businesses in ${settlement.name}`,
+        generationProvider: provider,
+        generationParams: {
+          ...params,
+          targetEntityIds,
+        },
+        batchSize: settlementBusinesses.length,
+        status: 'queued',
+      });
+
+      res.json({
+        job,
+        buildingCount: settlementBusinesses.length,
+        message: `Queued batch generation for ${settlementBusinesses.length} building exteriors`,
+      });
+    } catch (error: any) {
+      console.error("Failed to queue batch building generation:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Delete visual asset
   app.delete("/api/assets/:id", async (req, res) => {
     try {
