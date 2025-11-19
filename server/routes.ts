@@ -6497,6 +6497,91 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     }
   });
 
+  // Archive visual asset (soft delete - keeps file, marks as archived)
+  app.post("/api/assets/:id/archive", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const asset = await storage.getVisualAsset(id);
+
+      if (!asset) {
+        return res.status(404).json({ error: "Asset not found" });
+      }
+
+      const updatedAsset = await storage.updateVisualAsset(id, {
+        status: 'archived',
+        isActive: false,
+      });
+
+      res.json(updatedAsset);
+    } catch (error: any) {
+      console.error("Failed to archive visual asset:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Restore archived visual asset
+  app.post("/api/assets/:id/restore", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const asset = await storage.getVisualAsset(id);
+
+      if (!asset) {
+        return res.status(404).json({ error: "Asset not found" });
+      }
+
+      const updatedAsset = await storage.updateVisualAsset(id, {
+        status: 'completed',
+        isActive: true,
+      });
+
+      res.json(updatedAsset);
+    } catch (error: any) {
+      console.error("Failed to restore visual asset:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get generation history for an entity
+  app.get("/api/entities/:entityType/:entityId/asset-history", async (req, res) => {
+    try {
+      const { entityType, entityId } = req.params;
+      const { assetType, includeArchived = 'true' } = req.query;
+
+      let assets: any[] = [];
+
+      // Get all assets for this entity based on entity type
+      if (entityType === 'character') {
+        assets = await storage.getAssetsByCharacter(entityId);
+      } else if (entityType === 'business') {
+        assets = await storage.getAssetsByBusiness(entityId);
+      } else if (entityType === 'settlement') {
+        assets = await storage.getAssetsBySettlement(entityId);
+      } else {
+        return res.status(400).json({ error: 'Invalid entity type' });
+      }
+
+      // Filter by asset type if specified
+      if (assetType) {
+        assets = assets.filter((a: any) => a.assetType === assetType);
+      }
+
+      // Include or exclude archived assets
+      if (includeArchived === 'false') {
+        assets = assets.filter((a: any) => a.status !== 'archived');
+      }
+
+      // Sort by creation date (newest first)
+      assets.sort((a: any, b: any) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      res.json(assets);
+    } catch (error: any) {
+      console.error("Failed to get asset history:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get asset collections for a world
   app.get("/api/worlds/:worldId/asset-collections", async (req, res) => {
     try {

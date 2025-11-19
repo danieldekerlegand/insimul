@@ -4,10 +4,11 @@ import { apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { User, Heart, Brain, Activity, Briefcase, Users, ChevronRight, MessageCircle, Image, Sparkles, Play } from 'lucide-react';
+import { User, Heart, Brain, Activity, Briefcase, Users, ChevronRight, MessageCircle, Image, Sparkles, Play, History } from 'lucide-react';
 import { VisualAssetGeneratorDialog } from '@/components/VisualAssetGeneratorDialog';
 import { SpriteGeneratorDialog } from '@/components/SpriteGeneratorDialog';
-import type { Character } from '@shared/schema';
+import { GenerationHistoryViewer } from '@/components/GenerationHistoryViewer';
+import type { Character, VisualAsset } from '@shared/schema';
 
 interface CharacterDetailViewProps {
   character: Character;
@@ -26,6 +27,8 @@ export function CharacterDetailView({
 }: CharacterDetailViewProps) {
   const [showVisualGenerator, setShowVisualGenerator] = useState(false);
   const [showSpriteGenerator, setShowSpriteGenerator] = useState(false);
+  const [showGenerationHistory, setShowGenerationHistory] = useState(false);
+  const [historyAssetType, setHistoryAssetType] = useState<string | undefined>();
 
   // Fetch visual assets for this character
   const { data: visualAssets = [] } = useQuery<any[]>({
@@ -58,6 +61,19 @@ export function CharacterDetailView({
 
   const getCharacterById = (id: string) => {
     return allCharacters.find(c => c.id === id);
+  };
+
+  const handleRegenerateFromHistory = (asset: VisualAsset) => {
+    // Open the generator dialog with settings from the historical asset
+    // This would pass the generation params to the generator
+    setShowVisualGenerator(true);
+    // Note: The VisualAssetGeneratorDialog would need to accept initialParams
+    // For now, this just opens the dialog
+  };
+
+  const handleViewHistory = (assetType?: string) => {
+    setHistoryAssetType(assetType);
+    setShowGenerationHistory(true);
   };
 
   return (
@@ -148,11 +164,23 @@ export function CharacterDetailView({
       {(portrait || fullBody || sprites.length > 0) && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Image className="w-5 h-5 text-primary" />
-              Visual Assets
-            </CardTitle>
-            <CardDescription>AI-generated character visuals</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Image className="w-5 h-5 text-primary" />
+                  Visual Assets
+                </CardTitle>
+                <CardDescription>AI-generated character visuals</CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleViewHistory()}
+              >
+                <History className="w-4 h-4 mr-2" />
+                View History
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="portrait" className="w-full">
@@ -441,6 +469,18 @@ export function CharacterDetailView({
           onOpenChange={setShowSpriteGenerator}
           characterId={character.id}
           characterName={getFullName(character)}
+        />
+      )}
+
+      {showGenerationHistory && (
+        <GenerationHistoryViewer
+          open={showGenerationHistory}
+          onOpenChange={setShowGenerationHistory}
+          entityType="character"
+          entityId={character.id}
+          entityName={getFullName(character)}
+          assetType={historyAssetType}
+          onRegenerateFromHistory={handleRegenerateFromHistory}
         />
       )}
     </div>
