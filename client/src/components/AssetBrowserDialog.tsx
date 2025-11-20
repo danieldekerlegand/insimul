@@ -7,14 +7,17 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Image as ImageIcon, Trash2, Download, Search, Filter, Grid3x3, List, Calendar, Tag, Sparkles, History, CheckCircle2, XCircle, Loader2, Clock } from 'lucide-react';
+import { Image as ImageIcon, Trash2, Download, Search, Filter, Grid3x3, List, Calendar, Tag, Sparkles, History, CheckCircle2, XCircle, Loader2, Clock, FileArchive, CheckSquare, Square } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import type { VisualAsset } from '@shared/schema';
 import { format } from 'date-fns';
+import { AssetExportDialog } from './AssetExportDialog';
 
 interface AssetBrowserDialogProps {
   open: boolean;
@@ -54,6 +57,8 @@ export function AssetBrowserDialog({
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedAsset, setSelectedAsset] = useState<VisualAsset | null>(null);
   const [activeTab, setActiveTab] = useState<'assets' | 'history'>('assets');
+  const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -162,6 +167,30 @@ export function AssetBrowserDialog({
     }
   };
 
+  // Bulk selection handlers
+  const toggleAssetSelection = (assetId: string) => {
+    const newSelection = new Set(selectedAssets);
+    if (newSelection.has(assetId)) {
+      newSelection.delete(assetId);
+    } else {
+      newSelection.add(assetId);
+    }
+    setSelectedAssets(newSelection);
+  };
+
+  const selectAll = () => {
+    const allIds = new Set(filteredAssets.map(a => a.id));
+    setSelectedAssets(allIds);
+  };
+
+  const clearSelection = () => {
+    setSelectedAssets(new Set());
+  };
+
+  const getSelectedAssetsData = (): VisualAsset[] => {
+    return assets.filter(a => selectedAssets.has(a.id));
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -230,6 +259,58 @@ export function AssetBrowserDialog({
               <div>{assetTypes.length} types</div>
             </div>
 
+            {/* Bulk Selection Toolbar */}
+            {filteredAssets.length > 0 && (
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={selectedAssets.size === filteredAssets.length ? clearSelection : selectAll}
+                  >
+                    {selectedAssets.size === filteredAssets.length ? (
+                      <>
+                        <Square className="h-4 w-4 mr-2" />
+                        Deselect All
+                      </>
+                    ) : (
+                      <>
+                        <CheckSquare className="h-4 w-4 mr-2" />
+                        Select All
+                      </>
+                    )}
+                  </Button>
+                  {selectedAssets.size > 0 && (
+                    <>
+                      <Separator orientation="vertical" className="h-6" />
+                      <span className="text-sm font-medium">
+                        {selectedAssets.size} selected
+                      </span>
+                    </>
+                  )}
+                </div>
+                {selectedAssets.size > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearSelection}
+                    >
+                      Clear
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => setShowExportDialog(true)}
+                    >
+                      <FileArchive className="h-4 w-4 mr-2" />
+                      Export ({selectedAssets.size})
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Asset Grid/List */}
             <ScrollArea className="h-[500px] pr-4">
               {isLoading ? (
@@ -247,7 +328,11 @@ export function AssetBrowserDialog({
                   {filteredAssets.map(asset => (
                     <Card
                       key={asset.id}
-                      className="cursor-pointer hover:border-primary transition-colors"
+                      className={`cursor-pointer transition-colors ${
+                        selectedAssets.has(asset.id)
+                          ? 'border-primary bg-primary/5'
+                          : 'hover:border-primary'
+                      }`}
                       onClick={() => setSelectedAsset(asset)}
                     >
                       <CardContent className="p-0">
@@ -257,6 +342,17 @@ export function AssetBrowserDialog({
                             alt={asset.name}
                             className="w-full h-full object-cover rounded-t-lg"
                           />
+                          <div className="absolute top-2 left-2">
+                            <Checkbox
+                              checked={selectedAssets.has(asset.id)}
+                              onCheckedChange={(e) => {
+                                e.stopPropagation();
+                                toggleAssetSelection(asset.id);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="bg-white border-2"
+                            />
+                          </div>
                           <div className="absolute top-2 right-2">
                             <Badge variant={getAssetTypeBadgeColor(asset.assetType)}>
                               {asset.assetType.replace(/_/g, ' ')}
@@ -279,10 +375,22 @@ export function AssetBrowserDialog({
                   {filteredAssets.map(asset => (
                     <Card
                       key={asset.id}
-                      className="cursor-pointer hover:border-primary transition-colors"
+                      className={`cursor-pointer transition-colors ${
+                        selectedAssets.has(asset.id)
+                          ? 'border-primary bg-primary/5'
+                          : 'hover:border-primary'
+                      }`}
                       onClick={() => setSelectedAsset(asset)}
                     >
                       <CardContent className="p-4 flex items-center gap-4">
+                        <Checkbox
+                          checked={selectedAssets.has(asset.id)}
+                          onCheckedChange={(e) => {
+                            e.stopPropagation();
+                            toggleAssetSelection(asset.id);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
                         <img
                           src={`/${asset.filePath}`}
                           alt={asset.name}
@@ -571,6 +679,13 @@ export function AssetBrowserDialog({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Asset Export Dialog */}
+      <AssetExportDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        selectedAssets={getSelectedAssetsData()}
+      />
     </>
   );
 }
