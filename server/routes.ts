@@ -6900,6 +6900,134 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     }
   });
 
+  // ============= ASSET EXPORT & DOWNLOAD =============
+
+  // Import export service
+  const assetExport = await import('./services/asset-export.js');
+
+  // Export assets as ZIP
+  app.post("/api/assets/export", async (req, res) => {
+    try {
+      const { assetIds, format, quality, includeMetadata, zipName } = req.body;
+
+      if (!assetIds || !Array.isArray(assetIds) || assetIds.length === 0) {
+        return res.status(400).json({ error: "assetIds array is required" });
+      }
+
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${zipName || 'asset-export'}.zip"`);
+
+      await assetExport.exportAssetsAsZip(
+        {
+          assetIds,
+          format: format || 'original',
+          quality: quality || 90,
+          includeMetadata: includeMetadata !== false,
+          zipName
+        },
+        res
+      );
+    } catch (error: any) {
+      console.error("Failed to export assets:", error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: error.message });
+      }
+    }
+  });
+
+  // Export collection as ZIP
+  app.post("/api/asset-collections/:id/export", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { format, quality, includeMetadata, zipName } = req.body;
+
+      const collection = await storage.getAssetCollection(id);
+      if (!collection) {
+        return res.status(404).json({ error: "Collection not found" });
+      }
+
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${zipName || `collection-${collection.name}`}.zip"`);
+
+      await assetExport.exportCollectionAsZip(
+        id,
+        {
+          format: format || 'original',
+          quality: quality || 90,
+          includeMetadata: includeMetadata !== false,
+          zipName
+        },
+        res
+      );
+    } catch (error: any) {
+      console.error("Failed to export collection:", error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: error.message });
+      }
+    }
+  });
+
+  // Download single asset with format conversion
+  app.get("/api/assets/:id/download", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { format, quality } = req.query;
+
+      const result = await assetExport.getAssetFile(
+        id,
+        (format as 'png' | 'webp' | 'jpeg' | 'original') || 'original',
+        quality ? parseInt(quality as string) : 90
+      );
+
+      if (!result) {
+        return res.status(404).json({ error: "Asset not found" });
+      }
+
+      res.setHeader('Content-Type', result.mimeType);
+      res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
+      res.send(result.buffer);
+    } catch (error: any) {
+      console.error("Failed to download asset:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get export preview (metadata without generating the export)
+  app.post("/api/assets/export/preview", async (req, res) => {
+    try {
+      const { assetIds } = req.body;
+
+      if (!assetIds || !Array.isArray(assetIds) || assetIds.length === 0) {
+        return res.status(400).json({ error: "assetIds array is required" });
+      }
+
+      const preview = await assetExport.getExportPreview(assetIds);
+      res.json(preview);
+    } catch (error: any) {
+      console.error("Failed to get export preview:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Cleanup assets (dry run or actual deletion)
+  app.post("/api/assets/cleanup", async (req, res) => {
+    try {
+      const { worldId, olderThanDays, status, dryRun } = req.body;
+
+      const result = await assetExport.cleanupAssets({
+        worldId,
+        olderThanDays,
+        status,
+        dryRun: dryRun !== false // Default to dry run for safety
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Failed to cleanup assets:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

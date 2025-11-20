@@ -165,9 +165,11 @@ export interface IStorage {
 
   // Visual Assets
   getVisualAsset(id: string): Promise<VisualAsset | undefined>;
+  getVisualAssetsByIds(ids: string[]): Promise<VisualAsset[]>;
   getVisualAssetsByWorld(worldId: string): Promise<VisualAsset[]>;
   getVisualAssetsByType(worldId: string, assetType: string): Promise<VisualAsset[]>;
   getVisualAssetsByEntity(entityId: string, entityType: string): Promise<VisualAsset[]>;
+  getVisualAssetsForCleanup(options: { worldId?: string; status?: string; olderThan?: Date | null }): Promise<VisualAsset[]>;
   createVisualAsset(asset: InsertVisualAsset): Promise<VisualAsset>;
   updateVisualAsset(id: string, asset: Partial<InsertVisualAsset>): Promise<VisualAsset | undefined>;
   deleteVisualAsset(id: string): Promise<boolean>;
