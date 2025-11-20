@@ -20,6 +20,21 @@ export interface ImageGenerationParams {
   quality?: 'standard' | 'high' | 'ultra';
   numberOfImages?: number;
   seed?: number;
+
+  // Advanced prompting parameters
+  guidanceScale?: number; // CFG scale (1-30, typical 7-12)
+  steps?: number; // Number of inference steps (20-150)
+
+  // LoRA and ControlNet (provider-dependent)
+  loras?: Array<{
+    model: string;
+    weight: number; // 0.0-1.0
+  }>;
+  controlnet?: {
+    model: string;
+    image?: string; // base64 or URL
+    weight: number;
+  };
 }
 
 export interface GeneratedImage {
@@ -145,6 +160,34 @@ class StableDiffusionProvider extends ImageProvider {
         };
       }
 
+      // Build input parameters with advanced settings
+      const input: any = {
+        prompt: params.prompt,
+        negative_prompt: params.negativePrompt || '',
+        width: params.width || 1024,
+        height: params.height || 1024,
+        num_outputs: params.numberOfImages || 1,
+      };
+
+      // Add optional parameters
+      if (params.seed !== undefined) {
+        input.seed = params.seed;
+      }
+      if (params.guidanceScale !== undefined) {
+        input.guidance_scale = params.guidanceScale; // CFG scale
+      }
+      if (params.steps !== undefined) {
+        input.num_inference_steps = params.steps;
+      }
+
+      // LoRA support for SDXL
+      if (params.loras && params.loras.length > 0) {
+        // Format LoRAs for Replicate SDXL
+        input.apply_watermark = false;
+        input.lora_scale = params.loras[0].weight; // Replicate supports one LoRA at a time
+        // Note: Replicate SDXL requires specific LoRA model format
+      }
+
       // Use Replicate API for Stable Diffusion
       const response = await fetch('https://api.replicate.com/v1/predictions', {
         method: 'POST',
@@ -154,14 +197,7 @@ class StableDiffusionProvider extends ImageProvider {
         },
         body: JSON.stringify({
           version: 'stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b',
-          input: {
-            prompt: params.prompt,
-            negative_prompt: params.negativePrompt || '',
-            width: params.width || 1024,
-            height: params.height || 1024,
-            num_outputs: params.numberOfImages || 1,
-            seed: params.seed,
-          },
+          input,
         }),
       });
 
@@ -341,6 +377,25 @@ class FluxProvider extends ImageProvider {
           ? 'black-forest-labs/flux-pro'
           : 'black-forest-labs/flux-schnell';
 
+      // Build input parameters with advanced settings
+      const input: any = {
+        prompt: params.prompt,
+        width: params.width || 1024,
+        height: params.height || 1024,
+        num_outputs: params.numberOfImages || 1,
+      };
+
+      // Add optional parameters
+      if (params.seed !== undefined) {
+        input.seed = params.seed;
+      }
+      if (params.guidanceScale !== undefined) {
+        input.guidance_scale = params.guidanceScale;
+      }
+      if (params.steps !== undefined) {
+        input.num_inference_steps = params.steps;
+      }
+
       const response = await fetch('https://api.replicate.com/v1/predictions', {
         method: 'POST',
         headers: {
@@ -349,13 +404,7 @@ class FluxProvider extends ImageProvider {
         },
         body: JSON.stringify({
           version: fluxModel,
-          input: {
-            prompt: params.prompt,
-            width: params.width || 1024,
-            height: params.height || 1024,
-            num_outputs: params.numberOfImages || 1,
-            seed: params.seed,
-          },
+          input,
         }),
       });
 
