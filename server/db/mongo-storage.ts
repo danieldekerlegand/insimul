@@ -1544,6 +1544,32 @@ export class MongoStorage implements IStorage {
     return !!result;
   }
 
+  async getVisualAssetsByIds(ids: string[]): Promise<VisualAsset[]> {
+    await this.connect();
+    const docs = await VisualAssetModel.find({ _id: { $in: ids } });
+    return docs.map(docToVisualAsset);
+  }
+
+  async getVisualAssetsForCleanup(options: { worldId?: string; status?: string; olderThan?: Date | null }): Promise<VisualAsset[]> {
+    await this.connect();
+    const query: any = {};
+
+    if (options.worldId) {
+      query.worldId = options.worldId;
+    }
+
+    if (options.status) {
+      query.status = options.status;
+    }
+
+    if (options.olderThan) {
+      query.createdAt = { $lt: options.olderThan };
+    }
+
+    const docs = await VisualAssetModel.find(query);
+    return docs.map(docToVisualAsset);
+  }
+
   // ============= ASSET COLLECTIONS =============
 
   async getAssetCollection(id: string): Promise<AssetCollection | undefined> {
