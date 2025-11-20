@@ -867,47 +867,172 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
     };
   }, [worldData, sceneStatus, worldId]);
 
+  // Generate procedural world with buildings and nature
   useEffect(() => {
     const scene = sceneRef.current;
-    if (!scene || sceneStatus !== "ready" || !worldData) {
+    const buildingGenerator = buildingGeneratorRef.current;
+    const natureGenerator = natureGeneratorRef.current;
+    const worldScaleManager = worldScaleManagerRef.current;
+
+    if (!scene || sceneStatus !== "ready" || !worldData || !buildingGenerator || !natureGenerator || !worldScaleManager) {
       disposeAllSettlementMeshes(settlementMeshesRef);
       disposeAllSettlementRoadMeshes(settlementRoadMeshesRef);
       return;
     }
 
-    disposeAllSettlementMeshes(settlementMeshesRef);
-    disposeAllSettlementRoadMeshes(settlementRoadMeshesRef);
+    let cancelled = false;
 
-    const settlements = worldData.settlements.slice(0, MAX_SETTLEMENTS_3D);
-    const settlementMap = new Map<string, Mesh>();
-    const positions: { id: string; position: Vector3 }[] = [];
+    async function generateProceduralWorld() {
+      disposeAllSettlementMeshes(settlementMeshesRef);
+      disposeAllSettlementRoadMeshes(settlementRoadMeshesRef);
 
-    settlements.forEach((settlement, index) => {
-      const mesh = spawnSettlementMesh({
-        settlement,
-        scene,
-        index,
-        total: settlements.length,
-        terrainSize,
-        worldId,
-        theme: worldTheme
-      });
-      if (mesh) {
-        settlementMap.set(settlement.id, mesh);
-        positions.push({ id: settlement.id, position: mesh.position.clone() });
+      const settlements = worldData.settlements.slice(0, MAX_SETTLEMENTS_3D);
+      const settlementMap = new Map<string, Mesh>();
+      const allBuildingPositions: Vector3[] = [];
+
+      // Get world style for buildings
+      const worldStyle = ProceduralBuildingGenerator.getStyleForWorld(worldType, 'plains');
+
+      // Get biome for nature
+      const biome = ProceduralNatureGenerator.getBiomeFromTerrain(worldType);
+
+      console.log(`Generating procedural world: ${settlements.length} settlements, style: ${worldStyle.name}, biome: ${biome.name}`);
+
+      // Distribute settlements using scale manager
+      const scaledSettlements = worldScaleManager.distributeSettlements(
+        { bounds: { minX: -terrainSize/2, maxX: terrainSize/2, minZ: -terrainSize/2, maxZ: terrainSize/2, centerX: 0, centerZ: 0 }, id: worldId },
+        settlements.map(s => ({ ...s, population: s.population || 100 })),
+        false
+      );
+
+      // Generate buildings for each settlement
+      for (let i = 0; i < scaledSettlements.length && !cancelled; i++) {
+        const scaledSettlement = scaledSettlements[i];
+        const settlement = settlements[i];
+
+        // Fetch businesses and lots for this settlement
+        try {
+          const [businessesRes, lotsRes] = await Promise.all([
+            fetch(`/api/settlements/${settlement.id}/businesses`),
+            fetch(`/api/settlements/${settlement.id}/lots`)
+          ]);
+
+          const businesses = businessesRes.ok ? await businessesRes.json() : [];
+          const lots = lotsRes.ok ? await lotsRes.json() : [];
+
+          console.log(`Settlement ${settlement.name}: ${businesses.length} businesses, ${lots.length} lots`);
+
+          // Calculate building count based on population
+          const buildingCount = Math.max(
+            WorldScaleManager.getBuildingCount(scaledSettlement.population),
+            businesses.length,
+            lots.length,
+            5 // Minimum 5 buildings per settlement
+          );
+
+          // Generate lot positions
+          const lotPositions = worldScaleManager.generateLotPositions(scaledSettlement, buildingCount);
+
+          // Spawn buildings
+          let buildingIndex = 0;
+
+          // First, spawn businesses at their lots
+          for (const business of businesses) {
+            if (buildingIndex >= lotPositions.length) break;
+
+            const buildingSpec = ProceduralBuildingGenerator.createSpecFromData({
+              id: business.id,
+              type: 'business',
+              businessType: business.businessType,
+              position: lotPositions[buildingIndex],
+              worldStyle,
+              population: scaledSettlement.population
+            });
+
+            const building = buildingGenerator.generateBuilding(buildingSpec);
+            allBuildingPositions.push(building.position);
+
+            buildingIndex++;
+          }
+
+          // Then fill remaining positions with generic residences
+          while (buildingIndex < lotPositions.length) {
+            const residenceType = Math.random() > 0.7 ? 'residence_large' :
+                                  Math.random() > 0.4 ? 'residence_medium' : 'residence_small';
+
+            const buildingSpec = ProceduralBuildingGenerator.createSpecFromData({
+              id: `residence_${settlement.id}_${buildingIndex}`,
+              type: 'residence',
+              businessType: residenceType,
+              position: lotPositions[buildingIndex],
+              worldStyle,
+              population: Math.floor(scaledSettlement.population / buildingCount)
+            });
+
+            const building = buildingGenerator.generateBuilding(buildingSpec);
+            allBuildingPositions.push(building.position);
+
+            buildingIndex++;
+          }
+
+          // Create a marker for the settlement center
+          const settlementMarker = MeshBuilder.CreateCylinder(
+            `settlement_marker_${settlement.id}`,
+            { diameter: 3, height: 0.5, tessellation: 16 },
+            scene
+          );
+          settlementMarker.position = scaledSettlement.position.clone();
+          settlementMarker.position.y = 0.25;
+
+          const markerMat = new StandardMaterial(`settlement_marker_mat_${settlement.id}`, scene);
+          markerMat.diffuseColor = new Color3(0.8, 0.6, 0.2);
+          markerMat.emissiveColor = new Color3(0.4, 0.3, 0.1);
+          settlementMarker.material = markerMat;
+
+          settlementMap.set(settlement.id, settlementMarker);
+
+        } catch (error) {
+          console.error(`Failed to generate buildings for settlement ${settlement.name}:`, error);
+        }
       }
-    });
 
-    settlementMeshesRef.current = settlementMap;
+      if (cancelled) return;
 
-    const roadMeshes = createSettlementRoads(scene, positions, worldTheme);
-    settlementRoadMeshesRef.current = roadMeshes;
+      settlementMeshesRef.current = settlementMap;
+
+      // Generate nature elements (trees, rocks, grass, flowers)
+      console.log('Generating nature elements...');
+
+      const worldBounds = {
+        minX: -terrainSize / 2 + 50, // Leave space at edges
+        maxX: terrainSize / 2 - 50,
+        minZ: -terrainSize / 2 + 50,
+        maxZ: terrainSize / 2 - 50
+      };
+
+      // Trees - avoid building positions
+      natureGenerator.generateTrees(biome, worldBounds, allBuildingPositions, 20);
+
+      // Rocks
+      natureGenerator.generateRocks(biome, worldBounds, Math.floor(terrainSize / 20));
+
+      // Grass patches (fewer for performance)
+      natureGenerator.generateGrass(biome, worldBounds, Math.floor(terrainSize / 5));
+
+      // Flowers
+      natureGenerator.generateFlowers(biome, worldBounds, Math.floor(terrainSize / 10));
+
+      console.log('Procedural world generation complete!');
+    }
+
+    generateProceduralWorld();
 
     return () => {
+      cancelled = true;
       disposeAllSettlementMeshes(settlementMeshesRef);
       disposeAllSettlementRoadMeshes(settlementRoadMeshesRef);
     };
-  }, [worldData, sceneStatus, worldId, terrainSize, worldTheme]);
+  }, [worldData, sceneStatus, worldId, terrainSize, worldTheme, worldType]);
 
   useEffect(() => {
     const scene = sceneRef.current;
