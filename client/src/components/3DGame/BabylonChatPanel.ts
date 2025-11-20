@@ -11,6 +11,8 @@ import {
   TextWrapping
 } from "@babylonjs/gui";
 import { Scene } from "babylonjs";
+import { BabylonDialogueActions } from "./BabylonDialogueActions";
+import { Action } from "../rpg/types/actions";
 
 interface Message {
   role: 'user' | 'assistant';
@@ -49,9 +51,16 @@ export class BabylonChatPanel {
   private isProcessing = false;
   private isSpeaking = false;
 
+  // Dialogue Actions
+  private dialogueActions: BabylonDialogueActions | null = null;
+  private actionsContainer: Container | null = null;
+  private availableActions: Action[] = [];
+  private playerEnergy: number = 100;
+
   // Callbacks
   private onClose: (() => void) | null = null;
   private onQuestAssigned: ((questData: any) => void) | null = null;
+  private onActionSelect: ((actionId: string) => void) | null = null;
 
   constructor(advancedTexture: AdvancedDynamicTexture, scene: Scene) {
     this.advancedTexture = advancedTexture;
@@ -76,6 +85,9 @@ export class BabylonChatPanel {
     this.isVisible = false;
     if (this.chatContainer) {
       this.chatContainer.isVisible = false;
+    }
+    if (this.dialogueActions) {
+      this.dialogueActions.hide();
     }
     this.stopAllAudio();
   }
@@ -217,7 +229,7 @@ export class BabylonChatPanel {
     // Messages scroll area
     const scrollViewer = new ScrollViewer("chatScroll");
     scrollViewer.width = "100%";
-    scrollViewer.height = "340px";
+    scrollViewer.height = "240px";
     scrollViewer.paddingTop = "10px";
     scrollViewer.paddingBottom = "10px";
     scrollViewer.background = "rgba(20, 20, 20, 0.5)";
@@ -226,6 +238,15 @@ export class BabylonChatPanel {
     this.messagesPanel = new StackPanel("messagesPanel");
     this.messagesPanel.width = "100%";
     scrollViewer.addControl(this.messagesPanel);
+
+    // Actions container (for dialogue actions)
+    this.actionsContainer = new Container("actionsContainer");
+    this.actionsContainer.width = "100%";
+    this.actionsContainer.height = "100px";
+    this.actionsContainer.background = "transparent";
+    this.actionsContainer.paddingLeft = "10px";
+    this.actionsContainer.paddingRight = "10px";
+    mainStack.addControl(this.actionsContainer);
 
     // Input area
     const inputContainer = new Rectangle("inputContainer");
@@ -583,8 +604,49 @@ Respond naturally and conversationally.`;
     this.onQuestAssigned = callback;
   }
 
+  public setOnActionSelect(callback: (actionId: string) => void) {
+    this.onActionSelect = callback;
+  }
+
+  /**
+   * Set available dialogue actions for the current conversation
+   */
+  public setDialogueActions(actions: Action[], playerEnergy: number) {
+    this.availableActions = actions;
+    this.playerEnergy = playerEnergy;
+
+    if (this.isVisible && this.actionsContainer && actions.length > 0) {
+      if (!this.dialogueActions) {
+        this.dialogueActions = new BabylonDialogueActions();
+      }
+
+      this.dialogueActions.show(
+        this.actionsContainer,
+        actions,
+        playerEnergy,
+        (actionId: string) => {
+          this.onActionSelect?.(actionId);
+        }
+      );
+    }
+  }
+
+  /**
+   * Update dialogue actions (e.g., when player energy changes)
+   */
+  public updateDialogueActions(playerEnergy: number) {
+    this.playerEnergy = playerEnergy;
+    if (this.dialogueActions && this.dialogueActions.isVisible()) {
+      this.dialogueActions.update(this.availableActions, playerEnergy);
+    }
+  }
+
   public dispose() {
     this.stopAllAudio();
+    if (this.dialogueActions) {
+      this.dialogueActions.hide();
+      this.dialogueActions = null;
+    }
     if (this.chatContainer) {
       this.advancedTexture.removeControl(this.chatContainer);
     }

@@ -27,13 +27,13 @@ GLTFFileLoader.IncrementalLoading = false;
 SceneLoader.RegisterPlugin(new GLTFFileLoader());
 
 import { CharacterController } from "@/components/3D/src/CharacterController";
-import { DialogueActions } from "@/components/rpg/actions/DialogueActions";
 import { Action, ActionContext, ActionResult } from "@/components/rpg/types/actions";
 import { ActionManager } from "@/components/rpg/actions/ActionManager";
 import { TextureManager } from "@/components/3DGame/TextureManager";
 import { BabylonGUIManager } from "@/components/3DGame/BabylonGUIManager";
 import { BabylonChatPanel } from "@/components/3DGame/BabylonChatPanel";
 import { BabylonQuestTracker } from "@/components/3DGame/BabylonQuestTracker";
+import { BabylonRadialMenu } from "@/components/3DGame/BabylonRadialMenu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -259,6 +259,7 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
   const guiManagerRef = useRef<BabylonGUIManager | null>(null);
   const chatPanelRef = useRef<BabylonChatPanel | null>(null);
   const questTrackerRef = useRef<BabylonQuestTracker | null>(null);
+  const radialMenuRef = useRef<BabylonRadialMenu | null>(null);
 
   const [sceneStatus, setSceneStatus] = useState<SceneStatus>("idle");
   const [sceneErrorMessage, setSceneErrorMessage] = useState<string>("");
@@ -354,6 +355,10 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
           description: questData.title || 'Quest assigned',
         });
       });
+      chatPanel.setOnActionSelect((actionId: string) => {
+        // Handle action selection from chat panel
+        handlePerformAction(actionId);
+      });
       chatPanelRef.current = chatPanel;
 
       // Initialize quest tracker
@@ -362,6 +367,10 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
         console.log('Quest tracker closed');
       });
       questTrackerRef.current = questTracker;
+
+      // Initialize radial menu
+      const radialMenu = new BabylonRadialMenu(scene);
+      radialMenuRef.current = radialMenu;
 
       setSceneStatus("ready");
     } catch (error) {
@@ -381,6 +390,8 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
       chatPanelRef.current = null;
       questTrackerRef.current?.dispose();
       questTrackerRef.current = null;
+      radialMenuRef.current?.dispose();
+      radialMenuRef.current = null;
       guiManagerRef.current?.dispose();
       guiManagerRef.current = null;
       sceneRef.current?.dispose();
@@ -945,6 +956,9 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
 
               chatPanelRef.current.show(character, truths);
 
+              // Set dialogue actions for the chat panel
+              chatPanelRef.current.setDialogueActions(availableActions, playerEnergy);
+
               toast({
                 title: `Chatting with ${npc.name}`,
                 description: "Press C again to close chat",
@@ -966,6 +980,41 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
             variant: "destructive",
             duration: 2000
           });
+        }
+      }
+
+      // TAB key - show radial action menu
+      if (event.code === 'Tab' && !event.repeat) {
+        event.preventDefault();
+
+        if (radialMenuRef.current) {
+          if (radialMenuRef.current.isOpen()) {
+            radialMenuRef.current.hide();
+          } else if (selectedNPCId && availableActions.length > 0) {
+            radialMenuRef.current.show(
+              availableActions,
+              playerEnergy,
+              (actionId: string) => {
+                handlePerformAction(actionId);
+              },
+              () => {
+                console.log('Radial menu closed');
+              }
+            );
+
+            toast({
+              title: "Action Menu",
+              description: "Select an action or press TAB/ESC to close",
+              duration: 2000
+            });
+          } else {
+            toast({
+              title: "No Actions Available",
+              description: "Select an NPC first to see available actions",
+              variant: "destructive",
+              duration: 2000
+            });
+          }
         }
       }
 
@@ -991,7 +1040,7 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [npcInfos, selectedNPCId, worldData, worldId, toast]);
+  }, [npcInfos, selectedNPCId, worldData, worldId, toast, availableActions, playerEnergy, handlePerformAction]);
 
   useEffect(() => {
     npcMeshesRef.current.forEach((instance, npcId) => {
