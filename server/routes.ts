@@ -7028,6 +7028,95 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     }
   });
 
+  // ============= IMAGE UPSCALING & ENHANCEMENT =============
+
+  // Import upscaling service
+  const imageUpscaling = await import('./services/image-upscaling.js');
+
+  // Upscale an image
+  app.post("/api/assets/:id/upscale", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { scale, model, faceEnhancement } = req.body;
+
+      const result = await imageUpscaling.upscaleImage(id, {
+        scale: scale || 2,
+        model,
+        faceEnhancement
+      });
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      res.json({ success: true, newAssetId: result.newAssetId });
+    } catch (error: any) {
+      console.error("Failed to upscale image:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Enhance an image with filters
+  app.post("/api/assets/:id/enhance", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { brightness, contrast, saturation, sharpness, denoise } = req.body;
+
+      const result = await imageUpscaling.enhanceImage(id, {
+        brightness,
+        contrast,
+        saturation,
+        sharpness,
+        denoise
+      });
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      res.json({ success: true, newAssetId: result.newAssetId });
+    } catch (error: any) {
+      console.error("Failed to enhance image:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Analyze image quality
+  app.get("/api/assets/:id/quality", async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const metrics = await imageUpscaling.analyzeImageQuality(id);
+
+      if (!metrics) {
+        return res.status(404).json({ error: "Asset not found or analysis failed" });
+      }
+
+      res.json(metrics);
+    } catch (error: any) {
+      console.error("Failed to analyze quality:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Compare two images
+  app.get("/api/assets/compare/:originalId/:processedId", async (req, res) => {
+    try {
+      const { originalId, processedId } = req.params;
+
+      const comparison = await imageUpscaling.compareImages(originalId, processedId);
+
+      if (!comparison) {
+        return res.status(404).json({ error: "Assets not found or comparison failed" });
+      }
+
+      res.json(comparison);
+    } catch (error: any) {
+      console.error("Failed to compare images:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
