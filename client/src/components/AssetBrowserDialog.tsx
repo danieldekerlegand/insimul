@@ -7,14 +7,20 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Image as ImageIcon, Trash2, Download, Search, Filter, Grid3x3, List, Calendar, Tag, Sparkles, History, CheckCircle2, XCircle, Loader2, Clock } from 'lucide-react';
+import { Image as ImageIcon, Trash2, Download, Search, Filter, Grid3x3, List, Calendar, Tag, Sparkles, History, CheckCircle2, XCircle, Loader2, Clock, FileArchive, CheckSquare, Square, ArrowUp, Wand2, TrendingUp } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import type { VisualAsset } from '@shared/schema';
 import { format } from 'date-fns';
+import { AssetExportDialog } from './AssetExportDialog';
+import { ImageUpscaleDialog } from './ImageUpscaleDialog';
+import { ImageEnhancementDialog } from './ImageEnhancementDialog';
+import { QualityComparisonDialog } from './QualityComparisonDialog';
 
 interface AssetBrowserDialogProps {
   open: boolean;
@@ -54,6 +60,14 @@ export function AssetBrowserDialog({
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedAsset, setSelectedAsset] = useState<VisualAsset | null>(null);
   const [activeTab, setActiveTab] = useState<'assets' | 'history'>('assets');
+  const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [showUpscaleDialog, setShowUpscaleDialog] = useState(false);
+  const [showEnhanceDialog, setShowEnhanceDialog] = useState(false);
+  const [showComparisonDialog, setShowComparisonDialog] = useState(false);
+  const [assetForUpscale, setAssetForUpscale] = useState<VisualAsset | null>(null);
+  const [assetForEnhance, setAssetForEnhance] = useState<VisualAsset | null>(null);
+  const [comparisonAssets, setComparisonAssets] = useState<{ original: VisualAsset | null; processed: VisualAsset | null }>({ original: null, processed: null });
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -162,6 +176,30 @@ export function AssetBrowserDialog({
     }
   };
 
+  // Bulk selection handlers
+  const toggleAssetSelection = (assetId: string) => {
+    const newSelection = new Set(selectedAssets);
+    if (newSelection.has(assetId)) {
+      newSelection.delete(assetId);
+    } else {
+      newSelection.add(assetId);
+    }
+    setSelectedAssets(newSelection);
+  };
+
+  const selectAll = () => {
+    const allIds = new Set(filteredAssets.map(a => a.id));
+    setSelectedAssets(allIds);
+  };
+
+  const clearSelection = () => {
+    setSelectedAssets(new Set());
+  };
+
+  const getSelectedAssetsData = (): VisualAsset[] => {
+    return assets.filter(a => selectedAssets.has(a.id));
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -230,6 +268,58 @@ export function AssetBrowserDialog({
               <div>{assetTypes.length} types</div>
             </div>
 
+            {/* Bulk Selection Toolbar */}
+            {filteredAssets.length > 0 && (
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={selectedAssets.size === filteredAssets.length ? clearSelection : selectAll}
+                  >
+                    {selectedAssets.size === filteredAssets.length ? (
+                      <>
+                        <Square className="h-4 w-4 mr-2" />
+                        Deselect All
+                      </>
+                    ) : (
+                      <>
+                        <CheckSquare className="h-4 w-4 mr-2" />
+                        Select All
+                      </>
+                    )}
+                  </Button>
+                  {selectedAssets.size > 0 && (
+                    <>
+                      <Separator orientation="vertical" className="h-6" />
+                      <span className="text-sm font-medium">
+                        {selectedAssets.size} selected
+                      </span>
+                    </>
+                  )}
+                </div>
+                {selectedAssets.size > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearSelection}
+                    >
+                      Clear
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => setShowExportDialog(true)}
+                    >
+                      <FileArchive className="h-4 w-4 mr-2" />
+                      Export ({selectedAssets.size})
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Asset Grid/List */}
             <ScrollArea className="h-[500px] pr-4">
               {isLoading ? (
@@ -247,7 +337,11 @@ export function AssetBrowserDialog({
                   {filteredAssets.map(asset => (
                     <Card
                       key={asset.id}
-                      className="cursor-pointer hover:border-primary transition-colors"
+                      className={`cursor-pointer transition-colors ${
+                        selectedAssets.has(asset.id)
+                          ? 'border-primary bg-primary/5'
+                          : 'hover:border-primary'
+                      }`}
                       onClick={() => setSelectedAsset(asset)}
                     >
                       <CardContent className="p-0">
@@ -257,6 +351,17 @@ export function AssetBrowserDialog({
                             alt={asset.name}
                             className="w-full h-full object-cover rounded-t-lg"
                           />
+                          <div className="absolute top-2 left-2">
+                            <Checkbox
+                              checked={selectedAssets.has(asset.id)}
+                              onCheckedChange={(e) => {
+                                e.stopPropagation();
+                                toggleAssetSelection(asset.id);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="bg-white border-2"
+                            />
+                          </div>
                           <div className="absolute top-2 right-2">
                             <Badge variant={getAssetTypeBadgeColor(asset.assetType)}>
                               {asset.assetType.replace(/_/g, ' ')}
@@ -279,10 +384,22 @@ export function AssetBrowserDialog({
                   {filteredAssets.map(asset => (
                     <Card
                       key={asset.id}
-                      className="cursor-pointer hover:border-primary transition-colors"
+                      className={`cursor-pointer transition-colors ${
+                        selectedAssets.has(asset.id)
+                          ? 'border-primary bg-primary/5'
+                          : 'hover:border-primary'
+                      }`}
                       onClick={() => setSelectedAsset(asset)}
                     >
                       <CardContent className="p-4 flex items-center gap-4">
+                        <Checkbox
+                          checked={selectedAssets.has(asset.id)}
+                          onCheckedChange={(e) => {
+                            e.stopPropagation();
+                            toggleAssetSelection(asset.id);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
                         <img
                           src={`/${asset.filePath}`}
                           alt={asset.name}
@@ -523,54 +640,154 @@ export function AssetBrowserDialog({
                   </TabsContent>
                 </Tabs>
 
-                <div className="flex gap-2 justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={() => handleDownload(selectedAsset)}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Download
-                  </Button>
-                  {onAssetSelected && (
-                    <Button onClick={() => {
-                      onAssetSelected(selectedAsset);
-                      setSelectedAsset(null);
-                      onOpenChange(false);
-                    }}>
-                      Select This Asset
-                    </Button>
-                  )}
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Asset?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete "{selectedAsset.name}". This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => deleteMutation.mutate(selectedAsset.id)}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                <div className="space-y-3">
+                  {/* Quality Tools */}
+                  <Card>
+                    <CardContent className="pt-4">
+                      <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <Sparkles className="h-4 w-4" />
+                        Quality Tools
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setAssetForUpscale(selectedAsset);
+                            setShowUpscaleDialog(true);
+                          }}
                         >
+                          <ArrowUp className="h-4 w-4 mr-2" />
+                          Upscale
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setAssetForEnhance(selectedAsset);
+                            setShowEnhanceDialog(true);
+                          }}
+                        >
+                          <Wand2 className="h-4 w-4 mr-2" />
+                          Enhance
+                        </Button>
+                        {selectedAsset.parentAssetId && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              const parentAsset = assets.find(a => a.id === selectedAsset.parentAssetId);
+                              if (parentAsset) {
+                                setComparisonAssets({ original: parentAsset, processed: selectedAsset });
+                                setShowComparisonDialog(true);
+                              }
+                            }}
+                          >
+                            <TrendingUp className="h-4 w-4 mr-2" />
+                            Compare
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Actions */}
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => handleDownload(selectedAsset)}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download
+                    </Button>
+                    {onAssetSelected && (
+                      <Button onClick={() => {
+                        onAssetSelected(selectedAsset);
+                        setSelectedAsset(null);
+                        onOpenChange(false);
+                      }}>
+                        Select This Asset
+                      </Button>
+                    )}
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive">
+                          <Trash2 className="h-4 w-4 mr-2" />
                           Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Asset?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently delete "{selectedAsset.name}". This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => deleteMutation.mutate(selectedAsset.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
               </div>
             </>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Asset Export Dialog */}
+      <AssetExportDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        selectedAssets={getSelectedAssetsData()}
+      />
+
+      {/* Image Upscale Dialog */}
+      {assetForUpscale && (
+        <ImageUpscaleDialog
+          open={showUpscaleDialog}
+          onOpenChange={setShowUpscaleDialog}
+          asset={assetForUpscale}
+          onUpscaleComplete={(newAssetId) => {
+            queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/worlds'] });
+            setShowUpscaleDialog(false);
+            setAssetForUpscale(null);
+          }}
+        />
+      )}
+
+      {/* Image Enhancement Dialog */}
+      {assetForEnhance && (
+        <ImageEnhancementDialog
+          open={showEnhanceDialog}
+          onOpenChange={setShowEnhanceDialog}
+          asset={assetForEnhance}
+          onEnhanceComplete={(newAssetId) => {
+            queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/worlds'] });
+            setShowEnhanceDialog(false);
+            setAssetForEnhance(null);
+          }}
+        />
+      )}
+
+      {/* Quality Comparison Dialog */}
+      {comparisonAssets.original && comparisonAssets.processed && (
+        <QualityComparisonDialog
+          open={showComparisonDialog}
+          onOpenChange={setShowComparisonDialog}
+          originalAsset={comparisonAssets.original}
+          processedAsset={comparisonAssets.processed}
+        />
+      )}
     </>
   );
 }
