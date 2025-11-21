@@ -113,10 +113,25 @@ interface NPCDisplayInfo {
   position: { x: number; z: number };
 }
 
+// NPC behavioral states
+type NPCState = 'idle' | 'fleeing' | 'pursuing' | 'alert' | 'returning';
+
+// NPC role types
+type NPCRole = 'civilian' | 'guard' | 'merchant' | 'questgiver';
+
 interface NPCInstance {
   mesh: Mesh;
   controller?: CharacterController | null;
   questMarker?: Mesh | null;
+  // NPC behavior state
+  state: NPCState;
+  role: NPCRole;
+  homePosition?: Vector3; // Original spawn position
+  stateExpiry?: number; // Timestamp when state expires
+  fleeTarget?: Vector3; // Where NPC is fleeing to
+  pursuitTarget?: Vector3; // Where guard is pursuing to
+  // Disposition toward player (-100 to 100)
+  disposition: number;
 }
 
 interface ActionFeedback {
@@ -1051,6 +1066,57 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
           duration: 5000
         });
 
+        // Trigger NPC reactions based on penalty level
+        const playerMesh = playerMeshRef.current;
+        if (playerMesh) {
+          const playerPos = playerMesh.position;
+
+          // Combat penalty (level 3): NPCs flee + guards spawn
+          if (violationResult.penaltyApplied === 'combat') {
+            // Trigger NPC flee behavior
+            triggerNPCFlee(npcMeshesRef.current, playerPos, 100);
+
+            // Spawn guard NPCs at the settlement
+            const scene = sceneRef.current;
+            if (scene && currentZone) {
+              const zoneBoundary = zoneBoundaryMeshesRef.current.get(currentZone.id);
+              if (zoneBoundary) {
+                const settlementPos = zoneBoundary.boundary.position;
+
+                // Spawn 2 guard NPCs
+                for (let i = 0; i < 2; i++) {
+                  spawnGuardNPC({
+                    settlement: {
+                      id: currentZone.id,
+                      name: currentZone.name,
+                      position: settlementPos
+                    },
+                    scene,
+                    targetPosition: playerPos.clone()
+                  }).then(guardInstance => {
+                    if (guardInstance) {
+                      const guardId = `guard-${currentZone.id}-${Date.now()}-${i}`;
+                      npcMeshesRef.current.set(guardId, guardInstance);
+
+                      toast({
+                        title: "Guards Alerted!",
+                        description: `Guards are responding to the disturbance in ${currentZone.name}`,
+                        variant: "destructive",
+                        duration: 4000
+                      });
+                    }
+                  });
+                }
+              }
+            }
+          }
+
+          // Banishment penalty (level 4): Also trigger flee for dramatic effect
+          if (violationResult.penaltyApplied === 'banishment') {
+            triggerNPCFlee(npcMeshesRef.current, playerPos, 120);
+          }
+        }
+
         // If banned, push player out of zone
         if (violationResult.isBanned) {
           const playerMesh = playerMeshRef.current;
@@ -1413,6 +1479,113 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
       }
     });
   }, [selectedNPCId]);
+
+  // NPC behavior state update loop - manages flee/return/pursuit behaviors
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    const updateInterval = setInterval(() => {
+      const now = Date.now();
+
+      npcMeshesRef.current.forEach((npc, npcId) => {
+        if (!npc.mesh) return;
+
+        // Check if state has expired
+        if (npc.stateExpiry && now > npc.stateExpiry) {
+          // Return to idle/home position
+          npc.state = 'returning';
+          npc.stateExpiry = undefined;
+        }
+
+        // Handle different NPC states
+        switch (npc.state) {
+          case 'fleeing':
+            if (npc.fleeTarget) {
+              // Move NPC toward flee target
+              const currentPos = npc.mesh.position;
+              const direction = npc.fleeTarget.subtract(currentPos).normalize();
+              const moveSpeed = 0.5; // Units per frame
+
+              // Check if reached target
+              if (Vector3.Distance(currentPos, npc.fleeTarget) < 2) {
+                npc.state = 'returning';
+                npc.fleeTarget = undefined;
+              } else {
+                // Move toward flee target
+                npc.mesh.position.addInPlace(direction.scale(moveSpeed));
+              }
+            }
+            break;
+
+          case 'returning':
+            if (npc.homePosition) {
+              const currentPos = npc.mesh.position;
+              const direction = npc.homePosition.subtract(currentPos).normalize();
+              const moveSpeed = 0.3;
+
+              // Check if reached home
+              if (Vector3.Distance(currentPos, npc.homePosition) < 1) {
+                npc.state = 'idle';
+
+                // Restore original material color
+                if (npc.mesh.material) {
+                  const mat = npc.mesh.material as StandardMaterial;
+                  if (mat.metadata?.originalColor) {
+                    mat.diffuseColor = mat.metadata.originalColor.clone();
+                  }
+                }
+              } else {
+                // Move toward home
+                npc.mesh.position.addInPlace(direction.scale(moveSpeed));
+              }
+            } else {
+              npc.state = 'idle';
+            }
+            break;
+
+          case 'pursuing':
+            if (npc.pursuitTarget && npc.role === 'guard') {
+              const currentPos = npc.mesh.position;
+              const direction = npc.pursuitTarget.subtract(currentPos).normalize();
+              const moveSpeed = 0.7; // Guards move faster
+
+              // Check if reached target
+              if (Vector3.Distance(currentPos, npc.pursuitTarget) < 5) {
+                npc.state = 'alert';
+                npc.pursuitTarget = undefined;
+                // Guards stay alert for a while
+                npc.stateExpiry = now + 10000;
+              } else {
+                // Move toward target
+                npc.mesh.position.addInPlace(direction.scale(moveSpeed));
+              }
+            }
+            break;
+
+          case 'alert':
+            // Guards stay still but alert
+            break;
+
+          case 'idle':
+          default:
+            // Idle behavior - NPCs just stay at home position
+            break;
+        }
+      });
+    }, 100); // Update every 100ms
+
+    return () => {
+      clearInterval(updateInterval);
+    };
+  }, []);
+
+  // Update NPC dispositions when reputation changes
+  useEffect(() => {
+    if (currentReputation && npcMeshesRef.current.size > 0) {
+      updateNPCDispositions(npcMeshesRef.current, currentReputation.score);
+    }
+  }, [currentReputation]);
 
   // Update GUI: Player status
   useEffect(() => {
@@ -2739,6 +2912,14 @@ async function spawnNPCInstance({
     npcMesh.ellipsoidOffset = new Vector3(0, 1, 0);
     npcMesh.isPickable = true;
 
+    // Store original material color for disposition color changes
+    if (npcMesh.material) {
+      const mat = npcMesh.material as StandardMaterial;
+      if (mat.diffuseColor) {
+        mat.metadata = { ...mat.metadata, originalColor: mat.diffuseColor.clone() };
+      }
+    }
+
     let npcSkeleton: Skeleton | null = null;
     if (templateSkeleton) {
       npcSkeleton = templateSkeleton.clone(`npc-skel-${character.id}`);
@@ -2783,7 +2964,26 @@ async function spawnNPCInstance({
       questMarker.position = new Vector3(0, 2.8, 0); // Above NPC head
     }
 
-    return { mesh: npcMesh, controller, questMarker };
+    // Determine NPC role based on occupation
+    const occupation = (character.occupation || '').toLowerCase();
+    let role: NPCRole = 'civilian';
+    if (occupation.includes('guard') || occupation.includes('soldier') || occupation.includes('officer')) {
+      role = 'guard';
+    } else if (occupation.includes('merchant') || occupation.includes('shopkeeper') || occupation.includes('trader')) {
+      role = 'merchant';
+    } else if (questGiver) {
+      role = 'questgiver';
+    }
+
+    return {
+      mesh: npcMesh,
+      controller,
+      questMarker,
+      state: 'idle',
+      role,
+      homePosition: spawnPosition.clone(),
+      disposition: 0 // Neutral disposition initially
+    };
   } catch (error) {
     console.warn(`Failed to spawn NPC instance for ${character.id}`, error);
     return null;
@@ -2858,6 +3058,165 @@ function tagNPCMeshHierarchy(rootMesh: Mesh, npcId: string) {
   rootMesh.metadata = { ...(rootMesh.metadata || {}), npcId };
   rootMesh.getChildMeshes(false).forEach((child) => {
     child.metadata = { ...(child.metadata || {}), npcId };
+  });
+}
+
+// Trigger NPC flee behavior from a violation epicenter
+function triggerNPCFlee(
+  npcMeshesRef: Map<string, NPCInstance>,
+  epicenter: Vector3,
+  fleeRadius: number = 100
+) {
+  const now = Date.now();
+  const fleeSeconds = 5;
+
+  npcMeshesRef.forEach((npc, npcId) => {
+    if (!npc.mesh || npc.role === 'guard') return; // Guards don't flee
+
+    const npcPos = npc.mesh.position;
+    const distance = Vector3.Distance(npcPos, epicenter);
+
+    if (distance < fleeRadius) {
+      // Calculate flee direction (away from epicenter)
+      const fleeDirection = npcPos.subtract(epicenter).normalize();
+      const fleeTarget = npcPos.add(fleeDirection.scale(50));
+
+      // Set NPC state
+      npc.state = 'fleeing';
+      npc.fleeTarget = fleeTarget;
+      npc.stateExpiry = now + fleeSeconds * 1000;
+
+      // Change mesh color to indicate fear (slight pale tint)
+      if (npc.mesh.material) {
+        const mat = npc.mesh.material as StandardMaterial;
+        if (mat.diffuseColor) {
+          // Store original color if not already stored
+          if (!mat.metadata?.originalColor) {
+            mat.metadata = { originalColor: mat.diffuseColor.clone() };
+          }
+          // Apply pale/fear tint
+          mat.diffuseColor = new Color3(0.9, 0.9, 0.95);
+        }
+      }
+    }
+  });
+}
+
+// Spawn a guard NPC dynamically at a settlement
+async function spawnGuardNPC({
+  settlement,
+  scene,
+  targetPosition
+}: {
+  settlement: { id: string; name: string; position: Vector3 };
+  scene: Scene;
+  targetPosition?: Vector3;
+}): Promise<NPCInstance | null> {
+  try {
+    const template = await ensureNPCTemplate(scene);
+    if (!template) return null;
+
+    const { mesh: templateMesh, skeleton: templateSkeleton } = template;
+
+    const guardMesh = templateMesh.clone(`guard-${settlement.id}-${Date.now()}`, null);
+    if (!guardMesh) return null;
+
+    guardMesh.setEnabled(true);
+    guardMesh.isVisible = true;
+
+    // Spawn near settlement center
+    const spawnOffset = new Vector3(
+      Math.random() * 10 - 5,
+      0,
+      Math.random() * 10 - 5
+    );
+    const spawnPosition = settlement.position.add(spawnOffset);
+    spawnPosition.y = 12; // Ground level
+
+    guardMesh.position = spawnPosition.clone();
+    guardMesh.checkCollisions = true;
+    guardMesh.ellipsoid = new Vector3(0.5, 1, 0.5);
+    guardMesh.ellipsoidOffset = new Vector3(0, 1, 0);
+    guardMesh.isPickable = true;
+
+    // Give guard a red tint to distinguish from civilians
+    const guardMat = new StandardMaterial(`guard-mat-${Date.now()}`, scene);
+    guardMat.diffuseColor = new Color3(0.8, 0.2, 0.2); // Red armor
+    guardMat.specularColor = new Color3(0.3, 0.3, 0.3);
+    guardMesh.material = guardMat;
+
+    let guardSkeleton: Skeleton | null = null;
+    if (templateSkeleton) {
+      guardSkeleton = templateSkeleton.clone(`guard-skel-${Date.now()}`);
+      if (guardSkeleton) {
+        guardSkeleton.enableBlending(0.1);
+        guardMesh.skeleton = guardSkeleton;
+      }
+    }
+
+    const controller = new CharacterController(guardMesh, null as any, scene);
+    controller.setFaceForward(false);
+    controller.setMode(0);
+    controller.setStepOffset(0.4);
+    controller.setSlopeLimit(30, 60);
+    controller.setIdleAnim("idle", 1, true);
+    controller.setWalkAnim("walk", 1, true);
+    controller.setRunAnim("run", 1.5, true);
+    controller.setWalkBackAnim("walkBack", 0.5, true);
+    controller.enableKeyBoard(false);
+    controller.start();
+
+    return {
+      mesh: guardMesh,
+      controller,
+      questMarker: null,
+      state: targetPosition ? 'pursuing' : 'alert',
+      role: 'guard',
+      homePosition: spawnPosition.clone(),
+      pursuitTarget: targetPosition,
+      disposition: -100 // Guards are hostile when spawned
+    };
+  } catch (error) {
+    console.warn('Failed to spawn guard NPC', error);
+    return null;
+  }
+}
+
+// Update NPC dispositions based on player reputation
+function updateNPCDispositions(
+  npcMeshesRef: Map<string, NPCInstance>,
+  reputationScore: number
+) {
+  npcMeshesRef.forEach((npc) => {
+    // Disposition changes based on reputation
+    // Reputation is -100 to +100, disposition is also -100 to +100
+    // NPCs gradually adjust their disposition toward player's reputation
+    const targetDisposition = reputationScore;
+    const currentDisposition = npc.disposition;
+
+    // Move disposition 20% toward target each update
+    const newDisposition = currentDisposition + (targetDisposition - currentDisposition) * 0.2;
+    npc.disposition = Math.round(newDisposition);
+
+    // Visual feedback based on disposition
+    if (npc.mesh && npc.mesh.material && npc.role !== 'guard') {
+      const mat = npc.mesh.material as StandardMaterial;
+      if (mat.metadata?.originalColor && npc.state === 'idle') {
+        const originalColor = mat.metadata.originalColor as Color3;
+
+        // Color tint based on disposition
+        if (npc.disposition < -50) {
+          // Hostile: red tint
+          mat.diffuseColor = originalColor.scale(0.8).add(new Color3(0.2, 0, 0));
+        } else if (npc.disposition > 50) {
+          // Friendly: green tint
+          mat.diffuseColor = originalColor.scale(0.8).add(new Color3(0, 0.2, 0.1));
+        } else {
+          // Neutral: restore original
+          mat.diffuseColor = originalColor.clone();
+        }
+      }
+    }
   });
 }
 
