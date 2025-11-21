@@ -38,6 +38,9 @@ import { QuestObjectManager } from "@/components/3DGame/QuestObjectManager";
 import { ProceduralBuildingGenerator, BuildingStyle } from "@/components/3DGame/ProceduralBuildingGenerator";
 import { ProceduralNatureGenerator, BiomeStyle } from "@/components/3DGame/ProceduralNatureGenerator";
 import { WorldScaleManager, ScaledSettlement } from "@/components/3DGame/WorldScaleManager";
+import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay";
+import { BabylonMinimap } from "@/components/3DGame/BabylonMinimap";
+import { BabylonInventory, InventoryItem } from "@/components/3DGame/BabylonInventory";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -268,6 +271,10 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
   const buildingGeneratorRef = useRef<ProceduralBuildingGenerator | null>(null);
   const natureGeneratorRef = useRef<ProceduralNatureGenerator | null>(null);
   const worldScaleManagerRef = useRef<WorldScaleManager | null>(null);
+  const buildingDataRef = useRef<Map<string, { position: Vector3; metadata: any; mesh: Mesh }>>(new Map());
+  const buildingInfoDisplayRef = useRef<BuildingInfoDisplay | null>(null);
+  const minimapRef = useRef<BabylonMinimap | null>(null);
+  const inventoryRef = useRef<BabylonInventory | null>(null);
 
   const [sceneStatus, setSceneStatus] = useState<SceneStatus>("idle");
   const [sceneErrorMessage, setSceneErrorMessage] = useState<string>("");
@@ -404,6 +411,19 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
         handleQuestObjectiveCompleted(questId, objectiveId, 'complete');
       });
       questObjectManagerRef.current = questObjectManager;
+
+      // Initialize building info display
+      const buildingInfoDisplay = new BuildingInfoDisplay(scene, guiManager.advancedTexture);
+      buildingInfoDisplayRef.current = buildingInfoDisplay;
+
+      // Initialize minimap
+      const minimap = new BabylonMinimap(scene, guiManager.advancedTexture, terrainSize);
+      minimap.show(); // Show by default
+      minimapRef.current = minimap;
+
+      // Initialize inventory
+      const inventory = new BabylonInventory(scene, guiManager.advancedTexture);
+      inventoryRef.current = inventory;
 
       // Initialize procedural generators
       const buildingGenerator = new ProceduralBuildingGenerator(scene);
@@ -816,7 +836,8 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
               scene: sceneForNPCs,
               index,
               total: characters.length,
-              questGiver: questGiverIds.has(character.id)
+              questGiver: questGiverIds.has(character.id),
+              buildingData: buildingDataRef.current
             })
           )
         );
@@ -835,6 +856,17 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
           instance.mesh.metadata = { ...(instance.mesh.metadata || {}), npcId: character.id };
           tagNPCMeshHierarchy(instance.mesh, character.id);
           npcMap.set(character.id, instance);
+
+          // Add NPC marker to minimap
+          if (minimapRef.current) {
+            minimapRef.current.addMarker({
+              id: `npc_${character.id}`,
+              position: instance.mesh.position.clone(),
+              type: 'npc',
+              label: formatCharacterName(character)
+            });
+          }
+
           infos.push({
             id: character.id,
             name: formatCharacterName(character),
@@ -910,22 +942,24 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
         const scaledSettlement = scaledSettlements[i];
         const settlement = settlements[i];
 
-        // Fetch businesses and lots for this settlement
+        // Fetch businesses, lots, and residences for this settlement
         try {
-          const [businessesRes, lotsRes] = await Promise.all([
+          const [businessesRes, lotsRes, residencesRes] = await Promise.all([
             fetch(`/api/settlements/${settlement.id}/businesses`),
-            fetch(`/api/settlements/${settlement.id}/lots`)
+            fetch(`/api/settlements/${settlement.id}/lots`),
+            fetch(`/api/settlements/${settlement.id}/residences`)
           ]);
 
           const businesses = businessesRes.ok ? await businessesRes.json() : [];
           const lots = lotsRes.ok ? await lotsRes.json() : [];
+          const residences = residencesRes.ok ? await residencesRes.json() : [];
 
-          console.log(`Settlement ${settlement.name}: ${businesses.length} businesses, ${lots.length} lots`);
+          console.log(`Settlement ${settlement.name}: ${businesses.length} businesses, ${lots.length} lots, ${residences.length} residences`);
 
-          // Calculate building count based on population
+          // Calculate building count based on population and actual building data
           const buildingCount = Math.max(
             WorldScaleManager.getBuildingCount(scaledSettlement.population),
-            businesses.length,
+            businesses.length + residences.length,
             lots.length,
             5 // Minimum 5 buildings per settlement
           );
@@ -952,16 +986,83 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
             const building = buildingGenerator.generateBuilding(buildingSpec);
             allBuildingPositions.push(building.position);
 
+            // Store business metadata for NPC assignment
+            building.metadata = {
+              buildingType: 'business',
+              businessId: business.id,
+              businessType: business.businessType,
+              businessName: business.name,
+              settlementId: settlement.id,
+              ownerId: business.ownerId,
+              employees: business.employees || []
+            };
+
+            // Store in building data map for NPC positioning
+            buildingDataRef.current.set(business.id, {
+              position: building.position.clone(),
+              metadata: building.metadata,
+              mesh: building
+            });
+
+            // Register building for hover info display
+            if (buildingInfoDisplayRef.current) {
+              buildingInfoDisplayRef.current.registerBuilding(building);
+            }
+
             buildingIndex++;
           }
 
-          // Then fill remaining positions with generic residences
+          // Then spawn residences from backend data
+          for (const residence of residences) {
+            if (buildingIndex >= lotPositions.length) break;
+
+            // Determine residence type based on occupancy/size
+            const occupants = residence.occupants || [];
+            const residenceType = occupants.length > 8 ? 'residence_large' :
+                                  occupants.length > 4 ? 'residence_medium' : 'residence_small';
+
+            const buildingSpec = ProceduralBuildingGenerator.createSpecFromData({
+              id: residence.id,
+              type: 'residence',
+              businessType: residenceType,
+              position: lotPositions[buildingIndex],
+              worldStyle,
+              population: occupants.length
+            });
+
+            const building = buildingGenerator.generateBuilding(buildingSpec);
+            allBuildingPositions.push(building.position);
+
+            // Store residence position for NPC assignment
+            building.metadata = {
+              buildingType: 'residence',
+              residenceId: residence.id,
+              settlementId: settlement.id,
+              occupants: residence.occupants
+            };
+
+            // Store in building data map for NPC positioning
+            buildingDataRef.current.set(residence.id, {
+              position: building.position.clone(),
+              metadata: building.metadata,
+              mesh: building
+            });
+
+            // Register building for hover info display
+            if (buildingInfoDisplayRef.current) {
+              buildingInfoDisplayRef.current.registerBuilding(building);
+            }
+
+            buildingIndex++;
+          }
+
+          // Fill any remaining positions with generic residences
           while (buildingIndex < lotPositions.length) {
             const residenceType = Math.random() > 0.7 ? 'residence_large' :
                                   Math.random() > 0.4 ? 'residence_medium' : 'residence_small';
 
             const buildingSpec = ProceduralBuildingGenerator.createSpecFromData({
-              id: `residence_${settlement.id}_${buildingIndex}`,
+              id: `residence_generic_${settlement.id}_${buildingIndex}`,
               type: 'residence',
               businessType: residenceType,
               position: lotPositions[buildingIndex],
@@ -971,6 +1072,19 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
 
             const building = buildingGenerator.generateBuilding(buildingSpec);
             allBuildingPositions.push(building.position);
+
+            // Add metadata for generic residences
+            building.metadata = {
+              buildingType: 'residence',
+              residenceId: `residence_generic_${settlement.id}_${buildingIndex}`,
+              settlementId: settlement.id,
+              occupants: []
+            };
+
+            // Register building for hover info display
+            if (buildingInfoDisplayRef.current) {
+              buildingInfoDisplayRef.current.registerBuilding(building);
+            }
 
             buildingIndex++;
           }
@@ -990,6 +1104,16 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
           settlementMarker.material = markerMat;
 
           settlementMap.set(settlement.id, settlementMarker);
+
+          // Add settlement marker to minimap
+          if (minimapRef.current) {
+            minimapRef.current.addMarker({
+              id: `settlement_${settlement.id}`,
+              position: scaledSettlement.position.clone(),
+              type: 'settlement',
+              label: settlement.name
+            });
+          }
 
         } catch (error) {
           console.error(`Failed to generate buildings for settlement ${settlement.name}:`, error);
@@ -1063,17 +1187,39 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
     });
   }, [worldData, sceneStatus]);
 
-  // Check player proximity to quest location markers
+  // Check player proximity to quest location markers and update minimap
   useEffect(() => {
     const scene = sceneRef.current;
     const questManager = questObjectManagerRef.current;
     const playerMesh = playerMeshRef.current;
+    const minimap = minimapRef.current;
 
     if (!scene || !questManager || !playerMesh) return;
 
-    // Register a render loop to check proximity
+    // Add player marker to minimap
+    if (minimap) {
+      minimap.addMarker({
+        id: 'player',
+        position: playerMesh.position.clone(),
+        type: 'player',
+        label: 'You'
+      });
+    }
+
+    // Register a render loop to check proximity and update minimap
     const observer = scene.onBeforeRenderObservable.add(() => {
       questManager.checkLocationProximity(playerMesh.position);
+
+      // Update player marker position on minimap
+      if (minimap) {
+        minimap.addMarker({
+          id: 'player',
+          position: playerMesh.position.clone(),
+          type: 'player',
+          label: 'You'
+        });
+        minimap.update();
+      }
     });
 
     return () => {
@@ -1257,6 +1403,21 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
           toast({
             title: "Quest Tracker",
             description: "Press Q again to toggle",
+            duration: 1500
+          });
+        }
+      }
+
+      // I key - toggle inventory
+      if (event.code === 'KeyI' && !event.repeat) {
+        event.preventDefault();
+
+        if (inventoryRef.current) {
+          inventoryRef.current.toggle();
+
+          toast({
+            title: "Inventory",
+            description: "Press I again to toggle",
             duration: 1500
           });
         }
@@ -1625,6 +1786,18 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
         if (type === 'collect') {
           updatedProgress.collectedItems = updatedProgress.collectedItems || [];
           updatedProgress.collectedItems.push(objectiveId);
+
+          // Add item to inventory
+          if (inventoryRef.current) {
+            inventoryRef.current.addItem({
+              id: objectiveId,
+              name: `Quest Item`,
+              description: `Collected for: ${quest.title}`,
+              type: 'quest',
+              quantity: 1,
+              questId: questId
+            });
+          }
         } else if (type === 'visit') {
           updatedProgress.visitedLocations = updatedProgress.visitedLocations || [];
           updatedProgress.visitedLocations.push(objectiveId);
@@ -2348,18 +2521,54 @@ function createNPCPosition(index: number, total: number): Vector3 {
   return new Vector3(Math.cos(angle) * radius, 12, Math.sin(angle) * radius);
 }
 
+/**
+ * Find the building associated with a character (residence or workplace)
+ */
+function findCharacterBuilding(
+  characterId: string,
+  buildingData: Map<string, { position: Vector3; metadata: any; mesh: Mesh }>
+): { position: Vector3; metadata: any } | null {
+  // Search through all buildings to find one where the character is an occupant or employee
+  for (const [buildingId, building] of buildingData.entries()) {
+    const metadata = building.metadata;
+
+    // Check if character is an occupant (residence)
+    if (metadata.occupants && Array.isArray(metadata.occupants)) {
+      if (metadata.occupants.includes(characterId)) {
+        return { position: building.position, metadata };
+      }
+    }
+
+    // Check if character is an employee (business)
+    if (metadata.employees && Array.isArray(metadata.employees)) {
+      if (metadata.employees.includes(characterId)) {
+        return { position: building.position, metadata };
+      }
+    }
+
+    // Check if character is the owner (business)
+    if (metadata.ownerId === characterId) {
+      return { position: building.position, metadata };
+    }
+  }
+
+  return null;
+}
+
 async function spawnNPCInstance({
   character,
   scene,
   index,
   total,
-  questGiver
+  questGiver,
+  buildingData
 }: {
   character: WorldCharacter;
   scene: Scene;
   index: number;
   total: number;
   questGiver: boolean;
+  buildingData?: Map<string, { position: Vector3; metadata: any; mesh: Mesh }>;
 }): Promise<NPCInstance | null> {
   try {
     const template = await ensureNPCTemplate(scene);
@@ -2376,7 +2585,29 @@ async function spawnNPCInstance({
     npcMesh.setEnabled(true);
     npcMesh.isVisible = true;
 
-    const spawnPosition = createNPCPosition(index, total);
+    // Try to find associated building for this character
+    let spawnPosition: Vector3;
+    if (buildingData) {
+      const building = findCharacterBuilding(character.id, buildingData);
+      if (building) {
+        // Spawn near the building with some random offset
+        const offsetX = (Math.random() - 0.5) * 8; // Random offset within 4 units
+        const offsetZ = (Math.random() - 0.5) * 8;
+        spawnPosition = building.position.clone();
+        spawnPosition.x += offsetX;
+        spawnPosition.z += offsetZ;
+        spawnPosition.y = 0; // Ground level
+
+        console.log(`Spawning NPC ${character.firstName || character.id} near building at (${spawnPosition.x.toFixed(1)}, ${spawnPosition.z.toFixed(1)})`);
+      } else {
+        // No assigned building, use default circular pattern
+        spawnPosition = createNPCPosition(index, total);
+      }
+    } else {
+      // No building data available, use default circular pattern
+      spawnPosition = createNPCPosition(index, total);
+    }
+
     npcMesh.position = spawnPosition.clone();
     npcMesh.checkCollisions = true;
     npcMesh.ellipsoid = new Vector3(0.5, 1, 0.5);
