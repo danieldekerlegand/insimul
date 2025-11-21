@@ -10,7 +10,10 @@ import {
   TextBlock,
   TextWrapping
 } from "@babylonjs/gui";
-import { Scene } from "babylonjs";
+import { Scene, Mesh } from "babylonjs";
+import { BabylonDialogueActions } from "./BabylonDialogueActions";
+import { Action } from "../rpg/types/actions";
+import { NPCTalkingIndicator } from "./NPCTalkingIndicator";
 
 interface Message {
   role: 'user' | 'assistant';
@@ -49,17 +52,32 @@ export class BabylonChatPanel {
   private isProcessing = false;
   private isSpeaking = false;
 
+  // Dialogue Actions
+  private dialogueActions: BabylonDialogueActions | null = null;
+  private actionsContainer: Container | null = null;
+  private availableActions: Action[] = [];
+  private playerEnergy: number = 100;
+
+  // Talking Indicator
+  private talkingIndicator: NPCTalkingIndicator | null = null;
+  private npcMesh: Mesh | null = null;
+
   // Callbacks
   private onClose: (() => void) | null = null;
   private onQuestAssigned: ((questData: any) => void) | null = null;
+  private onActionSelect: ((actionId: string) => void) | null = null;
+  private onVocabularyUsed: ((word: string) => void) | null = null;
+  private onConversationTurn: ((keywords: string[]) => void) | null = null;
 
   constructor(advancedTexture: AdvancedDynamicTexture, scene: Scene) {
     this.advancedTexture = advancedTexture;
     this.scene = scene;
+    this.talkingIndicator = new NPCTalkingIndicator(scene);
   }
 
-  public show(character: Character, truths: any[]) {
+  public show(character: Character, truths: any[], npcMesh?: Mesh) {
     this.character = character;
+    this.npcMesh = npcMesh || null;
     this.isVisible = true;
 
     if (this.chatContainer) {
@@ -76,6 +94,13 @@ export class BabylonChatPanel {
     this.isVisible = false;
     if (this.chatContainer) {
       this.chatContainer.isVisible = false;
+    }
+    if (this.dialogueActions) {
+      this.dialogueActions.hide();
+    }
+    // Hide talking indicator
+    if (this.talkingIndicator && this.character) {
+      this.talkingIndicator.hide(this.character.id);
     }
     this.stopAllAudio();
   }
@@ -217,7 +242,7 @@ export class BabylonChatPanel {
     // Messages scroll area
     const scrollViewer = new ScrollViewer("chatScroll");
     scrollViewer.width = "100%";
-    scrollViewer.height = "340px";
+    scrollViewer.height = "240px";
     scrollViewer.paddingTop = "10px";
     scrollViewer.paddingBottom = "10px";
     scrollViewer.background = "rgba(20, 20, 20, 0.5)";
@@ -226,6 +251,15 @@ export class BabylonChatPanel {
     this.messagesPanel = new StackPanel("messagesPanel");
     this.messagesPanel.width = "100%";
     scrollViewer.addControl(this.messagesPanel);
+
+    // Actions container (for dialogue actions)
+    this.actionsContainer = new Container("actionsContainer");
+    this.actionsContainer.width = "100%";
+    this.actionsContainer.height = "100px";
+    this.actionsContainer.background = "transparent";
+    this.actionsContainer.paddingLeft = "10px";
+    this.actionsContainer.paddingRight = "10px";
+    mainStack.addControl(this.actionsContainer);
 
     // Input area
     const inputContainer = new Rectangle("inputContainer");
@@ -392,6 +426,9 @@ export class BabylonChatPanel {
       });
       this.updateMessagesDisplay();
 
+      // Track vocabulary usage for quests
+      this.trackQuestProgress(userMessage, aiResponse);
+
       // Convert to speech and play
       await this.textToSpeech(aiResponse);
 
@@ -493,8 +530,19 @@ Respond naturally and conversationally.`;
     if (voice) utterance.voice = voice;
 
     this.isSpeaking = true;
+
+    // Show talking indicator
+    if (this.talkingIndicator && this.character && this.npcMesh) {
+      this.talkingIndicator.show(this.character.id, this.npcMesh);
+    }
+
     utterance.onend = () => {
       this.isSpeaking = false;
+
+      // Hide talking indicator
+      if (this.talkingIndicator && this.character) {
+        this.talkingIndicator.hide(this.character.id);
+      }
     };
 
     speechSynthesis.speak(utterance);
@@ -506,9 +554,20 @@ Respond naturally and conversationally.`;
     this.currentAudio = audio;
 
     this.isSpeaking = true;
+
+    // Show talking indicator
+    if (this.talkingIndicator && this.character && this.npcMesh) {
+      this.talkingIndicator.show(this.character.id, this.npcMesh);
+    }
+
     audio.onended = () => {
       this.isSpeaking = false;
       URL.revokeObjectURL(audioUrl);
+
+      // Hide talking indicator
+      if (this.talkingIndicator && this.character) {
+        this.talkingIndicator.hide(this.character.id);
+      }
     };
 
     await audio.play();
@@ -575,6 +634,43 @@ Respond naturally and conversationally.`;
     return data.transcript;
   }
 
+  /**
+   * Track quest progress from conversation
+   */
+  private trackQuestProgress(userMessage: string, aiResponse: string) {
+    // Extract words from both messages
+    const combinedText = `${userMessage} ${aiResponse}`;
+    const words = combinedText.toLowerCase()
+      .replace(/[^\wà-ÿ\s]/gi, '') // Keep accented characters
+      .split(/\s+/)
+      .filter(word => word.length > 3); // Only words longer than 3 chars
+
+    // Track vocabulary usage
+    if (this.onVocabularyUsed) {
+      // Deduplicate words
+      const uniqueWords = Array.from(new Set(words));
+      uniqueWords.forEach(word => {
+        this.onVocabularyUsed!(word);
+      });
+    }
+
+    // Extract keywords for conversation tracking
+    const keywords = words.filter(word => {
+      // French greeting/polite keywords
+      const importantWords = [
+        'bonjour', 'bonsoir', 'salut', 'au revoir', 'merci', 'pardon',
+        'comment', 'pourquoi', 'quand', 'où', 'qui', 'que', 'quel',
+        'sil', 'vous', 'plaît', 'allez'
+      ];
+      return importantWords.includes(word);
+    });
+
+    // Track conversation turn if we have keywords
+    if (this.onConversationTurn && keywords.length > 0) {
+      this.onConversationTurn(keywords);
+    }
+  }
+
   public setOnClose(callback: () => void) {
     this.onClose = callback;
   }
@@ -583,8 +679,61 @@ Respond naturally and conversationally.`;
     this.onQuestAssigned = callback;
   }
 
+  public setOnActionSelect(callback: (actionId: string) => void) {
+    this.onActionSelect = callback;
+  }
+
+  public setOnVocabularyUsed(callback: (word: string) => void) {
+    this.onVocabularyUsed = callback;
+  }
+
+  public setOnConversationTurn(callback: (keywords: string[]) => void) {
+    this.onConversationTurn = callback;
+  }
+
+  /**
+   * Set available dialogue actions for the current conversation
+   */
+  public setDialogueActions(actions: Action[], playerEnergy: number) {
+    this.availableActions = actions;
+    this.playerEnergy = playerEnergy;
+
+    if (this.isVisible && this.actionsContainer && actions.length > 0) {
+      if (!this.dialogueActions) {
+        this.dialogueActions = new BabylonDialogueActions();
+      }
+
+      this.dialogueActions.show(
+        this.actionsContainer,
+        actions,
+        playerEnergy,
+        (actionId: string) => {
+          this.onActionSelect?.(actionId);
+        }
+      );
+    }
+  }
+
+  /**
+   * Update dialogue actions (e.g., when player energy changes)
+   */
+  public updateDialogueActions(playerEnergy: number) {
+    this.playerEnergy = playerEnergy;
+    if (this.dialogueActions && this.dialogueActions.isVisible()) {
+      this.dialogueActions.update(this.availableActions, playerEnergy);
+    }
+  }
+
   public dispose() {
     this.stopAllAudio();
+    if (this.dialogueActions) {
+      this.dialogueActions.hide();
+      this.dialogueActions = null;
+    }
+    if (this.talkingIndicator) {
+      this.talkingIndicator.dispose();
+      this.talkingIndicator = null;
+    }
     if (this.chatContainer) {
       this.advancedTexture.removeControl(this.chatContainer);
     }

@@ -15,6 +15,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { VariantComparisonDialog } from './VariantComparisonDialog';
 import { StylePresetSelector } from './StylePresetSelector';
+import { AdvancedPromptingSettings, type AdvancedPromptingParams } from './AdvancedPromptingSettings';
 import { applyStylePreset, NEGATIVE_PROMPT_TEMPLATES } from '@shared/style-presets';
 import type { VisualAsset, GenerationJob, GenerationProvider } from '@shared/schema';
 
@@ -46,6 +47,7 @@ export function VisualAssetGeneratorDialog({
   const [width, setWidth] = useState(1024);
   const [height, setHeight] = useState(1024);
   const [useCustomPrompt, setUseCustomPrompt] = useState(false);
+  const [advancedParams, setAdvancedParams] = useState<AdvancedPromptingParams>({});
 
   // Additional params for maps and textures
   const [mapType, setMapType] = useState<'terrain' | 'political' | 'region'>('terrain');
@@ -124,7 +126,12 @@ export function VisualAssetGeneratorDialog({
         height,
         ...(useCustomPrompt && finalPrompt ? { prompt: finalPrompt } : {}),
         ...(finalNegativePrompt ? { negativePrompt: finalNegativePrompt } : {}),
-        ...(selectedStyleId ? { stylePresetId: selectedStyleId } : {})
+        ...(selectedStyleId ? { stylePresetId: selectedStyleId } : {}),
+        // Advanced prompting parameters
+        ...(advancedParams.seed !== undefined ? { seed: advancedParams.seed } : {}),
+        ...(advancedParams.guidanceScale !== undefined ? { guidanceScale: advancedParams.guidanceScale } : {}),
+        ...(advancedParams.steps !== undefined ? { steps: advancedParams.steps } : {}),
+        ...(advancedParams.loras && advancedParams.loras.length > 0 ? { loras: advancedParams.loras } : {})
       };
 
       let endpoint = '';
@@ -455,9 +462,18 @@ export function VisualAssetGeneratorDialog({
                 rows={2}
               />
               <p className="text-xs text-muted-foreground">
-                Or select a style preset in the Style tab for automatic negative prompts
+                Use negative prompts or select templates in Advanced Prompting Settings below
               </p>
             </div>
+
+            {/* Advanced Prompting Settings */}
+            <AdvancedPromptingSettings
+              provider={provider}
+              params={advancedParams}
+              onParamsChange={setAdvancedParams}
+              negativePrompt={negativePrompt}
+              onNegativePromptChange={setNegativePrompt}
+            />
           </TabsContent>
 
           <TabsContent value="style" className="space-y-4">
