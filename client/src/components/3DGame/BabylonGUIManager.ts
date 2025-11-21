@@ -33,6 +33,7 @@ export interface PlayerStatus {
   energy: number;
   maxEnergy: number;
   status: string;
+  gold?: number; // Player's currency
 }
 
 export interface NPCInfo {
@@ -99,6 +100,7 @@ export class BabylonGUIManager {
   private onBackPressed: (() => void) | null = null;
   private onFullscreenPressed: (() => void) | null = null;
   private onDebugPressed: (() => void) | null = null;
+  private onPayFines: (() => void) | null = null;
 
   constructor(scene: Scene, config: GUIConfig) {
     this.scene = scene;
@@ -235,7 +237,7 @@ export class BabylonGUIManager {
   private createPlayerStatsPanel() {
     const panel = new Rectangle("playerStats");
     panel.width = "200px";
-    panel.height = "100px";
+    panel.height = "125px"; // Increased height for gold display
     panel.background = "rgba(0, 0, 0, 0.7)";
     panel.color = "white";
     panel.thickness = 2;
@@ -291,6 +293,16 @@ export class BabylonGUIManager {
     energyText.color = "white";
     energyText.fontSize = 12;
     energyBg.addControl(energyText);
+
+    // Gold display
+    const goldText = new TextBlock("playerGoldText");
+    goldText.text = "Gold: 100";
+    goldText.color = "#FFD700"; // Gold color
+    goldText.fontSize = 14;
+    goldText.height = "20px";
+    goldText.fontWeight = "bold";
+    goldText.paddingTop = "5px";
+    stack.addControl(goldText);
 
     this.playerStatsPanel = panel;
     this.advancedTexture.addControl(panel);
@@ -639,6 +651,16 @@ export class BabylonGUIManager {
         energyFill.background = "#FFC107"; // Yellow
       } else {
         energyFill.background = "#F44336"; // Red
+      }
+    }
+
+    // Update gold display
+    if (status.gold !== undefined) {
+      const goldText = this.playerStatsPanel.getDescendants().find(
+        (c) => c.name === "playerGoldText"
+      ) as TextBlock;
+      if (goldText) {
+        goldText.text = `Gold: ${status.gold}`;
       }
     }
   }
@@ -1026,6 +1048,10 @@ export class BabylonGUIManager {
 
   public setOnDebugPressed(callback: () => void) {
     this.onDebugPressed = callback;
+  }
+
+  public setOnPayFines(callback: () => void) {
+    this.onPayFines = callback;
   }
 
   public dispose() {
