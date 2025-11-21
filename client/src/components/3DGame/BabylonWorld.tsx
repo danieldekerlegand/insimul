@@ -288,6 +288,7 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
   const [playerStatus, setPlayerStatus] = useState<PlayerStatus>("idle");
   const [playerError, setPlayerError] = useState<string>("");
   const [playerEnergy, setPlayerEnergy] = useState<number>(INITIAL_ENERGY);
+  const [playerGold, setPlayerGold] = useState<number>(100); // Starting gold
 
   const [npcStatus, setNPCStatus] = useState<NPCStatus>("idle");
   const [npcInfos, setNPCInfos] = useState<NPCDisplayInfo[]>([]);
@@ -1146,9 +1147,11 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
           setCurrentZone(null);
         }
 
-        // Apply energy penalty for fines
+        // Apply penalties for fines
         if (violationResult.penaltyApplied === 'fine') {
           setPlayerEnergy(prev => Math.max(0, prev - 20));
+          // Deduct gold for fine (50 gold per fine)
+          setPlayerGold(prev => Math.max(0, prev - 50));
         }
       } else {
         const errorText = await response.text();
@@ -1599,9 +1602,10 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
     gui.updatePlayerStatus({
       energy: playerEnergy,
       maxEnergy: INITIAL_ENERGY,
-      status: statusText
+      status: statusText,
+      gold: playerGold
     });
-  }, [playerEnergy, playerStatus]);
+  }, [playerEnergy, playerStatus, playerGold]);
 
   // Update GUI: World stats
   useEffect(() => {
