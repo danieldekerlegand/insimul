@@ -1046,6 +1046,53 @@ export const playTraces = pgTable("play_traces", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Reputations - tracks player reputation/karma per settlement and faction
+// Used for graduated rule enforcement and access control
+export const reputations = pgTable("reputations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  playthroughId: varchar("playthrough_id").notNull(), // Which playthrough this reputation belongs to
+  userId: varchar("user_id").notNull(), // Which user
+
+  // What entity this reputation is with
+  entityType: text("entity_type").notNull(), // settlement, country, faction, character
+  entityId: varchar("entity_id").notNull(), // ID of the settlement/country/faction/character
+
+  // Reputation score (-100 to 100)
+  // -100 = Hostile/Enemy, -50 = Unfriendly, 0 = Neutral, 50 = Friendly, 100 = Revered
+  score: integer("score").default(0).notNull(),
+
+  // Violation tracking for graduated enforcement
+  violationCount: integer("violation_count").default(0),
+  warningCount: integer("warning_count").default(0),
+  lastViolation: timestamp("last_violation"),
+  violationHistory: jsonb("violation_history").$type<Array<{
+    type: string; // rule type violated
+    severity: string; // minor, moderate, severe
+    timestamp: string;
+    penaltyApplied: string; // warning, fine, combat, banishment
+  }>>().default([]),
+
+  // Status and restrictions
+  standing: text("standing").default("neutral"), // hostile, unfriendly, neutral, friendly, revered
+  isBanned: boolean("is_banned").default(false),
+  banExpiry: timestamp("ban_expiry"), // When the ban expires (null = permanent)
+
+  // Financial penalties
+  totalFinesPaid: integer("total_fines_paid").default(0),
+  outstandingFines: integer("outstanding_fines").default(0),
+
+  // Rewards and bonuses
+  hasDiscounts: boolean("has_discounts").default(false),
+  hasSpecialAccess: boolean("has_special_access").default(false),
+
+  // Metadata
+  notes: text("notes"), // Admin/system notes about this reputation
+  tags: jsonb("tags").$type<string[]>().default([]),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas for Talk of the Town tables
 export const insertOccupationSchema = createInsertSchema(occupations).pick({
   worldId: true,
@@ -1411,6 +1458,12 @@ export const insertPlayTraceSchema = createInsertSchema(playTraces).omit({
   createdAt: true,
 });
 
+export const insertReputationSchema = createInsertSchema(reputations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // User and Player Progress types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -1433,3 +1486,6 @@ export type InsertPlaythroughDelta = z.infer<typeof insertPlaythroughDeltaSchema
 
 export type PlayTrace = typeof playTraces.$inferSelect;
 export type InsertPlayTrace = z.infer<typeof insertPlayTraceSchema>;
+
+export type Reputation = typeof reputations.$inferSelect;
+export type InsertReputation = z.infer<typeof insertReputationSchema>;
