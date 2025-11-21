@@ -10,6 +10,7 @@ import {
   HemisphericLight,
   Mesh,
   MeshBuilder,
+  ParticleSystem,
   PointerEventTypes,
   Ray,
   Scene,
@@ -126,10 +127,25 @@ interface NPCDisplayInfo {
   position: { x: number; z: number };
 }
 
+// NPC behavioral states
+type NPCState = 'idle' | 'fleeing' | 'pursuing' | 'alert' | 'returning';
+
+// NPC role types
+type NPCRole = 'civilian' | 'guard' | 'merchant' | 'questgiver';
+
 interface NPCInstance {
   mesh: Mesh;
   controller?: CharacterController | null;
   questMarker?: Mesh | null;
+  // NPC behavior state
+  state: NPCState;
+  role: NPCRole;
+  homePosition?: Vector3; // Original spawn position
+  stateExpiry?: number; // Timestamp when state expires
+  fleeTarget?: Vector3; // Where NPC is fleeing to
+  pursuitTarget?: Vector3; // Where guard is pursuing to
+  // Disposition toward player (-100 to 100)
+  disposition: number;
 }
 
 interface ActionFeedback {
@@ -270,6 +286,7 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
   const npcMeshesRef = useRef<Map<string, NPCInstance>>(new Map());
   const settlementMeshesRef = useRef<Map<string, Mesh>>(new Map());
   const settlementRoadMeshesRef = useRef<Mesh[]>([]);
+  const zoneBoundaryMeshesRef = useRef<Map<string, { boundary: Mesh; particles?: ParticleSystem }>>(new Map());
   const guiManagerRef = useRef<BabylonGUIManager | null>(null);
   const chatPanelRef = useRef<BabylonChatPanel | null>(null);
   const questTrackerRef = useRef<BabylonQuestTracker | null>(null);
@@ -302,6 +319,7 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
   const [playerStatus, setPlayerStatus] = useState<PlayerStatus>("idle");
   const [playerError, setPlayerError] = useState<string>("");
   const [playerEnergy, setPlayerEnergy] = useState<number>(INITIAL_ENERGY);
+  const [playerGold, setPlayerGold] = useState<number>(100); // Starting gold
 
   const [npcStatus, setNPCStatus] = useState<NPCStatus>("idle");
   const [npcInfos, setNPCInfos] = useState<NPCDisplayInfo[]>([]);
@@ -315,7 +333,11 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
   const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(null);
   const [actionInProgress, setActionInProgress] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // Zone detection state
+  const [currentZone, setCurrentZone] = useState<{ id: string; name: string; type: string } | null>(null);
   const [playthroughId, setPlaythroughId] = useState<string | null>(null);
+  const [currentReputation, setCurrentReputation] = useState<any | null>(null);
 
   const [availableTextures, setAvailableTextures] = useState<VisualAsset[]>([]);
   const [selectedGroundTexture, setSelectedGroundTexture] = useState<string | null>(null);
@@ -375,6 +397,7 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
       guiManager.setOnVRToggled(() => handleToggleVR());
       guiManager.setOnNPCSelected((npcId) => setSelectedNPCId(npcId));
       guiManager.setOnActionSelected((actionId) => handlePerformAction(actionId));
+      guiManager.setOnPayFines(() => handlePayFines());
 
       guiManagerRef.current = guiManager;
 
@@ -415,6 +438,9 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
         console.log('Quest tracker closed');
       });
       questTrackerRef.current = questTracker;
+
+      // Initialize zone audio
+      initializeZoneAudio(scene);
 
       // Initialize radial menu
       const radialMenu = new BabylonRadialMenu(scene);
@@ -645,6 +671,8 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
       disposeAllNPCMeshes(npcMeshesRef);
       disposeAllSettlementMeshes(settlementMeshesRef);
       disposeAllSettlementRoadMeshes(settlementRoadMeshesRef);
+      disposeAllZoneBoundaries(zoneBoundaryMeshesRef);
+      disposeZoneAudio();
       setSceneStatus("idle");
       setPlayerStatus("idle");
       setNPCStatus("idle");
@@ -1116,8 +1144,35 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
     if (!scene || sceneStatus !== "ready" || !worldData || !buildingGenerator || !natureGenerator || !worldScaleManager) {
       disposeAllSettlementMeshes(settlementMeshesRef);
       disposeAllSettlementRoadMeshes(settlementRoadMeshesRef);
+      disposeAllZoneBoundaries(zoneBoundaryMeshesRef);
       return;
     }
+
+    disposeAllSettlementMeshes(settlementMeshesRef);
+    disposeAllSettlementRoadMeshes(settlementRoadMeshesRef);
+    disposeAllZoneBoundaries(zoneBoundaryMeshesRef);
+
+    const settlements = worldData.settlements.slice(0, MAX_SETTLEMENTS_3D);
+    const settlementMap = new Map<string, Mesh>();
+    const positions: { id: string; position: Vector3 }[] = [];
+    const boundaryData: { id: string; settlement: SettlementSummary; position: Vector3 }[] = [];
+
+    settlements.forEach((settlement, index) => {
+      const mesh = spawnSettlementMesh({
+        settlement,
+        scene,
+        index,
+        total: settlements.length,
+        terrainSize,
+        worldId,
+        theme: worldTheme
+      });
+      if (mesh) {
+        settlementMap.set(settlement.id, mesh);
+        positions.push({ id: settlement.id, position: mesh.position.clone() });
+        boundaryData.push({ id: settlement.id, settlement, position: mesh.position.clone() });
+      }
+    });
 
     let cancelled = false;
 
@@ -1367,10 +1422,15 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
 
     generateProceduralWorld();
 
+    // Create visual zone boundaries
+    const zoneBoundaries = createZoneBoundaries(scene, boundaryData);
+    zoneBoundaryMeshesRef.current = zoneBoundaries;
+
     return () => {
       cancelled = true;
       disposeAllSettlementMeshes(settlementMeshesRef);
       disposeAllSettlementRoadMeshes(settlementRoadMeshesRef);
+      disposeAllZoneBoundaries(zoneBoundaryMeshesRef);
     };
   }, [worldData, sceneStatus, worldId, terrainSize, worldTheme, worldType]);
 
@@ -1390,6 +1450,510 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
     ground.metadata = { ...(ground.metadata || {}), terrainSize };
   }, [terrainSize, sceneStatus]);
 
+  // Handle zone entry with reputation checking and ban enforcement
+  const handleZoneEntry = useCallback(async (zone: { id: string; name: string; type: string }) => {
+    try {
+      // For now, check if we have a playthrough ID
+      // In a real scenario, this would be fetched from the game state or user session
+      const testPlaythroughId = playthroughId || 'test-playthrough-id';
+
+      // Fetch reputation for this settlement
+      const response = await fetch(
+        `/api/playthroughs/${testPlaythroughId}/reputations/settlement/${zone.id}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const reputation = await response.json();
+        setCurrentReputation(reputation);
+
+        // Check if banned
+        if (reputation.isBanned) {
+          // Block entry - push player back
+          playRuleViolationSound();
+
+          toast({
+            title: `BANNED from ${zone.name}`,
+            description: "You are not allowed to enter this area!",
+            variant: "destructive",
+            duration: 5000
+          });
+
+          // Push player out of zone
+          const playerMesh = playerMeshRef.current;
+          const zoneBoundary = zoneBoundaryMeshesRef.current.get(zone.id);
+
+          if (playerMesh && zoneBoundary) {
+            const zoneCenter = zoneBoundary.boundary.position;
+            const playerPos = playerMesh.position;
+
+            // Calculate push direction (away from zone center)
+            const pushDirection = playerPos.subtract(zoneCenter).normalize();
+            const zoneRadius = zoneBoundary.boundary.metadata?.zoneRadius || 50;
+            const safePosition = zoneCenter.add(pushDirection.scale(zoneRadius + 20));
+
+            // Teleport player to safe position
+            playerMesh.position = safePosition;
+
+            // Change zone boundary color to red
+            const boundaryMat = zoneBoundary.boundary.material as StandardMaterial;
+            if (boundaryMat) {
+              boundaryMat.diffuseColor = new Color3(1, 0, 0);
+              boundaryMat.emissiveColor = new Color3(0.8, 0, 0);
+            }
+          }
+
+          // Don't set current zone
+          return;
+        }
+
+        // Allow entry - set current zone
+        setCurrentZone(zone);
+
+        // Play enter sound
+        playZoneEnterSound();
+
+        // Update reputation UI
+        guiManagerRef.current?.updateReputation({
+          settlementName: zone.name,
+          score: reputation.score,
+          standing: reputation.standing,
+          isBanned: reputation.isBanned,
+          violationCount: reputation.violationCount,
+          outstandingFines: reputation.outstandingFines
+        });
+
+        // Show toast notification
+        const standingEmoji = reputation.standing === 'revered' ? '⭐' :
+                             reputation.standing === 'friendly' ? '😊' :
+                             reputation.standing === 'neutral' ? '😐' :
+                             reputation.standing === 'unfriendly' ? '😟' : '😠';
+
+        toast({
+          title: `Entering ${zone.name} ${standingEmoji}`,
+          description: `Reputation: ${reputation.standing} (${reputation.score}/100)`,
+          duration: 3000
+        });
+      } else {
+        // No reputation record yet or error - allow entry with neutral reputation
+        setCurrentZone(zone);
+        playZoneEnterSound();
+
+        toast({
+          title: `Entering ${zone.name}`,
+          description: `Zone type: ${zone.type}`,
+          duration: 3000
+        });
+      }
+    } catch (error) {
+      console.error('Error checking reputation:', error);
+
+      // Allow entry on error (fail open)
+      setCurrentZone(zone);
+      playZoneEnterSound();
+
+      toast({
+        title: `Entering ${zone.name}`,
+        description: `Zone type: ${zone.type}`,
+        duration: 3000
+      });
+    }
+  }, [playthroughId, toast]);
+
+  // Handle rule violation - records violation and applies graduated enforcement
+  const handleViolation = useCallback(async (violationType: string, severity: 'minor' | 'moderate' | 'severe') => {
+    if (!currentZone || !playthroughId) {
+      toast({
+        title: "Cannot Record Violation",
+        description: "You must be in a settlement to violate rules",
+        variant: "destructive",
+        duration: 3000
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/playthroughs/${playthroughId}/reputations/settlement/${currentZone.id}/violate`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+          },
+          body: JSON.stringify({
+            violationType,
+            severity,
+            description: `Player committed ${violationType} in ${currentZone.name}`
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const violationResult = await response.json();
+
+        // Update current reputation state
+        setCurrentReputation({
+          score: violationResult.newScore,
+          standing: violationResult.newStanding,
+          isBanned: violationResult.isBanned,
+          violationCount: violationResult.violationCount,
+          outstandingFines: violationResult.penaltyAmount || 0
+        });
+
+        // Play appropriate sound based on penalty
+        if (violationResult.penaltyApplied === 'banishment' || violationResult.penaltyApplied === 'combat') {
+          playRuleViolationSound();
+        } else {
+          playRuleWarningSound();
+        }
+
+        // Update reputation UI
+        guiManagerRef.current?.updateReputation({
+          settlementName: currentZone.name,
+          score: violationResult.newScore,
+          standing: violationResult.newStanding,
+          isBanned: violationResult.isBanned,
+          violationCount: violationResult.violationCount,
+          outstandingFines: violationResult.penaltyAmount || 0
+        });
+
+        // Show violation notification
+        toast({
+          title: `Violation #${violationResult.violationCount}: ${violationResult.penaltyApplied.toUpperCase()}`,
+          description: violationResult.message,
+          variant: violationResult.penaltyApplied === 'warning' ? 'default' : 'destructive',
+          duration: 5000
+        });
+
+        // Trigger NPC reactions based on penalty level
+        const playerMesh = playerMeshRef.current;
+        if (playerMesh) {
+          const playerPos = playerMesh.position;
+
+          // Combat penalty (level 3): NPCs flee + guards spawn
+          if (violationResult.penaltyApplied === 'combat') {
+            // Trigger NPC flee behavior
+            triggerNPCFlee(npcMeshesRef.current, playerPos, 100);
+
+            // Spawn guard NPCs at the settlement
+            const scene = sceneRef.current;
+            if (scene && currentZone) {
+              const zoneBoundary = zoneBoundaryMeshesRef.current.get(currentZone.id);
+              if (zoneBoundary) {
+                const settlementPos = zoneBoundary.boundary.position;
+
+                // Spawn 2 guard NPCs
+                for (let i = 0; i < 2; i++) {
+                  spawnGuardNPC({
+                    settlement: {
+                      id: currentZone.id,
+                      name: currentZone.name,
+                      position: settlementPos
+                    },
+                    scene,
+                    targetPosition: playerPos.clone()
+                  }).then(guardInstance => {
+                    if (guardInstance) {
+                      const guardId = `guard-${currentZone.id}-${Date.now()}-${i}`;
+                      npcMeshesRef.current.set(guardId, guardInstance);
+
+                      toast({
+                        title: "Guards Alerted!",
+                        description: `Guards are responding to the disturbance in ${currentZone.name}`,
+                        variant: "destructive",
+                        duration: 4000
+                      });
+                    }
+                  });
+                }
+              }
+            }
+          }
+
+          // Banishment penalty (level 4): Also trigger flee for dramatic effect
+          if (violationResult.penaltyApplied === 'banishment') {
+            triggerNPCFlee(npcMeshesRef.current, playerPos, 120);
+          }
+        }
+
+        // If banned, push player out of zone
+        if (violationResult.isBanned) {
+          const playerMesh = playerMeshRef.current;
+          const zoneBoundary = zoneBoundaryMeshesRef.current.get(currentZone.id);
+
+          if (playerMesh && zoneBoundary) {
+            const zoneCenter = zoneBoundary.boundary.position;
+            const playerPos = playerMesh.position;
+
+            // Calculate push direction (away from zone center)
+            const pushDirection = playerPos.subtract(zoneCenter).normalize();
+            const zoneRadius = zoneBoundary.boundary.metadata?.zoneRadius || 50;
+            const safePosition = zoneCenter.add(pushDirection.scale(zoneRadius + 20));
+
+            // Teleport player to safe position
+            playerMesh.position = safePosition;
+
+            // Change zone boundary color to red
+            const boundaryMat = zoneBoundary.boundary.material as StandardMaterial;
+            if (boundaryMat) {
+              boundaryMat.diffuseColor = new Color3(1, 0, 0);
+              boundaryMat.emissiveColor = new Color3(0.8, 0, 0);
+            }
+          }
+
+          // Clear current zone
+          setCurrentZone(null);
+        }
+
+        // Apply penalties for fines
+        if (violationResult.penaltyApplied === 'fine') {
+          setPlayerEnergy(prev => Math.max(0, prev - 20));
+          // Deduct gold for fine (50 gold per fine)
+          setPlayerGold(prev => Math.max(0, prev - 50));
+        }
+      } else {
+        const errorText = await response.text();
+        toast({
+          title: "Violation Error",
+          description: `Failed to record violation: ${errorText}`,
+          variant: "destructive",
+          duration: 3000
+        });
+      }
+    } catch (error) {
+      console.error('Error recording violation:', error);
+      toast({
+        title: "Violation Error",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive",
+        duration: 3000
+      });
+    }
+  }, [currentZone, playthroughId, toast]);
+
+  // Handle fine payment - allows player to pay outstanding fines with gold
+  const handlePayFines = useCallback(async () => {
+    if (!currentZone || !playthroughId || !currentReputation) {
+      toast({
+        title: "Cannot Pay Fines",
+        description: "No active reputation record",
+        variant: "destructive",
+        duration: 3000
+      });
+      return;
+    }
+
+    const fineAmount = currentReputation.outstandingFines || 0;
+
+    // Check if player has enough gold
+    if (playerGold < fineAmount) {
+      toast({
+        title: "Insufficient Gold",
+        description: `You need ${fineAmount} gold but only have ${playerGold}`,
+        variant: "destructive",
+        duration: 4000
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/playthroughs/${playthroughId}/reputations/settlement/${currentZone.id}/pay-fines`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+
+        // Deduct gold from player
+        setPlayerGold(prev => Math.max(0, prev - fineAmount));
+
+        // Update reputation state
+        setCurrentReputation({
+          ...currentReputation,
+          outstandingFines: result.outstandingFines || 0,
+          score: result.newScore,
+          standing: result.newStanding
+        });
+
+        // Update reputation UI
+        guiManagerRef.current?.updateReputation({
+          settlementName: currentZone.name,
+          score: result.newScore,
+          standing: result.newStanding,
+          isBanned: currentReputation.isBanned,
+          violationCount: currentReputation.violationCount,
+          outstandingFines: result.outstandingFines || 0
+        });
+
+        // Show success notification
+        toast({
+          title: "Fines Paid",
+          description: `Paid ${fineAmount} gold. Your reputation has improved slightly.`,
+          duration: 4000
+        });
+      } else {
+        const errorText = await response.text();
+        toast({
+          title: "Payment Failed",
+          description: `Failed to pay fines: ${errorText}`,
+          variant: "destructive",
+          duration: 3000
+        });
+      }
+    } catch (error) {
+      console.error('Error paying fines:', error);
+      toast({
+        title: "Payment Error",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive",
+        duration: 3000
+      });
+    }
+  }, [currentZone, playthroughId, currentReputation, playerGold, toast]);
+
+  // Zone detection system - monitors player position and tracks zone transitions
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const playerMesh = playerMeshRef.current;
+
+    if (!scene || !playerMesh || sceneStatus !== "ready") return;
+    if (zoneBoundaryMeshesRef.current.size === 0) return;
+
+    const checkZones = () => {
+      if (!playerMesh) return;
+
+      const playerPos = playerMesh.position;
+      let foundZone: { id: string; name: string; type: string } | null = null;
+
+      // Check each zone boundary
+      zoneBoundaryMeshesRef.current.forEach((zoneData, settlementId) => {
+        const boundary = zoneData.boundary;
+        const zoneCenter = boundary.position;
+        const zoneRadius = boundary.metadata?.zoneRadius || 0;
+        const zoneName = boundary.metadata?.zoneType || "unknown";
+
+        // Calculate distance from player to zone center
+        const dx = playerPos.x - zoneCenter.x;
+        const dz = playerPos.z - zoneCenter.z;
+        const distance = Math.sqrt(dx * dx + dz * dz);
+
+        // Check if player is within zone radius
+        if (distance <= zoneRadius) {
+          // Get settlement name from worldData
+          const settlement = worldData?.settlements.find(s => s.id === settlementId);
+          foundZone = {
+            id: settlementId,
+            name: settlement?.name || "Unknown",
+            type: zoneName
+          };
+        }
+      });
+
+      // Check if zone changed
+      if (foundZone && (!currentZone || currentZone.id !== foundZone.id)) {
+        // Entered a new zone - check reputation and ban status
+        handleZoneEntry(foundZone);
+      } else if (!foundZone && currentZone) {
+        // Exited a zone
+
+        // Play exit sound
+        playZoneExitSound();
+
+        toast({
+          title: `Leaving ${currentZone.name}`,
+          description: "Entering wilderness",
+          duration: 3000
+        });
+        setCurrentZone(null);
+        setCurrentReputation(null);
+
+        // Hide reputation UI
+        guiManagerRef.current?.updateReputation(null);
+      }
+    };
+
+    // Register the zone check to run every frame
+    const observer = scene.onBeforeRenderObservable.add(checkZones);
+
+    return () => {
+      if (observer) {
+        scene.onBeforeRenderObservable.remove(observer);
+      }
+    };
+  }, [sceneStatus, playerStatus, worldData, currentZone, toast]);
+
+  // Minimap update system - refreshes minimap with current positions
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const playerMesh = playerMeshRef.current;
+    const gui = guiManagerRef.current;
+
+    if (!scene || !playerMesh || !gui || sceneStatus !== "ready") return;
+    if (zoneBoundaryMeshesRef.current.size === 0) return;
+
+    // Update minimap periodically (every 100ms to balance performance and smoothness)
+    const updateMinimap = () => {
+      if (!playerMesh || !gui) return;
+
+      const settlements: Array<{
+        id: string;
+        name: string;
+        position: { x: number; z: number };
+        type: string;
+        zoneType: string;
+      }> = [];
+
+      // Collect settlement data
+      zoneBoundaryMeshesRef.current.forEach((zoneData, settlementId) => {
+        const boundary = zoneData.boundary;
+        const settlement = worldData?.settlements.find(s => s.id === settlementId);
+
+        if (settlement && boundary.position) {
+          settlements.push({
+            id: settlementId,
+            name: settlement.name,
+            position: {
+              x: boundary.position.x,
+              z: boundary.position.z
+            },
+            type: settlement.settlementType?.toLowerCase() || "town",
+            zoneType: boundary.metadata?.zoneType || "safe"
+          });
+        }
+      });
+
+      gui.updateMinimap({
+        settlements,
+        playerPosition: {
+          x: playerMesh.position.x,
+          z: playerMesh.position.z
+        },
+        worldSize: terrainSize
+      });
+    };
+
+    // Initial update
+    updateMinimap();
+
+    // Set up periodic updates
+    const intervalId = setInterval(updateMinimap, 100);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [sceneStatus, playerStatus, worldData, terrainSize]);
   // Load active quests into QuestObjectManager
   useEffect(() => {
     const questManager = questObjectManagerRef.current;
@@ -1639,6 +2203,29 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
         }
       }
 
+      // V key - test rule violation (graduated enforcement testing)
+      if (event.code === 'KeyV' && !event.repeat) {
+        event.preventDefault();
+
+        if (currentZone) {
+          // Trigger a moderate violation for testing
+          handleViolation('test_violation', 'moderate');
+
+          toast({
+            title: "Test Violation Triggered",
+            description: "Recording violation in current zone...",
+            duration: 2000
+          });
+        else {
+          toast({
+            title: "No Zone Active",
+            description: "Enter a settlement to test violations",
+            variant: "destructive",
+            duration: 2000
+          });
+        }
+      }
+
       // I key - toggle inventory
       if (event.code === 'KeyI' && !event.repeat) {
         event.preventDefault();
@@ -1835,7 +2422,7 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [npcInfos, selectedNPCId, worldData, worldId, toast, availableActions, playerEnergy, handlePerformAction]);
+  }, [npcInfos, selectedNPCId, worldData, worldId, toast, currentZone, handleViolation, availableActions, playerEnergy, handlePerformAction]);
 
   useEffect(() => {
     npcMeshesRef.current.forEach((instance, npcId) => {
@@ -1850,6 +2437,113 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
     });
   }, [selectedNPCId]);
 
+  // NPC behavior state update loop - manages flee/return/pursuit behaviors
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    const updateInterval = setInterval(() => {
+      const now = Date.now();
+
+      npcMeshesRef.current.forEach((npc, npcId) => {
+        if (!npc.mesh) return;
+
+        // Check if state has expired
+        if (npc.stateExpiry && now > npc.stateExpiry) {
+          // Return to idle/home position
+          npc.state = 'returning';
+          npc.stateExpiry = undefined;
+        }
+
+        // Handle different NPC states
+        switch (npc.state) {
+          case 'fleeing':
+            if (npc.fleeTarget) {
+              // Move NPC toward flee target
+              const currentPos = npc.mesh.position;
+              const direction = npc.fleeTarget.subtract(currentPos).normalize();
+              const moveSpeed = 0.5; // Units per frame
+
+              // Check if reached target
+              if (Vector3.Distance(currentPos, npc.fleeTarget) < 2) {
+                npc.state = 'returning';
+                npc.fleeTarget = undefined;
+              } else {
+                // Move toward flee target
+                npc.mesh.position.addInPlace(direction.scale(moveSpeed));
+              }
+            }
+            break;
+
+          case 'returning':
+            if (npc.homePosition) {
+              const currentPos = npc.mesh.position;
+              const direction = npc.homePosition.subtract(currentPos).normalize();
+              const moveSpeed = 0.3;
+
+              // Check if reached home
+              if (Vector3.Distance(currentPos, npc.homePosition) < 1) {
+                npc.state = 'idle';
+
+                // Restore original material color
+                if (npc.mesh.material) {
+                  const mat = npc.mesh.material as StandardMaterial;
+                  if (mat.metadata?.originalColor) {
+                    mat.diffuseColor = mat.metadata.originalColor.clone();
+                  }
+                }
+              } else {
+                // Move toward home
+                npc.mesh.position.addInPlace(direction.scale(moveSpeed));
+              }
+            } else {
+              npc.state = 'idle';
+            }
+            break;
+
+          case 'pursuing':
+            if (npc.pursuitTarget && npc.role === 'guard') {
+              const currentPos = npc.mesh.position;
+              const direction = npc.pursuitTarget.subtract(currentPos).normalize();
+              const moveSpeed = 0.7; // Guards move faster
+
+              // Check if reached target
+              if (Vector3.Distance(currentPos, npc.pursuitTarget) < 5) {
+                npc.state = 'alert';
+                npc.pursuitTarget = undefined;
+                // Guards stay alert for a while
+                npc.stateExpiry = now + 10000;
+              } else {
+                // Move toward target
+                npc.mesh.position.addInPlace(direction.scale(moveSpeed));
+              }
+            }
+            break;
+
+          case 'alert':
+            // Guards stay still but alert
+            break;
+
+          case 'idle':
+          default:
+            // Idle behavior - NPCs just stay at home position
+            break;
+        }
+      });
+    }, 100); // Update every 100ms
+
+    return () => {
+      clearInterval(updateInterval);
+    };
+  }, []);
+
+  // Update NPC dispositions when reputation changes
+  useEffect(() => {
+    if (currentReputation && npcMeshesRef.current.size > 0) {
+      updateNPCDispositions(npcMeshesRef.current, currentReputation.score);
+    }
+  }, [currentReputation]);
+
   // Update GUI: Player status
   useEffect(() => {
     const gui = guiManagerRef.current;
@@ -1862,9 +2556,10 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
     gui.updatePlayerStatus({
       energy: playerEnergy,
       maxEnergy: INITIAL_ENERGY,
-      status: statusText
+      status: statusText,
+      gold: playerGold
     });
-  }, [playerEnergy, playerStatus]);
+  }, [playerEnergy, playerStatus, playerGold]);
 
   // Update GUI: World stats
   useEffect(() => {
@@ -2576,6 +3271,16 @@ function disposeAllSettlementRoadMeshes(roadsRef: MutableRefObject<Mesh[]>) {
   roadsRef.current = [];
 }
 
+function disposeAllZoneBoundaries(
+  boundaryRef: MutableRefObject<Map<string, { boundary: Mesh; particles?: ParticleSystem }>>
+) {
+  boundaryRef.current.forEach((entry) => {
+    entry.particles?.dispose();
+    entry.boundary?.dispose(false, true);
+  });
+  boundaryRef.current.clear();
+}
+
 function meshHasRenderableGeometry(mesh?: AbstractMesh | null): mesh is Mesh {
   return !!mesh && typeof mesh.getTotalVertices === "function" && mesh.getTotalVertices() > 0;
 }
@@ -2967,6 +3672,278 @@ function createRoadBetween(scene: Scene, from: Vector3, to: Vector3, theme: Worl
   return road;
 }
 
+function createZoneBoundaries(
+  scene: Scene,
+  settlements: { id: string; settlement: SettlementSummary; position: Vector3 }[]
+): Map<string, { boundary: Mesh; particles?: ParticleSystem }> {
+  const boundaryMap = new Map<string, { boundary: Mesh; particles?: ParticleSystem }>();
+
+  settlements.forEach(({ id, settlement, position }) => {
+    try {
+      const type = settlement.settlementType?.toLowerCase() ?? "town";
+
+      // Calculate zone radius based on settlement type
+      const baseSize = type === "city" ? 24 : type === "village" ? 14 : 18;
+      const buildingRadius = baseSize * 1.6;
+      const zoneRadius = buildingRadius * 1.8; // Extend beyond buildings
+
+      // Determine zone color based on settlement type
+      // Can be extended to check specific rules for more granular colors
+      let zoneColor: Color3;
+      let zoneName: string;
+
+      if (type === "city") {
+        // Cities: Blue glow (neutral zone)
+        zoneColor = new Color3(0.3, 0.5, 0.9);
+        zoneName = "neutral";
+      } else if (type === "village") {
+        // Villages: Amber glow (caution zone)
+        zoneColor = new Color3(0.9, 0.6, 0.2);
+        zoneName = "caution";
+      } else {
+        // Towns: Green glow (safe zone)
+        zoneColor = new Color3(0.2, 0.8, 0.3);
+        zoneName = "safe";
+      }
+
+      // Create boundary torus (ring)
+      const boundaryRing = MeshBuilder.CreateTorus(
+        `zone-boundary-${id}`,
+        {
+          diameter: zoneRadius * 2,
+          thickness: 1.5,
+          tessellation: 48
+        },
+        scene
+      );
+
+      boundaryRing.position = position.clone();
+      boundaryRing.position.y = 2; // Float above ground
+      boundaryRing.rotation.x = Math.PI / 2; // Rotate to be horizontal
+      boundaryRing.checkCollisions = false;
+      boundaryRing.isPickable = false;
+
+      // Create semi-transparent glowing material
+      const boundaryMat = new StandardMaterial(`zone-boundary-mat-${id}`, scene);
+      boundaryMat.diffuseColor = zoneColor;
+      boundaryMat.emissiveColor = zoneColor.scale(0.6);
+      boundaryMat.alpha = 0.5;
+      boundaryMat.specularColor = Color3.Black();
+      boundaryRing.material = boundaryMat;
+
+      // Create ground circle markers
+      const groundMarker = MeshBuilder.CreateDisc(
+        `zone-ground-${id}`,
+        {
+          radius: zoneRadius,
+          tessellation: 64
+        },
+        scene
+      );
+
+      groundMarker.position = position.clone();
+      groundMarker.position.y = 0.1; // Slightly above ground
+      groundMarker.rotation.x = Math.PI / 2;
+      groundMarker.checkCollisions = false;
+      groundMarker.isPickable = false;
+
+      const groundMat = new StandardMaterial(`zone-ground-mat-${id}`, scene);
+      groundMat.diffuseColor = zoneColor;
+      groundMat.emissiveColor = zoneColor.scale(0.3);
+      groundMat.alpha = 0.15;
+      groundMat.specularColor = Color3.Black();
+      groundMarker.material = groundMat;
+      groundMarker.parent = boundaryRing;
+
+      // Create particle system for zone boundary
+      const particleSystem = new ParticleSystem(`zone-particles-${id}`, 300, scene);
+      particleSystem.particleTexture = new Texture("https://assets.babylonjs.com/textures/flare.png", scene);
+
+      // Emit particles from the boundary ring
+      particleSystem.emitter = boundaryRing;
+      particleSystem.minEmitBox = new Vector3(-zoneRadius, 0, -zoneRadius);
+      particleSystem.maxEmitBox = new Vector3(zoneRadius, 5, zoneRadius);
+
+      particleSystem.color1 = new Color4(zoneColor.r, zoneColor.g, zoneColor.b, 0.8);
+      particleSystem.color2 = new Color4(zoneColor.r, zoneColor.g, zoneColor.b, 0.4);
+      particleSystem.colorDead = new Color4(zoneColor.r, zoneColor.g, zoneColor.b, 0.0);
+
+      particleSystem.minSize = 0.3;
+      particleSystem.maxSize = 0.8;
+
+      particleSystem.minLifeTime = 1.0;
+      particleSystem.maxLifeTime = 2.5;
+
+      particleSystem.emitRate = 20;
+
+      particleSystem.blendMode = ParticleSystem.BLENDMODE_ADD;
+
+      particleSystem.gravity = new Vector3(0, 0.5, 0);
+
+      particleSystem.direction1 = new Vector3(-0.2, 0.5, -0.2);
+      particleSystem.direction2 = new Vector3(0.2, 1, 0.2);
+
+      particleSystem.minAngularSpeed = 0;
+      particleSystem.maxAngularSpeed = Math.PI;
+
+      particleSystem.minEmitPower = 0.5;
+      particleSystem.maxEmitPower = 1.5;
+      particleSystem.updateSpeed = 0.01;
+
+      particleSystem.start();
+
+      // Store boundary and particles
+      boundaryRing.metadata = {
+        ...(boundaryRing.metadata || {}),
+        settlementId: id,
+        zoneType: zoneName,
+        zoneRadius
+      };
+
+      boundaryMap.set(id, { boundary: boundaryRing, particles: particleSystem });
+    } catch (error) {
+      console.warn(`Failed to create zone boundary for settlement ${id}`, error);
+    }
+  });
+
+  return boundaryMap;
+}
+
+// Audio system for zone transitions and rule violations
+let zoneEnterSound: Sound | null = null;
+let zoneExitSound: Sound | null = null;
+let ruleViolationSound: Sound | null = null;
+let ruleWarningSound: Sound | null = null;
+
+function initializeZoneAudio(scene: Scene) {
+  try {
+    // Zone transition sounds
+    // Enter zone: Pleasant ascending tone
+    zoneEnterSound = new Sound(
+      "zoneEnter",
+      "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3", // Notification sound
+      scene,
+      null,
+      {
+        loop: false,
+        autoplay: false,
+        volume: 0.3
+      }
+    );
+
+    // Exit zone: Neutral descending tone
+    zoneExitSound = new Sound(
+      "zoneExit",
+      "https://assets.mixkit.co/active_storage/sfx/2870/2870-preview.mp3", // Different notification
+      scene,
+      null,
+      {
+        loop: false,
+        autoplay: false,
+        volume: 0.3
+      }
+    );
+
+    // Rule violation sounds
+    // Warning: Subtle alert sound for first-time violations
+    ruleWarningSound = new Sound(
+      "ruleWarning",
+      "https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3", // Warning tone
+      scene,
+      null,
+      {
+        loop: false,
+        autoplay: false,
+        volume: 0.4
+      }
+    );
+
+    // Violation: More serious sound for repeated violations
+    ruleViolationSound = new Sound(
+      "ruleViolation",
+      "https://assets.mixkit.co/active_storage/sfx/2577/2577-preview.mp3", // Error/violation sound
+      scene,
+      null,
+      {
+        loop: false,
+        autoplay: false,
+        volume: 0.5
+      }
+    );
+  } catch (error) {
+    console.warn("Failed to initialize zone audio", error);
+  }
+}
+
+function playZoneEnterSound() {
+  try {
+    if (zoneEnterSound && zoneEnterSound.isReady()) {
+      zoneEnterSound.play();
+    }
+  } catch (error) {
+    console.warn("Failed to play zone enter sound", error);
+  }
+}
+
+function playZoneExitSound() {
+  try {
+    if (zoneExitSound && zoneExitSound.isReady()) {
+      zoneExitSound.play();
+    }
+  } catch (error) {
+    console.warn("Failed to play zone exit sound", error);
+  }
+}
+
+/**
+ * Play a warning sound for first-time or minor rule violations
+ * Call this when the rule engine detects a violation that should issue a warning
+ *
+ * Example usage:
+ * if (ruleEngine.checkViolation(action) && violationCount === 1) {
+ *   playRuleWarningSound();
+ * }
+ */
+function playRuleWarningSound() {
+  try {
+    if (ruleWarningSound && ruleWarningSound.isReady()) {
+      ruleWarningSound.play();
+    }
+  } catch (error) {
+    console.warn("Failed to play rule warning sound", error);
+  }
+}
+
+/**
+ * Play a violation sound for repeated or serious rule violations
+ * Call this when the rule engine detects a major violation or repeated offense
+ *
+ * Example usage:
+ * if (ruleEngine.checkViolation(action) && violationCount > 2) {
+ *   playRuleViolationSound();
+ * }
+ */
+function playRuleViolationSound() {
+  try {
+    if (ruleViolationSound && ruleViolationSound.isReady()) {
+      ruleViolationSound.play();
+    }
+  } catch (error) {
+    console.warn("Failed to play rule violation sound", error);
+  }
+}
+
+function disposeZoneAudio() {
+  zoneEnterSound?.dispose();
+  zoneExitSound?.dispose();
+  ruleWarningSound?.dispose();
+  ruleViolationSound?.dispose();
+  zoneEnterSound = null;
+  zoneExitSound = null;
+  ruleWarningSound = null;
+  ruleViolationSound = null;
+}
+
 let npcTemplateMesh: Mesh | null = null;
 let npcTemplateSkeleton: Skeleton | null = null;
 
@@ -3101,6 +4078,14 @@ async function spawnNPCInstance({
     npcMesh.ellipsoidOffset = new Vector3(0, 1, 0);
     npcMesh.isPickable = true;
 
+    // Store original material color for disposition color changes
+    if (npcMesh.material) {
+      const mat = npcMesh.material as StandardMaterial;
+      if (mat.diffuseColor) {
+        mat.metadata = { ...mat.metadata, originalColor: mat.diffuseColor.clone() };
+      }
+    }
+
     let npcSkeleton: Skeleton | null = null;
     if (templateSkeleton) {
       npcSkeleton = templateSkeleton.clone(`npc-skel-${character.id}`);
@@ -3145,7 +4130,26 @@ async function spawnNPCInstance({
       questMarker.position = new Vector3(0, 2.8, 0); // Above NPC head
     }
 
-    return { mesh: npcMesh, controller, questMarker };
+    // Determine NPC role based on occupation
+    const occupation = (character.occupation || '').toLowerCase();
+    let role: NPCRole = 'civilian';
+    if (occupation.includes('guard') || occupation.includes('soldier') || occupation.includes('officer')) {
+      role = 'guard';
+    } else if (occupation.includes('merchant') || occupation.includes('shopkeeper') || occupation.includes('trader')) {
+      role = 'merchant';
+    } else if (questGiver) {
+      role = 'questgiver';
+    }
+
+    return {
+      mesh: npcMesh,
+      controller,
+      questMarker,
+      state: 'idle',
+      role,
+      homePosition: spawnPosition.clone(),
+      disposition: 0 // Neutral disposition initially
+    };
   } catch (error) {
     console.warn(`Failed to spawn NPC instance for ${character.id}`, error);
     return null;
@@ -3220,6 +4224,165 @@ function tagNPCMeshHierarchy(rootMesh: Mesh, npcId: string) {
   rootMesh.metadata = { ...(rootMesh.metadata || {}), npcId };
   rootMesh.getChildMeshes(false).forEach((child) => {
     child.metadata = { ...(child.metadata || {}), npcId };
+  });
+}
+
+// Trigger NPC flee behavior from a violation epicenter
+function triggerNPCFlee(
+  npcMeshesRef: Map<string, NPCInstance>,
+  epicenter: Vector3,
+  fleeRadius: number = 100
+) {
+  const now = Date.now();
+  const fleeSeconds = 5;
+
+  npcMeshesRef.forEach((npc, npcId) => {
+    if (!npc.mesh || npc.role === 'guard') return; // Guards don't flee
+
+    const npcPos = npc.mesh.position;
+    const distance = Vector3.Distance(npcPos, epicenter);
+
+    if (distance < fleeRadius) {
+      // Calculate flee direction (away from epicenter)
+      const fleeDirection = npcPos.subtract(epicenter).normalize();
+      const fleeTarget = npcPos.add(fleeDirection.scale(50));
+
+      // Set NPC state
+      npc.state = 'fleeing';
+      npc.fleeTarget = fleeTarget;
+      npc.stateExpiry = now + fleeSeconds * 1000;
+
+      // Change mesh color to indicate fear (slight pale tint)
+      if (npc.mesh.material) {
+        const mat = npc.mesh.material as StandardMaterial;
+        if (mat.diffuseColor) {
+          // Store original color if not already stored
+          if (!mat.metadata?.originalColor) {
+            mat.metadata = { originalColor: mat.diffuseColor.clone() };
+          }
+          // Apply pale/fear tint
+          mat.diffuseColor = new Color3(0.9, 0.9, 0.95);
+        }
+      }
+    }
+  });
+}
+
+// Spawn a guard NPC dynamically at a settlement
+async function spawnGuardNPC({
+  settlement,
+  scene,
+  targetPosition
+}: {
+  settlement: { id: string; name: string; position: Vector3 };
+  scene: Scene;
+  targetPosition?: Vector3;
+}): Promise<NPCInstance | null> {
+  try {
+    const template = await ensureNPCTemplate(scene);
+    if (!template) return null;
+
+    const { mesh: templateMesh, skeleton: templateSkeleton } = template;
+
+    const guardMesh = templateMesh.clone(`guard-${settlement.id}-${Date.now()}`, null);
+    if (!guardMesh) return null;
+
+    guardMesh.setEnabled(true);
+    guardMesh.isVisible = true;
+
+    // Spawn near settlement center
+    const spawnOffset = new Vector3(
+      Math.random() * 10 - 5,
+      0,
+      Math.random() * 10 - 5
+    );
+    const spawnPosition = settlement.position.add(spawnOffset);
+    spawnPosition.y = 12; // Ground level
+
+    guardMesh.position = spawnPosition.clone();
+    guardMesh.checkCollisions = true;
+    guardMesh.ellipsoid = new Vector3(0.5, 1, 0.5);
+    guardMesh.ellipsoidOffset = new Vector3(0, 1, 0);
+    guardMesh.isPickable = true;
+
+    // Give guard a red tint to distinguish from civilians
+    const guardMat = new StandardMaterial(`guard-mat-${Date.now()}`, scene);
+    guardMat.diffuseColor = new Color3(0.8, 0.2, 0.2); // Red armor
+    guardMat.specularColor = new Color3(0.3, 0.3, 0.3);
+    guardMesh.material = guardMat;
+
+    let guardSkeleton: Skeleton | null = null;
+    if (templateSkeleton) {
+      guardSkeleton = templateSkeleton.clone(`guard-skel-${Date.now()}`);
+      if (guardSkeleton) {
+        guardSkeleton.enableBlending(0.1);
+        guardMesh.skeleton = guardSkeleton;
+      }
+    }
+
+    const controller = new CharacterController(guardMesh, null as any, scene);
+    controller.setFaceForward(false);
+    controller.setMode(0);
+    controller.setStepOffset(0.4);
+    controller.setSlopeLimit(30, 60);
+    controller.setIdleAnim("idle", 1, true);
+    controller.setWalkAnim("walk", 1, true);
+    controller.setRunAnim("run", 1.5, true);
+    controller.setWalkBackAnim("walkBack", 0.5, true);
+    controller.enableKeyBoard(false);
+    controller.start();
+
+    return {
+      mesh: guardMesh,
+      controller,
+      questMarker: null,
+      state: targetPosition ? 'pursuing' : 'alert',
+      role: 'guard',
+      homePosition: spawnPosition.clone(),
+      pursuitTarget: targetPosition,
+      disposition: -100 // Guards are hostile when spawned
+    };
+  } catch (error) {
+    console.warn('Failed to spawn guard NPC', error);
+    return null;
+  }
+}
+
+// Update NPC dispositions based on player reputation
+function updateNPCDispositions(
+  npcMeshesRef: Map<string, NPCInstance>,
+  reputationScore: number
+) {
+  npcMeshesRef.forEach((npc) => {
+    // Disposition changes based on reputation
+    // Reputation is -100 to +100, disposition is also -100 to +100
+    // NPCs gradually adjust their disposition toward player's reputation
+    const targetDisposition = reputationScore;
+    const currentDisposition = npc.disposition;
+
+    // Move disposition 20% toward target each update
+    const newDisposition = currentDisposition + (targetDisposition - currentDisposition) * 0.2;
+    npc.disposition = Math.round(newDisposition);
+
+    // Visual feedback based on disposition
+    if (npc.mesh && npc.mesh.material && npc.role !== 'guard') {
+      const mat = npc.mesh.material as StandardMaterial;
+      if (mat.metadata?.originalColor && npc.state === 'idle') {
+        const originalColor = mat.metadata.originalColor as Color3;
+
+        // Color tint based on disposition
+        if (npc.disposition < -50) {
+          // Hostile: red tint
+          mat.diffuseColor = originalColor.scale(0.8).add(new Color3(0.2, 0, 0));
+        } else if (npc.disposition > 50) {
+          // Friendly: green tint
+          mat.diffuseColor = originalColor.scale(0.8).add(new Color3(0, 0.2, 0.1));
+        } else {
+          // Neutral: restore original
+          mat.diffuseColor = originalColor.clone();
+        }
+      }
+    }
   });
 }
 
