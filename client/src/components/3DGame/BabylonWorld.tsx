@@ -41,6 +41,8 @@ import { WorldScaleManager, ScaledSettlement } from "@/components/3DGame/WorldSc
 import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay";
 import { BabylonMinimap } from "@/components/3DGame/BabylonMinimap";
 import { BabylonInventory, InventoryItem } from "@/components/3DGame/BabylonInventory";
+import { BabylonRulesPanel, Rule } from "@/components/3DGame/BabylonRulesPanel";
+import { RuleEnforcer, RuleViolation } from "@/components/3DGame/RuleEnforcer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -275,6 +277,8 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
   const buildingInfoDisplayRef = useRef<BuildingInfoDisplay | null>(null);
   const minimapRef = useRef<BabylonMinimap | null>(null);
   const inventoryRef = useRef<BabylonInventory | null>(null);
+  const rulesPanelRef = useRef<BabylonRulesPanel | null>(null);
+  const ruleEnforcerRef = useRef<RuleEnforcer | null>(null);
 
   const [sceneStatus, setSceneStatus] = useState<SceneStatus>("idle");
   const [sceneErrorMessage, setSceneErrorMessage] = useState<string>("");
@@ -424,6 +428,22 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
       // Initialize inventory
       const inventory = new BabylonInventory(scene, guiManager.advancedTexture);
       inventoryRef.current = inventory;
+
+      // Initialize rules panel
+      const rulesPanel = new BabylonRulesPanel(scene, guiManager.advancedTexture);
+      rulesPanelRef.current = rulesPanel;
+
+      // Initialize rule enforcer
+      const ruleEnforcer = new RuleEnforcer(scene);
+      ruleEnforcer.setOnViolation((violation: RuleViolation) => {
+        toast({
+          title: `Rule Violation: ${violation.ruleName}`,
+          description: violation.message,
+          variant: violation.severity === 'high' ? 'destructive' : 'default',
+          duration: 4000
+        });
+      });
+      ruleEnforcerRef.current = ruleEnforcer;
 
       // Initialize procedural generators
       const buildingGenerator = new ProceduralBuildingGenerator(scene);
@@ -1115,6 +1135,15 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
             });
           }
 
+          // Register settlement as a safe zone with rule enforcer
+          if (ruleEnforcerRef.current) {
+            ruleEnforcerRef.current.registerSettlementZone(
+              settlement.id,
+              scaledSettlement.position.clone(),
+              scaledSettlement.radius
+            );
+          }
+
         } catch (error) {
           console.error(`Failed to generate buildings for settlement ${settlement.name}:`, error);
         }
@@ -1186,6 +1215,21 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
       questManager.loadQuest(quest as any);
     });
   }, [worldData, sceneStatus]);
+
+  // Update rules panel and enforcer with rules data
+  useEffect(() => {
+    const rulesPanel = rulesPanelRef.current;
+    const ruleEnforcer = ruleEnforcerRef.current;
+    if (!worldData) return;
+
+    if (rulesPanel) {
+      rulesPanel.updateRules(worldData.rules || [], worldData.baseRules || []);
+    }
+
+    if (ruleEnforcer) {
+      ruleEnforcer.updateRules(worldData.rules || [], worldData.baseRules || []);
+    }
+  }, [worldData]);
 
   // Check player proximity to quest location markers and update minimap
   useEffect(() => {
@@ -1418,6 +1462,21 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
           toast({
             title: "Inventory",
             description: "Press I again to toggle",
+            duration: 1500
+          });
+        }
+      }
+
+      // R key - toggle rules panel
+      if (event.code === 'KeyR' && !event.repeat) {
+        event.preventDefault();
+
+        if (rulesPanelRef.current) {
+          rulesPanelRef.current.toggle();
+
+          toast({
+            title: "Rules Panel",
+            description: "View active world rules",
             duration: 1500
           });
         }
@@ -1699,6 +1758,51 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
         playerMesh: playerMeshRef.current,
         worldData
       });
+
+      // Check if action is allowed by rules
+      const ruleEnforcer = ruleEnforcerRef.current;
+      if (ruleEnforcer) {
+        const actionDefinition = findActionDefinition(worldData, actionId);
+        const actionType = actionDefinition?.category || 'social';
+
+        const playerMesh = playerMeshRef.current;
+        const targetNPCInstance = npcMeshesRef.current.get(selectedNPCId);
+        const settlementInfo = playerMesh ? ruleEnforcer.isInSettlement(playerMesh.position) : { inSettlement: false };
+
+        const gameContext = {
+          playerId: 'player',
+          playerPosition: playerMesh?.position,
+          playerEnergy,
+          targetNPCId: selectedNPCId,
+          targetNPCPosition: targetNPCInstance?.mesh.position,
+          actionId,
+          actionType,
+          inSettlement: settlementInfo.inSettlement,
+          settlementId: settlementInfo.settlementId,
+          nearNPC: true
+        };
+
+        const ruleCheck = ruleEnforcer.canPerformAction(actionId, actionType, gameContext);
+
+        if (!ruleCheck.allowed) {
+          toast({
+            title: "Action Restricted",
+            description: ruleCheck.reason || "This action is not allowed here",
+            variant: "destructive",
+            duration: 4000
+          });
+
+          if (ruleCheck.violatedRule) {
+            ruleEnforcer.recordViolation(
+              ruleCheck.violatedRule,
+              gameContext,
+              ruleCheck.reason || "Action attempted"
+            );
+          }
+
+          return; // Don't perform the action
+        }
+      }
 
       setActionInProgress(true);
       try {
