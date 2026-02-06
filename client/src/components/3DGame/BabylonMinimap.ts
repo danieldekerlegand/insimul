@@ -120,10 +120,13 @@ export class BabylonMinimap {
    * Add or update a marker on the minimap
    */
   public addMarker(marker: MinimapMarker): void {
+    // Early return if minimap is not initialized
+    if (!this.mapContainer) return;
+
     this.markers.set(marker.id, marker);
 
     // Create visual marker if it doesn't exist
-    if (!this.markerElements.has(marker.id) && this.mapContainer) {
+    if (!this.markerElements.has(marker.id)) {
       const markerElement = new GUI.Ellipse(`minimap_marker_${marker.id}`);
 
       // Size based on type

@@ -9,7 +9,9 @@ import {
   TextBlock,
   TextWrapping
 } from "@babylonjs/gui";
-import { Scene } from "babylonjs";
+import { Scene, Vector3 } from "@babylonjs/core";
+import { QuestWaypointManager } from './QuestWaypointManager';
+import { getQuestTypeForWorld } from '@shared/quest-types';
 
 interface Quest {
   id: string;
@@ -40,12 +42,20 @@ export class BabylonQuestTracker {
   private isVisible = false;
   private isMinimized = false;
 
+  // Waypoint system
+  private waypointManager: QuestWaypointManager;
+  private showWaypoints: boolean = true;
+
+  // World context for quest types
+  private worldId: string = '';
+
   // Callbacks
   private onClose: (() => void) | null = null;
 
   constructor(advancedTexture: AdvancedDynamicTexture, scene: Scene) {
     this.advancedTexture = advancedTexture;
     this.scene = scene;
+    this.waypointManager = new QuestWaypointManager(scene);
     this.createQuestUI();
   }
 
@@ -140,6 +150,7 @@ export class BabylonQuestTracker {
 
   public async updateQuests(worldId: string) {
     try {
+      this.worldId = worldId;
       const response = await fetch(`/api/worlds/${worldId}/quests`);
       if (!response.ok) {
         throw new Error('Failed to fetch quests');
@@ -147,6 +158,7 @@ export class BabylonQuestTracker {
 
       this.quests = await response.json();
       this.updateQuestsDisplay();
+      this.updateWaypoints();
     } catch (error) {
       console.error('Failed to load quests:', error);
     }
@@ -368,20 +380,39 @@ export class BabylonQuestTracker {
 
   private getQuestIcon(questType: string): string {
     switch (questType) {
+      // Language learning
       case 'conversation': return '💬';
       case 'translation': return '🔄';
       case 'vocabulary': return '📚';
       case 'grammar': return '📝';
       case 'cultural': return '🌍';
+
+      // RPG
+      case 'combat': return '⚔️';
+      case 'collection': return '📦';
+      case 'exploration': return '🗺️';
+      case 'escort': return '🛡️';
+      case 'delivery': return '📨';
+      case 'crafting': return '🔨';
+      case 'social': return '🤝';
+
       default: return '🎯';
     }
   }
 
   private getDifficultyColor(difficulty: string): string {
     switch (difficulty) {
+      // Language learning
       case 'beginner': return '#4CAF50';
       case 'intermediate': return '#FFC107';
       case 'advanced': return '#F44336';
+
+      // RPG
+      case 'easy': return '#4CAF50';
+      case 'normal': return '#FFC107';
+      case 'hard': return '#F44336';
+      case 'legendary': return '#9C27B0'; // Purple
+
       default: return '#888';
     }
   }
@@ -424,9 +455,105 @@ export class BabylonQuestTracker {
     this.onClose = callback;
   }
 
+  /**
+   * Update waypoints for active quest objectives
+   */
+  private updateWaypoints() {
+    if (!this.showWaypoints) {
+      this.waypointManager.clearAll();
+      return;
+    }
+
+    // Clear existing waypoints
+    this.waypointManager.clearAll();
+
+    // Get active quests
+    const activeQuests = this.quests.filter(q => q.status === 'active');
+
+    // Create waypoints for objectives that have positions
+    activeQuests.forEach(quest => {
+      if (!quest.completionCriteria || !quest.completionCriteria.objectives) return;
+
+      const objectives = Array.isArray(quest.completionCriteria.objectives)
+        ? quest.completionCriteria.objectives
+        : [];
+
+      objectives.forEach((objective: any, index: number) => {
+        if (objective.completed) return;
+
+        const objectiveId = `${quest.id}_obj_${index}`;
+        let position: Vector3 | null = null;
+
+        // Extract position from objective data
+        if (objective.position) {
+          position = new Vector3(
+            objective.position.x || 0,
+            objective.position.y || 0,
+            objective.position.z || 0
+          );
+        } else if (objective.locationPosition) {
+          position = new Vector3(
+            objective.locationPosition.x || 0,
+            objective.locationPosition.y || 0,
+            objective.locationPosition.z || 0
+          );
+        }
+
+        // Create waypoint if position exists
+        if (position) {
+          this.waypointManager.createWaypointForObjectiveType(
+            objectiveId,
+            position,
+            objective.type || quest.questType
+          );
+        }
+      });
+    });
+
+    console.log(`[BabylonQuestTracker] Updated ${this.waypointManager.getWaypointCount()} waypoints`);
+  }
+
+  /**
+   * Toggle waypoint visibility
+   */
+  public toggleWaypoints(): boolean {
+    this.showWaypoints = !this.showWaypoints;
+
+    if (this.showWaypoints) {
+      this.updateWaypoints();
+    } else {
+      this.waypointManager.clearAll();
+    }
+
+    return this.showWaypoints;
+  }
+
+  /**
+   * Set waypoint visibility
+   */
+  public setWaypointsVisible(visible: boolean) {
+    this.showWaypoints = visible;
+
+    if (visible) {
+      this.updateWaypoints();
+    } else {
+      this.waypointManager.clearAll();
+    }
+  }
+
+  /**
+   * Get waypoint manager for external use
+   */
+  public getWaypointManager(): QuestWaypointManager {
+    return this.waypointManager;
+  }
+
   public dispose() {
     if (this.questPanel) {
       this.advancedTexture.removeControl(this.questPanel);
     }
+
+    // Dispose waypoint manager
+    this.waypointManager.dispose();
   }
 }

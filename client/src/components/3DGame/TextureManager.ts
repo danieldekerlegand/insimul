@@ -1,4 +1,4 @@
-import { Scene, StandardMaterial, Texture } from "babylonjs";
+import { Scene, StandardMaterial, Texture } from "@babylonjs/core";
 import type { VisualAsset } from "@shared/schema";
 
 /**
@@ -69,8 +69,22 @@ export class TextureManager {
       return this.textureCache.get(asset.id)!;
     }
 
+    // Normalize texture path
+    let texturePath = asset.filePath;
+
+    // Handle both absolute URLs and relative paths
+    if (!texturePath.startsWith('http://') && !texturePath.startsWith('https://')) {
+      // Relative path → ensure it starts with '/'
+      if (!texturePath.startsWith('/')) {
+        texturePath = `/${texturePath}`;
+      }
+    } else {
+      // External URL → log warning (should be downloaded locally in production)
+      console.warn(`[TextureManager] Loading texture from external URL (not recommended): ${texturePath}`);
+    }
+
     // Create new texture
-    const texture = new Texture(`/${asset.filePath}`, this.scene);
+    const texture = new Texture(texturePath, this.scene);
 
     // Make it seamless/tileable
     texture.wrapU = Texture.WRAP_ADDRESSMODE;

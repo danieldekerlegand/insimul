@@ -5,7 +5,8 @@
  * population, world style, and terrain.
  */
 
-import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3, Texture, VertexData, DynamicTexture } from '@babylonjs/core';
+import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3, Texture, VertexData, DynamicTexture, SceneLoader } from '@babylonjs/core';
+import "@babylonjs/loaders/glTF";
 
 export interface BuildingStyle {
   name: string;
@@ -15,6 +16,7 @@ export interface BuildingStyle {
   doorColor: Color3;
   materialType: 'wood' | 'stone' | 'brick' | 'metal' | 'glass';
   architectureStyle: 'medieval' | 'modern' | 'futuristic' | 'rustic' | 'industrial';
+  assetSetId?: string;
 }
 
 export interface BuildingSpec {
@@ -35,6 +37,9 @@ export interface BuildingSpec {
 export class ProceduralBuildingGenerator {
   private scene: Scene;
   private buildingMeshes: Map<string, Mesh> = new Map();
+
+  // World-level model overrides by logical role (e.g. 'default', 'smallResidence')
+  private roleModelPrototypes: Map<string, Mesh> = new Map();
 
   // Building type to architecture mapping
   private static BUILDING_TYPES: Record<string, Partial<BuildingSpec>> = {
@@ -71,7 +76,8 @@ export class ProceduralBuildingGenerator {
       windowColor: new Color3(0.9, 0.9, 0.7),
       doorColor: new Color3(0.4, 0.25, 0.15),
       materialType: 'wood',
-      architectureStyle: 'medieval'
+      architectureStyle: 'medieval',
+      assetSetId: 'medieval_village'
     },
     'medieval_stone': {
       name: 'Medieval Stone',
@@ -80,7 +86,8 @@ export class ProceduralBuildingGenerator {
       windowColor: new Color3(0.7, 0.8, 0.9),
       doorColor: new Color3(0.3, 0.2, 0.1),
       materialType: 'stone',
-      architectureStyle: 'medieval'
+      architectureStyle: 'medieval',
+      assetSetId: 'medieval_village'
     },
     'modern_concrete': {
       name: 'Modern Concrete',
@@ -89,7 +96,8 @@ export class ProceduralBuildingGenerator {
       windowColor: new Color3(0.6, 0.7, 0.8),
       doorColor: new Color3(0.5, 0.5, 0.5),
       materialType: 'brick',
-      architectureStyle: 'modern'
+      architectureStyle: 'modern',
+      assetSetId: 'modern_city'
     },
     'futuristic_metal': {
       name: 'Futuristic Metal',
@@ -98,7 +106,8 @@ export class ProceduralBuildingGenerator {
       windowColor: new Color3(0.5, 0.7, 0.9),
       doorColor: new Color3(0.3, 0.4, 0.5),
       materialType: 'metal',
-      architectureStyle: 'futuristic'
+      architectureStyle: 'futuristic',
+      assetSetId: 'futuristic_city'
     },
     'rustic_cottage': {
       name: 'Rustic Cottage',
@@ -107,12 +116,127 @@ export class ProceduralBuildingGenerator {
       windowColor: new Color3(0.8, 0.85, 0.7),
       doorColor: new Color3(0.5, 0.3, 0.2),
       materialType: 'wood',
-      architectureStyle: 'rustic'
+      architectureStyle: 'rustic',
+      assetSetId: 'medieval_village'
     }
   };
 
   constructor(scene: Scene) {
     this.scene = scene;
+  }
+
+  private modelPrototypes: Map<string, Mesh> = new Map();
+  private assetsInitialized: boolean = false;
+
+  private makeModelKey(assetSetId: string, modelType: string): string {
+    return assetSetId + ':' + modelType;
+  }
+
+  public async initializeAssets(worldType?: string): Promise<void> {
+    if (this.assetsInitialized) {
+      return;
+    }
+    this.assetsInitialized = true;
+
+    const type = (worldType || '').toLowerCase();
+
+    if (type.includes('medieval') || type.includes('fantasy')) {
+      await this.loadBuildingModel(
+        'medieval_village',
+        'residence_small',
+        '/assets/models/buildings/medieval/',
+        'house_small.glb'
+      );
+    } else if (
+      type.includes('cyberpunk') ||
+      type.includes('sci-fi') ||
+      type.includes('space') ||
+      type.includes('futuristic') ||
+      type.includes('post-apocalyptic') ||
+      type.includes('solarpunk') ||
+      type.includes('dieselpunk')
+    ) {
+      await this.loadBuildingModel(
+        'futuristic_city',
+        'residence_small',
+        '/assets/models/buildings/futuristic/',
+        'futuristic_building.glb'
+      );
+    }
+  }
+
+  /**
+   * Register a world-level model prototype for a logical building role.
+   * The mesh is treated as a template and will be cloned per building instance.
+   */
+  public registerRoleModel(role: string, mesh: Mesh): void {
+    if (!role || !mesh) return;
+    mesh.setEnabled(false);
+    this.roleModelPrototypes.set(role, mesh);
+  }
+
+  private async loadBuildingModel(
+    assetSetId: string,
+    modelType: string,
+    rootUrl: string,
+    fileName: string
+  ): Promise<void> {
+    try {
+      const result = await SceneLoader.ImportMeshAsync('', rootUrl, fileName, this.scene);
+      const mesh = result.meshes.find((m) => m instanceof Mesh) as Mesh | undefined;
+      if (!mesh) {
+        return;
+      }
+      mesh.setEnabled(false);
+      const key = this.makeModelKey(assetSetId, modelType);
+      this.modelPrototypes.set(key, mesh);
+    } catch (error) {
+      console.warn('Failed to load building model', assetSetId, modelType, error);
+    }
+  }
+
+  private getModelPrototype(spec: BuildingSpec): Mesh | null {
+    const assetSetId = spec.style.assetSetId;
+    if (!assetSetId) {
+      return null;
+    }
+
+    let modelType: string | null = null;
+
+    if (assetSetId === 'medieval_village' && spec.type === 'residence' && spec.businessType === 'residence_small') {
+      modelType = 'residence_small';
+    }
+
+    if (assetSetId === 'futuristic_city' && spec.type === 'residence' && spec.businessType === 'residence_small') {
+      modelType = 'residence_small';
+    }
+
+    if (!modelType) {
+      return null;
+    }
+
+    const key = this.makeModelKey(assetSetId, modelType);
+    const prototype = this.modelPrototypes.get(key);
+    return prototype || null;
+  }
+
+  /**
+   * Determine a logical role name for the given building spec, used for
+   * world-level model overrides. This is intentionally coarse-grained.
+   */
+  private getRoleForSpec(spec: BuildingSpec): string | null {
+    if (spec.type === 'residence') {
+      if (spec.businessType === 'residence_small') {
+        return 'smallResidence';
+      }
+      return 'default';
+    }
+
+    if (spec.type === 'business') {
+      return 'default';
+    }
+
+    return null;
   }
 
   /**
@@ -147,6 +271,32 @@ export class ProceduralBuildingGenerator {
     parent.position = spec.position.clone();
     parent.rotation.y = spec.rotation;
 
+    // Prefer world-level overrides by logical role, then fall back to
+    // style-based assetSet models, and finally to primitive geometry.
+    const role = this.getRoleForSpec(spec);
+    let modelPrototype: Mesh | null = null;
+    if (role) {
+      const override = this.roleModelPrototypes.get(role);
+      if (override) {
+        modelPrototype = override;
+      }
+    }
+
+    if (!modelPrototype) {
+      modelPrototype = this.getModelPrototype(spec);
+    }
+
+    if (modelPrototype) {
+      const instance = modelPrototype.clone(`building_model_${spec.id}`) as Mesh;
+      if (instance) {
+        instance.position = Vector3.Zero();
+        this.adjustModelToSpec(instance, spec);
+        instance.parent = parent;
+      }
+      this.buildingMeshes.set(spec.id, parent);
+      return parent;
+    }
+
     // Create main building structure
     const building = this.createBuildingStructure(spec);
     building.parent = parent;
@@ -174,6 +324,29 @@ export class ProceduralBuildingGenerator {
 
     this.buildingMeshes.set(spec.id, parent);
     return parent;
+  }
+
+  private adjustModelToSpec(instance: Mesh, spec: BuildingSpec): void {
+    instance.computeWorldMatrix(true);
+    const bounds = instance.getBoundingInfo().boundingBox;
+    const size = bounds.maximumWorld.subtract(bounds.minimumWorld);
+
+    const floorHeight = 4;
+    const targetWidth = spec.width || size.x || 1;
+    const targetDepth = spec.depth || size.z || 1;
+    const targetHeight = (spec.floors || 1) * floorHeight;
+
+    const scaleX = targetWidth / (size.x || 1);
+    const scaleZ = targetDepth / (size.z || 1);
+    const scaleY = targetHeight / (size.y || 1);
+
+    const uniformScale = Math.min(scaleX, scaleY, scaleZ);
+    instance.scaling = new Vector3(uniformScale, uniformScale, uniformScale);
+
+    instance.computeWorldMatrix(true);
+    const newBounds = instance.getBoundingInfo().boundingBox;
+    const minY = newBounds.minimumWorld.y;
+    instance.position.y -= minY;
   }
 
   /**

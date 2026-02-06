@@ -7,7 +7,7 @@
 
 import * as BABYLON from '@babylonjs/core';
 import * as GUI from '@babylonjs/gui';
-import { Action } from '../rpg/types/actions';
+import { Action } from './types/actions';
 
 export class BabylonRadialMenu {
   private advancedTexture: GUI.AdvancedDynamicTexture;

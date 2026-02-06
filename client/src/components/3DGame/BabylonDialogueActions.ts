@@ -6,7 +6,7 @@
  */
 
 import * as GUI from '@babylonjs/gui';
-import { Action } from '../rpg/types/actions';
+import { Action } from './types/actions';
 
 export class BabylonDialogueActions {
   private container: GUI.Container | null = null;

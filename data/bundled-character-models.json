@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Bundled Character Models",
+  "description": "CC0-licensed character models bundled with the application for player avatars and NPCs. Models can be reused across world types; clothing/textures vary.",
+  "version": "1.0.0",
+  "models": {
+    "player": {
+      "default": {
+        "name": "Default Player Character",
+        "description": "A generic humanoid character suitable for all world types",
+        "filePath": "assets/characters/generic/player_default.glb",
+        "assetType": "model_player",
+        "source": "quaternius",
+        "license": "CC0",
+        "tags": ["player", "humanoid", "generic", "rigged"]
+      },
+      "male": {
+        "name": "Male Player Character",
+        "description": "A male humanoid character with standard proportions",
+        "filePath": "assets/characters/generic/player_male.glb",
+        "assetType": "model_player",
+        "source": "quaternius",
+        "license": "CC0",
+        "tags": ["player", "humanoid", "male", "rigged"]
+      },
+      "female": {
+        "name": "Female Player Character",
+        "description": "A female humanoid character with standard proportions",
+        "filePath": "assets/characters/generic/player_female.glb",
+        "assetType": "model_player",
+        "source": "quaternius",
+        "license": "CC0",
+        "tags": ["player", "humanoid", "female", "rigged"]
+      }
+    },
+    "npc": {
+      "civilian_male": {
+        "name": "Male Civilian NPC",
+        "description": "A generic male NPC for civilian/townsperson roles",
+        "filePath": "assets/characters/generic/npc_civilian_male.glb",
+        "assetType": "model_character",
+        "source": "quaternius",
+        "license": "CC0",
+        "tags": ["npc", "humanoid", "male", "civilian", "rigged"]
+      },
+      "civilian_female": {
+        "name": "Female Civilian NPC",
+        "description": "A generic female NPC for civilian/townsperson roles",
+        "filePath": "assets/characters/generic/npc_civilian_female.glb",
+        "assetType": "model_character",
+        "source": "quaternius",
+        "license": "CC0",
+        "tags": ["npc", "humanoid", "female", "civilian", "rigged"]
+      },
+      "guard": {
+        "name": "Guard NPC",
+        "description": "An armored guard character for security/military roles",
+        "filePath": "assets/characters/generic/npc_guard.glb",
+        "assetType": "model_character",
+        "source": "quaternius",
+        "license": "CC0",
+        "tags": ["npc", "humanoid", "guard", "armored", "rigged"]
+      },
+      "merchant": {
+        "name": "Merchant NPC",
+        "description": "A merchant character for shop/trade roles",
+        "filePath": "assets/characters/generic/npc_merchant.glb",
+        "assetType": "model_character",
+        "source": "quaternius",
+        "license": "CC0",
+        "tags": ["npc", "humanoid", "merchant", "rigged"]
+      },
+      "brainstem": {
+        "name": "BrainStem Character",
+        "description": "An animated humanoid character from Khronos glTF samples",
+        "filePath": "assets/characters/generic/brainstem.glb",
+        "assetType": "model_character",
+        "source": "khronos-gltf-samples",
+        "license": "CC0",
+        "tags": ["npc", "humanoid", "animated", "rigged"]
+      },
+      "fox": {
+        "name": "Fox Character",
+        "description": "An animated fox character from Khronos glTF samples",
+        "filePath": "assets/characters/generic/fox.glb",
+        "assetType": "model_character",
+        "source": "khronos-gltf-samples",
+        "license": "CC0",
+        "tags": ["npc", "animal", "fox", "animated"]
+      }
+    }
+  },
+  "questObjects": {
+    "collectible": {
+      "name": "Water Bottle Collectible",
+      "description": "A water bottle model for collectible quest items",
+      "filePath": "assets/quest-objects/water_bottle.glb",
+      "assetType": "model_quest_item",
+      "source": "khronos-gltf-samples",
+      "license": "CC0",
+      "tags": ["quest", "collectible", "item", "bottle"]
+    },
+    "container": {
+      "name": "Treasure Chest",
+      "description": "A detailed treasure chest from Polyhaven",
+      "filePath": "assets/quest-objects/treasure_chest.gltf",
+      "assetType": "model_quest_item",
+      "source": "polyhaven",
+      "license": "CC0",
+      "tags": ["quest", "container", "chest", "treasure"]
+    },
+    "marker": {
+      "name": "Lantern Marker",
+      "description": "A lantern for location objective markers",
+      "filePath": "assets/quest-objects/lantern_marker.gltf",
+      "assetType": "model_quest_item",
+      "source": "polyhaven",
+      "license": "CC0",
+      "tags": ["quest", "marker", "lantern", "location"]
+    },
+    "lamp": {
+      "name": "Brass Lamp",
+      "description": "A brass diya lamp for decorative quest items",
+      "filePath": "assets/quest-objects/brass_lamp.gltf",
+      "assetType": "model_quest_item",
+      "source": "polyhaven",
+      "license": "CC0",
+      "tags": ["quest", "lamp", "brass", "item"]
+    },
+    "avocado": {
+      "name": "Avocado Collectible",
+      "description": "An avocado model for food/nature collectibles",
+      "filePath": "assets/quest-objects/avocado_collectible.glb",
+      "assetType": "model_quest_item",
+      "source": "khronos-gltf-samples",
+      "license": "CC0",
+      "tags": ["quest", "collectible", "food", "nature"]
+    }
+  },
+  "downloadSources": {
+    "quaternius": {
+      "url": "https://quaternius.com/",
+      "description": "Free CC0 game asset packs",
+      "characterPacks": [
+        "https://quaternius.com/packs/ultimatemodularcharacters.html",
+        "https://quaternius.com/packs/easyenemy.html"
+      ]
+    },
+    "kenney": {
+      "url": "https://kenney.nl/",
+      "description": "Over 40k CC0 game assets",
+      "characterPacks": [
+        "https://kenney.nl/assets/animated-characters",
+        "https://kenney.nl/assets/character-kit-3d"
+      ]
+    }
+  }
+}

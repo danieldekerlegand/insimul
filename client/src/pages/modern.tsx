@@ -18,7 +18,9 @@ import { SimulationConfigDialog } from '@/components/SimulationConfigDialog';
 import { SimulationTimelineView } from '@/components/SimulationTimelineView';
 import { BabylonWorld } from '@/components/3DGame/BabylonWorld';
 import { AuthDialog } from '@/components/AuthDialog';
+import { AdminPanel } from '@/components/AdminPanel';
 import { PlaythroughsList } from '@/components/PlaythroughsList';
+import { PlaythroughAnalytics } from '@/components/PlaythroughAnalytics';
 import { WorldBrowser } from '@/components/WorldBrowser';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,6 +51,7 @@ export default function ModernEditor() {
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const queryClient = useQueryClient();
   const ruleCompiler = new InsimulRuleCompiler();
   const { toast } = useToast();
@@ -133,9 +136,20 @@ export default function ModernEditor() {
     runSimulationMutation.mutate({ simulationId, config });
   };
 
+  // Show admin panel if open
+  if (adminPanelOpen) {
+    return <AdminPanel onBack={() => setAdminPanelOpen(false)} />;
+  }
+
   // Show world selection if no world selected
   if (!selectedWorld) {
-    return <WorldSelectionScreen onWorldSelected={setSelectedWorld} />;
+    return (
+      <WorldSelectionScreen
+        onWorldSelected={setSelectedWorld}
+        onOpenAuth={() => setAuthDialogOpen(true)}
+        onOpenAdminPanel={() => setAdminPanelOpen(true)}
+      />
+    );
   }
 
   const currentWorld = worlds.find(w => w.id === selectedWorld) || { id: selectedWorld, name: 'Selected World' };
@@ -145,6 +159,7 @@ export default function ModernEditor() {
       <ModernNavbar
         currentWorld={currentWorld}
         activeTab={activeTab}
+        onOpenAdminPanel={() => setAdminPanelOpen(true)}
         onTabChange={(tab) => {
           // Handle special tabs
           if (tab === 'import') {
@@ -349,6 +364,11 @@ export default function ModernEditor() {
           />
         )}
 
+        {/* Analytics Tab */}
+        {activeTab === 'analytics' && selectedWorld && (
+          <PlaythroughAnalytics worldId={selectedWorld} />
+        )}
+
         {/* My Playthroughs Tab */}
         {activeTab === 'my-playthroughs' && (
           <PlaythroughsList
@@ -374,7 +394,12 @@ export default function ModernEditor() {
           <WorldManagementTab 
             worldId={selectedWorld} 
             worldName={currentWorld.name}
+            worldDescription={currentWorld.description}
             onWorldDeleted={() => setSelectedWorld('')}
+            onWorldUpdated={() => {
+              queryClient.invalidateQueries({ queryKey: ['/api/worlds'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/worlds', selectedWorld] });
+            }}
           />
         )}
 
@@ -383,7 +408,12 @@ export default function ModernEditor() {
           <WorldManagementTab 
             worldId={selectedWorld}
             worldName={currentWorld.name}
+            worldDescription={currentWorld.description}
             onWorldDeleted={() => setSelectedWorld('')}
+            onWorldUpdated={() => {
+              queryClient.invalidateQueries({ queryKey: ['/api/worlds'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/worlds', selectedWorld] });
+            }}
           />
         )}
       </div>
@@ -433,6 +463,7 @@ export default function ModernEditor() {
           setActiveTab('3d-game');
         }}
       />
+
     </div>
   );
 }

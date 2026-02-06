@@ -11,13 +11,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { WorldCreateDialog } from "./WorldCreateDialog";
 import { GenerationProgressDialog } from "./GenerationProgressDialog";
 import { AdminPanel } from "./AdminPanel";
+import { ModernNavbar } from "./ModernNavbar";
 import type { InsertWorld } from "@shared/schema";
 
 interface WorldSelectionScreenProps {
   onWorldSelected: (worldId: string) => void;
+  onOpenAuth?: () => void;
+  onOpenAdminPanel?: () => void;
 }
 
-export function WorldSelectionScreen({ onWorldSelected }: WorldSelectionScreenProps) {
+export function WorldSelectionScreen({ onWorldSelected, onOpenAuth, onOpenAdminPanel }: WorldSelectionScreenProps) {
   const [worlds, setWorlds] = useState<any[]>([]);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -57,7 +60,8 @@ export function WorldSelectionScreen({ onWorldSelected }: WorldSelectionScreenPr
     worldType?: string,
     customPrompt?: string,
     gameType?: string,
-    customLabel?: string
+    customLabel?: string,
+    generateWorldMap?: boolean
   ) => {
     try {
       setIsCreatingWorld(true);
@@ -104,10 +108,37 @@ export function WorldSelectionScreen({ onWorldSelected }: WorldSelectionScreenPr
           });
         }
       } else {
-        toast({
-          title: "World created",
-          description: `${newWorld.name} has been created successfully.`,
-        });
+        // For non-procedural worlds, optionally generate world map
+        if (generateWorldMap && token) {
+          try {
+            await fetch(`/api/worlds/${newWorld.id}/generate-world-map`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                mapStyle: 'fantasy',
+                provider: 'flux',
+              }),
+            });
+            toast({
+              title: "World created with map",
+              description: `${newWorld.name} has been created and a world map is being generated.`,
+            });
+          } catch (mapError) {
+            console.error('Failed to generate world map:', mapError);
+            toast({
+              title: "World created",
+              description: `${newWorld.name} has been created. Map generation failed.`,
+            });
+          }
+        } else {
+          toast({
+            title: "World created",
+            description: `${newWorld.name} has been created successfully.`,
+          });
+        }
         await fetchWorlds();
       }
     } catch (error) {
@@ -185,20 +216,19 @@ export function WorldSelectionScreen({ onWorldSelected }: WorldSelectionScreenPr
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-primary/10 flex items-center justify-center p-6">
+    <>
+      <ModernNavbar
+        currentWorld={undefined}
+        activeTab="home"
+        onTabChange={() => {}}
+        onChangeWorld={() => {}}
+        onOpenAuth={onOpenAuth}
+        onOpenAdminPanel={onOpenAdminPanel}
+      />
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-primary/10 flex items-center justify-center p-6">
       <div className="w-full max-w-6xl">
         {/* Header */}
-        <div className="text-center mb-12 relative">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowAdminPanel(true)}
-            className="absolute top-0 right-0"
-          >
-            <Database className="w-4 h-4 mr-2" />
-            Admin Panel
-          </Button>
-          
+        <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary to-primary/60 rounded-2xl mb-6 shadow-lg">
             <Globe className="w-10 h-10 text-white" />
           </div>
@@ -279,12 +309,12 @@ export function WorldSelectionScreen({ onWorldSelected }: WorldSelectionScreenPr
             </div>
           )}
 
-          {/* Other Worlds Section */}
-          {worlds.filter(w => !w.isOwner).length > 0 && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4 px-2">Other Worlds</h2>
+          {/* My Worlds Section (shared/collaborative) */}
+          {worlds.filter(w => !w.isOwner && w.visibility !== 'public').length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-xl font-semibold mb-4 px-2">My Worlds</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {worlds.filter(w => !w.isOwner).map((world) => {
+                {worlds.filter(w => !w.isOwner && w.visibility !== 'public').map((world) => {
                   const totalPop = computePopulation(world) || world.population || 0;
                   return (
                     <Card
@@ -303,11 +333,79 @@ export function WorldSelectionScreen({ onWorldSelected }: WorldSelectionScreenPr
                                 {world.name}
                               </CardTitle>
                               <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="secondary" className="text-xs">Shared</Badge>
                                 {world.visibility && (
                                   <Badge variant="outline" className="text-xs gap-1">
                                     <Eye className="w-3 h-3" />
                                     {world.visibility}
                                   </Badge>
+                                )}
+                                {world.requiresAuth && (
+                                  <Badge variant="outline" className="text-xs gap-1">
+                                    <Lock className="w-3 h-3" />
+                                    Auth Required
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                        </div>
+                        <CardDescription className="mt-2">{world.description || 'No description'}</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex gap-4 text-sm">
+                          {totalPop > 0 && (
+                            <div>
+                              <span className="text-muted-foreground">Pop:</span>{' '}
+                              <span className="font-medium">{totalPop.toLocaleString()}</span>
+                            </div>
+                          )}
+                          {world.playerCount !== undefined && (
+                            <div>
+                              <span className="text-muted-foreground">Players:</span>{' '}
+                              <span className="font-medium">{world.playerCount}</span>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Public Worlds Section */}
+          {worlds.filter(w => w.visibility === 'public').length > 0 && (
+            <div>
+              <h2 className="text-xl font-semibold mb-4 px-2">Public Worlds</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {worlds.filter(w => w.visibility === 'public').map((world) => {
+                  const totalPop = computePopulation(world) || world.population || 0;
+                  return (
+                    <Card
+                      key={world.id}
+                      className="cursor-pointer hover:border-primary hover:shadow-xl transition-all duration-300 hover:scale-105 group"
+                      onClick={() => onWorldSelected(world.id)}
+                    >
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
+                              <Globe className="w-5 h-5 text-primary" />
+                            </div>
+                            <div className="flex-1">
+                              <CardTitle className="text-lg group-hover:text-primary transition-colors">
+                                {world.name}
+                              </CardTitle>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <Badge variant="outline" className="text-xs gap-1">
+                                  <Users className="w-3 h-3" />
+                                  Public
+                                </Badge>
+                                {world.isOwner && (
+                                  <Badge variant="secondary" className="text-xs">Owner</Badge>
                                 )}
                                 {world.requiresAuth && (
                                   <Badge variant="outline" className="text-xs gap-1">
@@ -394,6 +492,7 @@ export function WorldSelectionScreen({ onWorldSelected }: WorldSelectionScreenPr
           </div>
         )}
       </div>
+      </div>
 
       {/* World Creation Dialog */}
       <WorldCreateDialog
@@ -409,6 +508,6 @@ export function WorldSelectionScreen({ onWorldSelected }: WorldSelectionScreenPr
         taskId={generationTaskId}
         onComplete={handleGenerationComplete}
       />
-    </div>
+    </>
   );
 }

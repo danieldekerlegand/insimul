@@ -476,10 +476,22 @@ const AssetCollectionSchema = new Schema({
   name: { type: String, required: true },
   description: { type: String, default: null },
   collectionType: { type: String, required: true },
+  worldType: { type: String, default: null },
   assetIds: { type: [String], default: [] },
+  buildingModels: { type: Schema.Types.Mixed, default: {} },
+  natureModels: { type: Schema.Types.Mixed, default: {} },
+  characterModels: { type: Schema.Types.Mixed, default: {} },
+  objectModels: { type: Schema.Types.Mixed, default: {} },
+  playerModels: { type: Schema.Types.Mixed, default: {} },
+  questObjectModels: { type: Schema.Types.Mixed, default: {} },
+  audioAssets: { type: Schema.Types.Mixed, default: {} },
+  groundTextureId: { type: String, default: null },
+  roadTextureId: { type: String, default: null },
   purpose: { type: String, default: null },
   tags: { type: [String], default: [] },
+  createdBy: { type: String, default: null },
   isPublic: { type: Boolean, default: false },
+  isBase: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
@@ -1559,6 +1571,12 @@ export class MongoStorage implements IStorage {
     return doc ? docToVisualAsset(doc) : undefined;
   }
 
+  async getAllVisualAssets(): Promise<VisualAsset[]> {
+    await this.connect();
+    const docs = await VisualAssetModel.find({});
+    return docs.map(docToVisualAsset);
+  }
+
   async getVisualAssetsByWorld(worldId: string): Promise<VisualAsset[]> {
     await this.connect();
     const docs = await VisualAssetModel.find({ worldId });
@@ -1573,28 +1591,10 @@ export class MongoStorage implements IStorage {
 
   async getVisualAssetsByEntity(entityId: string, entityType: string): Promise<VisualAsset[]> {
     await this.connect();
-    const query: any = {};
-
-    switch (entityType) {
-      case 'character':
-        query.characterId = entityId;
-        break;
-      case 'business':
-        query.businessId = entityId;
-        break;
-      case 'settlement':
-        query.settlementId = entityId;
-        break;
-      case 'country':
-        query.countryId = entityId;
-        break;
-      case 'state':
-        query.stateId = entityId;
-        break;
-    }
-
-    const docs = await VisualAssetModel.find(query);
-    return docs.map(docToVisualAsset);
+    // Entity-specific fields have been removed from visual assets
+    // Assets are now organized through asset collections instead
+    // This method is deprecated and returns empty array
+    return [];
   }
 
   async createVisualAsset(asset: InsertVisualAsset): Promise<VisualAsset> {
@@ -1647,6 +1647,12 @@ export class MongoStorage implements IStorage {
     await this.connect();
     const doc = await AssetCollectionModel.findById(id);
     return doc ? docToAssetCollection(doc) : undefined;
+  }
+
+  async getAllAssetCollections(): Promise<AssetCollection[]> {
+    await this.connect();
+    const docs = await AssetCollectionModel.find({});
+    return docs.map(docToAssetCollection);
   }
 
   async getAssetCollectionsByWorld(worldId: string): Promise<AssetCollection[]> {

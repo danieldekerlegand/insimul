@@ -193,6 +193,31 @@ export function BatchGenerationDialog({ open, onOpenChange, worldId, worldName }
     },
   });
 
+  // World overview map generation mutation
+  const generateWorldMapMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/worlds/${worldId}/generate-world-map`, {
+        provider,
+        mapStyle: 'fantasy',
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: 'World Map Generated',
+        description: `Overview map for ${worldName} has been created`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/worlds', worldId, 'assets'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Generation Failed',
+        description: error.message || 'Failed to generate world map',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const getAssetCount = (assetType: string): number => {
     return existingAssets.filter(a => a.assetType.includes(assetType)).length;
   };
@@ -201,6 +226,7 @@ export function BatchGenerationDialog({ open, onOpenChange, worldId, worldName }
   const buildingCount = getAssetCount('building_exterior');
   const mapCount = getAssetCount('map_');
   const artifactCount = getAssetCount('artifact_image');
+  const worldMapCount = existingAssets.filter(a => a.assetType === 'map_world').length;
 
   const getJobStatusIcon = (status: GenerationJob['status']) => {
     switch (status) {
@@ -432,6 +458,50 @@ export function BatchGenerationDialog({ open, onOpenChange, worldId, worldName }
               </CardContent>
             </Card>
           </div>
+
+          {/* World Overview Map - Separate Section */}
+          <Card className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-amber-500/30">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-amber-600" />
+                World Overview Map
+              </CardTitle>
+              <CardDescription>
+                Generate a single overview map showing the entire world with countries and major settlements
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex items-center justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">Existing World Maps:</span>
+                  <Badge variant={worldMapCount > 0 ? 'default' : 'destructive'}>
+                    {worldMapCount}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Fantasy cartography style with compass rose and decorative border
+                </p>
+              </div>
+              <Button
+                onClick={() => generateWorldMapMutation.mutate()}
+                disabled={generateWorldMapMutation.isPending}
+                variant="outline"
+                className="border-amber-500/50 hover:bg-amber-500/10"
+              >
+                {generateWorldMapMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Generate World Map
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
 
           {/* Active Generation Jobs */}
           {generationJobs.length > 0 && (

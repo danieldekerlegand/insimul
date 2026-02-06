@@ -260,12 +260,11 @@ export const worlds = pgTable("worlds", {
   maxPlayers: integer("max_players"), // Optional player limit
   requiresAuth: boolean("requires_auth").default(false), // Require authentication to play
 
+  // Asset collection reference
+  selectedAssetCollectionId: varchar("selected_asset_collection_id"), // Reference to the asset collection this world uses
+
   // Configuration
   config: jsonb("config").$type<Record<string, any>>().default({}),
-
-  // World state and history (abstract, meta-level)
-  worldData: jsonb("world_data").$type<Record<string, any>>().default({}),
-  historicalEvents: jsonb("historical_events").$type<any[]>().default([]),
 
   // Generation settings
   generationConfig: jsonb("generation_config").$type<Record<string, any>>().default({}),
@@ -529,6 +528,12 @@ export const quests = pgTable("quests", {
   questType: text("quest_type").notNull(), // conversation, translation, vocabulary, grammar, cultural
   difficulty: text("difficulty").notNull(), // beginner, intermediate, advanced
   targetLanguage: text("target_language").notNull(), // French, English
+
+  // Game type and quest chains (for abstraction)
+  gameType: varchar("game_type", { length: 100 }).default("language-learning"), // language-learning, rpg, strategy, adventure, survival
+  questChainId: varchar("quest_chain_id", { length: 255 }),
+  questChainOrder: integer("quest_chain_order"),
+  prerequisiteQuestIds: text("prerequisite_quest_ids").array(),
   
   // Quest objectives and progress
   objectives: jsonb("objectives").$type<any[]>().default([]),
@@ -541,6 +546,14 @@ export const quests = pgTable("quests", {
   // Rewards and XP
   experienceReward: integer("experience_reward").default(0),
   rewards: jsonb("rewards").$type<Record<string, any>>().default({}),
+
+  // Enhanced rewards (for non-language-learning games)
+  itemRewards: jsonb("item_rewards").$type<Array<{ itemId: string; quantity: number; name: string }>>(),
+  skillRewards: jsonb("skill_rewards").$type<Array<{ skillId: string; name: string; level: number }>>(),
+  unlocks: jsonb("unlocks").$type<Array<{ type: 'area' | 'npc' | 'feature'; id: string; name: string }>>(),
+
+  // Failure conditions
+  failureConditions: jsonb("failure_conditions").$type<Record<string, any>>(),
   
   // Timing
   assignedAt: timestamp("assigned_at").defaultNow(),
@@ -1222,7 +1235,10 @@ export type AssetType =
   | 'texture_ground' | 'texture_wall' | 'texture_material'
   | 'item_icon' | 'item_image' | 'artifact_image'
   | 'landscape' | 'skybox' | 'environmental'
-  | 'ui_background' | 'ui_decoration' | 'custom';
+  | 'ui_background' | 'ui_decoration' | 'custom'
+  | 'model_3d' | 'model_building' | 'model_tree' | 'model_character' | 'model_prop'
+  | 'model_player' | 'model_quest_item'
+  | 'audio_footstep' | 'audio_ambient' | 'audio_effect' | 'audio_music';
 
 export type AssetStatus = 'generating' | 'completed' | 'failed' | 'archived';
 
@@ -1237,13 +1253,6 @@ export const visualAssets = pgTable("visual_assets", {
   name: text("name").notNull(),
   description: text("description"),
   assetType: text("asset_type").notNull(), // character_portrait, building_exterior, etc.
-
-  // Associated entities (what this asset represents)
-  characterId: varchar("character_id"), // For character images
-  businessId: varchar("business_id"), // For building images
-  settlementId: varchar("settlement_id"), // For maps
-  countryId: varchar("country_id"), // For national symbols/maps
-  stateId: varchar("state_id"), // For regional maps
 
   // File information
   filePath: text("file_path").notNull(), // Relative path from public/assets
@@ -1270,8 +1279,6 @@ export const visualAssets = pgTable("visual_assets", {
 
   // Status and availability
   status: text("status").default("completed"), // generating, completed, failed, archived
-  isPublic: boolean("is_public").default(false), // Can be reused across worlds
-  isActive: boolean("is_active").default(true),
 
   // Error tracking (for failed generations)
   errorMessage: text("error_message"),
@@ -1284,23 +1291,44 @@ export const visualAssets = pgTable("visual_assets", {
 });
 
 // Asset Collections - group related assets together
+// Collections are now the primary way to organize assets, managed centrally in Admin Panel
 export const assetCollections = pgTable("asset_collections", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  worldId: varchar("world_id"), // Nullable for base collections
 
   name: text("name").notNull(),
   description: text("description"),
-  collectionType: text("collection_type").notNull(), // texture_pack, character_set, building_set, map_atlas
+  collectionType: text("collection_type").notNull(), // complete_theme, texture_pack, character_set, building_set, prop_set, map_atlas
 
-  // Assets in this collection
+  // Theme/world type this collection is designed for
+  worldType: text("world_type"), // medieval-fantasy, cyberpunk, sci-fi-space, historical-medieval, etc.
+  
+  // Assets in this collection (organized by category)
   assetIds: jsonb("asset_ids").$type<string[]>().default([]),
+  
+  // 3D Config for this collection (buildings, nature, characters, objects, textures)
+  buildingModels: jsonb("building_models").$type<Record<string, string>>().default({}),
+  natureModels: jsonb("nature_models").$type<Record<string, string>>().default({}),
+  characterModels: jsonb("character_models").$type<Record<string, string>>().default({}),
+  objectModels: jsonb("object_models").$type<Record<string, string>>().default({}),
+  groundTextureId: varchar("ground_texture_id"),
+  roadTextureId: varchar("road_texture_id"),
+  
+  // Player and quest models
+  playerModels: jsonb("player_models").$type<Record<string, string>>().default({}),
+  questObjectModels: jsonb("quest_object_models").$type<Record<string, string>>().default({}),
+  
+  // Audio assets
+  audioAssets: jsonb("audio_assets").$type<Record<string, string>>().default({}),
 
-  // Collection purpose
-  purpose: text("purpose"), // "medieval_textures", "cyberpunk_buildings", etc.
+  // Collection metadata
+  purpose: text("purpose"), // "Complete medieval fantasy asset pack", "Cyberpunk building set", etc.
   tags: jsonb("tags").$type<string[]>().default([]),
-
-  isPublic: boolean("is_public").default(false),
+  
+  // Ownership and visibility
+  createdBy: varchar("created_by"), // User ID of creator (admin)
+  isPublic: boolean("is_public").default(false), // Available to all users
   isActive: boolean("is_active").default(true),
+  isBase: boolean("is_base").default(false), // Base/template collection (read-only in UI)
 
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1350,11 +1378,6 @@ export const insertVisualAssetSchema = createInsertSchema(visualAssets).pick({
   name: true,
   description: true,
   assetType: true,
-  characterId: true,
-  businessId: true,
-  settlementId: true,
-  countryId: true,
-  stateId: true,
   filePath: true,
   fileName: true,
   fileSize: true,
@@ -1371,22 +1394,31 @@ export const insertVisualAssetSchema = createInsertSchema(visualAssets).pick({
   usageContext: true,
   tags: true,
   status: true,
-  isPublic: true,
-  isActive: true,
   errorMessage: true,
   metadata: true,
 });
 
 export const insertAssetCollectionSchema = createInsertSchema(assetCollections).pick({
-  worldId: true,
   name: true,
   description: true,
   collectionType: true,
+  worldType: true,
   assetIds: true,
+  buildingModels: true,
+  natureModels: true,
+  characterModels: true,
+  objectModels: true,
+  groundTextureId: true,
+  roadTextureId: true,
+  playerModels: true,
+  questObjectModels: true,
+  audioAssets: true,
   purpose: true,
   tags: true,
+  createdBy: true,
   isPublic: true,
   isActive: true,
+  isBase: true,
 });
 
 export const insertGenerationJobSchema = createInsertSchema(generationJobs).pick({

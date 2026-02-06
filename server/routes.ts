@@ -24,6 +24,7 @@ import {
   insertSimulationSchema,
   insertActionSchema,
   insertTruthSchema,
+  insertVisualAssetSchema,
   type InsertRule
 } from "@shared/schema";
 import { z } from "zod";
@@ -271,6 +272,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(enrichedWorlds);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch worlds" });
+    }
+  });
+
+  // Get a single world by ID
+  app.get("/api/worlds/:id", async (req, res) => {
+    try {
+      const world = await storage.getWorld(req.params.id);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      // Get current user if authenticated
+      const token = req.headers.authorization?.split(' ')[1];
+      const payload = token ? AuthService.verifyToken(token) : null;
+      const currentUserId = payload?.userId;
+
+      // Get playthrough count for this world
+      const playthroughs = await storage.getPlaythroughsByWorld(world.id);
+      const playerCount = new Set(playthroughs.map(p => p.userId)).size;
+
+      res.json({
+        ...world,
+        isOwner: currentUserId === world.ownerId,
+        playerCount,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch world" });
     }
   });
 
@@ -1123,7 +1151,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const world = await storage.createWorld(validatedData);
-      res.status(201).json(world);
+
+      // REQUIRED: Ensure world has an asset collection assigned
+      // This assigns a default collection based on world type if none is selected
+      try {
+        const { ensureWorldHasAssetCollection } = await import('./services/default-asset-collection.js');
+        await ensureWorldHasAssetCollection(world.id);
+      } catch (collectionError) {
+        console.error("Failed to assign asset collection to world", world.id, collectionError);
+        // This is critical - we should fail world creation if we can't assign a collection
+        await storage.deleteWorld(world.id);
+        return res.status(500).json({ 
+          error: "Failed to assign asset collection to world",
+          details: collectionError instanceof Error ? collectionError.message : String(collectionError)
+        });
+      }
+
+      // Note: 3D assets are now managed through asset collections
+      // Users can populate collections via the Polyhaven browser UI
+      
+      // Fetch the updated world with collection assignment
+      const updatedWorld = await storage.getWorld(world.id);
+      res.status(201).json(updatedWorld || world);
     } catch (error) {
       console.error("POST /api/worlds error:", error);
       if (error instanceof z.ZodError) {
@@ -5639,6 +5688,34 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     }
   });
 
+  // World 3D asset configuration (now resolved from asset collections)
+  app.get("/api/worlds/:worldId/3d-config", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { getWorld3DConfigForWorld } = await import('./services/asset-collection-resolver.js');
+      const config = await getWorld3DConfigForWorld(worldId);
+      res.json(config);
+    } catch (error: any) {
+      console.error("Failed to get 3D config:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/worlds/:worldId/3d-config", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { updateWorld3DConfig } = await import('./services/asset-collection-resolver.js');
+      const config = await updateWorld3DConfig(worldId, req.body);
+      res.json(config);
+    } catch (error: any) {
+      console.error("Failed to update 3D config:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Note: sync-defaults endpoint removed - 3D assets are now managed through asset collections
+  // Users can populate collections via the Polyhaven browser UI (Auto-Select Assets feature)
+
   // Truths
   app.get("/api/worlds/:worldId/truth", async (req, res) => {
     try {
@@ -5790,6 +5867,119 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete quest" });
+    }
+  });
+
+  // Quest Generation Endpoints
+  app.post("/api/worlds/:worldId/quests/generate", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { count = 5, category, difficulty, assignedTo } = req.body;
+
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      // Import quest generator dynamically
+      const { generateQuestsForWorld } = await import('./services/quest-generator.js');
+
+      const generatedQuests = await generateQuestsForWorld(world, count, {
+        category,
+        difficulty,
+        assignedTo
+      });
+
+      // Save generated quests to database
+      const createdQuests = [];
+      for (const questData of generatedQuests) {
+        const created = await storage.createQuest(questData);
+        createdQuests.push(created);
+      }
+
+      res.status(201).json({
+        count: createdQuests.length,
+        quests: createdQuests
+      });
+    } catch (error) {
+      console.error('[Quest Generation] Error:', error);
+      res.status(500).json({ error: "Failed to generate quests" });
+    }
+  });
+
+  // Quest Chain Endpoints
+  app.post("/api/worlds/:worldId/quest-chains/generate", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { name, description, questCount = 5, isLinear = true, category, difficulty } = req.body;
+
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      // Import quest generator and chain manager
+      const { generateQuestsForWorld } = await import('./services/quest-generator.js');
+      const { questChainManager } = await import('./services/quest-chain-manager.js');
+
+      // Generate quests for the chain
+      const generatedQuests = await generateQuestsForWorld(world, questCount, {
+        category,
+        difficulty,
+      });
+
+      // Create quest chain
+      const chain = await questChainManager.createQuestChain(
+        {
+          id: '',
+          name: name || `Quest Chain ${Date.now()}`,
+          description: description || 'A series of connected quests',
+          worldId,
+          isLinear,
+        },
+        generatedQuests
+      );
+
+      res.status(201).json({ chain });
+    } catch (error) {
+      console.error('[Quest Chain Generation] Error:', error);
+      res.status(500).json({ error: "Failed to generate quest chain" });
+    }
+  });
+
+  app.get("/api/worlds/:worldId/quest-chains", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { questChainManager } = await import('./services/quest-chain-manager.js');
+
+      const chains = await questChainManager.getQuestChains(worldId);
+      res.json({ chains });
+    } catch (error) {
+      console.error('[Quest Chains] Error:', error);
+      res.status(500).json({ error: "Failed to fetch quest chains" });
+    }
+  });
+
+  app.get("/api/quest-chains/:chainId/progress/:playerId", async (req, res) => {
+    try {
+      const { chainId, playerId } = req.params;
+      const { worldId } = req.query;
+
+      if (!worldId) {
+        return res.status(400).json({ error: "worldId query parameter required" });
+      }
+
+      const { questChainManager } = await import('./services/quest-chain-manager.js');
+      const progress = await questChainManager.getChainProgress(
+        chainId,
+        worldId as string,
+        playerId
+      );
+
+      res.json({ progress });
+    } catch (error) {
+      console.error('[Quest Chain Progress] Error:', error);
+      res.status(500).json({ error: "Failed to fetch chain progress" });
     }
   });
 
@@ -6434,6 +6624,31 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
   const { visualAssetGenerator } = await import('./services/visual-asset-generator.js');
   const { imageGenerator } = await import('./services/image-generation.js');
 
+  // Get all visual assets (across all worlds and collections)
+  app.get("/api/assets", async (req, res) => {
+    try {
+      const { ids } = req.query;
+      
+      let assets;
+      if (ids && typeof ids === 'string') {
+        // Fetch specific assets by IDs
+        const idArray = ids.split(',');
+        assets = await Promise.all(
+          idArray.map(id => storage.getVisualAsset(id))
+        );
+        assets = assets.filter(Boolean); // Remove any null results
+      } else {
+        // Fetch all assets
+        assets = await storage.getAllVisualAssets();
+      }
+
+      res.json(assets);
+    } catch (error: any) {
+      console.error("Failed to get all visual assets:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get available image generation providers
   app.get("/api/assets/providers", async (req, res) => {
     try {
@@ -6492,6 +6707,31 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     }
   });
 
+  // Create/register a Visual Asset for a world (used for 3D models and manual uploads)
+  app.post("/api/worlds/:worldId/model-assets", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      const assetData = insertVisualAssetSchema.parse({
+        ...req.body,
+        worldId,
+      });
+
+      const asset = await storage.createVisualAsset(assetData);
+      res.status(201).json(asset);
+    } catch (error: any) {
+      console.error("Failed to create model asset:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid asset data", details: error.errors });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Generate character portrait
   app.post("/api/characters/:characterId/generate-portrait", async (req, res) => {
     try {
@@ -6532,6 +6772,57 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       res.json({ assetIds, assets, count: assets.length });
     } catch (error: any) {
       console.error("Failed to generate character portrait variants:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Generate character texture/skin for 3D models
+  app.post("/api/characters/:characterId/generate-texture", async (req, res) => {
+    try {
+      const { characterId } = req.params;
+      const { 
+        textureType = 'face', 
+        artStyle = 'stylized', 
+        provider = 'flux', 
+        params 
+      } = req.body;
+
+      const assetId = await visualAssetGenerator.generateCharacterTexture(
+        characterId,
+        textureType,
+        artStyle,
+        provider,
+        params
+      );
+
+      const asset = await storage.getVisualAsset(assetId);
+      res.json(asset);
+    } catch (error: any) {
+      console.error("Failed to generate character texture:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Batch generate all character textures (face, body, clothing)
+  app.post("/api/characters/:characterId/generate-textures", async (req, res) => {
+    try {
+      const { characterId } = req.params;
+      const { artStyle = 'stylized', provider = 'flux', params } = req.body;
+
+      const assetIds = await visualAssetGenerator.batchGenerateCharacterTextures(
+        characterId,
+        artStyle,
+        provider,
+        params
+      );
+
+      const assets = await Promise.all(
+        assetIds.map(id => storage.getVisualAsset(id))
+      );
+
+      res.json({ assetIds, assets, count: assets.length });
+    } catch (error: any) {
+      console.error("Failed to generate character textures:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -6589,7 +6880,28 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     }
   });
 
-  // Generate texture
+  // Generate world overview map
+  app.post("/api/worlds/:worldId/generate-world-map", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { mapStyle = 'fantasy', provider = 'flux', params } = req.body;
+
+      const assetId = await visualAssetGenerator.generateWorldMap(
+        worldId,
+        mapStyle,
+        provider,
+        params
+      );
+
+      const asset = await storage.getVisualAsset(assetId);
+      res.json(asset);
+    } catch (error: any) {
+      console.error("Failed to generate world map:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Generate texture (legacy endpoint)
   app.post("/api/worlds/:worldId/generate-texture", async (req, res) => {
     try {
       const { worldId } = req.params;
@@ -6612,6 +6924,117 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       res.json(asset);
     } catch (error: any) {
       console.error("Failed to generate texture:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============= ENHANCED TEXTURE GENERATION =============
+  const { textureGenerator } = await import('./services/texture-generator.js');
+
+  // Get available texture presets for a world style
+  app.get("/api/textures/presets", async (req, res) => {
+    try {
+      const { worldStyle = 'generic' } = req.query;
+      const presets = textureGenerator.getTexturePresets(worldStyle as any);
+      const styles = textureGenerator.getWorldStyles();
+      res.json({ presets, styles, currentStyle: worldStyle });
+    } catch (error: any) {
+      console.error("Failed to get texture presets:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Generate AI texture with advanced options
+  app.post("/api/textures/generate", async (req, res) => {
+    try {
+      const {
+        worldId,
+        category,
+        material,
+        worldStyle,
+        provider = 'flux',
+        quality = 'high',
+        size = 1024,
+        seamless = true,
+        weathered = false,
+        damaged = false,
+        customPrompt,
+        negativePrompt,
+      } = req.body;
+
+      if (!worldId || !category || !material) {
+        return res.status(400).json({ 
+          error: "worldId, category, and material are required",
+          example: {
+            worldId: "world-id-here",
+            category: "ground|wall|material|ceiling|road|nature",
+            material: "stone tiles",
+            worldStyle: "medieval-fantasy",
+            provider: "flux|dalle|stable-diffusion",
+            quality: "standard|high|ultra",
+            size: 1024,
+            seamless: true,
+            weathered: false,
+            damaged: false,
+          }
+        });
+      }
+
+      const assetId = await textureGenerator.generateTexture({
+        worldId,
+        category,
+        material,
+        worldStyle,
+        provider,
+        quality,
+        size,
+        seamless,
+        weathered,
+        damaged,
+        customPrompt,
+        negativePrompt,
+      });
+
+      const asset = await storage.getVisualAsset(assetId);
+      res.json(asset);
+    } catch (error: any) {
+      console.error("Failed to generate AI texture:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Generate a set of textures from presets
+  app.post("/api/textures/generate-set", async (req, res) => {
+    try {
+      const {
+        worldId,
+        worldStyle = 'generic',
+        provider = 'flux',
+        presetNames,
+      } = req.body;
+
+      if (!worldId) {
+        return res.status(400).json({ error: "worldId is required" });
+      }
+
+      const assetIds = await textureGenerator.generateTextureSet(
+        worldId,
+        worldStyle,
+        provider,
+        presetNames
+      );
+
+      const assets = await Promise.all(
+        assetIds.map(id => storage.getVisualAsset(id))
+      );
+
+      res.json({ 
+        assetIds, 
+        assets: assets.filter(Boolean),
+        count: assetIds.length 
+      });
+    } catch (error: any) {
+      console.error("Failed to generate texture set:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -7102,6 +7525,26 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     }
   });
 
+  // Get global asset collections (for admin panel)
+  app.get("/api/asset-collections", async (req, res) => {
+    try {
+      const isBase = req.query.isBase === 'true';
+
+      // Return all asset collections (no longer filtered by world)
+      let collections = await storage.getAllAssetCollections();
+
+      // Filter by isBase if requested
+      if (isBase) {
+        collections = collections.filter((c: any) => c.isBase === true);
+      }
+
+      res.json(collections);
+    } catch (error: any) {
+      console.error("Failed to get asset collections:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get asset collections for a world
   app.get("/api/worlds/:worldId/asset-collections", async (req, res) => {
     try {
@@ -7138,6 +7581,224 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       res.json(collection);
     } catch (error: any) {
       console.error("Failed to update asset collection:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Migration endpoint: Assign default collections to all worlds without one
+  app.post("/api/asset-collections/migrate-defaults", async (req, res) => {
+    try {
+      const { assignDefaultCollectionsToAllWorlds } = await import('./services/default-asset-collection.js');
+      const result = await assignDefaultCollectionsToAllWorlds();
+      
+      res.json({
+        message: `Successfully assigned default collections to ${result.updated} worlds`,
+        updated: result.updated,
+        errors: result.errors
+      });
+    } catch (error: any) {
+      console.error("Failed to migrate default collections:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============= POLYHAVEN INTEGRATION =============
+
+  // Import Polyhaven API service
+  const polyhavenApi = await import('./services/polyhaven-api.js');
+
+  // Query Polyhaven assets
+  app.get("/api/polyhaven/assets", async (req, res) => {
+    try {
+      const { type, categories } = req.query;
+      const assetType = (type as 'models' | 'hdris' | 'textures') || 'models';
+      const categoryList = categories ? (categories as string).split(',') : undefined;
+      
+      const assets = await polyhavenApi.queryPolyhavenAssets(assetType, categoryList);
+      res.json(assets);
+    } catch (error: any) {
+      console.error("Failed to query Polyhaven assets:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Auto-select Polyhaven assets for a collection
+  app.post("/api/polyhaven/auto-select", async (req, res) => {
+    try {
+      const { collectionType, worldType } = req.body;
+      
+      console.log('[Auto-Select] Received request:', { collectionType, worldType });
+      
+      if (!worldType) {
+        return res.status(400).json({ error: "worldType is required" });
+      }
+      
+      const assets = await polyhavenApi.autoSelectPolyhavenAssets(collectionType, worldType);
+      console.log('[Auto-Select] Found assets:', assets.length);
+      res.json(assets);
+    } catch (error: any) {
+      console.error("Failed to auto-select Polyhaven assets:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get file info for a specific Polyhaven asset
+  app.get("/api/polyhaven/assets/:assetId/files", async (req, res) => {
+    try {
+      const { assetId } = req.params;
+      const files = await polyhavenApi.getPolyhavenAssetFiles(assetId);
+      res.json(files);
+    } catch (error: any) {
+      console.error("Failed to get Polyhaven asset files:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get model URL for a Polyhaven asset
+  app.get("/api/polyhaven/assets/:assetId/model-url", async (req, res) => {
+    try {
+      const { assetId } = req.params;
+      const { resolution } = req.query;
+      const modelInfo = await polyhavenApi.getPolyhavenModelUrl(assetId, resolution as string);
+      res.json(modelInfo);
+    } catch (error: any) {
+      console.error("Failed to get Polyhaven model URL:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============= FREESOUND API INTEGRATION =============
+
+  // Import Freesound API service
+  const freesoundApi = await import('./services/freesound-api.js');
+  const assetDownloader = await import('./services/asset-downloader.js');
+
+  // Search Freesound for audio assets
+  app.get("/api/freesound/search", async (req, res) => {
+    try {
+      const { query, license, minDuration, maxDuration, sort, pageSize, page } = req.query;
+      
+      if (!query) {
+        return res.status(400).json({ error: "query parameter is required" });
+      }
+
+      const results = await freesoundApi.searchSounds({
+        query: query as string,
+        license: (license as 'cc0' | 'Attribution' | 'Attribution Noncommercial') || 'cc0',
+        minDuration: minDuration ? parseFloat(minDuration as string) : undefined,
+        maxDuration: maxDuration ? parseFloat(maxDuration as string) : undefined,
+        sort: (sort as any) || 'downloads_desc',
+        pageSize: pageSize ? parseInt(pageSize as string, 10) : 15,
+        page: page ? parseInt(page as string, 10) : 1
+      });
+
+      res.json(results);
+    } catch (error: any) {
+      console.error("Failed to search Freesound:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Auto-select audio assets for a world type and role
+  app.post("/api/freesound/auto-select", async (req, res) => {
+    try {
+      const { audioRole, worldType } = req.body;
+      
+      if (!audioRole || !worldType) {
+        return res.status(400).json({ error: "audioRole and worldType are required" });
+      }
+
+      const sounds = await freesoundApi.autoSelectAudioAssets(audioRole, worldType);
+      res.json({ sounds });
+    } catch (error: any) {
+      console.error("Failed to auto-select Freesound assets:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get info for a specific Freesound sound
+  app.get("/api/freesound/sounds/:soundId", async (req, res) => {
+    try {
+      const { soundId } = req.params;
+      const sound = await freesoundApi.getSoundInfo(parseInt(soundId, 10));
+      res.json(sound);
+    } catch (error: any) {
+      console.error("Failed to get Freesound sound info:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Download and cache a Freesound audio asset
+  app.post("/api/freesound/download", async (req, res) => {
+    try {
+      const { soundId, soundName, assetType, previewUrl } = req.body;
+      
+      if (!soundId || !previewUrl) {
+        return res.status(400).json({ error: "soundId and previewUrl are required" });
+      }
+
+      const result = await assetDownloader.preprocessFreesoundAsset(
+        previewUrl,
+        assetType || 'audio_effect',
+        soundId,
+        soundName
+      );
+
+      res.json({
+        success: true,
+        localPath: result.localPath,
+        metadata: result.metadata
+      });
+    } catch (error: any) {
+      console.error("Failed to download Freesound asset:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Download and register a Freesound asset as a VisualAsset in the database
+  app.post("/api/freesound/import", async (req, res) => {
+    try {
+      const { soundId, soundName, soundDescription, assetType, previewUrl, worldId, tags } = req.body;
+      
+      if (!soundId || !previewUrl || !soundName) {
+        return res.status(400).json({ error: "soundId, soundName, and previewUrl are required" });
+      }
+
+      // Download the audio file
+      const downloadResult = await assetDownloader.preprocessFreesoundAsset(
+        previewUrl,
+        assetType || 'audio_effect',
+        soundId,
+        soundName
+      );
+
+      // Create a VisualAsset record in the database
+      const asset = await storage.createVisualAsset({
+        worldId: worldId || null,
+        name: soundName,
+        description: soundDescription || `Audio from Freesound (ID: ${soundId})`,
+        assetType: assetType || 'audio_effect',
+        filePath: downloadResult.localPath,
+        fileName: downloadResult.localPath.split('/').pop() || `${soundId}.mp3`,
+        fileSize: downloadResult.metadata.fileSize,
+        mimeType: 'audio/mpeg',
+        generationProvider: 'manual',
+        purpose: 'procedural',
+        usageContext: '3d_game',
+        tags: tags || ['audio', 'freesound'],
+        metadata: {
+          freesoundId: soundId,
+          originalUrl: downloadResult.metadata.originalUrl
+        }
+      });
+
+      res.json({
+        success: true,
+        asset,
+        localPath: downloadResult.localPath
+      });
+    } catch (error: any) {
+      console.error("Failed to import Freesound asset:", error);
       res.status(500).json({ error: error.message });
     }
   });

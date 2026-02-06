@@ -1,0 +1,1373 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Asset Categories by World Type",
+  "description": "Comprehensive asset categorization for Polyhaven asset fetching and world generation. Extracted from polyhaven-models.js and world-3d-defaults.ts",
+  "version": "2.0.0",
+  "worldTypes": {
+    "medieval-fantasy": {
+      "assetCategories": {
+        "publicBuilding": {
+          "polyhavenCategories": ["building", "house", "medieval", "castle", "church"],
+          "tags": ["3d", "building", "medieval", "fantasy"],
+          "examples": ["medieval house", "castle", "tavern", "church", "market stall"]
+        },
+        "business": {
+          "polyhavenCategories": ["building", "shop", "medieval"],
+          "tags": ["3d", "building", "business", "medieval", "fantasy"],
+          "examples": ["tavern", "blacksmith", "market", "shop", "inn"]
+        },
+        "residence": {
+          "polyhavenCategories": ["building", "house", "medieval"],
+          "tags": ["3d", "building", "residence", "medieval", "fantasy"],
+          "examples": ["small house", "cottage", "manor", "mansion"]
+        },
+        "tree": {
+          "polyhavenCategories": ["tree", "oak", "pine", "deciduous"],
+          "tags": ["3d", "nature", "tree", "medieval", "fantasy"],
+          "examples": ["oak tree", "pine tree", "willow tree"]
+        },
+        "shrub": {
+          "polyhavenCategories": ["bush", "shrub", "plant"],
+          "tags": ["3d", "nature", "shrub", "medieval", "fantasy"],
+          "examples": ["bush", "hedge", "fern"]
+        },
+        "plant": {
+          "polyhavenCategories": ["plant", "flower", "grass"],
+          "tags": ["3d", "nature", "plant", "medieval", "fantasy"],
+          "examples": ["flowers", "grass", "mushrooms", "vines"]
+        },
+        "furniture": {
+          "polyhavenCategories": ["furniture", "table", "chair", "bed"],
+          "tags": ["3d", "prop", "furniture", "medieval", "fantasy"],
+          "examples": ["wooden table", "chair", "bed", "bench"]
+        },
+        "storage": {
+          "polyhavenCategories": ["chest", "box", "barrel", "bookshelf"],
+          "tags": ["3d", "prop", "container", "storage", "medieval", "fantasy"],
+          "examples": ["chest", "barrel", "crate", "bookshelf"]
+        },
+        "weapon": {
+          "polyhavenCategories": ["sword", "weapon", "shield", "armor"],
+          "tags": ["3d", "prop", "weapon", "medieval", "fantasy"],
+          "examples": ["sword", "shield", "bow", "axe", "mace"]
+        },
+        "prop": {
+          "polyhavenCategories": ["goblet", "cup", "crown", "jewelry", "pottery"],
+          "tags": ["3d", "prop", "decoration", "medieval", "fantasy"],
+          "examples": ["goblet", "crown", "pottery", "candle", "lantern"]
+        },
+        "decoration": {
+          "polyhavenCategories": ["banner", "flag", "sign", "tapestry"],
+          "tags": ["3d", "prop", "decoration", "medieval", "fantasy"],
+          "examples": ["banner", "flag", "tapestry", "sign"]
+        },
+        "npcMale": {
+          "polyhavenCategories": ["character", "human", "male", "medieval"],
+          "tags": ["3d", "character", "npc", "male", "medieval", "fantasy"],
+          "examples": ["knight", "peasant", "merchant", "guard"]
+        },
+        "npcFemale": {
+          "polyhavenCategories": ["character", "human", "female", "medieval"],
+          "tags": ["3d", "character", "npc", "female", "medieval", "fantasy"],
+          "examples": ["maiden", "peasant", "merchant", "guard"]
+        },
+        "playerMale": {
+          "polyhavenCategories": ["character", "human", "male", "medieval", "hero"],
+          "tags": ["3d", "character", "player", "male", "medieval", "fantasy"],
+          "examples": ["knight", "warrior", "mage", "rogue"]
+        },
+        "playerFemale": {
+          "polyhavenCategories": ["character", "human", "female", "medieval", "hero"],
+          "tags": ["3d", "character", "player", "female", "medieval", "fantasy"],
+          "examples": ["knight", "warrior", "mage", "rogue"]
+        }
+      }
+    },
+    "sci-fi-space": {
+      "assetCategories": {
+        "publicBuilding": {
+          "polyhavenCategories": ["building", "scifi", "futuristic", "structure"],
+          "tags": ["3d", "building", "futuristic", "scifi"],
+          "examples": ["space station", "skyscraper", "dome", "tower"]
+        },
+        "business": {
+          "polyhavenCategories": ["building", "scifi", "commercial"],
+          "tags": ["3d", "building", "business", "futuristic", "scifi"],
+          "examples": ["tech shop", "cyber cafe", "corporate building"]
+        },
+        "residence": {
+          "polyhavenCategories": ["building", "scifi", "residential"],
+          "tags": ["3d", "building", "residence", "futuristic", "scifi"],
+          "examples": ["apartment", "hab unit", "living quarters"]
+        },
+        "tree": {
+          "polyhavenCategories": ["tree", "scifi", "alien", "synthetic"],
+          "tags": ["3d", "nature", "tree", "futuristic", "scifi"],
+          "examples": ["alien tree", "synthetic tree", "bio-engineered plant"]
+        },
+        "shrub": {
+          "polyhavenCategories": ["plant", "scifi", "alien"],
+          "tags": ["3d", "nature", "shrub", "futuristic", "scifi"],
+          "examples": ["alien shrub", "synthetic plant"]
+        },
+        "plant": {
+          "polyhavenCategories": ["plant", "scifi", "alien", "bioluminescent"],
+          "tags": ["3d", "nature", "plant", "futuristic", "scifi"],
+          "examples": ["alien flora", "bioluminescent plant", "synthetic vegetation"]
+        },
+        "furniture": {
+          "polyhavenCategories": ["furniture", "scifi", "table", "chair"],
+          "tags": ["3d", "prop", "furniture", "futuristic", "scifi"],
+          "examples": ["holo table", "chair", "bed", "console"]
+        },
+        "storage": {
+          "polyhavenCategories": ["crate", "box", "container", "scifi"],
+          "tags": ["3d", "prop", "container", "storage", "futuristic", "scifi"],
+          "examples": ["crate", "cargo container", "locker"]
+        },
+        "weapon": {
+          "polyhavenCategories": ["weapon", "gun", "scifi", "laser"],
+          "tags": ["3d", "prop", "weapon", "futuristic", "scifi"],
+          "examples": ["laser rifle", "plasma gun", "energy sword"]
+        },
+        "prop": {
+          "polyhavenCategories": ["device", "gadget", "scifi", "tech"],
+          "tags": ["3d", "prop", "device", "futuristic", "scifi"],
+          "examples": ["data pad", "energy core", "hologram projector"]
+        },
+        "decoration": {
+          "polyhavenCategories": ["sign", "screen", "display", "scifi"],
+          "tags": ["3d", "prop", "decoration", "futuristic", "scifi"],
+          "examples": ["neon sign", "holographic display", "advertisement screen"]
+        },
+        "npcMale": {
+          "polyhavenCategories": ["character", "human", "male", "scifi"],
+          "tags": ["3d", "character", "npc", "male", "futuristic", "scifi"],
+          "examples": ["citizen", "guard", "technician", "pilot"]
+        },
+        "npcFemale": {
+          "polyhavenCategories": ["character", "human", "female", "scifi"],
+          "tags": ["3d", "character", "npc", "female", "futuristic", "scifi"],
+          "examples": ["citizen", "guard", "technician", "pilot"]
+        },
+        "playerMale": {
+          "polyhavenCategories": ["character", "human", "male", "scifi", "hero"],
+          "tags": ["3d", "character", "player", "male", "futuristic", "scifi"],
+          "examples": ["space marine", "pilot", "hacker", "engineer"]
+        },
+        "playerFemale": {
+          "polyhavenCategories": ["character", "human", "female", "scifi", "hero"],
+          "tags": ["3d", "character", "player", "female", "futuristic", "scifi"],
+          "examples": ["space marine", "pilot", "hacker", "engineer"]
+        }
+      }
+    },
+    "historical": {
+      "assetCategories": {
+        "publicBuilding": {
+          "polyhavenCategories": ["building", "historical", "architecture"],
+          "tags": ["3d", "building", "historical"],
+          "examples": ["saloon", "courthouse", "bank", "general store"]
+        },
+        "business": {
+          "polyhavenCategories": ["building", "shop", "historical"],
+          "tags": ["3d", "building", "business", "historical"],
+          "examples": ["saloon", "general store", "blacksmith", "bank"]
+        },
+        "residence": {
+          "polyhavenCategories": ["building", "house", "historical"],
+          "tags": ["3d", "building", "residence", "historical"],
+          "examples": ["homestead", "cabin", "townhouse"]
+        },
+        "tree": {
+          "polyhavenCategories": ["tree", "oak", "pine", "palm"],
+          "tags": ["3d", "nature", "tree", "historical"],
+          "examples": ["oak tree", "pine tree", "palm tree"]
+        },
+        "shrub": {
+          "polyhavenCategories": ["bush", "shrub", "plant"],
+          "tags": ["3d", "nature", "shrub", "historical"],
+          "examples": ["sagebrush", "tumbleweed", "cactus"]
+        },
+        "plant": {
+          "polyhavenCategories": ["plant", "flower", "grass", "cactus"],
+          "tags": ["3d", "nature", "plant", "historical"],
+          "examples": ["wildflowers", "grass", "cactus"]
+        },
+        "furniture": {
+          "polyhavenCategories": ["furniture", "table", "chair", "bed", "bookshelf"],
+          "tags": ["3d", "prop", "furniture", "historical"],
+          "examples": ["wooden table", "chair", "bed", "bookshelf"]
+        },
+        "storage": {
+          "polyhavenCategories": ["chest", "box", "barrel", "bookshelf"],
+          "tags": ["3d", "prop", "container", "storage", "historical"],
+          "examples": ["chest", "barrel", "bookshelf", "trunk"]
+        },
+        "weapon": {
+          "polyhavenCategories": ["gun", "revolver", "rifle", "weapon"],
+          "tags": ["3d", "prop", "weapon", "firearm", "historical"],
+          "examples": ["revolver", "rifle", "knife", "bow"]
+        },
+        "prop": {
+          "polyhavenCategories": ["lantern", "pottery", "tool"],
+          "tags": ["3d", "prop", "decoration", "historical"],
+          "examples": ["lantern", "pottery", "tools", "rope"]
+        },
+        "decoration": {
+          "polyhavenCategories": ["sign", "poster", "banner"],
+          "tags": ["3d", "prop", "decoration", "historical"],
+          "examples": ["saloon sign", "wanted poster", "banner"]
+        },
+        "npcMale": {
+          "polyhavenCategories": ["character", "human", "male", "historical"],
+          "tags": ["3d", "character", "npc", "male", "historical"],
+          "examples": ["cowboy", "sheriff", "merchant", "miner"]
+        },
+        "npcFemale": {
+          "polyhavenCategories": ["character", "human", "female", "historical"],
+          "tags": ["3d", "character", "npc", "female", "historical"],
+          "examples": ["settler", "saloon worker", "merchant"]
+        },
+        "playerMale": {
+          "polyhavenCategories": ["character", "human", "male", "historical", "hero"],
+          "tags": ["3d", "character", "player", "male", "historical"],
+          "examples": ["gunslinger", "sheriff", "outlaw", "explorer"]
+        },
+        "playerFemale": {
+          "polyhavenCategories": ["character", "human", "female", "historical", "hero"],
+          "tags": ["3d", "character", "player", "female", "historical"],
+          "examples": ["gunslinger", "sheriff", "outlaw", "explorer"]
+        }
+      }
+    },
+    "high-fantasy": {
+      "assetCategories": {
+        "publicBuilding": {
+          "polyhavenCategories": ["building", "house", "medieval", "castle", "church", "fantasy"],
+          "tags": ["3d", "building", "high-fantasy", "fantasy"],
+          "examples": ["grand castle", "cathedral", "wizard tower", "palace"]
+        },
+        "business": {
+          "polyhavenCategories": ["building", "shop", "medieval", "fantasy"],
+          "tags": ["3d", "building", "business", "high-fantasy", "fantasy"],
+          "examples": ["magic shop", "tavern", "guild hall", "market"]
+        },
+        "residence": {
+          "polyhavenCategories": ["building", "house", "medieval", "fantasy"],
+          "tags": ["3d", "building", "residence", "high-fantasy", "fantasy"],
+          "examples": ["cottage", "manor", "tower", "mansion"]
+        },
+        "tree": {
+          "polyhavenCategories": ["tree", "oak", "pine", "deciduous", "fantasy"],
+          "tags": ["3d", "nature", "tree", "high-fantasy", "fantasy"],
+          "examples": ["ancient oak", "mystical tree", "enchanted forest tree"]
+        },
+        "shrub": {
+          "polyhavenCategories": ["bush", "shrub", "plant", "fantasy"],
+          "tags": ["3d", "nature", "shrub", "high-fantasy", "fantasy"],
+          "examples": ["magical bush", "hedge", "fern"]
+        },
+        "plant": {
+          "polyhavenCategories": ["plant", "flower", "grass", "fantasy"],
+          "tags": ["3d", "nature", "plant", "high-fantasy", "fantasy"],
+          "examples": ["magical flowers", "glowing mushrooms", "enchanted vines"]
+        },
+        "furniture": {
+          "polyhavenCategories": ["furniture", "table", "chair", "bed", "fantasy"],
+          "tags": ["3d", "prop", "furniture", "high-fantasy", "fantasy"],
+          "examples": ["ornate table", "throne", "canopy bed", "bench"]
+        },
+        "storage": {
+          "polyhavenCategories": ["chest", "box", "barrel", "bookshelf", "fantasy"],
+          "tags": ["3d", "prop", "container", "storage", "high-fantasy", "fantasy"],
+          "examples": ["treasure chest", "magic chest", "bookshelf", "crate"]
+        },
+        "weapon": {
+          "polyhavenCategories": ["sword", "weapon", "shield", "armor", "fantasy"],
+          "tags": ["3d", "prop", "weapon", "high-fantasy", "fantasy"],
+          "examples": ["legendary sword", "enchanted shield", "magic staff", "bow"]
+        },
+        "prop": {
+          "polyhavenCategories": ["goblet", "cup", "crown", "jewelry", "pottery", "fantasy"],
+          "tags": ["3d", "prop", "decoration", "high-fantasy", "fantasy"],
+          "examples": ["magic goblet", "royal crown", "crystal orb", "potion"]
+        },
+        "decoration": {
+          "polyhavenCategories": ["banner", "flag", "sign", "tapestry", "fantasy"],
+          "tags": ["3d", "prop", "decoration", "high-fantasy", "fantasy"],
+          "examples": ["royal banner", "magic runes", "tapestry", "flag"]
+        },
+        "npcMale": {
+          "polyhavenCategories": ["character", "human", "male", "medieval", "fantasy"],
+          "tags": ["3d", "character", "npc", "male", "high-fantasy", "fantasy"],
+          "examples": ["wizard", "knight", "merchant", "guard"]
+        },
+        "npcFemale": {
+          "polyhavenCategories": ["character", "human", "female", "medieval", "fantasy"],
+          "tags": ["3d", "character", "npc", "female", "high-fantasy", "fantasy"],
+          "examples": ["sorceress", "knight", "merchant", "guard"]
+        },
+        "playerMale": {
+          "polyhavenCategories": ["character", "human", "male", "medieval", "hero", "fantasy"],
+          "tags": ["3d", "character", "player", "male", "high-fantasy", "fantasy"],
+          "examples": ["hero", "wizard", "warrior", "paladin"]
+        },
+        "playerFemale": {
+          "polyhavenCategories": ["character", "human", "female", "medieval", "hero", "fantasy"],
+          "tags": ["3d", "character", "player", "female", "high-fantasy", "fantasy"],
+          "examples": ["hero", "sorceress", "warrior", "paladin"]
+        }
+      }
+    },
+    "low-fantasy": {
+      "assetCategories": {
+        "publicBuilding": {
+          "polyhavenCategories": ["building", "house", "medieval"],
+          "tags": ["3d", "building", "low-fantasy", "fantasy"],
+          "examples": ["town hall", "church", "inn", "market"]
+        },
+        "business": {
+          "polyhavenCategories": ["building", "shop", "medieval"],
+          "tags": ["3d", "building", "business", "low-fantasy", "fantasy"],
+          "examples": ["tavern", "blacksmith", "shop", "stable"]
+        },
+        "residence": {
+          "polyhavenCategories": ["building", "house", "medieval"],
+          "tags": ["3d", "building", "residence", "low-fantasy", "fantasy"],
+          "examples": ["cottage", "farmhouse", "small manor"]
+        },
+        "tree": {
+          "polyhavenCategories": ["tree", "oak", "pine", "deciduous"],
+          "tags": ["3d", "nature", "tree", "low-fantasy", "fantasy"],
+          "examples": ["oak tree", "pine tree", "willow"]
+        },
+        "shrub": {
+          "polyhavenCategories": ["bush", "shrub", "plant"],
+          "tags": ["3d", "nature", "shrub", "low-fantasy", "fantasy"],
+          "examples": ["bush", "hedge", "fern"]
+        },
+        "plant": {
+          "polyhavenCategories": ["plant", "flower", "grass"],
+          "tags": ["3d", "nature", "plant", "low-fantasy", "fantasy"],
+          "examples": ["wildflowers", "grass", "herbs"]
+        },
+        "furniture": {
+          "polyhavenCategories": ["furniture", "table", "chair", "bed"],
+          "tags": ["3d", "prop", "furniture", "low-fantasy", "fantasy"],
+          "examples": ["wooden table", "chair", "bed", "bench"]
+        },
+        "storage": {
+          "polyhavenCategories": ["chest", "box", "barrel", "bookshelf"],
+          "tags": ["3d", "prop", "container", "storage", "low-fantasy", "fantasy"],
+          "examples": ["chest", "barrel", "crate", "shelf"]
+        },
+        "weapon": {
+          "polyhavenCategories": ["sword", "weapon", "shield", "armor"],
+          "tags": ["3d", "prop", "weapon", "low-fantasy", "fantasy"],
+          "examples": ["sword", "shield", "bow", "axe"]
+        },
+        "prop": {
+          "polyhavenCategories": ["goblet", "cup", "pottery", "tool"],
+          "tags": ["3d", "prop", "decoration", "low-fantasy", "fantasy"],
+          "examples": ["mug", "pottery", "tools", "lantern"]
+        },
+        "decoration": {
+          "polyhavenCategories": ["banner", "flag", "sign"],
+          "tags": ["3d", "prop", "decoration", "low-fantasy", "fantasy"],
+          "examples": ["banner", "sign", "flag"]
+        },
+        "npcMale": {
+          "polyhavenCategories": ["character", "human", "male", "medieval"],
+          "tags": ["3d", "character", "npc", "male", "low-fantasy", "fantasy"],
+          "examples": ["peasant", "guard", "merchant", "farmer"]
+        },
+        "npcFemale": {
+          "polyhavenCategories": ["character", "human", "female", "medieval"],
+          "tags": ["3d", "character", "npc", "female", "low-fantasy", "fantasy"],
+          "examples": ["peasant", "guard", "merchant", "farmer"]
+        },
+        "playerMale": {
+          "polyhavenCategories": ["character", "human", "male", "medieval", "hero"],
+          "tags": ["3d", "character", "player", "male", "low-fantasy", "fantasy"],
+          "examples": ["warrior", "ranger", "rogue", "fighter"]
+        },
+        "playerFemale": {
+          "polyhavenCategories": ["character", "human", "female", "medieval", "hero"],
+          "tags": ["3d", "character", "player", "female", "low-fantasy", "fantasy"],
+          "examples": ["warrior", "ranger", "rogue", "fighter"]
+        }
+      }
+    },
+    "dark-fantasy": {
+      "assetCategories": {
+        "publicBuilding": {
+          "polyhavenCategories": ["building", "house", "medieval", "dark", "gothic"],
+          "tags": ["3d", "building", "dark-fantasy", "fantasy"],
+          "examples": ["dark cathedral", "fortress", "crypt", "tower"]
+        },
+        "business": {
+          "polyhavenCategories": ["building", "shop", "medieval", "dark"],
+          "tags": ["3d", "building", "business", "dark-fantasy", "fantasy"],
+          "examples": ["dark tavern", "apothecary", "shop"]
+        },
+        "residence": {
+          "polyhavenCategories": ["building", "house", "medieval", "dark"],
+          "tags": ["3d", "building", "residence", "dark-fantasy", "fantasy"],
+          "examples": ["haunted house", "dark manor", "cottage"]
+        },
+        "tree": {
+          "polyhavenCategories": ["tree", "dead", "dark", "twisted"],
+          "tags": ["3d", "nature", "tree", "dark-fantasy", "fantasy"],
+          "examples": ["dead tree", "twisted tree", "dark oak"]
+        },
+        "shrub": {
+          "polyhavenCategories": ["bush", "shrub", "plant", "dead"],
+          "tags": ["3d", "nature", "shrub", "dark-fantasy", "fantasy"],
+          "examples": ["dead bush", "thorny shrub", "dark vegetation"]
+        },
+        "plant": {
+          "polyhavenCategories": ["plant", "flower", "grass", "dark"],
+          "tags": ["3d", "nature", "plant", "dark-fantasy", "fantasy"],
+          "examples": ["dark flowers", "poisonous plants", "dead grass"]
+        },
+        "furniture": {
+          "polyhavenCategories": ["furniture", "table", "chair", "bed", "gothic"],
+          "tags": ["3d", "prop", "furniture", "dark-fantasy", "fantasy"],
+          "examples": ["gothic table", "throne", "dark bed"]
+        },
+        "storage": {
+          "polyhavenCategories": ["chest", "box", "barrel", "coffin"],
+          "tags": ["3d", "prop", "container", "storage", "dark-fantasy", "fantasy"],
+          "examples": ["dark chest", "coffin", "crate"]
+        },
+        "weapon": {
+          "polyhavenCategories": ["sword", "weapon", "shield", "armor", "dark"],
+          "tags": ["3d", "prop", "weapon", "dark-fantasy", "fantasy"],
+          "examples": ["cursed sword", "dark shield", "scythe"]
+        },
+        "prop": {
+          "polyhavenCategories": ["skull", "bone", "gothic", "dark"],
+          "tags": ["3d", "prop", "decoration", "dark-fantasy", "fantasy"],
+          "examples": ["skull", "bones", "dark artifacts", "candles"]
+        },
+        "decoration": {
+          "polyhavenCategories": ["banner", "flag", "sign", "gothic"],
+          "tags": ["3d", "prop", "decoration", "dark-fantasy", "fantasy"],
+          "examples": ["dark banner", "gothic decoration", "chains"]
+        },
+        "npcMale": {
+          "polyhavenCategories": ["character", "human", "male", "medieval", "dark"],
+          "tags": ["3d", "character", "npc", "male", "dark-fantasy", "fantasy"],
+          "examples": ["cultist", "guard", "merchant", "necromancer"]
+        },
+        "npcFemale": {
+          "polyhavenCategories": ["character", "human", "female", "medieval", "dark"],
+          "tags": ["3d", "character", "npc", "female", "dark-fantasy", "fantasy"],
+          "examples": ["cultist", "guard", "merchant", "witch"]
+        },
+        "playerMale": {
+          "polyhavenCategories": ["character", "human", "male", "medieval", "hero", "dark"],
+          "tags": ["3d", "character", "player", "male", "dark-fantasy", "fantasy"],
+          "examples": ["dark knight", "hunter", "warlock", "rogue"]
+        },
+        "playerFemale": {
+          "polyhavenCategories": ["character", "human", "female", "medieval", "hero", "dark"],
+          "tags": ["3d", "character", "player", "female", "dark-fantasy", "fantasy"],
+          "examples": ["dark knight", "hunter", "warlock", "rogue"]
+        }
+      }
+    },
+    "historical-medieval": {
+      "assetCategories": {
+        "publicBuilding": {
+          "polyhavenCategories": ["building", "house", "medieval", "historical"],
+          "tags": ["3d", "building", "historical-medieval"],
+          "examples": ["castle", "church", "town hall", "market"]
+        },
+        "business": {
+          "polyhavenCategories": ["building", "shop", "medieval", "historical"],
+          "tags": ["3d", "building", "business", "historical-medieval"],
+          "examples": ["blacksmith", "tavern", "shop", "stable"]
+        },
+        "residence": {
+          "polyhavenCategories": ["building", "house", "medieval", "historical"],
+          "tags": ["3d", "building", "residence", "historical-medieval"],
+          "examples": ["cottage", "manor", "farmhouse"]
+        },
+        "tree": {
+          "polyhavenCategories": ["tree", "oak", "pine", "deciduous"],
+          "tags": ["3d", "nature", "tree", "historical-medieval"],
+          "examples": ["oak tree", "pine tree", "willow"]
+        },
+        "shrub": {
+          "polyhavenCategories": ["bush", "shrub", "plant"],
+          "tags": ["3d", "nature", "shrub", "historical-medieval"],
+          "examples": ["bush", "hedge", "fern"]
+        },
+        "plant": {
+          "polyhavenCategories": ["plant", "flower", "grass"],
+          "tags": ["3d", "nature", "plant", "historical-medieval"],
+          "examples": ["wildflowers", "grass", "herbs"]
+        },
+        "furniture": {
+          "polyhavenCategories": ["furniture", "table", "chair", "bed", "medieval"],
+          "tags": ["3d", "prop", "furniture", "historical-medieval"],
+          "examples": ["wooden table", "chair", "bed", "bench"]
+        },
+        "storage": {
+          "polyhavenCategories": ["chest", "box", "barrel", "bookshelf"],
+          "tags": ["3d", "prop", "container", "storage", "historical-medieval"],
+          "examples": ["chest", "barrel", "crate", "shelf"]
+        },
+        "weapon": {
+          "polyhavenCategories": ["sword", "weapon", "shield", "armor", "medieval"],
+          "tags": ["3d", "prop", "weapon", "historical-medieval"],
+          "examples": ["sword", "shield", "bow", "mace"]
+        },
+        "prop": {
+          "polyhavenCategories": ["pottery", "tool", "medieval"],
+          "tags": ["3d", "prop", "decoration", "historical-medieval"],
+          "examples": ["pottery", "tools", "lantern", "rope"]
+        },
+        "decoration": {
+          "polyhavenCategories": ["banner", "flag", "sign", "medieval"],
+          "tags": ["3d", "prop", "decoration", "historical-medieval"],
+          "examples": ["banner", "flag", "coat of arms"]
+        },
+        "npcMale": {
+          "polyhavenCategories": ["character", "human", "male", "medieval"],
+          "tags": ["3d", "character", "npc", "male", "historical-medieval"],
+          "examples": ["knight", "peasant", "merchant", "guard"]
+        },
+        "npcFemale": {
+          "polyhavenCategories": ["character", "human", "female", "medieval"],
+          "tags": ["3d", "character", "npc", "female", "historical-medieval"],
+          "examples": ["maiden", "peasant", "merchant"]
+        },
+        "playerMale": {
+          "polyhavenCategories": ["character", "human", "male", "medieval", "hero"],
+          "tags": ["3d", "character", "player", "male", "historical-medieval"],
+          "examples": ["knight", "warrior", "archer"]
+        },
+        "playerFemale": {
+          "polyhavenCategories": ["character", "human", "female", "medieval", "hero"],
+          "tags": ["3d", "character", "player", "female", "historical-medieval"],
+          "examples": ["knight", "warrior", "archer"]
+        }
+      }
+    },
+    "mythological": {
+      "assetCategories": {
+        "publicBuilding": {
+          "polyhavenCategories": ["building", "temple", "ancient", "mythological"],
+          "tags": ["3d", "building", "mythological"],
+          "examples": ["temple", "shrine", "palace", "monument"]
+        },
+        "business": {
+          "polyhavenCategories": ["building", "shop", "ancient"],
+          "tags": ["3d", "building", "business", "mythological"],
+          "examples": ["market", "shop", "agora"]
+        },
+        "residence": {
+          "polyhavenCategories": ["building", "house", "ancient"],
+          "tags": ["3d", "building", "residence", "mythological"],
+          "examples": ["villa", "house", "dwelling"]
+        },
+        "tree": {
+          "polyhavenCategories": ["tree", "oak", "olive", "ancient"],
+          "tags": ["3d", "nature", "tree", "mythological"],
+          "examples": ["sacred tree", "olive tree", "ancient oak"]
+        },
+        "shrub": {
+          "polyhavenCategories": ["bush", "shrub", "plant"],
+          "tags": ["3d", "nature", "shrub", "mythological"],
+          "examples": ["laurel", "myrtle", "bush"]
+        },
+        "plant": {
+          "polyhavenCategories": ["plant", "flower", "grass", "ancient"],
+          "tags": ["3d", "nature", "plant", "mythological"],
+          "examples": ["sacred flowers", "herbs", "vines"]
+        },
+        "furniture": {
+          "polyhavenCategories": ["furniture", "table", "chair", "bed", "ancient"],
+          "tags": ["3d", "prop", "furniture", "mythological"],
+          "examples": ["marble table", "throne", "couch"]
+        },
+        "storage": {
+          "polyhavenCategories": ["chest", "box", "urn", "amphora"],
+          "tags": ["3d", "prop", "container", "storage", "mythological"],
+          "examples": ["amphora", "chest", "urn"]
+        },
+        "weapon": {
+          "polyhavenCategories": ["sword", "weapon", "shield", "spear", "ancient"],
+          "tags": ["3d", "prop", "weapon", "mythological"],
+          "examples": ["bronze sword", "spear", "shield"]
+        },
+        "prop": {
+          "polyhavenCategories": ["pottery", "statue", "ancient", "artifact"],
+          "tags": ["3d", "prop", "decoration", "mythological"],
+          "examples": ["statue", "pottery", "scroll", "artifact"]
+        },
+        "decoration": {
+          "polyhavenCategories": ["banner", "flag", "statue", "column"],
+          "tags": ["3d", "prop", "decoration", "mythological"],
+          "examples": ["column", "statue", "banner", "frieze"]
+        },
+        "npcMale": {
+          "polyhavenCategories": ["character", "human", "male", "ancient"],
+          "tags": ["3d", "character", "npc", "male", "mythological"],
+          "examples": ["priest", "warrior", "merchant", "citizen"]
+        },
+        "npcFemale": {
+          "polyhavenCategories": ["character", "human", "female", "ancient"],
+          "tags": ["3d", "character", "npc", "female", "mythological"],
+          "examples": ["priestess", "warrior", "merchant", "citizen"]
+        },
+        "playerMale": {
+          "polyhavenCategories": ["character", "human", "male", "ancient", "hero"],
+          "tags": ["3d", "character", "player", "male", "mythological"],
+          "examples": ["hero", "warrior", "demigod"]
+        },
+        "playerFemale": {
+          "polyhavenCategories": ["character", "human", "female", "ancient", "hero"],
+          "tags": ["3d", "character", "player", "female", "mythological"],
+          "examples": ["hero", "warrior", "amazon"]
+        }
+      }
+    },
+    "cyberpunk": {
+      "assetCategories": {
+        "publicBuilding": {
+          "polyhavenCategories": ["building", "scifi", "futuristic", "cyberpunk"],
+          "tags": ["3d", "building", "cyberpunk", "scifi"],
+          "examples": ["neon tower", "corporate building", "nightclub"]
+        },
+        "business": {
+          "polyhavenCategories": ["building", "scifi", "commercial", "cyberpunk"],
+          "tags": ["3d", "building", "business", "cyberpunk", "scifi"],
+          "examples": ["cyber cafe", "tech shop", "bar"]
+        },
+        "residence": {
+          "polyhavenCategories": ["building", "scifi", "residential", "cyberpunk"],
+          "tags": ["3d", "building", "residence", "cyberpunk", "scifi"],
+          "examples": ["apartment", "hab unit", "penthouse"]
+        },
+        "tree": {
+          "polyhavenCategories": ["tree", "synthetic", "artificial"],
+          "tags": ["3d", "nature", "tree", "cyberpunk", "scifi"],
+          "examples": ["synthetic tree", "neon tree", "artificial plant"]
+        },
+        "shrub": {
+          "polyhavenCategories": ["plant", "synthetic", "artificial"],
+          "tags": ["3d", "nature", "shrub", "cyberpunk", "scifi"],
+          "examples": ["synthetic shrub", "artificial plant"]
+        },
+        "plant": {
+          "polyhavenCategories": ["plant", "synthetic", "bioluminescent"],
+          "tags": ["3d", "nature", "plant", "cyberpunk", "scifi"],
+          "examples": ["neon plant", "bioluminescent flora", "synthetic vegetation"]
+        },
+        "furniture": {
+          "polyhavenCategories": ["furniture", "scifi", "table", "chair", "modern"],
+          "tags": ["3d", "prop", "furniture", "cyberpunk", "scifi"],
+          "examples": ["neon table", "cyber chair", "holo desk"]
+        },
+        "storage": {
+          "polyhavenCategories": ["crate", "box", "container", "scifi"],
+          "tags": ["3d", "prop", "container", "storage", "cyberpunk", "scifi"],
+          "examples": ["cyber crate", "storage unit", "locker"]
+        },
+        "weapon": {
+          "polyhavenCategories": ["weapon", "gun", "scifi", "cyberpunk"],
+          "tags": ["3d", "prop", "weapon", "cyberpunk", "scifi"],
+          "examples": ["cyber gun", "energy weapon", "blade"]
+        },
+        "prop": {
+          "polyhavenCategories": ["device", "gadget", "scifi", "tech", "cyberpunk"],
+          "tags": ["3d", "prop", "device", "cyberpunk", "scifi"],
+          "examples": ["data pad", "cyber implant", "hacking device"]
+        },
+        "decoration": {
+          "polyhavenCategories": ["sign", "screen", "display", "scifi", "neon"],
+          "tags": ["3d", "prop", "decoration", "cyberpunk", "scifi"],
+          "examples": ["neon sign", "hologram", "advertisement"]
+        },
+        "npcMale": {
+          "polyhavenCategories": ["character", "human", "male", "scifi", "cyberpunk"],
+          "tags": ["3d", "character", "npc", "male", "cyberpunk", "scifi"],
+          "examples": ["citizen", "corpo", "hacker", "gang member"]
+        },
+        "npcFemale": {
+          "polyhavenCategories": ["character", "human", "female", "scifi", "cyberpunk"],
+          "tags": ["3d", "character", "npc", "female", "cyberpunk", "scifi"],
+          "examples": ["citizen", "corpo", "hacker", "gang member"]
+        },
+        "playerMale": {
+          "polyhavenCategories": ["character", "human", "male", "scifi", "hero", "cyberpunk"],
+          "tags": ["3d", "character", "player", "male", "cyberpunk", "scifi"],
+          "examples": ["netrunner", "mercenary", "hacker", "street samurai"]
+        },
+        "playerFemale": {
+          "polyhavenCategories": ["character", "human", "female", "scifi", "hero", "cyberpunk"],
+          "tags": ["3d", "character", "player", "female", "cyberpunk", "scifi"],
+          "examples": ["netrunner", "mercenary", "hacker", "street samurai"]
+        }
+      }
+    },
+    "post-apocalyptic": {
+      "assetCategories": {
+        "publicBuilding": {
+          "polyhavenCategories": ["building", "ruins", "destroyed", "abandoned"],
+          "tags": ["3d", "building", "post-apocalyptic"],
+          "examples": ["ruined building", "bunker", "shelter"]
+        },
+        "business": {
+          "polyhavenCategories": ["building", "shop", "ruins", "abandoned"],
+          "tags": ["3d", "building", "business", "post-apocalyptic"],
+          "examples": ["trading post", "scrap shop", "bar"]
+        },
+        "residence": {
+          "polyhavenCategories": ["building", "house", "ruins", "shelter"],
+          "tags": ["3d", "building", "residence", "post-apocalyptic"],
+          "examples": ["shelter", "bunker", "shack"]
+        },
+        "tree": {
+          "polyhavenCategories": ["tree", "dead", "wasteland"],
+          "tags": ["3d", "nature", "tree", "post-apocalyptic"],
+          "examples": ["dead tree", "wasteland tree", "mutated tree"]
+        },
+        "shrub": {
+          "polyhavenCategories": ["bush", "shrub", "plant", "dead", "wasteland"],
+          "tags": ["3d", "nature", "shrub", "post-apocalyptic"],
+          "examples": ["dead bush", "tumbleweed", "wasteland shrub"]
+        },
+        "plant": {
+          "polyhavenCategories": ["plant", "dead", "wasteland", "mutated"],
+          "tags": ["3d", "nature", "plant", "post-apocalyptic"],
+          "examples": ["dead grass", "mutated plant", "wasteland flora"]
+        },
+        "furniture": {
+          "polyhavenCategories": ["furniture", "table", "chair", "bed", "destroyed"],
+          "tags": ["3d", "prop", "furniture", "post-apocalyptic"],
+          "examples": ["broken table", "makeshift chair", "scrap furniture"]
+        },
+        "storage": {
+          "polyhavenCategories": ["crate", "box", "barrel", "container"],
+          "tags": ["3d", "prop", "container", "storage", "post-apocalyptic"],
+          "examples": ["scrap crate", "barrel", "locker"]
+        },
+        "weapon": {
+          "polyhavenCategories": ["weapon", "gun", "makeshift"],
+          "tags": ["3d", "prop", "weapon", "post-apocalyptic"],
+          "examples": ["makeshift weapon", "rifle", "pipe weapon"]
+        },
+        "prop": {
+          "polyhavenCategories": ["scrap", "debris", "junk"],
+          "tags": ["3d", "prop", "decoration", "post-apocalyptic"],
+          "examples": ["scrap metal", "debris", "junk", "rubble"]
+        },
+        "decoration": {
+          "polyhavenCategories": ["sign", "graffiti", "ruins"],
+          "tags": ["3d", "prop", "decoration", "post-apocalyptic"],
+          "examples": ["warning sign", "graffiti", "rubble"]
+        },
+        "npcMale": {
+          "polyhavenCategories": ["character", "human", "male", "survivor"],
+          "tags": ["3d", "character", "npc", "male", "post-apocalyptic"],
+          "examples": ["survivor", "raider", "trader", "guard"]
+        },
+        "npcFemale": {
+          "polyhavenCategories": ["character", "human", "female", "survivor"],
+          "tags": ["3d", "character", "npc", "female", "post-apocalyptic"],
+          "examples": ["survivor", "raider", "trader", "guard"]
+        },
+        "playerMale": {
+          "polyhavenCategories": ["character", "human", "male", "hero", "survivor"],
+          "tags": ["3d", "character", "player", "male", "post-apocalyptic"],
+          "examples": ["wasteland wanderer", "survivor", "scavenger"]
+        },
+        "playerFemale": {
+          "polyhavenCategories": ["character", "human", "female", "hero", "survivor"],
+          "tags": ["3d", "character", "player", "female", "post-apocalyptic"],
+          "examples": ["wasteland wanderer", "survivor", "scavenger"]
+        }
+      }
+    },
+    "solarpunk": {
+      "assetCategories": {
+        "publicBuilding": {
+          "polyhavenCategories": ["building", "scifi", "futuristic", "green", "sustainable"],
+          "tags": ["3d", "building", "solarpunk", "scifi"],
+          "examples": ["green tower", "solar building", "eco structure"]
+        },
+        "business": {
+          "polyhavenCategories": ["building", "scifi", "commercial", "green"],
+          "tags": ["3d", "building", "business", "solarpunk", "scifi"],
+          "examples": ["eco shop", "green market", "solar cafe"]
+        },
+        "residence": {
+          "polyhavenCategories": ["building", "scifi", "residential", "green"],
+          "tags": ["3d", "building", "residence", "solarpunk", "scifi"],
+          "examples": ["eco apartment", "green home", "solar house"]
+        },
+        "tree": {
+          "polyhavenCategories": ["tree", "oak", "pine", "lush"],
+          "tags": ["3d", "nature", "tree", "solarpunk", "scifi"],
+          "examples": ["lush tree", "urban tree", "green tree"]
+        },
+        "shrub": {
+          "polyhavenCategories": ["bush", "shrub", "plant", "green"],
+          "tags": ["3d", "nature", "shrub", "solarpunk", "scifi"],
+          "examples": ["green shrub", "urban plant", "hedge"]
+        },
+        "plant": {
+          "polyhavenCategories": ["plant", "flower", "grass", "green"],
+          "tags": ["3d", "nature", "plant", "solarpunk", "scifi"],
+          "examples": ["flowers", "urban garden", "green vegetation"]
+        },
+        "furniture": {
+          "polyhavenCategories": ["furniture", "scifi", "table", "chair", "sustainable"],
+          "tags": ["3d", "prop", "furniture", "solarpunk", "scifi"],
+          "examples": ["eco table", "sustainable chair", "green furniture"]
+        },
+        "storage": {
+          "polyhavenCategories": ["crate", "box", "container", "scifi", "sustainable"],
+          "tags": ["3d", "prop", "container", "storage", "solarpunk", "scifi"],
+          "examples": ["eco crate", "sustainable container", "green storage"]
+        },
+        "weapon": {
+          "polyhavenCategories": ["weapon", "tool", "scifi"],
+          "tags": ["3d", "prop", "weapon", "solarpunk", "scifi"],
+          "examples": ["energy tool", "defensive device"]
+        },
+        "prop": {
+          "polyhavenCategories": ["device", "gadget", "scifi", "tech", "green"],
+          "tags": ["3d", "prop", "device", "solarpunk", "scifi"],
+          "examples": ["solar panel", "eco device", "green tech"]
+        },
+        "decoration": {
+          "polyhavenCategories": ["sign", "screen", "display", "scifi", "green"],
+          "tags": ["3d", "prop", "decoration", "solarpunk", "scifi"],
+          "examples": ["green sign", "eco display", "plant decoration"]
+        },
+        "npcMale": {
+          "polyhavenCategories": ["character", "human", "male", "scifi"],
+          "tags": ["3d", "character", "npc", "male", "solarpunk", "scifi"],
+          "examples": ["citizen", "engineer", "gardener", "technician"]
+        },
+        "npcFemale": {
+          "polyhavenCategories": ["character", "human", "female", "scifi"],
+          "tags": ["3d", "character", "npc", "female", "solarpunk", "scifi"],
+          "examples": ["citizen", "engineer", "gardener", "technician"]
+        },
+        "playerMale": {
+          "polyhavenCategories": ["character", "human", "male", "scifi", "hero"],
+          "tags": ["3d", "character", "player", "male", "solarpunk", "scifi"],
+          "examples": ["eco warrior", "engineer", "activist"]
+        },
+        "playerFemale": {
+          "polyhavenCategories": ["character", "human", "female", "scifi", "hero"],
+          "tags": ["3d", "character", "player", "female", "solarpunk", "scifi"],
+          "examples": ["eco warrior", "engineer", "activist"]
+        }
+      }
+    },
+    "dieselpunk": {
+      "assetCategories": {
+        "publicBuilding": {
+          "polyhavenCategories": ["building", "industrial", "retro", "diesel"],
+          "tags": ["3d", "building", "dieselpunk"],
+          "examples": ["industrial building", "factory", "hangar"]
+        },
+        "business": {
+          "polyhavenCategories": ["building", "shop", "industrial", "retro"],
+          "tags": ["3d", "building", "business", "dieselpunk"],
+          "examples": ["workshop", "garage", "shop"]
+        },
+        "residence": {
+          "polyhavenCategories": ["building", "house", "industrial", "retro"],
+          "tags": ["3d", "building", "residence", "dieselpunk"],
+          "examples": ["apartment", "house", "quarters"]
+        },
+        "tree": {
+          "polyhavenCategories": ["tree", "oak", "pine"],
+          "tags": ["3d", "nature", "tree", "dieselpunk"],
+          "examples": ["tree", "urban tree"]
+        },
+        "shrub": {
+          "polyhavenCategories": ["bush", "shrub", "plant"],
+          "tags": ["3d", "nature", "shrub", "dieselpunk"],
+          "examples": ["bush", "shrub"]
+        },
+        "plant": {
+          "polyhavenCategories": ["plant", "flower", "grass"],
+          "tags": ["3d", "nature", "plant", "dieselpunk"],
+          "examples": ["plant", "grass"]
+        },
+        "furniture": {
+          "polyhavenCategories": ["furniture", "table", "chair", "bed", "industrial"],
+          "tags": ["3d", "prop", "furniture", "dieselpunk"],
+          "examples": ["metal table", "industrial chair", "bed"]
+        },
+        "storage": {
+          "polyhavenCategories": ["crate", "box", "barrel", "container", "industrial"],
+          "tags": ["3d", "prop", "container", "storage", "dieselpunk"],
+          "examples": ["metal crate", "barrel", "toolbox"]
+        },
+        "weapon": {
+          "polyhavenCategories": ["weapon", "gun", "rifle", "industrial"],
+          "tags": ["3d", "prop", "weapon", "dieselpunk"],
+          "examples": ["rifle", "machine gun", "wrench"]
+        },
+        "prop": {
+          "polyhavenCategories": ["tool", "machine", "industrial", "diesel"],
+          "tags": ["3d", "prop", "decoration", "dieselpunk"],
+          "examples": ["tools", "machinery", "engine parts"]
+        },
+        "decoration": {
+          "polyhavenCategories": ["sign", "poster", "industrial"],
+          "tags": ["3d", "prop", "decoration", "dieselpunk"],
+          "examples": ["propaganda poster", "sign", "flag"]
+        },
+        "npcMale": {
+          "polyhavenCategories": ["character", "human", "male", "industrial"],
+          "tags": ["3d", "character", "npc", "male", "dieselpunk"],
+          "examples": ["worker", "mechanic", "soldier", "pilot"]
+        },
+        "npcFemale": {
+          "polyhavenCategories": ["character", "human", "female", "industrial"],
+          "tags": ["3d", "character", "npc", "female", "dieselpunk"],
+          "examples": ["worker", "mechanic", "soldier", "pilot"]
+        },
+        "playerMale": {
+          "polyhavenCategories": ["character", "human", "male", "hero", "industrial"],
+          "tags": ["3d", "character", "player", "male", "dieselpunk"],
+          "examples": ["pilot", "mechanic", "soldier", "engineer"]
+        },
+        "playerFemale": {
+          "polyhavenCategories": ["character", "human", "female", "hero", "industrial"],
+          "tags": ["3d", "character", "player", "female", "dieselpunk"],
+          "examples": ["pilot", "mechanic", "soldier", "engineer"]
+        }
+      }
+    },
+    "historical-ancient": {
+      "assetCategories": {
+        "publicBuilding": {
+          "polyhavenCategories": ["building", "ancient", "temple", "historical"],
+          "tags": ["3d", "building", "historical-ancient"],
+          "examples": ["temple", "forum", "amphitheater", "palace"]
+        },
+        "business": {
+          "polyhavenCategories": ["building", "shop", "ancient", "historical"],
+          "tags": ["3d", "building", "business", "historical-ancient"],
+          "examples": ["market", "shop", "workshop"]
+        },
+        "residence": {
+          "polyhavenCategories": ["building", "house", "ancient", "historical"],
+          "tags": ["3d", "building", "residence", "historical-ancient"],
+          "examples": ["villa", "house", "dwelling"]
+        },
+        "tree": {
+          "polyhavenCategories": ["tree", "oak", "olive", "palm"],
+          "tags": ["3d", "nature", "tree", "historical-ancient"],
+          "examples": ["olive tree", "palm tree", "oak"]
+        },
+        "shrub": {
+          "polyhavenCategories": ["bush", "shrub", "plant"],
+          "tags": ["3d", "nature", "shrub", "historical-ancient"],
+          "examples": ["laurel", "myrtle", "bush"]
+        },
+        "plant": {
+          "polyhavenCategories": ["plant", "flower", "grass"],
+          "tags": ["3d", "nature", "plant", "historical-ancient"],
+          "examples": ["flowers", "herbs", "grass"]
+        },
+        "furniture": {
+          "polyhavenCategories": ["furniture", "table", "chair", "bed", "ancient"],
+          "tags": ["3d", "prop", "furniture", "historical-ancient"],
+          "examples": ["table", "couch", "chair"]
+        },
+        "storage": {
+          "polyhavenCategories": ["chest", "box", "urn", "amphora"],
+          "tags": ["3d", "prop", "container", "storage", "historical-ancient"],
+          "examples": ["amphora", "chest", "basket"]
+        },
+        "weapon": {
+          "polyhavenCategories": ["sword", "weapon", "shield", "spear", "ancient"],
+          "tags": ["3d", "prop", "weapon", "historical-ancient"],
+          "examples": ["gladius", "spear", "shield"]
+        },
+        "prop": {
+          "polyhavenCategories": ["pottery", "tool", "ancient"],
+          "tags": ["3d", "prop", "decoration", "historical-ancient"],
+          "examples": ["pottery", "tools", "scroll"]
+        },
+        "decoration": {
+          "polyhavenCategories": ["banner", "flag", "statue", "column"],
+          "tags": ["3d", "prop", "decoration", "historical-ancient"],
+          "examples": ["column", "statue", "banner"]
+        },
+        "npcMale": {
+          "polyhavenCategories": ["character", "human", "male", "ancient"],
+          "tags": ["3d", "character", "npc", "male", "historical-ancient"],
+          "examples": ["citizen", "soldier", "merchant", "slave"]
+        },
+        "npcFemale": {
+          "polyhavenCategories": ["character", "human", "female", "ancient"],
+          "tags": ["3d", "character", "npc", "female", "historical-ancient"],
+          "examples": ["citizen", "merchant", "slave"]
+        },
+        "playerMale": {
+          "polyhavenCategories": ["character", "human", "male", "ancient", "hero"],
+          "tags": ["3d", "character", "player", "male", "historical-ancient"],
+          "examples": ["gladiator", "soldier", "hero"]
+        },
+        "playerFemale": {
+          "polyhavenCategories": ["character", "human", "female", "ancient", "hero"],
+          "tags": ["3d", "character", "player", "female", "historical-ancient"],
+          "examples": ["warrior", "hero"]
+        }
+      }
+    },
+    "historical-renaissance": {
+      "assetCategories": {
+        "publicBuilding": {
+          "polyhavenCategories": ["building", "renaissance", "historical", "architecture"],
+          "tags": ["3d", "building", "historical-renaissance"],
+          "examples": ["palazzo", "cathedral", "town hall"]
+        },
+        "business": {
+          "polyhavenCategories": ["building", "shop", "renaissance", "historical"],
+          "tags": ["3d", "building", "business", "historical-renaissance"],
+          "examples": ["shop", "workshop", "bank"]
+        },
+        "residence": {
+          "polyhavenCategories": ["building", "house", "renaissance", "historical"],
+          "tags": ["3d", "building", "residence", "historical-renaissance"],
+          "examples": ["villa", "townhouse", "manor"]
+        },
+        "tree": {
+          "polyhavenCategories": ["tree", "oak", "pine", "cypress"],
+          "tags": ["3d", "nature", "tree", "historical-renaissance"],
+          "examples": ["oak tree", "cypress", "pine"]
+        },
+        "shrub": {
+          "polyhavenCategories": ["bush", "shrub", "plant"],
+          "tags": ["3d", "nature", "shrub", "historical-renaissance"],
+          "examples": ["hedge", "bush", "topiary"]
+        },
+        "plant": {
+          "polyhavenCategories": ["plant", "flower", "grass"],
+          "tags": ["3d", "nature", "plant", "historical-renaissance"],
+          "examples": ["flowers", "herbs", "garden plants"]
+        },
+        "furniture": {
+          "polyhavenCategories": ["furniture", "table", "chair", "bed", "renaissance"],
+          "tags": ["3d", "prop", "furniture", "historical-renaissance"],
+          "examples": ["ornate table", "chair", "canopy bed"]
+        },
+        "storage": {
+          "polyhavenCategories": ["chest", "box", "cabinet", "bookshelf"],
+          "tags": ["3d", "prop", "container", "storage", "historical-renaissance"],
+          "examples": ["chest", "cabinet", "bookshelf"]
+        },
+        "weapon": {
+          "polyhavenCategories": ["sword", "weapon", "rapier", "renaissance"],
+          "tags": ["3d", "prop", "weapon", "historical-renaissance"],
+          "examples": ["rapier", "sword", "dagger"]
+        },
+        "prop": {
+          "polyhavenCategories": ["pottery", "tool", "art", "renaissance"],
+          "tags": ["3d", "prop", "decoration", "historical-renaissance"],
+          "examples": ["painting", "sculpture", "pottery"]
+        },
+        "decoration": {
+          "polyhavenCategories": ["banner", "flag", "tapestry", "art"],
+          "tags": ["3d", "prop", "decoration", "historical-renaissance"],
+          "examples": ["tapestry", "painting", "banner"]
+        },
+        "npcMale": {
+          "polyhavenCategories": ["character", "human", "male", "renaissance"],
+          "tags": ["3d", "character", "npc", "male", "historical-renaissance"],
+          "examples": ["merchant", "noble", "guard", "artist"]
+        },
+        "npcFemale": {
+          "polyhavenCategories": ["character", "human", "female", "renaissance"],
+          "tags": ["3d", "character", "npc", "female", "historical-renaissance"],
+          "examples": ["merchant", "noble", "artist"]
+        },
+        "playerMale": {
+          "polyhavenCategories": ["character", "human", "male", "renaissance", "hero"],
+          "tags": ["3d", "character", "player", "male", "historical-renaissance"],
+          "examples": ["duelist", "explorer", "artist"]
+        },
+        "playerFemale": {
+          "polyhavenCategories": ["character", "human", "female", "renaissance", "hero"],
+          "tags": ["3d", "character", "player", "female", "historical-renaissance"],
+          "examples": ["duelist", "explorer", "artist"]
+        }
+      }
+    },
+    "historical-victorian": {
+      "assetCategories": {
+        "publicBuilding": {
+          "polyhavenCategories": ["building", "victorian", "historical", "architecture"],
+          "tags": ["3d", "building", "historical-victorian"],
+          "examples": ["manor", "factory", "station", "courthouse"]
+        },
+        "business": {
+          "polyhavenCategories": ["building", "shop", "victorian", "historical"],
+          "tags": ["3d", "building", "business", "historical-victorian"],
+          "examples": ["shop", "factory", "bank", "pub"]
+        },
+        "residence": {
+          "polyhavenCategories": ["building", "house", "victorian", "historical"],
+          "tags": ["3d", "building", "residence", "historical-victorian"],
+          "examples": ["townhouse", "manor", "cottage"]
+        },
+        "tree": {
+          "polyhavenCategories": ["tree", "oak", "pine", "elm"],
+          "tags": ["3d", "nature", "tree", "historical-victorian"],
+          "examples": ["oak tree", "elm", "pine"]
+        },
+        "shrub": {
+          "polyhavenCategories": ["bush", "shrub", "plant"],
+          "tags": ["3d", "nature", "shrub", "historical-victorian"],
+          "examples": ["hedge", "bush", "rose bush"]
+        },
+        "plant": {
+          "polyhavenCategories": ["plant", "flower", "grass"],
+          "tags": ["3d", "nature", "plant", "historical-victorian"],
+          "examples": ["roses", "flowers", "garden plants"]
+        },
+        "furniture": {
+          "polyhavenCategories": ["furniture", "table", "chair", "bed", "victorian"],
+          "tags": ["3d", "prop", "furniture", "historical-victorian"],
+          "examples": ["ornate table", "chair", "bed", "desk"]
+        },
+        "storage": {
+          "polyhavenCategories": ["chest", "box", "cabinet", "bookshelf", "victorian"],
+          "tags": ["3d", "prop", "container", "storage", "historical-victorian"],
+          "examples": ["chest", "cabinet", "bookshelf", "trunk"]
+        },
+        "weapon": {
+          "polyhavenCategories": ["gun", "revolver", "sword", "cane"],
+          "tags": ["3d", "prop", "weapon", "historical-victorian"],
+          "examples": ["revolver", "sword cane", "rifle"]
+        },
+        "prop": {
+          "polyhavenCategories": ["lamp", "clock", "tool", "victorian"],
+          "tags": ["3d", "prop", "decoration", "historical-victorian"],
+          "examples": ["gas lamp", "clock", "tools", "phonograph"]
+        },
+        "decoration": {
+          "polyhavenCategories": ["painting", "portrait", "decoration", "victorian"],
+          "tags": ["3d", "prop", "decoration", "historical-victorian"],
+          "examples": ["painting", "portrait", "wallpaper"]
+        },
+        "npcMale": {
+          "polyhavenCategories": ["character", "human", "male", "victorian"],
+          "tags": ["3d", "character", "npc", "male", "historical-victorian"],
+          "examples": ["gentleman", "worker", "merchant", "detective"]
+        },
+        "npcFemale": {
+          "polyhavenCategories": ["character", "human", "female", "victorian"],
+          "tags": ["3d", "character", "npc", "female", "historical-victorian"],
+          "examples": ["lady", "worker", "merchant"]
+        },
+        "playerMale": {
+          "polyhavenCategories": ["character", "human", "male", "victorian", "hero"],
+          "tags": ["3d", "character", "player", "male", "historical-victorian"],
+          "examples": ["detective", "gentleman", "explorer"]
+        },
+        "playerFemale": {
+          "polyhavenCategories": ["character", "human", "female", "victorian", "hero"],
+          "tags": ["3d", "character", "player", "female", "historical-victorian"],
+          "examples": ["detective", "lady", "explorer"]
+        }
+      }
+    },
+    "wild-west": {
+      "assetCategories": {
+        "publicBuilding": {
+          "polyhavenCategories": ["building", "western", "historical", "architecture"],
+          "tags": ["3d", "building", "wild-west"],
+          "examples": ["saloon", "courthouse", "bank", "general store"]
+        },
+        "business": {
+          "polyhavenCategories": ["building", "shop", "western", "historical"],
+          "tags": ["3d", "building", "business", "wild-west"],
+          "examples": ["saloon", "general store", "blacksmith", "bank"]
+        },
+        "residence": {
+          "polyhavenCategories": ["building", "house", "western", "historical"],
+          "tags": ["3d", "building", "residence", "wild-west"],
+          "examples": ["homestead", "cabin", "ranch house"]
+        },
+        "tree": {
+          "polyhavenCategories": ["tree", "oak", "pine", "palm", "cactus"],
+          "tags": ["3d", "nature", "tree", "wild-west"],
+          "examples": ["oak tree", "pine tree", "palm tree"]
+        },
+        "shrub": {
+          "polyhavenCategories": ["bush", "shrub", "plant", "cactus"],
+          "tags": ["3d", "nature", "shrub", "wild-west"],
+          "examples": ["sagebrush", "tumbleweed", "cactus"]
+        },
+        "plant": {
+          "polyhavenCategories": ["plant", "flower", "grass", "cactus"],
+          "tags": ["3d", "nature", "plant", "wild-west"],
+          "examples": ["wildflowers", "grass", "cactus"]
+        },
+        "furniture": {
+          "polyhavenCategories": ["furniture", "table", "chair", "bed", "western"],
+          "tags": ["3d", "prop", "furniture", "wild-west"],
+          "examples": ["wooden table", "chair", "bed", "bar"]
+        },
+        "storage": {
+          "polyhavenCategories": ["chest", "box", "barrel", "bookshelf"],
+          "tags": ["3d", "prop", "container", "storage", "wild-west"],
+          "examples": ["chest", "barrel", "bookshelf", "trunk"]
+        },
+        "weapon": {
+          "polyhavenCategories": ["gun", "revolver", "rifle", "weapon"],
+          "tags": ["3d", "prop", "weapon", "firearm", "wild-west"],
+          "examples": ["revolver", "rifle", "knife", "bow"]
+        },
+        "prop": {
+          "polyhavenCategories": ["lantern", "pottery", "tool", "western"],
+          "tags": ["3d", "prop", "decoration", "wild-west"],
+          "examples": ["lantern", "pottery", "tools", "rope"]
+        },
+        "decoration": {
+          "polyhavenCategories": ["sign", "poster", "banner", "western"],
+          "tags": ["3d", "prop", "decoration", "wild-west"],
+          "examples": ["saloon sign", "wanted poster", "banner"]
+        },
+        "npcMale": {
+          "polyhavenCategories": ["character", "human", "male", "western"],
+          "tags": ["3d", "character", "npc", "male", "wild-west"],
+          "examples": ["cowboy", "sheriff", "merchant", "miner"]
+        },
+        "npcFemale": {
+          "polyhavenCategories": ["character", "human", "female", "western"],
+          "tags": ["3d", "character", "npc", "female", "wild-west"],
+          "examples": ["settler", "saloon worker", "merchant"]
+        },
+        "playerMale": {
+          "polyhavenCategories": ["character", "human", "male", "western", "hero"],
+          "tags": ["3d", "character", "player", "male", "wild-west"],
+          "examples": ["gunslinger", "sheriff", "outlaw", "explorer"]
+        },
+        "playerFemale": {
+          "polyhavenCategories": ["character", "human", "female", "western", "hero"],
+          "tags": ["3d", "character", "player", "female", "wild-west"],
+          "examples": ["gunslinger", "sheriff", "outlaw", "explorer"]
+        }
+      }
+    },
+    "generic": {
+      "assetCategories": {
+        "publicBuilding": {
+          "polyhavenCategories": ["building", "house", "structure"],
+          "tags": ["3d", "building", "generic"],
+          "examples": ["generic building", "house", "structure"]
+        },
+        "business": {
+          "polyhavenCategories": ["building", "shop", "commercial"],
+          "tags": ["3d", "building", "business", "generic"],
+          "examples": ["shop", "store", "office"]
+        },
+        "residence": {
+          "polyhavenCategories": ["building", "house", "residential"],
+          "tags": ["3d", "building", "residence", "generic"],
+          "examples": ["house", "apartment", "home"]
+        },
+        "tree": {
+          "polyhavenCategories": ["tree", "oak", "pine"],
+          "tags": ["3d", "nature", "tree", "generic"],
+          "examples": ["tree", "oak", "pine"]
+        },
+        "shrub": {
+          "polyhavenCategories": ["bush", "shrub", "plant"],
+          "tags": ["3d", "nature", "shrub", "generic"],
+          "examples": ["bush", "shrub"]
+        },
+        "plant": {
+          "polyhavenCategories": ["plant", "flower", "grass"],
+          "tags": ["3d", "nature", "plant", "generic"],
+          "examples": ["plant", "flower", "grass"]
+        },
+        "furniture": {
+          "polyhavenCategories": ["furniture", "table", "chair", "bed"],
+          "tags": ["3d", "prop", "furniture", "generic"],
+          "examples": ["table", "chair", "bed"]
+        },
+        "storage": {
+          "polyhavenCategories": ["box", "chest", "container"],
+          "tags": ["3d", "prop", "container", "storage", "generic"],
+          "examples": ["box", "chest", "container"]
+        },
+        "weapon": {
+          "polyhavenCategories": ["weapon", "sword", "gun"],
+          "tags": ["3d", "prop", "weapon", "generic"],
+          "examples": ["weapon", "tool"]
+        },
+        "prop": {
+          "polyhavenCategories": ["object", "item"],
+          "tags": ["3d", "prop", "generic"],
+          "examples": ["object", "item", "prop"]
+        },
+        "decoration": {
+          "polyhavenCategories": ["decoration", "ornament"],
+          "tags": ["3d", "prop", "decoration", "generic"],
+          "examples": ["decoration", "ornament"]
+        },
+        "npcMale": {
+          "polyhavenCategories": ["character", "human", "male"],
+          "tags": ["3d", "character", "npc", "male", "generic"],
+          "examples": ["male character", "npc"]
+        },
+        "npcFemale": {
+          "polyhavenCategories": ["character", "human", "female"],
+          "tags": ["3d", "character", "npc", "female", "generic"],
+          "examples": ["female character", "npc"]
+        },
+        "playerMale": {
+          "polyhavenCategories": ["character", "human", "male", "hero"],
+          "tags": ["3d", "character", "player", "male", "generic"],
+          "examples": ["male player", "hero"]
+        },
+        "playerFemale": {
+          "polyhavenCategories": ["character", "human", "female", "hero"],
+          "tags": ["3d", "character", "player", "female", "generic"],
+          "examples": ["female player", "hero"]
+        }
+      }
+    }
+  },
+  "usage": {
+    "description": "This file defines asset categories for each world type to be used when fetching assets from Polyhaven or other asset sources.",
+    "polyhavenCategories": "Use these categories when querying the Polyhaven API (https://api.polyhaven.com/assets?type=models&categories=...)",
+    "tags": "Use these tags when creating VisualAsset entries in the database",
+    "examples": "Example search terms or asset names that fit this category",
+    "workflow": [
+      "1. Determine world type from world.config.worldType",
+      "2. Look up asset categories for that world type",
+      "3. For each category needed, query Polyhaven with polyhavenCategories",
+      "4. Download and store assets with appropriate tags",
+      "5. Create VisualAsset entries and assign to asset collection",
+      "6. Link asset collection to world via selectedAssetCollectionId"
+    ]
+  },
+  "extractedFrom": {
+    "files": [
+      "client/scripts/polyhaven-models.js",
+      "server/services/world-3d-defaults.ts"
+    ],
+    "extractionDate": "2024-12-22",
+    "notes": "This data was extracted from hardcoded asset paths and tag definitions before removing those files in favor of a collection-based system."
+  }
+}

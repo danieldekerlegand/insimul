@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Bundled Audio Assets",
+  "description": "CC0-licensed audio assets from Freesound.org bundled with the application for different world types.",
+  "version": "1.0.0",
+  "audioByWorldType": {
+    "medieval-fantasy": {
+      "footstep": {
+        "name": "Footstep on Stone",
+        "description": "Stone footstep sound for medieval environments",
+        "filePath": "assets/freesound/footstep/footstep_on_stone_197778.mp3",
+        "assetType": "audio_footstep",
+        "source": "freesound",
+        "sourceId": 197778,
+        "license": "CC0",
+        "duration": 0.5,
+        "tags": ["footstep", "stone", "medieval"]
+      },
+      "ambient": {
+        "name": "Medieval Village Atmosphere",
+        "description": "Ambient sounds of a medieval village",
+        "filePath": "assets/freesound/ambient/medieval_village_atmosphere_wav_578072.mp3",
+        "assetType": "audio_ambient",
+        "source": "freesound",
+        "sourceId": 578072,
+        "license": "CC0",
+        "duration": 40.4,
+        "tags": ["ambient", "village", "medieval", "atmosphere"]
+      },
+      "interact": {
+        "name": "Door Creak",
+        "description": "Wooden door creaking sound",
+        "filePath": "assets/freesound/interact/door_creak_wav_219499.mp3",
+        "assetType": "audio_effect",
+        "source": "freesound",
+        "sourceId": 219499,
+        "license": "CC0",
+        "duration": 1.0,
+        "tags": ["door", "creak", "wood", "interact"]
+      }
+    },
+    "sci-fi-space": {
+      "footstep": {
+        "name": "Footsteps Metallic",
+        "description": "Metallic footstep sounds for space stations",
+        "filePath": "assets/freesound/footstep/footsteps_metallic_muffled_louder_wav_50724.mp3",
+        "assetType": "audio_footstep",
+        "source": "freesound",
+        "sourceId": 50724,
+        "license": "CC0",
+        "duration": 5.7,
+        "tags": ["footstep", "metal", "scifi", "space"]
+      },
+      "ambient": {
+        "name": "Inside Spaceship",
+        "description": "Ambient hum of a spaceship interior",
+        "filePath": "assets/freesound/ambient/inside_spaceship_wav_45347.mp3",
+        "assetType": "audio_ambient",
+        "source": "freesound",
+        "sourceId": 45347,
+        "license": "CC0",
+        "duration": 131.3,
+        "tags": ["ambient", "spaceship", "hum", "scifi"]
+      },
+      "interact": {
+        "name": "Sci-Fi Interaction",
+        "description": "Electronic interaction sound",
+        "filePath": "assets/freesound/interact/crashing_starship_564166.mp3",
+        "assetType": "audio_effect",
+        "source": "freesound",
+        "sourceId": 564166,
+        "license": "CC0",
+        "duration": 307.9,
+        "tags": ["scifi", "electronic", "interact"]
+      }
+    },
+    "cyberpunk": {
+      "footstep": {
+        "name": "Concrete Footstep",
+        "description": "Footstep on concrete pavement",
+        "filePath": "assets/freesound/footstep/concrete_footstep_1_166509.mp3",
+        "assetType": "audio_footstep",
+        "source": "freesound",
+        "sourceId": 166509,
+        "license": "CC0",
+        "duration": 0.5,
+        "tags": ["footstep", "concrete", "urban", "cyberpunk"]
+      },
+      "ambient": {
+        "name": "City Traffic",
+        "description": "Urban city traffic ambient sounds",
+        "filePath": "assets/freesound/ambient/city_traffic_outdoor_wav_345313.mp3",
+        "assetType": "audio_ambient",
+        "source": "freesound",
+        "sourceId": 345313,
+        "license": "CC0",
+        "duration": 40.7,
+        "tags": ["ambient", "city", "traffic", "urban", "cyberpunk"]
+      },
+      "interact": {
+        "name": "Electronic Button",
+        "description": "Electronic button press sound",
+        "filePath": "assets/freesound/interact/open_button_2_264447.mp3",
+        "assetType": "audio_effect",
+        "source": "freesound",
+        "sourceId": 264447,
+        "license": "CC0",
+        "duration": 0.9,
+        "tags": ["button", "electronic", "interact", "cyberpunk"]
+      }
+    },
+    "generic": {
+      "footstep": {
+        "name": "Concrete Footstep",
+        "description": "Generic footstep sound",
+        "filePath": "assets/freesound/footstep/concrete_footstep_1_166509.mp3",
+        "assetType": "audio_footstep",
+        "source": "freesound",
+        "sourceId": 166509,
+        "license": "CC0",
+        "duration": 0.5,
+        "tags": ["footstep", "generic"]
+      },
+      "ambient": {
+        "name": "Soft Wind",
+        "description": "Gentle wind ambient sounds",
+        "filePath": "assets/freesound/ambient/soft_wind_459977.mp3",
+        "assetType": "audio_ambient",
+        "source": "freesound",
+        "sourceId": 459977,
+        "license": "CC0",
+        "duration": 35.7,
+        "tags": ["ambient", "wind", "nature", "generic"]
+      },
+      "interact": {
+        "name": "Door Opening",
+        "description": "Generic door opening sound",
+        "filePath": "assets/freesound/interact/dorm_door_opening_wav_15419.mp3",
+        "assetType": "audio_effect",
+        "source": "freesound",
+        "sourceId": 15419,
+        "license": "CC0",
+        "duration": 1.8,
+        "tags": ["door", "interact", "generic"]
+      }
+    }
+  },
+  "downloadSource": {
+    "url": "https://freesound.org/",
+    "description": "Freesound.org - Collaborative database of CC-licensed sounds",
+    "apiDocs": "https://freesound.org/docs/api/"
+  }
+}

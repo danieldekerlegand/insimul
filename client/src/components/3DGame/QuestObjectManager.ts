@@ -10,12 +10,22 @@ import * as GUI from '@babylonjs/gui';
 
 // Quest objective types that can be spawned/tracked in the world
 export type QuestObjectiveType =
+  // Language learning
   | 'collect_item'      // Physical object to collect
   | 'visit_location'    // Location marker to visit
   | 'talk_to_npc'       // NPC to talk to
   | 'use_vocabulary'    // Vocabulary words to use in conversation
   | 'complete_conversation' // Conversation turns to complete
-  | 'perform_action';   // Social action to perform
+  | 'perform_action'    // Social action to perform
+  // RPG
+  | 'defeat_enemies'    // Defeat a certain number of enemies
+  | 'collect_items'     // Collect items (same as collect_item but plural)
+  | 'reach_location'    // Reach a specific location
+  | 'discover_location' // Discover/explore a location
+  | 'escort_npc'        // Escort NPC to destination
+  | 'deliver_item'      // Deliver item to NPC/location
+  | 'craft_item'        // Craft specific items
+  | 'gain_reputation';  // Gain reputation with faction
 
 export interface QuestObjective {
   id: string;
@@ -51,6 +61,26 @@ export interface QuestObjective {
   actionId?: string;
   actionName?: string;
   targetNpcId?: string;
+
+  // For defeat_enemies
+  enemyType?: string;
+  enemiesDefeated?: number;
+  enemiesRequired?: number;
+
+  // For craft_item
+  craftedItemId?: string;
+  craftedCount?: number;
+
+  // For escort/deliver
+  escortNpcId?: string;
+  destinationPosition?: Vector3;
+  arrived?: boolean;
+  delivered?: boolean;
+
+  // For reputation
+  factionId?: string;
+  reputationGained?: number;
+  reputationRequired?: number;
 }
 
 export interface Quest {
@@ -84,6 +114,9 @@ export class QuestObjectManager {
   private locationMarkers: Map<string, Mesh> = new Map();
   private activeQuests: Quest[] = [];
 
+  // Quest object model templates loaded from asset collection
+  private questModelTemplates: Map<string, Mesh> = new Map();
+
   // Callbacks
   private onObjectCollected?: (questId: string, objectiveId: string) => void;
   private onLocationVisited?: (questId: string, objectiveId: string) => void;
@@ -91,6 +124,24 @@ export class QuestObjectManager {
 
   constructor(scene: Scene) {
     this.scene = scene;
+  }
+
+  /**
+   * Register a quest object model template for a specific role
+   * @param role - The role identifier (e.g., 'collectible', 'marker', 'container')
+   * @param mesh - The mesh template to use for this role
+   */
+  public registerQuestModelTemplate(role: string, mesh: Mesh): void {
+    mesh.setEnabled(false);
+    this.questModelTemplates.set(role, mesh);
+    console.log(`[QuestObjectManager] Registered quest model template for role: ${role}`);
+  }
+
+  /**
+   * Get a quest object model template by role
+   */
+  private getQuestModelTemplate(role: string): Mesh | null {
+    return this.questModelTemplates.get(role) || null;
   }
 
   /**
@@ -270,14 +321,25 @@ export class QuestObjectManager {
     positions.forEach((position, index) => {
       const itemId = `${objective.id}_item_${index}`;
 
-      // Create glowing collectible object
-      const item = MeshBuilder.CreateSphere(
-        `quest_item_${itemId}`,
-        { diameter: 0.8, segments: 16 },
-        this.scene
-      );
+      // Try to use model template from asset collection, fallback to procedural sphere
+      const collectibleTemplate = this.getQuestModelTemplate('collectible');
+      let item: Mesh;
 
-      item.position = position;
+      if (collectibleTemplate) {
+        // Clone the template
+        item = collectibleTemplate.clone(`quest_item_${itemId}`) as Mesh;
+        item.setEnabled(true);
+        item.position = position;
+        console.log(`[QuestObjectManager] Using collectible model from asset collection`);
+      } else {
+        // Fallback: Create glowing collectible sphere
+        item = MeshBuilder.CreateSphere(
+          `quest_item_${itemId}`,
+          { diameter: 0.8, segments: 16 },
+          this.scene
+        );
+        item.position = position;
+      }
 
       // Create material with quest color (golden yellow)
       const material = new StandardMaterial(`quest_item_mat_${itemId}`, this.scene);
@@ -376,15 +438,27 @@ export class QuestObjectManager {
 
     const markerId = objective.id;
 
-    // Create a beacon/pillar of light
-    const beacon = MeshBuilder.CreateCylinder(
-      `quest_location_${markerId}`,
-      { height: 10, diameter: 2, tessellation: 24 },
-      this.scene
-    );
+    // Try to use model template from asset collection, fallback to procedural beacon
+    const markerTemplate = this.getQuestModelTemplate('marker');
+    let beacon: Mesh;
 
-    beacon.position = objective.locationPosition.clone();
-    beacon.position.y += 5; // Raise it up
+    if (markerTemplate) {
+      // Clone the template
+      beacon = markerTemplate.clone(`quest_location_${markerId}`) as Mesh;
+      beacon.setEnabled(true);
+      beacon.position = objective.locationPosition.clone();
+      beacon.position.y += 5; // Raise it up
+      console.log(`[QuestObjectManager] Using location marker model from asset collection`);
+    } else {
+      // Fallback: Create a beacon/pillar of light
+      beacon = MeshBuilder.CreateCylinder(
+        `quest_location_${markerId}`,
+        { height: 10, diameter: 2, tessellation: 24 },
+        this.scene
+      );
+      beacon.position = objective.locationPosition.clone();
+      beacon.position.y += 5; // Raise it up
+    }
 
     // Create glowing material
     const material = new StandardMaterial(`quest_location_mat_${markerId}`, this.scene);
@@ -589,6 +663,23 @@ export class QuestObjectManager {
     });
   }
 
+  public trackCollectedItemByName(itemName: string, questId?: string) {
+    const key = itemName.toLowerCase();
+
+    this.activeQuests.forEach(quest => {
+      if (questId && quest.id !== questId) return;
+
+      quest.objectives?.forEach(objective => {
+        if (objective.type === 'collect_item' && !objective.completed) {
+          const objName = (objective.itemName || '').toLowerCase();
+          if (objName && objName === key) {
+            this.completeObjective(quest.id, objective.id);
+          }
+        }
+      });
+    });
+  }
+
   /**
    * Complete an objective
    */
@@ -666,6 +757,115 @@ export class QuestObjectManager {
 
   public setOnObjectiveCompleted(callback: (questId: string, objectiveId: string) => void) {
     this.onObjectiveCompleted = callback;
+  }
+
+  /**
+   * Track enemy defeat for combat quests
+   */
+  public trackEnemyDefeat(enemyType: string, questId?: string) {
+    this.activeQuests.forEach(quest => {
+      if (questId && quest.id !== questId) return;
+
+      quest.objectives?.forEach(objective => {
+        if (objective.type === 'defeat_enemies' && !objective.completed) {
+          if (objective.enemyType === enemyType || !objective.enemyType) {
+            objective.enemiesDefeated = (objective.enemiesDefeated || 0) + 1;
+
+            if (objective.enemiesDefeated >= (objective.enemiesRequired || 1)) {
+              this.completeObjective(quest.id, objective.id);
+            }
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Track item crafting for crafting quests
+   */
+  public trackItemCrafted(itemId: string, questId?: string) {
+    this.activeQuests.forEach(quest => {
+      if (questId && quest.id !== questId) return;
+
+      quest.objectives?.forEach(objective => {
+        if (objective.type === 'craft_item' && !objective.completed) {
+          if (objective.craftedItemId === itemId) {
+            objective.craftedCount = (objective.craftedCount || 0) + 1;
+
+            if (objective.craftedCount >= (objective.requiredCount || 1)) {
+              this.completeObjective(quest.id, objective.id);
+            }
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Track location discovery for exploration quests
+   */
+  public trackLocationDiscovery(locationId: string, questId?: string) {
+    this.activeQuests.forEach(quest => {
+      if (questId && quest.id !== questId) return;
+
+      quest.objectives?.forEach(objective => {
+        if (objective.type === 'discover_location' && !objective.completed) {
+          if (objective.locationName === locationId) {
+            this.completeObjective(quest.id, objective.id);
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Track escort/delivery completion
+   */
+  public trackArrival(npcOrItemId: string, destinationReached: boolean, questId?: string) {
+    this.activeQuests.forEach(quest => {
+      if (questId && quest.id !== questId) return;
+
+      quest.objectives?.forEach(objective => {
+        if ((objective.type === 'escort_npc' || objective.type === 'deliver_item') && !objective.completed) {
+          if (destinationReached) {
+            if (objective.type === 'escort_npc') {
+              objective.arrived = true;
+            } else {
+              objective.delivered = true;
+            }
+            this.completeObjective(quest.id, objective.id);
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Track reputation gains
+   */
+  public trackReputationGain(factionId: string, amount: number, questId?: string) {
+    this.activeQuests.forEach(quest => {
+      if (questId && quest.id !== questId) return;
+
+      quest.objectives?.forEach(objective => {
+        if (objective.type === 'gain_reputation' && !objective.completed) {
+          if (objective.factionId === factionId) {
+            objective.reputationGained = (objective.reputationGained || 0) + amount;
+
+            if (objective.reputationGained >= (objective.reputationRequired || 100)) {
+              this.completeObjective(quest.id, objective.id);
+            }
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Get all active quests
+   */
+  public getActiveQuests(): Quest[] {
+    return this.activeQuests;
   }
 
   /**

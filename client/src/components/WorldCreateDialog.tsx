@@ -72,7 +72,7 @@ const LANGUAGES = [
 ];
 
 interface WorldCreateDialogProps {
-  onCreateWorld: (data: InsertWorld, generateContent?: boolean, worldType?: string, customPrompt?: string, gameType?: string, customLabel?: string) => void;
+  onCreateWorld: (data: InsertWorld, generateContent?: boolean, worldType?: string, customPrompt?: string, gameType?: string, customLabel?: string, generateWorldMap?: boolean) => void;
   isLoading?: boolean;
   children?: React.ReactNode;
   open?: boolean;
@@ -101,6 +101,7 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
   const [deathRate, setDeathRate] = useState(0.3);
   const [generateGeography, setGenerateGeography] = useState(true);
   const [generateGenealogy, setGenerateGenealogy] = useState(true);
+  const [generateWorldMap, setGenerateWorldMap] = useState(true);
   
   // Use controlled state if provided, otherwise use internal state
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
@@ -198,11 +199,12 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
         deathRate,
         generateGeography,
         generateGenealogy,
+        generateWorldMap,
         gameType: selectedGameType
       };
     }
 
-    onCreateWorld(data, generateContent, worldType, prompt, selectedGameType, label);
+    onCreateWorld(data, generateContent, worldType, prompt, selectedGameType, label, generateWorldMap);
     setOpen(false);
     form.reset();
     setCreationMode('blank');
@@ -224,6 +226,7 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
     setDeathRate(0.3);
     setGenerateGeography(true);
     setGenerateGenealogy(true);
+    setGenerateWorldMap(true);
   };
 
 
@@ -486,6 +489,17 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
                       />
                       <Label htmlFor="gen-genealogy" className="cursor-pointer text-sm">
                         Generate genealogy (families, characters, relationships)
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="gen-worldmap"
+                        checked={generateWorldMap}
+                        onCheckedChange={(checked) => setGenerateWorldMap(checked as boolean)}
+                      />
+                      <Label htmlFor="gen-worldmap" className="cursor-pointer text-sm flex items-center gap-1">
+                        <Map className="w-3 h-3" />
+                        Generate world map (AI-generated overview map)
                       </Label>
                     </div>
                   </div>

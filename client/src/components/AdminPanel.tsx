@@ -4,9 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Database, Globe, MapPin, Users, BookOpen, Sword, Target, Scroll, AlertCircle } from "lucide-react";
+import { ArrowLeft, Database, Globe, BookOpen, Sword, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { BaseResourcesManager } from "@/components/BaseResourcesManager";
+import { AssetCollectionManager } from "@/components/AssetCollectionManager";
 
 interface AdminPanelProps {
   onBack: () => void;
@@ -16,14 +17,6 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [worlds, setWorlds] = useState<any[]>([]);
-  const [countries, setCountries] = useState<any[]>([]);
-  const [states, setStates] = useState<any[]>([]);
-  const [settlements, setSettlements] = useState<any[]>([]);
-  const [characters, setCharacters] = useState<any[]>([]);
-  const [rules, setRules] = useState<any[]>([]);
-  const [actions, setActions] = useState<any[]>([]);
-  const [quests, setQuests] = useState<any[]>([]);
-  const [truths, setTruths] = useState<any[]>([]);
   const [baseRules, setBaseRules] = useState<any[]>([]);
   const [baseActions, setBaseActions] = useState<any[]>([]);
   const [selectedEntity, setSelectedEntity] = useState<{ type: string; data: any } | null>(null);
@@ -54,91 +47,14 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
         setBaseActions([]);
       }
 
-      // Fetch all worlds first
+      // Fetch all worlds
       const worldsRes = await fetch('/api/worlds');
       const worldsData = await worldsRes.json();
       setWorlds(worldsData);
 
-      // Fetch all entities across all worlds
-      const allCountries: any[] = [];
-      const allStates: any[] = [];
-      const allSettlements: any[] = [];
-      const allCharacters: any[] = [];
-      const allRules: any[] = [];
-      const allActions: any[] = [];
-      const allQuests: any[] = [];
-      const allTruths: any[] = [];
-
-      for (const world of worldsData) {
-        // Countries
-        const countriesRes = await fetch(`/api/worlds/${world.id}/countries`);
-        if (countriesRes.ok) {
-          const countriesData = await countriesRes.json();
-          allCountries.push(...countriesData.map((c: any) => ({ ...c, worldName: world.name })));
-        }
-
-        // States
-        const statesRes = await fetch(`/api/worlds/${world.id}/states`);
-        if (statesRes.ok) {
-          const statesData = await statesRes.json();
-          allStates.push(...statesData.map((s: any) => ({ ...s, worldName: world.name })));
-        }
-
-        // Settlements
-        const settlementsRes = await fetch(`/api/worlds/${world.id}/settlements`);
-        if (settlementsRes.ok) {
-          const settlementsData = await settlementsRes.json();
-          allSettlements.push(...settlementsData.map((s: any) => ({ ...s, worldName: world.name })));
-        }
-
-        // Characters
-        const charactersRes = await fetch(`/api/worlds/${world.id}/characters`);
-        if (charactersRes.ok) {
-          const charactersData = await charactersRes.json();
-          allCharacters.push(...charactersData.map((c: any) => ({ ...c, worldName: world.name })));
-        }
-
-        // Rules
-        const rulesRes = await fetch(`/api/worlds/${world.id}/rules`);
-        if (rulesRes.ok) {
-          const rulesData = await rulesRes.json();
-          allRules.push(...rulesData.map((r: any) => ({ ...r, worldName: world.name })));
-        }
-
-        // Actions
-        const actionsRes = await fetch(`/api/worlds/${world.id}/actions`);
-        if (actionsRes.ok) {
-          const actionsData = await actionsRes.json();
-          allActions.push(...actionsData.map((a: any) => ({ ...a, worldName: world.name })));
-        }
-
-        // Quests
-        const questsRes = await fetch(`/api/worlds/${world.id}/quests`);
-        if (questsRes.ok) {
-          const questsData = await questsRes.json();
-          allQuests.push(...questsData.map((q: any) => ({ ...q, worldName: world.name })));
-        }
-
-        // Truths
-        const truthsRes = await fetch(`/api/worlds/${world.id}/truth`);
-        if (truthsRes.ok) {
-          const truthsData = await truthsRes.json();
-          allTruths.push(...truthsData.map((t: any) => ({ ...t, worldName: world.name })));
-        }
-      }
-
-      setCountries(allCountries);
-      setStates(allStates);
-      setSettlements(allSettlements);
-      setCharacters(allCharacters);
-      setRules(allRules);
-      setActions(allActions);
-      setQuests(allQuests);
-      setTruths(allTruths);
-
       toast({
         title: "Data Loaded",
-        description: `Loaded data from ${worldsData.length} world(s)`
+        description: `Loaded ${worldsData.length} world(s), ${baseRules.length} base rules, ${baseActions.length} base actions`
       });
     } catch (error) {
       toast({
@@ -255,29 +171,11 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
           </Button>
         </div>
 
-        <div className="grid grid-cols-6 gap-4 mb-6">
+        <div className="grid grid-cols-3 gap-4 mb-6">
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>Worlds</CardDescription>
               <CardTitle className="text-3xl">{worlds.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Countries</CardDescription>
-              <CardTitle className="text-3xl">{countries.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Settlements</CardDescription>
-              <CardTitle className="text-3xl">{settlements.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Characters</CardDescription>
-              <CardTitle className="text-3xl">{characters.length}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
@@ -297,76 +195,24 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
         <div className="grid grid-cols-3 gap-6">
           <div className="col-span-2">
             <Tabs defaultValue="worlds" className="w-full">
-              <TabsList className="grid grid-cols-6 w-full">
+              <TabsList className="grid grid-cols-3 w-full">
                 <TabsTrigger value="worlds">Worlds</TabsTrigger>
-                <TabsTrigger value="geography">Geography</TabsTrigger>
-                <TabsTrigger value="characters">Characters</TabsTrigger>
-                <TabsTrigger value="rules">Rules & Actions</TabsTrigger>
-                <TabsTrigger value="content">Content</TabsTrigger>
-                <TabsTrigger value="base">Base Resources</TabsTrigger>
+                <TabsTrigger value="assets">Assets</TabsTrigger>
+                <TabsTrigger value="base">Base Rules & Actions</TabsTrigger>
               </TabsList>
 
               <TabsContent value="worlds" className="mt-4">
                 {renderEntityList(worlds, "World", <Globe className="w-5 h-5 text-blue-500" />)}
               </TabsContent>
 
-              <TabsContent value="geography" className="mt-4">
-                <Tabs defaultValue="countries">
-                  <TabsList>
-                    <TabsTrigger value="countries">Countries</TabsTrigger>
-                    <TabsTrigger value="states">States</TabsTrigger>
-                    <TabsTrigger value="settlements">Settlements</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="countries" className="mt-2">
-                    {renderEntityList(countries, "Country", <Globe className="w-5 h-5 text-green-500" />)}
-                  </TabsContent>
-                  <TabsContent value="states" className="mt-2">
-                    {renderEntityList(states, "State", <MapPin className="w-5 h-5 text-yellow-500" />)}
-                  </TabsContent>
-                  <TabsContent value="settlements" className="mt-2">
-                    {renderEntityList(settlements, "Settlement", <MapPin className="w-5 h-5 text-orange-500" />)}
-                  </TabsContent>
-                </Tabs>
-              </TabsContent>
-
-              <TabsContent value="characters" className="mt-4">
-                {renderEntityList(characters, "Character", <Users className="w-5 h-5 text-purple-500" />)}
-              </TabsContent>
-
-              <TabsContent value="rules" className="mt-4">
-                <Tabs defaultValue="rules">
-                  <TabsList>
-                    <TabsTrigger value="rules">Rules</TabsTrigger>
-                    <TabsTrigger value="actions">Actions</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="rules" className="mt-2">
-                    {renderEntityList(rules, "Rule", <BookOpen className="w-5 h-5 text-indigo-500" />)}
-                  </TabsContent>
-                  <TabsContent value="actions" className="mt-2">
-                    {renderEntityList(actions, "Action", <Sword className="w-5 h-5 text-red-500" />)}
-                  </TabsContent>
-                </Tabs>
-              </TabsContent>
-
-              <TabsContent value="content" className="mt-4">
-                <Tabs defaultValue="quests">
-                  <TabsList>
-                    <TabsTrigger value="quests">Quests</TabsTrigger>
-                    <TabsTrigger value="truths">Truths</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="quests" className="mt-2">
-                    {renderEntityList(quests, "Quest", <Target className="w-5 h-5 text-cyan-500" />)}
-                  </TabsContent>
-                  <TabsContent value="truths" className="mt-2">
-                    {renderEntityList(truths, "Truth", <Scroll className="w-5 h-5 text-amber-500" />)}
-                  </TabsContent>
-                </Tabs>
+              <TabsContent value="assets" className="mt-4">
+                <AssetCollectionManager onRefresh={fetchAllData} />
               </TabsContent>
 
               <TabsContent value="base" className="mt-4">
                 <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800 mb-4">
                   <p className="text-sm text-muted-foreground">
-                    <strong>Manage Base Resources:</strong> Create base resources through the main app's 
+                    <strong>Manage Base Rules & Actions:</strong> Create base resources through the main app's 
                     <strong> Import Data</strong> modal or <strong>Create New Rule/Action</strong> dialogs.
                     Delete individual or multiple base resources below.
                   </p>

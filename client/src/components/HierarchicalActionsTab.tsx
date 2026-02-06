@@ -10,6 +10,8 @@ import { ActionEditDialog } from './ActionEditDialog';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface HierarchicalActionsTabProps {
   worldId: string;
@@ -134,6 +136,44 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
     if (viewLevel === 'action-detail') {
       setViewLevel('actions');
       setSelectedAction(null);
+    }
+  };
+
+  const toggleBaseAction = async (actionId: string, enabled: boolean) => {
+    try {
+      const newEnabledIds = enabled
+        ? [...enabledBaseActionIds, actionId]
+        : enabledBaseActionIds.filter(id => id !== actionId);
+      
+      setEnabledBaseActionIds(newEnabledIds);
+      
+      const disabledIds = baseActions
+        .map(a => a.id)
+        .filter(id => !newEnabledIds.includes(id));
+      
+      await fetch(`/api/worlds/${worldId}/base-resources/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resourceType: 'action',
+          resourceId: actionId,
+          enabled,
+          disabledBaseActions: disabledIds,
+        }),
+      });
+      
+      toast({
+        title: enabled ? 'Base Action Enabled' : 'Base Action Disabled',
+        description: `The base action has been ${enabled ? 'enabled' : 'disabled'} for this world`,
+      });
+    } catch (error) {
+      console.error('Failed to toggle base action:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to toggle base action',
+        variant: 'destructive',
+      });
+      fetchActions();
     }
   };
 
@@ -301,48 +341,64 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
 
               <TabsContent value="base" className="mt-0">
                 <div className="grid gap-4">
-                  {baseActions.filter(a => enabledBaseActionIds.includes(a.id)).length > 0 ? (
+                  {baseActions.length > 0 ? (
                     <div className="space-y-2">
-                      {baseActions.filter(a => enabledBaseActionIds.includes(a.id)).map((action) => (
-                        <Card 
-                          key={action.id} 
-                          className="cursor-pointer hover:border-primary hover:shadow-lg transition-all duration-200 hover:scale-[1.02] border-l-4 border-l-pink-500" 
-                          onClick={() => viewActionDetail(action)}
-                        >
-                          <CardHeader>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3 flex-1">
-                                <div className="p-2 bg-pink-500/10 rounded-lg">
-                                  <Zap className="w-5 h-5 text-pink-500" />
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <CardTitle className="text-xl">{action.name}</CardTitle>
-                                    <Badge variant="outline" className="bg-pink-500/10 text-pink-500">
-                                      🌐 Base
-                                    </Badge>
-                                    <Badge className={getActionTypeColor(action.actionType)}>
-                                      {action.actionType}
-                                    </Badge>
+                      {baseActions.map((action) => {
+                        const isEnabled = enabledBaseActionIds.includes(action.id);
+                        return (
+                          <Card 
+                            key={action.id} 
+                            className={`border-l-4 border-l-pink-500 ${!isEnabled ? 'opacity-60' : ''}`}
+                          >
+                            <CardHeader>
+                              <div className="flex items-center justify-between">
+                                <div 
+                                  className="flex items-center gap-3 flex-1 cursor-pointer"
+                                  onClick={() => viewActionDetail(action)}
+                                >
+                                  <div className="p-2 bg-pink-500/10 rounded-lg">
+                                    <Zap className="w-5 h-5 text-pink-500" />
                                   </div>
-                                  <CardDescription className="mt-1">
-                                    {action.description || 'Global action available across all worlds'}
-                                  </CardDescription>
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <CardTitle className="text-xl">{action.name}</CardTitle>
+                                      <Badge variant="outline" className="bg-pink-500/10 text-pink-500">
+                                        🌐 Base
+                                      </Badge>
+                                      <Badge className={getActionTypeColor(action.actionType)}>
+                                        {action.actionType}
+                                      </Badge>
+                                    </div>
+                                    <CardDescription className="mt-1">
+                                      {action.description || 'Global action available across all worlds'}
+                                    </CardDescription>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex items-center gap-2">
+                                    <Label htmlFor={`action-${action.id}`} className="text-sm cursor-pointer">
+                                      {isEnabled ? 'Enabled' : 'Disabled'}
+                                    </Label>
+                                    <Switch
+                                      id={`action-${action.id}`}
+                                      checked={isEnabled}
+                                      onCheckedChange={(checked) => toggleBaseAction(action.id, checked)}
+                                    />
+                                  </div>
                                 </div>
                               </div>
-                              <ChevronRight className="w-6 h-6 text-muted-foreground" />
-                            </div>
-                          </CardHeader>
-                          {action.category && (
-                            <CardContent>
-                              <div className="flex items-center gap-2 text-sm">
-                                <span className="text-muted-foreground">Category:</span>
-                                <span className="font-medium">{action.category}</span>
-                              </div>
-                            </CardContent>
-                          )}
-                        </Card>
-                      ))}
+                            </CardHeader>
+                            {action.category && (
+                              <CardContent>
+                                <div className="flex items-center gap-2 text-sm">
+                                  <span className="text-muted-foreground">Category:</span>
+                                  <span className="font-medium">{action.category}</span>
+                                </div>
+                              </CardContent>
+                            )}
+                          </Card>
+                        );
+                      })}
                     </div>
                   ) : (
                     <Card className="border-dashed">
@@ -351,9 +407,9 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
                           <div className="mx-auto w-12 h-12 bg-pink-500/10 rounded-full flex items-center justify-center">
                             <Globe className="w-6 h-6 text-pink-500" />
                           </div>
-                          <h3 className="font-semibold">No Base Actions Enabled</h3>
+                          <h3 className="font-semibold">No Base Actions Available</h3>
                           <p className="text-sm text-muted-foreground">
-                            Enable base actions in the Base Resources Configuration
+                            Base actions can be created by administrators
                           </p>
                         </div>
                       </CardContent>

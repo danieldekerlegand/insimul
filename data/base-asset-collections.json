@@ -1,0 +1,1079 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0.0",
+  "description": "Base asset collections for each world type, populated with curated Polyhaven assets",
+  "collections": {
+    "medieval-fantasy": {
+      "name": "Medieval Fantasy Base Collection",
+      "description": "Curated medieval fantasy assets from Polyhaven - wooden props, trees, rocks, and cobblestone textures",
+      "collectionType": "complete_theme",
+      "worldType": "medieval-fantasy",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "medieval", "fantasy", "polyhaven"],
+      "purpose": "Base collection for medieval fantasy worlds",
+      "assets": {
+        "buildings": [
+          {
+            "polyhavenId": "GothicCabinet_01",
+            "semanticRole": "default",
+            "assetType": "model_building",
+            "priority": 1,
+            "description": "Gothic cabinet as placeholder building prop"
+          }
+        ],
+        "nature": [
+          {
+            "polyhavenId": "fir_tree_01",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Fir tree for forests and villages"
+          },
+          {
+            "polyhavenId": "pine_tree_01",
+            "semanticRole": "tree",
+            "assetType": "model_tree",
+            "priority": 2,
+            "description": "Pine tree variation"
+          },
+          {
+            "polyhavenId": "jacaranda_tree",
+            "semanticRole": "tree_deciduous",
+            "assetType": "model_tree",
+            "priority": 3,
+            "description": "Deciduous tree for variety"
+          },
+          {
+            "polyhavenId": "tree_small_02",
+            "semanticRole": "tree_small",
+            "assetType": "model_tree",
+            "priority": 3,
+            "description": "Small tree for forest edges"
+          },
+          {
+            "polyhavenId": "dead_tree_trunk",
+            "semanticRole": "tree_dead",
+            "assetType": "model_tree",
+            "priority": 4,
+            "description": "Dead tree trunk for atmosphere"
+          },
+          {
+            "polyhavenId": "tree_stump_01",
+            "semanticRole": "stump",
+            "assetType": "model_prop",
+            "priority": 3,
+            "description": "Tree stump for forest detail"
+          },
+          {
+            "polyhavenId": "rock_moss_set_01",
+            "semanticRole": "rock",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Mossy rock for natural scenery"
+          },
+          {
+            "polyhavenId": "rock_moss_set_02",
+            "semanticRole": "rock_large",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Larger mossy rock set"
+          },
+          {
+            "polyhavenId": "rock_07",
+            "semanticRole": "boulder",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Boulder for terrain"
+          },
+          {
+            "polyhavenId": "shrub_01",
+            "semanticRole": "shrub",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Small shrub for ground cover"
+          },
+          {
+            "polyhavenId": "shrub_02",
+            "semanticRole": "bush",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Larger shrub/bush"
+          },
+          {
+            "polyhavenId": "shrub_03",
+            "semanticRole": "shrub_alt",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Alternative shrub variety"
+          },
+          {
+            "polyhavenId": "moss_01",
+            "semanticRole": "ground_cover",
+            "assetType": "model_prop",
+            "priority": 3,
+            "description": "Moss ground cover"
+          },
+          {
+            "polyhavenId": "fern_02",
+            "semanticRole": "fern",
+            "assetType": "model_prop",
+            "priority": 3,
+            "description": "Forest fern"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "wine_barrel_01",
+            "semanticRole": "storage",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Wine barrel for decorations"
+          },
+          {
+            "polyhavenId": "wooden_crate_02",
+            "semanticRole": "chest",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Wooden crate for storage"
+          },
+          {
+            "polyhavenId": "wooden_bucket_01",
+            "semanticRole": "prop",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Wooden bucket prop"
+          },
+          {
+            "polyhavenId": "wooden_lantern_01",
+            "semanticRole": "decoration",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Wooden lantern for lighting"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "forest_floor",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Forest floor texture"
+          },
+          {
+            "polyhavenId": "cobblestone_floor_01",
+            "semanticRole": "roadTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Cobblestone path texture"
+          }
+        ]
+      },
+      "config3D": {
+        "buildingModels": {
+          "default": "${polyhavenId:GothicCabinet_01}"
+        },
+        "natureModels": {
+          "defaultTree": "${polyhavenId:fir_tree_01}",
+          "tree": "${polyhavenId:pine_tree_01}",
+          "rock": "${polyhavenId:rock_moss_set_01}",
+          "shrub": "${polyhavenId:shrub_01}",
+          "bush": "${polyhavenId:shrub_02}"
+        },
+        "objectModels": {
+          "storage": "${polyhavenId:wine_barrel_01}",
+          "chest": "${polyhavenId:wooden_crate_02}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:wooden_crate_02}"
+        },
+        "groundTextureId": "${polyhavenId:forest_floor}",
+        "roadTextureId": "${polyhavenId:cobblestone_floor_01}"
+      }
+    },
+    "cyberpunk": {
+      "name": "Cyberpunk Base Collection",
+      "description": "Curated cyberpunk and futuristic assets from Polyhaven - urban industrial props for dystopian cityscapes",
+      "collectionType": "complete_theme",
+      "worldType": "cyberpunk",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "cyberpunk", "sci-fi", "futuristic", "polyhaven"],
+      "purpose": "Base collection for cyberpunk worlds",
+      "assets": {
+        "buildings": [
+          {
+            "polyhavenId": "modular_urban_apartments_facade",
+            "semanticRole": "default",
+            "assetType": "model_building",
+            "priority": 1,
+            "description": "Urban apartment building facade"
+          }
+        ],
+        "nature": [
+          {
+            "polyhavenId": "potted_plant_02",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Urban plant decoration"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "Barrel_01",
+            "semanticRole": "storage",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Industrial barrel for urban environments"
+          },
+          {
+            "polyhavenId": "fire_hydrant",
+            "semanticRole": "prop",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Fire hydrant for street scenes"
+          },
+          {
+            "polyhavenId": "metal_trash_can",
+            "semanticRole": "decoration",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Metal trash can for urban environments"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "asphalt_01",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Urban asphalt texture"
+          },
+          {
+            "polyhavenId": "metal_grate_rusty",
+            "semanticRole": "roadTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Rusty metal grate floor texture"
+          }
+        ]
+      },
+      "config3D": {
+        "buildingModels": {
+          "default": "${polyhavenId:modular_urban_apartments_facade}"
+        },
+        "natureModels": {
+          "defaultTree": "${polyhavenId:potted_plant_02}"
+        },
+        "objectModels": {
+          "storage": "${polyhavenId:Barrel_01}",
+          "prop": "${polyhavenId:fire_hydrant}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:Barrel_01}"
+        },
+        "groundTextureId": "${polyhavenId:asphalt_01}",
+        "roadTextureId": "${polyhavenId:metal_grate_rusty}"
+      }
+    },
+    "sci-fi-space": {
+      "name": "Sci-Fi Space Base Collection",
+      "description": "Curated sci-fi and space station assets from Polyhaven - industrial/modern props suitable for space environments",
+      "collectionType": "complete_theme",
+      "worldType": "sci-fi-space",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "sci-fi", "space", "futuristic", "polyhaven"],
+      "purpose": "Base collection for sci-fi space worlds",
+      "assets": {
+        "buildings": [
+          {
+            "polyhavenId": "modular_factory_facade",
+            "semanticRole": "default",
+            "assetType": "model_building",
+            "priority": 1,
+            "description": "Industrial factory facade for space station modules"
+          }
+        ],
+        "nature": [
+          {
+            "polyhavenId": "potted_plant_02",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Potted plant for space station interiors"
+          },
+          {
+            "polyhavenId": "moon_rock_01",
+            "semanticRole": "rock",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Moon rock for alien terrain"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "Barrel_01",
+            "semanticRole": "storage",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Industrial barrel for cargo storage"
+          },
+          {
+            "polyhavenId": "metal_tool_chest",
+            "semanticRole": "chest",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Metal tool chest for storage"
+          },
+          {
+            "polyhavenId": "security_camera_01",
+            "semanticRole": "prop",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Security camera for sci-fi environments"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "metal_plate",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Metal plating for space station floors"
+          },
+          {
+            "polyhavenId": "concrete_floor",
+            "semanticRole": "roadTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Concrete floor for industrial corridors"
+          }
+        ]
+      },
+      "config3D": {
+        "buildingModels": {
+          "default": "${polyhavenId:modular_factory_facade}"
+        },
+        "natureModels": {
+          "defaultTree": "${polyhavenId:potted_plant_02}",
+          "rock": "${polyhavenId:moon_rock_01}"
+        },
+        "objectModels": {
+          "storage": "${polyhavenId:Barrel_01}",
+          "chest": "${polyhavenId:metal_tool_chest}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:metal_tool_chest}"
+        },
+        "groundTextureId": "${polyhavenId:metal_plate}",
+        "roadTextureId": "${polyhavenId:concrete_floor}"
+      }
+    },
+    "generic": {
+      "name": "Generic Default Collection",
+      "description": "Generic fallback assets from Polyhaven suitable for any world type",
+      "collectionType": "complete_theme",
+      "worldType": "generic",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "generic", "default", "polyhaven"],
+      "purpose": "Fallback collection for generic worlds",
+      "assets": {
+        "buildings": [
+          {
+            "polyhavenId": "WoodenTable_01",
+            "semanticRole": "default",
+            "assetType": "model_building",
+            "priority": 1,
+            "description": "Wooden table as generic prop placeholder"
+          }
+        ],
+        "nature": [
+          {
+            "polyhavenId": "fir_tree_01",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Generic fir tree"
+          },
+          {
+            "polyhavenId": "rock_moss_set_01",
+            "semanticRole": "rock",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Generic rock with moss"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "wooden_crate_02",
+            "semanticRole": "storage",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Wooden crate"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "forrest_ground_01",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Generic forest ground texture"
+          },
+          {
+            "polyhavenId": "gravel_floor",
+            "semanticRole": "roadTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Generic gravel path"
+          }
+        ]
+      },
+      "config3D": {
+        "buildingModels": {
+          "default": "${polyhavenId:WoodenTable_01}"
+        },
+        "natureModels": {
+          "defaultTree": "${polyhavenId:fir_tree_01}",
+          "rock": "${polyhavenId:rock_moss_set_01}"
+        },
+        "objectModels": {
+          "storage": "${polyhavenId:wooden_crate_02}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:wooden_crate_02}"
+        },
+        "groundTextureId": "${polyhavenId:forrest_ground_01}",
+        "roadTextureId": "${polyhavenId:gravel_floor}"
+      }
+    },
+    "historical": {
+      "name": "Historical Base Collection",
+      "description": "Assets for historical settings like western frontier, Victorian era, or ancient civilizations",
+      "collectionType": "complete_theme",
+      "worldType": "historical",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "historical", "western", "victorian", "polyhaven"],
+      "purpose": "Base collection for historical worlds",
+      "assets": {
+        "buildings": [
+          {
+            "polyhavenId": "vintage_cabinet_01",
+            "semanticRole": "default",
+            "assetType": "model_building",
+            "priority": 1,
+            "description": "Vintage cabinet for historical interiors"
+          }
+        ],
+        "nature": [
+          {
+            "polyhavenId": "fir_tree_01",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Fir tree for frontier landscapes"
+          },
+          {
+            "polyhavenId": "rock_07",
+            "semanticRole": "rock",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Natural rock formation"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "wine_barrel_01",
+            "semanticRole": "storage",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Wooden barrel for storage"
+          },
+          {
+            "polyhavenId": "vintage_oil_lamp",
+            "semanticRole": "lamp",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Vintage oil lamp for lighting"
+          },
+          {
+            "polyhavenId": "wooden_bucket_01",
+            "semanticRole": "prop",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Wooden bucket"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "dirt",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Dirt ground for frontier settings"
+          },
+          {
+            "polyhavenId": "old_wood_floor",
+            "semanticRole": "roadTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Old wooden plank floor"
+          }
+        ]
+      },
+      "config3D": {
+        "buildingModels": {
+          "default": "${polyhavenId:vintage_cabinet_01}"
+        },
+        "natureModels": {
+          "defaultTree": "${polyhavenId:fir_tree_01}",
+          "rock": "${polyhavenId:rock_07}"
+        },
+        "objectModels": {
+          "storage": "${polyhavenId:wine_barrel_01}",
+          "lamp": "${polyhavenId:vintage_oil_lamp}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:vintage_oil_lamp}"
+        },
+        "groundTextureId": "${polyhavenId:dirt}",
+        "roadTextureId": "${polyhavenId:old_wood_floor}"
+      }
+    },
+    "high-fantasy": {
+      "name": "High Fantasy Base Collection",
+      "description": "Epic fantasy assets with castles, magic, and mythical elements",
+      "collectionType": "complete_theme",
+      "worldType": "high-fantasy",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "high-fantasy", "epic", "magic", "polyhaven"],
+      "purpose": "Base collection for high fantasy worlds",
+      "assets": {
+        "buildings": [
+          {
+            "polyhavenId": "GothicCabinet_01",
+            "semanticRole": "default",
+            "assetType": "model_building",
+            "priority": 1,
+            "description": "Gothic style furniture for castles"
+          }
+        ],
+        "nature": [
+          {
+            "polyhavenId": "jacaranda_tree",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Magical purple flowering tree"
+          },
+          {
+            "polyhavenId": "rock_moss_set_01",
+            "semanticRole": "rock",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Ancient mossy rocks"
+          },
+          {
+            "polyhavenId": "crystalline_iceplant",
+            "semanticRole": "plant",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Crystalline magical plant"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "brass_candleholders",
+            "semanticRole": "decoration",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Ornate brass candleholders"
+          },
+          {
+            "polyhavenId": "book_encyclopedia_set_01",
+            "semanticRole": "prop",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Ancient tomes and spellbooks"
+          },
+          {
+            "polyhavenId": "wooden_crate_02",
+            "semanticRole": "storage",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Wooden storage crate"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "castle_brick_01",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Castle brick flooring"
+          },
+          {
+            "polyhavenId": "medieval_blocks_02",
+            "semanticRole": "roadTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Medieval stone blocks"
+          }
+        ]
+      },
+      "config3D": {
+        "buildingModels": {
+          "default": "${polyhavenId:GothicCabinet_01}"
+        },
+        "natureModels": {
+          "defaultTree": "${polyhavenId:jacaranda_tree}",
+          "rock": "${polyhavenId:rock_moss_set_01}",
+          "plant": "${polyhavenId:crystalline_iceplant}"
+        },
+        "objectModels": {
+          "storage": "${polyhavenId:wooden_crate_02}",
+          "decoration": "${polyhavenId:brass_candleholders}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:book_encyclopedia_set_01}"
+        },
+        "groundTextureId": "${polyhavenId:castle_brick_01}",
+        "roadTextureId": "${polyhavenId:medieval_blocks_02}"
+      }
+    },
+    "dark-fantasy": {
+      "name": "Dark Fantasy Base Collection",
+      "description": "Grim dark fantasy with decay, shadows, and gothic elements",
+      "collectionType": "complete_theme",
+      "worldType": "dark-fantasy",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "dark-fantasy", "gothic", "grim", "polyhaven"],
+      "purpose": "Base collection for dark fantasy worlds",
+      "assets": {
+        "buildings": [
+          {
+            "polyhavenId": "GothicCabinet_01",
+            "semanticRole": "default",
+            "assetType": "model_building",
+            "priority": 1,
+            "description": "Dark gothic furniture"
+          }
+        ],
+        "nature": [
+          {
+            "polyhavenId": "dead_tree_trunk",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Dead twisted tree trunk"
+          },
+          {
+            "polyhavenId": "tree_stump_01",
+            "semanticRole": "stump",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Decayed tree stump"
+          },
+          {
+            "polyhavenId": "rock_moss_set_02",
+            "semanticRole": "rock",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Dark mossy rocks"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "wooden_candlestick",
+            "semanticRole": "decoration",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Wooden candlestick"
+          },
+          {
+            "polyhavenId": "wooden_bookshelf_worn",
+            "semanticRole": "furniture",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Worn bookshelf with dark tomes"
+          },
+          {
+            "polyhavenId": "wooden_crate_01",
+            "semanticRole": "storage",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Old wooden crate"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "mossy_cobblestone",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Moss-covered cobblestone"
+          },
+          {
+            "polyhavenId": "old_stone_wall",
+            "semanticRole": "roadTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Ancient weathered stone"
+          }
+        ]
+      },
+      "config3D": {
+        "buildingModels": {
+          "default": "${polyhavenId:GothicCabinet_01}"
+        },
+        "natureModels": {
+          "defaultTree": "${polyhavenId:dead_tree_trunk}",
+          "rock": "${polyhavenId:rock_moss_set_02}",
+          "stump": "${polyhavenId:tree_stump_01}"
+        },
+        "objectModels": {
+          "storage": "${polyhavenId:wooden_crate_01}",
+          "decoration": "${polyhavenId:wooden_candlestick}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:wooden_candlestick}"
+        },
+        "groundTextureId": "${polyhavenId:mossy_cobblestone}",
+        "roadTextureId": "${polyhavenId:old_stone_wall}"
+      }
+    },
+    "low-fantasy": {
+      "name": "Low Fantasy Base Collection",
+      "description": "Grounded fantasy with minimal magic, realistic medieval setting",
+      "collectionType": "complete_theme",
+      "worldType": "low-fantasy",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "low-fantasy", "realistic", "medieval", "polyhaven"],
+      "purpose": "Base collection for low fantasy worlds",
+      "assets": {
+        "buildings": [
+          {
+            "polyhavenId": "painted_wooden_cabinet",
+            "semanticRole": "default",
+            "assetType": "model_building",
+            "priority": 1,
+            "description": "Simple painted wooden furniture"
+          }
+        ],
+        "nature": [
+          {
+            "polyhavenId": "pine_tree_01",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Common pine tree"
+          },
+          {
+            "polyhavenId": "rock_07",
+            "semanticRole": "rock",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Natural rock"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "wooden_bucket_02",
+            "semanticRole": "prop",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Simple wooden bucket"
+          },
+          {
+            "polyhavenId": "wooden_barrels_01",
+            "semanticRole": "storage",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Wooden barrels"
+          },
+          {
+            "polyhavenId": "wooden_lantern_01",
+            "semanticRole": "lamp",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Simple wooden lantern"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "mossy_brick_floor",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Worn brick floor"
+          },
+          {
+            "polyhavenId": "cobblestone_floor_02",
+            "semanticRole": "roadTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Simple cobblestone path"
+          }
+        ]
+      },
+      "config3D": {
+        "buildingModels": {
+          "default": "${polyhavenId:painted_wooden_cabinet}"
+        },
+        "natureModels": {
+          "defaultTree": "${polyhavenId:pine_tree_01}",
+          "rock": "${polyhavenId:rock_07}"
+        },
+        "objectModels": {
+          "storage": "${polyhavenId:wooden_barrels_01}",
+          "lamp": "${polyhavenId:wooden_lantern_01}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:wooden_lantern_01}"
+        },
+        "groundTextureId": "${polyhavenId:mossy_brick_floor}",
+        "roadTextureId": "${polyhavenId:cobblestone_floor_02}"
+      }
+    },
+    "historical-medieval": {
+      "name": "Historical Medieval Base Collection",
+      "description": "Authentic medieval European setting without fantasy elements",
+      "collectionType": "complete_theme",
+      "worldType": "historical-medieval",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "historical", "medieval", "european", "realistic", "polyhaven"],
+      "purpose": "Base collection for historically accurate medieval worlds",
+      "assets": {
+        "buildings": [
+          {
+            "polyhavenId": "painted_wooden_cabinet",
+            "semanticRole": "default",
+            "assetType": "model_building",
+            "priority": 1,
+            "description": "Period-accurate wooden furniture"
+          },
+          {
+            "polyhavenId": "wooden_table_02",
+            "semanticRole": "tavern",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Simple wooden table"
+          }
+        ],
+        "nature": [
+          {
+            "polyhavenId": "oak_tree_02",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "European oak tree"
+          },
+          {
+            "polyhavenId": "pine_tree_01",
+            "semanticRole": "evergreen",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Common pine tree"
+          },
+          {
+            "polyhavenId": "rock_07",
+            "semanticRole": "rock",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Natural rock formation"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "wooden_bucket_02",
+            "semanticRole": "prop",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Medieval wooden bucket"
+          },
+          {
+            "polyhavenId": "wooden_barrels_01",
+            "semanticRole": "storage",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Oak barrels for storage"
+          },
+          {
+            "polyhavenId": "wooden_cart_02",
+            "semanticRole": "transport",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Horse-drawn cart"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "cobblestone_floor_02",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Medieval cobblestone street"
+          },
+          {
+            "polyhavenId": "brown_mud",
+            "semanticRole": "terrain",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Muddy path texture"
+          }
+        ]
+      },
+      "config3D": {
+        "buildingModels": {
+          "default": "${polyhavenId:painted_wooden_cabinet}"
+        },
+        "natureModels": {
+          "defaultTree": "${polyhavenId:oak_tree_02}",
+          "evergreen": "${polyhavenId:pine_tree_01}",
+          "rock": "${polyhavenId:rock_07}"
+        },
+        "objectModels": {
+          "storage": "${polyhavenId:wooden_barrels_01}",
+          "transport": "${polyhavenId:wooden_cart_02}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:wooden_bucket_02}"
+        },
+        "groundTextureId": "${polyhavenId:cobblestone_floor_02}",
+        "roadTextureId": "${polyhavenId:brown_mud}"
+      }
+    },
+    "mythological": {
+      "name": "Mythological Base Collection",
+      "description": "Ancient world with gods, heroes, and mythical creatures from Greek, Norse, and other mythologies",
+      "collectionType": "complete_theme",
+      "worldType": "mythological",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "mythological", "ancient", "greek", "norse", "polyhaven"],
+      "purpose": "Base collection for mythological worlds with gods and heroes",
+      "assets": {
+        "buildings": [
+          {
+            "polyhavenId": "GothicCabinet_01",
+            "semanticRole": "default",
+            "assetType": "model_building",
+            "priority": 1,
+            "description": "Temple-style ornate furniture"
+          },
+          {
+            "polyhavenId": "antique_dresser",
+            "semanticRole": "palace",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Ancient palace furniture"
+          }
+        ],
+        "nature": [
+          {
+            "polyhavenId": "olive_tree_01",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Sacred olive tree"
+          },
+          {
+            "polyhavenId": "cypress_tree_01",
+            "semanticRole": "sacred",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Cypress tree for sacred groves"
+          },
+          {
+            "polyhavenId": "rock_moss_set_02",
+            "semanticRole": "rock",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Ancient weathered rocks"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "ceramic_vase_02",
+            "semanticRole": "decoration",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Amphora-style vase"
+          },
+          {
+            "polyhavenId": "wooden_chest_02",
+            "semanticRole": "storage",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Ancient treasure chest"
+          },
+          {
+            "polyhavenId": "brass_ornament_01",
+            "semanticRole": "artifact",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Divine artifact"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "marble_01",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "White marble floor"
+          },
+          {
+            "polyhavenId": "sandstone_blocks",
+            "semanticRole": "roadTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Ancient stone path"
+          }
+        ]
+      },
+      "config3D": {
+        "buildingModels": {
+          "default": "${polyhavenId:GothicCabinet_01}",
+          "palace": "${polyhavenId:antique_dresser}"
+        },
+        "natureModels": {
+          "defaultTree": "${polyhavenId:olive_tree_01}",
+          "sacred": "${polyhavenId:cypress_tree_01}",
+          "rock": "${polyhavenId:rock_moss_set_02}"
+        },
+        "objectModels": {
+          "decoration": "${polyhavenId:ceramic_vase_02}",
+          "storage": "${polyhavenId:wooden_chest_02}",
+          "artifact": "${polyhavenId:brass_ornament_01}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:brass_ornament_01}",
+          "key": "${polyhavenId:ceramic_vase_02}"
+        },
+        "groundTextureId": "${polyhavenId:marble_01}",
+        "roadTextureId": "${polyhavenId:sandstone_blocks}"
+      }
+    }
+  },
+  "metadata": {
+    "lastUpdated": "2026-01-06",
+    "note": "Asset IDs are Polyhaven identifiers. These will be resolved to actual URLs during migration.",
+    "workflow": [
+      "1. Migration script creates base collections from this JSON",
+      "2. For each collection, fetch Polyhaven assets and create VisualAsset records",
+      "3. Resolve ${polyhavenId:...} placeholders to actual asset IDs",
+      "4. Create AssetCollection record with isBase=true",
+      "5. When creating new collection, offer 'Copy from base' option",
+      "6. When world has no collection, auto-assign matching base"
+    ]
+  }
+}

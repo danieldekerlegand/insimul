@@ -172,6 +172,7 @@ export interface IStorage {
 
   // Visual Assets
   getVisualAsset(id: string): Promise<VisualAsset | undefined>;
+  getAllVisualAssets(): Promise<VisualAsset[]>;
   getVisualAssetsByIds(ids: string[]): Promise<VisualAsset[]>;
   getVisualAssetsByWorld(worldId: string): Promise<VisualAsset[]>;
   getVisualAssetsByType(worldId: string, assetType: string): Promise<VisualAsset[]>;
@@ -183,6 +184,7 @@ export interface IStorage {
 
   // Asset Collections
   getAssetCollection(id: string): Promise<AssetCollection | undefined>;
+  getAllAssetCollections(): Promise<AssetCollection[]>;
   getAssetCollectionsByWorld(worldId: string): Promise<AssetCollection[]>;
   createAssetCollection(collection: InsertAssetCollection): Promise<AssetCollection>;
   updateAssetCollection(id: string, collection: Partial<InsertAssetCollection>): Promise<AssetCollection | undefined>;

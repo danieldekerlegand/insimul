@@ -5,6 +5,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Mic, MicOff, Send, Volume2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { buildGreeting, buildLanguageAwareSystemPrompt, extractLanguageFluencies, getLanguageBCP47 } from '@shared/language-utils';
+import type { WorldLanguageContext } from '@shared/language-utils';
 
 export interface Character {
   id: string;
@@ -45,6 +47,7 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [worldLangContext, setWorldLangContext] = useState<WorldLanguageContext | null>(null);
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -57,55 +60,23 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
 
   useEffect(() => {
     if (open && character) {
-      // Extract language fluency to determine greeting language
-      const presentTruths = truths.filter(t => t.timestep === 0);
+      // Fetch world language context
+      if (character.worldId) {
+        Promise.all([
+          fetch(`/api/worlds/${character.worldId}`).then(r => r.ok ? r.json() : null),
+          fetch(`/api/worlds/${character.worldId}/languages`).then(r => r.ok ? r.json() : []),
+        ]).then(([world, languages]) => {
+          const primary = languages.find((l: any) => l.isPrimary) || null;
+          setWorldLangContext({
+            targetLanguage: world?.targetLanguage || 'English',
+            worldLanguages: languages,
+            primaryLanguage: primary,
+          });
+        }).catch(err => console.error('Failed to fetch world language context:', err));
+      }
 
-      const frenchTruth = presentTruths.find(t =>
-        (t.entryType === 'language' && t.title?.includes('French')) ||
-        (t.content?.includes('French') && t.content?.includes('fluency'))
-      );
-      const englishTruth = presentTruths.find(t =>
-        (t.entryType === 'language' && t.title?.includes('English')) ||
-        (t.content?.includes('English') && t.content?.includes('fluency'))
-      );
-
-      // Default to English if no language data is found
-      let frenchFluency = 0;
-      let englishFluency = 100;
-      
-      if (frenchTruth?.sourceData?.value) {
-        frenchFluency = frenchTruth.sourceData.value;
-      } else if (frenchTruth?.content) {
-        const match = frenchTruth.content.match(/(\d+)\/100 fluency in French/);
-        if (match && match[1]) {
-          frenchFluency = parseInt(match[1]);
-        }
-      }
-      
-      if (englishTruth?.sourceData?.value) {
-        englishFluency = englishTruth.sourceData.value;
-      } else if (englishTruth?.content) {
-        const match = englishTruth.content.match(/(\d+)\/100 fluency in English/);
-        if (match && match[1]) {
-          englishFluency = parseInt(match[1]);
-        }
-      }
-      
-      // Determine greeting based on dominant language
-      let greeting: string;
-      if (frenchFluency > englishFluency) {
-        // French is dominant - greet in French
-        greeting = `Bonjour! Je m'appelle ${character.firstName} ${character.lastName}. Comment puis-je vous aider aujourd'hui?`;
-      } else if (englishFluency >= 70) {
-        // English is dominant and fluent
-        greeting = `Hello! I'm ${character.firstName} ${character.lastName}. How can I help you today?`;
-      } else if (englishFluency >= 50) {
-        // English is dominant but intermediate - simpler greeting
-        greeting = `Hello! My name is ${character.firstName} ${character.lastName}. How can I help you?`;
-      } else {
-        // English is dominant but poor - very simple with possible French mixing
-        greeting = `Hello... uh, I am ${character.firstName}. Sorry, my English is not very good. Parlez-vous français?`;
-      }
+      // Build greeting dynamically based on all language fluencies
+      const greeting = buildGreeting(character, truths);
       
       setMessages([{
         role: 'assistant',
@@ -120,118 +91,7 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
 
   const buildSystemPrompt = () => {
     if (!character) return '';
-
-    const presentTruths = truths.filter(t => t.timestep === 0);
-
-    // Extract language fluency from truths
-    // Check both sourceData.value and parse from content string
-    const frenchTruth = presentTruths.find(t =>
-      (t.entryType === 'language' && t.title?.includes('French')) ||
-      (t.content?.includes('French') && t.content?.includes('fluency'))
-    );
-    const englishTruth = presentTruths.find(t =>
-      (t.entryType === 'language' && t.title?.includes('English')) ||
-      (t.content?.includes('English') && t.content?.includes('fluency'))
-    );
-
-    // Default to English if no language data is found
-    let frenchFluency = 0;
-    let englishFluency = 100;
-
-    if (frenchTruth?.sourceData?.value) {
-      frenchFluency = frenchTruth.sourceData.value;
-    } else if (frenchTruth?.content) {
-      const match = frenchTruth.content.match(/(\d+)\/100 fluency in French/);
-      if (match && match[1]) {
-        frenchFluency = parseInt(match[1]);
-      }
-    }
-
-    if (englishTruth?.sourceData?.value) {
-      englishFluency = englishTruth.sourceData.value;
-    } else if (englishTruth?.content) {
-      const match = englishTruth.content.match(/(\d+)\/100 fluency in English/);
-      if (match && match[1]) {
-        englishFluency = parseInt(match[1]);
-      }
-    }
-
-    const dominantLanguage = frenchFluency > englishFluency ? 'French' : 'English';
-    const dominantFluency = Math.max(frenchFluency, englishFluency);
-    const secondaryLanguage = dominantLanguage === 'French' ? 'English' : 'French';
-    const secondaryFluency = Math.min(frenchFluency, englishFluency);
-
-    let prompt = `You are ${character.firstName} ${character.lastName} (${character.age || '?'} years old, ${character.gender}, ${character.occupation || 'no occupation'}).
-
-CURRENT LOCATION: ${character.currentLocation || 'Unknown'}
-
-LANGUAGE SKILLS:
-- French: ${frenchFluency}/100 (${frenchFluency >= 70 ? 'fluent' : frenchFluency >= 50 ? 'conversational' : 'basic'})
-- English: ${englishFluency}/100 (${englishFluency >= 70 ? 'fluent' : englishFluency >= 50 ? 'conversational' : 'basic'})
-- Native: ${dominantLanguage}
-
-BEHAVIOR:
-1. Speak ${dominantLanguage} by default. Switch to ${secondaryLanguage} if user speaks it.
-2. ${secondaryFluency < 50 ? `Struggle with ${secondaryLanguage}: use simple words, make errors, apologize for poor skills.` : secondaryFluency < 70 ? `Show ${secondaryLanguage} limitations: occasional errors, simpler grammar.` : `Speak both languages fluently.`}
-3. Keep responses under 3 sentences unless asked for more.
-4. You can talk about your location, the world, your relationships, and your daily life.
-
-`;
-
-    if (presentTruths.length > 0) {
-      prompt += `Current Truths about you:\n`;
-      presentTruths.forEach(truth => {
-        // Skip language truths as we've already processed them
-        if (!truth.content?.includes('fluency') && truth.entryType !== 'language') {
-          prompt += `- ${truth.content}\n`;
-        }
-      });
-      prompt += '\n';
-    }
-
-    // Add world context - all truths (not just character-specific)
-    const worldTruths = truths.filter(t => t.timestep === 0 && !t.characterId);
-    if (worldTruths.length > 0) {
-      prompt += `Known facts about the world:\n`;
-      worldTruths.slice(0, 10).forEach(truth => {
-        prompt += `- ${truth.content}\n`;
-      });
-      prompt += '\n';
-    }
-
-    if (character.personality && Object.keys(character.personality).length > 0) {
-      prompt += `Personality Traits:\n`;
-      Object.entries(character.personality).forEach(([key, value]) => {
-        prompt += `- ${key}: ${value}\n`;
-      });
-      prompt += '\n';
-    }
-
-    // Add relationships context
-    if (character.friendIds && character.friendIds.length > 0) {
-      prompt += `Friends: You have ${character.friendIds.length} friends in this world.\n`;
-    }
-    if (character.coworkerIds && character.coworkerIds.length > 0) {
-      prompt += `Coworkers: You work with ${character.coworkerIds.length} colleagues.\n`;
-    }
-    if (character.spouseId) {
-      prompt += `Family: You are married.\n`;
-    }
-
-    prompt += `\nQUEST SYSTEM: You can assign language quests using this format:
-**QUEST_ASSIGN**
-Title: [short title]
-Description: [1 sentence]
-Type: conversation|translation|vocabulary|grammar|cultural
-Difficulty: beginner|intermediate|advanced
-Language: French|English
-**END_QUEST**
-
-Only assign quests when natural in conversation. Base difficulty on player's skills.
-
-Stay in character. Show your language abilities authentically. You can reference your location, the world, and your life experiences.`;
-
-    return prompt;
+    return buildLanguageAwareSystemPrompt(character, truths, worldLangContext || undefined);
   };
 
   const sendMessageToGemini = async (userMessage: string): Promise<string> => {
@@ -300,14 +160,20 @@ Stay in character. Show your language abilities authentically. You can reference
       }
 
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'fr-FR'; // French by default
+      
+      // Dynamically detect the character's dominant language for TTS
+      const fluencies = extractLanguageFluencies(truths);
+      const dominantLang = fluencies[0]?.language || 'English';
+      const langCode = getLanguageBCP47(dominantLang);
+      utterance.lang = langCode;
       utterance.rate = 0.9;
       
-      // Try to find a French voice
+      // Try to find a voice matching the dominant language
       const voices = speechSynthesis.getVoices();
-      const frenchVoice = voices.find(v => v.lang.startsWith('fr'));
-      if (frenchVoice) {
-        utterance.voice = frenchVoice;
+      const langPrefix = langCode.split('-')[0];
+      const matchedVoice = voices.find(v => v.lang.startsWith(langPrefix));
+      if (matchedVoice) {
+        utterance.voice = matchedVoice;
       }
 
       utterance.onend = () => {
@@ -358,21 +224,39 @@ Stay in character. Show your language abilities authentically. You can reference
   const parseAndCreateQuest = async (response: string): Promise<string> => {
     // Check if response contains a quest assignment
     const questMatch = response.match(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/);
-    
+
     if (!questMatch || !character) {
       return response;
     }
 
-    const questBlock = questMatch[1];
+    const questBlock = questMatch[0];
     const titleMatch = questBlock.match(/Title:\s*(.+)/);
     const descMatch = questBlock.match(/Description:\s*(.+)/);
     const typeMatch = questBlock.match(/Type:\s*(\w+)/);
     const difficultyMatch = questBlock.match(/Difficulty:\s*(\w+)/);
-    const languageMatch = questBlock.match(/Language:\s*(\w+)/);
 
-    if (titleMatch && descMatch && typeMatch && difficultyMatch && languageMatch) {
+    if (titleMatch && descMatch && typeMatch && difficultyMatch) {
       try {
-        // Create the quest
+        // Fetch world to determine game type
+        const worldResponse = await fetch(`/api/worlds/${character.worldId}`);
+        const world = await worldResponse.json();
+
+        // Determine experience reward based on difficulty and game type
+        let experienceReward = 50;
+        const difficulty = difficultyMatch[1].trim().toLowerCase();
+
+        // Language learning difficulties
+        if (difficulty === 'beginner') experienceReward = 10;
+        else if (difficulty === 'intermediate') experienceReward = 25;
+        else if (difficulty === 'advanced') experienceReward = 50;
+
+        // RPG difficulties
+        else if (difficulty === 'easy') experienceReward = 50;
+        else if (difficulty === 'normal') experienceReward = 100;
+        else if (difficulty === 'hard') experienceReward = 200;
+        else if (difficulty === 'legendary') experienceReward = 500;
+
+        // Create the quest with proper game type handling
         await fetch(`/api/worlds/${character.worldId}/quests`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -383,12 +267,12 @@ Stay in character. Show your language abilities authentically. You can reference
             title: titleMatch[1].trim(),
             description: descMatch[1].trim(),
             questType: typeMatch[1].trim().toLowerCase(),
-            difficulty: difficultyMatch[1].trim().toLowerCase(),
-            targetLanguage: languageMatch[1].trim(),
+            difficulty: difficulty,
+            targetLanguage: world.targetLanguage || 'English',
             conversationContext: response,
             status: 'active',
-            experienceReward: difficultyMatch[1].trim().toLowerCase() === 'beginner' ? 10 : 
-                             difficultyMatch[1].trim().toLowerCase() === 'intermediate' ? 25 : 50,
+            experienceReward,
+            gameType: world.gameType || world.worldType || 'language-learning',
           })
         });
 
@@ -398,17 +282,22 @@ Stay in character. Show your language abilities authentically. You can reference
         });
       } catch (error) {
         console.error('Failed to create quest:', error);
+        toast({
+          title: 'Quest Assignment Failed',
+          description: 'Could not create quest. Please try again.',
+          variant: 'destructive',
+        });
       }
     }
 
     // Return response with quest markers removed for display
     const cleanedResponse = response.replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/, '').trim();
-    
+
     // If the response is empty after removing quest markers, return a default message
     if (!cleanedResponse) {
       return "I've assigned you a new quest! Check the Quests tab to see the details.";
     }
-    
+
     return cleanedResponse;
   };
 

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import { useWorldPermissions } from '@/hooks/use-world-permissions';
-import { ArrowLeft, ChevronRight, Plus, Lock } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Plus, Lock, Users, Map } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import type { InsertCharacter, Character } from '@shared/schema';
@@ -24,17 +25,21 @@ import { LotDialog } from './dialogs/LotDialog';
 import { CountryDetailView } from './locations/CountryDetailView';
 import { StateDetailView } from './locations/StateDetailView';
 import { SettlementDetailView } from './locations/SettlementDetailView';
+import { GenealogyViewer } from './visualization/GenealogyViewer';
+import { GeographyMap } from './visualization/GeographyMap';
 
 interface UnifiedWorldExplorerTabProps {
   worldId: string;
 }
 
-type ViewLevel = 'countries' | 'country-detail' | 'states' | 'state-detail' | 'settlements' | 'settlement-detail' | 'characters' | 'character-detail';
+type ViewLevel = 'countries' | 'country-detail' | 'states' | 'state-detail' | 'settlements' | 'settlement-detail' | 'characters' | 'character-detail' | 'genealogy' | 'map';
 
 export function UnifiedWorldExplorerTab({ worldId }: UnifiedWorldExplorerTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { canEdit, loading: permissionsLoading } = useWorldPermissions(worldId);
+
+  console.log('[UnifiedWorldExplorerTab] Permissions:', { canEdit, permissionsLoading, worldId });
 
   // Navigation state
   const [viewLevel, setViewLevel] = useState<ViewLevel>('countries');
@@ -445,7 +450,7 @@ export function UnifiedWorldExplorerTab({ worldId }: UnifiedWorldExplorerTabProp
     <div className="space-y-4 p-6">
       {renderBreadcrumb()}
 
-      {/* Countries View */}
+      {/* Countries View with Tabs */}
       {viewLevel === 'countries' && (
         <div>
           <div className="flex items-center justify-between mb-4">
@@ -455,32 +460,63 @@ export function UnifiedWorldExplorerTab({ worldId }: UnifiedWorldExplorerTabProp
               </h2>
               <p className="text-muted-foreground mt-1">Explore your world's locations, settlements, and characters</p>
             </div>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div>
-                    <Button
-                      onClick={() => setShowCountryDialog(true)}
-                      className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
-                      disabled={!canEdit || permissionsLoading}
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Country
-                    </Button>
-                  </div>
-                </TooltipTrigger>
-                {!canEdit && (
-                  <TooltipContent>
-                    <div className="flex items-center gap-2">
-                      <Lock className="w-3 h-3" />
-                      <span>Only the world owner can add countries</span>
-                    </div>
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            </TooltipProvider>
           </div>
-          <CountriesListView countries={countries} onSelectCountry={selectCountry} />
+          
+          <Tabs defaultValue="locations" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="locations">Locations</TabsTrigger>
+              <TabsTrigger value="genealogy" disabled={countries.length === 0 && settlements.length === 0}>
+                <Users className="w-4 h-4 mr-2" />
+                Family Tree
+              </TabsTrigger>
+              <TabsTrigger value="map" disabled={countries.length === 0 && settlements.length === 0}>
+                <Map className="w-4 h-4 mr-2" />
+                Map
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="locations" className="mt-4">
+              <div className="flex items-center justify-end mb-4">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <Button
+                          onClick={() => setShowCountryDialog(true)}
+                          className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+                          disabled={!canEdit || permissionsLoading}
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Country
+                        </Button>
+                      </div>
+                    </TooltipTrigger>
+                    {!canEdit && (
+                      <TooltipContent>
+                        <div className="flex items-center gap-2">
+                          <Lock className="w-3 h-3" />
+                          <span>Only the world owner can add countries</span>
+                        </div>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <CountriesListView countries={countries} onSelectCountry={selectCountry} />
+            </TabsContent>
+            
+            <TabsContent value="genealogy" className="mt-4">
+              {(countries.length > 0 || settlements.length > 0) && (
+                <GenealogyViewer worldId={worldId} countries={countries} settlements={settlements} />
+              )}
+            </TabsContent>
+            
+            <TabsContent value="map" className="mt-4">
+              {(countries.length > 0 || settlements.length > 0) && (
+                <GeographyMap worldId={worldId} settlements={settlements} countries={countries} />
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
       )}
 

@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Audio Categories by World Type",
+  "description": "Audio asset categorization for Freesound API fetching. Defines search queries for different audio roles per world type.",
+  "version": "1.0.0",
+  "audioRoles": {
+    "footstep": "Sound effects for character footsteps on various surfaces",
+    "ambient": "Background atmospheric sounds for the environment",
+    "combat": "Sound effects for weapons, attacks, and combat actions",
+    "interact": "Sound effects for object interactions (doors, chests, pickups)",
+    "music": "Background music tracks for the world"
+  },
+  "worldTypes": {
+    "medieval-fantasy": {
+      "footstep": {
+        "queries": ["footstep stone", "footstep grass", "footstep wood", "walking boots"],
+        "tags": ["footstep", "walking", "medieval"],
+        "preferredDuration": { "min": 0.2, "max": 1.0 }
+      },
+      "ambient": {
+        "queries": ["medieval village ambience", "forest birds", "tavern crowd", "fireplace crackling"],
+        "tags": ["ambience", "atmosphere", "medieval", "nature"],
+        "preferredDuration": { "min": 30, "max": 300 }
+      },
+      "combat": {
+        "queries": ["sword slash", "sword clash metal", "bow arrow shoot", "shield block"],
+        "tags": ["combat", "weapon", "sword", "medieval"],
+        "preferredDuration": { "min": 0.3, "max": 2.0 }
+      },
+      "interact": {
+        "queries": ["wooden door creak", "chest open wood", "item pickup fantasy", "coin drop"],
+        "tags": ["interact", "door", "chest", "pickup"],
+        "preferredDuration": { "min": 0.2, "max": 3.0 }
+      },
+      "music": {
+        "queries": ["medieval music instrumental", "fantasy tavern music", "adventure orchestral"],
+        "tags": ["music", "medieval", "fantasy", "instrumental"],
+        "preferredDuration": { "min": 60, "max": 300 }
+      }
+    },
+    "sci-fi-space": {
+      "footstep": {
+        "queries": ["footstep metal floor", "boots metal", "footstep spaceship"],
+        "tags": ["footstep", "walking", "metal", "scifi"],
+        "preferredDuration": { "min": 0.2, "max": 1.0 }
+      },
+      "ambient": {
+        "queries": ["spaceship hum", "sci-fi atmosphere", "space station ambience", "computer room hum"],
+        "tags": ["ambience", "atmosphere", "scifi", "space"],
+        "preferredDuration": { "min": 30, "max": 300 }
+      },
+      "combat": {
+        "queries": ["laser gun", "plasma weapon", "energy weapon", "sci-fi explosion"],
+        "tags": ["combat", "weapon", "laser", "scifi"],
+        "preferredDuration": { "min": 0.3, "max": 2.0 }
+      },
+      "interact": {
+        "queries": ["sci-fi door whoosh", "computer beep", "hologram activate", "electronic pickup"],
+        "tags": ["interact", "door", "computer", "scifi"],
+        "preferredDuration": { "min": 0.2, "max": 3.0 }
+      },
+      "music": {
+        "queries": ["sci-fi ambient music", "synthwave", "space exploration music"],
+        "tags": ["music", "scifi", "electronic", "ambient"],
+        "preferredDuration": { "min": 60, "max": 300 }
+      }
+    },
+    "cyberpunk": {
+      "footstep": {
+        "queries": ["footstep concrete", "boots pavement", "footstep wet street"],
+        "tags": ["footstep", "walking", "urban", "cyberpunk"],
+        "preferredDuration": { "min": 0.2, "max": 1.0 }
+      },
+      "ambient": {
+        "queries": ["city night ambience", "neon city", "rain urban", "traffic distant"],
+        "tags": ["ambience", "atmosphere", "urban", "cyberpunk"],
+        "preferredDuration": { "min": 30, "max": 300 }
+      },
+      "combat": {
+        "queries": ["pistol shot", "automatic weapon", "cyberpunk weapon", "energy discharge"],
+        "tags": ["combat", "weapon", "gun", "cyberpunk"],
+        "preferredDuration": { "min": 0.3, "max": 2.0 }
+      },
+      "interact": {
+        "queries": ["electronic door", "keypad beep", "vending machine", "hacking sound"],
+        "tags": ["interact", "electronic", "cyberpunk"],
+        "preferredDuration": { "min": 0.2, "max": 3.0 }
+      },
+      "music": {
+        "queries": ["cyberpunk music", "synthwave dark", "industrial electronic"],
+        "tags": ["music", "cyberpunk", "electronic", "synthwave"],
+        "preferredDuration": { "min": 60, "max": 300 }
+      }
+    },
+    "historical": {
+      "footstep": {
+        "queries": ["footstep dirt", "footstep wooden floor", "boots gravel"],
+        "tags": ["footstep", "walking", "historical"],
+        "preferredDuration": { "min": 0.2, "max": 1.0 }
+      },
+      "ambient": {
+        "queries": ["western town ambience", "desert wind", "saloon piano", "horse neighing"],
+        "tags": ["ambience", "atmosphere", "western", "historical"],
+        "preferredDuration": { "min": 30, "max": 300 }
+      },
+      "combat": {
+        "queries": ["revolver shot", "rifle shot", "fist punch", "whip crack"],
+        "tags": ["combat", "weapon", "gun", "western"],
+        "preferredDuration": { "min": 0.3, "max": 2.0 }
+      },
+      "interact": {
+        "queries": ["saloon door swing", "drawer open wood", "bottle clink", "paper rustling"],
+        "tags": ["interact", "door", "wood", "historical"],
+        "preferredDuration": { "min": 0.2, "max": 3.0 }
+      },
+      "music": {
+        "queries": ["western music", "frontier guitar", "harmonica western"],
+        "tags": ["music", "western", "acoustic", "historical"],
+        "preferredDuration": { "min": 60, "max": 300 }
+      }
+    },
+    "generic": {
+      "footstep": {
+        "queries": ["footstep", "walking sound", "boots walking"],
+        "tags": ["footstep", "walking"],
+        "preferredDuration": { "min": 0.2, "max": 1.0 }
+      },
+      "ambient": {
+        "queries": ["nature ambience", "outdoor atmosphere", "wind gentle"],
+        "tags": ["ambience", "atmosphere", "nature"],
+        "preferredDuration": { "min": 30, "max": 300 }
+      },
+      "combat": {
+        "queries": ["punch hit", "impact sound", "weapon swing"],
+        "tags": ["combat", "impact", "hit"],
+        "preferredDuration": { "min": 0.3, "max": 2.0 }
+      },
+      "interact": {
+        "queries": ["door open", "item pickup", "button click"],
+        "tags": ["interact", "pickup", "door"],
+        "preferredDuration": { "min": 0.2, "max": 3.0 }
+      },
+      "music": {
+        "queries": ["adventure music", "exploration ambient", "calm instrumental"],
+        "tags": ["music", "adventure", "instrumental"],
+        "preferredDuration": { "min": 60, "max": 300 }
+      }
+    }
+  }
+}

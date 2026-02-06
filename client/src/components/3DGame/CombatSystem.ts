@@ -6,6 +6,68 @@
 
 import { Scene, Vector3, Mesh } from '@babylonjs/core';
 
+export type CombatStyle = 'melee' | 'ranged' | 'hybrid' | 'turn_based' | 'fighting' | 'none';
+
+export interface CombatSettings {
+  style: CombatStyle;
+  baseDamage: number;
+  critChance: number;
+  critMultiplier: number;
+  attackCooldown: number;
+  combatRange: number;
+}
+
+export const DEFAULT_COMBAT_SETTINGS: Record<CombatStyle, CombatSettings> = {
+  melee: {
+    style: 'melee',
+    baseDamage: 20,
+    critChance: 0.15,
+    critMultiplier: 2.0,
+    attackCooldown: 1000,
+    combatRange: 5,
+  },
+  ranged: {
+    style: 'ranged',
+    baseDamage: 15,
+    critChance: 0.2,
+    critMultiplier: 2.5,
+    attackCooldown: 500,
+    combatRange: 30,
+  },
+  hybrid: {
+    style: 'hybrid',
+    baseDamage: 18,
+    critChance: 0.15,
+    critMultiplier: 2.0,
+    attackCooldown: 800,
+    combatRange: 15,
+  },
+  turn_based: {
+    style: 'turn_based',
+    baseDamage: 25,
+    critChance: 0.1,
+    critMultiplier: 1.5,
+    attackCooldown: 0,
+    combatRange: 50,
+  },
+  fighting: {
+    style: 'fighting',
+    baseDamage: 10,
+    critChance: 0.05,
+    critMultiplier: 1.5,
+    attackCooldown: 200,
+    combatRange: 3,
+  },
+  none: {
+    style: 'none',
+    baseDamage: 0,
+    critChance: 0,
+    critMultiplier: 1,
+    attackCooldown: 0,
+    combatRange: 0,
+  },
+};
+
 export interface CombatEntity {
   id: string;
   name: string;
@@ -47,6 +109,7 @@ export interface DamageResult {
 export class CombatSystem {
   private scene: Scene;
   private entities: Map<string, CombatEntity> = new Map();
+  private combatStyle: CombatStyle = 'melee';
 
   // Combat settings
   private baseDamage: number = 20;
@@ -61,8 +124,39 @@ export class CombatSystem {
   private onCombatStart: ((attackerId: string, targetId: string) => void) | null = null;
   private onCombatEnd: ((entityId: string) => void) | null = null;
 
-  constructor(scene: Scene) {
+  constructor(scene: Scene, style?: CombatStyle) {
     this.scene = scene;
+    if (style) {
+      this.setCombatStyle(style);
+    }
+  }
+
+  /**
+   * Set combat style and apply its default settings
+   */
+  public setCombatStyle(style: CombatStyle): void {
+    this.combatStyle = style;
+    const settings = DEFAULT_COMBAT_SETTINGS[style];
+    this.baseDamage = settings.baseDamage;
+    this.critChance = settings.critChance;
+    this.critMultiplier = settings.critMultiplier;
+    this.attackCooldown = settings.attackCooldown;
+    this.combatRange = settings.combatRange;
+    console.log(`[CombatSystem] Combat style set to: ${style}`);
+  }
+
+  /**
+   * Get current combat style
+   */
+  public getCombatStyle(): CombatStyle {
+    return this.combatStyle;
+  }
+
+  /**
+   * Check if combat is enabled for current style
+   */
+  public isCombatEnabled(): boolean {
+    return this.combatStyle !== 'none';
   }
 
   /**

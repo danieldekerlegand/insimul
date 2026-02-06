@@ -10,10 +10,13 @@ import {
   TextBlock,
   TextWrapping
 } from "@babylonjs/gui";
-import { Scene, Mesh } from "babylonjs";
-import { BabylonDialogueActions } from "./BabylonDialogueActions";
-import { Action } from "../rpg/types/actions";
+import { Scene, Mesh } from "@babylonjs/core";
+import { BabylonDialogueActions } from "./BabylonDialogueActions.ts";
+import { Action } from "./types/actions";
 import { NPCTalkingIndicator } from "./NPCTalkingIndicator";
+import { buildGreeting, buildLanguageAwareSystemPrompt, extractLanguageFluencies, getLanguageBCP47 } from "@shared/language-utils";
+import type { WorldLanguageContext } from "@shared/language-utils";
+import { LanguageProgressTracker } from "./LanguageProgressTracker";
 
 interface Message {
   role: 'user' | 'assistant';
@@ -31,16 +34,44 @@ interface Character {
   occupation?: string | null;
   personality?: Record<string, any>;
   currentLocation?: string;
+  friendIds?: string[];
+  coworkerIds?: string[];
+  spouseId?: string | null;
+  [key: string]: any;
+}
+
+interface Truth {
+  id: string;
+  title?: string;
+  content: string;
+  entryType: string;
+  timestep: number;
+  characterId?: string;
+  sourceData?: Record<string, any>;
+  [key: string]: any;
+}
+
+interface World {
+  id: string;
+  name: string;
+  worldType?: string;
+  gameType?: string;
+  targetLanguage?: string;
+  description?: string;
   [key: string]: any;
 }
 
 export class BabylonChatPanel {
   private advancedTexture: AdvancedDynamicTexture;
   private scene: Scene;
-  private chatContainer: Container | null = null;
+  private chatContainer: Rectangle | null = null;
   private messagesPanel: StackPanel | null = null;
   private inputText: InputText | null = null;
   private character: Character | null = null;
+  private truths: Truth[] = [];
+  private world: World | null = null;
+  private worldLanguageContext: WorldLanguageContext | null = null;
+  private languageTracker: LanguageProgressTracker | null = null;
   private messages: Message[] = [];
   private isVisible = false;
 
@@ -68,6 +99,9 @@ export class BabylonChatPanel {
   private onActionSelect: ((actionId: string) => void) | null = null;
   private onVocabularyUsed: ((word: string) => void) | null = null;
   private onConversationTurn: ((keywords: string[]) => void) | null = null;
+  private onNPCConversationStarted: ((npcId: string) => void) | null = null;
+  private onQuestTurnedIn: ((questId: string, rewards: any) => void) | null = null;
+  private pendingTurnInQuests: any[] = [];
 
   constructor(advancedTexture: AdvancedDynamicTexture, scene: Scene) {
     this.advancedTexture = advancedTexture;
@@ -75,10 +109,22 @@ export class BabylonChatPanel {
     this.talkingIndicator = new NPCTalkingIndicator(scene);
   }
 
-  public show(character: Character, truths: any[], npcMesh?: Mesh) {
+  public show(character: Character, truths: Truth[], npcMesh?: Mesh) {
     this.character = character;
+    this.truths = truths;
     this.npcMesh = npcMesh || null;
     this.isVisible = true;
+
+    // Notify that conversation started with this NPC (for quest tracking)
+    if (this.onNPCConversationStarted) {
+      this.onNPCConversationStarted(character.id);
+    }
+
+    // Fetch world data for context
+    this.fetchWorldData(character.worldId);
+
+    // Check for quests ready to turn in from this NPC
+    this.checkQuestTurnIn(character.id, character.worldId);
 
     if (this.chatContainer) {
       this.chatContainer.isVisible = true;
@@ -90,6 +136,31 @@ export class BabylonChatPanel {
     this.initializeChat(truths);
   }
 
+  private async fetchWorldData(worldId: string) {
+    try {
+      const [worldRes, langRes] = await Promise.all([
+        fetch(`/api/worlds/${worldId}`),
+        fetch(`/api/worlds/${worldId}/languages`),
+      ]);
+
+      if (worldRes.ok) {
+        this.world = await worldRes.json();
+      }
+
+      if (langRes.ok) {
+        const languages = await langRes.json();
+        const primary = languages.find((l: any) => l.isPrimary) || null;
+        this.worldLanguageContext = {
+          targetLanguage: this.world?.targetLanguage || 'English',
+          worldLanguages: languages,
+          primaryLanguage: primary,
+        };
+      }
+    } catch (error) {
+      console.error('Failed to fetch world data:', error);
+    }
+  }
+
   public hide() {
     this.isVisible = false;
     if (this.chatContainer) {
@@ -97,6 +168,16 @@ export class BabylonChatPanel {
     }
     if (this.dialogueActions) {
       this.dialogueActions.hide();
+    }
+    // End language tracking conversation and log results
+    if (this.languageTracker) {
+      const result = this.languageTracker.endConversation();
+      if (result && result.gain > 0) {
+        console.log(`[LanguageTracker] Fluency: ${result.previousFluency.toFixed(1)} → ${result.newFluency.toFixed(1)} (+${result.gain.toFixed(2)})`);
+        if (result.bonuses.length > 0) {
+          console.log(`[LanguageTracker] Bonuses: ${result.bonuses.join(', ')}`);
+        }
+      }
     }
     // Hide talking indicator
     if (this.talkingIndicator && this.character) {
@@ -117,11 +198,30 @@ export class BabylonChatPanel {
     this.isSpeaking = false;
   }
 
-  private initializeChat(truths: any[]) {
+  private initializeChat(truths: Truth[]) {
     if (!this.character) return;
 
-    // Build greeting based on language
-    const greeting = this.buildGreeting(truths);
+    // Initialize language progress tracker if world has a target language
+    if (this.world?.targetLanguage && this.world.targetLanguage !== 'English') {
+      this.languageTracker = new LanguageProgressTracker(
+        'player',
+        this.character.worldId,
+        this.world.targetLanguage
+      );
+      if (this.worldLanguageContext) {
+        this.languageTracker.setWorldLanguageContext(this.worldLanguageContext);
+      }
+      this.languageTracker.startConversation(this.character.id, `${this.character.firstName} ${this.character.lastName}`);
+      this.languageTracker.setOnNewWordLearned((entry) => {
+        console.log(`[LanguageTracker] New word learned: ${entry.word} (${entry.meaning})`);
+      });
+      this.languageTracker.setOnWordMastered((entry) => {
+        console.log(`[LanguageTracker] Word mastered: ${entry.word}!`);
+      });
+    }
+
+    // Build greeting dynamically based on all language fluencies
+    const greeting = buildGreeting(this.character, truths, this.world?.targetLanguage);
 
     this.messages = [{
       role: 'assistant',
@@ -130,50 +230,6 @@ export class BabylonChatPanel {
     }];
 
     this.updateMessagesDisplay();
-  }
-
-  private buildGreeting(truths: any[]): string {
-    if (!this.character) return "Hello!";
-
-    const { firstName, lastName } = this.character;
-    const presentTruths = truths.filter(t => t.timestep === 0);
-
-    // Check language fluency
-    const frenchTruth = presentTruths.find(t =>
-      (t.entryType === 'language' && t.title?.includes('French')) ||
-      (t.content?.includes('French') && t.content?.includes('fluency'))
-    );
-    const englishTruth = presentTruths.find(t =>
-      (t.entryType === 'language' && t.title?.includes('English')) ||
-      (t.content?.includes('English') && t.content?.includes('fluency'))
-    );
-
-    let frenchFluency = 0;
-    let englishFluency = 100;
-
-    if (frenchTruth?.sourceData?.value) {
-      frenchFluency = frenchTruth.sourceData.value;
-    } else if (frenchTruth?.content) {
-      const match = frenchTruth.content.match(/(\d+)\/100 fluency in French/);
-      if (match && match[1]) frenchFluency = parseInt(match[1]);
-    }
-
-    if (englishTruth?.sourceData?.value) {
-      englishFluency = englishTruth.sourceData.value;
-    } else if (englishTruth?.content) {
-      const match = englishTruth.content.match(/(\d+)\/100 fluency in English/);
-      if (match && match[1]) englishFluency = parseInt(match[1]);
-    }
-
-    if (frenchFluency > englishFluency) {
-      return `Bonjour! Je m'appelle ${firstName} ${lastName}. Comment puis-je vous aider?`;
-    } else if (englishFluency >= 70) {
-      return `Hello! I'm ${firstName} ${lastName}. How can I help you today?`;
-    } else if (englishFluency >= 50) {
-      return `Hello! My name is ${firstName} ${lastName}. How can I help you?`;
-    } else {
-      return `Hello... I am ${firstName}. Sorry, my English not very good.`;
-    }
   }
 
   private createChatUI() {
@@ -391,7 +447,7 @@ export class BabylonChatPanel {
       timeText.paddingTop = "5px";
       messageStack.addControl(timeText);
 
-      this.messagesPanel.addControl(messageContainer);
+      this.messagesPanel!.addControl(messageContainer);
     });
 
     // Scroll to bottom (not directly possible in Babylon GUI, but we add new messages at bottom)
@@ -418,19 +474,28 @@ export class BabylonChatPanel {
       // Send to Gemini API
       const aiResponse = await this.sendToGemini(userMessage);
 
-      // Add AI response
+      // Parse and create quest if present in response
+      const cleanedResponse = await this.parseAndCreateQuest(aiResponse);
+
+      // Analyze messages for language learning vocabulary
+      if (this.languageTracker) {
+        this.languageTracker.analyzePlayerMessage(userMessage);
+        this.languageTracker.analyzeNPCResponse(cleanedResponse);
+      }
+
+      // Add AI response (with quest markers removed)
       this.messages.push({
         role: 'assistant',
-        content: aiResponse,
+        content: cleanedResponse,
         timestamp: new Date()
       });
       this.updateMessagesDisplay();
 
       // Track vocabulary usage for quests
-      this.trackQuestProgress(userMessage, aiResponse);
+      this.trackQuestProgress(userMessage, cleanedResponse);
 
-      // Convert to speech and play
-      await this.textToSpeech(aiResponse);
+      // Convert to speech and play (without quest markers)
+      await this.textToSpeech(cleanedResponse);
 
     } catch (error) {
       console.error('Chat error:', error);
@@ -480,17 +545,11 @@ export class BabylonChatPanel {
 
   private buildSystemPrompt(): string {
     if (!this.character) return '';
-
-    const { firstName, lastName, age, gender, occupation } = this.character;
-
-    return `You are ${firstName} ${lastName} (${age || '?'} years old, ${gender}, ${occupation || 'no occupation'}).
-
-BEHAVIOR:
-1. Keep responses under 3 sentences unless asked for more.
-2. Stay in character based on your personality and background.
-3. You can talk about your location, the world, your relationships, and your life.
-
-Respond naturally and conversationally.`;
+    return buildLanguageAwareSystemPrompt(
+      this.character,
+      this.truths,
+      this.worldLanguageContext || undefined
+    );
   }
 
   private async textToSpeech(text: string) {
@@ -522,11 +581,17 @@ Respond naturally and conversationally.`;
     if (!('speechSynthesis' in window)) return;
 
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
+
+    // Dynamically detect the character's dominant language for TTS
+    const fluencies = extractLanguageFluencies(this.truths);
+    const dominantLang = fluencies[0]?.language || 'English';
+    const langCode = getLanguageBCP47(dominantLang);
+    utterance.lang = langCode;
     utterance.rate = 0.9;
 
     const voices = speechSynthesis.getVoices();
-    const voice = voices.find(v => v.lang.startsWith('en'));
+    const langPrefix = langCode.split('-')[0];
+    const voice = voices.find(v => v.lang.startsWith(langPrefix));
     if (voice) utterance.voice = voice;
 
     this.isSpeaking = true;
@@ -689,6 +754,376 @@ Respond naturally and conversationally.`;
 
   public setOnConversationTurn(callback: (keywords: string[]) => void) {
     this.onConversationTurn = callback;
+  }
+
+  public setOnNPCConversationStarted(callback: (npcId: string) => void) {
+    this.onNPCConversationStarted = callback;
+  }
+
+  public setOnQuestTurnedIn(callback: (questId: string, rewards: any) => void) {
+    this.onQuestTurnedIn = callback;
+  }
+
+  /**
+   * Check if any quests from this NPC are ready to turn in
+   */
+  private async checkQuestTurnIn(npcId: string, worldId: string) {
+    try {
+      const response = await fetch(`/api/worlds/${worldId}/quests`);
+      if (!response.ok) return;
+
+      const quests = await response.json();
+      
+      // Find quests assigned by this NPC that are ready to turn in
+      // A quest is ready when status is 'active' but all objectives are complete
+      const turnInQuests = quests.filter((quest: any) => {
+        if (quest.assignedByCharacterId !== npcId) return false;
+        if (quest.status !== 'active') return false;
+        
+        // Check if all objectives are complete
+        if (quest.objectives && Array.isArray(quest.objectives)) {
+          return quest.objectives.every((obj: any) => obj.isCompleted || obj.completed);
+        }
+        
+        // Check progress-based completion
+        if (quest.completionCriteria && quest.progress) {
+          return this.isQuestComplete(quest);
+        }
+        
+        return false;
+      });
+
+      if (turnInQuests.length > 0) {
+        this.pendingTurnInQuests = turnInQuests;
+        this.showQuestTurnInDialog(turnInQuests);
+      }
+    } catch (error) {
+      console.error('[BabylonChatPanel] Failed to check quest turn-in:', error);
+    }
+  }
+
+  /**
+   * Check if a quest's progress-based criteria are complete
+   */
+  private isQuestComplete(quest: any): boolean {
+    const criteria = quest.completionCriteria;
+    const progress = quest.progress;
+    
+    if (!criteria || !progress) return false;
+
+    switch (criteria.type) {
+      case 'vocabulary_usage':
+        return (progress.currentCount || 0) >= (criteria.requiredCount || 10);
+      case 'conversation_turns':
+        return (progress.turnsCompleted || 0) >= (criteria.requiredTurns || 5);
+      case 'grammar_pattern':
+        return (progress.currentCount || 0) >= (criteria.requiredCount || 5);
+      case 'conversation_engagement':
+        return (progress.messagesCount || 0) >= (criteria.requiredMessages || 8);
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Show dialog for turning in completed quests
+   */
+  private showQuestTurnInDialog(quests: any[]) {
+    const dialog = new Rectangle('questTurnInDialog');
+    dialog.width = '400px';
+    dialog.height = `${100 + quests.length * 80}px`;
+    dialog.background = 'rgba(20, 60, 100, 0.98)';
+    dialog.color = '#4a9eff';
+    dialog.thickness = 3;
+    dialog.cornerRadius = 15;
+    dialog.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    dialog.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    dialog.zIndex = 100;
+
+    const mainStack = new StackPanel();
+    mainStack.width = '100%';
+    mainStack.paddingTop = '15px';
+    mainStack.paddingBottom = '15px';
+    dialog.addControl(mainStack);
+
+    // Title
+    const title = new TextBlock();
+    title.text = '✅ Quest Complete!';
+    title.color = '#4aff4a';
+    title.fontSize = 22;
+    title.fontWeight = 'bold';
+    title.height = '35px';
+    mainStack.addControl(title);
+
+    // Quest list
+    quests.forEach((quest, index) => {
+      const questRow = new Rectangle(`turnInQuest_${index}`);
+      questRow.width = '90%';
+      questRow.height = '70px';
+      questRow.background = 'rgba(255, 255, 255, 0.1)';
+      questRow.cornerRadius = 8;
+      questRow.thickness = 0;
+      questRow.paddingTop = '5px';
+      questRow.paddingBottom = '5px';
+      mainStack.addControl(questRow);
+
+      const questStack = new StackPanel();
+      questStack.width = '100%';
+      questRow.addControl(questStack);
+
+      const questTitle = new TextBlock();
+      questTitle.text = quest.title || 'Untitled Quest';
+      questTitle.color = 'white';
+      questTitle.fontSize = 16;
+      questTitle.fontWeight = 'bold';
+      questTitle.height = '25px';
+      questTitle.paddingTop = '8px';
+      questStack.addControl(questTitle);
+
+      const rewardText = new TextBlock();
+      rewardText.text = `🎁 Reward: ${quest.experienceReward || 0} XP`;
+      rewardText.color = '#ffd700';
+      rewardText.fontSize = 14;
+      rewardText.height = '20px';
+      questStack.addControl(rewardText);
+
+      const turnInBtn = Button.CreateSimpleButton(`turnIn_${index}`, '📜 Turn In');
+      turnInBtn.width = '100px';
+      turnInBtn.height = '25px';
+      turnInBtn.color = 'white';
+      turnInBtn.background = 'rgba(50, 200, 100, 0.9)';
+      turnInBtn.cornerRadius = 5;
+      turnInBtn.fontSize = 12;
+      turnInBtn.onPointerClickObservable.add(() => {
+        this.turnInQuest(quest, dialog);
+      });
+      questStack.addControl(turnInBtn);
+    });
+
+    // Close button
+    const closeBtn = Button.CreateSimpleButton('closeTurnIn', 'Later');
+    closeBtn.width = '100px';
+    closeBtn.height = '30px';
+    closeBtn.color = 'white';
+    closeBtn.background = 'rgba(100, 100, 100, 0.8)';
+    closeBtn.cornerRadius = 5;
+    closeBtn.fontSize = 14;
+    closeBtn.paddingTop = '10px';
+    closeBtn.onPointerClickObservable.add(() => {
+      this.advancedTexture.removeControl(dialog);
+    });
+    mainStack.addControl(closeBtn);
+
+    this.advancedTexture.addControl(dialog);
+  }
+
+  /**
+   * Complete quest turn-in via API
+   */
+  private async turnInQuest(quest: any, dialog: Rectangle) {
+    try {
+      const response = await fetch(`/api/quests/${quest.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'completed',
+          completedAt: new Date().toISOString()
+        })
+      });
+
+      if (response.ok) {
+        // Show completion celebration
+        this.showQuestCompletionCelebration(quest);
+        
+        // Remove dialog
+        this.advancedTexture.removeControl(dialog);
+        
+        // Notify callback
+        if (this.onQuestTurnedIn) {
+          this.onQuestTurnedIn(quest.id, {
+            experienceReward: quest.experienceReward,
+            itemRewards: quest.itemRewards,
+          });
+        }
+
+        // Remove from pending
+        this.pendingTurnInQuests = this.pendingTurnInQuests.filter(q => q.id !== quest.id);
+      } else {
+        console.error('[BabylonChatPanel] Failed to turn in quest');
+      }
+    } catch (error) {
+      console.error('[BabylonChatPanel] Error turning in quest:', error);
+    }
+  }
+
+  /**
+   * Show celebration animation when quest is turned in
+   */
+  private showQuestCompletionCelebration(quest: any) {
+    const celebration = new Rectangle('questCelebration');
+    celebration.width = '350px';
+    celebration.height = '120px';
+    celebration.background = 'rgba(50, 200, 100, 0.95)';
+    celebration.color = '#2ecc71';
+    celebration.thickness = 3;
+    celebration.cornerRadius = 15;
+    celebration.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    celebration.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    celebration.zIndex = 200;
+
+    const stack = new StackPanel();
+    stack.width = '100%';
+    stack.paddingTop = '15px';
+    celebration.addControl(stack);
+
+    const emoji = new TextBlock();
+    emoji.text = '🎉';
+    emoji.fontSize = 40;
+    emoji.height = '50px';
+    stack.addControl(emoji);
+
+    const titleText = new TextBlock();
+    titleText.text = 'Quest Completed!';
+    titleText.color = 'white';
+    titleText.fontSize = 20;
+    titleText.fontWeight = 'bold';
+    titleText.height = '30px';
+    stack.addControl(titleText);
+
+    const rewardText = new TextBlock();
+    rewardText.text = `+${quest.experienceReward || 0} XP`;
+    rewardText.color = '#ffd700';
+    rewardText.fontSize = 18;
+    rewardText.height = '25px';
+    stack.addControl(rewardText);
+
+    this.advancedTexture.addControl(celebration);
+
+    // Auto-remove after 2.5 seconds
+    setTimeout(() => {
+      this.advancedTexture.removeControl(celebration);
+    }, 2500);
+  }
+
+  /**
+   * Parse AI response for quest assignment markers and create quest
+   */
+  private async parseAndCreateQuest(response: string): Promise<string> {
+    const questMatch = response.match(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/);
+
+    if (!questMatch || !this.character) {
+      return response;
+    }
+
+    const questBlock = questMatch[0];
+    const titleMatch = questBlock.match(/Title:\s*(.+)/);
+    const descMatch = questBlock.match(/Description:\s*(.+)/);
+    const typeMatch = questBlock.match(/Type:\s*(\w+)/);
+    const difficultyMatch = questBlock.match(/Difficulty:\s*(\w+)/);
+
+    if (titleMatch && descMatch && typeMatch && difficultyMatch) {
+      try {
+        // Determine experience reward based on difficulty
+        let experienceReward = 50;
+        const difficulty = difficultyMatch[1].trim().toLowerCase();
+
+        // Language learning difficulties
+        if (difficulty === 'beginner') experienceReward = 10;
+        else if (difficulty === 'intermediate') experienceReward = 25;
+        else if (difficulty === 'advanced') experienceReward = 50;
+        // RPG difficulties
+        else if (difficulty === 'easy') experienceReward = 50;
+        else if (difficulty === 'normal') experienceReward = 100;
+        else if (difficulty === 'hard') experienceReward = 200;
+        else if (difficulty === 'legendary') experienceReward = 500;
+
+        const questData = {
+          assignedTo: 'Player',
+          assignedBy: `${this.character.firstName} ${this.character.lastName}`,
+          assignedByCharacterId: this.character.id,
+          title: titleMatch[1].trim(),
+          description: descMatch[1].trim(),
+          questType: typeMatch[1].trim().toLowerCase(),
+          difficulty: difficulty,
+          targetLanguage: this.world?.targetLanguage || 'English',
+          conversationContext: response,
+          status: 'active',
+          experienceReward,
+          gameType: this.world?.gameType || this.world?.worldType || 'language-learning',
+        };
+
+        // Create the quest via API
+        const createResponse = await fetch(`/api/worlds/${this.character.worldId}/quests`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(questData)
+        });
+
+        if (createResponse.ok) {
+          const createdQuest = await createResponse.json();
+          console.log('[BabylonChatPanel] Quest created:', createdQuest);
+
+          // Notify quest assigned callback
+          if (this.onQuestAssigned) {
+            this.onQuestAssigned(createdQuest);
+          }
+
+          // Show notification in chat
+          this.showQuestNotification(titleMatch[1].trim());
+        }
+      } catch (error) {
+        console.error('[BabylonChatPanel] Failed to create quest:', error);
+      }
+    }
+
+    // Return response with quest markers removed
+    const cleanedResponse = response.replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/, '').trim();
+    return cleanedResponse || "I've assigned you a new quest! Check your quest log to see the details.";
+  }
+
+  /**
+   * Show a visual notification when a quest is assigned
+   */
+  private showQuestNotification(questTitle: string) {
+    // Create a temporary notification panel
+    const notification = new Rectangle('questNotification');
+    notification.width = '300px';
+    notification.height = '60px';
+    notification.background = 'rgba(50, 200, 100, 0.95)';
+    notification.color = 'white';
+    notification.thickness = 2;
+    notification.cornerRadius = 10;
+    notification.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    notification.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    notification.top = '80px';
+
+    const notifStack = new StackPanel();
+    notifStack.width = '100%';
+    notification.addControl(notifStack);
+
+    const titleText = new TextBlock();
+    titleText.text = '📜 New Quest!';
+    titleText.color = 'white';
+    titleText.fontSize = 16;
+    titleText.fontWeight = 'bold';
+    titleText.height = '25px';
+    titleText.paddingTop = '8px';
+    notifStack.addControl(titleText);
+
+    const questText = new TextBlock();
+    questText.text = questTitle;
+    questText.color = 'white';
+    questText.fontSize = 14;
+    questText.height = '25px';
+    questText.textWrapping = TextWrapping.Ellipsis;
+    notifStack.addControl(questText);
+
+    this.advancedTexture.addControl(notification);
+
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+      this.advancedTexture.removeControl(notification);
+    }, 3000);
   }
 
   /**

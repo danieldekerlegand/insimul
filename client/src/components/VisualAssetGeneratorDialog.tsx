@@ -22,10 +22,10 @@ import type { VisualAsset, GenerationJob, GenerationProvider } from '@shared/sch
 interface VisualAssetGeneratorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  entityType: 'character' | 'business' | 'settlement' | 'world';
+  entityType: 'character' | 'business' | 'settlement' | 'world' | 'collection';
   entityId: string;
   entityName?: string;
-  assetType: 'character_portrait' | 'building_exterior' | 'map_terrain' | 'map_political' | 'texture_ground' | 'texture_wall';
+  assetType: 'character_portrait' | 'building_exterior' | 'map_terrain' | 'map_political' | 'texture_ground' | 'texture_wall' | 'texture_material';
   onAssetGenerated?: (asset: VisualAsset) => void;
 }
 
@@ -229,7 +229,8 @@ export function VisualAssetGeneratorDialog({
       map_terrain: 'Terrain Map',
       map_political: 'Political Map',
       texture_ground: 'Ground Texture',
-      texture_wall: 'Wall Texture'
+      texture_wall: 'Wall Texture',
+      texture_material: 'Material Texture'
     };
     return names[assetType] || assetType;
   };

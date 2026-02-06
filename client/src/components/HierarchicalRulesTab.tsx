@@ -9,6 +9,8 @@ import { Scroll, Plus, ArrowLeft, ChevronRight, Code, FileText, Edit, Save, X, R
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { RuleCreateDialog } from './RuleCreateDialog';
 import { RuleConvertDialog } from './RuleConvertDialog';
 
@@ -21,6 +23,8 @@ type ViewLevel = 'list' | 'detail';
 export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
   const { toast } = useToast();
   const { canEdit, loading: permissionsLoading } = useWorldPermissions(worldId);
+
+  console.log('[HierarchicalRulesTab] Permissions:', { canEdit, permissionsLoading, worldId });
 
   // Navigation state
   const [viewLevel, setViewLevel] = useState<ViewLevel>('list');
@@ -86,6 +90,44 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
   const goBack = () => {
     setViewLevel('list');
     setSelectedRule(null);
+  };
+
+  const toggleBaseRule = async (ruleId: string, enabled: boolean) => {
+    try {
+      const newEnabledIds = enabled
+        ? [...enabledBaseRuleIds, ruleId]
+        : enabledBaseRuleIds.filter(id => id !== ruleId);
+      
+      setEnabledBaseRuleIds(newEnabledIds);
+      
+      const disabledIds = baseRules
+        .map(r => r.id)
+        .filter(id => !newEnabledIds.includes(id));
+      
+      await fetch(`/api/worlds/${worldId}/base-resources/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resourceType: 'rule',
+          resourceId: ruleId,
+          enabled,
+          disabledBaseRules: disabledIds,
+        }),
+      });
+      
+      toast({
+        title: enabled ? 'Base Rule Enabled' : 'Base Rule Disabled',
+        description: `The base rule has been ${enabled ? 'enabled' : 'disabled'} for this world`,
+      });
+    } catch (error) {
+      console.error('Failed to toggle base rule:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to toggle base rule',
+        variant: 'destructive',
+      });
+      fetchRules();
+    }
   };
 
   const handleDeleteRule = async (ruleId: string) => {
@@ -296,55 +338,72 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
 
               <TabsContent value="base" className="mt-0">
                 <div className="grid gap-4">
-                  {baseRules.filter(r => enabledBaseRuleIds.includes(r.id)).length > 0 ? (
+                  {baseRules.length > 0 ? (
                     <div className="space-y-2">
-                      {baseRules.filter(r => enabledBaseRuleIds.includes(r.id)).map((rule) => (
-                        <Card 
-                          key={rule.id} 
-                          className="cursor-pointer hover:border-primary hover:shadow-lg transition-all duration-200 hover:scale-[1.01] border-l-4 border-l-purple-500" 
-                          onClick={() => viewRuleDetail(rule)}
-                        >
-                          <CardHeader>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3 flex-1">
-                                <div className="p-2 bg-purple-500/10 rounded-lg">
-                                  <Scroll className="w-5 h-5 text-purple-500" />
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <CardTitle className="text-xl">{rule.name}</CardTitle>
-                                    <Badge variant="outline" className="bg-purple-500/10 text-purple-500">
-                                      🌐 Base
-                                    </Badge>
-                                    {getRuleSyntaxBadge(rule.syntax)}
+                      {baseRules.map((rule) => {
+                        const isEnabled = enabledBaseRuleIds.includes(rule.id);
+                        return (
+                          <Card 
+                            key={rule.id} 
+                            className={`border-l-4 border-l-purple-500 ${!isEnabled ? 'opacity-60' : ''}`}
+                          >
+                            <CardHeader>
+                              <div className="flex items-center justify-between">
+                                <div 
+                                  className="flex items-center gap-3 flex-1 cursor-pointer"
+                                  onClick={() => viewRuleDetail(rule)}
+                                >
+                                  <div className="p-2 bg-purple-500/10 rounded-lg">
+                                    <Scroll className="w-5 h-5 text-purple-500" />
                                   </div>
-                                  <CardDescription>{rule.description || 'Global rule available across all worlds'}</CardDescription>
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <CardTitle className="text-xl">{rule.name}</CardTitle>
+                                      <Badge variant="outline" className="bg-purple-500/10 text-purple-500">
+                                        🌐 Base
+                                      </Badge>
+                                      {getRuleSyntaxBadge(rule.syntax)}
+                                    </div>
+                                    <CardDescription>{rule.description || 'Global rule available across all worlds'}</CardDescription>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex items-center gap-2">
+                                    <Label htmlFor={`rule-${rule.id}`} className="text-sm cursor-pointer">
+                                      {isEnabled ? 'Enabled' : 'Disabled'}
+                                    </Label>
+                                    <Switch
+                                      id={`rule-${rule.id}`}
+                                      checked={isEnabled}
+                                      onCheckedChange={(checked) => toggleBaseRule(rule.id, checked)}
+                                      disabled={!canEdit || permissionsLoading}
+                                    />
+                                  </div>
                                 </div>
                               </div>
-                              <ChevronRight className="w-6 h-6 text-muted-foreground" />
-                            </div>
-                          </CardHeader>
-                          {rule.category && (
-                            <CardContent>
-                              <div className="flex gap-4 text-sm text-muted-foreground">
-                                <span>Category: {rule.category}</span>
-                                {rule.ruleType && <span>Type: {rule.ruleType}</span>}
-                              </div>
-                            </CardContent>
-                          )}
-                        </Card>
-                      ))}
+                            </CardHeader>
+                            {rule.category && (
+                              <CardContent>
+                                <div className="flex gap-4 text-sm text-muted-foreground">
+                                  <span>Category: {rule.category}</span>
+                                  {rule.ruleType && <span>Type: {rule.ruleType}</span>}
+                                </div>
+                              </CardContent>
+                            )}
+                          </Card>
+                        );
+                      })}
                     </div>
                   ) : (
                     <Card className="border-dashed">
                       <CardContent className="pt-12 pb-12">
                         <div className="text-center space-y-3">
-                          <div className="mx-auto w-12 h-12 bg-purple-500/10 rounded-full flex items-center justify-between">
+                          <div className="mx-auto w-12 h-12 bg-purple-500/10 rounded-full flex items-center justify-center">
                             <Globe className="w-6 h-6 text-purple-500" />
                           </div>
-                          <h3 className="font-semibold">No Base Rules Enabled</h3>
+                          <h3 className="font-semibold">No Base Rules Available</h3>
                           <p className="text-sm text-muted-foreground">
-                            Enable base rules in the Base Resources Configuration
+                            Base rules can be created by administrators
                           </p>
                         </div>
                       </CardContent>

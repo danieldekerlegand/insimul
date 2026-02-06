@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { User, Heart, Brain, Activity, Briefcase, Users, ChevronRight, MessageCircle, Image, Sparkles, Play, History } from 'lucide-react';
+import { User, Heart, Brain, Activity, Briefcase, Users, ChevronRight, MessageCircle, Image, Sparkles, Play, History, Palette } from 'lucide-react';
 import { VisualAssetGeneratorDialog } from '@/components/VisualAssetGeneratorDialog';
 import { SpriteGeneratorDialog } from '@/components/SpriteGeneratorDialog';
 import { GenerationHistoryViewer } from '@/components/GenerationHistoryViewer';
@@ -25,10 +25,12 @@ export function CharacterDetailView({
   onChatWithCharacter,
   onViewCharacter
 }: CharacterDetailViewProps) {
+  const queryClient = useQueryClient();
   const [showVisualGenerator, setShowVisualGenerator] = useState(false);
   const [showSpriteGenerator, setShowSpriteGenerator] = useState(false);
   const [showGenerationHistory, setShowGenerationHistory] = useState(false);
   const [historyAssetType, setHistoryAssetType] = useState<string | undefined>();
+  const [isGeneratingTexture, setIsGeneratingTexture] = useState(false);
 
   // Fetch visual assets for this character
   const { data: visualAssets = [] } = useQuery<any[]>({
@@ -42,6 +44,7 @@ export function CharacterDetailView({
   const portrait = visualAssets.find(a => a.assetType === 'character_portrait');
   const fullBody = visualAssets.find(a => a.assetType === 'character_full_body');
   const sprites = visualAssets.filter(a => a.assetType === 'character_sprite');
+  const textures = visualAssets.filter(a => a.assetType === 'character_texture');
 
   const getFullName = (char: Character) => {
     const parts = [
@@ -123,6 +126,30 @@ export function CharacterDetailView({
                     <Play className="w-3 h-3 mr-2" />
                     {sprites.length > 0 ? 'View' : 'Generate'} Sprites
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isGeneratingTexture}
+                    onClick={async () => {
+                      setIsGeneratingTexture(true);
+                      try {
+                        await apiRequest('POST', `/api/characters/${character.id}/generate-texture`, {
+                          textureType: 'face',
+                          artStyle: 'stylized',
+                          provider: 'flux'
+                        });
+                        // Refresh visual assets
+                        queryClient.invalidateQueries({ queryKey: ['/api/assets/character', character.id] });
+                      } catch (error) {
+                        console.error('Failed to generate texture:', error);
+                      } finally {
+                        setIsGeneratingTexture(false);
+                      }
+                    }}
+                  >
+                    <Palette className="w-3 h-3 mr-2" />
+                    {isGeneratingTexture ? 'Generating...' : (textures.length > 0 ? 'Regenerate' : 'Generate')} Texture
+                  </Button>
                 </div>
               </div>
             </div>
@@ -161,7 +188,7 @@ export function CharacterDetailView({
       </Card>
 
       {/* Visual Assets Section */}
-      {(portrait || fullBody || sprites.length > 0) && (
+      {(portrait || fullBody || sprites.length > 0 || textures.length > 0) && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -184,10 +211,11 @@ export function CharacterDetailView({
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="portrait" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="portrait">Portrait</TabsTrigger>
                 <TabsTrigger value="full-body">Full Body</TabsTrigger>
                 <TabsTrigger value="sprites">Sprites ({sprites.length})</TabsTrigger>
+                <TabsTrigger value="textures">Textures ({textures.length})</TabsTrigger>
               </TabsList>
 
               <TabsContent value="portrait" className="mt-4">
@@ -270,6 +298,35 @@ export function CharacterDetailView({
                       <Play className="w-3 h-3 mr-2" />
                       Generate Sprites
                     </Button>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="textures" className="mt-4">
+                {textures.length > 0 ? (
+                  <div className="grid md:grid-cols-3 gap-4">
+                    {textures.map((texture) => (
+                      <Card key={texture.id}>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm">{texture.name}</CardTitle>
+                          <CardDescription className="text-xs">
+                            {texture.metadata?.textureType} • {texture.metadata?.artStyle} style
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <img
+                            src={`/${texture.filePath}`}
+                            alt={texture.name}
+                            className="w-full border rounded"
+                          />
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>No textures generated yet</p>
+                    <p className="text-sm mt-1">Generate 3D-ready textures for character models</p>
                   </div>
                 )}
               </TabsContent>

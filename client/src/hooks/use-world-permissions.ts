@@ -20,7 +20,10 @@ export function useWorldPermissions(worldId: string | undefined): WorldPermissio
     loading: true,
   });
 
+  console.log('[useWorldPermissions] HOOK CALLED', { worldId, hasToken: !!token, hasUser: !!user });
+
   useEffect(() => {
+    console.log('[useWorldPermissions] useEffect triggered', { worldId });
     if (!worldId) {
       setPermissions({
         canEdit: false,
@@ -44,9 +47,24 @@ export function useWorldPermissions(worldId: string | undefined): WorldPermissio
         if (response.ok) {
           const world = await response.json();
           const isOwner = world.ownerId === user?.id;
+          // Allow editing if:
+          // 1. User is the owner
+          // 2. World has no owner (legacy worlds)
+          // 3. Development mode (no authentication required)
+          const canEdit = isOwner || !world.ownerId || !user;
+
+          console.log('[useWorldPermissions]', {
+            worldId,
+            worldOwnerId: world.ownerId,
+            userId: user?.id,
+            isOwner,
+            hasNoOwner: !world.ownerId,
+            noUser: !user,
+            canEdit,
+          });
 
           setPermissions({
-            canEdit: isOwner,
+            canEdit: canEdit,
             canView: true,
             isOwner: isOwner,
             loading: false,

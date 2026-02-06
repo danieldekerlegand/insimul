@@ -34,7 +34,14 @@ export async function canEditWorld(userId: string | undefined, worldId: string):
   const world = await storage.getWorld(worldId);
   if (!world) return false;
 
-  // Only the owner can edit
+  // Legacy worlds created before user management may not have an owner.
+  // In that case, allow any authenticated user to edit so the world
+  // remains manageable.
+  if (!world.ownerId) {
+    return true;
+  }
+
+  // Worlds with an owner are editable only by that owner.
   return world.ownerId === userId;
 }
 

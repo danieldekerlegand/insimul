@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,10 +7,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useAuth } from '@/contexts/AuthContext';
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Globe,
   ChevronDown,
@@ -35,8 +35,10 @@ import {
   LogOut,
   LogIn,
   UserPlus,
-  User
-} from 'lucide-react';
+  User,
+  BarChart3,
+  Database,
+} from "lucide-react";
 
 interface ModernNavbarProps {
   currentWorld?: any;
@@ -44,47 +46,50 @@ interface ModernNavbarProps {
   onTabChange: (tab: string) => void;
   onChangeWorld: () => void;
   onOpenAuth?: () => void;
+  onOpenAdminPanel?: () => void;
 }
 
-export function ModernNavbar({ currentWorld, activeTab, onTabChange, onChangeWorld, onOpenAuth }: ModernNavbarProps) {
+export function ModernNavbar({
+  currentWorld,
+  activeTab,
+  onTabChange,
+  onChangeWorld,
+  onOpenAuth,
+  onOpenAdminPanel,
+}: ModernNavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
 
   const contentItems = [
-    { id: 'rules', label: 'Rules', icon: Scroll },
-    { id: 'society', label: 'Society', icon: Users },
-    { id: 'actions', label: 'Actions', icon: Zap },
-    { id: 'quests', label: 'Quests', icon: Target },
-    { id: 'grammars', label: 'Grammars', icon: FileText },
-    { id: 'languages', label: 'Languages', icon: Sparkles },
+    { id: "society", label: "Society", icon: Users },
+    { id: "rules", label: "Rules", icon: Scroll },
+    { id: "actions", label: "Actions", icon: Zap },
+    { id: "quests", label: "Quests", icon: Target },
+    { id: "grammars", label: "Grammars", icon: FileText },
+    { id: "languages", label: "Languages", icon: Sparkles },
   ];
 
   const truthItems = [
-    { id: 'truth', label: 'Truth System', icon: BookOpen },
-    { id: 'prolog', label: 'Prolog Knowledge Base', icon: Brain },
+    { id: "truth", label: "Truth System", icon: BookOpen },
+    { id: "prolog", label: "Prolog Knowledge Base", icon: Brain },
   ];
 
   const simulationItems = [
-    { id: 'simulations', label: 'Run Simulations', icon: Play },
-    { id: 'rpg-game', label: 'Explore World (2D RPG)', icon: Gamepad2 },
-    { id: '3d-game', label: 'Explore World (3D)', icon: Gamepad2 },
-    { id: 'my-playthroughs', label: 'My Playthroughs', icon: History },
-  ];
-
-  const browseItems = [
-    { id: 'browse-worlds', label: 'Browse Public Worlds', icon: Compass },
+    { id: "simulations", label: "Run Simulations", icon: Play },
+    { id: "3d-game", label: "Explore World (3D)", icon: Gamepad2 },
+    { id: "analytics", label: "Analytics", icon: BarChart3 },
   ];
 
   const dataItems = [
-    { id: 'import', label: 'Import Data', icon: Upload },
-    { id: 'export', label: 'Export Data', icon: Download },
+    { id: "import", label: "Import Data", icon: Upload },
+    { id: "export", label: "Export Data", icon: Download },
   ];
 
   const NavDropdown = ({ label, items, icon: Icon }: any) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           className="gap-1 hover:bg-primary/10 hover:text-primary transition-colors"
         >
           {Icon && <Icon className="w-4 h-4" />}
@@ -96,7 +101,7 @@ export function ModernNavbar({ currentWorld, activeTab, onTabChange, onChangeWor
         <DropdownMenuLabel>{label}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {items.map((item: any) => (
-          <DropdownMenuItem 
+          <DropdownMenuItem
             key={item.id}
             onClick={() => {
               onTabChange(item.id);
@@ -120,9 +125,10 @@ export function ModernNavbar({ currentWorld, activeTab, onTabChange, onChangeWor
       }}
       className={`
         w-full flex items-center gap-3 p-3 rounded-lg transition-all
-        ${activeTab === item.id 
-          ? 'bg-primary text-primary-foreground' 
-          : 'hover:bg-primary/10 hover:text-primary'
+        ${
+          activeTab === item.id
+            ? "bg-primary text-primary-foreground"
+            : "hover:bg-primary/10 hover:text-primary"
         }
       `}
     >
@@ -145,7 +151,7 @@ export function ModernNavbar({ currentWorld, activeTab, onTabChange, onChangeWor
                 Insimul
               </span>
               {currentWorld && (
-                <button 
+                <button
                   onClick={onChangeWorld}
                   className="text-xs text-muted-foreground hover:text-primary transition-colors text-left"
                 >
@@ -156,23 +162,24 @@ export function ModernNavbar({ currentWorld, activeTab, onTabChange, onChangeWor
           </div>
         </div>
 
-        {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-1">
-          <Button
-            variant={activeTab === 'home' ? 'default' : 'ghost'}
-            onClick={() => onTabChange('home')}
-            className="gap-2 hover:bg-primary/10 hover:text-primary"
-          >
-            <Home className="w-4 h-4" />
-            World Home
-          </Button>
+        {/* Desktop Navigation - Only show when world is selected */}
+        {currentWorld && (
+          <nav className="hidden md:flex items-center gap-1">
+            <Button
+              variant={activeTab === "home" ? "default" : "ghost"}
+              onClick={() => onTabChange("home")}
+              className="gap-2 hover:bg-primary/10 hover:text-primary"
+            >
+              <Home className="w-4 h-4" />
+              World Home
+            </Button>
 
-          <NavDropdown label="Content" items={contentItems} icon={FileText} />
-          <NavDropdown label="Truth" items={truthItems} icon={BookOpen} />
-          <NavDropdown label="Play" items={simulationItems} icon={Play} />
-          <NavDropdown label="Browse" items={browseItems} icon={Compass} />
-          <NavDropdown label="Data" items={dataItems} icon={Upload} />
-        </nav>
+            <NavDropdown label="Content" items={contentItems} icon={FileText} />
+            <NavDropdown label="Truth" items={truthItems} icon={BookOpen} />
+            <NavDropdown label="Play" items={simulationItems} icon={Play} />
+            <NavDropdown label="Data" items={dataItems} icon={Upload} />
+          </nav>
+        )}
 
         {/* Auth Section - Desktop */}
         <div className="hidden md:flex items-center gap-2 ml-4">
@@ -182,7 +189,7 @@ export function ModernNavbar({ currentWorld, activeTab, onTabChange, onChangeWor
                 <Button variant="ghost" className="gap-2">
                   <Avatar className="w-6 h-6">
                     <AvatarFallback className="text-xs">
-                      {user?.username?.substring(0, 2).toUpperCase() || 'U'}
+                      {user?.username?.substring(0, 2).toUpperCase() || "U"}
                     </AvatarFallback>
                   </Avatar>
                   <span className="hidden lg:inline">{user?.username}</span>
@@ -192,21 +199,36 @@ export function ModernNavbar({ currentWorld, activeTab, onTabChange, onChangeWor
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
                   <div className="flex flex-col">
-                    <span className="font-semibold">{user?.displayName || user?.username}</span>
-                    <span className="text-xs text-muted-foreground font-normal">{user?.email}</span>
+                    <span className="font-semibold">
+                      {user?.displayName || user?.username}
+                    </span>
+                    <span className="text-xs text-muted-foreground font-normal">
+                      {user?.email}
+                    </span>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onTabChange('my-playthroughs')} className="cursor-pointer">
+                <DropdownMenuItem
+                  onClick={() => onTabChange("my-playthroughs")}
+                  className="cursor-pointer"
+                >
                   <History className="w-4 h-4 mr-2" />
                   My Playthroughs
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onTabChange('browse-worlds')} className="cursor-pointer">
-                  <Compass className="w-4 h-4 mr-2" />
-                  Browse Worlds
-                </DropdownMenuItem>
+                {onOpenAdminPanel && (
+                  <DropdownMenuItem
+                    onClick={onOpenAdminPanel}
+                    className="cursor-pointer"
+                  >
+                    <Database className="w-4 h-4 mr-2" />
+                    Admin Panel
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={logout} className="cursor-pointer text-destructive">
+                <DropdownMenuItem
+                  onClick={logout}
+                  className="cursor-pointer text-destructive"
+                >
                   <LogOut className="w-4 h-4 mr-2" />
                   Log Out
                 </DropdownMenuItem>
@@ -244,8 +266,8 @@ export function ModernNavbar({ currentWorld, activeTab, onTabChange, onChangeWor
                     </div>
                     <span className="font-bold">Insimul</span>
                   </div>
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     size="icon"
                     onClick={() => setMobileMenuOpen(false)}
                   >
@@ -253,20 +275,23 @@ export function ModernNavbar({ currentWorld, activeTab, onTabChange, onChangeWor
                   </Button>
                 </div>
 
-                {/* Current World */}
+                {/* Current World - Only show when world is selected */}
                 {currentWorld && (
                   <div className="pb-4 border-b space-y-2">
-                    <p className="text-sm text-muted-foreground px-3">Current World</p>
+                    <p className="text-sm text-muted-foreground px-3">
+                      Current World
+                    </p>
                     <button
                       onClick={() => {
-                        onTabChange('home');
+                        onTabChange("home");
                         setMobileMenuOpen(false);
                       }}
                       className={`
                         w-full flex items-center gap-3 p-3 rounded-lg transition-all
-                        ${activeTab === 'home' 
-                          ? 'bg-primary text-primary-foreground' 
-                          : 'hover:bg-primary/10 hover:text-primary'
+                        ${
+                          activeTab === "home"
+                            ? "bg-primary text-primary-foreground"
+                            : "hover:bg-primary/10 hover:text-primary"
                         }
                       `}
                     >
@@ -288,55 +313,57 @@ export function ModernNavbar({ currentWorld, activeTab, onTabChange, onChangeWor
                   </div>
                 )}
 
-                {/* Content Section */}
-                <div>
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-2 px-3">CONTENT</h3>
-                  <div className="space-y-1">
-                    {contentItems.map(item => (
-                      <MobileNavItem key={item.id} item={item} />
-                    ))}
-                  </div>
-                </div>
+                {/* Content Section - Only show when world is selected */}
+                {currentWorld && (
+                  <>
+                    <div>
+                      <h3 className="text-sm font-semibold text-muted-foreground mb-2 px-3">
+                        CONTENT
+                      </h3>
+                      <div className="space-y-1">
+                        {contentItems.map((item) => (
+                          <MobileNavItem key={item.id} item={item} />
+                        ))}
+                      </div>
+                    </div>
 
-                {/* Truth Section */}
-                <div>
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-2 px-3">TRUTH</h3>
-                  <div className="space-y-1">
-                    {truthItems.map(item => (
-                      <MobileNavItem key={item.id} item={item} />
-                    ))}
-                  </div>
-                </div>
+                    {/* Truth Section */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-muted-foreground mb-2 px-3">
+                        TRUTH
+                      </h3>
+                      <div className="space-y-1">
+                        {truthItems.map((item) => (
+                          <MobileNavItem key={item.id} item={item} />
+                        ))}
+                      </div>
+                    </div>
 
-                {/* Play Section */}
-                <div>
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-2 px-3">PLAY</h3>
-                  <div className="space-y-1">
-                    {simulationItems.map(item => (
-                      <MobileNavItem key={item.id} item={item} />
-                    ))}
-                  </div>
-                </div>
+                    {/* Play Section */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-muted-foreground mb-2 px-3">
+                        PLAY
+                      </h3>
+                      <div className="space-y-1">
+                        {simulationItems.map((item) => (
+                          <MobileNavItem key={item.id} item={item} />
+                        ))}
+                      </div>
+                    </div>
 
-                {/* Browse Section */}
-                <div>
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-2 px-3">BROWSE</h3>
-                  <div className="space-y-1">
-                    {browseItems.map(item => (
-                      <MobileNavItem key={item.id} item={item} />
-                    ))}
-                  </div>
-                </div>
-
-                {/* Data Section */}
-                <div>
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-2 px-3">DATA</h3>
-                  <div className="space-y-1">
-                    {dataItems.map(item => (
-                      <MobileNavItem key={item.id} item={item} />
-                    ))}
-                  </div>
-                </div>
+                    {/* Data Section */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-muted-foreground mb-2 px-3">
+                        DATA
+                      </h3>
+                      <div className="space-y-1">
+                        {dataItems.map((item) => (
+                          <MobileNavItem key={item.id} item={item} />
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* Auth Section - Mobile */}
                 <div className="pt-4 border-t">
@@ -345,14 +372,32 @@ export function ModernNavbar({ currentWorld, activeTab, onTabChange, onChangeWor
                       <div className="flex items-center gap-3 px-3 py-2">
                         <Avatar className="w-8 h-8">
                           <AvatarFallback className="text-xs">
-                            {user?.username?.substring(0, 2).toUpperCase() || 'U'}
+                            {user?.username?.substring(0, 2).toUpperCase() ||
+                              "U"}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col flex-1">
-                          <span className="font-semibold text-sm">{user?.displayName || user?.username}</span>
-                          <span className="text-xs text-muted-foreground">{user?.email}</span>
+                          <span className="font-semibold text-sm">
+                            {user?.displayName || user?.username}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {user?.email}
+                          </span>
                         </div>
                       </div>
+                      {onOpenAdminPanel && (
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            onOpenAdminPanel();
+                            setMobileMenuOpen(false);
+                          }}
+                          className="w-full justify-start gap-3 px-3"
+                        >
+                          <Database className="w-5 h-5" />
+                          <span className="font-medium">Admin Panel</span>
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         onClick={() => {

@@ -1,9 +1,0 @@
-nbproject
-node_modules
-lib
-src
-tst
-_config.yml
-*.bat
-**/ig_*.*
-

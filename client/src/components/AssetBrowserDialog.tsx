@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Image as ImageIcon, Trash2, Download, Search, Filter, Grid3x3, List, Calendar, Tag, Sparkles, History, CheckCircle2, XCircle, Loader2, Clock, FileArchive, CheckSquare, Square, ArrowUp, Wand2, TrendingUp } from 'lucide-react';
+import { Image as ImageIcon, Trash2, Download, Search, Filter, Grid3x3, List, Calendar, Tag, Sparkles, History, CheckCircle2, XCircle, Loader2, Clock, FileArchive, CheckSquare, Square, ArrowUp, Wand2, TrendingUp, Box, Volume2, Play, Pause } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -21,14 +21,18 @@ import { AssetExportDialog } from './AssetExportDialog';
 import { ImageUpscaleDialog } from './ImageUpscaleDialog';
 import { ImageEnhancementDialog } from './ImageEnhancementDialog';
 import { QualityComparisonDialog } from './QualityComparisonDialog';
+import { ModelPreview } from './ModelPreview';
+import { BulkAssetImportDialog } from './BulkAssetImportDialog';
 
 interface AssetBrowserDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   worldId?: string;
+  collectionId?: string;
   entityType?: 'character' | 'business' | 'settlement' | 'country' | 'state';
   entityId?: string;
   onAssetSelected?: (asset: VisualAsset) => void;
+  modelsOnly?: boolean;
 }
 
 interface GenerationJob {
@@ -51,9 +55,11 @@ export function AssetBrowserDialog({
   open,
   onOpenChange,
   worldId,
+  collectionId,
   entityType,
   entityId,
-  onAssetSelected
+  onAssetSelected,
+  modelsOnly = false
 }: AssetBrowserDialogProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [assetTypeFilter, setAssetTypeFilter] = useState<string>('all');
@@ -68,6 +74,8 @@ export function AssetBrowserDialog({
   const [assetForUpscale, setAssetForUpscale] = useState<VisualAsset | null>(null);
   const [assetForEnhance, setAssetForEnhance] = useState<VisualAsset | null>(null);
   const [comparisonAssets, setComparisonAssets] = useState<{ original: VisualAsset | null; processed: VisualAsset | null }>({ original: null, processed: null });
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const [showBulkImport, setShowBulkImport] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -119,7 +127,66 @@ export function AssetBrowserDialog({
     }
   });
 
-  const filteredAssets = assets.filter(asset => {
+  const isImageAsset = (asset: VisualAsset): boolean => {
+    if (asset.mimeType && asset.mimeType.startsWith('image/')) {
+      return true;
+    }
+    const filePath = asset.filePath?.toLowerCase?.() || '';
+    return filePath.endsWith('.png') || filePath.endsWith('.jpg') || filePath.endsWith('.jpeg') || filePath.endsWith('.webp');
+  };
+
+  const isModelAsset = (asset: VisualAsset): boolean => {
+    const type = asset.assetType || '';
+    if (type.startsWith('model_')) {
+      return true;
+    }
+    const mime = asset.mimeType || '';
+    if (mime === 'model/gltf-binary') {
+      return true;
+    }
+    const filePath = asset.filePath?.toLowerCase?.() || '';
+    return filePath.endsWith('.glb') || filePath.endsWith('.gltf');
+  };
+
+  const isAudioAsset = (asset: VisualAsset): boolean => {
+    const type = asset.assetType || '';
+    if (type.startsWith('audio_')) {
+      return true;
+    }
+    const mime = asset.mimeType || '';
+    if (mime.startsWith('audio/')) {
+      return true;
+    }
+    const filePath = asset.filePath?.toLowerCase?.() || '';
+    return filePath.endsWith('.mp3') || filePath.endsWith('.wav') || filePath.endsWith('.ogg') || filePath.endsWith('.m4a');
+  };
+
+  const handleAudioPlayPause = (e: React.MouseEvent, asset: VisualAsset) => {
+    e.stopPropagation();
+    const audioId = `audio-${asset.id}`;
+    const audioElement = document.getElementById(audioId) as HTMLAudioElement;
+    
+    if (audioElement) {
+      if (playingAudioId === asset.id) {
+        audioElement.pause();
+        setPlayingAudioId(null);
+      } else {
+        // Stop any currently playing audio
+        if (playingAudioId) {
+          const currentAudio = document.getElementById(`audio-${playingAudioId}`) as HTMLAudioElement;
+          if (currentAudio) currentAudio.pause();
+        }
+        audioElement.play();
+        setPlayingAudioId(asset.id);
+        // Reset when audio ends
+        audioElement.onended = () => setPlayingAudioId(null);
+      }
+    }
+  };
+
+  const visibleAssets = assets.filter(asset => !modelsOnly || isModelAsset(asset));
+
+  const filteredAssets = visibleAssets.filter(asset => {
     const matchesSearch = searchTerm === '' ||
       asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       asset.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -130,7 +197,7 @@ export function AssetBrowserDialog({
     return matchesSearch && matchesType;
   });
 
-  const assetTypes = Array.from(new Set(assets.map(a => a.assetType)));
+  const assetTypes = Array.from(new Set(visibleAssets.map(a => a.assetType)));
 
   const handleDownload = (asset: VisualAsset) => {
     const link = document.createElement('a');
@@ -260,6 +327,30 @@ export function AssetBrowserDialog({
                 {viewMode === 'grid' ? <List className="h-4 w-4" /> : <Grid3x3 className="h-4 w-4" />}
               </Button>
             </div>
+            
+            {/* Action Buttons */}
+            <div className="flex gap-2">
+              {worldId && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowBulkImport(true)}
+                >
+                  <ArrowUp className="h-4 w-4 mr-2" />
+                  Bulk Import
+                </Button>
+              )}
+              <Button
+                onClick={() => {
+                  toast({
+                    title: "Generate Coming Soon", 
+                    description: "Use the Generate Assets button on the collection card to create new assets",
+                  });
+                }}
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                Generate Assets
+              </Button>
+            </div>
 
             {/* Stats */}
             <div className="flex gap-4 text-sm text-muted-foreground">
@@ -346,16 +437,43 @@ export function AssetBrowserDialog({
                     >
                       <CardContent className="p-0">
                         <div className="relative aspect-square">
-                          <img
-                            src={`/${asset.filePath}`}
-                            alt={asset.name}
-                            className="w-full h-full object-cover rounded-t-lg"
-                          />
+                          {isImageAsset(asset) ? (
+                            <img
+                              src={`/${asset.filePath}`}
+                              alt={asset.name}
+                              className="w-full h-full object-cover rounded-t-lg"
+                            />
+                          ) : isAudioAsset(asset) ? (
+                            <div className="flex flex-col h-full w-full items-center justify-center rounded-t-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20">
+                              <Volume2 className="h-10 w-10 text-purple-500 mb-2" />
+                              <button
+                                onClick={(e) => handleAudioPlayPause(e, asset)}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500 text-white hover:bg-purple-600 transition-colors"
+                              >
+                                {playingAudioId === asset.id ? (
+                                  <><Pause className="h-4 w-4" /> Pause</>
+                                ) : (
+                                  <><Play className="h-4 w-4" /> Play</>
+                                )}
+                              </button>
+                              <audio id={`audio-${asset.id}`} src={`/${asset.filePath}`} preload="none" />
+                            </div>
+                          ) : isModelAsset(asset) ? (
+                            <ModelPreview
+                              modelPath={asset.filePath}
+                              className="h-full w-full"
+                              showControls={false}
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center rounded-t-lg bg-muted">
+                              <Box className="h-8 w-8 text-muted-foreground mr-2" />
+                              <span className="text-xs text-muted-foreground">Unknown</span>
+                            </div>
+                          )}
                           <div className="absolute top-2 left-2">
                             <Checkbox
                               checked={selectedAssets.has(asset.id)}
-                              onCheckedChange={(e) => {
-                                e.stopPropagation();
+                              onCheckedChange={() => {
                                 toggleAssetSelection(asset.id);
                               }}
                               onClick={(e) => e.stopPropagation()}
@@ -394,17 +512,43 @@ export function AssetBrowserDialog({
                       <CardContent className="p-4 flex items-center gap-4">
                         <Checkbox
                           checked={selectedAssets.has(asset.id)}
-                          onCheckedChange={(e) => {
-                            e.stopPropagation();
+                          onCheckedChange={() => {
                             toggleAssetSelection(asset.id);
                           }}
                           onClick={(e) => e.stopPropagation()}
                         />
-                        <img
-                          src={`/${asset.filePath}`}
-                          alt={asset.name}
-                          className="w-20 h-20 object-cover rounded"
-                        />
+                        {isImageAsset(asset) ? (
+                          <img
+                            src={`/${asset.filePath}`}
+                            alt={asset.name}
+                            className="w-20 h-20 object-cover rounded"
+                          />
+                        ) : isAudioAsset(asset) ? (
+                          <div className="flex h-20 w-20 items-center justify-center rounded bg-gradient-to-br from-purple-500/20 to-pink-500/20 relative">
+                            <Volume2 className="h-6 w-6 text-purple-500" />
+                            <button
+                              onClick={(e) => handleAudioPlayPause(e, asset)}
+                              className="absolute bottom-1 right-1 p-1 rounded-full bg-purple-500 text-white hover:bg-purple-600"
+                            >
+                              {playingAudioId === asset.id ? (
+                                <Pause className="h-3 w-3" />
+                              ) : (
+                                <Play className="h-3 w-3" />
+                              )}
+                            </button>
+                            <audio id={`audio-${asset.id}`} src={`/${asset.filePath}`} preload="none" />
+                          </div>
+                        ) : isModelAsset(asset) ? (
+                          <ModelPreview
+                            modelPath={asset.filePath}
+                            className="h-20 w-20 rounded"
+                            showControls={false}
+                          />
+                        ) : (
+                          <div className="flex h-20 w-20 items-center justify-center rounded bg-muted">
+                            <Box className="h-6 w-6 text-muted-foreground" />
+                          </div>
+                        )}
                         <div className="flex-1 space-y-1">
                           <p className="font-medium">{asset.name}</p>
                           {asset.description && (
@@ -547,11 +691,18 @@ export function AssetBrowserDialog({
 
               <div className="space-y-4">
                 <div className="relative">
-                  <img
-                    src={`/${selectedAsset.filePath}`}
-                    alt={selectedAsset.name}
-                    className="w-full rounded-lg border"
-                  />
+                  {isImageAsset(selectedAsset) ? (
+                    <img
+                      src={`/${selectedAsset.filePath}`}
+                      alt={selectedAsset.name}
+                      className="w-full rounded-lg border"
+                    />
+                  ) : (
+                    <div className="flex h-64 items-center justify-center rounded-lg border bg-muted">
+                      <Box className="h-10 w-10 text-muted-foreground mr-2" />
+                      <span className="text-sm text-muted-foreground">3D model asset</span>
+                    </div>
+                  )}
                 </div>
 
                 <Tabs defaultValue="details">
@@ -587,6 +738,10 @@ export function AssetBrowserDialog({
                       <div>
                         <p className="text-muted-foreground">Context</p>
                         <p className="font-medium">{selectedAsset.usageContext || 'N/A'}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-muted-foreground">File Path</p>
+                        <p className="font-mono text-xs break-all">{selectedAsset.filePath}</p>
                       </div>
                     </div>
 
@@ -642,54 +797,56 @@ export function AssetBrowserDialog({
 
                 <div className="space-y-3">
                   {/* Quality Tools */}
-                  <Card>
-                    <CardContent className="pt-4">
-                      <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                        <Sparkles className="h-4 w-4" />
-                        Quality Tools
-                      </h4>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setAssetForUpscale(selectedAsset);
-                            setShowUpscaleDialog(true);
-                          }}
-                        >
-                          <ArrowUp className="h-4 w-4 mr-2" />
-                          Upscale
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setAssetForEnhance(selectedAsset);
-                            setShowEnhanceDialog(true);
-                          }}
-                        >
-                          <Wand2 className="h-4 w-4 mr-2" />
-                          Enhance
-                        </Button>
-                        {selectedAsset.parentAssetId && (
+                  {isImageAsset(selectedAsset) && (
+                    <Card>
+                      <CardContent className="pt-4">
+                        <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                          <Sparkles className="h-4 w-4" />
+                          Quality Tools
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={async () => {
-                              const parentAsset = assets.find(a => a.id === selectedAsset.parentAssetId);
-                              if (parentAsset) {
-                                setComparisonAssets({ original: parentAsset, processed: selectedAsset });
-                                setShowComparisonDialog(true);
-                              }
+                            onClick={() => {
+                              setAssetForUpscale(selectedAsset);
+                              setShowUpscaleDialog(true);
                             }}
                           >
-                            <TrendingUp className="h-4 w-4 mr-2" />
-                            Compare
+                            <ArrowUp className="h-4 w-4 mr-2" />
+                            Upscale
                           </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setAssetForEnhance(selectedAsset);
+                              setShowEnhanceDialog(true);
+                            }}
+                          >
+                            <Wand2 className="h-4 w-4 mr-2" />
+                            Enhance
+                          </Button>
+                          {selectedAsset.parentAssetId && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={async () => {
+                                const parentAsset = assets.find(a => a.id === selectedAsset.parentAssetId);
+                                if (parentAsset) {
+                                  setComparisonAssets({ original: parentAsset, processed: selectedAsset });
+                                  setShowComparisonDialog(true);
+                                }
+                              }}
+                            >
+                              <TrendingUp className="h-4 w-4 mr-2" />
+                              Compare
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
 
                   {/* Actions */}
                   <div className="flex gap-2 justify-end">
@@ -786,6 +943,16 @@ export function AssetBrowserDialog({
           onOpenChange={setShowComparisonDialog}
           originalAsset={comparisonAssets.original}
           processedAsset={comparisonAssets.processed}
+        />
+      )}
+
+      {/* Bulk Asset Import Dialog */}
+      {worldId && (
+        <BulkAssetImportDialog
+          open={showBulkImport}
+          onOpenChange={setShowBulkImport}
+          worldId={worldId}
+          collectionId={collectionId}
         />
       )}
     </>
