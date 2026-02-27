@@ -118,8 +118,8 @@ export function CountryDetailView({
   return (
     <div className="space-y-6">
       {/* Country Info Card */}
-      <Card className="border-2 border-primary/20 shadow-lg">
-        <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent">
+      <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-lg shadow-primary/5 rounded-xl">
+        <CardHeader className="bg-gradient-to-r from-primary/5 via-primary/5 to-transparent rounded-t-xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-primary/10 rounded-lg">
@@ -237,7 +237,7 @@ export function CountryDetailView({
           {states.map((state) => (
             <Card
               key={state.id}
-              className="cursor-pointer hover:border-primary hover:shadow-md transition-all"
+              className="cursor-pointer bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 rounded-xl"
               onClick={() => onSelectState(state)}
             >
               <CardContent className="pt-4">
@@ -316,7 +316,7 @@ export function CountryDetailView({
           {settlements.map((settlement) => (
             <Card
               key={settlement.id}
-              className="cursor-pointer hover:border-primary hover:shadow-md transition-all"
+              className="cursor-pointer bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 rounded-xl"
               onClick={() => onSelectSettlement(settlement)}
             >
               <CardHeader>

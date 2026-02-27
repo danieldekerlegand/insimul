@@ -32,7 +32,7 @@ export function SettlementsListView({ settlements, onSelectSettlement }: Settlem
           {settlements.map((settlement) => (
             <Card
               key={settlement.id}
-              className="cursor-pointer hover:border-primary hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
+              className="cursor-pointer bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 rounded-xl"
               onClick={() => onSelectSettlement(settlement)}
             >
               <CardHeader>
@@ -57,7 +57,7 @@ export function SettlementsListView({ settlements, onSelectSettlement }: Settlem
           ))}
 
           {settlements.length === 0 && (
-            <Card className="border-dashed">
+            <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
               <CardContent className="pt-12 pb-12">
                 <div className="text-center space-y-3">
                   <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">

@@ -7,15 +7,9 @@
 import { Scene } from '@babylonjs/core';
 import * as GUI from '@babylonjs/gui';
 
-export interface InventoryItem {
-  id: string;
-  name: string;
-  description?: string;
-  type: 'quest' | 'collectible' | 'key' | 'consumable';
-  quantity: number;
-  icon?: string;
-  questId?: string; // If this item is for a specific quest
-}
+// Re-export engine-agnostic type from shared game-engine
+export type { InventoryItem } from '@shared/game-engine/types';
+import type { InventoryItem } from '@shared/game-engine/types';
 
 export class BabylonInventory {
   private scene: Scene;

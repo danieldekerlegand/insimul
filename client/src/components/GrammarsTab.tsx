@@ -3,16 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Plus, 
-  Search, 
-  Edit, 
-  Trash2, 
-  PlayCircle, 
+import {
+  Plus,
+  Search,
+  Edit,
+  Trash2,
+  PlayCircle,
   FileText,
-  Tag,
-  Calendar,
   BookOpen
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -242,20 +239,26 @@ export function GrammarsTab({ worldId }: GrammarsTabProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Tracery Grammars</h2>
-          <p className="text-muted-foreground">
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            Tracery Grammars ({grammars.length})
+          </h2>
+          <p className="text-muted-foreground mt-1">
             Create and manage procedural text generation templates
+            {grammars.length > 0 && (
+              <span className="ml-2 text-xs">
+                {grammars.filter((g) => g.isActive).length} active · {new Set(grammars.flatMap((g) => g.tags)).size} tags
+              </span>
+            )}
           </p>
         </div>
         <div className="flex gap-2">
-          <GenerateGrammarDialog 
+          <GenerateGrammarDialog
             worldId={worldId}
             onGenerated={(generated) => {
-              // Create the grammar with generated data
               handleSaveGrammar({
                 name: generated.name,
                 description: generated.description,
@@ -269,7 +272,7 @@ export function GrammarsTab({ worldId }: GrammarsTabProps) {
             <FileText className="h-4 w-4" />
             Name Pattern
           </Button>
-          <Button onClick={handleCreateGrammar} className="gap-2">
+          <Button onClick={handleCreateGrammar} className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 gap-2">
             <Plus className="h-4 w-4" />
             Create Manual
           </Button>
@@ -284,51 +287,14 @@ export function GrammarsTab({ worldId }: GrammarsTabProps) {
             placeholder="Search grammars by name, description, or tags..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="pl-10 bg-white/60 dark:bg-white/5 backdrop-blur-xl border-white/20 dark:border-white/10"
           />
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Grammars</CardTitle>
-            <BookOpen className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{grammars.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active</CardTitle>
-            <PlayCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {grammars.filter((g) => g.isActive).length}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Unique Tags</CardTitle>
-            <Tag className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {new Set(grammars.flatMap((g) => g.tags)).size}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Grammars List */}
       {loading ? (
-        <Card>
+        <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
           <CardContent className="flex items-center justify-center py-12">
             <div className="text-center">
               <p className="text-muted-foreground">Loading grammars...</p>
@@ -336,7 +302,7 @@ export function GrammarsTab({ worldId }: GrammarsTabProps) {
           </CardContent>
         </Card>
       ) : filteredGrammars.length === 0 ? (
-        <Card>
+        <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
           <CardContent className="flex items-center justify-center py-12">
             <div className="text-center">
               <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
@@ -360,12 +326,14 @@ export function GrammarsTab({ worldId }: GrammarsTabProps) {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredGrammars.map((grammar) => (
-            <Card key={grammar.id} className="hover:shadow-lg transition-shadow">
+            <Card key={grammar.id} className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 rounded-xl border-l-4 border-l-emerald-500">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <CardTitle className="flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
+                      <div className="p-1.5 bg-emerald-500/10 rounded-lg">
+                        <FileText className="h-4 w-4 text-emerald-500" />
+                      </div>
                       {grammar.name}
                     </CardTitle>
                     <CardDescription className="mt-2">

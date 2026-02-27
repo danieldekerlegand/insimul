@@ -47,6 +47,9 @@ export interface GenreConfig {
   questTypes: string[];  // IDs of quest type definitions to use
   difficultyLevels: string[];
   
+  // Default world type for asset collection selection
+  defaultWorldType?: string;
+  
   // Default settings
   defaultPlayerSpeed: number;
   defaultJumpHeight: number;

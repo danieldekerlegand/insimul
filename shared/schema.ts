@@ -1312,6 +1312,8 @@ export const assetCollections = pgTable("asset_collections", {
   objectModels: jsonb("object_models").$type<Record<string, string>>().default({}),
   groundTextureId: varchar("ground_texture_id"),
   roadTextureId: varchar("road_texture_id"),
+  wallTextureId: varchar("wall_texture_id"),
+  roofTextureId: varchar("roof_texture_id"),
   
   // Player and quest models
   playerModels: jsonb("player_models").$type<Record<string, string>>().default({}),
@@ -1319,6 +1321,39 @@ export const assetCollections = pgTable("asset_collections", {
   
   // Audio assets
   audioAssets: jsonb("audio_assets").$type<Record<string, string>>().default({}),
+
+  // Per-engine asset overrides (Phase 2 — Asset Pipeline)
+  // When exporting to a native engine, these override the default Babylon.js assets
+  unrealAssets: jsonb("unreal_assets").$type<{
+    buildingModels?: Record<string, string>;
+    natureModels?: Record<string, string>;
+    characterModels?: Record<string, string>;
+    objectModels?: Record<string, string>;
+    playerModels?: Record<string, string>;
+    textures?: Record<string, string>;
+    materials?: Record<string, string>;
+    audio?: Record<string, string>;
+  }>().default({}),
+  unityAssets: jsonb("unity_assets").$type<{
+    buildingPrefabs?: Record<string, string>;
+    naturePrefabs?: Record<string, string>;
+    characterPrefabs?: Record<string, string>;
+    objectPrefabs?: Record<string, string>;
+    playerPrefabs?: Record<string, string>;
+    textures?: Record<string, string>;
+    materials?: Record<string, string>;
+    audio?: Record<string, string>;
+  }>().default({}),
+  godotAssets: jsonb("godot_assets").$type<{
+    buildingScenes?: Record<string, string>;
+    natureScenes?: Record<string, string>;
+    characterScenes?: Record<string, string>;
+    objectScenes?: Record<string, string>;
+    playerScenes?: Record<string, string>;
+    textures?: Record<string, string>;
+    materials?: Record<string, string>;
+    audio?: Record<string, string>;
+  }>().default({}),
 
   // Collection metadata
   purpose: text("purpose"), // "Complete medieval fantasy asset pack", "Cyberpunk building set", etc.
@@ -1410,9 +1445,14 @@ export const insertAssetCollectionSchema = createInsertSchema(assetCollections).
   objectModels: true,
   groundTextureId: true,
   roadTextureId: true,
+  wallTextureId: true,
+  roofTextureId: true,
   playerModels: true,
   questObjectModels: true,
   audioAssets: true,
+  unrealAssets: true,
+  unityAssets: true,
+  godotAssets: true,
   purpose: true,
   tags: true,
   createdBy: true,

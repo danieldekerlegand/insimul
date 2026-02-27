@@ -7,6 +7,43 @@
 
 import { storage } from '../db/storage.js';
 import type { AssetCollection, World } from '@shared/schema';
+import { getTemplateForWorldType, type CollectionTemplate } from './asset-collection-templates.js';
+import { getGenreConfig } from '@shared/game-genres/index';
+
+/**
+ * Build config3D-compatible model maps from a CollectionTemplate.
+ * This pre-populates the collection with slot keys from template assets
+ * so the collection isn't completely empty when first created.
+ * Note: Values are polyhavenId strings — these act as placeholder references
+ * that will be resolved to actual asset IDs when Polyhaven assets are downloaded.
+ */
+function buildConfig3DFromTemplate(template: CollectionTemplate): {
+  objectModels: Record<string, string>;
+  natureModels: Record<string, string>;
+} {
+  const objectModels: Record<string, string> = {};
+  const natureModels: Record<string, string> = {};
+
+  for (const asset of template.assets) {
+    if (asset.slotCategory === 'objectModels' || asset.slotCategory === 'questObjectModels') {
+      objectModels[asset.slotKey] = asset.polyhavenId;
+    } else if (asset.slotCategory === 'natureModels') {
+      natureModels[asset.slotKey] = asset.polyhavenId;
+    }
+  }
+
+  return { objectModels, natureModels };
+}
+
+/**
+ * Resolve a world type from a game type using genre default mappings.
+ * Falls back to 'generic' if no mapping exists.
+ */
+export function resolveWorldTypeFromGameType(gameType: string | null | undefined): string {
+  if (!gameType) return 'generic';
+  const genre = getGenreConfig(gameType);
+  return genre?.defaultWorldType || 'generic';
+}
 
 /**
  * Get or create a default asset collection for a given world type
@@ -41,14 +78,19 @@ export async function getOrCreateDefaultCollectionForWorldType(
 
     'sci-fi-space': 'Sci-Fi City',
     'cyberpunk': 'Sci-Fi City',
-    'post-apocalyptic': 'Sci-Fi City',
     'solarpunk': 'Sci-Fi City',
     'dieselpunk': 'Sci-Fi City',
 
+    'post-apocalyptic': 'Post-Apocalyptic',
+    'steampunk': 'Steampunk',
+    'western-frontier': 'Western Frontier',
+    'wild-west': 'Western Frontier',
+    'tropical-pirate': 'Tropical Pirate',
+
+    'historical': 'Historical',
     'historical-ancient': 'Historical',
     'historical-renaissance': 'Historical',
     'historical-victorian': 'Historical',
-    'wild-west': 'Historical',
 
     'generic': 'Generic Default',
   };
@@ -66,8 +108,12 @@ export async function getOrCreateDefaultCollectionForWorldType(
     return existing;
   }
 
-  // Create the default collection (empty, will be populated manually)
+  // Create a new collection, pre-populated from templates if available
   console.log(`Creating default asset collection: ${collectionName} for world type: ${normalizedType}`);
+
+  // Try to pre-populate from template
+  const template = getTemplateForWorldType(normalizedType);
+  const prePopulated = template ? buildConfig3DFromTemplate(template) : { objectModels: {}, natureModels: {} };
 
   const collection = await storage.createAssetCollection({
     name: collectionName,
@@ -78,10 +124,14 @@ export async function getOrCreateDefaultCollectionForWorldType(
     isBase: false,
     tags: ['default', normalizedType],
     buildingModels: {},
-    natureModels: {},
+    natureModels: prePopulated.natureModels || {},
     characterModels: {},
-    objectModels: {},
+    objectModels: prePopulated.objectModels || {},
   });
+
+  if (template) {
+    console.log(`Pre-populated collection "${collectionName}" with ${template.assets.length} asset slots from template "${template.name}"`);
+  }
 
   return collection;
 }
@@ -159,9 +209,15 @@ export async function ensureWorldHasAssetCollection(worldId: string): Promise<st
     console.warn(`World ${worldId} had collection ${existingCollectionId} but it no longer exists`);
   }
   
-  // Get world type from config
+  // Get world type from config, falling back to game type default
   const config = (world as any).config || {};
-  const worldType = config.worldType;
+  let worldType = config.worldType;
+  
+  // If no explicit worldType, infer from gameType via genre defaults
+  if (!worldType && config.gameType) {
+    worldType = resolveWorldTypeFromGameType(config.gameType);
+    console.log(`Inferred worldType "${worldType}" from gameType "${config.gameType}"`);
+  }
   
   // Get or create appropriate default collection
   let collection: AssetCollection;

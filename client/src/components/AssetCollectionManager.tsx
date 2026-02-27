@@ -18,6 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { VisualAssetGeneratorDialog } from "./VisualAssetGeneratorDialog";
 import { AssetBrowserDialog } from "./AssetBrowserDialog";
 import { PolyhavenBrowserDialog } from "./PolyhavenBrowserDialog";
+import { SketchfabBrowserDialog } from "./SketchfabBrowserDialog";
 import type { AssetCollection, VisualAsset } from "@shared/schema";
 
 interface AssetCollectionManagerProps {
@@ -66,6 +67,7 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
   const [showAssetBrowser, setShowAssetBrowser] = useState(false);
   const [showAllAssetsBrowser, setShowAllAssetsBrowser] = useState(false);
   const [showPolyhavenBrowser, setShowPolyhavenBrowser] = useState(false);
+  const [showSketchfabBrowser, setShowSketchfabBrowser] = useState(false);
   const [showModelBrowser, setShowModelBrowser] = useState(false);
   const [modelBrowserContext, setModelBrowserContext] = useState<{
     group: 'texture' | 'building' | 'nature' | 'character' | 'object';
@@ -122,7 +124,7 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
       const assetIds = selectedCollection.assetIds || [];
       if (assetIds.length === 0) return [];
       
-      const response = await fetch(`/api/visual-assets?ids=${assetIds.join(',')}`);
+      const response = await fetch(`/api/assets?ids=${assetIds.join(',')}`);
       if (!response.ok) throw new Error('Failed to fetch assets');
       return response.json();
     },
@@ -346,8 +348,10 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Asset Collections</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            Asset Collections ({collections.length})
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
             Manage global asset collections that can be assigned to worlds
           </p>
         </div>
@@ -360,7 +364,7 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
-          <Button onClick={() => setShowCreateDialog(true)}>
+          <Button onClick={() => setShowCreateDialog(true)} className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70">
             <Plus className="w-4 h-4 mr-2" />
             New Collection
           </Button>
@@ -368,13 +372,13 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
       </div>
 
       {isLoading ? (
-        <Card>
+        <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
           <CardContent className="py-8 text-center text-muted-foreground">
             Loading collections...
           </CardContent>
         </Card>
       ) : collections.length === 0 ? (
-        <Card className="border-dashed">
+        <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
           <CardContent className="py-12 text-center">
             <Package className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
             <p className="font-medium mb-1">No asset collections yet</p>
@@ -398,7 +402,7 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
             return (
               <Card
                 key={collection.id}
-                className={`hover:shadow-lg transition-shadow ${isBaseCollection ? 'border-blue-500 border-2' : ''}`}
+                className={`bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 rounded-xl ${isBaseCollection ? 'border-blue-500 border-2' : ''}`}
               >
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -521,6 +525,19 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
                           >
                             <Package className="w-4 h-4 mr-2" />
                             Add from Polyhaven
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full justify-start"
+                            onClick={() => {
+                              setSelectedCollection(collection);
+                              setShowSketchfabBrowser(true);
+                            }}
+                          >
+                            <Package className="w-4 h-4 mr-2" />
+                            Add from Sketchfab
                           </Button>
 
                           <DropdownMenu>
@@ -767,7 +784,7 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
           </DialogHeader>
 
           <Tabs defaultValue="details" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-3 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-xl p-1 h-auto">
               <TabsTrigger value="details">Details</TabsTrigger>
               <TabsTrigger value="3d-config">3D Assets</TabsTrigger>
               <TabsTrigger value="assets">
@@ -862,7 +879,7 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
             </TabsContent>
 
             <TabsContent value="3d-config" className="space-y-4 mt-4">
-              <Card>
+              <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
                 <CardHeader>
                   <CardTitle className="text-base">Terrain & Textures</CardTitle>
                   <CardDescription>
@@ -914,7 +931,7 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
                 <CardHeader>
                   <CardTitle className="text-base">Building Models</CardTitle>
                   <CardDescription>
@@ -928,7 +945,7 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <User className="w-4 h-4" />
@@ -979,7 +996,7 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Users className="w-4 h-4" />
@@ -1030,7 +1047,7 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Swords className="w-4 h-4" />
@@ -1081,7 +1098,7 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Trees className="w-4 h-4" />
@@ -1151,7 +1168,7 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
               </div>
 
               {collectionAssets.length === 0 ? (
-                <Card className="border-dashed">
+                <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
                   <CardContent className="py-8 text-center text-muted-foreground">
                     <ImageIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
                     <p>No assets in this collection yet</p>
@@ -1261,6 +1278,26 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
               description: `Added ${assetIds.length} assets to the collection`,
             });
             // TODO: Actually add the assets to the collection
+          }}
+        />
+      )}
+
+      {/* Sketchfab Browser Dialog */}
+      {selectedCollection && (
+        <SketchfabBrowserDialog
+          open={showSketchfabBrowser}
+          onOpenChange={(open) => {
+            setShowSketchfabBrowser(open);
+            if (!open) setSelectedCollection(null);
+          }}
+          collectionId={selectedCollection.id}
+          collectionType={selectedCollection.collectionType}
+          worldType={selectedCollection.worldType || 'generic'}
+          onAssetsSelected={(assets) => {
+            toast({
+              title: 'Sketchfab Models Selected',
+              description: `Selected ${assets.length} model${assets.length !== 1 ? 's' : ''} for import`,
+            });
           }}
         />
       )}

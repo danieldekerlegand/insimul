@@ -6,6 +6,7 @@
  */
 
 import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3, Animation, ActionManager, ExecuteCodeAction } from '@babylonjs/core';
+import { createDebugLabel } from './DebugLabelUtils';
 import * as GUI from '@babylonjs/gui';
 
 // Quest objective types that can be spawned/tracked in the world
@@ -135,6 +136,26 @@ export class QuestObjectManager {
     mesh.setEnabled(false);
     this.questModelTemplates.set(role, mesh);
     console.log(`[QuestObjectManager] Registered quest model template for role: ${role}`);
+  }
+
+  /**
+   * Hide all template prototype meshes after world generation.
+   * Moves them off-screen so disabled PBR templates don't render as artifacts.
+   */
+  public hidePrototypes(): void {
+    this.questModelTemplates.forEach((mesh) => {
+      if (mesh && !mesh.isDisposed()) {
+        mesh.position.y = -10000;
+        mesh.setEnabled(false);
+        mesh.isVisible = false;
+        mesh.isPickable = false;
+        mesh.getChildMeshes().forEach((c) => {
+          c.setEnabled(false);
+          c.isVisible = false;
+          c.isPickable = false;
+        });
+      }
+    });
   }
 
   /**
@@ -326,9 +347,20 @@ export class QuestObjectManager {
       let item: Mesh;
 
       if (collectibleTemplate) {
-        // Clone the template
-        item = collectibleTemplate.clone(`quest_item_${itemId}`) as Mesh;
-        item.setEnabled(true);
+        // Clone the template (hierarchy-aware for glTF models)
+        if (collectibleTemplate.getTotalVertices() === 0 && collectibleTemplate.getChildMeshes().length > 0) {
+          const root = collectibleTemplate.instantiateHierarchy(
+            null,
+            undefined,
+            (source, clone) => { clone.name = `${source.name}_quest_${itemId}`; }
+          );
+          item = (root as Mesh) || MeshBuilder.CreateSphere(`quest_item_${itemId}`, { diameter: 0.8, segments: 16 }, this.scene);
+          item.setEnabled(true);
+          item.getChildMeshes().forEach(m => m.setEnabled(true));
+        } else {
+          item = collectibleTemplate.clone(`quest_item_${itemId}`) as Mesh;
+          item.setEnabled(true);
+        }
         item.position = position;
         console.log(`[QuestObjectManager] Using collectible model from asset collection`);
       } else {
@@ -339,6 +371,7 @@ export class QuestObjectManager {
           this.scene
         );
         item.position = position;
+        createDebugLabel(this.scene, item, 'QUEST ITEM (collectible)', 2);
       }
 
       // Create material with quest color (golden yellow)
@@ -443,9 +476,20 @@ export class QuestObjectManager {
     let beacon: Mesh;
 
     if (markerTemplate) {
-      // Clone the template
-      beacon = markerTemplate.clone(`quest_location_${markerId}`) as Mesh;
-      beacon.setEnabled(true);
+      // Clone the template (hierarchy-aware for glTF models)
+      if (markerTemplate.getTotalVertices() === 0 && markerTemplate.getChildMeshes().length > 0) {
+        const root = markerTemplate.instantiateHierarchy(
+          null,
+          undefined,
+          (source, clone) => { clone.name = `${source.name}_quest_loc_${markerId}`; }
+        );
+        beacon = (root as Mesh) || MeshBuilder.CreateCylinder(`quest_location_${markerId}`, { height: 10, diameter: 2, tessellation: 24 }, this.scene);
+        beacon.setEnabled(true);
+        beacon.getChildMeshes().forEach(m => m.setEnabled(true));
+      } else {
+        beacon = markerTemplate.clone(`quest_location_${markerId}`) as Mesh;
+        beacon.setEnabled(true);
+      }
       beacon.position = objective.locationPosition.clone();
       beacon.position.y += 5; // Raise it up
       console.log(`[QuestObjectManager] Using location marker model from asset collection`);
@@ -458,6 +502,7 @@ export class QuestObjectManager {
       );
       beacon.position = objective.locationPosition.clone();
       beacon.position.y += 5; // Raise it up
+      createDebugLabel(this.scene, beacon, 'QUEST LOCATION (marker)', 12);
     }
 
     // Create glowing material

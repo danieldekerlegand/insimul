@@ -8,78 +8,21 @@
 
 import { Scene, Vector3, Mesh, MeshBuilder, StandardMaterial, Color3 } from '@babylonjs/core';
 
-export type RoomType = 'start' | 'normal' | 'treasure' | 'shop' | 'boss' | 'secret' | 'rest';
-export type TileType = 'floor' | 'wall' | 'door' | 'stairs_up' | 'stairs_down' | 'trap' | 'chest' | 'empty';
-
-export interface DungeonConfig {
-  floorNumber: number;
-  minRooms: number;
-  maxRooms: number;
-  minRoomSize: number;    // grid units
-  maxRoomSize: number;
-  corridorWidth: number;
-  tileSize: number;       // world units per tile
-  hasBoss: boolean;
-  enemyDensity: number;   // 0-1, chance per room tile
-  lootDensity: number;    // 0-1
-  trapDensity: number;    // 0-1
-}
-
-export interface Room {
-  id: number;
-  type: RoomType;
-  x: number;              // grid position (top-left corner)
-  z: number;
-  width: number;          // grid units
-  depth: number;
-  centerX: number;
-  centerZ: number;
-  connections: number[];  // IDs of connected rooms
-  enemies: EnemySpawn[];
-  loot: LootSpawn[];
-  traps: TrapSpawn[];
-  cleared: boolean;
-  discovered: boolean;
-}
-
-export interface EnemySpawn {
-  x: number;
-  z: number;
-  type: string;
-  difficulty: number;
-}
-
-export interface LootSpawn {
-  x: number;
-  z: number;
-  rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
-  collected: boolean;
-}
-
-export interface TrapSpawn {
-  x: number;
-  z: number;
-  type: 'spike' | 'fire' | 'poison' | 'arrow';
-  damage: number;
-  triggered: boolean;
-}
-
-export interface Corridor {
-  fromRoom: number;
-  toRoom: number;
-  tiles: { x: number; z: number }[];
-}
-
-export interface DungeonFloor {
-  config: DungeonConfig;
-  rooms: Room[];
-  corridors: Corridor[];
-  grid: TileType[][];
-  gridWidth: number;
-  gridHeight: number;
-  startRoom: number;      // room ID
-  bossRoom: number | null;
-}
+// Re-export engine-agnostic types from shared game-engine
+export type {
+  RoomType, TileType, DungeonConfig, EnemySpawn, LootSpawn, TrapSpawn,
+  LootRarity, TrapType,
+} from '@shared/game-engine/types';
+export type {
+  DungeonRoom as Room,
+  DungeonCorridor as Corridor,
+  DungeonFloorData as DungeonFloor,
+} from '@shared/game-engine/types';
+import type {
+  DungeonConfig, DungeonRoom as Room, DungeonCorridor as Corridor,
+  DungeonFloorData as DungeonFloor, TileType, RoomType,
+  EnemySpawn, LootSpawn, TrapSpawn,
+} from '@shared/game-engine/types';
 
 const DEFAULT_CONFIG: DungeonConfig = {
   floorNumber: 1,

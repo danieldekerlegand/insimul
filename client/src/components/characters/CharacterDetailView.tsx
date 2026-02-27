@@ -82,8 +82,8 @@ export function CharacterDetailView({
   return (
     <div className="space-y-6">
       {/* Character Info Card with Portrait */}
-      <Card className="border-2 border-primary/20 shadow-lg">
-        <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent">
+      <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-lg shadow-primary/5 rounded-xl">
+        <CardHeader className="bg-gradient-to-r from-primary/5 via-primary/5 to-transparent rounded-t-xl">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-4 flex-1">
               {/* Portrait Display */}
@@ -189,7 +189,7 @@ export function CharacterDetailView({
 
       {/* Visual Assets Section */}
       {(portrait || fullBody || sprites.length > 0 || textures.length > 0) && (
-        <Card>
+        <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -269,7 +269,7 @@ export function CharacterDetailView({
                 {sprites.length > 0 ? (
                   <div className="grid md:grid-cols-2 gap-4">
                     {sprites.map((sprite) => (
-                      <Card key={sprite.id}>
+                      <Card key={sprite.id} className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
                         <CardHeader className="pb-3">
                           <CardTitle className="text-sm">{sprite.name}</CardTitle>
                           <CardDescription className="text-xs">
@@ -306,7 +306,7 @@ export function CharacterDetailView({
                 {textures.length > 0 ? (
                   <div className="grid md:grid-cols-3 gap-4">
                     {textures.map((texture) => (
-                      <Card key={texture.id}>
+                      <Card key={texture.id} className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
                         <CardHeader className="pb-3">
                           <CardTitle className="text-sm">{texture.name}</CardTitle>
                           <CardDescription className="text-xs">
@@ -337,7 +337,7 @@ export function CharacterDetailView({
 
       {/* Personality & Traits */}
       {character.personality && Object.keys(character.personality).length > 0 && (
-        <Card>
+        <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Brain className="w-5 h-5 text-primary" />
@@ -359,7 +359,7 @@ export function CharacterDetailView({
 
       {/* Physical Traits */}
       {character.physicalTraits && Object.keys(character.physicalTraits).length > 0 && (
-        <Card>
+        <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Activity className="w-5 h-5 text-primary" />
@@ -381,7 +381,7 @@ export function CharacterDetailView({
 
       {/* Skills */}
       {character.skills && Object.keys(character.skills).length > 0 && (
-        <Card>
+        <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Briefcase className="w-5 h-5 text-primary" />
@@ -405,7 +405,7 @@ export function CharacterDetailView({
 
       {/* Relationships */}
       {character.relationships && Object.keys(character.relationships).length > 0 && (
-        <Card>
+        <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Heart className="w-5 h-5 text-primary" />
@@ -419,7 +419,7 @@ export function CharacterDetailView({
                 return (
                   <Card
                     key={characterId}
-                    className="cursor-pointer hover:border-primary transition-all"
+                    className="cursor-pointer bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-sm transition-all rounded-lg"
                     onClick={() => {
                       if (relatedCharacter) onViewCharacter(relatedCharacter);
                     }}
@@ -448,7 +448,7 @@ export function CharacterDetailView({
       {/* Family */}
       {((character.parentIds && character.parentIds.length > 0) ||
         (character.childIds && character.childIds.length > 0)) && (
-        <Card>
+        <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5 text-primary" />
@@ -465,7 +465,7 @@ export function CharacterDetailView({
                     return parent ? (
                       <Card
                         key={parentId}
-                        className="cursor-pointer hover:border-primary transition-all"
+                        className="cursor-pointer bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-sm transition-all rounded-lg"
                         onClick={() => onViewCharacter(parent)}
                       >
                         <CardHeader className="py-2">
@@ -490,7 +490,7 @@ export function CharacterDetailView({
                     return child ? (
                       <Card
                         key={childId}
-                        className="cursor-pointer hover:border-primary transition-all"
+                        className="cursor-pointer bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-sm transition-all rounded-lg"
                         onClick={() => onViewCharacter(child)}
                       >
                         <CardHeader className="py-2">

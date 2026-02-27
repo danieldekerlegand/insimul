@@ -12,6 +12,7 @@ import { PrologKnowledgeBase } from '@/components/PrologKnowledgeBase';
 import { GrammarsTab } from '@/components/GrammarsTab';
 import { LanguagesTab } from '@/components/LanguagesTab';
 import { ExportDialog } from '@/components/ExportDialog';
+import { EngineExportDialog } from '@/components/EngineExportDialog';
 import { ImportDialog } from '@/components/ImportDialog';
 import { SimulationCreateDialog } from '@/components/SimulationCreateDialog';
 import { SimulationConfigDialog } from '@/components/SimulationConfigDialog';
@@ -45,11 +46,12 @@ interface Simulation {
   results?: any;
 }
 
-export default function ModernEditor() {
+export default function Home() {
   const [selectedWorld, setSelectedWorld] = useState<string>('');
   const [activeTab, setActiveTab] = useState('home');
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [engineExportDialogOpen, setEngineExportDialogOpen] = useState(false);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -160,6 +162,7 @@ export default function ModernEditor() {
         currentWorld={currentWorld}
         activeTab={activeTab}
         onOpenAdminPanel={() => setAdminPanelOpen(true)}
+        onExportGame={() => setEngineExportDialogOpen(true)}
         onTabChange={(tab) => {
           // Handle special tabs
           if (tab === 'import') {
@@ -168,6 +171,10 @@ export default function ModernEditor() {
           }
           if (tab === 'export') {
             setExportDialogOpen(true);
+            return;
+          }
+          if (tab === 'export-game') {
+            setEngineExportDialogOpen(true);
             return;
           }
           // Require authentication for 3D game
@@ -185,7 +192,7 @@ export default function ModernEditor() {
         onOpenAuth={() => setAuthDialogOpen(true)}
       />
 
-      <div className="container mx-auto p-6">
+      <div className="max-w-6xl mx-auto p-6">
         {/* Rules Tab - Using HierarchicalRulesTab */}
         {activeTab === 'rules' && selectedWorld && (
           <HierarchicalRulesTab worldId={selectedWorld} />
@@ -390,7 +397,7 @@ export default function ModernEditor() {
         )}
 
         {/* World Home Tab */}
-        {activeTab === 'home' && selectedWorld && (
+        {(activeTab === 'home' || activeTab === 'worlds') && selectedWorld && (
           <WorldManagementTab 
             worldId={selectedWorld} 
             worldName={currentWorld.name}
@@ -400,23 +407,42 @@ export default function ModernEditor() {
               queryClient.invalidateQueries({ queryKey: ['/api/worlds'] });
               queryClient.invalidateQueries({ queryKey: ['/api/worlds', selectedWorld] });
             }}
-          />
-        )}
-
-        {/* Worlds Tab (legacy - redirect to home) */}
-        {activeTab === 'worlds' && selectedWorld && (
-          <WorldManagementTab 
-            worldId={selectedWorld}
-            worldName={currentWorld.name}
-            worldDescription={currentWorld.description}
-            onWorldDeleted={() => setSelectedWorld('')}
-            onWorldUpdated={() => {
-              queryClient.invalidateQueries({ queryKey: ['/api/worlds'] });
-              queryClient.invalidateQueries({ queryKey: ['/api/worlds', selectedWorld] });
+            onNavigate={(tab) => {
+              if (tab === 'import') {
+                setImportDialogOpen(true);
+                return;
+              }
+              if (tab === 'export') {
+                setExportDialogOpen(true);
+                return;
+              }
+              if (tab === 'export-game') {
+                setEngineExportDialogOpen(true);
+                return;
+              }
+              if (tab === '3d-game' && !isAuthenticated) {
+                setAuthDialogOpen(true);
+                toast({
+                  title: 'Authentication required',
+                  description: 'Please sign in to play the 3D game',
+                });
+                return;
+              }
+              setActiveTab(tab);
             }}
           />
         )}
       </div>
+
+      {/* Engine Export Dialog */}
+      {selectedWorld && (
+        <EngineExportDialog
+          open={engineExportDialogOpen}
+          onOpenChange={setEngineExportDialogOpen}
+          worldId={selectedWorld}
+          worldName={currentWorld?.name || 'world'}
+        />
+      )}
 
       {/* Export Dialog */}
       {selectedWorld && (

@@ -14,8 +14,11 @@ import {
   VocabularyUsage,
   ConversationRecord,
   FluencyGainResult,
+  GrammarPattern,
+  GrammarFeedback,
   calculateMasteryLevel,
   calculateFluencyGain,
+  parseGrammarFeedbackBlock,
 } from '@shared/language-progress';
 
 export class LanguageProgressTracker {
@@ -23,11 +26,16 @@ export class LanguageProgressTracker {
   private currentConversation: Partial<ConversationRecord> | null = null;
   private worldLanguageContext: WorldLanguageContext | null = null;
 
+  // Per-conversation grammar counters
+  private conversationGrammarCorrect: number = 0;
+  private conversationGrammarErrors: number = 0;
+
   // Callbacks
   private onFluencyGain: ((result: FluencyGainResult) => void) | null = null;
   private onNewWordLearned: ((entry: VocabularyEntry) => void) | null = null;
   private onWordMastered: ((entry: VocabularyEntry) => void) | null = null;
   private onVocabularyUsed: ((usages: VocabularyUsage[]) => void) | null = null;
+  private onGrammarFeedback: ((feedback: GrammarFeedback) => void) | null = null;
 
   constructor(playerId: string, worldId: string, language: string) {
     this.progress = {
@@ -66,7 +74,11 @@ export class LanguageProgressTracker {
       wordsUsed: [],
       targetLanguagePercentage: 0,
       fluencyGained: 0,
+      grammarErrorCount: 0,
+      grammarCorrectCount: 0,
     };
+    this.conversationGrammarCorrect = 0;
+    this.conversationGrammarErrors = 0;
   }
 
   /**
@@ -174,6 +186,35 @@ export class LanguageProgressTracker {
   }
 
   /**
+   * Parse the structured grammar feedback block from an NPC response.
+   * Returns the feedback data and the cleaned response with the block removed.
+   */
+  public parseGrammarFeedback(response: string): { feedback: GrammarFeedback | null; cleanedResponse: string } {
+    return parseGrammarFeedbackBlock(response);
+  }
+
+  /**
+   * Record grammar feedback and update grammar pattern tracking
+   */
+  public recordGrammarFeedback(feedback: GrammarFeedback): void {
+    if (feedback.status === 'no_target_language') return;
+
+    if (feedback.status === 'correct') {
+      this.conversationGrammarCorrect++;
+      this.trackGrammarPattern('general_correctness', true, '');
+    } else if (feedback.status === 'corrected') {
+      this.conversationGrammarErrors += feedback.errorCount;
+
+      // Track individual grammar patterns
+      for (const error of feedback.errors) {
+        this.trackGrammarPattern(error.pattern, false, error.incorrect);
+      }
+    }
+
+    this.onGrammarFeedback?.(feedback);
+  }
+
+  /**
    * Record vocabulary usage and update mastery
    */
   private recordVocabularyUsage(usages: VocabularyUsage[]): void {
@@ -219,6 +260,48 @@ export class LanguageProgressTracker {
   }
 
   /**
+   * Track a grammar pattern (correct or incorrect usage)
+   */
+  private trackGrammarPattern(patternName: string, correct: boolean, example: string): void {
+    const language = this.progress.language;
+    let pattern = this.progress.grammarPatterns.find(
+      p => p.pattern === patternName && p.language === language
+    );
+
+    if (!pattern) {
+      pattern = {
+        id: `gp_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        pattern: patternName,
+        language,
+        timesUsedCorrectly: 0,
+        timesUsedIncorrectly: 0,
+        mastered: false,
+        examples: [],
+      };
+      this.progress.grammarPatterns.push(pattern);
+    }
+
+    if (correct) {
+      pattern.timesUsedCorrectly++;
+    } else {
+      pattern.timesUsedIncorrectly++;
+    }
+
+    // Add example (keep last 5)
+    if (example && !pattern.examples.includes(example)) {
+      pattern.examples.push(example);
+      if (pattern.examples.length > 5) {
+        pattern.examples.shift();
+      }
+    }
+
+    // Check mastery: correct >= 10 times and accuracy >= 80%
+    const total = pattern.timesUsedCorrectly + pattern.timesUsedIncorrectly;
+    pattern.mastered = pattern.timesUsedCorrectly >= 10 &&
+                       (pattern.timesUsedCorrectly / total) >= 0.8;
+  }
+
+  /**
    * End the current conversation and calculate fluency gain
    */
   public endConversation(): FluencyGainResult | null {
@@ -231,11 +314,21 @@ export class LanguageProgressTracker {
     // Calculate target language usage percentage
     conv.targetLanguagePercentage = turns > 0 ? Math.min(100, (wordsUsed / turns) * 50) : 0;
 
+    // Calculate grammar score (0.0-1.0)
+    const totalGrammarTurns = this.conversationGrammarCorrect + this.conversationGrammarErrors;
+    const grammarScore = totalGrammarTurns > 0
+      ? this.conversationGrammarCorrect / totalGrammarTurns
+      : 1.0; // Default to 1.0 if no target language was used (no penalty)
+
+    // Store grammar stats on conversation record
+    conv.grammarErrorCount = this.conversationGrammarErrors;
+    conv.grammarCorrectCount = this.conversationGrammarCorrect;
+
     // Calculate fluency gain
     const result = calculateFluencyGain(
       this.progress.overallFluency,
       wordsUsed,
-      true, // simplified: assume grammar is correct
+      grammarScore,
       turns,
       conv.targetLanguagePercentage
     );
@@ -247,6 +340,10 @@ export class LanguageProgressTracker {
     this.progress.conversations.push(conv);
     this.progress.totalConversations++;
     this.progress.lastActivityTimestamp = Date.now();
+
+    // Reset per-conversation grammar counters
+    this.conversationGrammarCorrect = 0;
+    this.conversationGrammarErrors = 0;
 
     this.currentConversation = null;
     this.onFluencyGain?.(result);
@@ -317,6 +414,16 @@ export class LanguageProgressTracker {
     return this.progress.conversations.slice(-count);
   }
 
+  public getGrammarPatterns(): GrammarPattern[] {
+    return [...this.progress.grammarPatterns];
+  }
+
+  public getWeakGrammarPatterns(): GrammarPattern[] {
+    return this.progress.grammarPatterns
+      .filter(p => !p.mastered && p.timesUsedIncorrectly > 0)
+      .sort((a, b) => b.timesUsedIncorrectly - a.timesUsedIncorrectly);
+  }
+
   /**
    * Export progress for saving
    */
@@ -340,6 +447,7 @@ export class LanguageProgressTracker {
   public setOnNewWordLearned(cb: (entry: VocabularyEntry) => void): void { this.onNewWordLearned = cb; }
   public setOnWordMastered(cb: (entry: VocabularyEntry) => void): void { this.onWordMastered = cb; }
   public setOnVocabularyUsed(cb: (usages: VocabularyUsage[]) => void): void { this.onVocabularyUsed = cb; }
+  public setOnGrammarFeedback(cb: (feedback: GrammarFeedback) => void): void { this.onGrammarFeedback = cb; }
 
   /**
    * Dispose

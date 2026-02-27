@@ -6,45 +6,9 @@
  * Used by: Survival, Sandbox genres.
  */
 
-export type NeedType = 'hunger' | 'thirst' | 'temperature' | 'stamina' | 'sleep';
-
-export interface NeedConfig {
-  id: NeedType;
-  name: string;
-  icon: string;
-  maxValue: number;
-  startValue: number;
-  decayRate: number;           // units lost per second
-  criticalThreshold: number;   // below this = danger
-  damageRate: number;          // HP lost per second when at 0
-  warningThreshold: number;    // show warning below this
-}
-
-export interface NeedState {
-  id: NeedType;
-  current: number;
-  max: number;
-  decayRate: number;
-  isCritical: boolean;
-  isWarning: boolean;
-  modifiers: NeedModifier[];
-}
-
-export interface NeedModifier {
-  id: string;
-  needType: NeedType;
-  rateMultiplier: number;  // multiplies decay rate (>1 = faster decay, <1 = slower)
-  duration: number;        // ms, 0 = permanent until removed
-  startTime: number;
-  source: string;          // description of what caused this
-}
-
-export interface SurvivalEvent {
-  type: 'need_critical' | 'need_warning' | 'need_restored' | 'damage_from_need' | 'need_satisfied';
-  needType: NeedType;
-  value: number;
-  message: string;
-}
+// Re-export engine-agnostic types from shared game-engine
+export type { NeedType, NeedConfig, NeedState, NeedModifier, SurvivalEvent } from '@shared/game-engine/types';
+import type { NeedType, NeedConfig, NeedState, NeedModifier, SurvivalEvent } from '@shared/game-engine/types';
 
 const DEFAULT_NEEDS: NeedConfig[] = [
   {

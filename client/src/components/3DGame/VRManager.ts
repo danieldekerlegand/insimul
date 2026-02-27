@@ -1,16 +1,19 @@
 /**
  * VR Manager
  *
- * Manages WebXR VR support, controllers, teleportation, and VR interactions
+ * Manages WebXR VR support, controllers, teleportation, locomotion,
+ * snap turning, haptic feedback, and VR interactions.
  */
 
 import {
   Scene,
   WebXRDefaultExperience,
   WebXRState,
+  WebXRFeatureName,
   Vector3,
   Color3,
   Mesh,
+  MeshBuilder,
   StandardMaterial,
   AbstractMesh,
   Ray,
@@ -18,8 +21,11 @@ import {
   WebXRControllerComponent,
   WebXRMotionControllerManager,
   Observable,
-  GroundMesh
+  GroundMesh,
+  Quaternion
 } from '@babylonjs/core';
+import type { IWebXRHitTestOptions } from '@babylonjs/core/XR/features/WebXRHitTest';
+import { VRComfortSettings, DEFAULT_VR_COMFORT_SETTINGS } from './VRComfortSettings';
 
 export interface VRControllerInfo {
   inputSource: WebXRInputSource;
@@ -42,12 +48,32 @@ export class VRManager {
   private teleportMeshes: AbstractMesh[] = [];
   private teleportationFloorMeshes: AbstractMesh[] = [];
 
+  // Locomotion state
+  private leftThumbstick: { x: number; y: number } = { x: 0, y: 0 };
+  private rightThumbstick: { x: number; y: number } = { x: 0, y: 0 };
+  private snapTurnCooldown: boolean = false;
+
+  // Comfort settings
+  private comfortSettings: VRComfortSettings = { ...DEFAULT_VR_COMFORT_SETTINGS };
+
   // Callbacks
   private onVRSessionStart: (() => void) | null = null;
   private onVRSessionEnd: (() => void) | null = null;
   private onTeleport: ((position: Vector3) => void) | null = null;
   private onControllerAdded: ((controller: VRControllerInfo) => void) | null = null;
   private onControllerRemoved: ((controllerId: string) => void) | null = null;
+  private onLocomotion: ((axes: { x: number; y: number }) => void) | null = null;
+  private onTriggerPressed: ((hand: 'left' | 'right') => void) | null = null;
+  private onTriggerReleased: ((hand: 'left' | 'right') => void) | null = null;
+  private onGripPressed: ((hand: 'left' | 'right') => void) | null = null;
+  private onGripReleased: ((hand: 'left' | 'right') => void) | null = null;
+
+  // AR / Mixed Reality state
+  private isARMode: boolean = false;
+  private arHitTestEnabled: boolean = false;
+  private arHitTestMarker: AbstractMesh | null = null;
+  private onARHitTest: ((position: Vector3, normal: Vector3) => void) | null = null;
+  private onARPlaceObject: ((position: Vector3, normal: Vector3) => void) | null = null;
 
   // Observables for real-time events
   public onBeforeRenderObservable: Observable<void> = new Observable();
@@ -209,7 +235,8 @@ export class VRManager {
    * Get controller by hand
    */
   public getController(hand: 'left' | 'right'): VRControllerInfo | null {
-    for (const controller of this.controllers.values()) {
+    const controllers = Array.from(this.controllers.values());
+    for (const controller of controllers) {
       if (controller.hand === hand) {
         return controller;
       }
@@ -223,6 +250,59 @@ export class VRManager {
   public getAllControllers(): VRControllerInfo[] {
     return Array.from(this.controllers.values());
   }
+
+  // -- Comfort Settings --
+
+  /**
+   * Set VR comfort settings
+   */
+  public setComfortSettings(settings: Partial<VRComfortSettings>): void {
+    this.comfortSettings = { ...this.comfortSettings, ...settings };
+  }
+
+  /**
+   * Get current comfort settings
+   */
+  public getComfortSettings(): VRComfortSettings {
+    return { ...this.comfortSettings };
+  }
+
+  /**
+   * Get current left thumbstick state
+   */
+  public getLeftThumbstick(): { x: number; y: number } {
+    return { ...this.leftThumbstick };
+  }
+
+  /**
+   * Get current right thumbstick state
+   */
+  public getRightThumbstick(): { x: number; y: number } {
+    return { ...this.rightThumbstick };
+  }
+
+  // -- Haptic Feedback --
+
+  /**
+   * Trigger haptic pulse on a controller
+   */
+  public triggerHapticPulse(hand: 'left' | 'right', intensity: number = 0.5, duration: number = 100): void {
+    const controller = this.getController(hand);
+    if (!controller) return;
+
+    const gamepad = controller.inputSource.inputSource.gamepad as any;
+    if (gamepad?.hapticActuators && gamepad.hapticActuators.length > 0) {
+      gamepad.hapticActuators[0].pulse(intensity, duration);
+    } else if (gamepad && 'vibrationActuator' in gamepad) {
+      (gamepad as any).vibrationActuator?.playEffect('dual-rumble', {
+        duration,
+        strongMagnitude: intensity,
+        weakMagnitude: intensity * 0.5,
+      });
+    }
+  }
+
+  // -- Session Handlers --
 
   /**
    * Handle VR session start
@@ -242,11 +322,21 @@ export class VRManager {
   private handleVRSessionEnd(): void {
     console.log('VR session ended');
     this.isInVRSession = false;
+    this.isARMode = false;
+
+    // Clean up AR hit test
+    this.disableARHitTest();
+
+    // Reset thumbstick state
+    this.leftThumbstick = { x: 0, y: 0 };
+    this.rightThumbstick = { x: 0, y: 0 };
 
     if (this.onVRSessionEnd) {
       this.onVRSessionEnd();
     }
   }
+
+  // -- Controller Handlers --
 
   /**
    * Handle controller added
@@ -264,33 +354,42 @@ export class VRManager {
 
     this.controllers.set(controller.uniqueId, controllerInfo);
 
-    // Set up controller button events
+    // Set up controller button events (only for left/right hands)
     controller.onMotionControllerInitObservable.add((motionController) => {
       console.log(`Motion controller initialized for ${hand} hand`);
+      if (hand === 'none') return;
 
-      // Set up button handlers
+      const validHand = hand; // narrow type to 'left' | 'right'
+
+      // Trigger button
       const triggerComponent = motionController.getComponent('xr-standard-trigger');
       if (triggerComponent) {
         triggerComponent.onButtonStateChangedObservable.add((component) => {
           if (component.pressed) {
-            this.handleTriggerPressed(hand);
+            this.handleTriggerPressed(validHand);
+          } else {
+            this.handleTriggerReleased(validHand);
           }
         });
       }
 
+      // Grip/squeeze button
       const squeezeComponent = motionController.getComponent('xr-standard-squeeze');
       if (squeezeComponent) {
         squeezeComponent.onButtonStateChangedObservable.add((component) => {
           if (component.pressed) {
-            this.handleGripPressed(hand);
+            this.handleGripPressed(validHand);
+          } else {
+            this.handleGripReleased(validHand);
           }
         });
       }
 
+      // Thumbstick
       const thumbstickComponent = motionController.getComponent('xr-standard-thumbstick');
       if (thumbstickComponent) {
         thumbstickComponent.onAxisValueChangedObservable.add((axes) => {
-          this.handleThumbstickMoved(hand, axes.x, axes.y);
+          this.handleThumbstickMoved(validHand, axes.x, axes.y);
         });
       }
     });
@@ -317,26 +416,73 @@ export class VRManager {
    * Handle trigger button pressed
    */
   private handleTriggerPressed(hand: 'left' | 'right'): void {
-    console.log(`${hand} trigger pressed`);
-    // Trigger is typically used for selection/interaction
+    this.onTriggerPressed?.(hand);
+  }
+
+  /**
+   * Handle trigger button released
+   */
+  private handleTriggerReleased(hand: 'left' | 'right'): void {
+    this.onTriggerReleased?.(hand);
   }
 
   /**
    * Handle grip button pressed
    */
   private handleGripPressed(hand: 'left' | 'right'): void {
-    console.log(`${hand} grip pressed`);
-    // Grip is typically used for grabbing
+    this.onGripPressed?.(hand);
+  }
+
+  /**
+   * Handle grip button released
+   */
+  private handleGripReleased(hand: 'left' | 'right'): void {
+    this.onGripReleased?.(hand);
   }
 
   /**
    * Handle thumbstick movement
    */
   private handleThumbstickMoved(hand: 'left' | 'right', x: number, y: number): void {
-    // Thumbstick movement (can be used for smooth locomotion)
-    // x: -1 (left) to 1 (right)
-    // y: -1 (down) to 1 (up)
+    if (hand === 'left') {
+      this.leftThumbstick = { x, y };
+
+      // Smooth locomotion via left thumbstick
+      if (this.comfortSettings.locomotionType !== 'teleport') {
+        this.onLocomotion?.({ x, y });
+      }
+    } else {
+      this.rightThumbstick = { x, y };
+
+      // Snap turning via right thumbstick
+      this.handleSnapTurn(x);
+    }
   }
+
+  /**
+   * Handle snap turning from right thumbstick X axis
+   */
+  private handleSnapTurn(x: number): void {
+    if (this.snapTurnCooldown || Math.abs(x) < 0.5) return;
+    if (!this.xrExperience) return;
+
+    const angleRad = (this.comfortSettings.snapTurnAngle * Math.PI) / 180;
+    const angle = x > 0 ? angleRad : -angleRad;
+
+    const camera = this.xrExperience.baseExperience.camera;
+    if (camera.rotationQuaternion) {
+      camera.rotationQuaternion.multiplyInPlace(
+        Quaternion.RotationAxis(Vector3.Up(), angle)
+      );
+    }
+
+    this.triggerHapticPulse('right', 0.2, 50);
+
+    this.snapTurnCooldown = true;
+    setTimeout(() => { this.snapTurnCooldown = false; }, 300);
+  }
+
+  // -- Raycasting --
 
   /**
    * Get pointer ray from controller
@@ -369,8 +515,17 @@ export class VRManager {
   }
 
   /**
-   * Set callbacks
+   * Raycast from controller with full pick info
    */
+  public raycastFromControllerDetailed(hand: 'left' | 'right', predicate?: (mesh: AbstractMesh) => boolean) {
+    const ray = this.getControllerRay(hand);
+    if (!ray) return null;
+
+    return this.scene.pickWithRay(ray, predicate);
+  }
+
+  // -- Callback Setters --
+
   public setOnVRSessionStart(callback: () => void): void {
     this.onVRSessionStart = callback;
   }
@@ -391,6 +546,166 @@ export class VRManager {
     this.onControllerRemoved = callback;
   }
 
+  public setOnLocomotion(callback: (axes: { x: number; y: number }) => void): void {
+    this.onLocomotion = callback;
+  }
+
+  public setOnTriggerPressed(callback: (hand: 'left' | 'right') => void): void {
+    this.onTriggerPressed = callback;
+  }
+
+  public setOnTriggerReleased(callback: (hand: 'left' | 'right') => void): void {
+    this.onTriggerReleased = callback;
+  }
+
+  public setOnGripPressed(callback: (hand: 'left' | 'right') => void): void {
+    this.onGripPressed = callback;
+  }
+
+  public setOnGripReleased(callback: (hand: 'left' | 'right') => void): void {
+    this.onGripReleased = callback;
+  }
+
+  // -- AR / Mixed Reality --
+
+  /**
+   * Enter AR (immersive-ar) session with passthrough.
+   * Requires a device that supports WebXR AR (e.g., Quest 3 passthrough).
+   */
+  public async enterAR(): Promise<boolean> {
+    if (!this.isVREnabled || !this.xrExperience) {
+      console.warn('[VRManager] VR not initialized — cannot enter AR');
+      return false;
+    }
+
+    try {
+      const xrHelper = this.xrExperience.baseExperience;
+      await xrHelper.enterXRAsync('immersive-ar', 'local-floor');
+      this.isARMode = true;
+      console.log('[VRManager] Entered AR mode');
+      return true;
+    } catch (error) {
+      console.warn('[VRManager] AR not supported or failed to enter:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if currently in AR mode
+   */
+  public isInAR(): boolean {
+    return this.isARMode;
+  }
+
+  /**
+   * Enable hit testing for placing objects on real-world surfaces.
+   * The onARHitTest callback fires each frame when a surface is detected.
+   */
+  public enableARHitTest(): void {
+    if (!this.xrExperience || !this.isARMode) return;
+
+    try {
+      const featuresManager = this.xrExperience.baseExperience.featuresManager;
+
+      const hitTest = featuresManager.enableFeature(
+        WebXRFeatureName.HIT_TEST,
+        'latest',
+        {
+          offsetRay: new Vector3(0, 0, -1),
+        }
+      ) as any;
+
+      // Create a visual marker for the hit test point
+      this.arHitTestMarker = MeshBuilder.CreateTorus(
+        'ar_hit_marker',
+        { diameter: 0.15, thickness: 0.01, tessellation: 32 },
+        this.scene
+      );
+      const mat = new StandardMaterial('ar_hit_marker_mat', this.scene);
+      mat.diffuseColor = new Color3(0, 0.8, 1);
+      mat.emissiveColor = new Color3(0, 0.4, 0.5);
+      mat.alpha = 0.7;
+      this.arHitTestMarker.material = mat;
+      this.arHitTestMarker.isVisible = false;
+      this.arHitTestMarker.isPickable = false;
+
+      // Listen for hit test results
+      hitTest.onHitTestResultObservable?.add((results: any[]) => {
+        if (results.length > 0) {
+          const hit = results[0];
+          const pos = hit.position as Vector3;
+          const normal = hit.xrHitResult?.plane?.normal
+            ? new Vector3(hit.xrHitResult.plane.normal.x, hit.xrHitResult.plane.normal.y, hit.xrHitResult.plane.normal.z)
+            : Vector3.Up();
+
+          if (this.arHitTestMarker) {
+            this.arHitTestMarker.position = pos;
+            this.arHitTestMarker.isVisible = true;
+          }
+
+          this.onARHitTest?.(pos, normal);
+        } else if (this.arHitTestMarker) {
+          this.arHitTestMarker.isVisible = false;
+        }
+      });
+
+      this.arHitTestEnabled = true;
+      console.log('[VRManager] AR hit testing enabled');
+    } catch (error) {
+      console.warn('[VRManager] Failed to enable AR hit test:', error);
+    }
+  }
+
+  /**
+   * Disable AR hit testing
+   */
+  public disableARHitTest(): void {
+    this.arHitTestEnabled = false;
+
+    if (this.arHitTestMarker) {
+      this.arHitTestMarker.dispose();
+      this.arHitTestMarker = null;
+    }
+  }
+
+  /**
+   * Place an object at the current AR hit test position (trigger to place).
+   * Call this from a trigger handler when in AR mode.
+   */
+  public placeObjectAtHitTest(): Vector3 | null {
+    if (!this.arHitTestMarker || !this.arHitTestMarker.isVisible) return null;
+
+    const position = this.arHitTestMarker.position.clone();
+    const normal = Vector3.Up();
+
+    this.onARPlaceObject?.(position, normal);
+    this.triggerHapticPulse('right', 0.3, 80);
+
+    return position;
+  }
+
+  /**
+   * Check if AR is supported on this device
+   */
+  public async isARSupported(): Promise<boolean> {
+    if (!navigator.xr) return false;
+    try {
+      return await navigator.xr.isSessionSupported('immersive-ar');
+    } catch {
+      return false;
+    }
+  }
+
+  // -- AR Callback Setters --
+
+  public setOnARHitTest(callback: (position: Vector3, normal: Vector3) => void): void {
+    this.onARHitTest = callback;
+  }
+
+  public setOnARPlaceObject(callback: (position: Vector3, normal: Vector3) => void): void {
+    this.onARPlaceObject = callback;
+  }
+
   /**
    * Get XR experience (for advanced use)
    */
@@ -402,6 +717,10 @@ export class VRManager {
    * Dispose VR manager
    */
   public dispose(): void {
+    // Clean up AR
+    this.disableARHitTest();
+    this.isARMode = false;
+
     if (this.xrExperience) {
       this.xrExperience.dispose();
       this.xrExperience = null;
@@ -411,5 +730,19 @@ export class VRManager {
     this.teleportationFloorMeshes = [];
     this.isVREnabled = false;
     this.isInVRSession = false;
+
+    // Clear callbacks
+    this.onVRSessionStart = null;
+    this.onVRSessionEnd = null;
+    this.onTeleport = null;
+    this.onControllerAdded = null;
+    this.onControllerRemoved = null;
+    this.onLocomotion = null;
+    this.onTriggerPressed = null;
+    this.onTriggerReleased = null;
+    this.onGripPressed = null;
+    this.onGripReleased = null;
+    this.onARHitTest = null;
+    this.onARPlaceObject = null;
   }
 }

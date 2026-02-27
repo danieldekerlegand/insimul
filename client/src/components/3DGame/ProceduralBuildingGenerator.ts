@@ -5,7 +5,8 @@
  * population, world style, and terrain.
  */
 
-import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3, Texture, VertexData, DynamicTexture, SceneLoader } from '@babylonjs/core';
+import { Scene, Mesh, AbstractMesh, MeshBuilder, Vector3, StandardMaterial, Color3, Texture, VertexData, DynamicTexture, SceneLoader } from '@babylonjs/core';
+import { createDebugLabel } from './DebugLabelUtils';
 import "@babylonjs/loaders/glTF";
 
 export interface BuildingStyle {
@@ -38,8 +39,16 @@ export class ProceduralBuildingGenerator {
   private scene: Scene;
   private buildingMeshes: Map<string, Mesh> = new Map();
 
+  // Optional textures from asset collection to apply to procedural buildings
+  private wallTexture: Texture | null = null;
+  private roofTexture: Texture | null = null;
+
   // World-level model overrides by logical role (e.g. 'default', 'smallResidence')
   private roleModelPrototypes: Map<string, Mesh> = new Map();
+  // Per-role scale hints from asset metadata (overrides automatic unit detection)
+  private roleScaleHints: Map<string, number> = new Map();
+  // Per-role original bounding-box heights measured at import time
+  private roleOriginalHeights: Map<string, number> = new Map();
 
   // Building type to architecture mapping
   private static BUILDING_TYPES: Record<string, Partial<BuildingSpec>> = {
@@ -59,6 +68,11 @@ export class ProceduralBuildingGenerator {
     'Theater': { floors: 2, width: 18, depth: 20 },
     'Library': { floors: 3, width: 16, depth: 14 },
     'ApartmentComplex': { floors: 5, width: 18, depth: 16, hasBalcony: true },
+    'Windmill': { floors: 3, width: 10, depth: 10 },
+    'Watermill': { floors: 2, width: 14, depth: 12 },
+    'Lumbermill': { floors: 1, width: 16, depth: 12, hasChimney: true },
+    'Barracks': { floors: 2, width: 18, depth: 14 },
+    'Mine': { floors: 1, width: 12, depth: 10 },
 
     // Residences
     'residence_small': { floors: 1, width: 8, depth: 8 },
@@ -137,41 +151,97 @@ export class ProceduralBuildingGenerator {
       return;
     }
     this.assetsInitialized = true;
-
-    const type = (worldType || '').toLowerCase();
-
-    if (type.includes('medieval') || type.includes('fantasy')) {
-      await this.loadBuildingModel(
-        'medieval_village',
-        'residence_small',
-        '/assets/models/buildings/medieval/',
-        'house_small.glb'
-      );
-    } else if (
-      type.includes('cyberpunk') ||
-      type.includes('sci-fi') ||
-      type.includes('space') ||
-      type.includes('futuristic') ||
-      type.includes('post-apocalyptic') ||
-      type.includes('solarpunk') ||
-      type.includes('dieselpunk')
-    ) {
-      await this.loadBuildingModel(
-        'futuristic_city',
-        'residence_small',
-        '/assets/models/buildings/futuristic/',
-        'futuristic_building.glb'
-      );
-    }
+    // Building models are now loaded via registerRoleModel() from
+    // BabylonGame.applyWorld3DConfig(), which resolves asset collection
+    // model IDs to actual meshes. No hardcoded paths needed.
   }
 
   /**
    * Register a world-level model prototype for a logical building role.
    * The mesh is treated as a template and will be cloned per building instance.
    */
+  /**
+   * Hide all template prototype meshes after building generation is done.
+   * Moves them far off-screen and marks them non-visible/non-pickable.
+   * We cannot dispose them because instantiateHierarchy shares geometry
+   * and materials — disposing the source would destroy all cloned buildings.
+   */
+  public hidePrototypes(): void {
+    const hideOne = (mesh: Mesh) => {
+      if (!mesh || mesh.isDisposed()) return;
+      mesh.position.y = -10000;
+      mesh.setEnabled(false);
+      mesh.isPickable = false;
+      mesh.isVisible = false;
+      mesh.getChildMeshes().forEach((c: AbstractMesh) => {
+        c.setEnabled(false);
+        c.isVisible = false;
+        c.isPickable = false;
+      });
+    };
+    Array.from(this.roleModelPrototypes.values()).forEach(hideOne);
+    Array.from(this.modelPrototypes.values()).forEach(hideOne);
+    console.log('[BuildingGen] Hidden all prototype templates (moved off-screen)');
+  }
+
+  /**
+   * Check if a mesh name matches environment/ground mesh patterns.
+   * These are Sketchfab export artifacts (ground planes, skyboxes, etc.)
+   * that should be stripped from building models.
+   */
+  private static isEnvMesh(name: string): boolean {
+    const lower = name.toLowerCase();
+    if (lower.startsWith('ground') || lower.startsWith('backdrop') ||
+        lower.startsWith('terrain') || lower.startsWith('sky') ||
+        lower.startsWith('environment')) return true;
+    if (/^Plane[_.]/.test(name) || /^pPlane/.test(name)) return true;
+    return false;
+  }
+
   public registerRoleModel(role: string, mesh: Mesh): void {
     if (!role || !mesh) return;
     mesh.setEnabled(false);
+
+    // Strip environment/ground meshes from the prototype BEFORE normalizing.
+    // This ensures the normalization height matches only the actual building
+    // geometry, consistent with the env-mesh filtering on clones.
+    const envToDispose = mesh.getChildMeshes(false)
+      .filter(c => ProceduralBuildingGenerator.isEnvMesh(c.name));
+    if (envToDispose.length > 0) {
+      console.log(`[BuildingGen] Stripping ${envToDispose.length} env meshes from prototype "${role}": ${envToDispose.map(m => m.name).join(', ')}`);
+      for (const m of envToDispose) { m.dispose(); }
+    }
+
+    // Measure the original bounding-box height of the prototype (at import
+    // scale) and store it.  We do NOT modify the prototype's scaling here;
+    // instead, adjustModelToSpec computes an absolute scale from this height.
+    mesh.computeWorldMatrix(true);
+    const children = mesh.getChildMeshes(false);
+    let minV = new Vector3(Infinity, Infinity, Infinity);
+    let maxV = new Vector3(-Infinity, -Infinity, -Infinity);
+    for (const child of children) {
+      child.computeWorldMatrix(true);
+      const bi = child.getBoundingInfo();
+      minV = Vector3.Minimize(minV, bi.boundingBox.minimumWorld);
+      maxV = Vector3.Maximize(maxV, bi.boundingBox.maximumWorld);
+    }
+    if (isFinite(minV.x)) {
+      const height = maxV.y - minV.y;
+      if (height > 0.001) {
+        this.roleOriginalHeights.set(role, height);
+        console.log(`[BuildingGen] Measured role="${role}" originalH=${height.toFixed(2)}`);
+      }
+    }
+
+    // Extract per-model scaleHint from asset metadata (set during registration
+    // in BabylonGame). scaleHint tells us the factor to convert model units to
+    // real-world meters, so realHeight = originalH * scaleHint.
+    const scaleHint = (mesh.metadata as any)?.scaleHint;
+    if (scaleHint != null && scaleHint > 0) {
+      this.roleScaleHints.set(role, scaleHint);
+      console.log(`[BuildingGen] role="${role}" scaleHint=${scaleHint}`);
+    }
+
     this.roleModelPrototypes.set(role, mesh);
   }
 
@@ -226,17 +296,34 @@ export class ProceduralBuildingGenerator {
    */
   private getRoleForSpec(spec: BuildingSpec): string | null {
     if (spec.type === 'residence') {
-      if (spec.businessType === 'residence_small') {
-        return 'smallResidence';
-      }
+      if (spec.businessType === 'residence_small') return 'smallResidence';
+      if (spec.businessType === 'residence_large') return 'largeResidence';
+      if (spec.businessType === 'residence_mansion') return 'mansion';
       return 'default';
     }
 
-    if (spec.type === 'business') {
+    if (spec.type === 'business' && spec.businessType) {
+      const bt = spec.businessType.toLowerCase();
+      if (bt === 'tavern' || bt === 'inn') return 'tavern';
+      if (bt === 'shop' || bt === 'market') return 'shop';
+      if (bt === 'blacksmith') return 'blacksmith';
+      if (bt === 'church') return 'church';
+      if (bt === 'library') return 'library';
+      if (bt === 'hospital') return 'hospital';
+      if (bt === 'school') return 'school';
+      if (bt === 'bank') return 'bank';
+      if (bt === 'theater') return 'theater';
+      if (bt === 'windmill') return 'windmill';
+      if (bt === 'watermill') return 'watermill';
+      if (bt === 'lumbermill' || bt === 'lumber') return 'lumbermill';
+      if (bt === 'barracks' || bt === 'military') return 'barracks';
+      if (bt === 'mine' || bt === 'mining') return 'mine';
       return 'default';
     }
 
-    return null;
+    if (spec.type === 'municipal') return 'municipal';
+
+    return 'default';
   }
 
   /**
@@ -267,6 +354,7 @@ export class ProceduralBuildingGenerator {
    * Generate a building from specification
    */
   public generateBuilding(spec: BuildingSpec): Mesh {
+    console.log(`[BuildingGen] generateBuilding: type="${spec.type}" businessType="${spec.businessType}" floors=${spec.floors}`);
     const parent = new Mesh(`building_${spec.id}`, this.scene);
     parent.position = spec.position.clone();
     parent.rotation.y = spec.rotation;
@@ -279,19 +367,43 @@ export class ProceduralBuildingGenerator {
       const override = this.roleModelPrototypes.get(role);
       if (override) {
         modelPrototype = override;
+        console.log(`[BuildingGen] Using role override: ${role} (mesh: ${override.name})`);
       }
     }
 
     if (!modelPrototype) {
       modelPrototype = this.getModelPrototype(spec);
+      if (modelPrototype) {
+        console.log(`[BuildingGen] Using model prototype: ${modelPrototype.name}`);
+      }
     }
 
     if (modelPrototype) {
-      const instance = modelPrototype.clone(`building_model_${spec.id}`) as Mesh;
+      // glTF models are a hierarchy: root TransformNode → child Meshes.
+      // Use instantiateHierarchy to deep-clone the entire tree.
+      const instance = modelPrototype.instantiateHierarchy(
+        parent,
+        undefined,
+        (source, clone) => {
+          clone.name = `${source.name}_${spec.id}`;
+        }
+      );
       if (instance) {
+        instance.name = `building_model_${spec.id}`;
         instance.position = Vector3.Zero();
-        this.adjustModelToSpec(instance, spec);
-        instance.parent = parent;
+
+        // Safety net: strip any env meshes that survived cloning
+        // (prototypes are already stripped at registration, but clone names may differ)
+        const toDispose = instance.getChildMeshes(false)
+          .filter(c => ProceduralBuildingGenerator.isEnvMesh(c.name));
+        for (const mesh of toDispose) {
+          mesh.dispose();
+        }
+
+        // Enable all remaining cloned nodes (templates are disabled)
+        instance.setEnabled(true);
+        instance.getChildMeshes().forEach(m => m.setEnabled(true));
+        this.adjustModelToSpec(instance as Mesh, spec, role || undefined);
       }
       this.buildingMeshes.set(spec.id, parent);
       return parent;
@@ -322,31 +434,56 @@ export class ProceduralBuildingGenerator {
       balcony.parent = parent;
     }
 
+    // Debug label for procedural building fallback
+    const label = spec.businessType || spec.type;
+    createDebugLabel(this.scene, parent, `BUILDING: ${label}`, (spec.floors * 4) + 6);
+
     this.buildingMeshes.set(spec.id, parent);
     return parent;
   }
 
-  private adjustModelToSpec(instance: Mesh, spec: BuildingSpec): void {
+  private adjustModelToSpec(instance: Mesh, spec: BuildingSpec, role?: string): void {
+    // Player is ~1.77 units ≈ 1.77 meters.
+    // Medieval buildings are taller than modern ones (peaked roofs, thick walls).
+    const floorHeight = 5;
+    const effectiveFloors = spec.floors || 1;
+    let targetHeight = effectiveFloors * floorHeight;
+
+    // Some models are inherently oversized or undersized in their
+    // native units. Apply role-specific multipliers to adjust them.
+    const heightMultipliers: Record<string, number> = {
+      'shop': 0.6,        // Food stall should be ~3m, not 5m
+      'smallResidence': 2.0,  // Medieval House 3 needs major boost to match other houses
+    };
+    const multiplier = (role ? heightMultipliers[role] : undefined) || 1.0;
+    const baseTarget = targetHeight;
+    targetHeight *= multiplier;
+
+    // Look up the original (import-time) height of the prototype.
+    // Compute absolute scale so the clone reaches targetHeight meters.
+    const originalH = (role ? this.roleOriginalHeights.get(role) : undefined) || 1;
+    const absScale = targetHeight / originalH;
+    console.log(`[BuildingGen] role="${role}" origH=${originalH.toFixed(2)} baseTarget=${baseTarget.toFixed(1)} mult=${multiplier.toFixed(2)} finalTarget=${targetHeight.toFixed(1)} absScale=${absScale.toFixed(6)}`);
+    instance.scaling.set(absScale, absScale, absScale);
+
+    // Align bottom of model to ground plane
+    if (instance.parent) {
+      (instance.parent as Mesh).computeWorldMatrix(true);
+    }
     instance.computeWorldMatrix(true);
-    const bounds = instance.getBoundingInfo().boundingBox;
-    const size = bounds.maximumWorld.subtract(bounds.minimumWorld);
-
-    const floorHeight = 4;
-    const targetWidth = spec.width || size.x || 1;
-    const targetDepth = spec.depth || size.z || 1;
-    const targetHeight = (spec.floors || 1) * floorHeight;
-
-    const scaleX = targetWidth / (size.x || 1);
-    const scaleZ = targetDepth / (size.z || 1);
-    const scaleY = targetHeight / (size.y || 1);
-
-    const uniformScale = Math.min(scaleX, scaleY, scaleZ);
-    instance.scaling = new Vector3(uniformScale, uniformScale, uniformScale);
-
-    instance.computeWorldMatrix(true);
-    const newBounds = instance.getBoundingInfo().boundingBox;
-    const minY = newBounds.minimumWorld.y;
-    instance.position.y -= minY;
+    const children = instance.getChildMeshes(false);
+    let newMinY = Infinity;
+    const parentWorldY = instance.parent
+      ? (instance.parent as Mesh).getAbsolutePosition().y
+      : 0;
+    for (const child of children) {
+      child.computeWorldMatrix(true);
+      const bi = child.getBoundingInfo();
+      newMinY = Math.min(newMinY, bi.boundingBox.minimumWorld.y);
+    }
+    if (isFinite(newMinY)) {
+      instance.position.y -= (newMinY - parentWorldY);
+    }
   }
 
   /**
@@ -373,13 +510,19 @@ export class ProceduralBuildingGenerator {
     material.diffuseColor = spec.style.baseColor;
     material.specularColor = new Color3(0.1, 0.1, 0.1);
 
-    // Add texture based on material type
-    if (spec.style.materialType === 'brick') {
+    // Apply wall texture from asset collection if available, otherwise tint by material type
+    if (this.wallTexture) {
+      const wallTex = this.wallTexture.clone();
+      if (wallTex) {
+        wallTex.uScale = 2;
+        wallTex.vScale = 2;
+        material.diffuseTexture = wallTex;
+        material.diffuseColor = new Color3(1, 1, 1); // Don't tint the texture
+      }
+    } else if (spec.style.materialType === 'brick') {
       material.diffuseColor = spec.style.baseColor.scale(0.9);
-      // Could add brick texture here
     } else if (spec.style.materialType === 'stone') {
       material.diffuseColor = spec.style.baseColor.scale(0.95);
-      // Could add stone texture here
     }
 
     building.material = material;
@@ -399,18 +542,25 @@ export class ProceduralBuildingGenerator {
     let roof: Mesh;
 
     if (spec.style.architectureStyle === 'medieval' || spec.style.architectureStyle === 'rustic') {
-      // Peaked roof
+      // Peaked hip roof — higher tessellation for smoother light distribution
       roof = MeshBuilder.CreateCylinder(
         `roof_${spec.id}`,
         {
           diameterTop: 0,
           diameterBottom: Math.max(spec.width, spec.depth) * 1.2,
           height: roofHeight,
-          tessellation: 4
+          tessellation: 8
         },
         this.scene
       );
-      roof.rotation.y = Math.PI / 4;
+      roof.rotation.y = Math.PI / 8;
+      // Flatten to match the rectangular footprint
+      const aspect = spec.width / Math.max(spec.depth, 1);
+      if (aspect > 1.2) {
+        roof.scaling.z = 1 / aspect;
+      } else if (aspect < 0.8) {
+        roof.scaling.x = aspect;
+      }
     } else if (spec.style.architectureStyle === 'modern' || spec.style.architectureStyle === 'futuristic') {
       // Flat roof
       roof = MeshBuilder.CreateBox(
@@ -423,14 +573,14 @@ export class ProceduralBuildingGenerator {
         this.scene
       );
     } else {
-      // Pyramid roof
+      // Cone roof — higher tessellation for smoother appearance
       roof = MeshBuilder.CreateCylinder(
         `roof_${spec.id}`,
         {
           diameterTop: 1,
           diameterBottom: Math.max(spec.width, spec.depth) * 1.1,
           height: roofHeight,
-          tessellation: 6
+          tessellation: 8
         },
         this.scene
       );
@@ -438,9 +588,22 @@ export class ProceduralBuildingGenerator {
 
     roof.position.y = totalHeight + roofHeight / 2;
 
-    // Roof material
+    // Roof material — apply roof texture if available from asset collection
     const roofMat = new StandardMaterial(`roof_mat_${spec.id}`, this.scene);
-    roofMat.diffuseColor = spec.style.roofColor;
+    if (this.roofTexture) {
+      const roofTex = this.roofTexture.clone();
+      if (roofTex) {
+        roofTex.uScale = 2;
+        roofTex.vScale = 2;
+        roofMat.diffuseTexture = roofTex;
+        roofMat.diffuseColor = new Color3(1, 1, 1);
+      }
+    } else {
+      const rc = spec.style.roofColor || new Color3(0.3, 0.2, 0.15);
+      roofMat.diffuseColor = rc;
+      // Strong emissive tint so roof color is always visible under any lighting
+      roofMat.emissiveColor = rc.scale(0.35);
+    }
     roofMat.specularColor = Color3.Black();
     roof.material = roofMat;
 
@@ -579,26 +742,11 @@ export class ProceduralBuildingGenerator {
     const defaults = data.businessType && ProceduralBuildingGenerator.BUILDING_TYPES[data.businessType]
       || ProceduralBuildingGenerator.BUILDING_TYPES['residence_medium'];
 
-    // Adjust size based on population for residences
-    let floors = defaults.floors || 2;
-    let width = defaults.width || 10;
-    let depth = defaults.depth || 10;
-
-    if (data.type === 'residence' && data.population) {
-      if (data.population > 8) {
-        floors = 3;
-        width = 14;
-        depth = 12;
-      } else if (data.population > 4) {
-        floors = 2;
-        width = 12;
-        depth = 10;
-      } else {
-        floors = 1;
-        width = 8;
-        depth = 8;
-      }
-    }
+    // Use defaults from BUILDING_TYPES - no population-based overrides
+    // since we're using actual 3D models with their own proportions
+    const floors = defaults.floors || 2;
+    const width = defaults.width || 10;
+    const depth = defaults.depth || 10;
 
     return {
       id: data.id,
@@ -613,6 +761,20 @@ export class ProceduralBuildingGenerator {
       hasChimney: defaults.hasChimney || false,
       hasBalcony: defaults.hasBalcony || false
     };
+  }
+
+  /**
+   * Set optional wall texture from asset collection
+   */
+  public setWallTexture(texture: Texture): void {
+    this.wallTexture = texture;
+  }
+
+  /**
+   * Set optional roof texture from asset collection
+   */
+  public setRoofTexture(texture: Texture): void {
+    this.roofTexture = texture;
   }
 
   /**

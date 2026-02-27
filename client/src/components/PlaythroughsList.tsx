@@ -146,7 +146,7 @@ export function PlaythroughsList({ onResumePlaythrough }: PlaythroughsListProps)
 
   if (!token) {
     return (
-      <Card>
+      <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
         <CardHeader>
           <CardTitle>My Playthroughs</CardTitle>
           <CardDescription>Please log in to view your playthroughs</CardDescription>
@@ -160,36 +160,26 @@ export function PlaythroughsList({ onResumePlaythrough }: PlaythroughsListProps)
   const abandonedPlaythroughs = playthroughs.filter((p) => p.status === 'abandoned');
 
   return (
-    <div className="space-y-6">
-      <Card>
+    <div className="space-y-6 p-6">
+      <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
         <CardHeader>
-          <CardTitle>My Playthroughs</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent flex items-center gap-2">
+            <Play className="w-6 h-6 text-primary" />
+            My Playthroughs ({playthroughs.length})
+          </CardTitle>
+          <CardDescription className="mt-1">
             Manage your game sessions across all worlds
+            {playthroughs.length > 0 && (
+              <span className="ml-2 text-xs">
+                {activePlaythroughs.length} active · {completedPlaythroughs.length} completed
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="text-center p-4 border rounded-lg">
-              <div className="text-3xl font-bold text-primary">{activePlaythroughs.length}</div>
-              <div className="text-sm text-muted-foreground">Active</div>
-            </div>
-            <div className="text-center p-4 border rounded-lg">
-              <div className="text-3xl font-bold text-green-600">{completedPlaythroughs.length}</div>
-              <div className="text-sm text-muted-foreground">Completed</div>
-            </div>
-            <div className="text-center p-4 border rounded-lg">
-              <div className="text-3xl font-bold text-muted-foreground">
-                {abandonedPlaythroughs.length}
-              </div>
-              <div className="text-sm text-muted-foreground">Abandoned</div>
-            </div>
-          </div>
-        </CardContent>
       </Card>
 
       {playthroughs.length === 0 ? (
-        <Card>
+        <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
           <CardContent className="py-8 text-center text-muted-foreground">
             <p>You haven't started any playthroughs yet.</p>
             <p className="mt-2 text-sm">Browse worlds to start playing!</p>
@@ -198,7 +188,7 @@ export function PlaythroughsList({ onResumePlaythrough }: PlaythroughsListProps)
       ) : (
         <div className="space-y-4">
           {playthroughs.map((playthrough) => (
-            <Card key={playthrough.id}>
+            <Card key={playthrough.id} className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 rounded-xl">
               <CardContent className="pt-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">

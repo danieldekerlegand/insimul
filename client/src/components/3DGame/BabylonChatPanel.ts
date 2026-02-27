@@ -154,6 +154,7 @@ export class BabylonChatPanel {
           targetLanguage: this.world?.targetLanguage || 'English',
           worldLanguages: languages,
           primaryLanguage: primary,
+          gameType: this.world?.gameType || this.world?.worldType,
         };
       }
     } catch (error) {
@@ -475,15 +476,40 @@ export class BabylonChatPanel {
       const aiResponse = await this.sendToGemini(userMessage);
 
       // Parse and create quest if present in response
-      const cleanedResponse = await this.parseAndCreateQuest(aiResponse);
+      let cleanedResponse = await this.parseAndCreateQuest(aiResponse);
 
-      // Analyze messages for language learning vocabulary
+      // Parse grammar feedback for language-learning games only
+      const isLanguageLearning = this.world?.gameType === 'language-learning' ||
+                                 this.world?.gameType === 'educational' ||
+                                 this.world?.worldType === 'language-learning' ||
+                                 this.world?.worldType === 'educational';
+
       if (this.languageTracker) {
+        if (isLanguageLearning) {
+          const { feedback, cleanedResponse: afterGrammarClean } =
+            this.languageTracker.parseGrammarFeedback(cleanedResponse);
+          cleanedResponse = afterGrammarClean;
+
+          if (feedback) {
+            this.languageTracker.recordGrammarFeedback(feedback);
+
+            if (feedback.status === 'corrected' && feedback.errors.length > 0) {
+              console.log(`[LanguageTracker] Grammar corrections: ${feedback.errors.length}`);
+              feedback.errors.forEach(err => {
+                console.log(`  - ${err.pattern}: "${err.incorrect}" -> "${err.corrected}"`);
+              });
+            } else if (feedback.status === 'correct') {
+              console.log('[LanguageTracker] Grammar: correct!');
+            }
+          }
+        }
+
+        // Analyze vocabulary usage
         this.languageTracker.analyzePlayerMessage(userMessage);
         this.languageTracker.analyzeNPCResponse(cleanedResponse);
       }
 
-      // Add AI response (with quest markers removed)
+      // Add AI response (with quest and grammar markers removed)
       this.messages.push({
         role: 'assistant',
         content: cleanedResponse,
@@ -494,7 +520,7 @@ export class BabylonChatPanel {
       // Track vocabulary usage for quests
       this.trackQuestProgress(userMessage, cleanedResponse);
 
-      // Convert to speech and play (without quest markers)
+      // Convert to speech and play (without markers)
       await this.textToSpeech(cleanedResponse);
 
     } catch (error) {

@@ -1,8 +1,8 @@
 /**
  * Language Progress Types
  *
- * Defines vocabulary tracking, fluency progression, and language learning
- * progress data structures used across client and server.
+ * Defines vocabulary tracking, fluency progression, grammar correction,
+ * and language learning progress data structures used across client and server.
  */
 
 export type MasteryLevel = 'new' | 'learning' | 'familiar' | 'mastered';
@@ -30,6 +30,20 @@ export interface GrammarPattern {
   examples: string[];
 }
 
+export interface GrammarCorrection {
+  pattern: string;         // e.g. "subject-verb agreement", "article agreement"
+  incorrect: string;       // The erroneous fragment from the player
+  corrected: string;       // The correct form
+  explanation: string;     // Pedagogical explanation
+}
+
+export interface GrammarFeedback {
+  status: 'correct' | 'corrected' | 'no_target_language';
+  errors: GrammarCorrection[];
+  errorCount: number;
+  timestamp: number;
+}
+
 export interface ConversationRecord {
   id: string;
   characterId: string;
@@ -39,6 +53,8 @@ export interface ConversationRecord {
   wordsUsed: string[];
   targetLanguagePercentage: number;  // 0-100
   fluencyGained: number;
+  grammarErrorCount: number;
+  grammarCorrectCount: number;
 }
 
 export interface LanguageProgress {
@@ -70,6 +86,7 @@ export interface FluencyGainResult {
   wordsLearned: number;
   wordsReinforced: number;
   bonuses: string[];
+  grammarScore: number;           // 0.0-1.0 ratio of correct grammar turns
 }
 
 /**
@@ -86,17 +103,23 @@ export function calculateMasteryLevel(
 }
 
 /**
- * Calculate fluency gain from a conversation
+ * Calculate fluency gain from a conversation.
+ * grammarScore: 0.0-1.0 ratio (also accepts boolean for backward compatibility)
  */
 export function calculateFluencyGain(
   currentFluency: number,
   vocabularyUsed: number,
-  grammarCorrect: boolean,
+  grammarScore: number | boolean,
   conversationLength: number,
   targetLanguagePercentage: number
 ): FluencyGainResult {
   const bonuses: string[] = [];
   let gain = 0;
+
+  // Normalize boolean to number for backward compatibility
+  const normalizedGrammarScore = typeof grammarScore === 'boolean'
+    ? (grammarScore ? 1.0 : 0.0)
+    : grammarScore;
 
   // Base gain from conversation
   const baseGain = 0.5;
@@ -107,10 +130,16 @@ export function calculateFluencyGain(
   gain += vocabBonus;
   if (vocabularyUsed >= 5) bonuses.push('Vocab variety bonus!');
 
-  // Grammar correctness bonus
-  if (grammarCorrect) {
+  // Grammar correctness bonus (graduated)
+  if (normalizedGrammarScore >= 0.9) {
     gain += 0.3;
-    bonuses.push('Grammar bonus!');
+    bonuses.push('Excellent grammar!');
+  } else if (normalizedGrammarScore >= 0.6) {
+    gain += 0.15;
+    bonuses.push('Good grammar!');
+  } else if (normalizedGrammarScore > 0) {
+    gain += 0.05;
+    bonuses.push('Keep practicing grammar!');
   }
 
   // Conversation length bonus (capped)
@@ -143,5 +172,52 @@ export function calculateFluencyGain(
     wordsLearned: 0,    // set by caller
     wordsReinforced: 0,  // set by caller
     bonuses,
+    grammarScore: normalizedGrammarScore,
+  };
+}
+
+/**
+ * Parse a grammar feedback block from an NPC response string.
+ * Returns the parsed feedback and the response with the block removed.
+ */
+export function parseGrammarFeedbackBlock(response: string): {
+  feedback: GrammarFeedback | null;
+  cleanedResponse: string;
+} {
+  const grammarMatch = response.match(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/);
+
+  if (!grammarMatch) {
+    return { feedback: null, cleanedResponse: response };
+  }
+
+  const block = grammarMatch[0];
+  const cleanedResponse = response.replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/, '').trim();
+
+  const statusMatch = block.match(/Status:\s*(correct|corrected|no_target_language)/);
+  const errorsCountMatch = block.match(/Errors:\s*(\d+)/);
+
+  const status = (statusMatch?.[1] as GrammarFeedback['status']) || 'no_target_language';
+  const errorCount = parseInt(errorsCountMatch?.[1] || '0');
+
+  const patternRegex = /Pattern:\s*(.+?)\s*\|\s*Incorrect:\s*"([^"]*)"\s*\|\s*Corrected:\s*"([^"]*)"\s*\|\s*Explanation:\s*(.+)/g;
+  const errors: GrammarCorrection[] = [];
+  let match;
+  while ((match = patternRegex.exec(block)) !== null) {
+    errors.push({
+      pattern: match[1].trim(),
+      incorrect: match[2].trim(),
+      corrected: match[3].trim(),
+      explanation: match[4].trim(),
+    });
+  }
+
+  return {
+    feedback: {
+      status,
+      errors,
+      errorCount: errors.length || errorCount,
+      timestamp: Date.now(),
+    },
+    cleanedResponse,
   };
 }

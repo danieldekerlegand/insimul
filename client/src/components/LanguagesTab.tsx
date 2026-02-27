@@ -461,19 +461,16 @@ export function LanguagesTab({ worldId }: LanguagesTabProps) {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent flex items-center gap-2">
             <Sparkles className="w-6 h-6 text-primary" />
-            Languages
+            Languages ({languages.length})
           </h2>
-          <p className="text-muted-foreground">
-            Create, manage, and chat about the languages of your world.
+          <p className="text-muted-foreground mt-1">
+            Create, manage, and chat about the languages of your world
           </p>
-        </div>
-        <div className="text-sm text-muted-foreground">
-          {languages.length} language{languages.length === 1 ? '' : 's'}
         </div>
       </div>
 
@@ -483,7 +480,7 @@ export function LanguagesTab({ worldId }: LanguagesTabProps) {
         </div>
       )}
 
-      <Card>
+      <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
         <CardHeader>
           <CardTitle>Generate Language</CardTitle>
           <CardDescription>
@@ -755,7 +752,7 @@ export function LanguagesTab({ worldId }: LanguagesTabProps) {
           </div>
 
           <div className="flex justify-end">
-            <Button onClick={handleGenerate} disabled={isGenerating || permissionsLoading || !canEdit}>
+            <Button onClick={handleGenerate} disabled={isGenerating || permissionsLoading || !canEdit} className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70">
               {isGenerating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Generate language
             </Button>
@@ -764,10 +761,12 @@ export function LanguagesTab({ worldId }: LanguagesTabProps) {
       </Card>
 
       <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <Card className="h-[480px] flex flex-col">
+        <Card className="h-[480px] flex flex-col bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl border-l-4 border-l-violet-500">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2">
-              <Globe className="w-4 h-4" />
+              <div className="p-1.5 bg-violet-500/10 rounded-lg">
+                <Globe className="w-4 h-4 text-violet-500" />
+              </div>
               Languages in this world
             </CardTitle>
             <CardDescription>Primary languages are shown first.</CardDescription>
@@ -907,10 +906,12 @@ export function LanguagesTab({ worldId }: LanguagesTabProps) {
           </CardContent>
         </Card>
 
-        <Card className="h-[480px] flex flex-col">
+        <Card className="h-[480px] flex flex-col bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl border-l-4 border-l-cyan-500">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2">
-              <MessageCircle className="w-4 h-4" />
+              <div className="p-1.5 bg-cyan-500/10 rounded-lg">
+                <MessageCircle className="w-4 h-4 text-cyan-500" />
+              </div>
               Language details and chat
             </CardTitle>
             <CardDescription>
@@ -947,12 +948,12 @@ export function LanguagesTab({ worldId }: LanguagesTabProps) {
                 </div>
 
                 <Tabs defaultValue="chat" className="flex-1 flex flex-col min-h-0">
-                  <TabsList className="w-full justify-start mb-2">
+                  <TabsList className="w-full justify-start mb-2 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-xl p-1 h-auto">
                     <TabsTrigger value="chat">Chat</TabsTrigger>
                     <TabsTrigger value="samples">Samples</TabsTrigger>
                   </TabsList>
                   <TabsContent value="chat" className="flex-1 flex flex-col min-h-0">
-                    <Card className="flex-1 flex flex-col">
+                    <Card className="flex-1 flex flex-col bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
                       <CardContent className="p-2 flex-1 flex flex-col min-h-0">
                         <ScrollArea className="flex-1 mb-2">
                           <div className="space-y-2 px-1">
@@ -1018,7 +1019,7 @@ export function LanguagesTab({ worldId }: LanguagesTabProps) {
                   </TabsContent>
 
                   <TabsContent value="samples" className="flex-1 min-h-0">
-                    <Card className="h-full">
+                    <Card className="h-full bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
                       <CardContent className="p-3 h-full">
                         <ScrollArea className="h-full">
                           <div className="space-y-3">

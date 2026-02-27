@@ -6,10 +6,16 @@
  * asset collections or falling back to default sounds.
  */
 
-import { Scene, Sound, Vector3 } from '@babylonjs/core';
+import { Scene, Sound, Vector3, AbstractMesh, Observer } from '@babylonjs/core';
 import type { VisualAsset } from '@shared/schema.ts';
 
 export type AudioRole = 'footstep' | 'ambient' | 'combat' | 'interact' | 'music';
+
+export interface SpatialSoundBinding {
+  sound: Sound;
+  mesh: AbstractMesh;
+  role: AudioRole;
+}
 
 export interface AudioConfig {
   footstep?: string;
@@ -40,6 +46,11 @@ export class AudioManager {
   // State
   private isMuted: boolean = false;
   private isInitialized: boolean = false;
+
+  // VR Spatial Audio
+  private isVRMode: boolean = false;
+  private spatialBindings: SpatialSoundBinding[] = [];
+  private spatialUpdateObserver: Observer<Scene> | null = null;
 
   constructor(scene: Scene) {
     this.scene = scene;
@@ -417,11 +428,147 @@ export class AudioManager {
     };
   }
 
+  // -- VR Spatial Audio --
+
+  /**
+   * Enable VR spatial audio mode.
+   * Starts per-frame position updates for sounds bound to meshes.
+   */
+  public enableVRSpatialAudio(): void {
+    if (this.isVRMode) return;
+    this.isVRMode = true;
+
+    // Make all spatial sounds use HRTF-friendly settings
+    this.sounds.forEach(({ sound }) => {
+      if (sound.spatialSound) {
+        sound.distanceModel = 'exponential';
+        sound.rolloffFactor = 2;
+        sound.maxDistance = 50;
+      }
+    });
+
+    // Start per-frame position updates for bound sounds
+    this.spatialUpdateObserver = this.scene.onBeforeRenderObservable.add(() => {
+      this.updateSpatialBindings();
+    });
+
+    console.log('[AudioManager] VR spatial audio enabled');
+  }
+
+  /**
+   * Disable VR spatial audio mode.
+   */
+  public disableVRSpatialAudio(): void {
+    if (!this.isVRMode) return;
+    this.isVRMode = false;
+
+    if (this.spatialUpdateObserver) {
+      this.scene.onBeforeRenderObservable.remove(this.spatialUpdateObserver);
+      this.spatialUpdateObserver = null;
+    }
+
+    // Dispose bound sounds
+    for (const binding of this.spatialBindings) {
+      binding.sound.dispose();
+    }
+    this.spatialBindings = [];
+
+    console.log('[AudioManager] VR spatial audio disabled');
+  }
+
+  /**
+   * Bind a sound to a mesh so it follows the mesh's position each frame.
+   * Used for NPC voice audio, environment sounds attached to objects, etc.
+   */
+  public bindSoundToMesh(
+    soundName: string,
+    mesh: AbstractMesh,
+    role: AudioRole = 'interact'
+  ): Sound | null {
+    const soundEntry = this.sounds.get(soundName);
+    if (!soundEntry) return null;
+
+    const sound = soundEntry.sound;
+    sound.spatialSound = true;
+    sound.distanceModel = 'exponential';
+    sound.rolloffFactor = 2;
+    sound.maxDistance = 50;
+    sound.setPosition(mesh.position);
+
+    this.spatialBindings.push({ sound, mesh, role });
+    return sound;
+  }
+
+  /**
+   * Create and bind a new spatial sound to a mesh.
+   * Returns the Sound instance for further control.
+   */
+  public async createSpatialSound(
+    name: string,
+    filePath: string,
+    mesh: AbstractMesh,
+    role: AudioRole = 'interact',
+    options?: { loop?: boolean; autoplay?: boolean; volume?: number }
+  ): Promise<Sound | null> {
+    const sound = await this.loadDynamicSound(name, filePath, role, options);
+    if (!sound) return null;
+
+    sound.spatialSound = true;
+    sound.distanceModel = 'exponential';
+    sound.rolloffFactor = 2;
+    sound.maxDistance = 50;
+    sound.setPosition(mesh.position);
+
+    this.spatialBindings.push({ sound, mesh, role });
+    return sound;
+  }
+
+  /**
+   * Remove all spatial bindings for a mesh (e.g., when NPC is removed).
+   */
+  public unbindSoundFromMesh(mesh: AbstractMesh): void {
+    this.spatialBindings = this.spatialBindings.filter(b => {
+      if (b.mesh === mesh) {
+        b.sound.dispose();
+        return false;
+      }
+      return true;
+    });
+  }
+
+  /**
+   * Play a spatial one-shot at a mesh's current position.
+   * Useful for combat hit sounds, NPC reactions, etc.
+   */
+  public playSpatialOneShot(role: AudioRole, mesh: AbstractMesh): void {
+    this.playSoundOneShot(role, mesh.position);
+  }
+
+  /**
+   * Per-frame update: sync sound positions to their bound meshes.
+   */
+  private updateSpatialBindings(): void {
+    for (const binding of this.spatialBindings) {
+      if (binding.mesh.isDisposed()) {
+        binding.sound.dispose();
+        continue;
+      }
+      binding.sound.setPosition(binding.mesh.position);
+    }
+
+    // Clean up disposed meshes
+    this.spatialBindings = this.spatialBindings.filter(
+      b => !b.mesh.isDisposed()
+    );
+  }
+
   /**
    * Dispose of all audio resources
    */
   public dispose(): void {
     console.log('[AudioManager] Disposing audio resources');
+
+    this.disableVRSpatialAudio();
 
     this.sounds.forEach(({ sound }) => {
       sound.dispose();

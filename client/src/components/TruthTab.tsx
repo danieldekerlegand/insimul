@@ -206,7 +206,7 @@ export function TruthTab({ worldId, characters }: TruthTabProps) {
   };
 
   const renderEntryCard = (entry: Truth) => (
-    <Card key={entry.id} className="p-4">
+    <Card key={entry.id} className="p-4 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
@@ -276,16 +276,16 @@ export function TruthTab({ worldId, characters }: TruthTabProps) {
   );
 
   return (
-    <div className="space-y-4">
-      <Card>
+    <div className="space-y-4 p-6">
+      <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <Compass className="w-5 h-5" />
+              <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent flex items-center gap-2">
+                <Compass className="w-6 h-6 text-primary" />
                 World Truth ({truths.length})
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="mt-1">
                 Past, present, and future truths about the world and its characters
               </CardDescription>
             </div>
@@ -460,7 +460,7 @@ export function TruthTab({ worldId, characters }: TruthTabProps) {
 
           {/* Past/Present/Future Tabs */}
           <Tabs defaultValue="present" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-3 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-xl p-1 h-auto">
               <TabsTrigger value="past" className="gap-2">
                 <History className="w-4 h-4" />
                 Past ({pastEntries.length})

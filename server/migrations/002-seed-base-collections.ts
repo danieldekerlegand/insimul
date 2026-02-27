@@ -65,6 +65,8 @@ interface BaseCollectionDef {
     questObjectModels?: Record<string, string>;
     groundTextureId?: string;
     roadTextureId?: string;
+    wallTextureId?: string;
+    roofTextureId?: string;
   };
 }
 
@@ -103,9 +105,9 @@ async function getPolyhavenTextureUrl(assetId: string): Promise<{ url: string; r
     // Fallback: return first available URL
     for (const [format, resolutions] of Object.entries(files)) {
       if (typeof resolutions === 'object' && resolutions !== null) {
-        for (const [res, data] of Object.entries(resolutions as any)) {
-          if (data.jpg?.url) return { url: data.jpg.url, resolution: res };
-          if (data.png?.url) return { url: data.png.url, resolution: res };
+        for (const [res, data] of Object.entries(resolutions as Record<string, any>)) {
+          if (data?.jpg?.url) return { url: data.jpg.url, resolution: res };
+          if (data?.png?.url) return { url: data.png.url, resolution: res };
         }
       }
     }
@@ -134,6 +136,11 @@ export async function seedBaseCollections() {
     const createdCollections = [];
     const errors: string[] = [];
 
+    // Global deduplication map: polyhavenId -> visualAssetId
+    // This ensures each unique Polyhaven asset is only created once as a VisualAsset,
+    // and shared across all collections that reference it.
+    const globalAssetMap = new Map<string, string>();
+
     for (const [worldType, collectionDef] of Object.entries(baseData.collections)) {
       console.log(`\n${'='.repeat(60)}`);
       console.log(`Processing: ${worldType}`);
@@ -147,6 +154,52 @@ export async function seedBaseCollections() {
 
       if (existingBase) {
         console.log(`✅ Base collection already exists: ${existingBase.name} (${existingBase.id})`);
+
+        // Populate globalAssetMap from existing collection's assets for deduplication
+        const existingAssetIds: string[] = existingBase.assetIds as string[] || [];
+        if (existingAssetIds.length > 0) {
+          for (const assetId of existingAssetIds) {
+            try {
+              const va = await storage.getVisualAsset(assetId);
+              if (va && va.metadata && (va.metadata as any).polyhavenId) {
+                globalAssetMap.set((va.metadata as any).polyhavenId, va.id);
+              }
+            } catch { /* skip */ }
+          }
+        }
+
+        // Patch missing wallTextureId / roofTextureId on existing collections
+        const patchFields: Record<string, string | null> = {};
+
+        // Build a quick polyhavenId -> assetId map from existing visual assets
+        if (!existingBase.wallTextureId || !existingBase.roofTextureId) {
+          console.log(`  🔧 Patching missing texture IDs on existing collection...`);
+
+          const resolveExisting = (placeholder: string): string | null => {
+            const match = placeholder.match(/\$\{polyhavenId:([^}]+)\}/);
+            if (match) {
+              return globalAssetMap.get(match[1]) || null;
+            }
+            return placeholder;
+          };
+
+          if (!existingBase.wallTextureId && collectionDef.config3D.wallTextureId) {
+            const resolved = resolveExisting(collectionDef.config3D.wallTextureId);
+            if (resolved) patchFields.wallTextureId = resolved;
+          }
+          if (!existingBase.roofTextureId && collectionDef.config3D.roofTextureId) {
+            const resolved = resolveExisting(collectionDef.config3D.roofTextureId);
+            if (resolved) patchFields.roofTextureId = resolved;
+          }
+
+          if (Object.keys(patchFields).length > 0) {
+            await storage.updateAssetCollection(existingBase.id, patchFields as any);
+            console.log(`  ✅ Patched: ${Object.keys(patchFields).join(', ')}`);
+          } else {
+            console.log(`  ℹ️  No texture patches needed (or assets not found)`);
+          }
+        }
+
         createdCollections.push(existingBase);
         continue;
       }
@@ -164,10 +217,20 @@ export async function seedBaseCollections() {
 
         for (const assetDef of assets as BaseCollectionAsset[]) {
           try {
+            // Check if this polyhavenId was already created for a previous collection
+            const existingAssetId = globalAssetMap.get(assetDef.polyhavenId);
+            if (existingAssetId) {
+              assetIdMap.set(assetDef.polyhavenId, existingAssetId);
+              successCount++;
+              console.log(`  ♻️  ${assetDef.polyhavenId} -> reusing ${existingAssetId.substring(0, 8)}...`);
+              continue;
+            }
+
             let assetUrl: string;
             let resolution: string;
 
             // Fetch from Polyhaven based on asset type
+            let companionFiles: Record<string, string> | undefined;
             if (category === 'textures' || assetDef.assetType.startsWith('texture_')) {
               const result = await getPolyhavenTextureUrl(assetDef.polyhavenId);
               assetUrl = result.url;
@@ -176,29 +239,31 @@ export async function seedBaseCollections() {
               const result = await getPolyhavenModelUrl(assetDef.polyhavenId);
               assetUrl = result.url;
               resolution = result.resolution;
+              companionFiles = result.companionFiles;
             }
 
-            // Download asset locally
+            // Download asset locally (including companion files for models)
             const downloadResult = await preprocessPolyhavenAsset(
               assetUrl,
               assetDef.assetType,
-              assetDef.polyhavenId
+              assetDef.polyhavenId,
+              companionFiles
             );
 
             // Determine file extension from local path
             const extension = downloadResult.localPath.split('.').pop() || 'glb';
 
-            // Create VisualAsset record with LOCAL path
+            // Create VisualAsset record with LOCAL path (collection-agnostic)
             const visualAsset = await storage.createVisualAsset({
               name: `${assetDef.polyhavenId} (${assetDef.semanticRole})`,
-              description: assetDef.description || `Base asset for ${worldType} - ${assetDef.semanticRole}`,
+              description: assetDef.description || `Polyhaven asset - ${assetDef.semanticRole}`,
               assetType: assetDef.assetType as any,
               filePath: downloadResult.localPath, // ✅ Store local path instead of URL
               fileName: `${assetDef.polyhavenId}.${extension}`,
               generationProvider: 'polyhaven' as any,
               generationPrompt: assetDef.polyhavenId,
               purpose: 'base-collection',
-              tags: ['base', worldType, category, assetDef.semanticRole],
+              tags: ['base', category, assetDef.semanticRole],
               status: 'completed',
               metadata: {
                 polyhavenId: assetDef.polyhavenId,
@@ -210,9 +275,10 @@ export async function seedBaseCollections() {
               }
             });
 
+            globalAssetMap.set(assetDef.polyhavenId, visualAsset.id);
             assetIdMap.set(assetDef.polyhavenId, visualAsset.id);
             successCount++;
-            console.log(`  ✅ ${assetDef.polyhavenId} -> ${visualAsset.id.substring(0, 8)}...`);
+            console.log(`  ✅ ${assetDef.polyhavenId} -> ${visualAsset.id.substring(0, 8)}... (new)`);
 
           } catch (error: any) {
             failCount++;
@@ -284,6 +350,8 @@ export async function seedBaseCollections() {
         questObjectModels: config3D.questObjectModels || {},
         groundTextureId: config3D.groundTextureId || null,
         roadTextureId: config3D.roadTextureId || null,
+        wallTextureId: config3D.wallTextureId || null,
+        roofTextureId: config3D.roofTextureId || null,
         tags: collectionDef.tags,
         purpose: collectionDef.purpose
       });

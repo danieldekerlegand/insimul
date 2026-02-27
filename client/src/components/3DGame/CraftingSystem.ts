@@ -8,32 +8,9 @@
 
 import { ResourceType, ResourceSystem } from './ResourceSystem';
 
-export type ItemCategory = 'tool' | 'weapon' | 'armor' | 'consumable' | 'material' | 'building_material' | 'utility';
-
-export interface CraftingRecipe {
-  id: string;
-  name: string;
-  description: string;
-  category: ItemCategory;
-  icon: string;
-  ingredients: Partial<Record<ResourceType, number>>;
-  craftTime: number;       // ms
-  outputQuantity: number;
-  requiredLevel: number;   // 0 = no requirement
-  unlocked: boolean;
-}
-
-export interface CraftedItem {
-  id: string;
-  recipeId: string;
-  name: string;
-  category: ItemCategory;
-  icon: string;
-  quantity: number;
-  durability?: number;
-  maxDurability?: number;
-  stats?: Record<string, number>;
-}
+// Re-export engine-agnostic types from shared game-engine
+export type { ItemCategory, CraftingRecipe, CraftedItem } from '@shared/game-engine/types';
+import type { ItemCategory, CraftingRecipe, CraftedItem } from '@shared/game-engine/types';
 
 // Default crafting recipes
 const DEFAULT_RECIPES: CraftingRecipe[] = [

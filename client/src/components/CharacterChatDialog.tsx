@@ -7,6 +7,7 @@ import { Mic, MicOff, Send, Volume2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { buildGreeting, buildLanguageAwareSystemPrompt, extractLanguageFluencies, getLanguageBCP47 } from '@shared/language-utils';
 import type { WorldLanguageContext } from '@shared/language-utils';
+import { parseGrammarFeedbackBlock } from '@shared/language-progress';
 
 export interface Character {
   id: string;
@@ -71,6 +72,7 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
             targetLanguage: world?.targetLanguage || 'English',
             worldLanguages: languages,
             primaryLanguage: primary,
+            gameType: world?.gameType || world?.worldType,
           });
         }).catch(err => console.error('Failed to fetch world language context:', err));
       }
@@ -580,22 +582,29 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
       const aiResponse = await sendMessageToGemini(userMessage);
 
       // Parse and create quest if present
-      const cleanedResponse = await parseAndCreateQuest(aiResponse);
+      const afterQuestClean = await parseAndCreateQuest(aiResponse);
 
-      // Add AI message (with quest markers removed)
+      // Strip grammar feedback markers for language-learning games
+      const isLangLearning = worldLangContext?.gameType === 'language-learning' ||
+                             worldLangContext?.gameType === 'educational';
+      const { cleanedResponse: displayResponse } = isLangLearning
+        ? parseGrammarFeedbackBlock(afterQuestClean)
+        : { cleanedResponse: afterQuestClean };
+
+      // Add AI message (with quest and grammar markers removed)
       const newAiMessage: Message = {
         role: 'assistant',
-        content: cleanedResponse,
+        content: displayResponse,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, newAiMessage]);
 
-      // Convert to speech and play (without quest markers)
-      const audioBlob = await textToSpeech(cleanedResponse);
+      // Convert to speech and play (without markers)
+      const audioBlob = await textToSpeech(displayResponse);
       await playAudio(audioBlob);
 
       // Automatically create a quest based on the conversation
-      await createAutomaticQuest(userMessage, cleanedResponse);
+      await createAutomaticQuest(userMessage, displayResponse);
 
     } catch (error) {
       toast({
@@ -642,15 +651,23 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
 
             // Get AI response
             const aiResponse = await sendMessageToGemini(transcript);
+
+            // Strip grammar feedback markers for language-learning games
+            const isVoiceLangLearning = worldLangContext?.gameType === 'language-learning' ||
+                                        worldLangContext?.gameType === 'educational';
+            const { cleanedResponse: voiceDisplayResponse } = isVoiceLangLearning
+              ? parseGrammarFeedbackBlock(aiResponse)
+              : { cleanedResponse: aiResponse };
+
             const aiMessage: Message = {
               role: 'assistant',
-              content: aiResponse,
+              content: voiceDisplayResponse,
               timestamp: new Date()
             };
             setMessages(prev => [...prev, aiMessage]);
 
-            // Convert to speech and play
-            const responseAudioBlob = await textToSpeech(aiResponse);
+            // Convert to speech and play (without markers)
+            const responseAudioBlob = await textToSpeech(voiceDisplayResponse);
             await playAudio(responseAudioBlob);
           }
         } catch (error) {
@@ -696,8 +713,8 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Volume2 className="w-5 h-5" />
+          <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent flex items-center gap-2">
+            <Volume2 className="w-5 h-5 text-primary" />
             Talk with {character.firstName} {character.lastName}
           </DialogTitle>
           <DialogDescription>
@@ -713,10 +730,10 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                  className={`max-w-[80%] rounded-2xl px-4 py-2 ${
                     message.role === 'user'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-white/60 dark:bg-white/10 backdrop-blur-sm border border-white/20 dark:border-white/10 text-foreground'
                   }`}
                 >
                   <p className="text-sm">{message.content}</p>

@@ -7,8 +7,11 @@
 
 import { Scene, Vector3, Mesh, MeshBuilder, StandardMaterial, Color3 } from '@babylonjs/core';
 
-export type ResourceType = 'wood' | 'stone' | 'iron' | 'gold' | 'food' | 'water' | 'fiber' | 'crystal' | 'oil';
+// Re-export engine-agnostic data types for backward compatibility
+export type { ResourceType, ResourceInventory, StorageCapacity } from '@shared/game-engine/types';
+import type { ResourceType, ResourceInventory, StorageCapacity } from '@shared/game-engine/types';
 
+// Babylon-specific types (use Babylon Color3 / Vector3 / Mesh)
 export interface ResourceDefinition {
   id: ResourceType;
   name: string;
@@ -30,15 +33,6 @@ export interface ResourceNode {
   lastGatherTime: number;
   respawnTimer: number;
   depleted: boolean;
-}
-
-export interface ResourceInventory {
-  [key: string]: number;
-}
-
-export interface StorageCapacity {
-  maxTotal: number;
-  perResource?: Partial<Record<ResourceType, number>>;
 }
 
 export const DEFAULT_RESOURCE_DEFINITIONS: Record<ResourceType, ResourceDefinition> = {

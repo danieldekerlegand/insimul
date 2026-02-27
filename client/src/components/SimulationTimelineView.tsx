@@ -155,7 +155,7 @@ export function SimulationTimelineView({
     const typeInfo = getEntryTypeInfo(truth.entryType);
 
     return (
-      <Card key={truth.id} className="mb-3">
+      <Card key={truth.id} className="mb-3 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 rounded-xl">
         <CardContent className="pt-4">
           <div className="flex items-start gap-3">
             <div className="text-2xl">{typeInfo.icon}</div>
@@ -208,7 +208,7 @@ export function SimulationTimelineView({
 
   if (simulationTruths.length === 0) {
     return (
-      <Card>
+      <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Play className="w-5 h-5" />
@@ -228,10 +228,12 @@ export function SimulationTimelineView({
   }
 
   return (
-    <Card>
+    <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Play className="w-5 h-5" />
+        <CardTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent flex items-center gap-2">
+          <div className="p-1.5 bg-primary/10 rounded-lg">
+            <Play className="w-5 h-5 text-primary" />
+          </div>
           Simulation Timeline ({simulationTruths.length} events)
         </CardTitle>
       </CardHeader>
@@ -246,7 +248,7 @@ export function SimulationTimelineView({
         </div>
 
         <Tabs defaultValue="present" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-5 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-xl p-1 h-auto">
             <TabsTrigger value="past" className="flex items-center gap-2">
               <History className="w-4 h-4" />
               Past ({pastTruths.length})

@@ -15,7 +15,7 @@ import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
-import type { VisualAsset } from '@shared/schema';
+import type { VisualAsset, AssetCollection } from '@shared/schema';
 import { format } from 'date-fns';
 import { AssetExportDialog } from './AssetExportDialog';
 import { ImageUpscaleDialog } from './ImageUpscaleDialog';
@@ -80,14 +80,41 @@ export function AssetBrowserDialog({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch assets
+  // Fetch collection details when collectionId is provided (to get assetIds)
+  const { data: collection } = useQuery<AssetCollection>({
+    queryKey: ['/api/asset-collections', collectionId],
+    enabled: open && !!collectionId,
+  });
+
+  // Fetch assets — when collectionId is present, fetch only the collection's assets by IDs
   const { data: assets = [], isLoading } = useQuery<VisualAsset[]>({
-    queryKey: entityId && entityType
-      ? ['/api/assets', entityType, entityId]
-      : worldId
-        ? ['/api/worlds', worldId, 'assets', ...(assetTypeFilter !== 'all' ? [`?assetType=${assetTypeFilter}`] : [])]
-        : ['/api/assets'],
-    enabled: open
+    queryKey: collectionId && collection?.assetIds?.length
+      ? ['/api/assets', { ids: collection.assetIds.join(',') }]
+      : entityId && entityType
+        ? ['/api/assets', entityType, entityId]
+        : worldId
+          ? ['/api/worlds', worldId, 'assets', ...(assetTypeFilter !== 'all' ? [`?assetType=${assetTypeFilter}`] : [])]
+          : ['/api/assets'],
+    queryFn: async () => {
+      if (collectionId && collection?.assetIds?.length) {
+        const res = await fetch(`/api/assets?ids=${collection.assetIds.join(',')}`);
+        if (!res.ok) throw new Error('Failed to fetch collection assets');
+        return res.json();
+      }
+      if (collectionId && collection?.assetIds?.length === 0) {
+        return [];
+      }
+      // Default: use the queryKey-based fetch
+      const key = entityId && entityType
+        ? `/api/assets/${entityType}/${entityId}`
+        : worldId
+          ? `/api/worlds/${worldId}/assets${assetTypeFilter !== 'all' ? `?assetType=${assetTypeFilter}` : ''}`
+          : '/api/assets';
+      const res = await fetch(key, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch assets');
+      return res.json();
+    },
+    enabled: open && (!collectionId || !!collection),
   });
 
   // Fetch generation jobs (only if worldId is provided)
@@ -127,14 +154,6 @@ export function AssetBrowserDialog({
     }
   });
 
-  const isImageAsset = (asset: VisualAsset): boolean => {
-    if (asset.mimeType && asset.mimeType.startsWith('image/')) {
-      return true;
-    }
-    const filePath = asset.filePath?.toLowerCase?.() || '';
-    return filePath.endsWith('.png') || filePath.endsWith('.jpg') || filePath.endsWith('.jpeg') || filePath.endsWith('.webp');
-  };
-
   const isModelAsset = (asset: VisualAsset): boolean => {
     const type = asset.assetType || '';
     if (type.startsWith('model_')) {
@@ -159,6 +178,16 @@ export function AssetBrowserDialog({
     }
     const filePath = asset.filePath?.toLowerCase?.() || '';
     return filePath.endsWith('.mp3') || filePath.endsWith('.wav') || filePath.endsWith('.ogg') || filePath.endsWith('.m4a');
+  };
+
+  const isImageAsset = (asset: VisualAsset): boolean => {
+    // Exclude model and audio assets even if they have an image mimeType
+    if (isModelAsset(asset) || isAudioAsset(asset)) return false;
+    if (asset.mimeType && asset.mimeType.startsWith('image/')) {
+      return true;
+    }
+    const filePath = asset.filePath?.toLowerCase?.() || '';
+    return filePath.endsWith('.png') || filePath.endsWith('.jpg') || filePath.endsWith('.jpeg') || filePath.endsWith('.webp');
   };
 
   const handleAudioPlayPause = (e: React.MouseEvent, asset: VisualAsset) => {
@@ -270,10 +299,10 @@ export function AssetBrowserDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ImageIcon className="h-5 w-5" />
+        <DialogContent className="max-w-6xl h-[80vh] flex flex-col overflow-hidden">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent flex items-center gap-2">
+              <ImageIcon className="h-5 w-5 text-primary" />
               Visual Assets Browser
             </DialogTitle>
             <DialogDescription>
@@ -281,7 +310,7 @@ export function AssetBrowserDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'assets' | 'history')}>
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'assets' | 'history')} className="flex flex-col min-h-0 flex-1 overflow-hidden">
             {worldId && (
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="assets">
@@ -295,9 +324,9 @@ export function AssetBrowserDialog({
               </TabsList>
             )}
 
-            <TabsContent value="assets" className="space-y-4 mt-4">
+            <TabsContent value="assets" className="space-y-4 mt-4 flex flex-col min-h-0 flex-1 overflow-hidden">
             {/* Search and Filters */}
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-shrink-0">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -329,7 +358,7 @@ export function AssetBrowserDialog({
             </div>
             
             {/* Action Buttons */}
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-shrink-0">
               {worldId && (
                 <Button
                   variant="outline"
@@ -353,7 +382,7 @@ export function AssetBrowserDialog({
             </div>
 
             {/* Stats */}
-            <div className="flex gap-4 text-sm text-muted-foreground">
+            <div className="flex gap-4 text-sm text-muted-foreground flex-shrink-0">
               <div>{filteredAssets.length} assets found</div>
               <div>•</div>
               <div>{assetTypes.length} types</div>
@@ -361,7 +390,7 @@ export function AssetBrowserDialog({
 
             {/* Bulk Selection Toolbar */}
             {filteredAssets.length > 0 && (
-              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
@@ -412,7 +441,8 @@ export function AssetBrowserDialog({
             )}
 
             {/* Asset Grid/List */}
-            <ScrollArea className="h-[500px] pr-4">
+            <div className="flex-1 min-h-0 overflow-hidden">
+            <ScrollArea className="h-full pr-4">
               {isLoading ? (
                 <div className="flex items-center justify-center h-full">
                   <p className="text-muted-foreground">Loading assets...</p>
@@ -437,12 +467,12 @@ export function AssetBrowserDialog({
                     >
                       <CardContent className="p-0">
                         <div className="relative aspect-square">
-                          {isImageAsset(asset) ? (
-                            <img
-                              src={`/${asset.filePath}`}
-                              alt={asset.name}
-                              className="w-full h-full object-cover rounded-t-lg"
-                            />
+                          {isModelAsset(asset) ? (
+                            <div className="flex flex-col h-full w-full items-center justify-center rounded-t-lg bg-gradient-to-br from-blue-500/20 to-cyan-500/20">
+                              <Box className="h-10 w-10 text-blue-500 mb-2" />
+                              <span className="text-xs font-medium text-blue-600">3D Model</span>
+                              <span className="text-[10px] text-muted-foreground mt-0.5">Click to preview</span>
+                            </div>
                           ) : isAudioAsset(asset) ? (
                             <div className="flex flex-col h-full w-full items-center justify-center rounded-t-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20">
                               <Volume2 className="h-10 w-10 text-purple-500 mb-2" />
@@ -458,11 +488,11 @@ export function AssetBrowserDialog({
                               </button>
                               <audio id={`audio-${asset.id}`} src={`/${asset.filePath}`} preload="none" />
                             </div>
-                          ) : isModelAsset(asset) ? (
-                            <ModelPreview
-                              modelPath={asset.filePath}
-                              className="h-full w-full"
-                              showControls={false}
+                          ) : isImageAsset(asset) ? (
+                            <img
+                              src={`/${asset.filePath}`}
+                              alt={asset.name}
+                              className="w-full h-full object-cover rounded-t-lg"
                             />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center rounded-t-lg bg-muted">
@@ -517,12 +547,11 @@ export function AssetBrowserDialog({
                           }}
                           onClick={(e) => e.stopPropagation()}
                         />
-                        {isImageAsset(asset) ? (
-                          <img
-                            src={`/${asset.filePath}`}
-                            alt={asset.name}
-                            className="w-20 h-20 object-cover rounded"
-                          />
+                        {isModelAsset(asset) ? (
+                          <div className="flex flex-col h-20 w-20 items-center justify-center rounded bg-gradient-to-br from-blue-500/20 to-cyan-500/20">
+                            <Box className="h-6 w-6 text-blue-500 mb-1" />
+                            <span className="text-[10px] font-medium text-blue-600">3D Model</span>
+                          </div>
                         ) : isAudioAsset(asset) ? (
                           <div className="flex h-20 w-20 items-center justify-center rounded bg-gradient-to-br from-purple-500/20 to-pink-500/20 relative">
                             <Volume2 className="h-6 w-6 text-purple-500" />
@@ -538,11 +567,11 @@ export function AssetBrowserDialog({
                             </button>
                             <audio id={`audio-${asset.id}`} src={`/${asset.filePath}`} preload="none" />
                           </div>
-                        ) : isModelAsset(asset) ? (
-                          <ModelPreview
-                            modelPath={asset.filePath}
-                            className="h-20 w-20 rounded"
-                            showControls={false}
+                        ) : isImageAsset(asset) ? (
+                          <img
+                            src={`/${asset.filePath}`}
+                            alt={asset.name}
+                            className="w-20 h-20 object-cover rounded"
                           />
                         ) : (
                           <div className="flex h-20 w-20 items-center justify-center rounded bg-muted">
@@ -587,6 +616,7 @@ export function AssetBrowserDialog({
                 </div>
               )}
             </ScrollArea>
+            </div>
             </TabsContent>
 
             {/* Generation History Tab */}
@@ -681,26 +711,43 @@ export function AssetBrowserDialog({
 
       {/* Asset Detail Dialog */}
       <Dialog open={!!selectedAsset} onOpenChange={(open) => !open && setSelectedAsset(null)}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
           {selectedAsset && (
             <>
-              <DialogHeader>
+              <DialogHeader className="flex-shrink-0">
                 <DialogTitle>{selectedAsset.name}</DialogTitle>
                 <DialogDescription>{selectedAsset.description}</DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-4">
+              <div className="space-y-4 overflow-y-auto min-h-0 flex-1 pr-1">
                 <div className="relative">
-                  {isImageAsset(selectedAsset) ? (
+                  {isModelAsset(selectedAsset) ? (
+                    <div className="h-80 rounded-lg border overflow-hidden">
+                      <ModelPreview
+                        modelPath={selectedAsset.filePath}
+                        className="h-full w-full"
+                        showControls={true}
+                      />
+                    </div>
+                  ) : isImageAsset(selectedAsset) ? (
                     <img
                       src={`/${selectedAsset.filePath}`}
                       alt={selectedAsset.name}
-                      className="w-full rounded-lg border"
+                      className="w-full max-h-[50vh] object-contain rounded-lg border"
                     />
+                  ) : isAudioAsset(selectedAsset) ? (
+                    <div className="flex flex-col items-center justify-center h-48 rounded-lg border bg-gradient-to-br from-purple-500/20 to-pink-500/20">
+                      <Volume2 className="h-12 w-12 text-purple-500 mb-3" />
+                      <audio
+                        controls
+                        src={`/${selectedAsset.filePath}`}
+                        className="w-3/4"
+                      />
+                    </div>
                   ) : (
-                    <div className="flex h-64 items-center justify-center rounded-lg border bg-muted">
+                    <div className="flex h-48 items-center justify-center rounded-lg border bg-muted">
                       <Box className="h-10 w-10 text-muted-foreground mr-2" />
-                      <span className="text-sm text-muted-foreground">3D model asset</span>
+                      <span className="text-sm text-muted-foreground">Asset preview not available</span>
                     </div>
                   )}
                 </div>

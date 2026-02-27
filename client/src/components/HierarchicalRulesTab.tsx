@@ -190,7 +190,7 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
     if (viewLevel === 'list') return null;
     
     return (
-      <div className="flex items-center gap-2 mb-6 p-4 bg-gradient-to-r from-primary/5 to-transparent rounded-lg border border-primary/10">
+      <div className="flex items-center gap-2 mb-6 p-4 bg-white/60 dark:bg-white/5 backdrop-blur-xl rounded-xl border border-white/20 dark:border-white/10">
         <Button variant="ghost" size="sm" onClick={goBack} className="gap-1 hover:bg-primary/10">
           <ArrowLeft className="w-4 h-4" />
           Back
@@ -261,7 +261,7 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
           
           <ScrollArea className="h-[600px]">
             <Tabs defaultValue="world" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsList className="grid w-full grid-cols-2 mb-4 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-xl p-1 h-auto">
                 <TabsTrigger value="world">
                   <Scroll className="w-4 h-4 mr-2" />
                   World Rules ({rules.length})
@@ -277,7 +277,7 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
                   {rules.map((rule) => (
                     <Card 
                       key={rule.id} 
-                      className="cursor-pointer hover:border-primary hover:shadow-lg transition-all duration-200 hover:scale-[1.01]" 
+                      className="cursor-pointer bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 rounded-xl" 
                       onClick={() => viewRuleDetail(rule)}
                     >
                       <CardHeader>
@@ -319,7 +319,7 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
                   ))}
                   
                   {rules.length === 0 && (
-                    <Card className="border-dashed">
+                    <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
                       <CardContent className="pt-12 pb-12">
                         <div className="text-center space-y-3">
                           <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
@@ -345,7 +345,7 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
                         return (
                           <Card 
                             key={rule.id} 
-                            className={`border-l-4 border-l-purple-500 ${!isEnabled ? 'opacity-60' : ''}`}
+                            className={`bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl border-l-4 border-l-purple-500 ${!isEnabled ? 'opacity-60' : ''}`}
                           >
                             <CardHeader>
                               <div className="flex items-center justify-between">
@@ -395,7 +395,7 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
                       })}
                     </div>
                   ) : (
-                    <Card className="border-dashed">
+                    <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
                       <CardContent className="pt-12 pb-12">
                         <div className="text-center space-y-3">
                           <div className="mx-auto w-12 h-12 bg-purple-500/10 rounded-full flex items-center justify-center">
@@ -420,8 +420,8 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
       {viewLevel === 'detail' && selectedRule && (
         <div className="space-y-6">
           {/* Rule Info Card */}
-          <Card className="border-2 border-primary/20 shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent">
+          <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-lg shadow-primary/5 rounded-xl">
+            <CardHeader className="bg-gradient-to-r from-primary/5 via-primary/5 to-transparent rounded-t-xl">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3 flex-1">
                   <div className="p-3 bg-primary/10 rounded-lg">
@@ -600,7 +600,7 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
 
           {/* Additional Info */}
           {selectedRule.triggers && selectedRule.triggers.length > 0 && (
-            <Card>
+            <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
               <CardHeader>
                 <CardTitle className="text-lg">Triggers</CardTitle>
               </CardHeader>
@@ -615,7 +615,7 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
           )}
 
           {selectedRule.conditions && selectedRule.conditions.length > 0 && (
-            <Card>
+            <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
               <CardHeader>
                 <CardTitle className="text-lg">Conditions</CardTitle>
               </CardHeader>

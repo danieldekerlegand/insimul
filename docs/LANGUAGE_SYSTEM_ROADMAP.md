@@ -122,7 +122,7 @@ Replaced with dynamic `extractLanguageFluencies()` in shared `language-utils.ts`
 - ✅ `LanguageProgressTracker` tracks vocabulary per conversation
 - ✅ Mastery levels: new → learning → familiar → mastered
 - ✅ Fluency gain calculated with bonuses on conversation end
-- ❌ No grammar correction feedback (future enhancement)
+- ✅ Grammar correction feedback via structured NPC responses
 
 ---
 
@@ -612,7 +612,7 @@ prompt += `\nCODE-SWITCHING BEHAVIOR:
 7. ✅ **Conlang phrase generation** - Real-time translation
 8. ✅ **Fluency progression system** - Long-term tracking
 9. ✅ **Code-switching behavior** - Natural language mixing
-10. **Grammar checking** - Correct player errors (future enhancement)
+10. ✅ **Grammar checking** - Correct player errors via structured NPC feedback
 
 ---
 

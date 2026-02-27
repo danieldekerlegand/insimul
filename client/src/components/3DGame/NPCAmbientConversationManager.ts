@@ -274,6 +274,13 @@ export class NPCAmbientConversationManager {
     const activeConv = this.activeConversations.get(conversationData.id);
     if (!activeConv) return;
 
+    // Safety check: ensure utterances exist
+    if (!conversationData.utterances || !Array.isArray(conversationData.utterances)) {
+      console.warn('[NPCAmbientConversationManager] Conversation has no utterances:', conversationData.id);
+      this.endConversation(conversationData.id);
+      return;
+    }
+
     for (let i = 0; i < conversationData.utterances.length; i++) {
       const utterance = conversationData.utterances[i];
 

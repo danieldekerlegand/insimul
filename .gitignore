@@ -2,3 +2,6 @@ dist
 node_modules
 *.env
 editor-repo/
+
+# Generated PDFs
+*.pdf

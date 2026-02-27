@@ -274,7 +274,7 @@ export class WorldScaleManager {
     const cols = Math.ceil(Math.sqrt(lotCount));
     const rows = Math.ceil(lotCount / cols);
 
-    const lotSpacing = 8; // Distance between lot centers
+    const lotSpacing = 20; // Distance between lot centers (must exceed largest building footprint ~20 units)
     const gridWidth = (cols - 1) * lotSpacing;
     const gridHeight = (rows - 1) * lotSpacing;
 
@@ -285,9 +285,9 @@ export class WorldScaleManager {
       const baseX = settlement.position.x - gridWidth / 2 + col * lotSpacing;
       const baseZ = settlement.position.z - gridHeight / 2 + row * lotSpacing;
 
-      // Add some jitter
-      const jitterX = (rand() - 0.5) * 3;
-      const jitterZ = (rand() - 0.5) * 3;
+      // Add some jitter (keep small relative to spacing to avoid overlap)
+      const jitterX = (rand() - 0.5) * 4;
+      const jitterZ = (rand() - 0.5) * 4;
 
       positions.push(new Vector3(
         baseX + jitterX,

@@ -33,6 +33,7 @@ export interface WorldLanguageContext {
   targetLanguage: string;
   worldLanguages: WorldLanguage[];
   primaryLanguage: WorldLanguage | null;
+  gameType?: string;
 }
 
 export interface CharacterInfo {
@@ -455,6 +456,64 @@ export function buildConlangContext(language: WorldLanguage): string {
 }
 
 /**
+ * Build the grammar correction instructions for the system prompt.
+ * Instructs the NPC to embed structured grammar feedback in responses.
+ */
+export function buildGrammarFeedbackSection(
+  targetLanguage: string,
+  worldLanguage?: WorldLanguage | null
+): string {
+  let section = `\nGRAMMAR CORRECTION ROLE:
+When the player writes in ${targetLanguage}, analyze their grammar.
+- If you find grammar errors, gently correct them IN CHARACTER as part of your dialogue.
+  For example: "Ah, you almost had it! In ${targetLanguage} we say '...' instead of '...'. But I understood you!"
+- Be encouraging and pedagogical. Never mock the player.
+- Focus on 1-2 most important errors per message (don't overwhelm).
+- If the player's grammar is correct, you may compliment them briefly.
+
+After your dialogue response, include a structured grammar feedback block:
+
+**GRAMMAR_FEEDBACK**
+Status: [correct|corrected|no_target_language]
+Errors: [number of errors found, 0 if none]
+Pattern: [grammar pattern name] | Incorrect: "[what the player wrote]" | Corrected: "[correct form]" | Explanation: [brief explanation]
+**END_GRAMMAR**
+
+Rules for the grammar feedback block:
+- Include one "Pattern:" line per error (omit Pattern lines if Status is "correct" or "no_target_language")
+- Status "correct" = player used ${targetLanguage} with no grammar errors
+- Status "corrected" = player used ${targetLanguage} but had grammar errors
+- Status "no_target_language" = player wrote entirely in English or another non-target language
+- Pattern names should be descriptive: "verb conjugation", "article agreement", "word order", "noun case", "tense usage", "plural formation", etc.
+- Always include this block when the player sends a message.\n`;
+
+  // Add language-specific grammar hints for conlangs
+  if (worldLanguage?.kind === 'constructed' && worldLanguage.grammar) {
+    section += `\nGrammar rules for ${worldLanguage.name} to evaluate against:\n`;
+    if (worldLanguage.features?.wordOrder) {
+      section += `- Word order: ${worldLanguage.features.wordOrder}\n`;
+    }
+    if (worldLanguage.grammar.verbTenses) {
+      section += `- Verb tenses: ${worldLanguage.grammar.verbTenses.join(', ')}\n`;
+    }
+    if (worldLanguage.grammar.nounCases) {
+      section += `- Noun cases: ${worldLanguage.grammar.nounCases.join(', ')}\n`;
+    }
+    if (worldLanguage.grammar.verbAgreement) {
+      section += `- Verb agreement: ${worldLanguage.grammar.verbAgreement.join(', ')}\n`;
+    }
+    if (worldLanguage.grammar.genders) {
+      section += `- Genders: ${worldLanguage.grammar.genders.join(', ')}\n`;
+    }
+    if (worldLanguage.grammar.pluralization) {
+      section += `- Pluralization: ${worldLanguage.grammar.pluralization}\n`;
+    }
+  }
+
+  return section;
+}
+
+/**
  * Build the world language context section for system prompts.
  */
 export function buildWorldLanguageSection(worldContext: WorldLanguageContext): string {
@@ -498,6 +557,17 @@ ${buildLanguageSection(fluencies, worldContext?.targetLanguage)}
   // Add world language context
   if (worldContext) {
     prompt += buildWorldLanguageSection(worldContext);
+    prompt += '\n';
+  }
+
+  // Add grammar correction instructions for language-learning games
+  const isLanguageLearning = worldContext?.gameType === 'language-learning' ||
+                             worldContext?.gameType === 'educational';
+  if (isLanguageLearning && worldContext?.targetLanguage && worldContext.targetLanguage !== 'English') {
+    prompt += buildGrammarFeedbackSection(
+      worldContext.targetLanguage,
+      worldContext.primaryLanguage
+    );
     prompt += '\n';
   }
 

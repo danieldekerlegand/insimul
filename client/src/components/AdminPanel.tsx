@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Database, Globe, BookOpen, Sword, AlertCircle } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ArrowLeft, Globe, BookOpen, Sword, AlertCircle, ChevronDown, Eye, Lock, Calendar, Hash, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { BaseResourcesManager } from "@/components/BaseResourcesManager";
 import { AssetCollectionManager } from "@/components/AssetCollectionManager";
+import { format } from "date-fns";
 
 interface AdminPanelProps {
   onBack: () => void;
@@ -19,7 +20,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const [worlds, setWorlds] = useState<any[]>([]);
   const [baseRules, setBaseRules] = useState<any[]>([]);
   const [baseActions, setBaseActions] = useState<any[]>([]);
-  const [selectedEntity, setSelectedEntity] = useState<{ type: string; data: any } | null>(null);
+  const [expandedWorldId, setExpandedWorldId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAllData();
@@ -28,7 +29,6 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      // Fetch base resources (global rules and actions)
       const baseRulesRes = await fetch('/api/rules/base');
       if (baseRulesRes.ok) {
         const baseRulesData = await baseRulesRes.json();
@@ -47,7 +47,6 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
         setBaseActions([]);
       }
 
-      // Fetch all worlds
       const worldsRes = await fetch('/api/worlds');
       const worldsData = await worldsRes.json();
       setWorlds(worldsData);
@@ -67,197 +66,251 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     }
   };
 
-  const renderEntityList = (entities: any[], type: string, icon: React.ReactNode) => {
-    if (entities.length === 0) {
-      return (
-        <div className="text-center py-8 text-muted-foreground">
-          <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p>No {type} found</p>
-        </div>
-      );
-    }
-
-    return (
-      <ScrollArea className="h-[600px]">
-        <div className="space-y-2">
-          {entities.map((entity) => (
-            <Card
-              key={entity.id}
-              className="cursor-pointer hover:bg-accent transition-colors"
-              onClick={() => setSelectedEntity({ type, data: entity })}
-            >
-              <CardHeader className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-1">{icon}</div>
-                    <div>
-                      <CardTitle className="text-base">
-                        {entity.name || entity.title || entity.firstName + ' ' + entity.lastName || entity.id}
-                      </CardTitle>
-                      <CardDescription>
-                        <Badge variant="outline" className="mt-1">{entity.worldName}</Badge>
-                        {entity.description && (
-                          <p className="mt-1 text-xs line-clamp-2">{entity.description}</p>
-                        )}
-                      </CardDescription>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-          ))}
-        </div>
-      </ScrollArea>
-    );
-  };
-
-  const renderEntityDetails = () => {
-    if (!selectedEntity) {
-      return (
-        <div className="flex items-center justify-center h-[600px] text-muted-foreground">
-          <div className="text-center">
-            <Database className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>Select an entity to view details</p>
-          </div>
-        </div>
-      );
-    }
-
-    const { type, data } = selectedEntity;
-
-    return (
-      <ScrollArea className="h-[600px]">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">{type} Details</h3>
-            <Button variant="ghost" size="sm" onClick={() => setSelectedEntity(null)}>
-              Close
-            </Button>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {data.name || data.title || (data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : data.id)}
-              </CardTitle>
-              <CardDescription>
-                <Badge>{data.worldName}</Badge>
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <pre className="text-xs bg-muted p-4 rounded-lg overflow-auto max-h-[500px]">
-                {JSON.stringify(data, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
-        </div>
-      </ScrollArea>
-    );
-  };
-
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" size="icon" onClick={onBack}>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-6">
+      <div className="max-w-6xl mx-auto space-y-6">
+
+        {/* Glass Header */}
+        <div className="flex items-center gap-4 px-5 py-4 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl shadow-lg shadow-black/5">
+          <Button variant="ghost" size="icon" onClick={onBack} className="rounded-xl hover:bg-white/50 dark:hover:bg-white/10">
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold">Admin Panel</h1>
-            <p className="text-muted-foreground">View all database records across all worlds</p>
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold">Admin Panel</h1>
+            <p className="text-sm text-muted-foreground">Manage worlds, assets, and base resources</p>
           </div>
-          <Button onClick={fetchAllData} disabled={loading} className="ml-auto">
-            {loading ? "Loading..." : "Refresh Data"}
+          <Button
+            onClick={fetchAllData}
+            disabled={loading}
+            variant="ghost"
+            size="sm"
+            className="gap-2 rounded-xl hover:bg-white/50 dark:hover:bg-white/10"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? "Loading..." : "Refresh"}
           </Button>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Worlds</CardDescription>
-              <CardTitle className="text-3xl">{worlds.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Base Rules</CardDescription>
-              <CardTitle className="text-3xl">{baseRules.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Base Actions</CardDescription>
-              <CardTitle className="text-3xl">{baseActions.length}</CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
+        {/* Full-width Tabs */}
+        <Tabs defaultValue="worlds" className="w-full">
+          <TabsList className="w-full bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-xl p-1 h-auto">
+            <TabsTrigger
+              value="worlds"
+              className="flex-1 rounded-lg py-2.5 data-[state=active]:bg-white dark:data-[state=active]:bg-white/10 data-[state=active]:shadow-sm transition-all"
+            >
+              <Globe className="w-4 h-4 mr-2" />
+              Worlds
+              <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0 h-5">{worlds.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger
+              value="assets"
+              className="flex-1 rounded-lg py-2.5 data-[state=active]:bg-white dark:data-[state=active]:bg-white/10 data-[state=active]:shadow-sm transition-all"
+            >
+              Assets
+            </TabsTrigger>
+            <TabsTrigger
+              value="base"
+              className="flex-1 rounded-lg py-2.5 data-[state=active]:bg-white dark:data-[state=active]:bg-white/10 data-[state=active]:shadow-sm transition-all"
+            >
+              <BookOpen className="w-4 h-4 mr-2" />
+              Rules & Actions
+              <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0 h-5">{baseRules.length + baseActions.length}</Badge>
+            </TabsTrigger>
+          </TabsList>
 
-        <div className="grid grid-cols-3 gap-6">
-          <div className="col-span-2">
-            <Tabs defaultValue="worlds" className="w-full">
-              <TabsList className="grid grid-cols-3 w-full">
-                <TabsTrigger value="worlds">Worlds</TabsTrigger>
-                <TabsTrigger value="assets">Assets</TabsTrigger>
-                <TabsTrigger value="base">Base Rules & Actions</TabsTrigger>
-              </TabsList>
+          {/* Worlds Tab */}
+          <TabsContent value="worlds" className="mt-4">
+            <div className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl shadow-lg shadow-black/5 p-1">
+              <ScrollArea className="h-[calc(100vh-280px)]">
+                {worlds.length === 0 ? (
+                  <div className="text-center py-16 text-muted-foreground">
+                    <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">No worlds found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1 p-2">
+                    {worlds.map((world) => {
+                      const isExpanded = expandedWorldId === world.id;
+                      const worldType = world.config?.worldType || world.config?.worldTypeLabel;
+                      const gameType = world.config?.gameType;
 
-              <TabsContent value="worlds" className="mt-4">
-                {renderEntityList(worlds, "World", <Globe className="w-5 h-5 text-blue-500" />)}
-              </TabsContent>
+                      return (
+                        <Collapsible
+                          key={world.id}
+                          open={isExpanded}
+                          onOpenChange={(open) => setExpandedWorldId(open ? world.id : null)}
+                        >
+                          <CollapsibleTrigger asChild>
+                            <div
+                              className={`
+                                cursor-pointer rounded-xl p-4 flex items-center gap-4
+                                transition-all duration-200
+                                hover:bg-white/80 dark:hover:bg-white/10
+                                ${isExpanded ? 'bg-white/70 dark:bg-white/[0.08] shadow-sm' : ''}
+                              `}
+                            >
+                              <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 shrink-0">
+                                <Globe className="w-5 h-5 text-blue-500" />
+                              </div>
 
-              <TabsContent value="assets" className="mt-4">
-                <AssetCollectionManager onRefresh={fetchAllData} />
-              </TabsContent>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-sm">{world.name}</div>
+                                {!isExpanded && world.description && (
+                                  <p className="text-xs text-muted-foreground truncate mt-0.5">{world.description}</p>
+                                )}
+                              </div>
 
-              <TabsContent value="base" className="mt-4">
-                <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800 mb-4">
-                  <p className="text-sm text-muted-foreground">
-                    <strong>Manage Base Rules & Actions:</strong> Create base resources through the main app's 
-                    <strong> Import Data</strong> modal or <strong>Create New Rule/Action</strong> dialogs.
-                    Delete individual or multiple base resources below.
-                  </p>
-                </div>
+                              <div className="flex gap-1.5 shrink-0">
+                                {worldType && (
+                                  <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border-0 hover:bg-primary/10">
+                                    {worldType}
+                                  </Badge>
+                                )}
+                                {world.visibility && world.visibility !== 'private' && (
+                                  <Badge variant="outline" className="text-xs gap-1">
+                                    <Eye className="w-3 h-3" />
+                                    {world.visibility}
+                                  </Badge>
+                                )}
+                                {world.requiresAuth && (
+                                  <Badge variant="outline" className="text-xs gap-1">
+                                    <Lock className="w-3 h-3" />
+                                    Auth
+                                  </Badge>
+                                )}
+                              </div>
 
-                <Tabs defaultValue="base-rules">
-                  <TabsList>
-                    <TabsTrigger value="base-rules">Base Rules ({baseRules.length})</TabsTrigger>
-                    <TabsTrigger value="base-actions">Base Actions ({baseActions.length})</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="base-rules" className="mt-4">
-                    <BaseResourcesManager
-                      resources={baseRules}
-                      resourceType="rule"
-                      icon={<BookOpen className="w-5 h-5 text-purple-500" />}
-                      onRefresh={fetchAllData}
-                    />
-                  </TabsContent>
-                  <TabsContent value="base-actions" className="mt-4">
-                    <BaseResourcesManager
-                      resources={baseActions}
-                      resourceType="action"
-                      icon={<Sword className="w-5 h-5 text-pink-500" />}
-                      onRefresh={fetchAllData}
-                    />
-                  </TabsContent>
-                </Tabs>
-              </TabsContent>
-            </Tabs>
-          </div>
+                              <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                            </div>
+                          </CollapsibleTrigger>
 
-          <div className="col-span-1">
-            <Card className="sticky top-6">
-              <CardHeader>
-                <CardTitle>Details</CardTitle>
-                <CardDescription>Selected entity information</CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                {renderEntityDetails()}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+                          <CollapsibleContent>
+                            <div className="px-4 pb-4 ml-[52px] space-y-4">
+                              <div className="border-t border-black/5 dark:border-white/10" />
+
+                              {world.description && (
+                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                  {world.description}
+                                </p>
+                              )}
+
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                {world.createdAt && (
+                                  <div className="space-y-1">
+                                    <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                      <Calendar className="w-3 h-3" />
+                                      Created
+                                    </div>
+                                    <div className="text-sm font-medium">
+                                      {format(new Date(world.createdAt), 'MMM d, yyyy')}
+                                    </div>
+                                  </div>
+                                )}
+                                {world.version && (
+                                  <div className="space-y-1">
+                                    <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                      <Hash className="w-3 h-3" />
+                                      Version
+                                    </div>
+                                    <div className="text-sm font-medium">v{world.version}</div>
+                                  </div>
+                                )}
+                                {gameType && (
+                                  <div className="space-y-1">
+                                    <div className="text-xs text-muted-foreground">Game Type</div>
+                                    <div className="text-sm font-medium capitalize">{gameType}</div>
+                                  </div>
+                                )}
+                                {world.visibility && (
+                                  <div className="space-y-1">
+                                    <div className="text-xs text-muted-foreground">Visibility</div>
+                                    <div className="text-sm font-medium capitalize">{world.visibility}</div>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex flex-wrap gap-1.5">
+                                {world.targetLanguage && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Target: {world.targetLanguage}
+                                  </Badge>
+                                )}
+                                {world.isTemplate && (
+                                  <Badge variant="secondary" className="text-xs">Template</Badge>
+                                )}
+                                {world.maxPlayers && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Max {world.maxPlayers} players
+                                  </Badge>
+                                )}
+                              </div>
+
+                              <div className="text-xs text-muted-foreground/60 font-mono select-all">
+                                {world.id}
+                              </div>
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      );
+                    })}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+          </TabsContent>
+
+          {/* Assets Tab */}
+          <TabsContent value="assets" className="mt-4">
+            <div className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl shadow-lg shadow-black/5 p-4">
+              <AssetCollectionManager onRefresh={fetchAllData} />
+            </div>
+          </TabsContent>
+
+          {/* Base Rules & Actions Tab */}
+          <TabsContent value="base" className="mt-4">
+            <div className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl shadow-lg shadow-black/5 p-4 space-y-4">
+              <div className="p-3 bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent rounded-xl border border-blue-500/10">
+                <p className="text-sm text-muted-foreground">
+                  <strong>Manage Base Rules & Actions:</strong> Create base resources through the main app's
+                  <strong> Import Data</strong> modal or <strong>Create New Rule/Action</strong> dialogs.
+                  Delete individual or multiple base resources below.
+                </p>
+              </div>
+
+              <Tabs defaultValue="base-rules">
+                <TabsList className="bg-white/40 dark:bg-white/5 border border-white/20 dark:border-white/10 rounded-lg p-0.5">
+                  <TabsTrigger value="base-rules" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-white/10 data-[state=active]:shadow-sm">
+                    <BookOpen className="w-4 h-4 mr-2 text-purple-500" />
+                    Base Rules
+                    <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0 h-5">{baseRules.length}</Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="base-actions" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-white/10 data-[state=active]:shadow-sm">
+                    <Sword className="w-4 h-4 mr-2 text-pink-500" />
+                    Base Actions
+                    <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0 h-5">{baseActions.length}</Badge>
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="base-rules" className="mt-4">
+                  <BaseResourcesManager
+                    resources={baseRules}
+                    resourceType="rule"
+                    icon={<BookOpen className="w-5 h-5 text-purple-500" />}
+                    onRefresh={fetchAllData}
+                  />
+                </TabsContent>
+                <TabsContent value="base-actions" className="mt-4">
+                  <BaseResourcesManager
+                    resources={baseActions}
+                    resourceType="action"
+                    icon={<Sword className="w-5 h-5 text-pink-500" />}
+                    onRefresh={fetchAllData}
+                  />
+                </TabsContent>
+              </Tabs>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
-
     </div>
   );
 }

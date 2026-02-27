@@ -97,16 +97,20 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
   const otherQuests = quests.filter(q => q.status !== 'active' && q.status !== 'completed');
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-6">
       {/* Header with Create Button */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Target className="w-6 h-6" />
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
             Quests ({quests.length})
           </h2>
           <p className="text-muted-foreground mt-1">
             Create and manage narrative quests for your world
+            {quests.length > 0 && (
+              <span className="ml-2 text-xs">
+                {activeQuests.length} active · {completedQuests.length} completed
+              </span>
+            )}
           </p>
         </div>
         <QuestCreateDialog
@@ -117,7 +121,7 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
             queryClient.invalidateQueries({ queryKey: ['/api/worlds', worldId, 'quests'] });
           }}
         >
-          <Button>
+          <Button className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70">
             <Plus className="w-4 h-4 mr-2" />
             Create Quest
           </Button>
@@ -129,10 +133,12 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
         <div className="lg:col-span-2 space-y-4">
           {/* Active Quests */}
         {activeQuests.length > 0 && (
-          <Card>
+          <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl border-l-4 border-l-blue-500">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Clock className="w-5 h-5" />
+                <div className="p-1.5 bg-blue-500/10 rounded-lg">
+                  <Clock className="w-5 h-5 text-blue-500" />
+                </div>
                 Active Quests ({activeQuests.length})
               </CardTitle>
               <CardDescription>
@@ -145,7 +151,7 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
                   {activeQuests.map((quest) => (
                     <Card
                       key={quest.id}
-                      className={`cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 ${
+                      className={`cursor-pointer bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 rounded-xl ${
                         selectedQuest?.id === quest.id ? 'ring-2 ring-blue-500' : ''
                       }`}
                       onClick={() => setSelectedQuest(quest)}
@@ -196,10 +202,12 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
 
         {/* Completed Quests */}
         {completedQuests.length > 0 && (
-          <Card>
+          <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl border-l-4 border-l-green-500">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                <div className="p-1.5 bg-green-500/10 rounded-lg">
+                  <CheckCircle2 className="w-5 h-5 text-green-500" />
+                </div>
                 Completed Quests ({completedQuests.length})
               </CardTitle>
             </CardHeader>
@@ -209,7 +217,7 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
                   {completedQuests.map((quest) => (
                     <Card
                       key={quest.id}
-                      className="cursor-pointer opacity-75 hover:opacity-100 transition-opacity"
+                      className="cursor-pointer bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 rounded-xl opacity-75 hover:opacity-100"
                       onClick={() => setSelectedQuest(quest)}
                     >
                       <CardContent className="p-4">
@@ -231,7 +239,7 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
 
         {/* No Quests */}
         {quests.length === 0 && (
-          <Card>
+          <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
             <CardContent className="py-12 text-center">
               <Target className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <h3 className="text-lg font-semibold mb-2">No Quests Yet</h3>
@@ -246,7 +254,7 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
       {/* Quest Details Panel */}
       <div className="lg:col-span-1">
         {selectedQuest ? (
-          <Card className="sticky top-4">
+          <Card className="sticky top-4 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <span className="text-2xl">{getTypeIcon(selectedQuest.questType)}</span>
@@ -460,7 +468,7 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
             </CardContent>
           </Card>
         ) : (
-          <Card className="sticky top-4">
+          <Card className="sticky top-4 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
             <CardContent className="py-12 text-center">
               <Target className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p className="text-muted-foreground">

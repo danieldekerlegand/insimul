@@ -5,59 +5,32 @@
  */
 
 import { Scene, Vector3, Mesh } from '@babylonjs/core';
+import type {
+  Rule as SharedRule,
+  RuleCondition as SharedRuleCondition,
+  RuleEffect as SharedRuleEffect,
+  RuleViolation as SharedRuleViolation,
+  GameContext as SharedGameContext,
+  Vec3,
+} from '@shared/game-engine/types';
 
-export interface Rule {
-  id: string;
-  name: string;
-  description?: string;
-  ruleType: 'trigger' | 'volition' | 'trait' | 'default' | 'pattern';
-  category?: string;
-  priority?: number;
-  likelihood?: number;
-  conditions?: RuleCondition[];
-  effects?: RuleEffect[];
-  isActive?: boolean;
-  tags?: string[];
-}
+// Re-export shared types for backward compatibility
+export type { Rule, RuleCondition, RuleEffect } from '@shared/game-engine/types';
 
-export interface RuleCondition {
-  type: string;
-  property?: string;
-  operator?: string;
-  value?: any;
-  location?: string;
-  zone?: string;
-}
-
-export interface RuleEffect {
-  type: string;
-  action?: string;
-  value?: any;
-  message?: string;
-}
-
-export interface RuleViolation {
-  ruleId: string;
-  ruleName: string;
-  timestamp: Date;
-  severity: 'low' | 'medium' | 'high';
-  message: string;
+// Babylon-specific extensions: use Babylon Vector3 instead of plain Vec3
+export interface RuleViolation extends Omit<SharedRuleViolation, 'location'> {
   location?: Vector3;
 }
 
-export interface GameContext {
-  playerId?: string;
+export interface GameContext extends Omit<SharedGameContext, 'playerPosition' | 'targetNPCPosition'> {
   playerPosition?: Vector3;
-  playerEnergy?: number;
-  targetNPCId?: string;
   targetNPCPosition?: Vector3;
-  actionId?: string;
-  actionType?: string;
-  location?: string;
-  settlementId?: string;
-  inSettlement?: boolean;
-  nearNPC?: boolean;
 }
+
+// Local alias for shared types used in implementation
+type Rule = SharedRule;
+type RuleCondition = SharedRuleCondition;
+type RuleEffect = SharedRuleEffect;
 
 export class RuleEnforcer {
   private scene: Scene;

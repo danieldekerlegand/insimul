@@ -5,12 +5,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import NotFound from "@/pages/not-found";
-import Modern from "@/pages/modern";
+import Home from "@/pages/home";
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Modern} />
+      <Route path="/" component={Home} />
       <Route component={NotFound} />
     </Switch>
   );

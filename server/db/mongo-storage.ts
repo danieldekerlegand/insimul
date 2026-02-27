@@ -222,6 +222,9 @@ const WorldSchema = new Schema({
   maxPlayers: { type: Number, default: null },
   requiresAuth: { type: Boolean, default: false },
 
+  // Asset collection reference
+  selectedAssetCollectionId: { type: String, default: null },
+
   sourceFormats: { type: Schema.Types.Mixed, default: null },
   config: { type: Schema.Types.Mixed, default: null },
   worldData: { type: Schema.Types.Mixed, default: null },
@@ -487,6 +490,8 @@ const AssetCollectionSchema = new Schema({
   audioAssets: { type: Schema.Types.Mixed, default: {} },
   groundTextureId: { type: String, default: null },
   roadTextureId: { type: String, default: null },
+  wallTextureId: { type: String, default: null },
+  roofTextureId: { type: String, default: null },
   purpose: { type: String, default: null },
   tags: { type: [String], default: [] },
   createdBy: { type: String, default: null },

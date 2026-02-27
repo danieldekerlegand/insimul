@@ -9,10 +9,11 @@ interface WorldPermissions {
 }
 
 /**
- * Hook to check user's permissions for a specific world
+ * Hook to check user's permissions for a specific world.
+ * Uses the server-computed isOwner flag for reliable ownership checks.
  */
 export function useWorldPermissions(worldId: string | undefined): WorldPermissions {
-  const { token, user } = useAuth();
+  const { token, user, isLoading: authLoading } = useAuth();
   const [permissions, setPermissions] = useState<WorldPermissions>({
     canEdit: false,
     canView: true,
@@ -20,10 +21,12 @@ export function useWorldPermissions(worldId: string | undefined): WorldPermissio
     loading: true,
   });
 
-  console.log('[useWorldPermissions] HOOK CALLED', { worldId, hasToken: !!token, hasUser: !!user });
-
   useEffect(() => {
-    console.log('[useWorldPermissions] useEffect triggered', { worldId });
+    // Wait for auth to finish loading before checking permissions
+    if (authLoading) {
+      return;
+    }
+
     if (!worldId) {
       setPermissions({
         canEdit: false,
@@ -41,36 +44,28 @@ export function useWorldPermissions(worldId: string | undefined): WorldPermissio
           headers['Authorization'] = `Bearer ${token}`;
         }
 
-        // Fetch the world to check ownership
+        // Fetch the world — server includes isOwner when token is provided
         const response = await fetch(`/api/worlds/${worldId}`, { headers });
 
         if (response.ok) {
           const world = await response.json();
-          const isOwner = world.ownerId === user?.id;
-          // Allow editing if:
-          // 1. User is the owner
-          // 2. World has no owner (legacy worlds)
-          // 3. Development mode (no authentication required)
-          const canEdit = isOwner || !world.ownerId || !user;
 
-          console.log('[useWorldPermissions]', {
-            worldId,
-            worldOwnerId: world.ownerId,
-            userId: user?.id,
-            isOwner,
-            hasNoOwner: !world.ownerId,
-            noUser: !user,
-            canEdit,
-          });
+          // Use server-computed isOwner (reliable, avoids client-side ID mismatches)
+          const isOwner = token ? !!world.isOwner : false;
+
+          // Allow editing if:
+          // 1. Server says user is the owner
+          // 2. World has no owner (legacy worlds) and user is authenticated
+          // 3. No authentication system in use (no user, no owner)
+          const canEdit = isOwner || (!world.ownerId && !!token) || (!world.ownerId && !user);
 
           setPermissions({
-            canEdit: canEdit,
+            canEdit,
             canView: true,
-            isOwner: isOwner,
+            isOwner,
             loading: false,
           });
         } else {
-          // If we can't fetch the world, assume no permissions
           setPermissions({
             canEdit: false,
             canView: false,
@@ -90,7 +85,7 @@ export function useWorldPermissions(worldId: string | undefined): WorldPermissio
     };
 
     fetchPermissions();
-  }, [worldId, token, user?.id]);
+  }, [worldId, token, user?.id, authLoading]);
 
   return permissions;
 }

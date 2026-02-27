@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,30 +14,29 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   Globe,
   ChevronDown,
+  ChevronRight,
   Menu,
   Scroll,
   Users,
-  MapPin,
   Zap,
   Target,
   Sparkles,
   BookOpen,
   Brain,
   Play,
-  Upload,
-  Download,
   X,
   Home,
   FileText,
   Gamepad2,
-  Compass,
   History,
   LogOut,
   LogIn,
   UserPlus,
-  User,
   BarChart3,
   Database,
+  ArrowLeft,
+  Package,
+  Download,
 } from "lucide-react";
 
 interface ModernNavbarProps {
@@ -47,6 +46,80 @@ interface ModernNavbarProps {
   onChangeWorld: () => void;
   onOpenAuth?: () => void;
   onOpenAdminPanel?: () => void;
+  onExportGame?: () => void;
+}
+
+// Map tab IDs to labels and icons for breadcrumb display
+const tabMeta: Record<string, { label: string; icon: any }> = {
+  society: { label: "Society", icon: Users },
+  rules: { label: "Rules", icon: Scroll },
+  actions: { label: "Actions", icon: Zap },
+  quests: { label: "Quests", icon: Target },
+  grammars: { label: "Grammars", icon: FileText },
+  languages: { label: "Languages", icon: Sparkles },
+  truth: { label: "Truth System", icon: BookOpen },
+  prolog: { label: "Prolog KB", icon: Brain },
+  simulations: { label: "Simulations", icon: Play },
+  "3d-game": { label: "Explore World", icon: Gamepad2 },
+  analytics: { label: "Analytics", icon: BarChart3 },
+  "my-playthroughs": { label: "My Playthroughs", icon: History },
+};
+
+function ExportGameDropdown({ onExportGame }: { onExportGame?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const engines = [
+    { label: "Babylon.js (Web)", color: "text-blue-500" },
+    { label: "Unreal Engine", color: "text-purple-500" },
+    { label: "Unity", color: "text-green-500" },
+    { label: "Godot", color: "text-sky-500" },
+  ];
+
+  return (
+    <div className="relative" ref={ref}>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setOpen(!open)}
+        className="gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-500/10 rounded-xl"
+      >
+        <Package className="w-3.5 h-3.5" />
+        Export Game
+        <ChevronDown className={`w-3 h-3 opacity-60 transition-transform ${open ? "rotate-180" : ""}`} />
+      </Button>
+      {open && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 rounded-xl border bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl shadow-lg z-50 py-1 animate-in fade-in-0 zoom-in-95">
+          <div className="px-3 py-2 flex items-center gap-2 text-sm font-semibold text-muted-foreground border-b mb-1">
+            <Download className="w-4 h-4" />
+            Export Game Project
+          </div>
+          {engines.map((engine) => (
+            <button
+              key={engine.label}
+              onClick={() => {
+                setOpen(false);
+                onExportGame?.();
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+            >
+              <Package className={`w-4 h-4 ${engine.color}`} />
+              {engine.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function ModernNavbar({
@@ -56,147 +129,110 @@ export function ModernNavbar({
   onChangeWorld,
   onOpenAuth,
   onOpenAdminPanel,
+  onExportGame,
 }: ModernNavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
 
-  const contentItems = [
-    { id: "society", label: "Society", icon: Users },
-    { id: "rules", label: "Rules", icon: Scroll },
-    { id: "actions", label: "Actions", icon: Zap },
-    { id: "quests", label: "Quests", icon: Target },
-    { id: "grammars", label: "Grammars", icon: FileText },
-    { id: "languages", label: "Languages", icon: Sparkles },
-  ];
-
-  const truthItems = [
-    { id: "truth", label: "Truth System", icon: BookOpen },
-    { id: "prolog", label: "Prolog Knowledge Base", icon: Brain },
-  ];
-
-  const simulationItems = [
-    { id: "simulations", label: "Run Simulations", icon: Play },
-    { id: "3d-game", label: "Explore World (3D)", icon: Gamepad2 },
-    { id: "analytics", label: "Analytics", icon: BarChart3 },
-  ];
-
-  const dataItems = [
-    { id: "import", label: "Import Data", icon: Upload },
-    { id: "export", label: "Export Data", icon: Download },
-  ];
-
-  const NavDropdown = ({ label, items, icon: Icon }: any) => (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="gap-1 hover:bg-primary/10 hover:text-primary transition-colors"
-        >
-          {Icon && <Icon className="w-4 h-4" />}
-          {label}
-          <ChevronDown className="w-3 h-3 opacity-50" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
-        <DropdownMenuLabel>{label}</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {items.map((item: any) => (
-          <DropdownMenuItem
-            key={item.id}
-            onClick={() => {
-              onTabChange(item.id);
-              setMobileMenuOpen(false);
-            }}
-            className="cursor-pointer"
-          >
-            <item.icon className="w-4 h-4 mr-2" />
-            {item.label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-
-  const MobileNavItem = ({ item }: any) => (
-    <button
-      onClick={() => {
-        onTabChange(item.id);
-        setMobileMenuOpen(false);
-      }}
-      className={`
-        w-full flex items-center gap-3 p-3 rounded-lg transition-all
-        ${
-          activeTab === item.id
-            ? "bg-primary text-primary-foreground"
-            : "hover:bg-primary/10 hover:text-primary"
-        }
-      `}
-    >
-      <item.icon className="w-5 h-5" />
-      <span className="font-medium">{item.label}</span>
-    </button>
-  );
+  const isOnSubPage = activeTab !== "home" && !!tabMeta[activeTab];
+  const currentMeta = tabMeta[activeTab];
 
   return (
-    <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-      <div className="flex h-16 items-center px-6">
-        {/* Logo & World Info */}
-        <div className="flex items-center gap-4 flex-1">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-gradient-to-br from-primary to-primary/60 rounded-lg">
+    <div className="border-b border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur-xl sticky top-0 z-50 shadow-sm shadow-black/5">
+      <div className="flex h-14 items-center px-6">
+        {/* Left: Logo + Breadcrumb */}
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          {/* Back button when on sub-page */}
+          {currentWorld && isOnSubPage ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onTabChange("home")}
+              className="rounded-xl hover:bg-white/50 dark:hover:bg-white/10 shrink-0"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+          ) : (
+            <div className="p-2 bg-gradient-to-br from-primary to-primary/60 rounded-lg shrink-0">
               <Globe className="w-5 h-5 text-white" />
             </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                Insimul
-              </span>
-              {currentWorld && (
+          )}
+
+          {/* Breadcrumb-style text */}
+          <div className="flex items-center gap-1.5 min-w-0">
+            {currentWorld ? (
+              <>
                 <button
-                  onClick={onChangeWorld}
-                  className="text-xs text-muted-foreground hover:text-primary transition-colors text-left"
+                  onClick={() => onTabChange("home")}
+                  className={`text-sm font-semibold transition-colors truncate ${
+                    isOnSubPage
+                      ? "text-muted-foreground hover:text-foreground"
+                      : "text-foreground"
+                  }`}
                 >
                   {currentWorld.name}
                 </button>
-              )}
-            </div>
+                {isOnSubPage && currentMeta && (
+                  <>
+                    <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <currentMeta.icon className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-semibold">{currentMeta.label}</span>
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              <span className="text-sm font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                Insimul
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Desktop Navigation - Only show when world is selected */}
+        {/* Center: Play + Switch World */}
         {currentWorld && (
-          <nav className="hidden md:flex items-center gap-1">
+          <div className="hidden md:flex items-center gap-1.5">
+            {activeTab !== "3d-game" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onTabChange("3d-game")}
+                className="gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-500/10 rounded-xl"
+              >
+                <Gamepad2 className="w-3.5 h-3.5" />
+                Play
+              </Button>
+            )}
+            <ExportGameDropdown onExportGame={onExportGame} />
             <Button
-              variant={activeTab === "home" ? "default" : "ghost"}
-              onClick={() => onTabChange("home")}
-              className="gap-2 hover:bg-primary/10 hover:text-primary"
+              variant="ghost"
+              size="sm"
+              onClick={onChangeWorld}
+              className="gap-1.5 text-xs text-muted-foreground hover:text-foreground rounded-xl"
             >
-              <Home className="w-4 h-4" />
-              World Home
+              <Globe className="w-3.5 h-3.5" />
+              Switch World
             </Button>
-
-            <NavDropdown label="Content" items={contentItems} icon={FileText} />
-            <NavDropdown label="Truth" items={truthItems} icon={BookOpen} />
-            <NavDropdown label="Play" items={simulationItems} icon={Play} />
-            <NavDropdown label="Data" items={dataItems} icon={Upload} />
-          </nav>
+          </div>
         )}
 
-        {/* Auth Section - Desktop */}
-        <div className="hidden md:flex items-center gap-2 ml-4">
+        {/* Right: Auth Section - Desktop */}
+        <div className="hidden md:flex items-center gap-2 ml-3">
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="gap-2">
+                <Button variant="ghost" className="gap-2 rounded-xl">
                   <Avatar className="w-6 h-6">
                     <AvatarFallback className="text-xs">
                       {user?.username?.substring(0, 2).toUpperCase() || "U"}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="hidden lg:inline">{user?.username}</span>
+                  <span className="hidden lg:inline text-sm">{user?.username}</span>
                   <ChevronDown className="w-3 h-3 opacity-50" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-56 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-white/20 dark:border-white/10">
                 <DropdownMenuLabel>
                   <div className="flex flex-col">
                     <span className="font-semibold">
@@ -236,11 +272,11 @@ export function ModernNavbar({
             </DropdownMenu>
           ) : (
             <>
-              <Button variant="ghost" onClick={onOpenAuth} className="gap-2">
+              <Button variant="ghost" size="sm" onClick={onOpenAuth} className="gap-1.5 rounded-xl">
                 <LogIn className="w-4 h-4" />
                 Log In
               </Button>
-              <Button onClick={onOpenAuth} className="gap-2">
+              <Button size="sm" onClick={onOpenAuth} className="gap-1.5 rounded-xl">
                 <UserPlus className="w-4 h-4" />
                 Sign Up
               </Button>
@@ -252,7 +288,7 @@ export function ModernNavbar({
         <div className="md:hidden">
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" className="rounded-xl">
                 <Menu className="w-5 h-5" />
               </Button>
             </SheetTrigger>
@@ -275,12 +311,9 @@ export function ModernNavbar({
                   </Button>
                 </div>
 
-                {/* Current World - Only show when world is selected */}
+                {/* Current World */}
                 {currentWorld && (
                   <div className="pb-4 border-b space-y-2">
-                    <p className="text-sm text-muted-foreground px-3">
-                      Current World
-                    </p>
                     <button
                       onClick={() => {
                         onTabChange("home");
@@ -296,8 +329,41 @@ export function ModernNavbar({
                       `}
                     >
                       <Home className="w-5 h-5" />
-                      <span className="font-medium">{currentWorld.name}</span>
+                      <div className="text-left">
+                        <span className="font-medium block">{currentWorld.name}</span>
+                        <span className="text-xs opacity-70">World Home</span>
+                      </div>
                     </button>
+                    {activeTab !== "3d-game" && (
+                      <button
+                        onClick={() => {
+                          onTabChange("3d-game");
+                          setMobileMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 p-3 rounded-lg transition-all hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      >
+                        <Gamepad2 className="w-5 h-5" />
+                        <div className="text-left">
+                          <span className="font-medium block">Play Game</span>
+                          <span className="text-xs opacity-70">Enter the 3D world</span>
+                        </div>
+                      </button>
+                    )}
+                    {onExportGame && onExportGame !== undefined && (
+                      <button
+                        onClick={() => {
+                          onExportGame();
+                          setMobileMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 p-3 rounded-lg transition-all hover:bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                      >
+                        <Package className="w-5 h-5" />
+                        <div className="text-left">
+                          <span className="font-medium block">Export Game</span>
+                          <span className="text-xs opacity-70">Download project for an engine</span>
+                        </div>
+                      </button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -308,65 +374,13 @@ export function ModernNavbar({
                       className="w-full justify-start gap-2 text-xs"
                     >
                       <Globe className="w-3 h-3" />
-                      Change World
+                      Switch World
                     </Button>
                   </div>
                 )}
 
-                {/* Content Section - Only show when world is selected */}
-                {currentWorld && (
-                  <>
-                    <div>
-                      <h3 className="text-sm font-semibold text-muted-foreground mb-2 px-3">
-                        CONTENT
-                      </h3>
-                      <div className="space-y-1">
-                        {contentItems.map((item) => (
-                          <MobileNavItem key={item.id} item={item} />
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Truth Section */}
-                    <div>
-                      <h3 className="text-sm font-semibold text-muted-foreground mb-2 px-3">
-                        TRUTH
-                      </h3>
-                      <div className="space-y-1">
-                        {truthItems.map((item) => (
-                          <MobileNavItem key={item.id} item={item} />
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Play Section */}
-                    <div>
-                      <h3 className="text-sm font-semibold text-muted-foreground mb-2 px-3">
-                        PLAY
-                      </h3>
-                      <div className="space-y-1">
-                        {simulationItems.map((item) => (
-                          <MobileNavItem key={item.id} item={item} />
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Data Section */}
-                    <div>
-                      <h3 className="text-sm font-semibold text-muted-foreground mb-2 px-3">
-                        DATA
-                      </h3>
-                      <div className="space-y-1">
-                        {dataItems.map((item) => (
-                          <MobileNavItem key={item.id} item={item} />
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-
                 {/* Auth Section - Mobile */}
-                <div className="pt-4 border-t">
+                <div className="pt-2">
                   {isAuthenticated ? (
                     <div className="space-y-2">
                       <div className="flex items-center gap-3 px-3 py-2">
@@ -385,6 +399,17 @@ export function ModernNavbar({
                           </span>
                         </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          onTabChange("my-playthroughs");
+                          setMobileMenuOpen(false);
+                        }}
+                        className="w-full justify-start gap-3 px-3"
+                      >
+                        <History className="w-5 h-5" />
+                        <span className="font-medium">My Playthroughs</span>
+                      </Button>
                       {onOpenAdminPanel && (
                         <Button
                           variant="ghost"

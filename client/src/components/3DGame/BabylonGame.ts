@@ -13,6 +13,7 @@ import {
   Color4,
   DirectionalLight,
   DynamicTexture,
+  Effect,
   Engine,
   HemisphericLight,
   Mesh,
@@ -23,6 +24,7 @@ import {
   Ray,
   Scene,
   SceneLoader,
+  ShaderMaterial,
   Skeleton,
   Sound,
   StandardMaterial,
@@ -46,6 +48,7 @@ import { QuestObjectManager } from "@/components/3DGame/QuestObjectManager.ts";
 import { QuestIndicatorManager } from "@/components/3DGame/QuestIndicatorManager.ts";
 import { ProceduralBuildingGenerator, BuildingStyle } from "@/components/3DGame/ProceduralBuildingGenerator.ts";
 import { ProceduralNatureGenerator, BiomeStyle } from "@/components/3DGame/ProceduralNatureGenerator.ts";
+import { RoadGenerator } from "@/components/3DGame/RoadGenerator.ts";
 import { WorldScaleManager, ScaledSettlement } from "@/components/3DGame/WorldScaleManager.ts";
 import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay.ts";
 import { BabylonMinimap } from "@/components/3DGame/BabylonMinimap.ts";
@@ -67,16 +70,26 @@ import { getGenreConfig } from "@shared/game-genres/index";
 import { HealthBar } from "@/components/3DGame/HealthBar.ts";
 import { CombatUI } from "@/components/3DGame/CombatUI.ts";
 import { VRManager } from "@/components/3DGame/VRManager.ts";
-import { VRUIPanel } from "@/components/3DGame/VRUIPanel.ts";
+import { VRUIPanel, VRHandMenu } from "@/components/3DGame/VRUIPanel.ts";
+import { VRInteractionManager } from "@/components/3DGame/VRInteractionManager.ts";
+import { VRHUDManager } from "@/components/3DGame/VRHUDManager.ts";
+import { VRCombatAdapter } from "@/components/3DGame/VRCombatAdapter.ts";
+import { VRChatPanel } from "@/components/3DGame/VRChatPanel.ts";
+import { VRVocabularyLabels } from "@/components/3DGame/VRVocabularyLabels.ts";
+import { VRHandTrackingManager } from "@/components/3DGame/VRHandTrackingManager.ts";
+import { createDebugLabel } from "@/components/3DGame/DebugLabelUtils.ts";
+import { VRAccessibilityManager } from "@/components/3DGame/VRAccessibilityManager.ts";
 import { NPCTalkingIndicator } from "@/components/3DGame/NPCTalkingIndicator.ts";
 import { NPCAmbientConversationManager } from "@/components/3DGame/NPCAmbientConversationManager.ts";
+import { BuildingInteriorGenerator, InteriorLayout } from "@/components/3DGame/BuildingInteriorGenerator.ts";
+import { GameMenuSystem, GameMenuCallbacks } from "@/components/3DGame/GameMenuSystem.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 
 // Constants
 const PLAYER_MODEL_URL = "/assets/player/Vincent-frontFacing.babylon";
 const NPC_MODEL_URL = "/assets/npc/starterAvatars.babylon";
 const FOOTSTEP_SOUND_URL = "/assets/footstep_carpet_000.ogg";
-const MAX_NPCS = 8;
+const MAX_NPCS = 100;
 const MAX_SETTLEMENTS_3D = 16;
 const DEFAULT_PLAYER_ID = "player";
 const INITIAL_ENERGY = 100;
@@ -142,6 +155,13 @@ interface NPCInstance {
   pursuitTarget?: Vector3;
   disposition: number;
   characterData?: any;
+  // AI wandering
+  wanderTarget?: Vector3;
+  wanderWaitUntil?: number;
+  isInConversation?: boolean;
+  // Animation tracking
+  animationGroups?: any[];
+  currentAnimation?: any;
 }
 
 interface WorldVisualTheme {
@@ -265,6 +285,7 @@ export class BabylonGame {
   private questIndicatorManager: QuestIndicatorManager | null = null;
   private buildingGenerator: ProceduralBuildingGenerator | null = null;
   private natureGenerator: ProceduralNatureGenerator | null = null;
+  private roadGenerator: RoadGenerator | null = null;
   private worldScaleManager: WorldScaleManager | null = null;
   private buildingInfoDisplay: BuildingInfoDisplay | null = null;
   private minimap: BabylonMinimap | null = null;
@@ -286,6 +307,7 @@ export class BabylonGame {
   private npcTalkingIndicator: NPCTalkingIndicator | null = null;
   private ambientConversationManager: NPCAmbientConversationManager | null = null;
   private vrManager: VRManager | null = null;
+  private gameMenuSystem: GameMenuSystem | null = null;
 
   // Player
   private playerController: CharacterController | null = null;
@@ -300,11 +322,13 @@ export class BabylonGame {
   private npcInfos: NPCDisplayInfo[] = [];
   private npcHealthBars: Map<string, HealthBar> = new Map();
   private selectedNPCId: string | null = null;
+  private conversationNPCId: string | null = null;
+  private preConversationCameraMode: CameraMode | null = null;
 
   // Settlements and world
   private settlementMeshes: Map<string, Mesh> = new Map();
   private settlementRoadMeshes: Mesh[] = [];
-  private zoneBoundaryMeshes: Map<string, { boundary: Mesh; particles?: ParticleSystem }> = new Map();
+  private zoneBoundaryMeshes: Map<string, { boundary: Mesh | null; particles?: ParticleSystem | null; zoneRadius?: number; zoneColor?: Color3 }> = new Map();
   private buildingData: Map<string, { position: Vector3; metadata: any; mesh: Mesh }> = new Map();
   private settlementStats: Map<string, {
     id: string;
@@ -327,6 +351,7 @@ export class BabylonGame {
   private isVRMode: boolean = false;
   private vrSupported: boolean = false;
   private combatTargetId: string | null = null;
+  private firstSettlementSpawnPosition: Vector3 | null = null;
 
   // Zone system
   private currentZone: { id: string; name: string; type: string } | null = null;
@@ -335,6 +360,14 @@ export class BabylonGame {
 
   // VR
   private vrUIPanels: Map<string, VRUIPanel> = new Map();
+  private vrInteraction: VRInteractionManager | null = null;
+  private vrHUD: VRHUDManager | null = null;
+  private vrHandMenu: VRHandMenu | null = null;
+  private vrCombatAdapter: VRCombatAdapter | null = null;
+  private vrChatPanel: VRChatPanel | null = null;
+  private vrVocabLabels: VRVocabularyLabels | null = null;
+  private vrHandTracking: VRHandTrackingManager | null = null;
+  private vrAccessibility: VRAccessibilityManager | null = null;
 
   // Textures
   private availableTextures: VisualAsset[] = [];
@@ -350,6 +383,8 @@ export class BabylonGame {
     objectModels?: Record<string, string>;
     groundTextureId?: string;
     roadTextureId?: string;
+    wallTextureId?: string;
+    roofTextureId?: string;
     playerModels?: Record<string, string>;
     questObjectModels?: Record<string, string>;
     audioAssets?: Record<string, string>;
@@ -358,6 +393,7 @@ export class BabylonGame {
 
   // Prop/object model templates loaded from world3DConfig.objectModels
   private objectModelTemplates: Map<string, Mesh> = new Map();
+  private objectModelOriginalHeights: Map<string, number> = new Map();
   private worldPropMeshes: Mesh[] = [];
 
   // Audio
@@ -367,6 +403,12 @@ export class BabylonGame {
 
   // Theme
   private worldTheme: WorldVisualTheme;
+
+  // Phase 4: Building interiors
+  private interiorGenerator: BuildingInteriorGenerator | null = null;
+  private activeInterior: InteriorLayout | null = null;
+  private savedOverworldPosition: Vector3 | null = null;
+  private isInsideBuilding: boolean = false;
 
   // Observers (for cleanup)
   private keyboardHandler: ((event: KeyboardEvent) => void) | null = null;
@@ -404,17 +446,33 @@ export class BabylonGame {
    */
   public async init(): Promise<void> {
     try {
+      console.log('[BabylonGame] Step 1/12: initializeEngine...');
       await this.initializeEngine();
+      console.log('[BabylonGame] Step 2/12: initializeScene...');
       await this.initializeScene();
+      console.log('[BabylonGame] Step 3/12: initializeSystems...');
       await this.initializeSystems();
+      console.log('[BabylonGame] Step 4/12: loadWorldData...');
       await this.loadWorldData();
+      console.log('[BabylonGame] Step 5/12: generateProceduralWorld...');
       await this.generateProceduralWorld();
+      console.log('[BabylonGame] Step 6/12: startPlaythrough...');
       await this.startPlaythrough();
-      await this.loadPlayer();
+      console.log('[BabylonGame] Step 7/12: loadPlayer...');
+      try {
+        await this.loadPlayer();
+      } catch (playerError) {
+        console.error('[BabylonGame] ❌ loadPlayer failed (continuing to NPCs):', playerError);
+      }
+      console.log('[BabylonGame] Step 8/12: loadNPCs...');
       await this.loadNPCs();
+      console.log('[BabylonGame] Step 9/12: setupKeyboardHandlers...');
       await this.setupKeyboardHandlers();
+      console.log('[BabylonGame] Step 10/12: setupPointerHandlers...');
       this.setupPointerHandlers();
+      console.log('[BabylonGame] Step 11/12: setupUpdateLoop...');
       this.setupUpdateLoop();
+      console.log('[BabylonGame] Step 12/12: startGameLoop...');
       this.startGameLoop();
 
       // Start ambient conversation system
@@ -422,8 +480,9 @@ export class BabylonGame {
         this.ambientConversationManager.start();
         console.log('[BabylonGame] Ambient conversation system started');
       }
+      console.log('[BabylonGame] Init complete!');
     } catch (error) {
-      console.error('Failed to initialize game:', error);
+      console.error('[BabylonGame] Failed to initialize game:', error);
       this.guiManager?.showToast({
         title: "Initialization Error",
         description: error instanceof Error ? error.message : "Unknown error",
@@ -506,17 +565,74 @@ export class BabylonGame {
     sun.position = new Vector3(0, 20, 0);
     sun.intensity = 1.1;
 
-    // Sky dome
-    const skyDome = MeshBuilder.CreateSphere("sky-dome", { diameter: 1000, sideOrientation: Mesh.BACKSIDE }, scene);
-    const skyMaterial = new StandardMaterial("sky-mat", scene);
-    skyMaterial.emissiveColor = theme.skyColor;
-    skyMaterial.specularColor = Color3.Black();
-    skyMaterial.backFaceCulling = false;
-    skyMaterial.disableLighting = true;
-    skyDome.material = skyMaterial;
+    // Sky dome with gradient shader
+    const skyDome = MeshBuilder.CreateSphere("sky-dome", { diameter: 1000, segments: 16, sideOrientation: Mesh.BACKSIDE }, scene);
     skyDome.isPickable = false;
     skyDome.checkCollisions = false;
     skyDome.infiniteDistance = true;
+
+    // Register inline shader for sky gradient
+    Effect.ShadersStore["skyGradientVertexShader"] = `
+      precision highp float;
+      attribute vec3 position;
+      attribute vec3 normal;
+      uniform mat4 worldViewProjection;
+      varying vec3 vPosition;
+      void main() {
+        gl_Position = worldViewProjection * vec4(position, 1.0);
+        vPosition = position;
+      }
+    `;
+    Effect.ShadersStore["skyGradientFragmentShader"] = `
+      precision highp float;
+      uniform vec3 zenithColor;
+      uniform vec3 horizonColor;
+      uniform vec3 groundColor;
+      varying vec3 vPosition;
+      void main() {
+        float h = normalize(vPosition).y;
+        vec3 color;
+        if (h > 0.0) {
+          float t = pow(h, 0.6);
+          color = mix(horizonColor, zenithColor, t);
+        } else {
+          float t = pow(-h, 0.4);
+          color = mix(horizonColor, groundColor, t);
+        }
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `;
+
+    const skyMat = new ShaderMaterial("sky-gradient-mat", scene, {
+      vertex: "skyGradient",
+      fragment: "skyGradient",
+    }, {
+      attributes: ["position", "normal"],
+      uniforms: ["worldViewProjection", "zenithColor", "horizonColor", "groundColor"],
+    });
+    skyMat.backFaceCulling = false;
+
+    // Derive sky gradient colors from theme
+    const zenith = new Color3(
+      theme.skyColor.r * 0.5,
+      theme.skyColor.g * 0.55,
+      theme.skyColor.b * 1.1
+    );
+    const horizon = new Color3(
+      Math.min(1, theme.skyColor.r * 1.3 + 0.15),
+      Math.min(1, theme.skyColor.g * 1.2 + 0.12),
+      Math.min(1, theme.skyColor.b * 0.95 + 0.1)
+    );
+    const ground = new Color3(
+      theme.skyColor.r * 0.6 + 0.15,
+      theme.skyColor.g * 0.65 + 0.1,
+      theme.skyColor.b * 0.5 + 0.08
+    );
+
+    skyMat.setColor3("zenithColor", zenith);
+    skyMat.setColor3("horizonColor", horizon);
+    skyMat.setColor3("groundColor", ground);
+    skyDome.material = skyMat;
 
     // Create ground and wait for it to be ready
     await this.createGround(scene, this.terrainSize, theme);
@@ -541,14 +657,34 @@ export class BabylonGame {
   private createGround(scene: Scene, size: number = 512, theme?: WorldVisualTheme): Promise<void> {
     return new Promise((resolve) => {
       const groundMaterial = new StandardMaterial("ground-mat", scene);
+
+      // Select biome-appropriate ground texture tiling based on world type
+      const worldType = (this.config.worldType || '').toLowerCase();
+      let tileScale = 6;
+      let bumpScale = 12;
+
+      if (worldType.includes('desert') || worldType.includes('sand')) {
+        tileScale = 3; // Larger, smoother sand dunes
+        bumpScale = 6;
+      } else if (worldType.includes('tundra') || worldType.includes('snow') || worldType.includes('ice')) {
+        tileScale = 4;
+        bumpScale = 8;
+      } else if (worldType.includes('forest') || worldType.includes('fantasy') || worldType.includes('medieval')) {
+        tileScale = 8; // Denser grass tiling
+        bumpScale = 14;
+      } else if (worldType.includes('cyberpunk') || worldType.includes('sci-fi') || worldType.includes('modern')) {
+        tileScale = 4; // Urban concrete
+        bumpScale = 8;
+      }
+
       const diffuseTexture = new Texture("/assets/ground/ground.jpg", scene);
-      diffuseTexture.uScale = 4;
-      diffuseTexture.vScale = 4;
+      diffuseTexture.uScale = tileScale;
+      diffuseTexture.vScale = tileScale;
       groundMaterial.diffuseTexture = diffuseTexture;
 
       const bumpTexture = new Texture("/assets/ground/ground-normal.png", scene);
-      bumpTexture.uScale = 12;
-      bumpTexture.vScale = 12;
+      bumpTexture.uScale = bumpScale;
+      bumpTexture.vScale = bumpScale;
       groundMaterial.bumpTexture = bumpTexture;
       groundMaterial.diffuseColor = theme?.groundColor ?? new Color3(0.9, 0.6, 0.4);
       groundMaterial.specularColor = Color3.Black();
@@ -607,7 +743,10 @@ export class BabylonGame {
   }
 
   private async initializeSystems(): Promise<void> {
-    if (!this.scene || !this.canvas) return;
+    if (!this.scene || !this.canvas) {
+      console.warn('[BabylonGame] initializeSystems: scene or canvas is null, returning early');
+      return;
+    }
 
     const scene = this.scene;
 
@@ -633,9 +772,171 @@ export class BabylonGame {
     this.guiManager.setOnPayFines(() => this.handlePayFines());
     this.guiManager.setOnCameraModePressed(() => this.cameraManager?.cycleMode());
 
+    // Initialize unified game menu system (ESC to toggle)
+    const menuCallbacks: GameMenuCallbacks = {
+      getPlayerData: () => ({
+        name: 'Player',
+        energy: this.playerEnergy,
+        maxEnergy: INITIAL_ENERGY,
+        status: this.isInCombat ? 'In Combat' : 'Ready',
+        gold: this.playerGold,
+      }),
+      getReputations: () => {
+        // Collect all reputation data from settlements
+        const reps: any[] = [];
+        this.settlementStats.forEach((stats) => {
+          reps.push({
+            settlementName: stats.name,
+            score: 0,
+            standing: 'neutral',
+            isBanned: false,
+            violationCount: 0,
+            outstandingFines: 0,
+          });
+        });
+        return reps;
+      },
+      getQuests: () => {
+        const quests = this.worldData?.quests || [];
+        return quests.map((q) => ({
+          id: q.id,
+          title: q.name || q.id,
+          description: '',
+          status: q.status || 'active',
+          questType: '',
+          difficulty: '',
+          progress: null,
+        }));
+      },
+      getInventoryItems: () => {
+        if (!this.inventory) return [];
+        return this.inventory.getAllItems().map((item: InventoryItem) => ({
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          type: item.type,
+          quantity: item.quantity,
+          icon: item.icon,
+        }));
+      },
+      getRules: () => {
+        const worldRules = this.worldData?.rules || [];
+        const baseRules = this.worldData?.baseRules || [];
+        return [...worldRules, ...baseRules].map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          description: r.description,
+          ruleType: r.ruleType || 'default',
+          category: r.category,
+          priority: r.priority,
+          isActive: true,
+          isBase: !!r.isBase,
+        }));
+      },
+      getWorldData: () => {
+        if (!this.worldData) return null;
+        return {
+          worldName: this.config.worldName,
+          countries: this.worldData.countries?.length || 0,
+          settlements: this.worldData.settlements?.length || 0,
+          characters: this.worldData.characters?.length || 0,
+          rules: this.worldData.rules?.length || 0,
+          baseRules: this.worldData.baseRules?.length || 0,
+          actions: this.worldData.actions?.length || 0,
+          baseActions: this.worldData.baseActions?.length || 0,
+          quests: this.worldData.quests?.length || 0,
+        };
+      },
+      getNPCs: () => {
+        const npcs: any[] = [];
+        this.npcMeshes.forEach((instance, npcId) => {
+          const info = this.npcInfos.find((n) => n.id === npcId);
+          let distance: number | undefined;
+          if (this.playerMesh && instance.mesh) {
+            const dx = this.playerMesh.position.x - instance.mesh.position.x;
+            const dz = this.playerMesh.position.z - instance.mesh.position.z;
+            distance = Math.sqrt(dx * dx + dz * dz);
+          }
+          npcs.push({
+            id: npcId,
+            name: info?.name || npcId,
+            occupation: info?.occupation,
+            disposition: info?.disposition,
+            questGiver: info?.questGiver || false,
+            role: instance.role,
+            distance,
+          });
+        });
+        return npcs;
+      },
+      getSettlements: () => {
+        const settlements: any[] = [];
+        this.settlementStats.forEach((stats) => {
+          settlements.push({
+            id: stats.id,
+            name: stats.name,
+            type: stats.type,
+            population: stats.population,
+            businesses: stats.businesses,
+            residences: stats.residences,
+            lots: stats.lots,
+            buildingCount: stats.buildingCount,
+            terrain: stats.terrain,
+          });
+        });
+        return settlements;
+      },
+      getMapData: () => {
+        const settlements: any[] = [];
+        this.settlementStats.forEach((stats, id) => {
+          const mesh = this.settlementMeshes.get(id);
+          if (mesh) {
+            settlements.push({
+              id,
+              name: stats.name,
+              position: { x: mesh.position.x, z: mesh.position.z },
+              type: stats.type,
+              zoneType: stats.type === 'city' ? 'neutral' : stats.type === 'village' ? 'caution' : 'safe',
+              buildingCount: stats.buildingCount,
+            });
+          }
+        });
+        return {
+          settlements,
+          playerPosition: this.playerMesh
+            ? { x: this.playerMesh.position.x, z: this.playerMesh.position.z }
+            : { x: 0, z: 0 },
+          worldSize: this.terrainSize || 512,
+        };
+      },
+      onNPCSelected: (npcId: string) => this.setSelectedNPC(npcId),
+      onPayFines: () => this.handlePayFines(),
+      onBackToEditor: () => this.config.onBack?.(),
+      onToggleFullscreen: () => this.handleToggleFullscreen(),
+      onToggleDebug: () => this.handleToggleDebug(),
+      onToggleVR: () => this.handleToggleVR(),
+    };
+
+    this.gameMenuSystem = new GameMenuSystem(this.guiManager.advancedTexture, menuCallbacks);
+    this.gameMenuSystem.setOnMenuOpened(() => {
+      // Pause character controller input when menu is open
+      if (this.playerController) {
+        this.playerController.enableKeyBoard(false);
+      }
+    });
+    this.gameMenuSystem.setOnMenuClosed(() => {
+      // Resume character controller input when menu is closed
+      if (this.playerController) {
+        this.playerController.enableKeyBoard(true);
+      }
+    });
+
     // Initialize chat panel
     this.chatPanel = new BabylonChatPanel(this.guiManager.advancedTexture, scene);
-    this.chatPanel.setOnClose(() => console.log('Chat closed'));
+    this.chatPanel.setOnClose(() => {
+      console.log('Chat closed');
+      this.handleConversationEnd();
+    });
     this.chatPanel.setOnQuestAssigned((questData) => {
       this.questTracker?.updateQuests(this.config.worldId);
       this.updateQuestIndicators(); // Update NPC indicators
@@ -720,17 +1021,11 @@ export class BabylonGame {
     this.vrManager = new VRManager(scene);
     this.vrManager.setOnVRSessionStart(() => {
       this.isVRMode = true;
-      this.guiManager?.showToast({
-        title: 'VR Mode Activated',
-        description: 'You are now in VR mode',
-      });
+      this.onVRSessionStarted();
     });
     this.vrManager.setOnVRSessionEnd(() => {
       this.isVRMode = false;
-      this.guiManager?.showToast({
-        title: 'VR Mode Deactivated',
-        description: 'You have exited VR mode',
-      });
+      this.onVRSessionEnded();
     });
 
     // Initialize NPC talking indicator
@@ -746,14 +1041,21 @@ export class BabylonGame {
     // Initialize procedural generators
     this.buildingGenerator = new ProceduralBuildingGenerator(scene);
     this.natureGenerator = new ProceduralNatureGenerator(scene);
+    this.roadGenerator = new RoadGenerator(scene);
+    this.interiorGenerator = new BuildingInteriorGenerator(scene);
     this.worldScaleManager = new WorldScaleManager(512, this.config.worldId);
 
     if (this.buildingGenerator) {
+      console.log('[BabylonGame] initializeSystems: initializing building assets...');
       await this.buildingGenerator.initializeAssets(this.config.worldType);
+      console.log('[BabylonGame] initializeSystems: building assets done');
     }
     if (this.natureGenerator) {
+      console.log('[BabylonGame] initializeSystems: initializing nature assets...');
       await this.natureGenerator.initializeAssets(this.config.worldType);
+      console.log('[BabylonGame] initializeSystems: nature assets done');
     }
+    console.log('[BabylonGame] initializeSystems complete');
   }
 
   private initializeZoneAudio(scene: Scene): void {
@@ -893,18 +1195,43 @@ export class BabylonGame {
       natureModels?: Record<string, string>;
       characterModels?: Record<string, string>;
       objectModels?: Record<string, string>;
+      groundTextureId?: string;
+      roadTextureId?: string;
+      wallTextureId?: string;
+      roofTextureId?: string;
       playerModels?: Record<string, string>;
       questObjectModels?: Record<string, string>;
       audioAssets?: Record<string, string>;
     } | null
   ): Promise<void> {
-    if (!this.scene || !config3D) return;
+    console.log(`[BabylonGame] applyWorld3DConfig CALLED — assets=${worldAssets?.length ?? 0}, config3D=${config3D ? 'present' : 'NULL'}`);
+    if (!this.scene || !config3D) {
+      console.warn(`[BabylonGame] applyWorld3DConfig skipped: scene=${!!this.scene}, config3D=${!!config3D}`);
+      return;
+    }
+
+    // Diagnostic: log what the asset collection provides
+    console.log(`[BabylonGame] 3D Config:`, {
+      buildingModels: config3D.buildingModels ? Object.keys(config3D.buildingModels) : 'none',
+      natureModels: config3D.natureModels ? Object.keys(config3D.natureModels) : 'none',
+      objectModels: config3D.objectModels ? Object.keys(config3D.objectModels) : 'none',
+      questObjectModels: config3D.questObjectModels ? Object.keys(config3D.questObjectModels) : 'none',
+      groundTextureId: config3D.groundTextureId || 'none',
+      roadTextureId: config3D.roadTextureId || 'none',
+      wallTextureId: config3D.wallTextureId || 'none',
+      roofTextureId: config3D.roofTextureId || 'none',
+    });
+    console.log(`[BabylonGame] World assets available: ${worldAssets.length} total, ${worldAssets.filter(a => a.filePath).length} with filePath`);
+    console.log(`[BabylonGame] World asset IDs:`, worldAssets.map(a => `${a.id} (${a.name})`));
 
     const scene = this.scene;
 
     const findAssetById = (id: string | undefined | null): VisualAsset | null => {
       if (!id) return null;
       const asset = worldAssets.find((a) => a.id === id);
+      if (!asset) {
+        console.warn(`[BabylonGame] ⚠️ findAssetById MISS: id="${id}" not found in ${worldAssets.length} worldAssets`);
+      }
       return asset || null;
     };
 
@@ -923,75 +1250,129 @@ export class BabylonGame {
           fileName = asset.filePath;
           console.warn(`[BabylonGame] Loading model from external URL (should be local): ${asset.filePath}`);
         } else {
-          // Local relative path
-          rootUrl = '/';
-          fileName = asset.filePath.replace(/^\//, '');
+          // Local relative path — split into directory (rootUrl) and filename
+          // so BabylonJS resolves gltf-relative texture paths correctly.
+          // e.g. "assets/polyhaven/models/tree_small_02.gltf"
+          //   → rootUrl = "/assets/polyhaven/models/"
+          //   → fileName = "tree_small_02.gltf"
+          const cleanPath = asset.filePath.replace(/^\//, '');
+          const lastSlash = cleanPath.lastIndexOf('/');
+          if (lastSlash >= 0) {
+            rootUrl = '/' + cleanPath.substring(0, lastSlash + 1);
+            fileName = cleanPath.substring(lastSlash + 1);
+          } else {
+            rootUrl = '/';
+            fileName = cleanPath;
+          }
         }
 
+        console.log(`[BabylonGame] Loading model: rootUrl="${rootUrl}", fileName="${fileName}" (asset: ${asset.name || asset.id})`);
         const result = await SceneLoader.ImportMeshAsync('', rootUrl, fileName, scene);
-        const mesh = result.meshes.find((m) => m instanceof Mesh) as Mesh | undefined;
-        if (!mesh) return null;
-        mesh.setEnabled(false);
-        return mesh;
+        if (result.meshes.length === 0) {
+          console.warn(`[BabylonGame] Model loaded but no meshes in result for asset ${asset.id} (${asset.filePath})`);
+          return null;
+        }
+        // Return the root node (meshes[0]) which parents all child meshes.
+        // glTF imports produce a __root__ TransformNode with child Mesh nodes;
+        // returning only one child would lose siblings on clone.
+        const root = result.meshes[0] as Mesh;
+        root.setEnabled(false);
+        for (const child of result.meshes) {
+          child.setEnabled(false);
+        }
+        console.log(`[BabylonGame] ✅ Model loaded successfully: ${asset.name || asset.id} (${result.meshes.length} meshes)`);
+        // Debug: log all mesh names to identify env/skybox meshes causing black box
+        for (const m of result.meshes) {
+          const bi = m.getBoundingInfo();
+          const size = bi.boundingBox.maximumWorld.subtract(bi.boundingBox.minimumWorld);
+          console.log(`  [mesh] "${m.name}" size=(${size.x.toFixed(1)}, ${size.y.toFixed(1)}, ${size.z.toFixed(1)})`);
+        }
+        return root;
       } catch (err) {
-        console.warn('[BabylonGame] Failed to load model for asset', asset.id, asset.filePath, err);
+        console.error(`[BabylonGame] ❌ Failed to load model for asset ${asset.id} (${asset.filePath}):`, err);
         return null;
       }
     };
 
-    // Building models: default + smallResidence
+    // Building models: register ALL role-keyed models from the collection
     if (this.buildingGenerator && config3D.buildingModels) {
-      const defaultId = config3D.buildingModels['default'];
-      const smallId = config3D.buildingModels['smallResidence'];
-
-      const defaultAsset = findAssetById(defaultId);
-      const smallAsset = findAssetById(smallId);
-
-      const [defaultMesh, smallMesh] = await Promise.all([
-        loadModelTemplate(defaultAsset),
-        loadModelTemplate(smallAsset)
-      ]);
-
-      if (defaultMesh) {
-        this.buildingGenerator.registerRoleModel('default', defaultMesh);
-      }
-      if (smallMesh) {
-        this.buildingGenerator.registerRoleModel('smallResidence', smallMesh);
+      for (const [role, id] of Object.entries(config3D.buildingModels)) {
+        const asset = findAssetById(id);
+        const mesh = await loadModelTemplate(asset);
+        if (mesh) {
+          // Attach per-model scaleHint from asset metadata so the building
+          // generator can use it directly instead of guessing units.
+          const scaleHint = (asset?.metadata as any)?.scaleHint;
+          if (scaleHint != null) {
+            mesh.metadata = { ...(mesh.metadata || {}), scaleHint };
+          }
+          this.buildingGenerator.registerRoleModel(role, mesh);
+          console.log(`[BabylonGame] Registered building model for role: ${role}${scaleHint != null ? ` (scaleHint=${scaleHint})` : ''}`);
+        }
       }
     }
 
-    // Nature models: defaultTree, rock, shrub, bush
+    // Apply wall/roof textures to building generator if available
+    if (this.buildingGenerator && this.textureManager) {
+      // Wall texture: prefer explicit config3D reference, then fall back to assetType lookup
+      let wallAsset = config3D.wallTextureId
+        ? worldAssets.find((a) => a.id === config3D.wallTextureId)
+        : undefined;
+      if (!wallAsset) {
+        wallAsset = worldAssets.find((a) => a.assetType === 'texture_wall');
+      }
+      if (wallAsset) {
+        const wallTex = this.textureManager.loadTexture(wallAsset);
+        this.buildingGenerator.setWallTexture(wallTex);
+        console.log(`[BabylonGame] Applied wall texture to building generator: ${wallAsset.name}`);
+      }
+
+      // Roof texture: prefer explicit config3D reference, then fall back to tag/name lookup
+      let roofAsset = config3D.roofTextureId
+        ? worldAssets.find((a) => a.id === config3D.roofTextureId)
+        : undefined;
+      if (!roofAsset) {
+        roofAsset = worldAssets.find((a) =>
+          a.assetType === 'texture_material' && (a.tags?.includes('roof') || a.name?.toLowerCase().includes('roof'))
+        );
+      }
+      if (roofAsset) {
+        const roofTex = this.textureManager.loadTexture(roofAsset);
+        this.buildingGenerator.setRoofTexture(roofTex);
+        console.log(`[BabylonGame] Applied roof texture to building generator: ${roofAsset.name}`);
+      }
+    }
+
+    // Nature models: iterate ALL keys from config3D.natureModels
+    // Primary keys (defaultTree, rock, shrub, bush) register as overrides;
+    // additional tree-like keys become random tree variants;
+    // additional rock-like keys become random rock variants.
     if (this.natureGenerator && config3D.natureModels) {
-      // Tree
-      const treeId = config3D.natureModels['defaultTree'];
-      const treeAsset = findAssetById(treeId);
-      const treeMesh = await loadModelTemplate(treeAsset);
-      if (treeMesh) {
-        this.natureGenerator.registerTreeOverride(treeMesh);
-      }
+      const treeVariantKeys = new Set(['tree_deciduous', 'tree_dead', 'tree_small', 'evergreen', 'sacred', 'stump']);
+      const rockVariantKeys = new Set(['rock_large', 'boulder', 'rock_alt']);
 
-      // Rock
-      const rockId = config3D.natureModels['rock'];
-      const rockAsset = findAssetById(rockId);
-      const rockMesh = await loadModelTemplate(rockAsset);
-      if (rockMesh) {
-        this.natureGenerator.registerRockOverride(rockMesh);
-      }
+      for (const [key, assetId] of Object.entries(config3D.natureModels)) {
+        if (!assetId) continue;
+        const asset = findAssetById(assetId);
+        const mesh = await loadModelTemplate(asset);
+        if (!mesh) continue;
 
-      // Shrub
-      const shrubId = config3D.natureModels['shrub'];
-      const shrubAsset = findAssetById(shrubId);
-      const shrubMesh = await loadModelTemplate(shrubAsset);
-      if (shrubMesh) {
-        this.natureGenerator.registerShrubOverride(shrubMesh);
-      }
-
-      // Bush
-      const bushId = config3D.natureModels['bush'];
-      const bushAsset = findAssetById(bushId);
-      const bushMesh = await loadModelTemplate(bushAsset);
-      if (bushMesh) {
-        this.natureGenerator.registerBushOverride(bushMesh);
+        if (key === 'defaultTree') {
+          this.natureGenerator.registerTreeOverride(mesh);
+        } else if (key === 'rock') {
+          this.natureGenerator.registerRockOverride(mesh);
+        } else if (key === 'shrub') {
+          this.natureGenerator.registerShrubOverride(mesh);
+        } else if (key === 'bush') {
+          this.natureGenerator.registerBushOverride(mesh);
+        } else if (treeVariantKeys.has(key) || key.startsWith('tree')) {
+          this.natureGenerator.registerAdditionalTreeVariant(mesh);
+        } else if (rockVariantKeys.has(key) || key.startsWith('rock')) {
+          this.natureGenerator.registerAdditionalRockVariant(mesh);
+        } else {
+          // Unknown nature key — register as tree variant as a reasonable default
+          this.natureGenerator.registerAdditionalTreeVariant(mesh);
+        }
       }
     }
 
@@ -1000,12 +1381,31 @@ export class BabylonGame {
     // can be wired in here in a future iteration.
 
     // Object/prop models: preload templates keyed by semantic role (chest, sword, etc.)
+    // Measure original height at import time; downstream cloning uses absolute scaling.
     this.objectModelTemplates.clear();
+    this.objectModelOriginalHeights.clear();
     if (config3D.objectModels) {
       for (const [role, id] of Object.entries(config3D.objectModels)) {
         const asset = findAssetById(id);
         const template = await loadModelTemplate(asset);
         if (template) {
+          template.computeWorldMatrix(true);
+          const kids = template.getChildMeshes(false);
+          let oMin = new Vector3(Infinity, Infinity, Infinity);
+          let oMax = new Vector3(-Infinity, -Infinity, -Infinity);
+          for (const kid of kids) {
+            kid.computeWorldMatrix(true);
+            const bi = kid.getBoundingInfo();
+            oMin = Vector3.Minimize(oMin, bi.boundingBox.minimumWorld);
+            oMax = Vector3.Maximize(oMax, bi.boundingBox.maximumWorld);
+          }
+          if (isFinite(oMin.x)) {
+            const h = oMax.y - oMin.y;
+            if (h > 0.001) {
+              this.objectModelOriginalHeights.set(role, h);
+              console.log(`[BabylonGame] Measured object "${role}" originalH=${h.toFixed(2)}`);
+            }
+          }
           this.objectModelTemplates.set(role, template);
         }
       }
@@ -1042,6 +1442,13 @@ export class BabylonGame {
 
   private async generateProceduralWorld(): Promise<void> {
     if (!this.scene || !this.worldData || !this.buildingGenerator || !this.natureGenerator || !this.worldScaleManager) {
+      console.warn('[BabylonGame] generateProceduralWorld: missing dependencies', {
+        scene: !!this.scene,
+        worldData: !!this.worldData,
+        buildingGenerator: !!this.buildingGenerator,
+        natureGenerator: !!this.natureGenerator,
+        worldScaleManager: !!this.worldScaleManager,
+      });
       return;
     }
 
@@ -1065,7 +1472,7 @@ export class BabylonGame {
     }
 
     const worldStyle = ProceduralBuildingGenerator.getStyleForWorld(worldType, "plains");
-    const biome = ProceduralNatureGenerator.getBiomeFromTerrain(worldType);
+    const biome = ProceduralNatureGenerator.getBiomeFromWorldType(worldType);
 
     console.log(`Generating procedural world: ${settlements.length} settlements, style: ${worldStyle.name}, biome: ${biome.name}`);
 
@@ -1135,7 +1542,8 @@ export class BabylonGame {
           .generateLotPositions(scaledSettlement, buildingCount)
           .map((pos) => this.projectToGround(pos.x, pos.z));
 
-        // Spawn buildings
+        // Spawn buildings (track per-settlement positions for street furniture)
+        const settlementBuildingPositions: Vector3[] = [];
         let buildingIndex = 0;
 
         // First, spawn businesses at their lots
@@ -1162,9 +1570,11 @@ export class BabylonGame {
 
           const building = buildingGenerator.generateBuilding(buildingSpec);
           allBuildingPositions.push(building.position);
+          settlementBuildingPositions.push(building.position.clone());
 
           // Store business metadata for NPC assignment
           building.metadata = {
+            buildingId: business.id,
             buildingType: 'business',
             businessId: business.id,
             businessType: business.businessType,
@@ -1173,6 +1583,7 @@ export class BabylonGame {
             ownerId: business.ownerId,
             employees: business.employees || []
           };
+          building.isPickable = true;
 
           // Store in building data map for NPC positioning
           this.buildingData.set(business.id, {
@@ -1222,11 +1633,13 @@ export class BabylonGame {
 
           // Store residence position for NPC assignment
           building.metadata = {
+            buildingId: residence.id,
             buildingType: 'residence',
             residenceId: residence.id,
             settlementId: settlement.id,
             occupants: residence.occupants
           };
+          building.isPickable = true;
 
           // Store in building data map for NPC positioning
           this.buildingData.set(residence.id, {
@@ -1241,7 +1654,122 @@ export class BabylonGame {
           buildingIndex++;
         }
 
-        // Fill any remaining positions with generic residences
+        // Phase 1: Fill with minimum business buildings if backend didn't provide any
+        if (businesses.length === 0 && buildingIndex < lotPositions.length) {
+          // Determine world-type-appropriate business mix
+          const wt = (worldType || '').toLowerCase();
+          let businessMix: { businessType: string; name: string }[];
+
+          if (wt.includes('medieval') || wt.includes('fantasy') || wt.includes('mytholog')) {
+            businessMix = [
+              { businessType: 'Tavern', name: 'Tavern' },
+              { businessType: 'Blacksmith', name: 'Smithy' },
+              { businessType: 'Market', name: 'Market' },
+              { businessType: 'Inn', name: 'Inn' },
+              { businessType: 'Church', name: 'Temple' },
+            ];
+          } else if (wt.includes('cyberpunk') || wt.includes('sci-fi') || wt.includes('modern')) {
+            businessMix = [
+              { businessType: 'Restaurant', name: 'Eatery' },
+              { businessType: 'Shop', name: 'Shop' },
+              { businessType: 'Hospital', name: 'Clinic' },
+              { businessType: 'Bank', name: 'Bank' },
+              { businessType: 'Theater', name: 'Entertainment Hub' },
+            ];
+          } else if (wt.includes('western') || wt.includes('frontier')) {
+            businessMix = [
+              { businessType: 'Tavern', name: 'Saloon' },
+              { businessType: 'Shop', name: 'General Store' },
+              { businessType: 'Blacksmith', name: 'Smithy' },
+              { businessType: 'Bank', name: 'Bank' },
+            ];
+          } else if (wt.includes('pirate') || wt.includes('tropical')) {
+            businessMix = [
+              { businessType: 'Tavern', name: 'Tavern' },
+              { businessType: 'Market', name: 'Harbor Market' },
+              { businessType: 'Shop', name: 'Trade Post' },
+              { businessType: 'Inn', name: 'Inn' },
+            ];
+          } else if (wt.includes('steampunk')) {
+            businessMix = [
+              { businessType: 'Tavern', name: 'Pub' },
+              { businessType: 'Blacksmith', name: 'Workshop' },
+              { businessType: 'Shop', name: 'Emporium' },
+              { businessType: 'Library', name: 'Library' },
+              { businessType: 'Bank', name: 'Bank' },
+            ];
+          } else if (wt.includes('post-apocal')) {
+            businessMix = [
+              { businessType: 'Market', name: 'Trading Post' },
+              { businessType: 'Blacksmith', name: 'Workshop' },
+              { businessType: 'Restaurant', name: 'Mess Hall' },
+            ];
+          } else {
+            // Generic default
+            businessMix = [
+              { businessType: 'Tavern', name: 'Tavern' },
+              { businessType: 'Shop', name: 'Shop' },
+              { businessType: 'Blacksmith', name: 'Workshop' },
+              { businessType: 'Market', name: 'Market' },
+            ];
+          }
+
+          // Scale: use at most ~40% of lot positions for businesses, minimum 2
+          const maxBusinessSlots = Math.max(2, Math.floor(lotPositions.length * 0.4));
+          const businessesToPlace = businessMix.slice(0, Math.min(businessMix.length, maxBusinessSlots - buildingIndex));
+
+          for (const biz of businessesToPlace) {
+            if (buildingIndex >= lotPositions.length) break;
+
+            const bizId = `business_auto_${settlement.id}_${buildingIndex}`;
+            let buildingSpec = ProceduralBuildingGenerator.createSpecFromData({
+              id: bizId,
+              type: 'business',
+              businessType: biz.businessType,
+              position: lotPositions[buildingIndex],
+              worldStyle,
+              population: scaledSettlement.population
+            });
+
+            buildingSpec = {
+              ...buildingSpec,
+              position: this.findStableBuildingPosition(
+                buildingSpec.position,
+                buildingSpec.width,
+                buildingSpec.depth
+              )
+            };
+
+            const building = buildingGenerator.generateBuilding(buildingSpec);
+            allBuildingPositions.push(building.position);
+            settlementBuildingPositions.push(building.position.clone());
+
+            building.metadata = {
+              buildingId: bizId,
+              buildingType: 'business',
+              businessId: bizId,
+              businessType: biz.businessType,
+              businessName: biz.name,
+              settlementId: settlement.id,
+              ownerId: null,
+              employees: []
+            };
+            building.isPickable = true;
+
+            this.buildingData.set(bizId, {
+              position: building.position.clone(),
+              metadata: building.metadata,
+              mesh: building
+            });
+
+            this.buildingInfoDisplay?.registerBuilding(building);
+            buildingIndex++;
+          }
+
+          console.log(`  Auto-placed ${businessesToPlace.length} business buildings for ${settlement.name}`);
+        }
+
+        // Phase 2: Fill any remaining positions with generic residences
         while (buildingIndex < lotPositions.length) {
           const residenceType = Math.random() > 0.7
             ? 'residence_large'
@@ -1269,14 +1797,18 @@ export class BabylonGame {
 
           const building = buildingGenerator.generateBuilding(buildingSpec);
           allBuildingPositions.push(building.position);
+          settlementBuildingPositions.push(building.position.clone());
 
           // Add metadata for generic residences
+          const genericResId = `residence_generic_${settlement.id}_${buildingIndex}`;
           building.metadata = {
+            buildingId: genericResId,
             buildingType: 'residence',
-            residenceId: `residence_generic_${settlement.id}_${buildingIndex}`,
+            residenceId: genericResId,
             settlementId: settlement.id,
             occupants: []
           };
+          building.isPickable = true;
 
           // Register building for hover info display
           this.buildingInfoDisplay?.registerBuilding(building);
@@ -1284,18 +1816,50 @@ export class BabylonGame {
           buildingIndex++;
         }
 
-        // Create a marker for the settlement center
+        // Generate street furniture (lamp posts, benches, barrels, etc.) near buildings
+        const settlementCenterForProps = this.projectToGround(
+          scaledSettlement.position.x,
+          scaledSettlement.position.z
+        );
+        this.generateStreetFurniture(
+          settlement.id,
+          settlementCenterForProps,
+          settlementBuildingPositions,
+          worldType || '',
+          sampleHeight
+        );
+
+        // Generate intra-settlement streets (hub-and-spoke from center to buildings)
+        if (this.roadGenerator && settlementBuildingPositions.length > 0) {
+          this.roadGenerator.generateSettlementRoads(
+            settlement.id,
+            settlementCenterForProps,
+            settlementBuildingPositions,
+            sampleHeight
+          );
+        }
+
+        // Create a subtle ground marker and signpost for the settlement center
         const settlementCenter = this.projectToGround(
           scaledSettlement.position.x,
           scaledSettlement.position.z
         );
-        const settlementMarker = MeshBuilder.CreateCylinder(
+
+        // Store first settlement position for player spawn
+        if (!this.firstSettlementSpawnPosition && i === 0) {
+          this.firstSettlementSpawnPosition = settlementCenter.clone();
+          console.log(`[BabylonGame] Player will spawn in ${settlement.name} at:`, this.firstSettlementSpawnPosition);
+        }
+
+        // Flat disc on the ground as a subtle marker
+        const settlementMarker = MeshBuilder.CreateDisc(
           `settlement_marker_${settlement.id}`,
-          { diameter: 3, height: 0.5, tessellation: 16 },
+          { radius: 1.5, tessellation: 24 },
           scene
         );
         settlementMarker.position = settlementCenter.clone();
-        settlementMarker.position.y += 0.25;
+        settlementMarker.position.y += 0.08;
+        settlementMarker.rotation.x = Math.PI / 2;
         settlementMarker.isPickable = true;
 
         settlementMarker.metadata = {
@@ -1304,9 +1868,65 @@ export class BabylonGame {
         };
 
         const markerMat = new StandardMaterial(`settlement_marker_mat_${settlement.id}`, scene);
-        markerMat.diffuseColor = new Color3(0.8, 0.6, 0.2);
-        markerMat.emissiveColor = new Color3(0.4, 0.3, 0.1);
+        markerMat.diffuseColor = new Color3(0.6, 0.5, 0.3);
+        markerMat.emissiveColor = new Color3(0.2, 0.15, 0.05);
+        markerMat.alpha = 0.4;
+        markerMat.specularColor = Color3.Black();
         settlementMarker.material = markerMat;
+
+        // Signpost: thin pole + name plate (stored for disposal)
+        const signPole = MeshBuilder.CreateCylinder(
+          `settlement_sign_pole_${settlement.id}`,
+          { height: 3, diameter: 0.15, tessellation: 8 },
+          scene
+        );
+        signPole.position = settlementCenter.clone();
+        signPole.position.y += 1.5;
+        signPole.isPickable = false;
+
+        const poleMat = new StandardMaterial(`settlement_sign_pole_mat_${settlement.id}`, scene);
+        poleMat.diffuseColor = new Color3(0.35, 0.25, 0.15);
+        poleMat.specularColor = Color3.Black();
+        signPole.material = poleMat;
+        this.worldPropMeshes.push(signPole);
+
+        // Name plate on the signpost
+        const signPlate = MeshBuilder.CreatePlane(
+          `settlement_sign_plate_${settlement.id}`,
+          { width: 3, height: 0.8 },
+          scene
+        );
+        signPlate.position = settlementCenter.clone();
+        signPlate.position.y += 3.2;
+        signPlate.billboardMode = Mesh.BILLBOARDMODE_Y;
+        signPlate.isPickable = false;
+
+        const signTexture = new DynamicTexture(
+          `settlement_sign_tex_${settlement.id}`,
+          { width: 256, height: 64 },
+          scene,
+          false
+        );
+        const ctx = signTexture.getContext() as CanvasRenderingContext2D;
+        ctx.fillStyle = 'rgba(50, 35, 20, 0.85)';
+        ctx.fillRect(0, 0, 256, 64);
+        ctx.strokeStyle = '#8b7355';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(2, 2, 252, 60);
+        ctx.fillStyle = '#e8d5b5';
+        ctx.font = 'bold 22px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(settlement.name, 128, 32);
+        signTexture.update();
+
+        const signMat = new StandardMaterial(`settlement_sign_mat_${settlement.id}`, scene);
+        signMat.diffuseTexture = signTexture;
+        signMat.emissiveTexture = signTexture;
+        signMat.useAlphaFromDiffuseTexture = true;
+        signMat.disableLighting = true;
+        signPlate.material = signMat;
+        this.worldPropMeshes.push(signPlate);
 
         // Spawn a small cluster of world-type-specific props around the settlement center
         if (this.objectModelTemplates.size > 0) {
@@ -1343,11 +1963,39 @@ export class BabylonGame {
             );
             groundPos.y += 0.3;
 
-            const propInstance = template.clone(`prop_${role}_${settlement.id}_${idx}`) as Mesh;
+            let propInstance: Mesh | null = null;
+            // glTF root nodes have 0 vertices — use instantiateHierarchy
+            if (template.getTotalVertices() === 0 && template.getChildMeshes().length > 0) {
+              const root = template.instantiateHierarchy(
+                null,
+                undefined,
+                (source, clone) => { clone.name = `${source.name}_prop_${role}_${idx}`; }
+              );
+              if (root) {
+                root.setEnabled(true);
+                root.getChildMeshes().forEach(m => m.setEnabled(true));
+                propInstance = root as Mesh;
+              }
+            } else {
+              propInstance = template.clone(`prop_${role}_${settlement.id}_${idx}`) as Mesh;
+            }
+            if (!propInstance) continue;
             propInstance.position = groundPos;
             propInstance.isVisible = true;
             propInstance.setEnabled(true);
             propInstance.checkCollisions = false;
+            // Compute absolute scale from original height to reach target meters
+            const propSizeMap: Record<string, number> = {
+              'chest': 0.6, 'data_pad': 0.3, 'lantern': 0.5,
+              'lamp': 2.5, 'lamp_table': 0.5, 'storage': 0.8,
+              'storage_alt': 0.8, 'furniture_stool': 0.5, 'furniture_chair': 0.8,
+              'furniture_table': 0.8, 'prop': 0.8, 'decoration': 0.6,
+              'electronics': 0.4,
+            };
+            const propTarget = propSizeMap[role] || 0.8;
+            const propOrigH = this.objectModelOriginalHeights.get(role) || 1;
+            const propAbsScale = propTarget / propOrigH;
+            propInstance.scaling.set(propAbsScale, propAbsScale, propAbsScale);
             propInstance.metadata = {
               ...(propInstance.metadata || {}),
               objectRole: role,
@@ -1380,6 +2028,43 @@ export class BabylonGame {
 
     this.settlementMeshes = settlementMap;
 
+    // Generate roads between settlements
+    if (this.roadGenerator && boundaryData.length >= 2) {
+      console.log('Generating roads between settlements...');
+
+      // Set road appearance based on world type
+      const wt = (this.config.worldType || '').toLowerCase();
+      if (wt.includes('medieval') || wt.includes('fantasy')) {
+        this.roadGenerator.setRoadColor(new Color3(0.5, 0.4, 0.3)); // Dirt path
+        this.roadGenerator.setRoadWidth(3);
+      } else if (wt.includes('cyberpunk') || wt.includes('sci-fi') || wt.includes('modern')) {
+        this.roadGenerator.setRoadColor(new Color3(0.3, 0.3, 0.35)); // Asphalt
+        this.roadGenerator.setRoadWidth(5);
+      } else if (wt.includes('desert') || wt.includes('sand')) {
+        this.roadGenerator.setRoadColor(new Color3(0.6, 0.5, 0.35)); // Sandy path
+        this.roadGenerator.setRoadWidth(2.5);
+      } else {
+        this.roadGenerator.setRoadColor(new Color3(0.45, 0.38, 0.3)); // Default dirt
+        this.roadGenerator.setRoadWidth(3);
+      }
+
+      // Apply road texture from asset collection if available
+      if (this.textureManager && this.selectedRoadTexture) {
+        const roadAsset = this.worldAssets.find((a) => a.id === this.selectedRoadTexture);
+        if (roadAsset) {
+          const roadTex = this.textureManager.loadTexture(roadAsset);
+          this.roadGenerator.setRoadTexture(roadTex);
+        }
+      }
+
+      const settlementNodes = boundaryData.map((s) => ({
+        id: s.id,
+        position: s.position
+      }));
+
+      this.roadGenerator.generateRoads(settlementNodes, sampleHeight);
+    }
+
     // Generate nature elements (trees, rocks, grass, flowers)
     console.log('Generating nature elements...');
 
@@ -1390,22 +2075,593 @@ export class BabylonGame {
       maxZ: terrainSize / 2 - 50
     };
 
-    // Trees - avoid building positions
-    natureGenerator.generateTrees(biome, worldBounds, allBuildingPositions, 20, sampleHeight);
+    // Collect road positions for avoidance (trees shouldn't grow on roads)
+    const avoidPositions = [...allBuildingPositions];
+    if (this.roadGenerator) {
+      for (const roadMesh of this.roadGenerator.getRoadMeshes()) {
+        avoidPositions.push(roadMesh.position.clone());
+      }
+    }
 
-    // Rocks
-    natureGenerator.generateRocks(biome, worldBounds, Math.floor(terrainSize / 20), sampleHeight);
+    // Scale vegetation counts by biome density
+    const vegetationScale = Math.max(0.1, biome.treeDensity);
 
-    // Grass patches (fewer for performance)
-    natureGenerator.generateGrass(biome, worldBounds, Math.floor(terrainSize / 5), sampleHeight);
+    // Trees - avoid building and road positions (count determined internally by biome density)
+    natureGenerator.generateTrees(biome, worldBounds, avoidPositions, 20, sampleHeight);
+
+    // Rocks — more in mountains/wasteland, fewer in forests
+    const rockCount = Math.floor((terrainSize / 20) * (biome.treeType === 'dead' ? 2 : 1));
+    natureGenerator.generateRocks(biome, worldBounds, rockCount, sampleHeight);
+
+    // Shrubs/bushes — scale with vegetation richness
+    const shrubCount = Math.floor(30 * vegetationScale);
+    natureGenerator.generateShrubs(biome, worldBounds, shrubCount, sampleHeight);
+
+    // Grass patches — scale with biome
+    const grassCount = Math.floor((terrainSize / 5) * vegetationScale);
+    natureGenerator.generateGrass(biome, worldBounds, grassCount, sampleHeight);
 
     // Flowers
-    natureGenerator.generateFlowers(biome, worldBounds, Math.floor(terrainSize / 10), sampleHeight);
+    if (biome.hasFlowers) {
+      const flowerCount = Math.floor((terrainSize / 10) * vegetationScale);
+      natureGenerator.generateFlowers(biome, worldBounds, flowerCount, sampleHeight);
+    }
+
+    // Generate wilderness props (camps, ruins, landmarks) between settlements
+    this.generateWildernessProps(
+      worldBounds,
+      boundaryData.map((s) => s.position),
+      worldType || '',
+      sampleHeight
+    );
 
     console.log('Procedural world generation complete!');
 
+    // Diagnostic: find any abnormally large meshes in the scene
+    if (this.scene) {
+      for (const m of this.scene.meshes) {
+        if (m.isDisposed()) continue;
+        const bi = m.getBoundingInfo();
+        const sz = bi.boundingBox.maximumWorld.subtract(bi.boundingBox.minimumWorld);
+        const maxDim = Math.max(Math.abs(sz.x), Math.abs(sz.y), Math.abs(sz.z));
+        if (maxDim > 50) {
+          console.warn(`[DIAG] Large mesh: "${m.name}" size=(${sz.x.toFixed(1)},${sz.y.toFixed(1)},${sz.z.toFixed(1)}) pos=(${m.position.x.toFixed(1)},${m.position.y.toFixed(1)},${m.position.z.toFixed(1)}) enabled=${m.isEnabled()} visible=${m.isVisible}`);
+        }
+      }
+    }
+
+    // Hide ALL template prototype meshes now that world generation is done.
+    // We move them far off-screen rather than disposing because
+    // instantiateHierarchy shares geometry/materials with the source.
+    // Disabled-but-present PBR templates can cause black box / floating object artifacts.
+    this.buildingGenerator?.hidePrototypes();
+    this.natureGenerator?.hidePrototypes();
+    this.questObjectManager?.hidePrototypes();
+
+    // Also hide object model templates (lamps, chests, etc.)
+    this.objectModelTemplates.forEach((mesh) => {
+      if (mesh && !mesh.isDisposed()) {
+        mesh.position.y = -10000;
+        mesh.setEnabled(false);
+        mesh.isVisible = false;
+        mesh.isPickable = false;
+        mesh.getChildMeshes().forEach((c) => {
+          c.setEnabled(false);
+          c.isVisible = false;
+          c.isPickable = false;
+        });
+      }
+    });
+
     // Create visual zone boundaries around settlements
     this.createZoneBoundaries(boundaryData);
+  }
+
+  /**
+   * Generate procedural street furniture around buildings in a settlement.
+   * Creates world-type-appropriate props like lamp posts, benches, wells, etc.
+   */
+  private generateStreetFurniture(
+    settlementId: string,
+    center: Vector3,
+    buildingPositions: Vector3[],
+    worldType: string,
+    sampleHeight: (x: number, z: number) => number
+  ): void {
+    if (!this.scene || buildingPositions.length === 0) return;
+    const scene = this.scene;
+    const wt = (worldType || '').toLowerCase();
+
+    // Determine furniture set based on world type
+    type FurnitureType = 'lamp_post' | 'bench' | 'well' | 'barrel' | 'crate' | 'market_stall' | 'streetlight' | 'terminal' | 'planter';
+    let furnitureSet: FurnitureType[];
+
+    if (wt.includes('medieval') || wt.includes('fantasy')) {
+      furnitureSet = ['lamp_post', 'bench', 'well', 'barrel', 'crate', 'market_stall'];
+    } else if (wt.includes('cyberpunk') || wt.includes('sci-fi') || wt.includes('modern')) {
+      furnitureSet = ['streetlight', 'bench', 'terminal', 'planter', 'crate'];
+    } else if (wt.includes('western') || wt.includes('frontier')) {
+      furnitureSet = ['barrel', 'crate', 'lamp_post', 'bench', 'well'];
+    } else {
+      furnitureSet = ['lamp_post', 'bench', 'barrel', 'planter'];
+    }
+
+    // Place 1-2 props per building, along the "street" side
+    const maxProps = Math.min(buildingPositions.length * 2, 20);
+    let propCount = 0;
+
+    for (const bldgPos of buildingPositions) {
+      if (propCount >= maxProps) break;
+
+      // Place prop offset from building towards settlement center
+      const toCenter = center.subtract(bldgPos);
+      toCenter.y = 0;
+      const dist = toCenter.length();
+      if (dist < 1) continue;
+      toCenter.normalize();
+
+      // Offset to the side of the building-to-center line
+      const perpX = -toCenter.z;
+      const perpZ = toCenter.x;
+      const sideOffset = (Math.random() > 0.5 ? 1 : -1) * (2 + Math.random() * 3);
+
+      const propX = bldgPos.x + toCenter.x * 4 + perpX * sideOffset;
+      const propZ = bldgPos.z + toCenter.z * 4 + perpZ * sideOffset;
+      const propY = sampleHeight(propX, propZ);
+
+      const furnitureType = furnitureSet[Math.floor(Math.random() * furnitureSet.length)];
+      const prop = this.createFurnitureProp(furnitureType, `street_prop_${settlementId}_${propCount}`, scene);
+      if (!prop) continue;
+
+      prop.position = new Vector3(propX, propY, propZ);
+      prop.rotation.y = Math.random() * Math.PI * 2;
+      prop.checkCollisions = false;
+      prop.isPickable = false;
+      this.worldPropMeshes.push(prop);
+      propCount++;
+    }
+  }
+
+  private createFurnitureProp(
+    type: string,
+    name: string,
+    scene: Scene
+  ): Mesh | null {
+    // Try to use collection objectModel template if available
+    const furnitureToRoleMap: Record<string, string[]> = {
+      'lamp_post': ['lamp', 'lamp_table'],
+      'streetlight': ['lamp', 'lamp_table'],
+      'barrel': ['storage', 'storage_alt'],
+      'crate': ['chest', 'storage'],
+      'bench': ['furniture_stool', 'furniture_chair'],
+      'well': ['prop', 'decoration'],
+      'market_stall': ['furniture_table'],
+      'terminal': ['electronics', 'prop'],
+      'planter': ['decoration', 'prop'],
+    };
+
+    const roles = furnitureToRoleMap[type] || [];
+    for (const role of roles) {
+      const template = this.objectModelTemplates.get(role);
+      if (template) {
+        let cloned: Mesh | null = null;
+        // glTF root nodes have 0 vertices — use instantiateHierarchy
+        if (template.getTotalVertices() === 0 && template.getChildMeshes().length > 0) {
+          const root = template.instantiateHierarchy(
+            null,
+            undefined,
+            (source, clone) => { clone.name = `${source.name}_${name}`; }
+          );
+          if (root) {
+            root.setEnabled(true);
+            root.getChildMeshes().forEach(m => m.setEnabled(true));
+            cloned = root as Mesh;
+          }
+        } else {
+          cloned = template.clone(name, null, false, false) as Mesh;
+        }
+        if (cloned) {
+          cloned.setEnabled(true);
+          // Templates are normalized to 1 unit height at load time.
+          // Scale by desired real-world height in meters.
+          const furnitureSizeMap: Record<string, number> = {
+            'lamp_post': 2.5,
+            'streetlight': 3.0,
+            'bench': 0.8,
+            'well': 1.2,
+            'barrel': 0.8,
+            'crate': 0.6,
+            'market_stall': 2.0,
+            'terminal': 1.2,
+            'planter': 0.6,
+          };
+          const targetSize = furnitureSizeMap[type] || 1.0;
+          const furnOrigH = this.objectModelOriginalHeights.get(role) || 1;
+          const furnAbsScale = targetSize / furnOrigH;
+          cloned.scaling.set(furnAbsScale, furnAbsScale, furnAbsScale);
+          return cloned;
+        }
+      }
+    }
+
+    // Fallback to procedural primitives
+    const parent = new Mesh(name, scene);
+
+    if (type === 'lamp_post' || type === 'streetlight') {
+      // Pole
+      const pole = MeshBuilder.CreateCylinder(`${name}_pole`, { height: 2.5, diameter: 0.15, tessellation: 6 }, scene);
+      pole.position.y = 1.25;
+      pole.parent = parent;
+      const poleMat = new StandardMaterial(`${name}_pole_mat`, scene);
+      poleMat.diffuseColor = type === 'streetlight' ? new Color3(0.4, 0.4, 0.45) : new Color3(0.25, 0.2, 0.15);
+      poleMat.specularColor = Color3.Black();
+      pole.material = poleMat;
+
+      // Lamp head
+      const lamp = MeshBuilder.CreateSphere(`${name}_lamp`, { diameter: 0.4, segments: 6 }, scene);
+      lamp.position.y = 2.6;
+      lamp.parent = parent;
+      const lampMat = new StandardMaterial(`${name}_lamp_mat`, scene);
+      lampMat.diffuseColor = new Color3(1, 0.9, 0.6);
+      lampMat.emissiveColor = new Color3(0.4, 0.35, 0.2);
+      lamp.material = lampMat;
+
+    } else if (type === 'bench') {
+      // Seat
+      const seat = MeshBuilder.CreateBox(`${name}_seat`, { width: 2, height: 0.15, depth: 0.6 }, scene);
+      seat.position.y = 0.5;
+      seat.parent = parent;
+      const seatMat = new StandardMaterial(`${name}_seat_mat`, scene);
+      seatMat.diffuseColor = new Color3(0.45, 0.3, 0.2);
+      seatMat.specularColor = Color3.Black();
+      seat.material = seatMat;
+
+      // Legs
+      for (const dx of [-0.8, 0.8]) {
+        const leg = MeshBuilder.CreateBox(`${name}_leg_${dx}`, { width: 0.1, height: 0.5, depth: 0.5 }, scene);
+        leg.position = new Vector3(dx, 0.25, 0);
+        leg.parent = parent;
+        leg.material = seatMat;
+      }
+
+    } else if (type === 'well') {
+      // Stone ring
+      const ring = MeshBuilder.CreateTorus(`${name}_ring`, { diameter: 1.5, thickness: 0.4, tessellation: 12 }, scene);
+      ring.position.y = 0.5;
+      ring.parent = parent;
+      const stoneMat = new StandardMaterial(`${name}_stone_mat`, scene);
+      stoneMat.diffuseColor = new Color3(0.5, 0.5, 0.45);
+      stoneMat.specularColor = Color3.Black();
+      ring.material = stoneMat;
+
+      // Roof posts
+      for (const dx of [-0.6, 0.6]) {
+        const post = MeshBuilder.CreateCylinder(`${name}_post_${dx}`, { height: 2, diameter: 0.12, tessellation: 4 }, scene);
+        post.position = new Vector3(dx, 1.5, 0);
+        post.parent = parent;
+        post.material = stoneMat;
+      }
+
+    } else if (type === 'barrel') {
+      const barrel = MeshBuilder.CreateCylinder(`${name}_barrel`, { height: 1.2, diameter: 0.7, tessellation: 10 }, scene);
+      barrel.position.y = 0.6;
+      barrel.parent = parent;
+      const barrelMat = new StandardMaterial(`${name}_barrel_mat`, scene);
+      barrelMat.diffuseColor = new Color3(0.5, 0.35, 0.2);
+      barrelMat.specularColor = Color3.Black();
+      barrel.material = barrelMat;
+
+    } else if (type === 'crate') {
+      const crate = MeshBuilder.CreateBox(`${name}_crate`, { width: 0.8, height: 0.8, depth: 0.8 }, scene);
+      crate.position.y = 0.4;
+      crate.parent = parent;
+      const crateMat = new StandardMaterial(`${name}_crate_mat`, scene);
+      crateMat.diffuseColor = new Color3(0.55, 0.4, 0.25);
+      crateMat.specularColor = Color3.Black();
+      crate.material = crateMat;
+
+    } else if (type === 'market_stall') {
+      // Table
+      const table = MeshBuilder.CreateBox(`${name}_table`, { width: 2.5, height: 0.1, depth: 1.2 }, scene);
+      table.position.y = 1;
+      table.parent = parent;
+      const woodMat = new StandardMaterial(`${name}_wood_mat`, scene);
+      woodMat.diffuseColor = new Color3(0.5, 0.35, 0.2);
+      woodMat.specularColor = Color3.Black();
+      table.material = woodMat;
+
+      // Awning
+      const awning = MeshBuilder.CreateBox(`${name}_awning`, { width: 2.8, height: 0.05, depth: 1.5 }, scene);
+      awning.position.y = 2.5;
+      awning.parent = parent;
+      const awningMat = new StandardMaterial(`${name}_awning_mat`, scene);
+      awningMat.diffuseColor = new Color3(0.7, 0.2, 0.15);
+      awningMat.specularColor = Color3.Black();
+      awning.material = awningMat;
+
+    } else if (type === 'terminal') {
+      // Sci-fi terminal post
+      const post = MeshBuilder.CreateBox(`${name}_post`, { width: 0.5, height: 1.5, depth: 0.3 }, scene);
+      post.position.y = 0.75;
+      post.parent = parent;
+      const metalMat = new StandardMaterial(`${name}_metal_mat`, scene);
+      metalMat.diffuseColor = new Color3(0.35, 0.35, 0.4);
+      metalMat.specularColor = new Color3(0.3, 0.3, 0.3);
+      post.material = metalMat;
+
+      // Screen
+      const screen = MeshBuilder.CreatePlane(`${name}_screen`, { width: 0.4, height: 0.3 }, scene);
+      screen.position.y = 1.3;
+      screen.position.z = -0.16;
+      screen.parent = parent;
+      const screenMat = new StandardMaterial(`${name}_screen_mat`, scene);
+      screenMat.diffuseColor = new Color3(0.1, 0.3, 0.5);
+      screenMat.emissiveColor = new Color3(0.1, 0.25, 0.4);
+      screen.material = screenMat;
+
+    } else if (type === 'planter') {
+      const pot = MeshBuilder.CreateCylinder(`${name}_pot`, { height: 0.6, diameterTop: 0.8, diameterBottom: 0.5, tessellation: 8 }, scene);
+      pot.position.y = 0.3;
+      pot.parent = parent;
+      const potMat = new StandardMaterial(`${name}_pot_mat`, scene);
+      potMat.diffuseColor = new Color3(0.5, 0.35, 0.25);
+      potMat.specularColor = Color3.Black();
+      pot.material = potMat;
+
+      // Bush on top
+      const bush = MeshBuilder.CreateSphere(`${name}_bush`, { diameter: 0.7, segments: 6 }, scene);
+      bush.position.y = 0.8;
+      bush.parent = parent;
+      const bushMat = new StandardMaterial(`${name}_bush_mat`, scene);
+      bushMat.diffuseColor = new Color3(0.2, 0.5, 0.2);
+      bush.material = bushMat;
+
+    } else {
+      parent.dispose();
+      return null;
+    }
+
+    createDebugLabel(scene, parent, `FURNITURE: ${type}`, 5);
+    return parent;
+  }
+
+  /**
+   * Generate wilderness props (camps, ruins, landmarks) in the open areas
+   * between settlements to create points of interest in the wilderness.
+   */
+  private generateWildernessProps(
+    bounds: { minX: number; maxX: number; minZ: number; maxZ: number },
+    settlementPositions: Vector3[],
+    worldType: string,
+    sampleHeight: (x: number, z: number) => number
+  ): void {
+    if (!this.scene) return;
+    const scene = this.scene;
+    const wt = (worldType || '').toLowerCase();
+
+    // Minimum distance from any settlement center to place a wilderness prop
+    const minSettlementDist = 60;
+
+    // Determine number of wilderness props based on world area
+    const areaWidth = bounds.maxX - bounds.minX;
+    const areaDepth = bounds.maxZ - bounds.minZ;
+    const propCount = Math.max(3, Math.floor((areaWidth * areaDepth) / 8000));
+
+    type WildernessType = 'camp' | 'ruins' | 'standing_stones' | 'shrine' | 'campfire';
+    let wildernessSet: WildernessType[];
+
+    if (wt.includes('medieval') || wt.includes('fantasy')) {
+      wildernessSet = ['camp', 'ruins', 'standing_stones', 'shrine'];
+    } else if (wt.includes('post-apocalyptic') || wt.includes('wasteland')) {
+      wildernessSet = ['ruins', 'campfire', 'ruins', 'camp'];
+    } else if (wt.includes('cyberpunk') || wt.includes('sci-fi')) {
+      wildernessSet = ['ruins', 'camp', 'shrine'];
+    } else {
+      wildernessSet = ['camp', 'standing_stones', 'campfire', 'shrine'];
+    }
+
+    let placed = 0;
+    let attempts = 0;
+    const maxAttempts = propCount * 10;
+
+    while (placed < propCount && attempts < maxAttempts) {
+      attempts++;
+
+      const x = bounds.minX + Math.random() * areaWidth;
+      const z = bounds.minZ + Math.random() * areaDepth;
+
+      // Ensure far from all settlements
+      const tooClose = settlementPositions.some((sp) => {
+        const dx = sp.x - x;
+        const dz = sp.z - z;
+        return Math.sqrt(dx * dx + dz * dz) < minSettlementDist;
+      });
+      if (tooClose) continue;
+
+      const y = sampleHeight(x, z);
+      const wildType = wildernessSet[Math.floor(Math.random() * wildernessSet.length)];
+      const prop = this.createWildernessProp(wildType, `wilderness_${placed}`, scene, wt);
+      if (!prop) continue;
+
+      prop.position = new Vector3(x, y, z);
+      prop.rotation.y = Math.random() * Math.PI * 2;
+      prop.checkCollisions = false;
+      prop.isPickable = false;
+      createDebugLabel(scene, prop, `WILDERNESS: ${wildType}`, 5);
+      this.worldPropMeshes.push(prop);
+      placed++;
+    }
+
+    if (placed > 0) {
+      console.log(`[BabylonGame] Placed ${placed} wilderness props`);
+    }
+  }
+
+  private createWildernessProp(
+    type: string,
+    name: string,
+    scene: Scene,
+    worldType: string
+  ): Mesh | null {
+    const parent = new Mesh(name, scene);
+
+    if (type === 'camp') {
+      // Tent: cone shape
+      const tent = MeshBuilder.CreateCylinder(`${name}_tent`, {
+        height: 2.5, diameterTop: 0, diameterBottom: 3, tessellation: 12
+      }, scene);
+      tent.position.y = 1.25;
+      tent.parent = parent;
+      const tentMat = new StandardMaterial(`${name}_tent_mat`, scene);
+      tentMat.diffuseColor = new Color3(0.6, 0.5, 0.35);
+      tentMat.specularColor = Color3.Black();
+      tent.material = tentMat;
+
+      // Bedroll (flat box)
+      const bedroll = MeshBuilder.CreateBox(`${name}_bedroll`, { width: 1.2, height: 0.1, depth: 2 }, scene);
+      bedroll.position = new Vector3(2, 0.05, 0);
+      bedroll.parent = parent;
+      const bedMat = new StandardMaterial(`${name}_bed_mat`, scene);
+      bedMat.diffuseColor = new Color3(0.4, 0.3, 0.2);
+      bedMat.specularColor = Color3.Black();
+      bedroll.material = bedMat;
+
+      // Small campfire ring
+      const fireRing = MeshBuilder.CreateTorus(`${name}_firering`, { diameter: 1.2, thickness: 0.2, tessellation: 10 }, scene);
+      fireRing.position = new Vector3(-1.5, 0.1, 1.5);
+      fireRing.parent = parent;
+      const ringMat = new StandardMaterial(`${name}_ring_mat`, scene);
+      ringMat.diffuseColor = new Color3(0.35, 0.35, 0.3);
+      ringMat.specularColor = Color3.Black();
+      fireRing.material = ringMat;
+
+    } else if (type === 'campfire') {
+      // Simple campfire: ring of stones + embers + crossed logs
+      const stoneMat = new StandardMaterial(`${name}_stone_mat`, scene);
+      stoneMat.diffuseColor = new Color3(0.4, 0.4, 0.38);
+      stoneMat.specularColor = Color3.Black();
+
+      // Scatter a few small rocks in a rough circle instead of a torus
+      for (let si = 0; si < 6; si++) {
+        const sa = (Math.PI * 2 * si) / 6 + (Math.random() - 0.5) * 0.4;
+        const sr = 0.5 + Math.random() * 0.2;
+        const rock = MeshBuilder.CreateSphere(`${name}_rock_${si}`, { diameter: 0.25 + Math.random() * 0.15, segments: 4 }, scene);
+        rock.position = new Vector3(Math.cos(sa) * sr, 0.1, Math.sin(sa) * sr);
+        rock.scaling.y = 0.6;
+        rock.parent = parent;
+        rock.material = stoneMat;
+      }
+
+      // Small ember glow in center (flat, ground-level)
+      const ember = MeshBuilder.CreateSphere(`${name}_ember`, { diameter: 0.3, segments: 6 }, scene);
+      ember.position.y = 0.1;
+      ember.scaling = new Vector3(1.2, 0.4, 1.2);
+      ember.parent = parent;
+      const emberMat = new StandardMaterial(`${name}_ember_mat`, scene);
+      emberMat.diffuseColor = new Color3(0.6, 0.2, 0.05);
+      emberMat.emissiveColor = new Color3(0.3, 0.1, 0.03);
+      ember.material = emberMat;
+
+      // Crossed logs
+      const logMat = new StandardMaterial(`${name}_log_mat`, scene);
+      logMat.diffuseColor = new Color3(0.35, 0.25, 0.15);
+      logMat.specularColor = Color3.Black();
+
+      for (let li = 0; li < 2; li++) {
+        const log = MeshBuilder.CreateCylinder(`${name}_log_${li}`, { height: 1, diameter: 0.12, tessellation: 6 }, scene);
+        log.rotation.z = Math.PI / 2;
+        log.rotation.y = li * Math.PI / 3;
+        log.position.y = 0.1;
+        log.parent = parent;
+        log.material = logMat;
+      }
+
+    } else if (type === 'ruins') {
+      // Broken wall segments
+      const wallMat = new StandardMaterial(`${name}_wall_mat`, scene);
+      wallMat.diffuseColor = worldType.includes('cyber') || worldType.includes('sci')
+        ? new Color3(0.4, 0.4, 0.45) : new Color3(0.5, 0.48, 0.42);
+      wallMat.specularColor = Color3.Black();
+
+      // Two broken wall pieces at angles
+      const wall1 = MeshBuilder.CreateBox(`${name}_wall1`, { width: 4, height: 2.5, depth: 0.4 }, scene);
+      wall1.position = new Vector3(0, 1.25, 0);
+      wall1.rotation.y = Math.random() * 0.3;
+      wall1.parent = parent;
+      wall1.material = wallMat;
+
+      const wall2 = MeshBuilder.CreateBox(`${name}_wall2`, { width: 2.5, height: 1.5, depth: 0.4 }, scene);
+      wall2.position = new Vector3(2, 0.75, 2.5);
+      wall2.rotation.y = Math.PI / 2 + Math.random() * 0.3;
+      wall2.parent = parent;
+      wall2.material = wallMat;
+
+      // Rubble pile
+      const rubble = MeshBuilder.CreateSphere(`${name}_rubble`, { diameter: 1.5, segments: 6 }, scene);
+      rubble.position = new Vector3(1, 0.3, 1);
+      rubble.scaling = new Vector3(1.5, 0.4, 1.2);
+      rubble.parent = parent;
+      rubble.material = wallMat;
+
+    } else if (type === 'standing_stones') {
+      // Circle of standing stones (3-5 tall rough stones)
+      const stoneCount = 3 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < stoneCount; i++) {
+        const angle = (Math.PI * 2 * i) / stoneCount;
+        const radius = 2.5;
+        const sx = Math.cos(angle) * radius;
+        const sz = Math.sin(angle) * radius;
+        const height = 1.8 + Math.random() * 1.5;
+
+        // Tapered cylinder looks more like a rough stone than a box
+        const stone = MeshBuilder.CreateCylinder(`${name}_stone_${i}`, {
+          height: height,
+          diameterTop: 0.3 + Math.random() * 0.3,
+          diameterBottom: 0.6 + Math.random() * 0.4,
+          tessellation: 5 + Math.floor(Math.random() * 3), // Irregular shape
+        }, scene);
+        stone.position = new Vector3(sx, height / 2, sz);
+        stone.rotation.y = angle + Math.random() * 0.8;
+        stone.rotation.z = (Math.random() - 0.5) * 0.25; // More lean
+        stone.rotation.x = (Math.random() - 0.5) * 0.1;
+        stone.parent = parent;
+
+        // Vary color per stone slightly
+        const colorVar = 0.05 * (Math.random() - 0.5);
+        const stoneMat = new StandardMaterial(`${name}_stone_mat_${i}`, scene);
+        stoneMat.diffuseColor = new Color3(0.5 + colorVar, 0.48 + colorVar, 0.44 + colorVar);
+        stoneMat.specularColor = new Color3(0.05, 0.05, 0.05);
+        stone.material = stoneMat;
+      }
+
+    } else if (type === 'shrine') {
+      // Small pedestal with a glowing orb
+      const baseMat = new StandardMaterial(`${name}_base_mat`, scene);
+      baseMat.diffuseColor = new Color3(0.5, 0.5, 0.48);
+      baseMat.specularColor = Color3.Black();
+
+      const base = MeshBuilder.CreateCylinder(`${name}_base`, {
+        height: 1.2, diameterTop: 0.8, diameterBottom: 1.2, tessellation: 8
+      }, scene);
+      base.position.y = 0.6;
+      base.parent = parent;
+      base.material = baseMat;
+
+      // Glowing sphere on top
+      const orb = MeshBuilder.CreateSphere(`${name}_orb`, { diameter: 0.5, segments: 8 }, scene);
+      orb.position.y = 1.5;
+      orb.parent = parent;
+      const orbMat = new StandardMaterial(`${name}_orb_mat`, scene);
+      orbMat.diffuseColor = new Color3(0.3, 0.6, 0.9);
+      orbMat.emissiveColor = new Color3(0.15, 0.3, 0.45);
+      orb.material = orbMat;
+
+    } else {
+      parent.dispose();
+      return null;
+    }
+
+    return parent;
   }
 
   private getHeightRangeForFootprint(center: Vector3, width: number, depth: number): number {
@@ -1505,78 +2761,13 @@ export class BabylonGame {
           zoneColor = new Color3(0.2, 0.8, 0.3);
         }
 
-        // Create boundary torus (ring)
-        const boundaryRing = MeshBuilder.CreateTorus(
-          `zone-boundary-${id}`,
-          {
-            diameter: zoneRadius * 2,
-            thickness: 1.5,
-            tessellation: 48
-          },
-          scene
-        );
-
-        boundaryRing.position = position.clone();
-        boundaryRing.position.y = 2; // Float above ground
-        boundaryRing.rotation.x = Math.PI / 2; // Rotate to be horizontal
-        boundaryRing.checkCollisions = false;
-        boundaryRing.isPickable = false;
-
-        // Create semi-transparent glowing material
-        const boundaryMat = new StandardMaterial(`zone-boundary-mat-${id}`, scene);
-        boundaryMat.diffuseColor = zoneColor;
-        boundaryMat.emissiveColor = zoneColor.scale(0.6);
-        boundaryMat.alpha = 0.5;
-        boundaryMat.specularColor = Color3.Black();
-        boundaryRing.material = boundaryMat;
-
-        // Create ground circle markers
-        const groundMarker = MeshBuilder.CreateDisc(
-          `zone-ground-${id}`,
-          {
-            radius: zoneRadius,
-            tessellation: 64
-          },
-          scene
-        );
-
-        groundMarker.position = position.clone();
-        groundMarker.position.y = 0.1; // Slightly above ground
-        groundMarker.rotation.x = Math.PI / 2;
-        groundMarker.checkCollisions = false;
-        groundMarker.isPickable = false;
-
-        const groundMat = new StandardMaterial(`zone-ground-mat-${id}`, scene);
-        groundMat.diffuseColor = zoneColor;
-        groundMat.emissiveColor = zoneColor.scale(0.3);
-        groundMat.alpha = 0.15;
-        groundMat.specularColor = Color3.Black();
-        groundMarker.material = groundMat;
-        groundMarker.parent = boundaryRing;
-
-        // Create particle system for zone boundary
-        const particleSystem = new ParticleSystem(`zone-particles-${id}`, 300, scene);
-        particleSystem.particleTexture = new Texture("https://assets.babylonjs.com/textures/flare.png", scene);
-
-        // Emit particles from the boundary ring
-        particleSystem.emitter = boundaryRing;
-        particleSystem.minEmitBox = new Vector3(-zoneRadius, 0, -zoneRadius);
-        particleSystem.maxEmitBox = new Vector3(zoneRadius, 5, zoneRadius);
-
-        particleSystem.color1 = new Color4(zoneColor.r, zoneColor.g, zoneColor.b, 0.8);
-        particleSystem.color2 = new Color4(zoneColor.r, zoneColor.g, zoneColor.b, 0.4);
-        particleSystem.colorDead = new Color4(zoneColor.r, zoneColor.g, zoneColor.b, 0.0);
-
-        particleSystem.minSize = 0.3;
-        particleSystem.maxSize = 0.8;
-
-        particleSystem.minLifeTime = 1.0;
-        particleSystem.maxLifeTime = 2.5;
-
-        particleSystem.emitRate = 20;
-        particleSystem.start();
-
-        this.zoneBoundaryMeshes.set(id, { boundary: boundaryRing, particles: particleSystem });
+        // NOTE: Zone boundary visuals (torus ring + particles) have been removed
+        // because the large colored torus meshes appeared as immersion-breaking
+        // "rainbow arches" in the 3D view. The radius calculation above is kept
+        // so it can be used by the minimap, map overlay, or gameplay systems
+        // (e.g. settlement proximity detection). To re-enable visuals in the
+        // future, create a torus mesh here with diameter = zoneRadius * 2.
+        this.zoneBoundaryMeshes.set(id, { boundary: null, particles: null, zoneRadius, zoneColor });
       } catch (error) {
         console.error(`Failed to create zone boundary for settlement ${id}:`, error);
       }
@@ -1615,18 +2806,21 @@ export class BabylonGame {
     try {
       // Determine player model URL from asset collection or fallback to hardcoded
       let playerModelUrl = PLAYER_MODEL_URL;
+      let playerRootUrl = '';
+      let playerFileName = playerModelUrl;
       const playerModelId = this.world3DConfig?.playerModels?.default;
       if (playerModelId && this.worldAssets && this.worldAssets.length > 0) {
         const playerAsset = this.worldAssets.find((a) => a.id === playerModelId);
         if (playerAsset && playerAsset.filePath) {
-          playerModelUrl = playerAsset.filePath.startsWith('/') 
-            ? playerAsset.filePath 
-            : '/' + playerAsset.filePath;
-          console.log('[BabylonGame] Using player model from asset collection:', playerModelUrl);
+          const cleanPath = playerAsset.filePath.replace(/^\//, '');
+          const lastSlash = cleanPath.lastIndexOf('/');
+          playerRootUrl = lastSlash >= 0 ? '/' + cleanPath.substring(0, lastSlash + 1) : '/';
+          playerFileName = lastSlash >= 0 ? cleanPath.substring(lastSlash + 1) : cleanPath;
+          console.log('[BabylonGame] Using player model from asset collection:', playerRootUrl + playerFileName);
         }
       }
 
-      const result = await SceneLoader.ImportMeshAsync("", "", playerModelUrl, this.scene);
+      const result = await SceneLoader.ImportMeshAsync("", playerRootUrl, playerFileName, this.scene);
 
       const playerMeshRaw = this.selectPlayerMesh(result.meshes) || (result.meshes[0] as Mesh);
       const skeleton = result.skeletons[0];
@@ -1638,6 +2832,15 @@ export class BabylonGame {
       // Collision ellipsoid for the player
       playerMesh.ellipsoid = new Vector3(0.5, 1, 0.5);
       playerMesh.ellipsoidOffset = new Vector3(0, 1, 0);
+
+      // Spawn player in first settlement if available, otherwise at origin
+      if (this.firstSettlementSpawnPosition) {
+        playerMesh.position = this.firstSettlementSpawnPosition.clone();
+        console.log('[BabylonGame] Player spawned in first settlement at:', playerMesh.position);
+      } else {
+        playerMesh.position = new Vector3(0, 0, 0);
+        console.log('[BabylonGame] Player spawned at world origin (no settlements found)');
+      }
 
       this.playerMesh = playerMesh;
 
@@ -1765,9 +2968,16 @@ export class BabylonGame {
   }
 
   private async loadNPCs(): Promise<void> {
-    if (!this.scene || !this.worldData) return;
+    if (!this.scene || !this.worldData) {
+      console.warn('[BabylonGame] loadNPCs skipped: scene or worldData missing');
+      return;
+    }
 
     const characters = this.worldData.characters.slice(0, MAX_NPCS);
+    console.log(`[BabylonGame] loadNPCs: ${characters.length} characters to load (max ${MAX_NPCS})`);
+    if (characters.length === 0) {
+      console.warn('[BabylonGame] No characters found in worldData!');
+    }
 
     for (const character of characters) {
       try {
@@ -1852,21 +3062,39 @@ export class BabylonGame {
         const overrideAsset = this.worldAssets.find((a) => a.id === npcConfigId);
         if (overrideAsset && overrideAsset.filePath) {
           try {
-            const rootUrl = '/';
-            const file = overrideAsset.filePath.replace(/^\//, '');
-            result = await SceneLoader.ImportMeshAsync('', rootUrl, file, this.scene);
+            const cleanPath = overrideAsset.filePath.replace(/^\//, '');
+            const lastSlash = cleanPath.lastIndexOf('/');
+            const rootUrl = lastSlash >= 0 ? '/' + cleanPath.substring(0, lastSlash + 1) : '/';
+            const file = lastSlash >= 0 ? cleanPath.substring(lastSlash + 1) : cleanPath;
+            console.log(`[BabylonGame] Loading NPC override: rootUrl="${rootUrl}", file="${file}" for ${character.id} (role: ${role})`);
+            const overrideResult = await SceneLoader.ImportMeshAsync('', rootUrl, file, this.scene);
+            // Verify the override actually produced a usable mesh
+            const testMesh = this.selectPlayerMesh(overrideResult.meshes) || overrideResult.meshes[0];
+            if (testMesh) {
+              result = overrideResult;
+              console.log(`[BabylonGame] ✅ NPC override loaded: ${overrideResult.meshes.length} meshes for ${character.id}`);
+            } else {
+              console.warn(`[BabylonGame] NPC override loaded but no usable mesh found, falling back to default for ${character.id}`);
+              // Dispose the unusable override meshes
+              overrideResult.meshes.forEach((m: any) => m.dispose());
+            }
           } catch (overrideError) {
-            console.warn('Failed to load NPC override model', npcConfigId, overrideError);
+            console.warn(`[BabylonGame] Failed to load NPC override model for ${character.id}:`, npcConfigId, overrideError);
           }
         }
       }
 
       // Fallback to shared default NPC model
       if (!result) {
+        console.log(`[BabylonGame] Loading default NPC model for ${character.id}: ${NPC_MODEL_URL}`);
         result = await SceneLoader.ImportMeshAsync("", "", NPC_MODEL_URL, this.scene);
       }
 
       const root = (this.selectPlayerMesh(result.meshes) || (result.meshes[0] as Mesh));
+      if (!root) {
+        console.error(`[BabylonGame] ❌ No usable mesh found for NPC ${character.id}, skipping`);
+        return;
+      }
       root.name = `npc_${character.id}`;
       root.metadata = { npcId: character.id, npcRole: role };
       root.checkCollisions = true;
@@ -1875,20 +3103,27 @@ export class BabylonGame {
       root.ellipsoid = new Vector3(0.5, 1, 0.5);
       root.ellipsoidOffset = new Vector3(0, 1, 0);
 
-      const angle = Math.random() * Math.PI * 2;
-      const radius = 10 + Math.random() * 20;
-      const x = Math.cos(angle) * radius;
-      const z = Math.sin(angle) * radius;
-      root.position = new Vector3(x, 12, z);
+      // Phase 8A: Place NPC near their workplace/residence building if found
+      const spawnPos = this.findNPCSpawnPosition(character, role);
+      root.position = spawnPos;
 
+      // Phase 8B: Apply role-based color tint for visual distinction
+      this.applyNPCRoleTint(result.meshes, role);
+
+      // Create CharacterController for NPCs (with null camera for programmatic control)
       let controller: CharacterController | null = null;
       try {
+        // Pass null as camera - NPCs don't need camera control
         controller = new CharacterController(root, null as any, this.scene);
         controller.setFaceForward(false);
         controller.setMode(0);
         controller.setStepOffset(0.4);
         controller.setSlopeLimit(30, 60);
+        
+        // Set up animations
         controller.setIdleAnim("idle", 1, true);
+        controller.setWalkAnim("walk", 1, true);
+        controller.setRunAnim("run", 1.2, true);
         controller.setTurnLeftAnim("turnLeft", 0.5, true);
         controller.setTurnRightAnim("turnRight", 0.5, true);
         controller.setWalkBackAnim("walkBack", 0.5, true);
@@ -1896,32 +3131,14 @@ export class BabylonGame {
         controller.setRunJumpAnim("runJump", 0.6, false);
         controller.setFallAnim("fall", 2, false);
         controller.setSlideBackAnim("slideBack", 1, false);
+        
+        // Disable keyboard control - NPCs are controlled programmatically
         controller.enableKeyBoard(false);
-
-        // Determine footstep sound URL from asset collection or fallback to hardcoded
-        let footstepSoundUrl = FOOTSTEP_SOUND_URL;
-        const footstepAssetId = this.world3DConfig?.audioAssets?.footstep;
-        if (footstepAssetId && this.worldAssets && this.worldAssets.length > 0) {
-          const footstepAsset = this.worldAssets.find((a) => a.id === footstepAssetId);
-          if (footstepAsset && footstepAsset.filePath) {
-            footstepSoundUrl = footstepAsset.filePath.startsWith('/')
-              ? footstepAsset.filePath
-              : '/' + footstepAsset.filePath;
-            console.log(`[BabylonGame] Using NPC footstep sound from asset collection: ${footstepSoundUrl}`);
-          }
-        }
-
-        const walkSound = new Sound(
-          `npc-walk-${character.id}`,
-          footstepSoundUrl,
-          this.scene,
-          () => {
-            controller?.setSound(walkSound);
-          },
-          { loop: false }
-        );
-
+        
+        // Start the controller
         controller.start();
+        
+        console.log(`[BabylonGame] NPC ${character.id} CharacterController initialized`);
       } catch (controllerError) {
         console.error(`Failed to create NPC controller for ${character.id}:`, controllerError);
       }
@@ -1934,7 +3151,9 @@ export class BabylonGame {
         role,
         homePosition: root.position.clone(),
         disposition: 0,
-        characterData: character
+        characterData: character,
+        animationGroups: result.animationGroups || [],
+        currentAnimation: null
       };
 
       this.npcMeshes.set(character.id, npcInstance);
@@ -1988,6 +3207,233 @@ export class BabylonGame {
     }
   }
 
+  /**
+   * Phase 8A: Find a spawn position for an NPC near their workplace or residence building.
+   * Searches buildingData for buildings where the character is owner, employee, or occupant.
+   */
+  private findNPCSpawnPosition(character: WorldCharacter, role: NPCRole): Vector3 {
+    const characterId = character.id;
+
+    // Search building data for a building associated with this character
+    const buildingEntries = Array.from(this.buildingData.values());
+    for (const data of buildingEntries) {
+      const meta = data.metadata;
+      if (!meta) continue;
+
+      // Check if character owns or works at a business
+      if (meta.buildingType === 'business') {
+        if (meta.ownerId === characterId ||
+            (Array.isArray(meta.employees) && meta.employees.some((e: any) =>
+              typeof e === 'string' ? e === characterId : e?.id === characterId
+            ))) {
+          // Place near the business, offset enough to be outside building footprint
+          const rawX = (Math.random() - 0.5) * 16;
+          const rawZ = (Math.random() - 0.5) * 16;
+          const offset = new Vector3(
+            Math.sign(rawX || 1) * Math.max(Math.abs(rawX), 6),
+            0,
+            Math.sign(rawZ || 1) * Math.max(Math.abs(rawZ), 6)
+          );
+          const pos = data.position.add(offset);
+          return new Vector3(pos.x, 12, pos.z);
+        }
+      }
+
+      // Check if character lives in a residence
+      if (meta.buildingType === 'residence') {
+        if (Array.isArray(meta.occupants) && meta.occupants.some((o: any) =>
+          typeof o === 'string' ? o === characterId : o?.id === characterId
+        )) {
+          // Place near the residence, offset enough to be outside building footprint
+          const rawX = (Math.random() - 0.5) * 16;
+          const rawZ = (Math.random() - 0.5) * 16;
+          const offset = new Vector3(
+            Math.sign(rawX || 1) * Math.max(Math.abs(rawX), 6),
+            0,
+            Math.sign(rawZ || 1) * Math.max(Math.abs(rawZ), 6)
+          );
+          const pos = data.position.add(offset);
+          return new Vector3(pos.x, 12, pos.z);
+        }
+      }
+    }
+
+    // Fallback: place near a random settlement center if available
+    const settlements = this.worldData?.settlements || [];
+    if (settlements.length > 0 && this.settlementMeshes.size > 0) {
+      // Pick a random settlement mesh to place near
+      const meshEntries = Array.from(this.settlementMeshes.values());
+      const settlementMesh = meshEntries[Math.floor(Math.random() * meshEntries.length)];
+      if (settlementMesh) {
+        const offset = new Vector3(
+          (Math.random() - 0.5) * 30,
+          0,
+          (Math.random() - 0.5) * 30
+        );
+        const pos = settlementMesh.position.add(offset);
+        return new Vector3(pos.x, 12, pos.z);
+      }
+    }
+
+    // Ultimate fallback: random position near origin
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 10 + Math.random() * 20;
+    return new Vector3(Math.cos(angle) * radius, 12, Math.sin(angle) * radius);
+  }
+
+  /**
+   * Phase 8B: Apply role-based color tint to NPC mesh materials.
+   * Guards get a reddish tint, merchants get a golden tint, questgivers get a blue tint.
+   */
+  private applyNPCRoleTint(meshes: AbstractMesh[], role: NPCRole): void {
+    const tintColors: Record<NPCRole, Color3> = {
+      guard: new Color3(0.85, 0.5, 0.45),
+      merchant: new Color3(0.85, 0.75, 0.45),
+      questgiver: new Color3(0.5, 0.65, 0.9),
+      civilian: new Color3(0.7, 0.7, 0.7)
+    };
+
+    const tint = tintColors[role] || tintColors.civilian;
+
+    // Apply subtle tint to all sub-meshes that have a standard material
+    for (const mesh of meshes) {
+      if (mesh.material && mesh.material instanceof StandardMaterial) {
+        const mat = mesh.material.clone(`${mesh.material.name}_${role}_tint`) as StandardMaterial;
+        mat.diffuseColor = Color3.Lerp(mat.diffuseColor, tint, 0.3);
+        mesh.material = mat;
+      }
+    }
+  }
+
+  /**
+   * Phase 4B: Enter a building interior. Generates the interior if needed,
+   * performs a fade-to-black transition, and teleports the player inside.
+   */
+  private async enterBuilding(
+    buildingId: string,
+    buildingType: string,
+    businessType?: string,
+    doorWorldPos?: Vector3
+  ): Promise<void> {
+    if (!this.playerMesh || !this.scene || !this.interiorGenerator || this.isInsideBuilding) return;
+
+    // Save current overworld position
+    this.savedOverworldPosition = this.playerMesh.position.clone();
+
+    // Generate interior (or retrieve cached)
+    const interior = this.interiorGenerator.generateInterior(
+      buildingId,
+      buildingType,
+      businessType,
+      doorWorldPos
+    );
+    this.activeInterior = interior;
+
+    // Fade to black
+    await this.performFadeTransition(true);
+
+    // Teleport player to interior door position
+    this.playerMesh.position = interior.doorPosition.clone();
+    this.isInsideBuilding = true;
+
+    // Show toast notification
+    const label = businessType || buildingType || 'Building';
+    this.guiManager?.showToast({
+      title: `Entered ${label}`,
+      description: 'Click the door to exit',
+      duration: 2500,
+    });
+
+    // Fade back in
+    await this.performFadeTransition(false);
+  }
+
+  /**
+   * Phase 4B: Exit the current building interior. Restores the player to
+   * their saved overworld position with a fade transition.
+   */
+  private async exitBuilding(): Promise<void> {
+    if (!this.playerMesh || !this.isInsideBuilding || !this.activeInterior) return;
+
+    // Fade to black
+    await this.performFadeTransition(true);
+
+    // Teleport player back to overworld
+    if (this.savedOverworldPosition) {
+      this.playerMesh.position = this.savedOverworldPosition.clone();
+    } else {
+      // Fallback: use the exit position stored in the interior layout
+      this.playerMesh.position = this.activeInterior.exitPosition.clone();
+    }
+
+    this.isInsideBuilding = false;
+    this.activeInterior = null;
+    this.savedOverworldPosition = null;
+
+    this.guiManager?.showToast({
+      title: 'Exited building',
+      description: '',
+      duration: 1500,
+    });
+
+    // Fade back in
+    await this.performFadeTransition(false);
+  }
+
+  /**
+   * Phase 4B: Simple fade-to-black / fade-from-black transition using a fullscreen GUI overlay.
+   * @param fadeOut true = fade to black, false = fade from black to clear
+   */
+  private performFadeTransition(fadeOut: boolean): Promise<void> {
+    return new Promise((resolve) => {
+      if (!this.scene) { resolve(); return; }
+
+      // Create a fullscreen overlay plane
+      const overlay = MeshBuilder.CreatePlane('fade_overlay', { size: 500 }, this.scene);
+      overlay.position = this.scene.activeCamera
+        ? this.scene.activeCamera.position.clone()
+        : Vector3.Zero();
+      overlay.billboardMode = Mesh.BILLBOARDMODE_ALL;
+      overlay.renderingGroupId = 3;
+      overlay.isPickable = false;
+
+      const mat = new StandardMaterial('fade_mat', this.scene);
+      mat.diffuseColor = Color3.Black();
+      mat.emissiveColor = Color3.Black();
+      mat.disableLighting = true;
+      mat.backFaceCulling = false;
+      mat.alpha = fadeOut ? 0 : 1;
+      overlay.material = mat;
+
+      const duration = 400; // ms
+      const startTime = Date.now();
+      const startAlpha = fadeOut ? 0 : 1;
+      const endAlpha = fadeOut ? 1 : 0;
+
+      const observer = this.scene.onBeforeRenderObservable.add(() => {
+        const elapsed = Date.now() - startTime;
+        const t = Math.min(elapsed / duration, 1);
+        mat.alpha = startAlpha + (endAlpha - startAlpha) * t;
+
+        // Keep overlay in front of camera
+        if (this.scene?.activeCamera) {
+          const cam = this.scene.activeCamera;
+          const forward = cam.getForwardRay().direction.normalize();
+          overlay.position = cam.position.add(forward.scale(1));
+        }
+
+        if (t >= 1) {
+          if (this.scene) {
+            this.scene.onBeforeRenderObservable.remove(observer);
+          }
+          overlay.dispose();
+          mat.dispose();
+          resolve();
+        }
+      });
+    });
+  }
+
   private setupKeyboardHandlers(): void {
     this.keyboardHandler = async (event: KeyboardEvent) => {
       await this.handleKeyDown(event);
@@ -2002,7 +3448,12 @@ export class BabylonGame {
       if (pointerInfo.type !== PointerEventTypes.POINTERDOWN) return;
       const pickInfo = pointerInfo.pickInfo;
       if (!pickInfo?.hit || !pickInfo.pickedMesh) return;
-      const metadata = pickInfo.pickedMesh.metadata || {};
+      // Walk up parent chain to find root mesh with meaningful metadata
+      let pickedMesh = pickInfo.pickedMesh;
+      while (pickedMesh.parent && !pickedMesh.metadata?.buildingId && !pickedMesh.metadata?.npcId && !pickedMesh.metadata?.objectRole && !pickedMesh.metadata?.interiorExit) {
+        pickedMesh = pickedMesh.parent as Mesh;
+      }
+      const metadata = pickedMesh.metadata || {};
 
       // World prop interaction (chests, data pads, lanterns, etc.)
       const objectRole = metadata.objectRole as string | undefined;
@@ -2017,6 +3468,30 @@ export class BabylonGame {
       if (settlementId && this.settlementStats.has(settlementId)) {
         this.handleSettlementSelected(settlementId);
         return;
+      }
+
+      // Phase 4B: Interior exit door — click to leave building
+      if (metadata.interiorExit && metadata.buildingId) {
+        this.exitBuilding();
+        return;
+      }
+
+      // Phase 4B: Building door — click to enter building interior
+      if (metadata.buildingType && metadata.buildingId) {
+        const buildingMesh = pickInfo.pickedMesh as Mesh;
+        // Only enter if player is close enough (within 8 units)
+        if (this.playerMesh) {
+          const dist = Vector3.Distance(this.playerMesh.position, buildingMesh.position);
+          if (dist < 12) {
+            this.enterBuilding(
+              metadata.buildingId || metadata.businessId || metadata.residenceId,
+              metadata.buildingType,
+              metadata.businessType,
+              buildingMesh.position.clone()
+            );
+            return;
+          }
+        }
       }
 
       const npcId = metadata.npcId as string | undefined;
@@ -2212,11 +3687,14 @@ export class BabylonGame {
         }
 
         // Snap NPCs to ground if they drift too far above/below terrain
-        const groundPos = this.projectToGround(mesh.position.x, mesh.position.z);
-        const targetY = groundPos.y;
-        if (Math.abs(mesh.position.y - targetY) > 0.5) {
-          mesh.position.y = targetY;
-          instance.homePosition = mesh.position.clone();
+        // Skip when inside a building (player is at Y=500+)
+        if (!this.isInsideBuilding) {
+          const groundPos = this.projectToGround(mesh.position.x, mesh.position.z);
+          const targetY = groundPos.y;
+          if (Math.abs(mesh.position.y - targetY) > 0.5) {
+            mesh.position.y = targetY;
+            instance.homePosition = mesh.position.clone();
+          }
         }
 
         // Update NPC marker on minimap
@@ -2256,6 +3734,7 @@ export class BabylonGame {
           label: 'You'
         });
       }
+
     });
 
     // NPC behavior update interval
@@ -2264,7 +3743,107 @@ export class BabylonGame {
     }, 100);
   }
 
+
   private updateNPCBehaviors(): void {
+    const now = Date.now();
+    
+    this.npcMeshes.forEach((instance, npcId) => {
+      if (!instance.mesh || !instance.controller) return;
+      
+      // Skip AI if NPC is in conversation
+      if (instance.isInConversation) {
+        // Stop all movement when in conversation
+        instance.controller.walk(false);
+        instance.controller.turnLeft(false);
+        instance.controller.turnRight(false);
+        return;
+      }
+      
+      // Wandering AI
+      const homePos = instance.homePosition || instance.mesh.position;
+      const currentPos = instance.mesh.position;
+      const wanderRadius = 15; // NPCs wander within 15 units of their spawn point
+      
+      // If waiting, check if wait is over
+      if (instance.wanderWaitUntil && now < instance.wanderWaitUntil) {
+        // Stop walking while waiting
+        instance.controller.walk(false);
+        instance.controller.turnLeft(false);
+        instance.controller.turnRight(false);
+        return;
+      }
+      
+      // If no wander target or reached target, pick new one
+      if (!instance.wanderTarget || Vector3.Distance(currentPos, instance.wanderTarget) < 2) {
+        // Stop walking when reaching target
+        instance.controller.walk(false);
+        instance.controller.turnLeft(false);
+        instance.controller.turnRight(false);
+        
+        // Wait for a bit before picking new target
+        instance.wanderWaitUntil = now + 2000 + Math.random() * 3000; // Wait 2-5 seconds
+        
+        // Pick new random target near home position
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.random() * wanderRadius;
+        const offsetX = Math.cos(angle) * distance;
+        const offsetZ = Math.sin(angle) * distance;
+        
+        const targetPos = this.projectToGround(
+          homePos.x + offsetX,
+          homePos.z + offsetZ
+        );
+        
+        instance.wanderTarget = targetPos;
+        return;
+      }
+      
+      // Move toward wander target using CharacterController
+      if (instance.wanderTarget) {
+        const direction = instance.wanderTarget.subtract(currentPos);
+        direction.y = 0; // Only move horizontally
+        const distance = direction.length();
+        
+        if (distance > 0.1) {
+          const normalized = direction.normalize();
+          
+          // Calculate desired rotation
+          const targetRotation = Math.atan2(normalized.x, normalized.z);
+          const currentRotation = instance.mesh.rotation.y;
+          
+          // Calculate rotation difference (normalized to [-PI, PI])
+          let rotationDiff = targetRotation - currentRotation;
+          while (rotationDiff > Math.PI) rotationDiff -= Math.PI * 2;
+          while (rotationDiff < -Math.PI) rotationDiff += Math.PI * 2;
+          
+          // Determine turn direction and walk
+          const turnThreshold = 0.1; // About 6 degrees
+          
+          if (Math.abs(rotationDiff) < turnThreshold) {
+            // Facing the right direction - walk forward
+            instance.controller.walk(true);
+            instance.controller.turnLeft(false);
+            instance.controller.turnRight(false);
+          } else if (rotationDiff > 0) {
+            // Need to turn left
+            instance.controller.turnLeft(true);
+            instance.controller.turnRight(false);
+            instance.controller.walk(true); // Walk while turning
+          } else {
+            // Need to turn right
+            instance.controller.turnRight(true);
+            instance.controller.turnLeft(false);
+            instance.controller.walk(true); // Walk while turning
+          }
+        } else {
+          // Reached target - stop moving
+          instance.controller.walk(false);
+          instance.controller.turnLeft(false);
+          instance.controller.turnRight(false);
+        }
+      }
+    });
+    
     // Use this interval primarily to keep the GUI minimap in sync with the world state
     this.updateMinimapOverlay();
   }
@@ -2315,88 +3894,34 @@ export class BabylonGame {
 
   private async handleKeyDown(event: KeyboardEvent): Promise<void> {
     // Prevent handling if in text input
-    // ...
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
       return;
     }
 
-    // SPACE - Interact with nearest NPC
-    if (event.code === 'Space' && !event.repeat) {
+    // ESC - Toggle unified game menu (or close it if open)
+    if (event.code === 'Escape' && !event.repeat) {
       event.preventDefault();
-      this.handleProximityInteraction();
+      if (this.gameMenuSystem) {
+        this.gameMenuSystem.toggle();
+      }
+      return; // Don't process other keys while toggling menu
     }
 
-    // C - Open chat
-    if (event.code === 'KeyC' && !event.repeat) {
-      event.preventDefault();
-      await this.handleOpenChat();
+    // If the unified menu is open, block all other game input
+    if (this.gameMenuSystem?.isOpen) {
+      return;
     }
 
-    // TAB - Radial menu
-    if (event.code === 'Tab' && !event.repeat) {
+    // G - Interact with nearest NPC (selects + opens chat)
+    if (event.code === 'KeyG' && !event.repeat) {
       event.preventDefault();
-      this.handleRadialMenu();
-    }
-
-    // Q - Quest tracker
-    if (event.code === 'KeyQ' && !event.repeat) {
-      event.preventDefault();
-      this.questTracker?.toggle();
-      this.questTracker?.updateQuests(this.config.worldId);
-      this.guiManager?.showToast({ title: "Quest Tracker", description: "Press Q to toggle", duration: 1500 });
-    }
-
-    // I - Inventory
-    if (event.code === 'KeyI' && !event.repeat) {
-      event.preventDefault();
-      this.inventory?.toggle();
-      this.guiManager?.showToast({ title: "Inventory", description: "Press I to toggle", duration: 1500 });
-    }
-
-    // R - Rules panel
-    if (event.code === 'KeyR' && !event.repeat) {
-      event.preventDefault();
-      this.rulesPanel?.toggle();
-      this.guiManager?.showToast({ title: "Rules Panel", description: "View active rules", duration: 1500 });
-    }
-
-    // M - Minimap
-    if (event.code === 'KeyM' && !event.repeat) {
-      event.preventDefault();
-      this.minimap?.toggle();
-      this.guiManager?.showToast({ title: "Minimap", description: "Press M to toggle", duration: 1500 });
+      await this.handleProximityInteraction();
     }
 
     // V - Cycle camera mode (first person / third person / isometric)
-    if (event.code === 'KeyV' && !event.repeat) {
+    if (event.code === 'KeyV' && !event.shiftKey && !event.repeat) {
       event.preventDefault();
       this.cameraManager?.cycleMode();
-    }
-
-    // 1, 2, 3 - Direct camera mode selection
-    if (event.code === 'Digit1' && !event.repeat) {
-      event.preventDefault();
-      this.cameraManager?.setMode('first_person');
-    }
-    if (event.code === 'Digit2' && !event.repeat) {
-      event.preventDefault();
-      this.cameraManager?.setMode('third_person');
-    }
-    if (event.code === 'Digit3' && !event.repeat) {
-      event.preventDefault();
-      this.cameraManager?.setMode('isometric');
-    }
-    if (event.code === 'Digit4' && !event.repeat) {
-      event.preventDefault();
-      this.cameraManager?.setMode('side_scroll');
-    }
-    if (event.code === 'Digit5' && !event.repeat) {
-      event.preventDefault();
-      this.cameraManager?.setMode('top_down');
-    }
-    if (event.code === 'Digit6' && !event.repeat) {
-      event.preventDefault();
-      this.cameraManager?.setMode('fighting');
     }
 
     // F - Attack/Respawn
@@ -2411,35 +3936,14 @@ export class BabylonGame {
       this.handleTargetEnemy();
     }
 
-    // V - Toggle VR
-    if (event.code === 'KeyV' && !event.repeat) {
+    // Shift+V - Toggle VR
+    if (event.code === 'KeyV' && event.shiftKey && !event.repeat) {
       event.preventDefault();
       await this.handleToggleVR();
     }
-
-    // Panel toggles
-    if (event.code === 'KeyP' && !event.repeat) {
-      event.preventDefault();
-      this.guiManager?.togglePlayerStatsPanel();
-    }
-
-    if (event.code === 'KeyN' && !event.repeat) {
-      event.preventDefault();
-      this.guiManager?.toggleNPCListPanel();
-    }
-
-    if (event.code === 'KeyX' && !event.repeat) {
-      event.preventDefault();
-      this.guiManager?.toggleActionPanel();
-    }
-
-    if (event.code === 'KeyL' && !event.repeat) {
-      event.preventDefault();
-      this.guiManager?.toggleWorldStatsPanel();
-    }
   }
   
-  private handleProximityInteraction(): void {
+  private async handleProximityInteraction(): Promise<void> {
     if (!this.playerMesh || this.npcMeshes.size === 0) return;
 
     const playerPos = this.playerMesh.position;
@@ -2462,22 +3966,8 @@ export class BabylonGame {
 
     if (nearestId) {
       this.setSelectedNPC(nearestId);
-
-      const npc = this.npcInfos.find((n) => n.id === nearestId);
-      if (npc) {
-        this.guiManager?.showToast({
-          title: `Interacting with ${npc.name}`,
-          description: npc.occupation || "Character",
-          duration: 2000
-        });
-      }
-    } else {
-      this.guiManager?.showToast({
-        title: "No one nearby",
-        description: "Move closer to an NPC to interact",
-        variant: "destructive",
-        duration: 2000
-      });
+      // Directly open chat with the nearest NPC
+      await this.handleOpenChat();
     }
   }
 
@@ -2507,20 +3997,66 @@ export class BabylonGame {
     if (!npcInfo) return;
 
     try {
-      const [characterRes, truthsRes] = await Promise.all([
-        fetch(`/api/characters/${npcId}`),
-        fetch(`/api/truths?worldId=${this.config.worldId}`)
-      ]);
-
-      if (!characterRes.ok || !truthsRes.ok) {
-        throw new Error("Failed to load character or truths");
+      // Use cached character data from worldData instead of re-fetching
+      const worldCharacter = this.worldData?.characters?.find((c) => c.id === npcId);
+      if (!worldCharacter) {
+        throw new Error(`Character ${npcId} not found in world data`);
       }
 
-      const character = await characterRes.json();
-      const truths = await truthsRes.json();
+      // Transform WorldCharacter to Character type by adding worldId (cast as any to avoid type issues)
+      const character = {
+        ...worldCharacter,
+        worldId: this.config.worldId
+      } as any;
+
+      // Try to fetch truths for conversation context (optional - fallback to empty array)
+      let truths: any[] = [];
+      try {
+        const headers: Record<string, string> = {};
+        if (this.config.authToken) {
+          headers['Authorization'] = `Bearer ${this.config.authToken}`;
+        }
+
+        const truthsRes = await fetch(`/api/truths?worldId=${this.config.worldId}`, { headers });
+        if (truthsRes.ok) {
+          truths = await truthsRes.json();
+        } else {
+          console.warn(`[BabylonGame] Truths fetch failed: ${truthsRes.status}, using empty truths`);
+        }
+      } catch (truthsError) {
+        console.warn('[BabylonGame] Failed to fetch truths:', truthsError);
+      }
 
       const npcInstance = this.npcMeshes.get(npcId);
       const npcMesh = npcInstance?.mesh;
+
+      // Mark NPC as in conversation (stops their wandering)
+      if (npcInstance) {
+        npcInstance.isInConversation = true;
+      }
+      this.conversationNPCId = npcId;
+
+      // Save current camera mode and switch to conversation mode
+      if (this.cameraManager && this.camera && npcMesh) {
+        this.preConversationCameraMode = this.cameraManager.getCurrentMode();
+        
+        // Position camera to look at NPC's upper half (face)
+        const npcPos = npcMesh.position.clone();
+        const npcFaceHeight = 1.6; // Approximate head height
+        const cameraDistance = 3; // Close-up distance
+        
+        // Calculate camera position in front of NPC
+        const npcForward = npcMesh.forward || new Vector3(0, 0, 1);
+        const cameraOffset = npcForward.scale(-cameraDistance);
+        const targetPos = npcPos.add(new Vector3(0, npcFaceHeight, 0));
+        
+        this.camera.setTarget(targetPos);
+        this.camera.radius = cameraDistance;
+        this.camera.beta = Math.PI / 2.2; // Looking slightly down at face
+        
+        // Switch to first-person-like mode for conversation
+        this.cameraManager.setMode('first_person', false);
+      }
 
       this.chatPanel.show(character, truths, npcMesh);
 
@@ -2537,12 +4073,35 @@ export class BabylonGame {
       });
     } catch (error) {
       console.error("Failed to open chat:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
       this.guiManager?.showToast({
         title: "Chat Error",
-        description: "Failed to load character data",
+        description: `Failed to load character data: ${errorMessage}`,
         variant: "destructive",
-        duration: 2000
+        duration: 3000
       });
+    }
+  }
+
+  private handleConversationEnd(): void {
+    // Release NPC from conversation
+    if (this.conversationNPCId) {
+      const npcInstance = this.npcMeshes.get(this.conversationNPCId);
+      if (npcInstance) {
+        npcInstance.isInConversation = false;
+      }
+      this.conversationNPCId = null;
+    }
+
+    // Restore previous camera mode
+    if (this.cameraManager && this.preConversationCameraMode) {
+      this.cameraManager.setMode(this.preConversationCameraMode, false);
+      this.preConversationCameraMode = null;
+      
+      // Re-target camera to player if available
+      if (this.playerMesh && this.camera) {
+        this.camera.setTarget(this.playerMesh.position.add(new Vector3(0, 1.6, 0)));
+      }
     }
   }
 
@@ -2614,12 +4173,6 @@ export class BabylonGame {
     }
 
     if (!this.combatTargetId) {
-      this.guiManager?.showToast({
-        title: "No Target",
-        description: "Press T to target nearest enemy",
-        variant: "destructive",
-        duration: 2000
-      });
       return;
     }
 
@@ -2684,20 +4237,6 @@ export class BabylonGame {
     if (nearestId) {
       this.combatTargetId = nearestId;
       this.setSelectedNPC(nearestId);
-
-      const target = this.combatSystem.getEntity(nearestId);
-      this.guiManager?.showToast({
-        title: "Target Locked",
-        description: `Targeting ${target?.name || 'Enemy'}. Press F to attack.`,
-        duration: 2000
-      });
-    } else {
-      this.guiManager?.showToast({
-        title: "No Targets",
-        description: "No enemies nearby",
-        variant: "destructive",
-        duration: 2000
-      });
     }
   }
 
@@ -2711,7 +4250,7 @@ export class BabylonGame {
         this.vrSupported = true;
         this.guiManager?.showToast({
           title: "VR Ready",
-          description: "Press V again to enter VR mode",
+          description: "Press Shift+V again to enter VR mode",
           duration: 3000
         });
       } else {
@@ -2730,6 +4269,338 @@ export class BabylonGame {
         await this.vrManager.enterVR();
       }
     }
+  }
+
+  /**
+   * Called when VR session starts — switch to VR mode
+   */
+  private onVRSessionStarted(): void {
+    console.log('[VR] Session started — switching to VR mode');
+
+    // Hide all 2D overlay UI
+    this.guiManager?.setVisible(false);
+
+    // Create VR interaction system
+    if (this.scene && this.vrManager) {
+      this.vrInteraction = new VRInteractionManager(this.scene, this.vrManager);
+
+      // Register NPC meshes as interactables
+      this.npcMeshes.forEach((instance, npcId) => {
+        if (instance.mesh) {
+          const npcInfo = this.npcInfos.find(n => n.id === npcId);
+          this.vrInteraction?.registerInteractable(
+            instance.mesh,
+            'npc',
+            npcId,
+            npcInfo?.name
+          );
+        }
+      });
+
+      // Wire NPC selection via VR trigger
+      this.vrInteraction.setOnSelect((interactable) => {
+        if (interactable.type === 'npc') {
+          this.setSelectedNPC(interactable.id);
+        }
+      });
+
+      this.vrInteraction.enable();
+    }
+
+    // Create VR HUD
+    if (this.scene && this.vrManager) {
+      this.vrHUD = new VRHUDManager(this.scene, this.vrManager);
+      this.vrHUD.show();
+
+      // Attach wrist HUD to left controller if available
+      const leftController = this.vrManager.getController('left');
+      if (leftController?.mesh) {
+        this.vrHUD.attachToController(leftController.mesh);
+      }
+
+      // Listen for controller added to attach wrist HUD
+      this.vrManager.setOnControllerAdded((controller) => {
+        if (controller.hand === 'left' && controller.mesh) {
+          this.vrHUD?.attachToController(controller.mesh);
+        }
+      });
+
+      this.vrHUD.showToast('VR Mode Activated', 3000);
+    }
+
+    // Create VR hand menu on left wrist
+    if (this.scene) {
+      this.vrHandMenu = new VRHandMenu(this.scene, 'main_hand_menu');
+
+      // Attach to left controller
+      const leftController = this.vrManager?.getController('left');
+      if (leftController?.mesh && leftController.mesh instanceof Mesh) {
+        this.vrHandMenu.attachToController(leftController.mesh);
+      }
+
+      this.vrHandMenu.show();
+    }
+
+    // NOTE: Locomotion is now wired in Phase 7 accessibility section below
+    // (includes vignette comfort during movement)
+
+    // --- Phase 4: VR Combat Adapter ---
+    if (this.scene && this.vrManager && this.combatSystem) {
+      this.vrCombatAdapter = new VRCombatAdapter(
+        this.scene,
+        this.vrManager,
+        this.vrInteraction,
+        this.combatSystem
+      );
+
+      // Wire combat sub-systems
+      const style = this.combatSystem.getCombatStyle();
+      this.vrCombatAdapter.setCombatSystems(
+        style,
+        this.rangedCombat,
+        this.fightingCombat,
+        this.turnBasedCombat
+      );
+
+      // Route damage events through existing handler
+      this.vrCombatAdapter.setOnDamageDealt((result) => {
+        this.handleDamageDealt(result);
+      });
+
+      this.vrCombatAdapter.enable();
+    }
+
+    // --- Phase 5: VR Spatial Audio ---
+    this.audioManager?.enableVRSpatialAudio();
+
+    // Bind NPC sounds to their meshes for spatial audio
+    if (this.audioManager) {
+      this.npcMeshes.forEach((instance, npcId) => {
+        if (instance.mesh) {
+          this.audioManager?.bindSoundToMesh(
+            `audio_interact_${npcId}`,
+            instance.mesh,
+            'interact'
+          );
+        }
+      });
+    }
+
+    // --- Phase 6: VR Chat Panel ---
+    if (this.scene && this.vrManager) {
+      this.vrChatPanel = new VRChatPanel(this.scene, this.vrManager);
+
+      this.vrChatPanel.setOnQuestAssigned((questData) => {
+        this.guiManager?.showToast({
+          title: 'Quest Assigned',
+          description: questData.name || 'New quest',
+          duration: 3000,
+        });
+      });
+
+      // Override NPC select to open VR chat instead of 2D chat
+      this.vrInteraction?.setOnSelect((interactable) => {
+        if (interactable.type === 'npc') {
+          this.setSelectedNPC(interactable.id);
+          this.openVRChat(interactable.id);
+        }
+      });
+    }
+
+    // --- Phase 6: VR Vocabulary Labels ---
+    if (this.scene && this.vrManager) {
+      this.vrVocabLabels = new VRVocabularyLabels(this.scene, this.vrManager);
+
+      // Register NPC meshes with their names as vocabulary
+      this.npcMeshes.forEach((instance, npcId) => {
+        if (instance.mesh) {
+          const npcInfo = this.npcInfos.find(n => n.id === npcId);
+          if (npcInfo) {
+            this.vrVocabLabels?.registerObject(npcId, instance.mesh, {
+              nativeWord: npcInfo.name,
+              targetWord: npcInfo.name, // Will be translated if target language is set
+              mastery: 'new',
+            });
+          }
+        }
+      });
+
+      this.vrVocabLabels.enable();
+    }
+
+    // --- Phase 7: Hand Tracking ---
+    if (this.scene && this.vrManager) {
+      this.vrHandTracking = new VRHandTrackingManager(this.scene, this.vrManager);
+      this.vrHandTracking.initialize().then((ok) => {
+        if (ok) {
+          this.vrHandTracking?.enable();
+
+          // Palm-up gesture opens/closes hand menu
+          this.vrHandTracking?.setOnPalmUp((hand) => {
+            if (hand === 'left') {
+              this.vrHandMenu?.toggle();
+            }
+          });
+
+          // Pinch on right hand acts as trigger select
+          this.vrHandTracking?.setOnPinchStart((hand) => {
+            if (hand === 'right') {
+              const hovered = this.vrInteraction?.getHoveredInteractable();
+              if (hovered && hovered.type === 'npc') {
+                this.setSelectedNPC(hovered.id);
+                this.openVRChat(hovered.id);
+              }
+            }
+          });
+
+          // Grab gesture logs for future grab mechanics
+          this.vrHandTracking?.setOnGrabStart((hand) => {
+            console.log(`[VR] Hand grab detected: ${hand}`);
+            this.vrManager?.triggerHapticPulse(hand, 0.2, 40);
+          });
+
+          this.vrHUD?.showToast('Hand tracking active', 2000);
+        }
+      });
+    }
+
+    // --- Phase 7: VR Accessibility ---
+    if (this.scene && this.vrManager) {
+      this.vrAccessibility = new VRAccessibilityManager(this.scene, this.vrManager);
+      this.vrAccessibility.enable();
+
+      // Show vignette during locomotion for comfort
+      this.vrManager.setOnLocomotion((axes) => {
+        if (!this.playerController) return;
+
+        const deadzone = 0.15;
+        const absX = Math.abs(axes.x);
+        const absY = Math.abs(axes.y);
+        const isMoving = absX > deadzone || absY > deadzone;
+
+        if (isMoving) {
+          this.vrAccessibility?.showVignette();
+        } else {
+          this.vrAccessibility?.hideVignette();
+        }
+
+        // Forward/backward
+        if (absY > deadzone) {
+          if (axes.y > 0) {
+            this.playerController.walk(true);
+            this.playerController.walkBack(false);
+          } else {
+            this.playerController.walkBack(true);
+            this.playerController.walk(false);
+          }
+        } else {
+          this.playerController.walk(false);
+          this.playerController.walkBack(false);
+        }
+
+        // Strafe
+        if (absX > deadzone) {
+          if (axes.x > 0) {
+            this.playerController.strafeRight(true);
+            this.playerController.strafeLeft(false);
+          } else {
+            this.playerController.strafeLeft(true);
+            this.playerController.strafeRight(false);
+          }
+        } else {
+          this.playerController.strafeLeft(false);
+          this.playerController.strafeRight(false);
+        }
+      });
+    }
+  }
+
+  /**
+   * Open VR world-space chat with an NPC
+   */
+  private async openVRChat(npcId: string): Promise<void> {
+    if (!this.vrChatPanel || !this.worldData) return;
+
+    const npcInfo = this.npcInfos.find(n => n.id === npcId);
+    if (!npcInfo) return;
+
+    try {
+      const [characterRes, truthsRes] = await Promise.all([
+        fetch(`/api/characters/${npcId}`),
+        fetch(`/api/truths?worldId=${this.config.worldId}`)
+      ]);
+
+      if (!characterRes.ok || !truthsRes.ok) return;
+
+      const character = await characterRes.json();
+      const truths = await truthsRes.json();
+
+      const npcInstance = this.npcMeshes.get(npcId);
+      const npcMesh = npcInstance?.mesh;
+
+      this.vrChatPanel.show(character, truths, npcMesh);
+
+      // Show toast in VR HUD
+      this.vrHUD?.showToast(`Chatting with ${npcInfo.name}`, 2000);
+
+      // Track NPC conversation for quests
+      this.questObjectManager?.trackNPCConversation(npcId);
+    } catch (error) {
+      console.error('[VR] Failed to open VR chat:', error);
+    }
+  }
+
+  /**
+   * Called when VR session ends — restore desktop mode
+   */
+  private onVRSessionEnded(): void {
+    console.log('[VR] Session ended — restoring desktop mode');
+
+    // Clear locomotion input
+    this.playerController?.idle();
+
+    // Disable and dispose VR combat adapter
+    this.vrCombatAdapter?.dispose();
+    this.vrCombatAdapter = null;
+
+    // Dispose VR chat panel
+    this.vrChatPanel?.dispose();
+    this.vrChatPanel = null;
+
+    // Disable VR vocabulary labels
+    this.vrVocabLabels?.dispose();
+    this.vrVocabLabels = null;
+
+    // Disable hand tracking
+    this.vrHandTracking?.dispose();
+    this.vrHandTracking = null;
+
+    // Disable accessibility
+    this.vrAccessibility?.dispose();
+    this.vrAccessibility = null;
+
+    // Disable VR spatial audio
+    this.audioManager?.disableVRSpatialAudio();
+
+    // Disable and dispose VR interaction
+    this.vrInteraction?.dispose();
+    this.vrInteraction = null;
+
+    // Dispose VR HUD
+    this.vrHUD?.dispose();
+    this.vrHUD = null;
+
+    // Dispose VR hand menu
+    this.vrHandMenu?.dispose();
+    this.vrHandMenu = null;
+
+    // Restore all 2D overlay UI
+    this.guiManager?.setVisible(true);
+
+    this.guiManager?.showToast({
+      title: 'VR Mode Deactivated',
+      description: 'You have exited VR mode',
+    });
   }
 
   private handleToggleFullscreen(): void {
@@ -2890,14 +4761,6 @@ export class BabylonGame {
       }))
     );
 
-    // Update action panel for selected NPC
-    if (npcId) {
-      const npcInfo = this.npcInfos.find((n) => n.id === npcId) || null;
-      const actions = npcInfo ? this.getAvailableActions(npcInfo.id) : [];
-      this.guiManager.updateActionList(npcInfo, actions, this.playerEnergy);
-    } else {
-      this.guiManager.updateActionList(null, [], this.playerEnergy);
-    }
   }
 
   private async handlePayFines(): Promise<void> {
@@ -3452,7 +5315,26 @@ export class BabylonGame {
   }
 
   private disposeVR(): void {
-    // VRManager does not expose a dedicated dispose method; clear reference
+    this.vrCombatAdapter?.dispose();
+    this.vrCombatAdapter = null;
+    this.vrChatPanel?.dispose();
+    this.vrChatPanel = null;
+    this.vrVocabLabels?.dispose();
+    this.vrVocabLabels = null;
+    this.vrHandTracking?.dispose();
+    this.vrHandTracking = null;
+    this.vrAccessibility?.dispose();
+    this.vrAccessibility = null;
+    this.vrInteraction?.dispose();
+    this.vrInteraction = null;
+    this.vrHUD?.dispose();
+    this.vrHUD = null;
+    this.vrHandMenu?.dispose();
+    this.vrHandMenu = null;
+    this.vrUIPanels.forEach(p => p.dispose());
+    this.vrUIPanels.clear();
+    this.audioManager?.disableVRSpatialAudio();
+    this.vrManager?.dispose();
     this.vrManager = null;
   }
 
@@ -3526,12 +5408,21 @@ export class BabylonGame {
     this.buildingData.forEach(({ mesh }) => mesh.dispose());
     this.buildingData.clear();
     this.settlementStats.clear();
+
+    // Dispose building interiors
+    this.interiorGenerator?.dispose();
+    this.activeInterior = null;
+    this.savedOverworldPosition = null;
+    this.isInsideBuilding = false;
   }
 
   private applyWorldTexturesFromAssets(): void {
     if (!this.textureManager || !this.worldAssets || this.worldAssets.length === 0) {
+      console.log('[BabylonGame] No world assets available for texture application');
       return;
     }
+
+    console.log(`[BabylonGame] Applying world textures from ${this.worldAssets.length} assets, 3DConfig groundTextureId: ${this.world3DConfig?.groundTextureId || 'none'}`);
 
     // Prefer an explicit ground texture from 3D config, otherwise first texture_ground asset
     let groundAsset = this.world3DConfig?.groundTextureId
@@ -3543,8 +5434,18 @@ export class BabylonGame {
     }
 
     if (groundAsset) {
+      console.log(`[BabylonGame] Applying ground texture: ${groundAsset.name} (${groundAsset.filePath})`);
       this.textureManager.applyGroundTexture(groundAsset, { uScale: 8, vScale: 8, useBump: true });
       this.selectedGroundTexture = groundAsset.id;
+
+      // Reset diffuseColor to white so the texture shows its true colors
+      // (createGround sets a tinting color that would fight with collection textures)
+      const groundMesh = this.scene?.getMeshByName("ground");
+      if (groundMesh?.material) {
+        (groundMesh.material as StandardMaterial).diffuseColor = new Color3(1, 1, 1);
+      }
+    } else {
+      console.log('[BabylonGame] No ground texture found in assets or 3D config, using default');
     }
 
     // Prefer an explicit road texture from 3D config, otherwise first texture_material asset,
@@ -3564,6 +5465,14 @@ export class BabylonGame {
     if (roadAsset) {
       this.textureManager.applyRoadTexture(roadAsset, { uScale: 4, vScale: 4 });
       this.selectedRoadTexture = roadAsset.id;
+    }
+
+    // Apply wall textures to buildings if available
+    const wallAsset = this.worldAssets.find((a) => a.assetType === "texture_wall");
+    if (wallAsset) {
+      console.log(`[BabylonGame] Applying wall texture: ${wallAsset.name}`);
+      this.textureManager.applySettlementTextures(wallAsset, { uScale: 2, vScale: 2 });
+      this.selectedWallTexture = wallAsset.id;
     }
   }
 
@@ -3607,6 +5516,8 @@ export class BabylonGame {
     this.radialMenu?.dispose();
     this.questTracker?.dispose();
     this.chatPanel?.dispose();
+    this.gameMenuSystem?.dispose();
+    this.gameMenuSystem = null;
     this.guiManager?.dispose();
     this.textureManager?.dispose();
     this.audioManager?.dispose();
@@ -3614,6 +5525,7 @@ export class BabylonGame {
     this.actionManager = null;
     this.buildingGenerator?.dispose();
     this.natureGenerator?.dispose();
+    this.roadGenerator?.dispose();
     this.worldScaleManager = null;
   }
 

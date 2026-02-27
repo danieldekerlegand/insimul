@@ -75,12 +75,13 @@ export async function getPolyhavenAssetFiles(
 }
 
 /**
- * Get the best GLB file URL for a model asset
+ * Get the best GLB file URL for a model asset, including companion files
+ * (bin geometry + texture images needed by .gltf files).
  */
 export async function getPolyhavenModelUrl(
   assetId: string,
   preferredResolution?: string
-): Promise<{ url: string; resolution: string }> {
+): Promise<{ url: string; resolution: string; companionFiles: Record<string, string> }> {
   const files = await getPolyhavenAssetFiles(assetId);
   const group = files.gltf;
 
@@ -97,13 +98,9 @@ export async function getPolyhavenModelUrl(
   if (preferredResolution && resolutions.includes(preferredResolution)) {
     chosenKey = preferredResolution;
   } else {
-    // Fall back to highest resolution
-    resolutions.sort((a, b) => {
-      const na = parseInt(a, 10) || 0;
-      const nb = parseInt(b, 10) || 0;
-      return nb - na;
-    });
-    chosenKey = resolutions[0];
+    // Prefer 1k for models (good enough for game use, much smaller downloads)
+    const preferred = ['1k', '2k', '4k'];
+    chosenKey = preferred.find(r => resolutions.includes(r)) || resolutions[0];
   }
 
   const entry = group[chosenKey];
@@ -116,7 +113,27 @@ export async function getPolyhavenModelUrl(
     throw new Error(`No URL for asset ${assetId}`);
   }
 
-  return { url: fileInfo.url, resolution: chosenKey };
+  // Collect companion files (.bin, textures) from both include and sibling entries
+  const companionFiles: Record<string, string> = {};
+
+  // Check include map on the gltf entry itself
+  if (fileInfo.include) {
+    for (const [relPath, info] of Object.entries(fileInfo.include)) {
+      if (info && typeof info === 'object' && 'url' in info) {
+        companionFiles[relPath] = (info as any).url;
+      }
+    }
+  }
+
+  // Check sibling entries in the resolution (e.g., entry.bin, entry["textures/x.jpg"])
+  for (const [key, val] of Object.entries(entry)) {
+    if (key === 'gltf') continue; // skip main file
+    if (val && typeof val === 'object' && 'url' in (val as any)) {
+      companionFiles[key] = (val as any).url;
+    }
+  }
+
+  return { url: fileInfo.url, resolution: chosenKey, companionFiles };
 }
 
 /**

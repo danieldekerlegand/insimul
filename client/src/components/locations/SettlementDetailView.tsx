@@ -130,8 +130,8 @@ export function SettlementDetailView({
   return (
     <div className="space-y-6">
       {/* Settlement Info Card */}
-      <Card className="border-2 border-primary/20 shadow-lg">
-        <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent">
+      <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-lg shadow-primary/5 rounded-xl">
+        <CardHeader className="bg-gradient-to-r from-primary/5 via-primary/5 to-transparent rounded-t-xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-primary/10 rounded-lg">
@@ -180,7 +180,7 @@ export function SettlementDetailView({
       </Card>
 
       {/* Settlement Maps Section */}
-      <Card>
+      <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
@@ -248,7 +248,7 @@ export function SettlementDetailView({
                     </div>
                   </div>
                 ) : (
-                  <Card className="border-dashed">
+                  <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
                     <CardContent className="flex flex-col items-center justify-center py-12">
                       <MapPin className="h-12 w-12 text-muted-foreground mb-4" />
                       <p className="text-muted-foreground mb-2">No terrain map yet</p>
@@ -283,7 +283,7 @@ export function SettlementDetailView({
                     </div>
                   </div>
                 ) : (
-                  <Card className="border-dashed">
+                  <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
                     <CardContent className="flex flex-col items-center justify-center py-12">
                       <MapPin className="h-12 w-12 text-muted-foreground mb-4" />
                       <p className="text-muted-foreground mb-2">No political map yet</p>
@@ -318,7 +318,7 @@ export function SettlementDetailView({
                     </div>
                   </div>
                 ) : (
-                  <Card className="border-dashed">
+                  <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
                     <CardContent className="flex flex-col items-center justify-center py-12">
                       <MapPin className="h-12 w-12 text-muted-foreground mb-4" />
                       <p className="text-muted-foreground mb-2">No regional map yet</p>
@@ -332,7 +332,7 @@ export function SettlementDetailView({
               </TabsContent>
             </Tabs>
           ) : (
-            <Card className="border-dashed">
+            <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <ImageIcon className="h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-muted-foreground mb-2">No maps yet</p>
@@ -390,7 +390,7 @@ export function SettlementDetailView({
           {characters.slice(0, 10).map((character) => (
             <Card
               key={character.id}
-              className="cursor-pointer hover:border-primary hover:shadow-md transition-all"
+              className="cursor-pointer bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 rounded-xl"
               onClick={() => onViewCharacter(character)}
             >
               <CardHeader className="py-3">
@@ -412,7 +412,7 @@ export function SettlementDetailView({
             </Card>
           ))}
           {characters.length === 0 && (
-            <Card className="border-dashed">
+            <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
               <CardContent className="pt-6 pb-6">
                 <p className="text-sm text-muted-foreground text-center">
                   No characters yet. Click "Add Character" to create one.
@@ -444,7 +444,7 @@ export function SettlementDetailView({
         </div>
         <div className="grid gap-3">
           {lots.map((lot) => (
-            <Card key={lot.id}>
+            <Card key={lot.id} className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
               <CardHeader className="py-3">
                 <div className="flex items-center justify-between">
                   <div>
@@ -468,7 +468,7 @@ export function SettlementDetailView({
             </Card>
           ))}
           {lots.length === 0 && (
-            <Card className="border-dashed">
+            <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
               <CardContent className="pt-6 pb-6">
                 <p className="text-sm text-muted-foreground text-center">
                   No lots yet. Use procedural generation to create lots.
@@ -520,7 +520,7 @@ export function SettlementDetailView({
             const exterior = businessAssets.find(a => a.assetType === 'building_exterior');
 
             return (
-              <Card key={business.id} className="overflow-hidden">
+              <Card key={business.id} className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl overflow-hidden">
                 {/* Building Exterior Image */}
                 {exterior && (
                   <div className="relative h-48 overflow-hidden">
@@ -587,7 +587,7 @@ export function SettlementDetailView({
             );
           })}
           {businesses.length === 0 && (
-            <Card className="border-dashed">
+            <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
               <CardContent className="pt-6 pb-6">
                 <p className="text-sm text-muted-foreground text-center">
                   No businesses yet. Click "Add Business" to create one.
@@ -614,7 +614,7 @@ export function SettlementDetailView({
         </div>
         <div className="grid gap-3">
           {residences.map((residence) => (
-            <Card key={residence.id}>
+            <Card key={residence.id} className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
               <CardHeader className="py-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -643,7 +643,7 @@ export function SettlementDetailView({
             </Card>
           ))}
           {residences.length === 0 && (
-            <Card className="border-dashed">
+            <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
               <CardContent className="pt-6 pb-6">
                 <p className="text-sm text-muted-foreground text-center">
                   No residences yet. Click "Add Residence" to create one.

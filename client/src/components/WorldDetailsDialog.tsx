@@ -254,7 +254,8 @@ export function WorldDetailsDialog({
         },
         body: JSON.stringify({
           name,
-          description: description || null
+          description: description || null,
+          selectedAssetCollectionId: selectedCollectionId && selectedCollectionId !== 'none' ? selectedCollectionId : null
         })
       });
 
@@ -313,6 +314,7 @@ export function WorldDetailsDialog({
       // Reset to original values
       setName(world.name);
       setDescription(world.description || '');
+      setSelectedCollectionId((world as any).selectedAssetCollectionId || '');
     }
     setIsEditing(false);
   };
@@ -378,8 +380,11 @@ export function WorldDetailsDialog({
           </DialogHeader>
 
           <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="basic">Basic Info</TabsTrigger>
+              <TabsTrigger value="assets">Assets</TabsTrigger>
+              <TabsTrigger value="3d-config">3D Config</TabsTrigger>
+              <TabsTrigger value="collections">Collections</TabsTrigger>
               <TabsTrigger value="metadata">Metadata</TabsTrigger>
             </TabsList>
 
@@ -425,6 +430,39 @@ export function WorldDetailsDialog({
                 ) : (
                   <p className="text-sm whitespace-pre-wrap">{world.description || 'No description provided'}</p>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="asset-collection">Asset Collection</Label>
+                {isEditing ? (
+                  <Select
+                    value={selectedCollectionId || 'none'}
+                    onValueChange={setSelectedCollectionId}
+                  >
+                    <SelectTrigger id="asset-collection">
+                      <SelectValue placeholder="Select an asset collection" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {availableCollections.map((collection) => (
+                        <SelectItem key={collection.id} value={collection.id}>
+                          {collection.name}
+                          {collection.worldType ? ` (${collection.worldType})` : ''}
+                          {collection.isPublic ? ' — Global' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-sm font-medium">
+                    {selectedCollectionId && selectedCollectionId !== 'none'
+                      ? availableCollections.find(c => c.id === selectedCollectionId)?.name || 'Unknown collection'
+                      : 'No collection selected'}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Asset collections provide themed 3D models, textures, and audio for the game view.
+                </p>
               </div>
             </TabsContent>
 

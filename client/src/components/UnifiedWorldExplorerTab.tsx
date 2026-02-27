@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { useWorldPermissions } from '@/hooks/use-world-permissions';
 import { ArrowLeft, ChevronRight, Plus, Lock, Users, Map } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -37,6 +38,7 @@ type ViewLevel = 'countries' | 'country-detail' | 'states' | 'state-detail' | 's
 export function UnifiedWorldExplorerTab({ worldId }: UnifiedWorldExplorerTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { token } = useAuth();
   const { canEdit, loading: permissionsLoading } = useWorldPermissions(worldId);
 
   console.log('[UnifiedWorldExplorerTab] Permissions:', { canEdit, permissionsLoading, worldId });
@@ -440,7 +442,7 @@ export function UnifiedWorldExplorerTab({ worldId }: UnifiedWorldExplorerTabProp
     }
 
     return (
-      <div className="flex items-center gap-2 mb-6 p-4 bg-gradient-to-r from-primary/5 to-transparent rounded-lg border border-primary/10">
+      <div className="flex items-center gap-2 mb-6 p-4 bg-white/60 dark:bg-white/5 backdrop-blur-xl rounded-xl border border-white/20 dark:border-white/10">
         {parts}
       </div>
     );
@@ -463,7 +465,7 @@ export function UnifiedWorldExplorerTab({ worldId }: UnifiedWorldExplorerTabProp
           </div>
           
           <Tabs defaultValue="locations" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-3 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-xl p-1 h-auto">
               <TabsTrigger value="locations">Locations</TabsTrigger>
               <TabsTrigger value="genealogy" disabled={countries.length === 0 && settlements.length === 0}>
                 <Users className="w-4 h-4 mr-2" />
@@ -555,7 +557,11 @@ export function UnifiedWorldExplorerTab({ worldId }: UnifiedWorldExplorerTabProp
           }}
           onDeleteSettlement={async (settlementId: string) => {
             try {
-              await fetch(`/api/settlements/${settlementId}`, { method: 'DELETE' });
+              const headers: Record<string, string> = {};
+              if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+              }
+              await fetch(`/api/settlements/${settlementId}`, { method: 'DELETE', headers });
               fetchSettlements(selectedCountry.id);
               toast({ title: 'Settlement deleted successfully' });
             } catch (error) {
@@ -573,7 +579,11 @@ export function UnifiedWorldExplorerTab({ worldId }: UnifiedWorldExplorerTabProp
           }}
           onBulkDeleteSettlements={async (settlementIds: string[]) => {
             try {
-              await Promise.all(settlementIds.map(id => fetch(`/api/settlements/${id}`, { method: 'DELETE' })));
+              const headers: Record<string, string> = {};
+              if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+              }
+              await Promise.all(settlementIds.map(id => fetch(`/api/settlements/${id}`, { method: 'DELETE', headers })));
               fetchSettlements(selectedCountry.id);
               toast({ title: `${settlementIds.length} settlement(s) deleted successfully` });
             } catch (error) {
@@ -593,7 +603,11 @@ export function UnifiedWorldExplorerTab({ worldId }: UnifiedWorldExplorerTabProp
           canEdit={canEdit}
           onDeleteSettlement={async (settlementId: string) => {
             try {
-              await fetch(`/api/settlements/${settlementId}`, { method: 'DELETE' });
+              const headers: Record<string, string> = {};
+              if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+              }
+              await fetch(`/api/settlements/${settlementId}`, { method: 'DELETE', headers });
               if (selectedState) {
                 fetchSettlements(undefined, selectedState.id);
               }
@@ -604,7 +618,11 @@ export function UnifiedWorldExplorerTab({ worldId }: UnifiedWorldExplorerTabProp
           }}
           onBulkDeleteSettlements={async (settlementIds: string[]) => {
             try {
-              await Promise.all(settlementIds.map(id => fetch(`/api/settlements/${id}`, { method: 'DELETE' })));
+              const headers: Record<string, string> = {};
+              if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+              }
+              await Promise.all(settlementIds.map(id => fetch(`/api/settlements/${id}`, { method: 'DELETE', headers })));
               if (selectedState) {
                 fetchSettlements(undefined, selectedState.id);
               }

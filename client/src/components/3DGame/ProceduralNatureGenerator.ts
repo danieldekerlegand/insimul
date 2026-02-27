@@ -6,6 +6,7 @@
  */
 
 import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3, InstancedMesh, Matrix, AbstractMesh, SceneLoader } from '@babylonjs/core';
+import { createDebugLabel } from './DebugLabelUtils';
 import "@babylonjs/loaders/glTF";
 
 export interface BiomeStyle {
@@ -31,6 +32,10 @@ export class ProceduralNatureGenerator {
   private rockOverrideTemplate: Mesh | null = null;
   private shrubOverrideTemplate: Mesh | null = null;
   private bushOverrideTemplate: Mesh | null = null;
+
+  // Additional variant templates for variety
+  private treeVariantTemplates: Mesh[] = [];
+  private rockVariantTemplates: Mesh[] = [];
 
   // Biome presets
   private static BIOME_PRESETS: Record<string, BiomeStyle> = {
@@ -99,6 +104,39 @@ export class ProceduralNatureGenerator {
       hasFlowers: false,
       flowerColors: [],
       treeAssetSetId: 'wasteland_dead'
+    },
+    'tropical': {
+      name: 'Tropical',
+      treeType: 'palm',
+      treeDensity: 0.6,
+      grassColor: new Color3(0.15, 0.55, 0.2),
+      rockColor: new Color3(0.45, 0.4, 0.35),
+      hasWater: true,
+      hasFlowers: true,
+      flowerColors: [new Color3(1, 0.2, 0.5), new Color3(1, 0.6, 0.1), new Color3(0.9, 0.2, 0.9)],
+      treeAssetSetId: 'tropical'
+    },
+    'swamp': {
+      name: 'Swamp',
+      treeType: 'oak',
+      treeDensity: 0.5,
+      grassColor: new Color3(0.2, 0.35, 0.15),
+      rockColor: new Color3(0.3, 0.3, 0.25),
+      hasWater: true,
+      hasFlowers: false,
+      flowerColors: [],
+      treeAssetSetId: 'swamp'
+    },
+    'urban': {
+      name: 'Urban',
+      treeType: 'oak',
+      treeDensity: 0.05,
+      grassColor: new Color3(0.25, 0.5, 0.2),
+      rockColor: new Color3(0.5, 0.5, 0.5),
+      hasWater: false,
+      hasFlowers: true,
+      flowerColors: [new Color3(1, 0.3, 0.3), new Color3(1, 1, 0.5)],
+      treeAssetSetId: 'urban'
     }
   };
 
@@ -118,17 +156,9 @@ export class ProceduralNatureGenerator {
       return;
     }
     this.treeAssetsInitialized = true;
-
-    const type = (worldType || '').toLowerCase();
-
-    if (type.includes('medieval') || type.includes('fantasy') || type.includes('modern')) {
-      await this.loadTreeModel(
-        'temperate_forest',
-        'oak',
-        '/assets/models/nature/trees/',
-        'oak_tree.glb'
-      );
-    }
+    // Nature models are now loaded via registerTreeOverride(), registerRockOverride(),
+    // etc. from BabylonGame.applyWorld3DConfig(), which resolves asset collection
+    // model IDs to actual meshes. No hardcoded paths needed.
   }
 
   /**
@@ -172,6 +202,50 @@ export class ProceduralNatureGenerator {
     }
   }
 
+  /**
+   * Register an additional tree variant template for random variation.
+   * These are mixed in with the primary tree override during generation.
+   */
+  public registerAdditionalTreeVariant(mesh: Mesh): void {
+    mesh.setEnabled(false);
+    this.treeVariantTemplates.push(mesh);
+  }
+
+  /**
+   * Register an additional rock variant template for random variation.
+   */
+  public registerAdditionalRockVariant(mesh: Mesh): void {
+    mesh.setEnabled(false);
+    this.rockVariantTemplates.push(mesh);
+  }
+
+  /**
+   * Hide all template prototype meshes after nature generation is done.
+   * Moves them far off-screen so disabled PBR templates don't render
+   * as giant floating objects. Cannot dispose because clones share geometry.
+   */
+  public hidePrototypes(): void {
+    const hideOne = (mesh: Mesh | null) => {
+      if (!mesh || mesh.isDisposed()) return;
+      mesh.position.y = -10000;
+      mesh.setEnabled(false);
+      mesh.isVisible = false;
+      mesh.isPickable = false;
+      mesh.getChildMeshes().forEach((c: AbstractMesh) => {
+        c.setEnabled(false);
+        c.isVisible = false;
+        c.isPickable = false;
+      });
+    };
+    hideOne(this.treeOverrideTemplate);
+    hideOne(this.rockOverrideTemplate);
+    hideOne(this.shrubOverrideTemplate);
+    hideOne(this.bushOverrideTemplate);
+    this.treeVariantTemplates.forEach(hideOne);
+    this.rockVariantTemplates.forEach(hideOne);
+    console.log('[NatureGen] Hidden all prototype templates (moved off-screen)');
+  }
+
   private async loadTreeModel(
     assetSetId: string,
     treeType: string,
@@ -208,9 +282,25 @@ export class ProceduralNatureGenerator {
 
   private calibrateTreeTemplate(template: Mesh, biome: BiomeStyle): void {
     template.position = Vector3.Zero();
-    template.computeWorldMatrix(true);
-    const bounds = template.getBoundingInfo().boundingBox;
-    const size = bounds.maximumWorld.subtract(bounds.minimumWorld);
+    template.scaling = Vector3.One();
+
+    // Compute combined bounds across all child meshes (glTF root has no geometry)
+    const children = template.getChildMeshes(false);
+    let minVec = new Vector3(Infinity, Infinity, Infinity);
+    let maxVec = new Vector3(-Infinity, -Infinity, -Infinity);
+    for (const child of children) {
+      child.computeWorldMatrix(true);
+      const bi = child.getBoundingInfo();
+      minVec = Vector3.Minimize(minVec, bi.boundingBox.minimumWorld);
+      maxVec = Vector3.Maximize(maxVec, bi.boundingBox.maximumWorld);
+    }
+    if (!isFinite(minVec.x)) {
+      template.computeWorldMatrix(true);
+      const bounds = template.getBoundingInfo().boundingBox;
+      minVec = bounds.minimumWorld;
+      maxVec = bounds.maximumWorld;
+    }
+    const size = maxVec.subtract(minVec);
 
     let targetHeight = size.y || 8;
     if (biome.treeType === 'pine') {
@@ -226,10 +316,18 @@ export class ProceduralNatureGenerator {
     const scale = targetHeight / (size.y || 1);
     template.scaling = new Vector3(scale, scale, scale);
 
-    template.computeWorldMatrix(true);
-    const newBounds = template.getBoundingInfo().boundingBox;
-    const minY = newBounds.minimumWorld.y;
-    template.position.y -= minY;
+    // Recompute to align bottom to ground
+    let newMinY = Infinity;
+    for (const child of children) {
+      child.computeWorldMatrix(true);
+      const bi = child.getBoundingInfo();
+      newMinY = Math.min(newMinY, bi.boundingBox.minimumWorld.y);
+    }
+    if (!isFinite(newMinY)) {
+      template.computeWorldMatrix(true);
+      newMinY = template.getBoundingInfo().boundingBox.minimumWorld.y;
+    }
+    template.position.y -= newMinY;
   }
 
   /**
@@ -250,10 +348,40 @@ export class ProceduralNatureGenerator {
       return ProceduralNatureGenerator.BIOME_PRESETS['tundra'];
     } else if (terr.includes('waste') || terr.includes('dead')) {
       return ProceduralNatureGenerator.BIOME_PRESETS['wasteland'];
+    } else if (terr.includes('tropical') || terr.includes('jungle')) {
+      return ProceduralNatureGenerator.BIOME_PRESETS['tropical'];
+    } else if (terr.includes('swamp') || terr.includes('marsh') || terr.includes('bog')) {
+      return ProceduralNatureGenerator.BIOME_PRESETS['swamp'];
     }
 
     // Default
     return ProceduralNatureGenerator.BIOME_PRESETS['plains'];
+  }
+
+  /**
+   * Get biome style from world type (medieval, cyberpunk, fantasy, etc.)
+   * Falls back to getBiomeFromTerrain if no world type match.
+   */
+  public static getBiomeFromWorldType(worldType?: string, terrain?: string): BiomeStyle {
+    const wt = (worldType || '').toLowerCase();
+
+    // World-type-specific overrides
+    if (wt.includes('cyberpunk') || wt.includes('sci-fi') || wt.includes('modern')) {
+      return ProceduralNatureGenerator.BIOME_PRESETS['urban'];
+    } else if (wt.includes('post-apocalyptic') || wt.includes('apocalyptic') || wt.includes('dieselpunk')) {
+      return ProceduralNatureGenerator.BIOME_PRESETS['wasteland'];
+    } else if (wt.includes('fantasy') || wt.includes('medieval')) {
+      return ProceduralNatureGenerator.BIOME_PRESETS['forest'];
+    } else if (wt.includes('tropical') || wt.includes('pirate')) {
+      return ProceduralNatureGenerator.BIOME_PRESETS['tropical'];
+    } else if (wt.includes('western') || wt.includes('frontier')) {
+      return ProceduralNatureGenerator.BIOME_PRESETS['plains'];
+    } else if (wt.includes('space') || wt.includes('futuristic')) {
+      return ProceduralNatureGenerator.BIOME_PRESETS['urban'];
+    }
+
+    // Fall back to terrain-based lookup
+    return ProceduralNatureGenerator.getBiomeFromTerrain(terrain || worldType);
   }
 
   /**
@@ -269,14 +397,23 @@ export class ProceduralNatureGenerator {
     if (biome.treeType === 'none' || biome.treeDensity === 0) return;
 
     const area = (bounds.maxX - bounds.minX) * (bounds.maxZ - bounds.minZ);
-    const treeCount = Math.floor((area / 100) * biome.treeDensity);
+    const treeCount = Math.min(200, Math.floor((area / 100) * biome.treeDensity));
 
     const modelTemplate = this.getTreeModelTemplate(biome);
+    const isProceduralFallback = !modelTemplate;
     const templateTree = modelTemplate || this.createTree(biome.treeType, `template_tree_${biome.treeType}`);
     if (modelTemplate) {
       this.calibrateTreeTemplate(templateTree, biome);
     }
     templateTree.setEnabled(false);
+
+    // Build pool of all available templates (primary + variants)
+    const allTreeTemplates: Mesh[] = [templateTree];
+    for (const variant of this.treeVariantTemplates) {
+      this.calibrateTreeTemplate(variant, biome);
+      variant.setEnabled(false);
+      allTreeTemplates.push(variant);
+    }
 
     for (let i = 0; i < treeCount; i++) {
       const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
@@ -290,175 +427,233 @@ export class ProceduralNatureGenerator {
       );
 
       if (!tooClose) {
-        const instance = templateTree.createInstance(`tree_${i}`);
-        instance.position = position;
-        instance.rotation.y = Math.random() * Math.PI * 2;
-
-        // Slight variation in scale
+        const chosenTemplate = allTreeTemplates[Math.floor(Math.random() * allTreeTemplates.length)];
         const scale = 0.8 + Math.random() * 0.4;
-        instance.scaling = new Vector3(scale, scale, scale);
 
-        this.treeMeshes.push(instance);
+        // glTF root nodes have 0 vertices — use instantiateHierarchy for those
+        if (chosenTemplate.getTotalVertices() === 0 && chosenTemplate.getChildMeshes().length > 0) {
+          const treeRoot = chosenTemplate.instantiateHierarchy(
+            null,
+            undefined,
+            (source, clone) => { clone.name = `${source.name}_tree_${i}`; }
+          );
+          if (treeRoot) {
+            treeRoot.position = position;
+            treeRoot.rotation.y = Math.random() * Math.PI * 2;
+            treeRoot.scaling = new Vector3(scale, scale, scale);
+            treeRoot.setEnabled(true);
+            treeRoot.getChildMeshes().forEach(m => m.setEnabled(true));
+            this.treeMeshes.push(treeRoot as AbstractMesh);
+          }
+        } else if (chosenTemplate.getTotalVertices() > 0) {
+          // Single-mesh procedural template — use efficient instancing
+          const tree = chosenTemplate.createInstance(`tree_${i}`);
+          tree.position = position;
+          tree.rotation.y = Math.random() * Math.PI * 2;
+          tree.scaling = new Vector3(scale, scale, scale);
+          this.treeMeshes.push(tree);
+        } else {
+          continue;
+        }
+
+        // Debug label on first procedural tree only
+        if (isProceduralFallback && this.treeMeshes.length === 0) {
+          const labelAnchor = new Mesh(`tree_label_anchor`, this.scene);
+          labelAnchor.position = position.clone();
+          createDebugLabel(this.scene, labelAnchor, `TREE (${biome.treeType})`, 14);
+          this.treeMeshes.push(labelAnchor);
+        }
       }
     }
   }
 
   /**
-   * Create a single tree mesh
+   * Merge parts into a single-material mesh so the result can be
+   * efficiently instanced with createInstance().
    */
-  private createTree(type: 'pine' | 'oak' | 'palm' | 'dead', name: string): Mesh {
-    const parent = new Mesh(name, this.scene);
+  private mergePartsSimple(name: string, parts: Mesh[], material: StandardMaterial): Mesh {
+    for (const p of parts) {
+      p.parent = null;
+      p.bakeCurrentTransformIntoVertices();
+    }
+    // Use disposeSource=false so parts survive if merge fails
+    const merged = Mesh.MergeMeshes(parts, false, true, undefined, false, false);
+    if (!merged || merged.getTotalVertices() === 0) {
+      // Merge failed — keep parts[0] as fallback, dispose the rest
+      merged?.dispose();
+      for (let i = 1; i < parts.length; i++) parts[i].dispose();
+      parts[0].name = name;
+      parts[0].material = material;
+      console.warn(`[NatureGen] mergePartsSimple failed for "${name}", using fallback`);
+      return parts[0];
+    }
+    // Merge succeeded — dispose original parts
+    for (const p of parts) p.dispose();
+    merged.name = name;
+    merged.material = material;
+    return merged;
+  }
 
+  private createTree(type: 'pine' | 'oak' | 'palm' | 'dead', name: string): Mesh {
     if (type === 'pine') {
-      return this.createPineTree(parent);
+      return this.createPineTree(name);
     } else if (type === 'oak') {
-      return this.createOakTree(parent);
+      return this.createOakTree(name);
     } else if (type === 'palm') {
-      return this.createPalmTree(parent);
+      return this.createPalmTree(name);
     } else {
-      return this.createDeadTree(parent);
+      return this.createDeadTree(name);
     }
   }
 
   /**
-   * Create pine tree (conical evergreen)
+   * Create pine tree (conical evergreen) — merged into single mesh
    */
-  private createPineTree(parent: Mesh): Mesh {
+  private createPineTree(name: string): Mesh {
+    // Single material for instancing — dark green covers trunk + foliage
+    const mat = new StandardMaterial(`${name}_mat`, this.scene);
+    mat.diffuseColor = new Color3(0.15, 0.4, 0.15);
+    mat.specularColor = Color3.Black();
+
     // Trunk
     const trunk = MeshBuilder.CreateCylinder(
-      `${parent.name}_trunk`,
-      { height: 8, diameterTop: 0.4, diameterBottom: 0.8, tessellation: 8 },
+      `${name}_trunk`,
+      { height: 8, diameterTop: 0.4, diameterBottom: 0.8, tessellation: 6 },
       this.scene
     );
     trunk.position.y = 4;
-    trunk.parent = parent;
-
-    const trunkMat = new StandardMaterial(`${parent.name}_trunk_mat`, this.scene);
-    trunkMat.diffuseColor = new Color3(0.35, 0.25, 0.15);
-    trunk.material = trunkMat;
+    trunk.material = mat;
 
     // Foliage (3 cones stacked)
-    const foliageMat = new StandardMaterial(`${parent.name}_foliage_mat`, this.scene);
-    foliageMat.diffuseColor = new Color3(0.15, 0.4, 0.15);
-
+    const cones: Mesh[] = [];
     for (let i = 0; i < 3; i++) {
       const cone = MeshBuilder.CreateCylinder(
-        `${parent.name}_foliage_${i}`,
+        `${name}_foliage_${i}`,
         { height: 4, diameterTop: 0, diameterBottom: 4 - i * 0.5, tessellation: 8 },
         this.scene
       );
       cone.position.y = 6 + i * 2.5;
-      cone.parent = parent;
-      cone.material = foliageMat;
+      cone.material = mat;
+      cones.push(cone);
     }
 
-    return parent;
+    return this.mergePartsSimple(name, [trunk, ...cones], mat);
   }
 
   /**
-   * Create oak tree (rounded canopy)
+   * Create oak tree (trunk + clustered canopy) — merged into single mesh
    */
-  private createOakTree(parent: Mesh): Mesh {
+  private createOakTree(name: string): Mesh {
+    // Single material for instancing — green canopy color for all parts
+    const mat = new StandardMaterial(`${name}_mat`, this.scene);
+    mat.diffuseColor = new Color3(0.2, 0.5, 0.15);
+    mat.specularColor = Color3.Black();
+
+    // Trunk — thick and visible
+    const trunk = MeshBuilder.CreateCylinder(
+      `${name}_trunk`,
+      { height: 5, diameterTop: 0.8, diameterBottom: 1.4, tessellation: 6 },
+      this.scene
+    );
+    trunk.position.y = 2.5;
+    trunk.material = mat;
+
+    // Canopy — smaller, more spread-out spheres for a lumpy natural shape
+    const canopyParts: Mesh[] = [];
+    const cpDefs = [
+      { x: 0, y: 6.5, z: 0, d: 3 },       // Center, smaller
+      { x: 2, y: 6, z: 1.2, d: 2.5 },      // Spread far out
+      { x: -1.8, y: 6.3, z: -1, d: 2.3 },
+      { x: 0.5, y: 7.2, z: -1.8, d: 2 },
+      { x: -0.8, y: 7, z: 1.5, d: 2.2 },
+      { x: 1.5, y: 7.3, z: -0.5, d: 1.8 }, // Extra top bump
+    ];
+    cpDefs.forEach((cp, i) => {
+      const part = MeshBuilder.CreateSphere(
+        `${name}_canopy_${i}`,
+        { diameter: cp.d, segments: 4 },
+        this.scene
+      );
+      part.position = new Vector3(cp.x, cp.y, cp.z);
+      part.scaling.y = 0.6;
+      part.material = mat;
+      canopyParts.push(part);
+    });
+
+    return this.mergePartsSimple(name, [trunk, ...canopyParts], mat);
+  }
+
+  /**
+   * Create palm tree — merged into single mesh
+   */
+  private createPalmTree(name: string): Mesh {
+    // Single material for instancing — green frond color for all parts
+    const mat = new StandardMaterial(`${name}_mat`, this.scene);
+    mat.diffuseColor = new Color3(0.2, 0.6, 0.2);
+    mat.specularColor = Color3.Black();
+
     // Trunk
     const trunk = MeshBuilder.CreateCylinder(
-      `${parent.name}_trunk`,
-      { height: 6, diameterTop: 0.6, diameterBottom: 1, tessellation: 8 },
-      this.scene
-    );
-    trunk.position.y = 3;
-    trunk.parent = parent;
-
-    const trunkMat = new StandardMaterial(`${parent.name}_trunk_mat`, this.scene);
-    trunkMat.diffuseColor = new Color3(0.4, 0.3, 0.2);
-    trunk.material = trunkMat;
-
-    // Canopy (sphere)
-    const canopy = MeshBuilder.CreateSphere(
-      `${parent.name}_canopy`,
-      { diameter: 8, segments: 8 },
-      this.scene
-    );
-    canopy.position.y = 8;
-    canopy.parent = parent;
-    canopy.scaling.y = 0.7; // Flatten slightly
-
-    const canopyMat = new StandardMaterial(`${parent.name}_canopy_mat`, this.scene);
-    canopyMat.diffuseColor = new Color3(0.2, 0.5, 0.15);
-    canopy.material = canopyMat;
-
-    return parent;
-  }
-
-  /**
-   * Create palm tree
-   */
-  private createPalmTree(parent: Mesh): Mesh {
-    // Trunk (curved)
-    const trunk = MeshBuilder.CreateCylinder(
-      `${parent.name}_trunk`,
-      { height: 10, diameterTop: 0.4, diameterBottom: 0.6, tessellation: 8 },
+      `${name}_trunk`,
+      { height: 10, diameterTop: 0.4, diameterBottom: 0.6, tessellation: 6 },
       this.scene
     );
     trunk.position.y = 5;
-    trunk.rotation.z = Math.PI / 16; // Slight lean
-    trunk.parent = parent;
+    trunk.rotation.z = Math.PI / 16;
+    trunk.material = mat;
 
-    const trunkMat = new StandardMaterial(`${parent.name}_trunk_mat`, this.scene);
-    trunkMat.diffuseColor = new Color3(0.6, 0.5, 0.3);
-    trunk.material = trunkMat;
-
-    // Fronds (flat boxes radiating out)
-    const frondMat = new StandardMaterial(`${parent.name}_frond_mat`, this.scene);
-    frondMat.diffuseColor = new Color3(0.2, 0.6, 0.2);
-
-    for (let i = 0; i < 8; i++) {
+    // Fronds
+    const fronds: Mesh[] = [];
+    for (let i = 0; i < 6; i++) {
       const frond = MeshBuilder.CreateBox(
-        `${parent.name}_frond_${i}`,
+        `${name}_frond_${i}`,
         { width: 0.5, height: 4, depth: 0.2 },
         this.scene
       );
       frond.position.y = 10;
-      frond.rotation.y = (i / 8) * Math.PI * 2;
+      frond.rotation.y = (i / 6) * Math.PI * 2;
       frond.rotation.x = Math.PI / 4;
-      frond.parent = parent;
-      frond.material = frondMat;
+      frond.material = mat;
+      fronds.push(frond);
     }
 
-    return parent;
+    return this.mergePartsSimple(name, [trunk, ...fronds], mat);
   }
 
   /**
-   * Create dead tree
+   * Create dead tree — merged into single mesh
    */
-  private createDeadTree(parent: Mesh): Mesh {
+  private createDeadTree(name: string): Mesh {
+    // Single material for instancing — brown trunk color
+    const mat = new StandardMaterial(`${name}_mat`, this.scene);
+    mat.diffuseColor = new Color3(0.3, 0.25, 0.2);
+    mat.specularColor = Color3.Black();
+
     // Main trunk
     const trunk = MeshBuilder.CreateCylinder(
-      `${parent.name}_trunk`,
-      { height: 7, diameterTop: 0.3, diameterBottom: 0.7, tessellation: 6 },
+      `${name}_trunk`,
+      { height: 7, diameterTop: 0.3, diameterBottom: 0.7, tessellation: 5 },
       this.scene
     );
     trunk.position.y = 3.5;
-    trunk.parent = parent;
+    trunk.material = mat;
 
-    const trunkMat = new StandardMaterial(`${parent.name}_trunk_mat`, this.scene);
-    trunkMat.diffuseColor = new Color3(0.3, 0.25, 0.2);
-    trunk.material = trunkMat;
-
-    // A few bare branches
+    // Bare branches
+    const branches: Mesh[] = [];
     for (let i = 0; i < 3; i++) {
       const branch = MeshBuilder.CreateCylinder(
-        `${parent.name}_branch_${i}`,
+        `${name}_branch_${i}`,
         { height: 2, diameterTop: 0.1, diameterBottom: 0.2, tessellation: 4 },
         this.scene
       );
       branch.position = new Vector3(0, 5 + i * 0.5, 0);
       branch.rotation.z = Math.PI / 3 + i * 0.2;
       branch.rotation.y = (i / 3) * Math.PI * 2;
-      branch.parent = parent;
-      branch.material = trunkMat;
+      branch.material = mat;
+      branches.push(branch);
     }
 
-    return parent;
+    return this.mergePartsSimple(name, [trunk, ...branches], mat);
   }
 
   /**
@@ -472,31 +667,63 @@ export class ProceduralNatureGenerator {
   ): void {
     // Use asset-based rock if available
     if (this.rockOverrideTemplate) {
+      // Build pool of all available rock templates (primary + variants)
+      const allRockTemplates: Mesh[] = [this.rockOverrideTemplate];
+      for (const variant of this.rockVariantTemplates) {
+        variant.setEnabled(false);
+        allRockTemplates.push(variant);
+      }
+
       for (let i = 0; i < count; i++) {
         const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
         const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
         const baseHeight = heightSampler ? heightSampler(x, z) : 0;
 
-        const rock = this.rockOverrideTemplate.clone(`rock_${i}`, null, false, false) as Mesh;
-        if (!rock) continue;
-
-        rock.setEnabled(true);
-        rock.position = new Vector3(x, baseHeight, z);
-
-        // Add variation
+        // Pick randomly from all available rock templates for variety
+        const chosenTemplate = allRockTemplates[Math.floor(Math.random() * allRockTemplates.length)];
         const scaleVariation = 0.8 + Math.random() * 0.4;
-        rock.scaling = new Vector3(scaleVariation, scaleVariation, scaleVariation);
-        rock.rotation.y = Math.random() * Math.PI * 2;
 
-        this.rockMeshes.push(rock);
+        // glTF root nodes have 0 vertices — use instantiateHierarchy
+        if (chosenTemplate.getTotalVertices() === 0 && chosenTemplate.getChildMeshes().length > 0) {
+          const rockRoot = chosenTemplate.instantiateHierarchy(
+            null,
+            undefined,
+            (source, clone) => { clone.name = `${source.name}_rock_${i}`; }
+          );
+          if (rockRoot) {
+            rockRoot.position = new Vector3(x, baseHeight, z);
+            rockRoot.scaling = new Vector3(scaleVariation, scaleVariation, scaleVariation);
+            rockRoot.rotation.y = Math.random() * Math.PI * 2;
+            rockRoot.setEnabled(true);
+            rockRoot.getChildMeshes().forEach(m => m.setEnabled(true));
+            this.rockMeshes.push(rockRoot as AbstractMesh);
+          }
+        } else {
+          const rock = chosenTemplate.clone(`rock_${i}`, null, false, false) as Mesh;
+          if (!rock) continue;
+          rock.setEnabled(true);
+          rock.position = new Vector3(x, baseHeight, z);
+          rock.scaling = new Vector3(scaleVariation, scaleVariation, scaleVariation);
+          rock.rotation.y = Math.random() * Math.PI * 2;
+          this.rockMeshes.push(rock);
+        }
       }
       return;
     }
 
-    // Fallback to procedural rocks
+    // Fallback to procedural rocks — use instanced rendering for performance
     const rockMat = new StandardMaterial('rock_mat', this.scene);
     rockMat.diffuseColor = biome.rockColor;
     rockMat.specularColor = new Color3(0.1, 0.1, 0.1);
+
+    // Create template rock and disable it
+    const rockTemplate = MeshBuilder.CreateSphere(
+      'rock_template',
+      { diameter: 1, segments: 6 },
+      this.scene
+    );
+    rockTemplate.material = rockMat;
+    rockTemplate.setEnabled(false);
 
     for (let i = 0; i < count; i++) {
       const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
@@ -507,17 +734,22 @@ export class ProceduralNatureGenerator {
       // Random rock size
       const scale = 1 + Math.random() * 3;
 
-      const rock = MeshBuilder.CreateSphere(
-        `rock_${i}`,
-        { diameter: scale, segments: 6 },
-        this.scene
-      );
-
+      const rock = rockTemplate.createInstance(`rock_${i}`);
       rock.position = new Vector3(x, baseHeight + scale / 2, z);
-      rock.scaling.y = 0.6 + Math.random() * 0.3; // Flatten
-      rock.scaling.x = 0.8 + Math.random() * 0.4; // Vary shape
+      rock.scaling = new Vector3(
+        scale * (0.8 + Math.random() * 0.4),
+        scale * (0.6 + Math.random() * 0.3),
+        scale
+      );
       rock.rotation.y = Math.random() * Math.PI * 2;
-      rock.material = rockMat;
+
+      // Debug label on first procedural rock only
+      if (i === 0) {
+        const labelAnchor = new Mesh(`rock_label_anchor`, this.scene);
+        labelAnchor.position = rock.position.clone();
+        createDebugLabel(this.scene, labelAnchor, 'ROCK (procedural)', 4);
+        this.rockMeshes.push(labelAnchor);
+      }
 
       this.rockMeshes.push(rock);
     }
@@ -540,26 +772,48 @@ export class ProceduralNatureGenerator {
         const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
         const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
         const baseHeight = heightSampler ? heightSampler(x, z) : 0;
-
-        const shrub = template.clone(`shrub_${i}`, null, false, false) as Mesh;
-        if (!shrub) continue;
-
-        shrub.setEnabled(true);
-        shrub.position = new Vector3(x, baseHeight, z);
-
-        // Add variation
         const scaleVariation = 0.7 + Math.random() * 0.6;
-        shrub.scaling = new Vector3(scaleVariation, scaleVariation, scaleVariation);
-        shrub.rotation.y = Math.random() * Math.PI * 2;
 
-        this.vegetationMeshes.push(shrub);
+        // glTF root nodes have 0 vertices — use instantiateHierarchy
+        if (template.getTotalVertices() === 0 && template.getChildMeshes().length > 0) {
+          const shrubRoot = template.instantiateHierarchy(
+            null,
+            undefined,
+            (source, clone) => { clone.name = `${source.name}_shrub_${i}`; }
+          );
+          if (shrubRoot) {
+            shrubRoot.position = new Vector3(x, baseHeight, z);
+            shrubRoot.scaling = new Vector3(scaleVariation, scaleVariation, scaleVariation);
+            shrubRoot.rotation.y = Math.random() * Math.PI * 2;
+            shrubRoot.setEnabled(true);
+            shrubRoot.getChildMeshes().forEach(m => m.setEnabled(true));
+            this.vegetationMeshes.push(shrubRoot as AbstractMesh);
+          }
+        } else {
+          const shrub = template.clone(`shrub_${i}`, null, false, false) as Mesh;
+          if (!shrub) continue;
+          shrub.setEnabled(true);
+          shrub.position = new Vector3(x, baseHeight, z);
+          shrub.scaling = new Vector3(scaleVariation, scaleVariation, scaleVariation);
+          shrub.rotation.y = Math.random() * Math.PI * 2;
+          this.vegetationMeshes.push(shrub);
+        }
       }
       return;
     }
 
-    // Fallback to procedural bushes (simple spheres with foliage color)
+    // Fallback to procedural bushes — use instanced rendering for performance
     const bushMat = new StandardMaterial('bush_mat', this.scene);
     bushMat.diffuseColor = new Color3(0.15, 0.4, 0.15);
+
+    // Create template bush and disable it
+    const bushTemplate = MeshBuilder.CreateSphere(
+      'bush_template',
+      { diameter: 1, segments: 8 },
+      this.scene
+    );
+    bushTemplate.material = bushMat;
+    bushTemplate.setEnabled(false);
 
     for (let i = 0; i < count; i++) {
       const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
@@ -567,22 +821,24 @@ export class ProceduralNatureGenerator {
       const baseHeight = heightSampler ? heightSampler(x, z) : 0;
 
       const size = 1 + Math.random() * 2;
-      const bush = MeshBuilder.CreateSphere(
-        `bush_${i}`,
-        { diameter: size, segments: 8 },
-        this.scene
-      );
-
+      const bush = bushTemplate.createInstance(`bush_${i}`);
       bush.position = new Vector3(x, baseHeight + size / 2, z);
-      bush.scaling.y = 0.6 + Math.random() * 0.3; // Flatten slightly
-      bush.material = bushMat;
+      bush.scaling = new Vector3(size, size * (0.6 + Math.random() * 0.3), size);
+
+      // Debug label on first procedural shrub only
+      if (i === 0) {
+        const labelAnchor = new Mesh(`shrub_label_anchor`, this.scene);
+        labelAnchor.position = bush.position.clone();
+        createDebugLabel(this.scene, labelAnchor, 'SHRUB (procedural)', 3);
+        this.vegetationMeshes.push(labelAnchor);
+      }
 
       this.vegetationMeshes.push(bush);
     }
   }
 
   /**
-   * Generate grass patches
+   * Generate grass patches using crossed planes for a more natural look
    */
   public generateGrass(
     biome: BiomeStyle,
@@ -590,28 +846,64 @@ export class ProceduralNatureGenerator {
     density: number = 100,
     heightSampler?: (x: number, z: number) => number
   ): void {
+    // Scale density by biome tree density as a proxy for vegetation richness
+    const adjustedDensity = Math.floor(density * Math.max(0.2, biome.treeDensity * 1.5));
+
     const grassMat = new StandardMaterial('grass_mat', this.scene);
     grassMat.diffuseColor = biome.grassColor;
-    grassMat.emissiveColor = biome.grassColor.scale(0.1);
+    grassMat.emissiveColor = biome.grassColor.scale(0.15);
+    grassMat.backFaceCulling = false;
+    grassMat.alpha = 0.7;
+    grassMat.specularColor = Color3.Black();
 
-    // Create a template grass tuft
-    const grassTemplate = MeshBuilder.CreateBox(
-      'grass_template',
-      { width: 0.3, height: 1, depth: 0.1 },
+    // Create crossed-plane grass tuft template: very small so they act as
+    // subtle ground cover rather than visible X shapes
+    const plane1 = MeshBuilder.CreatePlane(
+      'grass_blade_1',
+      { width: 0.25, height: 0.35 },
       this.scene
     );
+    const plane2 = MeshBuilder.CreatePlane(
+      'grass_blade_2',
+      { width: 0.25, height: 0.35 },
+      this.scene
+    );
+    plane2.rotation.y = Math.PI / 2;
+    plane2.bakeCurrentTransformIntoVertices();
+
+    const grassTemplate = Mesh.MergeMeshes([plane1, plane2], false, true, undefined, false, false);
+    if (!grassTemplate || grassTemplate.getTotalVertices() === 0) {
+      grassTemplate?.dispose();
+      plane1.dispose();
+      plane2.dispose();
+      return;
+    }
+    plane1.dispose();
+    plane2.dispose();
+    grassTemplate.name = 'grass_template';
     grassTemplate.material = grassMat;
     grassTemplate.setEnabled(false);
 
-    for (let i = 0; i < density; i++) {
+    for (let i = 0; i < adjustedDensity; i++) {
       const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
       const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
 
-      const grass = grassTemplate.createInstance(`grass_${i}`);
       const baseHeight = heightSampler ? heightSampler(x, z) : 0;
-      grass.position = new Vector3(x, baseHeight + 0.5, z);
+
+      const grass = grassTemplate.createInstance(`grass_${i}`);
+      grass.position = new Vector3(x, baseHeight + 0.1, z);
       grass.rotation.y = Math.random() * Math.PI * 2;
-      grass.scaling.y = 0.7 + Math.random() * 0.6;
+
+      const scaleVar = 0.3 + Math.random() * 0.3;
+      grass.scaling = new Vector3(scaleVar, scaleVar, scaleVar);
+
+      // Debug label on first grass instance only
+      if (i === 0) {
+        const labelAnchor = new Mesh(`grass_label_anchor`, this.scene);
+        labelAnchor.position = new Vector3(x, baseHeight + 1.5, z);
+        createDebugLabel(this.scene, labelAnchor, 'GRASS (procedural)', 1);
+        this.vegetationMeshes.push(labelAnchor);
+      }
 
       this.vegetationMeshes.push(grass);
     }
@@ -628,40 +920,77 @@ export class ProceduralNatureGenerator {
   ): void {
     if (!biome.hasFlowers || biome.flowerColors.length === 0) return;
 
+    // Create one merged flower template per color (stem + head baked together)
+    const flowerTemplates: Mesh[] = biome.flowerColors.map((color, idx) => {
+      const flowerMat = new StandardMaterial(`flower_mat_${idx}`, this.scene);
+      flowerMat.diffuseColor = color;
+      flowerMat.emissiveColor = color.scale(0.15);
+      flowerMat.specularColor = Color3.Black();
+
+      // Thin stem — use flower color (too small to notice)
+      const stem = MeshBuilder.CreateCylinder(
+        `flower_stem_${idx}`,
+        { height: 0.6, diameter: 0.04, tessellation: 4 },
+        this.scene
+      );
+      stem.position.y = 0.3;
+      stem.material = flowerMat;
+
+      // Small flower head on top — flattened sphere
+      const head = MeshBuilder.CreateSphere(
+        `flower_head_${idx}`,
+        { diameter: 0.2, segments: 5 },
+        this.scene
+      );
+      head.position.y = 0.65;
+      head.scaling.y = 0.5; // Flatten into a disc shape
+      head.material = flowerMat;
+
+      // Merge with multiMaterial=false — single material so createInstance works
+      const merged = this.mergePartsSimple(`flower_template_${idx}`, [stem, head], flowerMat);
+      merged.setEnabled(false);
+      return merged;
+    });
+
     for (let i = 0; i < count; i++) {
       const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
       const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
-
-      // Stem
-      const stem = MeshBuilder.CreateCylinder(
-        `flower_stem_${i}`,
-        { height: 1.5, diameter: 0.1, tessellation: 4 },
-        this.scene
-      );
       const baseHeight = heightSampler ? heightSampler(x, z) : 0;
-      stem.position = new Vector3(x, baseHeight + 0.75, z);
 
-      const stemMat = new StandardMaterial(`flower_stem_mat_${i}`, this.scene);
-      stemMat.diffuseColor = new Color3(0.2, 0.5, 0.2);
-      stem.material = stemMat;
+      const colorIdx = Math.floor(Math.random() * flowerTemplates.length);
+      if (flowerTemplates[colorIdx].getTotalVertices() === 0) continue;
+      const flower = flowerTemplates[colorIdx].createInstance(`flower_${i}`);
+      flower.position = new Vector3(x, baseHeight, z);
 
-      // Flower head
-      const flowerColor = biome.flowerColors[Math.floor(Math.random() * biome.flowerColors.length)];
-      const flower = MeshBuilder.CreateSphere(
-        `flower_${i}`,
-        { diameter: 0.4, segments: 6 },
-        this.scene
-      );
-      flower.position = new Vector3(x, baseHeight + 1.5, z);
+      // Small random scale variation
+      const s = 0.8 + Math.random() * 0.5;
+      flower.scaling = new Vector3(s, s, s);
 
-      const flowerMat = new StandardMaterial(`flower_mat_${i}`, this.scene);
-      flowerMat.diffuseColor = flowerColor;
-      flowerMat.emissiveColor = flowerColor.scale(0.2);
-      flower.material = flowerMat;
+      // Debug label on first flower instance only
+      if (i === 0) {
+        const labelAnchor = new Mesh(`flower_label_anchor`, this.scene);
+        labelAnchor.position = new Vector3(x, baseHeight + 1.5, z);
+        createDebugLabel(this.scene, labelAnchor, 'FLOWER (procedural)', 1);
+        this.vegetationMeshes.push(labelAnchor);
+      }
 
-      this.vegetationMeshes.push(stem);
       this.vegetationMeshes.push(flower);
     }
+  }
+
+  /** Return all tree meshes for distance culling */
+  public getTreeMeshes(): AbstractMesh[] {
+    return this.treeMeshes;
+  }
+
+  /** Return all rock meshes for distance culling */
+  public getRockMeshes(): AbstractMesh[] {
+    return this.rockMeshes;
+  }
+
+  /** Return all vegetation meshes (shrubs, grass, flowers) for distance culling */
+  public getVegetationMeshes(): AbstractMesh[] {
+    return this.vegetationMeshes;
   }
 
   /**

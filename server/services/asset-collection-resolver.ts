@@ -12,6 +12,8 @@ export type World3DConfig = {
   objectModels?: Record<string, string>;
   groundTextureId?: string;
   roadTextureId?: string;
+  wallTextureId?: string;
+  roofTextureId?: string;
   playerModels?: Record<string, string>;
   questObjectModels?: Record<string, string>;
   audioAssets?: Record<string, string>;
@@ -66,6 +68,8 @@ export async function getWorld3DConfigForWorld(worldId: string): Promise<World3D
     objectModels: collection.objectModels as Record<string, string> || {},
     groundTextureId: collection.groundTextureId || undefined,
     roadTextureId: collection.roadTextureId || undefined,
+    wallTextureId: collection.wallTextureId || undefined,
+    roofTextureId: collection.roofTextureId || undefined,
     playerModels: (collection as any).playerModels as Record<string, string> || {},
     questObjectModels: (collection as any).questObjectModels as Record<string, string> || {},
     audioAssets: (collection as any).audioAssets as Record<string, string> || {},
@@ -157,6 +161,12 @@ export async function updateWorld3DConfig(
   }
   if (config.roadTextureId !== undefined) {
     updates.roadTextureId = config.roadTextureId;
+  }
+  if (config.wallTextureId !== undefined) {
+    updates.wallTextureId = config.wallTextureId;
+  }
+  if (config.roofTextureId !== undefined) {
+    updates.roofTextureId = config.roofTextureId;
   }
   if (config.playerModels !== undefined) {
     updates.playerModels = config.playerModels;

@@ -98,11 +98,14 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <Card>
+    <div className="max-w-6xl mx-auto space-y-6 p-6">
+      <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
         <CardHeader>
-          <CardTitle>Playthrough Analytics</CardTitle>
-          <CardDescription>Player activity and engagement metrics for this world</CardDescription>
+          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent flex items-center gap-2">
+            <Activity className="w-6 h-6 text-primary" />
+            Playthrough Analytics
+          </CardTitle>
+          <CardDescription className="mt-1">Player activity and engagement metrics for this world</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -155,7 +158,7 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
         <CardHeader>
           <CardTitle>Player Playthroughs ({playthroughs.length})</CardTitle>
           <CardDescription>Individual player sessions and progress</CardDescription>
@@ -168,7 +171,7 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
           ) : (
             <div className="space-y-3">
               {playthroughs.map((playthrough) => (
-                <div key={playthrough.id} className="border rounded-lg p-4 space-y-2">
+                <div key={playthrough.id} className="bg-white/40 dark:bg-white/5 backdrop-blur-sm border border-white/20 dark:border-white/10 rounded-xl p-4 space-y-2">
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="font-semibold">{playthrough.name || 'Unnamed Playthrough'}</h3>

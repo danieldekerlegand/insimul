@@ -123,32 +123,31 @@ export function WorldBrowser({ onPlayWorld }: WorldBrowserProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Globe className="w-5 h-5" />
-            Browse Public Worlds
-          </CardTitle>
-          <CardDescription>
+    <div className="space-y-6 p-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent flex items-center gap-2">
+            <Globe className="w-6 h-6 text-primary" />
+            Browse Public Worlds ({filteredWorlds.length})
+          </h2>
+          <p className="text-muted-foreground mt-1">
             Discover and play in worlds created by the community
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search worlds by name, description, or type..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </CardContent>
-      </Card>
+          </p>
+        </div>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="Search worlds by name, description, or type..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10 bg-white/60 dark:bg-white/5 backdrop-blur-xl border-white/20 dark:border-white/10"
+        />
+      </div>
 
       {filteredWorlds.length === 0 ? (
-        <Card>
+        <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
           <CardContent className="py-8 text-center text-muted-foreground">
             {searchQuery ? (
               <p>No worlds found matching "{searchQuery}"</p>
@@ -160,7 +159,7 @@ export function WorldBrowser({ onPlayWorld }: WorldBrowserProps) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredWorlds.map((world) => (
-            <Card key={world.id} className="hover:shadow-lg transition-shadow">
+            <Card key={world.id} className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 rounded-xl">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -201,7 +200,7 @@ export function WorldBrowser({ onPlayWorld }: WorldBrowserProps) {
                 </div>
 
                 <Button
-                  className="w-full"
+                  className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
                   onClick={() => handlePlayWorld(world)}
                   disabled={world.requiresAuth && !isAuthenticated}
                 >

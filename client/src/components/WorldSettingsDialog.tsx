@@ -58,7 +58,11 @@ export function WorldSettingsDialog({
   const loadWorldSettings = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/worlds/${worldId}`);
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`/api/worlds/${worldId}`, { headers });
       if (response.ok) {
         const worldData = await response.json();
         setWorld(worldData);
@@ -149,7 +153,7 @@ export function WorldSettingsDialog({
     setAllowedUserIds(allowedUserIds.filter((id) => id !== userId));
   };
 
-  const isOwner = world?.ownerId && user?.id === world.ownerId;
+  const isOwner = !!(world as any)?.isOwner || (world && !world.ownerId && !!user);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

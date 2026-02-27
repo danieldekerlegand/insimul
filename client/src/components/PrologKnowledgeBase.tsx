@@ -363,15 +363,15 @@ export function PrologKnowledgeBase({ worldId }: PrologKnowledgeBaseProps) {
   };
 
   return (
-    <div className="space-y-4">
-      <Card>
+    <div className="space-y-4 p-6">
+      <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5" />
-            Prolog Knowledge Base Manager
+          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent flex items-center gap-2">
+            <Brain className="h-6 w-6 text-primary" />
+            Prolog Knowledge Base ({facts.length})
           </CardTitle>
-          <CardDescription>
-            Manage Prolog facts, rules, and execute queries. {facts.length} statements loaded.
+          <CardDescription className="mt-1">
+            Manage Prolog facts, rules, and execute queries
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

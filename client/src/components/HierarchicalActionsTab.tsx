@@ -217,7 +217,7 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
     }
     
     return (
-      <div className="flex items-center gap-2 mb-6 p-4 bg-gradient-to-r from-primary/5 to-transparent rounded-lg border border-primary/10">
+      <div className="flex items-center gap-2 mb-6 p-4 bg-white/60 dark:bg-white/5 backdrop-blur-xl rounded-xl border border-white/20 dark:border-white/10">
         {parts}
       </div>
     );
@@ -248,7 +248,7 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
           
           <ScrollArea className="h-[600px]">
             <Tabs defaultValue="world" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsList className="grid w-full grid-cols-2 mb-4 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-xl p-1 h-auto">
                 <TabsTrigger value="world">
                   <Sword className="w-4 h-4 mr-2" />
                   World Actions ({actions.length})
@@ -266,7 +266,7 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
                       {actions.map((action) => (
                         <Card 
                           key={action.id} 
-                          className="cursor-pointer hover:border-primary hover:shadow-lg transition-all duration-200 hover:scale-[1.02]" 
+                          className="cursor-pointer bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 rounded-xl" 
                           onClick={() => viewActionDetail(action)}
                         >
                           <CardHeader>
@@ -322,7 +322,7 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
                       ))}
                     </div>
                   ) : (
-                    <Card className="border-dashed">
+                    <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
                       <CardContent className="pt-12 pb-12">
                         <div className="text-center space-y-3">
                           <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
@@ -348,7 +348,7 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
                         return (
                           <Card 
                             key={action.id} 
-                            className={`border-l-4 border-l-pink-500 ${!isEnabled ? 'opacity-60' : ''}`}
+                            className={`bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl border-l-4 border-l-pink-500 ${!isEnabled ? 'opacity-60' : ''}`}
                           >
                             <CardHeader>
                               <div className="flex items-center justify-between">
@@ -401,7 +401,7 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
                       })}
                     </div>
                   ) : (
-                    <Card className="border-dashed">
+                    <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
                       <CardContent className="pt-12 pb-12">
                         <div className="text-center space-y-3">
                           <div className="mx-auto w-12 h-12 bg-pink-500/10 rounded-full flex items-center justify-center">
@@ -426,8 +426,8 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
       {viewLevel === 'action-detail' && selectedAction && (
         <div className="space-y-6">
           {/* Action Info Card */}
-          <Card className="border-2 border-primary/20 shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent">
+          <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-lg shadow-primary/5 rounded-xl">
+            <CardHeader className="bg-gradient-to-r from-primary/5 via-primary/5 to-transparent rounded-t-xl">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-3 bg-primary/10 rounded-lg">
@@ -476,7 +476,7 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
           </Card>
           
           {/* Targeting & Range */}
-          <Card>
+          <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Target className="w-5 h-5 text-primary" />
@@ -503,7 +503,7 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
           
           {/* Narrative */}
           {(selectedAction.verbPresent || selectedAction.verbPast) && (
-            <Card>
+            <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Tag className="w-5 h-5 text-primary" />
@@ -531,7 +531,7 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
           
           {/* Prerequisites */}
           {selectedAction.prerequisites && selectedAction.prerequisites.length > 0 && (
-            <Card>
+            <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
               <CardHeader>
                 <CardTitle>Prerequisites ({selectedAction.prerequisites.length})</CardTitle>
               </CardHeader>
@@ -549,7 +549,7 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
           
           {/* Effects */}
           {selectedAction.effects && selectedAction.effects.length > 0 && (
-            <Card>
+            <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
               <CardHeader>
                 <CardTitle>Effects ({selectedAction.effects.length})</CardTitle>
               </CardHeader>
@@ -567,7 +567,7 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
           
           {/* Tags */}
           {selectedAction.tags && selectedAction.tags.length > 0 && (
-            <Card>
+            <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Tag className="w-5 h-5 text-primary" />
@@ -587,7 +587,7 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
           )}
           
           {/* Additional Info */}
-          <Card>
+          <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
             <CardHeader>
               <CardTitle>Additional Information</CardTitle>
             </CardHeader>

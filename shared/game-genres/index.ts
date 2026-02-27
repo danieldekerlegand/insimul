@@ -31,6 +31,7 @@ export const GENRE_REGISTRY: GenreRegistry = {
     combatStyle: 'melee',
     movementStyle: 'free',
     uiLayout: 'action_rpg',
+    defaultWorldType: 'medieval-fantasy',
     features: {
       ...defaultFeatures,
       inventory: true,
@@ -58,6 +59,7 @@ export const GENRE_REGISTRY: GenreRegistry = {
     combatStyle: 'melee',
     movementStyle: 'free',
     uiLayout: 'action_rpg',
+    defaultWorldType: 'medieval-fantasy',
     features: {
       ...defaultFeatures,
       crafting: false,
@@ -84,6 +86,7 @@ export const GENRE_REGISTRY: GenreRegistry = {
     combatStyle: 'melee',
     movementStyle: 'free',
     uiLayout: 'minimal',
+    defaultWorldType: 'generic',
     features: {
       ...defaultFeatures,
       inventory: false,
@@ -114,6 +117,7 @@ export const GENRE_REGISTRY: GenreRegistry = {
     combatStyle: 'melee',
     movementStyle: 'platformer',
     uiLayout: 'platformer',
+    defaultWorldType: 'generic',
     features: {
       ...defaultFeatures,
       inventory: false,
@@ -142,6 +146,7 @@ export const GENRE_REGISTRY: GenreRegistry = {
     combatStyle: 'none',
     movementStyle: 'grid',
     uiLayout: 'rts',
+    defaultWorldType: 'medieval-fantasy',
     features: {
       ...defaultFeatures,
       inventory: false,
@@ -171,6 +176,7 @@ export const GENRE_REGISTRY: GenreRegistry = {
     combatStyle: 'hybrid',
     movementStyle: 'free',
     uiLayout: 'action_rpg',
+    defaultWorldType: 'post-apocalyptic',
     features: {
       ...defaultFeatures,
       inventory: true,
@@ -200,6 +206,7 @@ export const GENRE_REGISTRY: GenreRegistry = {
     combatStyle: 'ranged',
     movementStyle: 'free',
     uiLayout: 'fps',
+    defaultWorldType: 'cyberpunk',
     features: {
       ...defaultFeatures,
       inventory: true,
@@ -227,6 +234,7 @@ export const GENRE_REGISTRY: GenreRegistry = {
     combatStyle: 'hybrid',
     movementStyle: 'free',
     uiLayout: 'action_rpg',
+    defaultWorldType: 'generic',
     features: {
       ...defaultFeatures,
       inventory: true,
@@ -257,6 +265,7 @@ export const GENRE_REGISTRY: GenreRegistry = {
     combatStyle: 'none',
     movementStyle: 'free',
     uiLayout: 'rts',
+    defaultWorldType: 'generic',
     features: {
       ...defaultFeatures,
       inventory: false,
@@ -290,6 +299,7 @@ export const GENRE_REGISTRY: GenreRegistry = {
     combatStyle: 'none',
     movementStyle: 'free',
     uiLayout: 'minimal',
+    defaultWorldType: 'generic',
     features: {
       ...defaultFeatures,
       inventory: true,
@@ -317,6 +327,7 @@ export const GENRE_REGISTRY: GenreRegistry = {
     combatStyle: 'none',
     movementStyle: 'free',
     uiLayout: 'puzzle',
+    defaultWorldType: 'generic',
     features: {
       ...defaultFeatures,
       inventory: false,
@@ -346,6 +357,7 @@ export const GENRE_REGISTRY: GenreRegistry = {
     combatStyle: 'none',
     movementStyle: 'free',
     uiLayout: 'minimal',
+    defaultWorldType: 'historical',
     features: {
       ...defaultFeatures,
       inventory: false,
@@ -374,6 +386,7 @@ export const GENRE_REGISTRY: GenreRegistry = {
     combatStyle: 'none',
     movementStyle: 'free',
     uiLayout: 'minimal',
+    defaultWorldType: 'historical',
     features: {
       ...defaultFeatures,
       inventory: false,
@@ -402,6 +415,7 @@ export const GENRE_REGISTRY: GenreRegistry = {
     combatStyle: 'melee',
     movementStyle: 'free',
     uiLayout: 'action_rpg',
+    defaultWorldType: 'tropical-pirate',
     features: {
       ...defaultFeatures,
       inventory: true,
@@ -428,6 +442,7 @@ export const GENRE_REGISTRY: GenreRegistry = {
     combatStyle: 'hybrid',
     movementStyle: 'grid',
     uiLayout: 'action_rpg',
+    defaultWorldType: 'dark-fantasy',
     features: {
       ...defaultFeatures,
       inventory: true,

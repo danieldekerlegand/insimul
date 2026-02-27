@@ -5,105 +5,16 @@
  */
 
 import { Scene, Vector3, Mesh } from '@babylonjs/core';
+import type { CombatEntityData, CombatStyle, CombatSettings, DamageResult } from '@shared/game-engine/types';
+import { DEFAULT_COMBAT_SETTINGS } from '@shared/game-engine/types';
 
-export type CombatStyle = 'melee' | 'ranged' | 'hybrid' | 'turn_based' | 'fighting' | 'none';
+// Re-export shared types for backward compatibility
+export type { CombatStyle, CombatSettings, CombatAction, DamageResult } from '@shared/game-engine/types';
+export { DEFAULT_COMBAT_SETTINGS } from '@shared/game-engine/types';
 
-export interface CombatSettings {
-  style: CombatStyle;
-  baseDamage: number;
-  critChance: number;
-  critMultiplier: number;
-  attackCooldown: number;
-  combatRange: number;
-}
-
-export const DEFAULT_COMBAT_SETTINGS: Record<CombatStyle, CombatSettings> = {
-  melee: {
-    style: 'melee',
-    baseDamage: 20,
-    critChance: 0.15,
-    critMultiplier: 2.0,
-    attackCooldown: 1000,
-    combatRange: 5,
-  },
-  ranged: {
-    style: 'ranged',
-    baseDamage: 15,
-    critChance: 0.2,
-    critMultiplier: 2.5,
-    attackCooldown: 500,
-    combatRange: 30,
-  },
-  hybrid: {
-    style: 'hybrid',
-    baseDamage: 18,
-    critChance: 0.15,
-    critMultiplier: 2.0,
-    attackCooldown: 800,
-    combatRange: 15,
-  },
-  turn_based: {
-    style: 'turn_based',
-    baseDamage: 25,
-    critChance: 0.1,
-    critMultiplier: 1.5,
-    attackCooldown: 0,
-    combatRange: 50,
-  },
-  fighting: {
-    style: 'fighting',
-    baseDamage: 10,
-    critChance: 0.05,
-    critMultiplier: 1.5,
-    attackCooldown: 200,
-    combatRange: 3,
-  },
-  none: {
-    style: 'none',
-    baseDamage: 0,
-    critChance: 0,
-    critMultiplier: 1,
-    attackCooldown: 0,
-    combatRange: 0,
-  },
-};
-
-export interface CombatEntity {
-  id: string;
-  name: string;
-  health: number;
-  maxHealth: number;
-  isAlive: boolean;
-  isInCombat: boolean;
-  combatTarget?: string;
-  lastAttackTime?: number;
-  defense: number; // 0-100, reduces damage
-  dodgeChance: number; // 0-1, chance to dodge
-  attackPower: number; // Base damage multiplier
+// Babylon-specific extension: adds engine mesh reference to the shared data type
+export interface CombatEntity extends CombatEntityData {
   mesh?: Mesh;
-}
-
-export interface CombatAction {
-  attackerId: string;
-  targetId: string;
-  actionType: 'attack' | 'defend' | 'dodge' | 'special';
-  damage: number;
-  didHit: boolean;
-  didDodge: boolean;
-  didCrit: boolean;
-  timestamp: Date;
-}
-
-export interface DamageResult {
-  targetId: string;
-  targetName: string;
-  damage: number;
-  actualDamage: number; // After defense
-  didHit: boolean;
-  didDodge: boolean;
-  didCrit: boolean;
-  wasKilled: boolean;
-  remainingHealth: number;
 }
 
 export class CombatSystem {

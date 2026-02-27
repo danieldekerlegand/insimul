@@ -229,7 +229,7 @@ export function WorldSelectionScreen({ onWorldSelected, onOpenAuth, onOpenAdminP
       <div className="w-full max-w-6xl">
         {/* Header */}
         <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary to-primary/60 rounded-2xl mb-6 shadow-lg">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary to-primary/60 rounded-2xl mb-6 shadow-lg shadow-primary/20">
             <Globe className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
@@ -245,14 +245,14 @@ export function WorldSelectionScreen({ onWorldSelected, onOpenAuth, onOpenAdminP
           {/* Your Worlds Section */}
           {worlds.filter(w => w.isOwner).length > 0 && (
             <div className="mb-8">
-              <h2 className="text-xl font-semibold mb-4 px-2">Your Worlds</h2>
+              <h2 className="text-lg font-semibold mb-4 px-2 text-foreground/80">Your Worlds</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {worlds.filter(w => w.isOwner).map((world) => {
                   const totalPop = computePopulation(world) || world.population || 0;
                   return (
                     <Card
                       key={world.id}
-                      className="cursor-pointer hover:border-primary hover:shadow-xl transition-all duration-300 hover:scale-105 group"
+                      className="cursor-pointer bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-lg shadow-black/5 hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 hover:scale-[1.02] group rounded-2xl"
                       onClick={() => onWorldSelected(world.id)}
                     >
                       <CardHeader>
@@ -312,14 +312,14 @@ export function WorldSelectionScreen({ onWorldSelected, onOpenAuth, onOpenAdminP
           {/* My Worlds Section (shared/collaborative) */}
           {worlds.filter(w => !w.isOwner && w.visibility !== 'public').length > 0 && (
             <div className="mb-8">
-              <h2 className="text-xl font-semibold mb-4 px-2">My Worlds</h2>
+              <h2 className="text-lg font-semibold mb-4 px-2 text-foreground/80">My Worlds</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {worlds.filter(w => !w.isOwner && w.visibility !== 'public').map((world) => {
                   const totalPop = computePopulation(world) || world.population || 0;
                   return (
                     <Card
                       key={world.id}
-                      className="cursor-pointer hover:border-primary hover:shadow-xl transition-all duration-300 hover:scale-105 group"
+                      className="cursor-pointer bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-lg shadow-black/5 hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 hover:scale-[1.02] group rounded-2xl"
                       onClick={() => onWorldSelected(world.id)}
                     >
                       <CardHeader>
@@ -379,14 +379,14 @@ export function WorldSelectionScreen({ onWorldSelected, onOpenAuth, onOpenAdminP
           {/* Public Worlds Section */}
           {worlds.filter(w => w.visibility === 'public').length > 0 && (
             <div>
-              <h2 className="text-xl font-semibold mb-4 px-2">Public Worlds</h2>
+              <h2 className="text-lg font-semibold mb-4 px-2 text-foreground/80">Public Worlds</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {worlds.filter(w => w.visibility === 'public').map((world) => {
                   const totalPop = computePopulation(world) || world.population || 0;
                   return (
                     <Card
                       key={world.id}
-                      className="cursor-pointer hover:border-primary hover:shadow-xl transition-all duration-300 hover:scale-105 group"
+                      className="cursor-pointer bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-lg shadow-black/5 hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 hover:scale-[1.02] group rounded-2xl"
                       onClick={() => onWorldSelected(world.id)}
                     >
                       <CardHeader>
@@ -445,8 +445,8 @@ export function WorldSelectionScreen({ onWorldSelected, onOpenAuth, onOpenAdminP
 
             {/* Create New World Card - Only show when worlds exist */}
             {worlds.length > 0 && (
-              <Card 
-                className="cursor-pointer border-2 border-dashed hover:border-primary hover:bg-primary/5 transition-all duration-300 hover:scale-105 group"
+              <Card
+                className="cursor-pointer bg-white/40 dark:bg-white/[0.03] backdrop-blur-xl border-2 border-dashed border-white/30 dark:border-white/10 hover:border-primary/50 hover:bg-white/70 dark:hover:bg-white/10 transition-all duration-300 hover:scale-[1.02] group rounded-2xl"
                 onClick={() => setShowCreateDialog(true)}
               >
                 <CardContent className="flex flex-col items-center justify-center h-full min-h-[200px] text-center p-6">

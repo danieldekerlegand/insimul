@@ -1432,7 +1432,7 @@ export class BabylonGUIManager {
     ]);
 
     this.addHelpSection(mainStack, "Other", [
-      { key: "V", action: "Toggle VR Mode" }
+      { key: "Shift+V", action: "Toggle VR Mode" }
     ]);
 
     this.helpPanel = panel;
@@ -1524,6 +1524,30 @@ export class BabylonGUIManager {
   
   public setOnVRToggled(callback: () => void) {
     this.onVRToggled = callback;
+  }
+
+  /**
+   * Show or hide all 2D overlay UI elements.
+   * Used when entering/exiting VR to switch between 2D and world-space UI.
+   */
+  public setVisible(visible: boolean): void {
+    if (this.hudContainer) this.hudContainer.isVisible = visible;
+    if (this.menuButton) this.menuButton.isVisible = visible;
+    if (this.cameraButton) this.cameraButton.isVisible = visible;
+    if (this.toastContainer) this.toastContainer.isVisible = visible;
+    if (this.minimapPanel) this.minimapPanel.isVisible = visible && this.minimapPanel.isVisible;
+
+    // Hide any open panels when going invisible
+    if (!visible) {
+      if (this.menuPanel) this.menuPanel.isVisible = false;
+      if (this.helpPanel) this.helpPanel.isVisible = false;
+      if (this.playerStatsPanel) this.playerStatsPanel.isVisible = false;
+      if (this.worldStatsPanel) this.worldStatsPanel.isVisible = false;
+      if (this.npcListPanel) this.npcListPanel.isVisible = false;
+      if (this.actionPanel) this.actionPanel.isVisible = false;
+      if (this.settlementDetailsPanel) this.settlementDetailsPanel.isVisible = false;
+      if (this.reputationPanel) this.reputationPanel.isVisible = false;
+    }
   }
 
   public dispose() {

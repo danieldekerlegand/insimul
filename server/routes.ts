@@ -140,6 +140,7 @@ import {
 import { WorldGenerator } from "./generators/world-generator.js";
 import { registerAuthRoutes } from "./routes/auth-routes.js";
 import { registerPlaythroughRoutes } from "./routes/playthrough-routes.js";
+import { registerExportRoutes } from "./routes/export-routes.js";
 import { AuthService } from "./services/auth-service.js";
 import { canEditWorld, canAccessWorld } from "./middleware/permissions.js";
 
@@ -237,6 +238,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register playthrough routes
   registerPlaythroughRoutes(app);
+
+  // Register game export routes (IR generation, engine export)
+  registerExportRoutes(app);
 
   // Worlds (now the primary containers, replacing projects)
   app.get("/api/worlds", async (req, res) => {
@@ -1197,13 +1201,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid token" });
       }
 
-      // Check if user owns this world
-      const world = await storage.getWorld(id);
-      if (!world) {
-        return res.status(404).json({ error: "World not found" });
-      }
-
-      if (world.ownerId !== payload.userId) {
+      // Check if user can edit this world (handles legacy worlds without owner)
+      if (!(await canEditWorld(payload.userId, id))) {
         return res.status(403).json({ error: "Only the world owner can modify settings" });
       }
 
@@ -6661,6 +6660,8 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
   });
 
   // Get all visual assets for a world
+  // Also merges in assets from the world's selected asset collection
+  // (base collection assets have no worldId, so they must be fetched separately)
   app.get("/api/worlds/:worldId/assets", async (req, res) => {
     try {
       const { worldId } = req.params;
@@ -6671,6 +6672,29 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
         assets = await storage.getVisualAssetsByType(worldId, assetType as string);
       } else {
         assets = await storage.getVisualAssetsByWorld(worldId);
+      }
+
+      // Merge in assets from the world's selected asset collection
+      // This ensures base/shared collection assets are available to BabylonGame
+      try {
+        const world = await storage.getWorld(worldId);
+        const collectionId = (world as any)?.selectedAssetCollectionId;
+        if (collectionId) {
+          const collection = await storage.getAssetCollection(collectionId);
+          if (collection?.assetIds && Array.isArray(collection.assetIds) && collection.assetIds.length > 0) {
+            // Get IDs that aren't already in the world assets
+            const existingIds = new Set(assets.map((a: any) => a.id));
+            const missingIds = (collection.assetIds as string[]).filter(id => !existingIds.has(id));
+            
+            if (missingIds.length > 0) {
+              const collectionAssets = await storage.getVisualAssetsByIds(missingIds);
+              assets = [...assets, ...collectionAssets];
+            }
+          }
+        }
+      } catch (collectionError) {
+        // Non-fatal: world assets still work, just without collection assets
+        console.warn(`Failed to merge collection assets for world ${worldId}:`, collectionError);
       }
 
       res.json(assets);
@@ -7585,6 +7609,40 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     }
   });
 
+  // Get a single asset collection by ID
+  app.get("/api/asset-collections/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const collection = await storage.getAssetCollection(id);
+
+      if (!collection) {
+        return res.status(404).json({ error: "Collection not found" });
+      }
+
+      res.json(collection);
+    } catch (error: any) {
+      console.error("Failed to get asset collection:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete an asset collection
+  app.delete("/api/asset-collections/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteAssetCollection(id);
+
+      if (!deleted) {
+        return res.status(404).json({ error: "Collection not found" });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Failed to delete asset collection:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Migration endpoint: Assign default collections to all worlds without one
   app.post("/api/asset-collections/migrate-defaults", async (req, res) => {
     try {
@@ -7663,6 +7721,487 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       res.json(modelInfo);
     } catch (error: any) {
       console.error("Failed to get Polyhaven model URL:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Download a Polyhaven asset, create a VisualAsset record, and optionally assign to a collection slot
+  app.post("/api/polyhaven/download-and-register", async (req, res) => {
+    try {
+      const {
+        polyhavenAssetId,
+        assetType,
+        name,
+        description,
+        worldId,
+        collectionId,
+        slotCategory,
+        slotKey,
+        tags,
+        resolution
+      } = req.body;
+
+      if (!polyhavenAssetId || !assetType || !name) {
+        return res.status(400).json({
+          error: "polyhavenAssetId, assetType, and name are required"
+        });
+      }
+
+      // 1. Get the download URL from Polyhaven
+      const modelInfo = await polyhavenApi.getPolyhavenModelUrl(polyhavenAssetId, resolution);
+
+      // 2. Download the asset to local storage
+      const earlyDownloader = await import('./services/asset-downloader.js');
+      const downloadResult = await earlyDownloader.preprocessPolyhavenAsset(
+        modelInfo.url,
+        assetType,
+        polyhavenAssetId,
+        modelInfo.companionFiles
+      );
+
+      // 3. Create a VisualAsset record in the database
+      const asset = await storage.createVisualAsset({
+        worldId: worldId || null,
+        name,
+        description: description || `Polyhaven asset: ${polyhavenAssetId}`,
+        assetType,
+        filePath: downloadResult.localPath,
+        fileName: downloadResult.localPath.split('/').pop() || `${polyhavenAssetId}.glb`,
+        fileSize: downloadResult.metadata.fileSize,
+        mimeType: 'model/gltf-binary',
+        generationProvider: 'manual',
+        purpose: 'procedural',
+        usageContext: '3d_game',
+        tags: tags || ['polyhaven', 'model'],
+        metadata: {
+          polyhavenId: polyhavenAssetId,
+          resolution: modelInfo.resolution,
+          originalUrl: downloadResult.metadata.originalUrl,
+          companionFiles: Object.keys(modelInfo.companionFiles),
+        },
+      });
+
+      // 4. Optionally assign to an asset collection slot
+      let updatedCollection = null;
+      if (collectionId && slotCategory && slotKey) {
+        const collection = await storage.getAssetCollection(collectionId);
+        if (collection) {
+          const slotUpdate: Record<string, any> = {};
+          const currentSlot = (collection as any)[slotCategory] || {};
+          slotUpdate[slotCategory] = { ...currentSlot, [slotKey]: `/${downloadResult.localPath}` };
+
+          // Also add the asset ID to the collection's assetIds array
+          const currentIds = collection.assetIds || [];
+          if (!currentIds.includes(asset.id)) {
+            slotUpdate.assetIds = [...currentIds, asset.id];
+          }
+
+          updatedCollection = await storage.updateAssetCollection(collectionId, slotUpdate);
+        }
+      }
+
+      res.json({
+        success: true,
+        asset,
+        localPath: downloadResult.localPath,
+        collection: updatedCollection ? { id: updatedCollection.id, name: updatedCollection.name } : null,
+      });
+    } catch (error: any) {
+      console.error("Failed to download and register Polyhaven asset:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // List available asset collection templates
+  app.get("/api/asset-collection-templates", async (_req, res) => {
+    try {
+      const { listTemplates } = await import('./services/asset-collection-templates.js');
+      res.json(listTemplates());
+    } catch (error: any) {
+      console.error("Failed to list templates:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Populate an asset collection from a template (downloads all assets)
+  app.post("/api/asset-collections/:collectionId/populate-from-template", async (req, res) => {
+    try {
+      const { collectionId } = req.params;
+      const { worldType } = req.body;
+
+      if (!worldType) {
+        return res.status(400).json({ error: "worldType is required" });
+      }
+
+      const collection = await storage.getAssetCollection(collectionId);
+      if (!collection) {
+        return res.status(404).json({ error: "Collection not found" });
+      }
+
+      const { getTemplateForWorldType } = await import('./services/asset-collection-templates.js');
+      const template = getTemplateForWorldType(worldType);
+      if (!template) {
+        return res.status(404).json({ error: `No template found for world type: ${worldType}` });
+      }
+
+      const templateDownloader = await import('./services/asset-downloader.js');
+      const results: Array<{
+        polyhavenId: string;
+        slotKey: string;
+        success: boolean;
+        assetId?: string;
+        error?: string;
+      }> = [];
+
+      // Track collection slot updates to batch-apply at the end
+      const slotUpdates: Record<string, Record<string, string>> = {};
+      const newAssetIds: string[] = [...(collection.assetIds || [])];
+
+      for (const entry of template.assets) {
+        try {
+          // Get download URL
+          const modelInfo = await polyhavenApi.getPolyhavenModelUrl(entry.polyhavenId);
+
+          // Download
+          const downloadResult = await templateDownloader.preprocessPolyhavenAsset(
+            modelInfo.url,
+            entry.assetType,
+            entry.polyhavenId,
+            modelInfo.companionFiles
+          );
+
+          // Create VisualAsset record
+          const asset = await storage.createVisualAsset({
+            worldId: collection.worldType || null,
+            name: entry.name,
+            description: entry.description || `Polyhaven: ${entry.polyhavenId}`,
+            assetType: entry.assetType,
+            filePath: downloadResult.localPath,
+            fileName: downloadResult.localPath.split('/').pop() || `${entry.polyhavenId}.glb`,
+            fileSize: downloadResult.metadata.fileSize,
+            mimeType: 'model/gltf-binary',
+            generationProvider: 'manual',
+            purpose: 'procedural',
+            usageContext: '3d_game',
+            tags: ['polyhaven', 'template', ...template.tags],
+            metadata: {
+              polyhavenId: entry.polyhavenId,
+              resolution: modelInfo.resolution,
+              templateWorldType: worldType,
+            },
+          });
+
+          // Accumulate slot update
+          if (!slotUpdates[entry.slotCategory]) {
+            slotUpdates[entry.slotCategory] = {
+              ...((collection as any)[entry.slotCategory] || {}),
+            };
+          }
+          slotUpdates[entry.slotCategory][entry.slotKey] = `/${downloadResult.localPath}`;
+
+          if (!newAssetIds.includes(asset.id)) {
+            newAssetIds.push(asset.id);
+          }
+
+          results.push({
+            polyhavenId: entry.polyhavenId,
+            slotKey: `${entry.slotCategory}.${entry.slotKey}`,
+            success: true,
+            assetId: asset.id,
+          });
+        } catch (err: any) {
+          console.warn(`Template populate: failed to download ${entry.polyhavenId}: ${err.message}`);
+          results.push({
+            polyhavenId: entry.polyhavenId,
+            slotKey: `${entry.slotCategory}.${entry.slotKey}`,
+            success: false,
+            error: err.message,
+          });
+        }
+      }
+
+      // Batch-apply all slot updates to the collection
+      const collectionUpdate: Record<string, any> = { assetIds: newAssetIds };
+      for (const [category, slots] of Object.entries(slotUpdates)) {
+        collectionUpdate[category] = slots;
+      }
+      const updatedCollection = await storage.updateAssetCollection(collectionId, collectionUpdate);
+
+      const succeeded = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
+
+      res.json({
+        success: true,
+        template: template.name,
+        totalAssets: template.assets.length,
+        succeeded,
+        failed,
+        results,
+        collection: updatedCollection
+          ? { id: updatedCollection.id, name: updatedCollection.name }
+          : null,
+      });
+    } catch (error: any) {
+      console.error("Failed to populate collection from template:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create a new collection from a template (creates collection + downloads all assets)
+  app.post("/api/asset-collections/create-from-template", async (req, res) => {
+    try {
+      const { worldType, collectionName } = req.body;
+
+      if (!worldType) {
+        return res.status(400).json({ error: "worldType is required" });
+      }
+
+      const { getTemplateForWorldType } = await import('./services/asset-collection-templates.js');
+      const template = getTemplateForWorldType(worldType);
+      if (!template) {
+        return res.status(404).json({ error: `No template found for world type: ${worldType}` });
+      }
+
+      // Create the collection first
+      const newCollection = await storage.createAssetCollection({
+        name: collectionName || template.name,
+        description: template.description,
+        collectionType: template.collectionType,
+        worldType: template.worldType,
+        tags: template.tags,
+        isPublic: true,
+        isActive: true,
+        isBase: false,
+      });
+
+      // Now populate it — reuse the populate endpoint logic inline
+      const templateDownloader = await import('./services/asset-downloader.js');
+      const results: Array<{ polyhavenId: string; success: boolean; error?: string }> = [];
+      const slotUpdates: Record<string, Record<string, string>> = {};
+      const newAssetIds: string[] = [];
+
+      for (const entry of template.assets) {
+        try {
+          const modelInfo = await polyhavenApi.getPolyhavenModelUrl(entry.polyhavenId);
+          const downloadResult = await templateDownloader.preprocessPolyhavenAsset(
+            modelInfo.url,
+            entry.assetType,
+            entry.polyhavenId,
+            modelInfo.companionFiles
+          );
+
+          const asset = await storage.createVisualAsset({
+            worldId: null,
+            name: entry.name,
+            description: entry.description || `Polyhaven: ${entry.polyhavenId}`,
+            assetType: entry.assetType,
+            filePath: downloadResult.localPath,
+            fileName: downloadResult.localPath.split('/').pop() || `${entry.polyhavenId}.glb`,
+            fileSize: downloadResult.metadata.fileSize,
+            mimeType: 'model/gltf-binary',
+            generationProvider: 'manual',
+            purpose: 'procedural',
+            usageContext: '3d_game',
+            tags: ['polyhaven', 'template', ...template.tags],
+            metadata: { polyhavenId: entry.polyhavenId, resolution: modelInfo.resolution },
+          });
+
+          if (!slotUpdates[entry.slotCategory]) {
+            slotUpdates[entry.slotCategory] = {};
+          }
+          slotUpdates[entry.slotCategory][entry.slotKey] = `/${downloadResult.localPath}`;
+          newAssetIds.push(asset.id);
+          results.push({ polyhavenId: entry.polyhavenId, success: true });
+        } catch (err: any) {
+          results.push({ polyhavenId: entry.polyhavenId, success: false, error: err.message });
+        }
+      }
+
+      // Update collection with all slots
+      const collectionUpdate: Record<string, any> = { assetIds: newAssetIds };
+      for (const [category, slots] of Object.entries(slotUpdates)) {
+        collectionUpdate[category] = slots;
+      }
+      await storage.updateAssetCollection(newCollection.id, collectionUpdate);
+
+      const succeeded = results.filter(r => r.success).length;
+
+      res.json({
+        success: true,
+        collection: { id: newCollection.id, name: newCollection.name },
+        template: template.name,
+        totalAssets: template.assets.length,
+        succeeded,
+        failed: results.filter(r => !r.success).length,
+        results,
+      });
+    } catch (error: any) {
+      console.error("Failed to create collection from template:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============= SKETCHFAB INTEGRATION =============
+
+  const sketchfabApi = await import('./services/sketchfab-api.js');
+
+  // Check Sketchfab integration status
+  app.get("/api/sketchfab/status", async (_req, res) => {
+    res.json({
+      configured: sketchfabApi.isConfigured(),
+      searchAvailable: true,
+      downloadAvailable: sketchfabApi.isConfigured(),
+    });
+  });
+
+  // Search Sketchfab models (public — no auth required)
+  app.get("/api/sketchfab/search", async (req, res) => {
+    try {
+      const { q, sort_by, categories, maxFaceCount, cursor, count } = req.query;
+      if (!q) {
+        return res.status(400).json({ error: "q (query) parameter is required" });
+      }
+      const result = await sketchfabApi.searchModels(q as string, {
+        downloadable: true,
+        sort_by: (sort_by as any) || 'likeCount',
+        categories: categories ? (categories as string).split(',') : undefined,
+        maxFaceCount: maxFaceCount ? parseInt(maxFaceCount as string, 10) : undefined,
+        cursor: cursor as string,
+        count: count ? parseInt(count as string, 10) : 24,
+      });
+      res.json(result);
+    } catch (error: any) {
+      console.error("Failed to search Sketchfab:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get model details by UID (public)
+  app.get("/api/sketchfab/models/:uid", async (req, res) => {
+    try {
+      const model = await sketchfabApi.getModel(req.params.uid);
+      res.json(model);
+    } catch (error: any) {
+      console.error("Failed to get Sketchfab model:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get download URL for a model (requires SKETCHFAB_API_TOKEN)
+  app.get("/api/sketchfab/models/:uid/download-url", async (req, res) => {
+    try {
+      const info = await sketchfabApi.getDownloadUrl(req.params.uid);
+      res.json(info);
+    } catch (error: any) {
+      console.error("Failed to get Sketchfab download URL:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Auto-select Sketchfab models for a world type
+  app.post("/api/sketchfab/auto-select", async (req, res) => {
+    try {
+      const { worldType } = req.body;
+      if (!worldType) {
+        return res.status(400).json({ error: "worldType is required" });
+      }
+      const models = await sketchfabApi.autoSelectModels(worldType);
+      res.json(models);
+    } catch (error: any) {
+      console.error("Failed to auto-select Sketchfab models:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Download a Sketchfab model, create a VisualAsset, optionally assign to collection
+  app.post("/api/sketchfab/download-and-register", async (req, res) => {
+    try {
+      const {
+        sketchfabUid,
+        assetType,
+        name,
+        description,
+        worldId,
+        collectionId,
+        slotCategory,
+        slotKey,
+        tags,
+      } = req.body;
+
+      if (!sketchfabUid || !assetType || !name) {
+        return res.status(400).json({
+          error: "sketchfabUid, assetType, and name are required",
+        });
+      }
+
+      // 1. Get the time-limited download URL
+      const downloadInfo = await sketchfabApi.getDownloadUrl(sketchfabUid);
+
+      // 2. Download and extract
+      const sketchfabDownloader = await import('./services/asset-downloader.js');
+      const downloadResult = await sketchfabDownloader.preprocessSketchfabAsset(
+        downloadInfo.gltfUrl,
+        assetType,
+        sketchfabUid,
+        name
+      );
+
+      // 3. Create VisualAsset record
+      const isGlb = downloadResult.localPath.endsWith('.glb');
+      const asset = await storage.createVisualAsset({
+        worldId: worldId || null,
+        name,
+        description: description || `Sketchfab model: ${sketchfabUid}`,
+        assetType,
+        filePath: downloadResult.localPath,
+        fileName: downloadResult.localPath.split('/').pop() || `scene.${isGlb ? 'glb' : 'gltf'}`,
+        fileSize: downloadResult.metadata.fileSize,
+        mimeType: isGlb ? 'model/gltf-binary' : 'model/gltf+json',
+        generationProvider: 'manual',
+        purpose: 'procedural',
+        usageContext: '3d_game',
+        tags: tags || ['sketchfab', 'model'],
+        metadata: {
+          sketchfabUid,
+          originalUrl: downloadResult.metadata.originalUrl,
+          format: downloadResult.metadata.format,
+        },
+      });
+
+      // 4. Optionally assign to a collection slot
+      let updatedCollection = null;
+      if (collectionId && slotCategory && slotKey) {
+        const collection = await storage.getAssetCollection(collectionId);
+        if (collection) {
+          const currentSlotData = (collection as any)[slotCategory] as Record<string, string> || {};
+          const existingAssetIds: string[] = (collection.assetIds as string[]) || [];
+          await storage.updateAssetCollection(collectionId, {
+            [slotCategory]: { ...currentSlotData, [slotKey]: `/${downloadResult.localPath}` },
+            assetIds: [...existingAssetIds, asset.id],
+          } as any);
+          updatedCollection = await storage.getAssetCollection(collectionId);
+        }
+      }
+
+      res.json({
+        success: true,
+        asset: { id: asset.id, name: asset.name, filePath: asset.filePath },
+        collection: updatedCollection ? { id: updatedCollection.id, name: updatedCollection.name } : null,
+      });
+    } catch (error: any) {
+      console.error("Failed to download and register Sketchfab asset:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============= ASSET MARKETPLACE CATALOG =============
+
+  app.get("/api/asset-marketplaces", async (_req, res) => {
+    try {
+      const catalog = await import('../shared/asset-marketplace-catalog.js');
+      res.json(catalog.ASSET_MARKETPLACES);
+    } catch (error: any) {
+      console.error("Failed to load marketplace catalog:", error);
       res.status(500).json({ error: error.message });
     }
   });
