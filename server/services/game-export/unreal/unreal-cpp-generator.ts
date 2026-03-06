@@ -760,6 +760,7 @@ int32 UCreateLevelCommandlet::Main(const FString& Params)
 class UStaticMesh;
 class UMaterial;
 class AInsimulMeshActor;
+class ANPCCharacter;
 
 UCLASS()
 class ${api} AInsimulGameMode : public AGameModeBase
@@ -776,6 +777,15 @@ public:
     /** Spawn all world entities from IR data */
     UFUNCTION(BlueprintCallable, Category = "Insimul")
     void SpawnWorldEntities();
+
+    /** Map from ModelAssetKey (e.g. "assets/buildings/xxx.glb") to a Blueprint/Actor class.
+     *  Populate via the editor after running Scripts/ImportInsimulAssets.py. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Insimul Assets")
+    TMap<FString, TSubclassOf<AActor>> BuildingBlueprintMap;
+
+    /** Optional NPC Blueprint class — assign after importing GLB character assets. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Insimul Assets")
+    TSubclassOf<ANPCCharacter> NPCBlueprintClass;
 
 private:
     void SetupLighting();
@@ -1177,25 +1187,50 @@ void AInsimulGameMode::SpawnBuildings()
 
         double H = Floors * 300.0; // 3 m per floor
 
-        // Wall box
-        AInsimulMeshActor* Wall = SpawnColoredMesh(CubeMesh,
-            FVector(X, Y, H / 2.0 + Z),
-            FVector(W / 100.0, D / 100.0, H / 100.0),
-            FLinearColor(${cppFloat(ir.theme.visualTheme.settlementBaseColor.r)}, ${cppFloat(ir.theme.visualTheme.settlementBaseColor.g)}, ${cppFloat(ir.theme.visualTheme.settlementBaseColor.b)}),
-            FRotator(0.f, (float)Rot, 0.f));
+        FString ModelKey = Obj->GetStringField(TEXT("ModelAssetKey"));
+        bool bPlaced = false;
 
-        // Roof dome
-        double RoofDiam = FMath::Max(W, D) / 100.0 * 0.65;
-        SpawnColoredMesh(SphereMesh,
-            FVector(X, Y, H + Z + 80.0),
-            FVector(RoofDiam, RoofDiam, 1.8),
-            FLinearColor(${cppFloat(ir.theme.visualTheme.settlementRoofColor.r)}, ${cppFloat(ir.theme.visualTheme.settlementRoofColor.g)}, ${cppFloat(ir.theme.visualTheme.settlementRoofColor.b)}),
-            FRotator(0.f, (float)Rot, 0.f));
-
-        if (Count == 0 && Wall)
+        // Try Blueprint class if ModelAssetKey is set and mapped in BuildingBlueprintMap
+        if (!ModelKey.IsEmpty() && BuildingBlueprintMap.Contains(ModelKey))
         {
-            UE_LOG(LogTemp, Warning, TEXT("[Insimul] First building at (%f, %f, %f) size %fx%fx%f"),
-                X, Y, Z, W, D, H);
+            TSubclassOf<AActor> BPClass = BuildingBlueprintMap[ModelKey];
+            if (BPClass)
+            {
+                FActorSpawnParameters BPParams;
+                BPParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+                AActor* BPActor = GetWorld()->SpawnActor<AActor>(BPClass,
+                    FVector(X, Y, Z), FRotator(0.f, (float)Rot, 0.f), BPParams);
+                if (BPActor)
+                {
+                    BPActor->SetActorLabel(FString::Printf(TEXT("Building_%d"), Count));
+                    bPlaced = true;
+                }
+            }
+        }
+
+        if (!bPlaced)
+        {
+            // Fallback: procedural colored mesh
+            // Wall box
+            AInsimulMeshActor* Wall = SpawnColoredMesh(CubeMesh,
+                FVector(X, Y, H / 2.0 + Z),
+                FVector(W / 100.0, D / 100.0, H / 100.0),
+                FLinearColor(${cppFloat(ir.theme.visualTheme.settlementBaseColor.r)}, ${cppFloat(ir.theme.visualTheme.settlementBaseColor.g)}, ${cppFloat(ir.theme.visualTheme.settlementBaseColor.b)}),
+                FRotator(0.f, (float)Rot, 0.f));
+
+            // Roof dome
+            double RoofDiam = FMath::Max(W, D) / 100.0 * 0.65;
+            SpawnColoredMesh(SphereMesh,
+                FVector(X, Y, H + Z + 80.0),
+                FVector(RoofDiam, RoofDiam, 1.8),
+                FLinearColor(${cppFloat(ir.theme.visualTheme.settlementRoofColor.r)}, ${cppFloat(ir.theme.visualTheme.settlementRoofColor.g)}, ${cppFloat(ir.theme.visualTheme.settlementRoofColor.b)}),
+                FRotator(0.f, (float)Rot, 0.f));
+
+            if (Count == 0 && Wall)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("[Insimul] First building at (%f, %f, %f) size %fx%fx%f"),
+                    X, Y, Z, W, D, H);
+            }
         }
 
         SumX += X;
@@ -1283,8 +1318,11 @@ void AInsimulGameMode::SpawnNPCs()
         FActorSpawnParameters Params;
         Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
+        TSubclassOf<ANPCCharacter> NPCClass = NPCBlueprintClass
+            ? NPCBlueprintClass
+            : ANPCCharacter::StaticClass();
         ANPCCharacter* NPC = GetWorld()->SpawnActor<ANPCCharacter>(
-            ANPCCharacter::StaticClass(), SpawnLoc, SpawnRot, Params);
+            NPCClass, SpawnLoc, SpawnRot, Params);
 
         if (NPC)
         {
@@ -1333,6 +1371,235 @@ void AInsimulPlayerController::SetupInputComponent()
     Super::SetupInputComponent();
     // TODO: Bind Enhanced Input actions (Move, Look, Jump, Interact, Attack, etc.)
 }
+` });
+
+  // ── Scripts/ImportInsimulAssets.py ──
+  files.push({ path: `Scripts/ImportInsimulAssets.py`, content: `"""
+ImportInsimulAssets.py — Unreal Editor Python Script
+
+Bulk-imports all GLB/GLTF files bundled in Content/assets/ into UE5 as Static Meshes.
+
+Usage:
+  File > Execute Python Script (browse to this file)
+  — or —
+  from the Output Log Python console: exec(open("Scripts/ImportInsimulAssets.py").read())
+
+After import:
+  1. For each building mesh, right-click > Create Blueprint Class, add a StaticMeshComponent.
+  2. Open BP_InsimulGameMode > Class Defaults > Insimul Assets.
+  3. Add entries to BuildingBlueprintMap: key = ModelAssetKey from DT_Buildings.json,
+     value = the Blueprint class you just created.
+  4. Optionally create a Blueprint subclass of ANPCCharacter with VisualMesh assigned,
+     and set it as InsimulGameMode.NPCBlueprintClass.
+"""
+
+import os
+import unreal
+
+def import_insimul_assets():
+    content_dir = unreal.Paths.project_content_dir()
+    assets_dir = os.path.join(content_dir, "assets")
+
+    if not os.path.exists(assets_dir):
+        unreal.log_warning(f"[Insimul] Assets directory not found: {assets_dir}")
+        unreal.log_warning("[Insimul] Make sure you opened the exported project folder (not a subfolder).")
+        return
+
+    tasks = []
+    for root, dirs, files in os.walk(assets_dir):
+        for filename in files:
+            if not (filename.lower().endswith(".glb") or filename.lower().endswith(".gltf")):
+                continue
+            filepath = os.path.join(root, filename)
+            rel_root = os.path.relpath(root, content_dir).replace("\\\\", "/")
+            dest_path = f"/Game/{rel_root}"
+
+            task = unreal.AssetImportTask()
+            task.filename = filepath
+            task.destination_path = dest_path
+            task.automated = True
+            task.replace_existing = False
+            task.save = True
+            tasks.append(task)
+            unreal.log(f"[Insimul] Queued: {filename} -> {dest_path}")
+
+    if not tasks:
+        unreal.log_warning("[Insimul] No GLB/GLTF files found under Content/assets/")
+        return
+
+    asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
+    asset_tools.import_asset_tasks(tasks)
+    unreal.log(f"[Insimul] Done — {len(tasks)} asset(s) imported.")
+    unreal.log("[Insimul] See Content/Data/ASSET_SETUP.md for next steps.")
+
+import_insimul_assets()
+` });
+
+  // ── Setup.bat (Windows) ──
+  files.push({ path: `Setup.bat`, content: `@echo off
+setlocal enabledelayedexpansion
+
+echo [Insimul] ===== Insimul Asset Setup =====
+echo [Insimul] This will import bundled GLB assets into your UE5 project.
+echo.
+
+REM ─── Locate UnrealEditor.exe ────────────────────────────────────────────
+set "UE_EXE="
+
+if defined UE_ENGINE_DIR (
+    set "UE_EXE=!UE_ENGINE_DIR!\\Engine\\Binaries\\Win64\\UnrealEditor.exe"
+    if exist "!UE_EXE!" goto :found
+)
+
+for %%V in (5.5 5.4 5.3 5.2) do (
+    set "CANDIDATE=C:\\Program Files\\Epic Games\\UE_%%V\\Engine\\Binaries\\Win64\\UnrealEditor.exe"
+    if exist "!CANDIDATE!" (
+        set "UE_EXE=!CANDIDATE!"
+        goto :found
+    )
+)
+
+echo [Insimul] ERROR: Could not find UnrealEditor.exe.
+echo [Insimul] Set the UE_ENGINE_DIR environment variable to your UE5 engine root, e.g.:
+echo [Insimul]   set UE_ENGINE_DIR=C:\\Program Files\\Epic Games\\UE_5.5
+echo [Insimul] Then re-run this script.
+pause
+exit /b 1
+
+:found
+echo [Insimul] Unreal Editor: %UE_EXE%
+
+REM ─── Find the .uproject file in this folder ──────────────────────────────
+set "PROJECT="
+for %%F in ("%~dp0*.uproject") do set "PROJECT=%%F"
+
+if not defined PROJECT (
+    echo [Insimul] ERROR: No .uproject file found in this folder.
+    pause
+    exit /b 1
+)
+
+echo [Insimul] Project: %PROJECT%
+
+REM ─── Run the Python import script ────────────────────────────────────────
+set "SCRIPT=%~dp0Scripts\\ImportInsimulAssets.py"
+
+echo [Insimul] Importing assets (this may take a minute)...
+"%UE_EXE%" "%PROJECT%" -ExecutePythonScript="%SCRIPT%" -nullrhi -nopause -nosplash -Unattended
+
+echo.
+echo [Insimul] Asset import complete.
+echo [Insimul] Open the .uproject in Unreal Editor, then follow Content/Data/ASSET_SETUP.md
+echo [Insimul] to wire imported meshes to InsimulGameMode.BuildingBlueprintMap.
+echo.
+pause
+` });
+
+  // ── setup.sh (macOS / Linux) ──
+  files.push({ path: `setup.sh`, content: `#!/usr/bin/env bash
+# Insimul Asset Setup — macOS / Linux
+# Imports all bundled GLB assets into your UE5 project.
+set -euo pipefail
+
+echo "[Insimul] ===== Insimul Asset Setup ====="
+echo "[Insimul] Searching for Unreal Editor..."
+
+UE_EXE=""
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# ─── Locate UnrealEditor ────────────────────────────────────────────────────
+if [[ -n "\${UE_ENGINE_DIR:-}" ]]; then
+    CANDIDATE_MAC="\$UE_ENGINE_DIR/Engine/Binaries/Mac/UnrealEditor.app/Contents/MacOS/UnrealEditor"
+    CANDIDATE_LIN="\$UE_ENGINE_DIR/Engine/Binaries/Linux/UnrealEditor"
+    [[ -x "\$CANDIDATE_MAC" ]] && UE_EXE="\$CANDIDATE_MAC"
+    [[ -z "\$UE_EXE" && -x "\$CANDIDATE_LIN" ]] && UE_EXE="\$CANDIDATE_LIN"
+fi
+
+if [[ -z "\$UE_EXE" ]]; then
+    for VERSION in 5.5 5.4 5.3 5.2; do
+        MAC_PATH="/Users/Shared/Epic Games/UE_\$VERSION/Engine/Binaries/Mac/UnrealEditor.app/Contents/MacOS/UnrealEditor"
+        LIN_PATH="/opt/unreal-engine-\$VERSION/Engine/Binaries/Linux/UnrealEditor"
+        if [[ -x "\$MAC_PATH" ]]; then UE_EXE="\$MAC_PATH"; break; fi
+        if [[ -x "\$LIN_PATH" ]]; then UE_EXE="\$LIN_PATH"; break; fi
+    done
+fi
+
+if [[ -z "\$UE_EXE" ]]; then
+    echo "[Insimul] ERROR: Could not find UnrealEditor."
+    echo "[Insimul] Set UE_ENGINE_DIR to your UE5 engine root and re-run, e.g.:"
+    echo "[Insimul]   export UE_ENGINE_DIR='/Users/Shared/Epic Games/UE_5.5'"
+    exit 1
+fi
+
+echo "[Insimul] Unreal Editor: \$UE_EXE"
+
+# ─── Find .uproject file ────────────────────────────────────────────────────
+PROJECT=\$(ls "\$SCRIPT_DIR"/*.uproject 2>/dev/null | head -1 || true)
+if [[ -z "\$PROJECT" ]]; then
+    echo "[Insimul] ERROR: No .uproject file found in \$SCRIPT_DIR"
+    exit 1
+fi
+
+echo "[Insimul] Project: \$PROJECT"
+
+# ─── Run the Python import script ───────────────────────────────────────────
+SCRIPT="\$SCRIPT_DIR/Scripts/ImportInsimulAssets.py"
+echo "[Insimul] Importing assets (this may take a minute)..."
+
+"\$UE_EXE" "\$PROJECT" -ExecutePythonScript="\$SCRIPT" -nullrhi -nopause -nosplash -Unattended
+
+echo ""
+echo "[Insimul] Asset import complete."
+echo "[Insimul] Open the .uproject in Unreal Editor, then follow Content/Data/ASSET_SETUP.md"
+echo "[Insimul] to wire imported meshes to InsimulGameMode.BuildingBlueprintMap."
+` });
+
+  // ── Content/Data/ASSET_SETUP.md ──
+  files.push({ path: `Content/Data/ASSET_SETUP.md`, content: `# Insimul Asset Setup — Unreal Engine 5
+
+## Overview
+GLTF/GLB assets are bundled in \`Content/assets/\`.
+Follow these steps to wire them up as 3D models in the level.
+
+## Step 1 — Import Assets (run the setup script)
+
+**Windows:** Double-click \`Setup.bat\` in the project root.
+**macOS/Linux:** Open a terminal in the project root and run:
+\`\`\`
+chmod +x setup.sh && ./setup.sh
+\`\`\`
+
+The script locates your Unreal Editor installation, then runs \`Scripts/ImportInsimulAssets.py\`
+headlessly to import all bundled \`.glb\`/\`.gltf\` files as Static Meshes.
+
+If the script can't find Unreal Editor automatically, set \`UE_ENGINE_DIR\` first, e.g.:
+- **Windows:** \`set UE_ENGINE_DIR=C:\\Program Files\\Epic Games\\UE_5.5\`
+- **macOS:** \`export UE_ENGINE_DIR='/Users/Shared/Epic Games/UE_5.5'\`
+
+## Step 2 — Create Building Blueprints
+For each imported building mesh:
+1. Right-click the mesh in the Content Browser → **Create Blueprint Class** (parent: AActor).
+2. In the Blueprint editor, add a **Static Mesh Component** and assign the imported mesh.
+3. Note the asset's **ModelAssetKey** — find it in \`Content/Data/DT_Buildings.json\` under \`"ModelAssetKey"\`.
+   Example: \`"assets/buildings/building_home_A_blue.glb"\`
+
+## Step 3 — Assign Blueprints to GameMode
+1. Open (or create) **Blueprints/BP_InsimulGameMode** from \`AInsimulGameMode\`.
+2. In **Class Defaults > Insimul Assets**, expand **Building Blueprint Map**.
+3. Add one entry per building type:
+   - **Key** = ModelAssetKey string (e.g. \`assets/buildings/building_home_A_blue.glb\`)
+   - **Value** = the Blueprint class you created in Step 2.
+4. Set **BP_InsimulGameMode** as the GameMode in **World Settings**.
+
+## Step 4 — NPC Visual (optional)
+1. Import a character GLB as a Static or Skeletal Mesh.
+2. Create a Blueprint subclass of **ANPCCharacter**.
+3. In the Blueprint, assign the mesh to the **Visual Mesh** component.
+4. Assign this Blueprint to **InsimulGameMode.NPCBlueprintClass**.
+
+## Fallback Behaviour
+- Buildings without a matching **BuildingBlueprintMap** entry use procedural colored cubes.
+- NPCs without **NPCBlueprintClass** set spawn as default \`ANPCCharacter\` (capsule only).
 ` });
 
   return files;
@@ -1514,6 +1781,7 @@ void APlayerCharacter::Interact()
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Components/StaticMeshComponent.h"
 #include "NPCCharacter.generated.h"
 
 UENUM(BlueprintType)
@@ -1569,6 +1837,14 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "NPC")
     void StartDialogue(AActor* Initiator);
+
+    /** Optional visual mesh — populated from imported GLB asset when CharacterMesh is set. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "NPC|Appearance")
+    UStaticMeshComponent* VisualMesh;
+
+    /** Assign an imported Static Mesh here (or via Blueprint) to override the capsule visual. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC|Appearance")
+    UStaticMesh* CharacterMesh;
 };
 ` });
 
@@ -1581,11 +1857,24 @@ ANPCCharacter::ANPCCharacter()
     PrimaryActorTick.bCanEverTick = true;
     GetCharacterMovement()->MaxWalkSpeed = 200.f;
     AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+
+    VisualMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("VisualMesh"));
+    VisualMesh->SetupAttachment(GetMesh()); // attach to character's skeletal mesh socket
+    VisualMesh->SetRelativeLocation(FVector(0.f, 0.f, -90.f));
+    VisualMesh->SetVisibility(false); // hidden until CharacterMesh is assigned
 }
 
 void ANPCCharacter::BeginPlay()
 {
     Super::BeginPlay();
+
+    // Apply imported mesh if CharacterMesh was set (e.g. via Blueprint or GameMode)
+    if (CharacterMesh && VisualMesh)
+    {
+        VisualMesh->SetStaticMesh(CharacterMesh);
+        VisualMesh->SetVisibility(true);
+        GetMesh()->SetVisibility(false); // hide default skeletal capsule mesh
+    }
 }
 
 void ANPCCharacter::Tick(float DeltaTime)

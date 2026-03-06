@@ -93,6 +93,9 @@ func load_settlements() -> Array:
 func load_buildings() -> Array:
 	return _load_json_array("buildings.json")
 
+func load_asset_manifest() -> Dictionary:
+	return _load_json("asset-manifest.json")
+
 func _load_json(filename: String) -> Dictionary:
 	var path := DATA_PATH + filename
 	if not FileAccess.file_exists(path):
@@ -288,41 +291,79 @@ func end_dialogue() -> void:
   files.push({ path: `${base}/npc_spawner.gd`, content: `extends Node3D
 ## Spawns NPCs from world data.
 ## Add to the "world_generator" group so GameManager calls generate_from_data().
+##
+## Reads asset-manifest.json at startup to find the bundled character GLB/GLTF.
+## Falls back to a capsule mesh if no character asset is available.
 
-@export var npc_scene: PackedScene
+var _npc_scene: PackedScene = null
 
 func _ready() -> void:
 	add_to_group("world_generator")
+	_load_npc_scene_from_manifest()
+
+func _load_npc_scene_from_manifest() -> void:
+	var manifest_path := "res://data/asset-manifest.json"
+	if not FileAccess.file_exists(manifest_path):
+		push_warning("[Insimul] NPCSpawner: asset-manifest.json not found — using capsule fallback")
+		return
+	var file := FileAccess.open(manifest_path, FileAccess.READ)
+	if not file:
+		return
+	var json := JSON.new()
+	if json.parse(file.get_as_text()) != OK:
+		push_warning("[Insimul] NPCSpawner: failed to parse asset-manifest.json")
+		return
+	var manifest: Dictionary = json.data if json.data is Dictionary else {}
+	var assets: Array = manifest.get("assets", [])
+	for entry in assets:
+		if entry.get("category", "") != "character":
+			continue
+		var role: String = entry.get("role", "")
+		# Prefer an explicit NPC role; skip player-only roles
+		if role == "player_default" or role == "player_texture":
+			continue
+		var export_path: String = entry.get("exportPath", "")
+		if export_path == "":
+			continue
+		var scene := load("res://" + export_path) as PackedScene
+		if scene:
+			_npc_scene = scene
+			print("[Insimul] NPCSpawner: loaded NPC model — %s" % export_path)
+			return
+	push_warning("[Insimul] NPCSpawner: no usable character asset in manifest — using capsule fallback")
 
 func generate_from_data(world_data: Dictionary) -> void:
 	var entities: Dictionary = world_data.get("entities", {})
 	var npcs: Array = entities.get("npcs", [])
 	for npc_data in npcs:
-		spawn_npc(npc_data)
-	print("[Insimul] Spawned %d NPCs" % npcs.size())
+		_spawn_npc(npc_data)
+	print("[Insimul] NPCSpawner: spawned %d NPCs" % npcs.size())
 
-func spawn_npc(data: Dictionary) -> void:
-	var npc: CharacterBody3D
-	if npc_scene:
-		npc = npc_scene.instantiate() as CharacterBody3D
+func _spawn_npc(data: Dictionary) -> void:
+	var npc := CharacterBody3D.new()
+
+	if _npc_scene:
+		# GLTF scenes instantiate as a Node3D hierarchy; add as visual child
+		var model := _npc_scene.instantiate()
+		npc.add_child(model)
 	else:
-		# Fallback: create a simple capsule
-		npc = CharacterBody3D.new()
+		# Fallback: capsule mesh
 		var mesh_inst := MeshInstance3D.new()
 		mesh_inst.mesh = CapsuleMesh.new()
 		npc.add_child(mesh_inst)
-		var col := CollisionShape3D.new()
-		col.shape = CapsuleShape3D.new()
-		npc.add_child(col)
-		var nav := NavigationAgent3D.new()
-		npc.add_child(nav)
+
+	var col := CollisionShape3D.new()
+	col.shape = CapsuleShape3D.new()
+	npc.add_child(col)
+
+	var nav := NavigationAgent3D.new()
+	npc.add_child(nav)
 
 	var pos: Dictionary = data.get("homePosition", {})
 	npc.global_position = Vector3(pos.get("x", 0), pos.get("y", 0), pos.get("z", 0))
 	npc.name = "NPC_%s" % data.get("characterId", "unknown")
 	add_child(npc)
 
-	# Attach controller script
 	var script := load("res://scripts/characters/npc_controller.gd")
 	if script:
 		npc.set_script(script)
@@ -718,6 +759,9 @@ static func get_settlement_radius(population: int) -> float:
   files.push({ path: `${base}/building_generator.gd`, content: `extends Node3D
 ## Procedural building generator.
 ## Add to the "world_generator" group.
+##
+## When buildings have a modelAssetKey, the matching bundled GLTF/GLB is loaded
+## at runtime via load(). Otherwise a procedural BoxMesh is used as fallback.
 
 @export var base_color := Color(${theme.settlementBaseColor.r}, ${theme.settlementBaseColor.g}, ${theme.settlementBaseColor.b})
 @export var roof_color := Color(${theme.settlementRoofColor.r}, ${theme.settlementRoofColor.g}, ${theme.settlementRoofColor.b})
@@ -728,20 +772,39 @@ func _ready() -> void:
 func generate_from_data(world_data: Dictionary) -> void:
 	var entities: Dictionary = world_data.get("entities", {})
 	var buildings: Array = entities.get("buildings", [])
+	var loaded_count := 0
+	var procedural_count := 0
 	for bld in buildings:
-		var pos: Dictionary = bld.get("position", {})
+		var pos_dict: Dictionary = bld.get("position", {})
+		var pos := Vector3(pos_dict.get("x", 0), pos_dict.get("y", 0), pos_dict.get("z", 0))
+		var rot: float = bld.get("rotation", 0.0)
+		var model_key: String = bld.get("modelAssetKey", "")
+
+		if model_key != "":
+			var scene := load("res://" + model_key) as PackedScene
+			if scene:
+				var node := scene.instantiate()
+				node.name = "Building_%s" % bld.get("id", "unknown")
+				add_child(node)
+				node.global_position = pos
+				node.rotation.y = deg_to_rad(rot)
+				loaded_count += 1
+				continue
+
+		# Fallback: procedural BoxMesh
 		var spec: Dictionary = bld.get("spec", {})
-		_generate_building(
-			Vector3(pos.get("x", 0), pos.get("y", 0), pos.get("z", 0)),
-			bld.get("rotation", 0.0),
+		_generate_building_procedural(
+			pos, rot,
 			spec.get("floors", 2),
 			spec.get("width", 10.0),
 			spec.get("depth", 10.0),
 			spec.get("buildingRole", "residential"),
 		)
-	print("[Insimul] Generated %d buildings" % buildings.size())
+		procedural_count += 1
 
-func _generate_building(pos: Vector3, rot: float, floors: int, width: float, depth: float, role: String) -> void:
+	print("[Insimul] BuildingGenerator: %d from assets, %d procedural" % [loaded_count, procedural_count])
+
+func _generate_building_procedural(pos: Vector3, rot: float, floors: int, width: float, depth: float, role: String) -> void:
 	var floor_height := 3.0
 	var total_height := floors * floor_height
 

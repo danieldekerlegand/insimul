@@ -11,7 +11,7 @@ import { generateGDScriptFiles } from './godot-gdscript-generator';
 import { generateDataFiles } from './godot-data-generator';
 import { generateSceneFiles } from './godot-scene-generator';
 import { generateWorldIR } from '../ir-generator';
-import { bundleCoreAssets, bundleAssetsFromCollection, generateAssetManifestJson, type BundledAsset } from '../asset-bundler';
+import { bundleCoreAssets, bundleAssetsFromCollection, generateAssetManifestJson, type BundledAsset, type TargetEngine } from '../asset-bundler';
 import type { WorldIR } from '@shared/game-engine/ir-types';
 import { createRequire } from 'node:module';
 
@@ -107,15 +107,16 @@ export async function exportGodotProject(worldId: string): Promise<{
   const allFiles = generateGodotFilesFromIR(ir);
 
   // 4. Bundle assets from the world's selected collection
+  const engine: TargetEngine = 'godot';
   let assetBundle;
   if (selectedCollectionId) {
     console.log(`[Export] Using asset collection: ${selectedCollectionId}`);
     assetBundle = await bundleAssetsFromCollection(selectedCollectionId);
   } else {
     console.log('[Export] No asset collection selected, using core assets');
-    assetBundle = await bundleCoreAssets();
+    assetBundle = await bundleCoreAssets(engine);
   }
-  
+
   allFiles.push({
     path: 'data/asset-manifest.json',
     content: generateAssetManifestJson(assetBundle.manifest),

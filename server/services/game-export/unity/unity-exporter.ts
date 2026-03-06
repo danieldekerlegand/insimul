@@ -11,7 +11,7 @@ import { generateCSharpFiles } from './unity-csharp-generator';
 import { generateDataFiles } from './unity-data-generator';
 import { generateSceneFiles } from './unity-scene-generator';
 import { generateWorldIR } from '../ir-generator';
-import { bundleCoreAssets, bundleAssetsFromCollection, generateAssetManifestJson, type BundledAsset } from '../asset-bundler';
+import { bundleCoreAssets, bundleAssetsFromCollection, generateAssetManifestJson, type BundledAsset, type TargetEngine } from '../asset-bundler';
 import type { WorldIR } from '@shared/game-engine/ir-types';
 import { createRequire } from 'node:module';
 
@@ -74,7 +74,9 @@ async function packageAsZip(
     }
 
     for (const asset of binaryAssets) {
-      archive.append(asset.buffer, { name: `${projectName}/Assets/${asset.exportPath}` });
+      // Place assets inside Resources/ so Unity's Resources.Load<GameObject>() can find them
+      // after the editor auto-imports GLTF/GLB files on project open.
+      archive.append(asset.buffer, { name: `${projectName}/Assets/Resources/${asset.exportPath}` });
     }
 
     archive.finalize();
@@ -107,15 +109,16 @@ export async function exportUnityProject(worldId: string): Promise<{
   const allFiles = generateUnityFilesFromIR(ir);
 
   // 4. Bundle assets from the world's selected collection
+  const engine: TargetEngine = 'unity';
   let assetBundle;
   if (selectedCollectionId) {
     console.log(`[Export] Using asset collection: ${selectedCollectionId}`);
     assetBundle = await bundleAssetsFromCollection(selectedCollectionId);
   } else {
     console.log('[Export] No asset collection selected, using core assets');
-    assetBundle = await bundleCoreAssets();
+    assetBundle = await bundleCoreAssets(engine);
   }
-  
+
   allFiles.push({
     path: 'Assets/Resources/Data/asset-manifest.json',
     content: generateAssetManifestJson(assetBundle.manifest),

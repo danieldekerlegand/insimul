@@ -20,7 +20,7 @@ import type { GeneratedFile } from './babylon-project-generator';
 import { generateDataFiles } from './babylon-data-generator';
 import { generateProjectFiles } from './babylon-project-generator';
 import { GameFileCopier } from './game-file-copier';
-import { bundleAssetsFromCollection, bundleCoreAssets } from '../asset-bundler';
+import { bundleAssetsFromCollection, bundleCoreAssets, type TargetEngine } from '../asset-bundler';
 import { generateWorldIR } from '../ir-generator';
 import type { BabylonExportOptions } from './types';
 
@@ -161,20 +161,21 @@ export async function exportBabylonProject(
   
   // 10. Bundle assets from the world's selected collection
   console.log('[Export] Bundling assets...');
+  const engine: TargetEngine = 'babylon';
   let assetBundle;
   const selectedCollectionId = (ir.meta as any).selectedAssetCollectionId;
   if (selectedCollectionId) {
     console.log(`[Export] Using asset collection: ${selectedCollectionId}`);
     assetBundle = await bundleAssetsFromCollection(selectedCollectionId);
-    
+
     // If no assets were bundled from the collection, fall back to core assets
     if (assetBundle.assets.length === 0) {
       console.log('[Export] Collection had no assets, falling back to core assets');
-      assetBundle = await bundleCoreAssets();
+      assetBundle = await bundleCoreAssets(engine);
     }
   } else {
     console.log('[Export] No asset collection selected, using core assets');
-    assetBundle = await bundleCoreAssets();
+    assetBundle = await bundleCoreAssets(engine);
   }
   
   // 10. Generate asset manifest

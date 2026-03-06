@@ -11,7 +11,7 @@ import { generateCppFiles } from './unreal-cpp-generator';
 import { generateDataTableFiles } from './unreal-datatable-generator';
 import { generateLevelFiles } from './unreal-level-generator';
 import { generateWorldIR } from '../ir-generator';
-import { bundleCoreAssets, bundleAssetsFromCollection, generateAssetManifestJson, type BundledAsset } from '../asset-bundler';
+import { bundleCoreAssets, bundleAssetsFromCollection, generateAssetManifestJson, type BundledAsset, type TargetEngine } from '../asset-bundler';
 import type { WorldIR } from '@shared/game-engine/ir-types';
 import { createRequire } from 'node:module';
 import { readFileSync, existsSync } from 'node:fs';
@@ -122,15 +122,16 @@ export async function exportUnrealProject(worldId: string): Promise<{
   const allFiles = generateUnrealFilesFromIR(ir);
 
   // 4. Bundle assets from the world's selected collection
+  const engine: TargetEngine = 'unreal';
   let assetBundle;
   if (selectedCollectionId) {
     console.log(`[Export] Using asset collection: ${selectedCollectionId}`);
     assetBundle = await bundleAssetsFromCollection(selectedCollectionId);
   } else {
     console.log('[Export] No asset collection selected, using core assets');
-    assetBundle = await bundleCoreAssets();
+    assetBundle = await bundleCoreAssets(engine);
   }
-  
+
   allFiles.push({
     path: 'Content/Data/asset-manifest.json',
     content: generateAssetManifestJson(assetBundle.manifest),

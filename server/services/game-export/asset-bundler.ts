@@ -356,12 +356,27 @@ export async function bundleAssetsFromCollection(collectionId: string): Promise<
 // Bundle all core (Base Collection) assets from disk.
 // Returns binary buffers ready to be added to a ZIP archive.
 // ─────────────────────────────────────────────
-export async function bundleCoreAssets(): Promise<BundleResult> {
+
+export type TargetEngine = 'babylon' | 'unreal' | 'unity' | 'godot';
+
+export async function bundleCoreAssets(engine: TargetEngine = 'babylon'): Promise<BundleResult> {
   const basePath = getAssetsBasePath();
-  console.log(`[AssetBundler] bundleCoreAssets: basePath=${basePath}`);
-  
+  console.log(`[AssetBundler] bundleCoreAssets: basePath=${basePath}, engine=${engine}`);
+
+  // Core character assets use .babylon format which is Babylon.js-only.
+  // For other engines, skip them — users must supply GLB/GLTF character models
+  // via a world asset collection.
+  const includeCharacters = engine === 'babylon';
+  if (!includeCharacters) {
+    console.warn(
+      `[AssetBundler] Skipping core character assets for engine="${engine}" — ` +
+      `.babylon format is not importable by ${engine}. ` +
+      'Assign a world asset collection with GLB character models instead.'
+    );
+  }
+
   const allDefs: AssetDef[] = [
-    ...CORE_CHARACTERS,
+    ...(includeCharacters ? CORE_CHARACTERS : []),
     ...CORE_GROUND,
     ...CORE_QUEST_OBJECTS,
     ...CORE_AUDIO,

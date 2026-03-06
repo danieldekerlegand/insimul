@@ -351,6 +351,31 @@ namespace Insimul.Data
 }
 ` });
 
+  files.push({ path: `${base}/InsimulAssetManifest.cs`, content: `using System;
+
+namespace Insimul.Data
+{
+    /// <summary>
+    /// Matches the structure of Assets/Resources/Data/asset-manifest.json.
+    /// Used at runtime to discover and load bundled GLTF/GLB assets.
+    /// </summary>
+    [Serializable]
+    public class InsimulAssetManifest
+    {
+        public InsimulAssetManifestEntry[] assets;
+    }
+
+    [Serializable]
+    public class InsimulAssetManifestEntry
+    {
+        public string exportPath;
+        public string category;
+        public string role;
+        public int fileSize;
+    }
+}
+` });
+
   return files;
 }
 
@@ -704,43 +729,92 @@ namespace Insimul.Characters
 ` });
 
   files.push({ path: `${base}/NPCManager.cs`, content: `using UnityEngine;
+using UnityEngine.AI;
 using Insimul.Data;
 
 namespace Insimul.Characters
 {
     /// <summary>
     /// Spawns and manages all NPCs from IR data.
+    /// On Awake, reads Assets/Resources/Data/asset-manifest.json to find a bundled
+    /// character GLTF/GLB model loaded via Resources.Load. Falls back to a capsule
+    /// primitive when no character asset is available.
     /// </summary>
     public class NPCManager : MonoBehaviour
     {
-        [Header("NPC Prefab")]
-        public GameObject npcPrefab;
+        private GameObject _npcModelPrefab = null;
+
+        private void Awake()
+        {
+            LoadNPCModelFromManifest();
+        }
+
+        private void LoadNPCModelFromManifest()
+        {
+            var manifestAsset = Resources.Load<TextAsset>("Data/asset-manifest");
+            if (manifestAsset == null)
+            {
+                Debug.LogWarning("[Insimul] NPCManager: asset-manifest not found — using capsule fallback");
+                return;
+            }
+
+            var manifest = JsonUtility.FromJson<InsimulAssetManifest>(manifestAsset.text);
+            if (manifest?.assets == null) return;
+
+            foreach (var entry in manifest.assets)
+            {
+                if (entry.category != "character") continue;
+                // Skip player-only assets
+                if (entry.role == "player_default" || entry.role == "player_texture") continue;
+                if (string.IsNullOrEmpty(entry.exportPath)) continue;
+
+                var resourcePath = System.IO.Path.ChangeExtension(entry.exportPath, null);
+                var prefab = Resources.Load<GameObject>(resourcePath);
+                if (prefab != null)
+                {
+                    _npcModelPrefab = prefab;
+                    Debug.Log($"[Insimul] NPCManager: loaded NPC model — {entry.exportPath}");
+                    return;
+                }
+            }
+            Debug.LogWarning("[Insimul] NPCManager: no character asset found in manifest — using capsule fallback");
+        }
 
         public void SpawnNPCs(InsimulWorldIR worldData)
         {
             if (worldData?.entities?.npcs == null) return;
 
             foreach (var npcData in worldData.entities.npcs)
-            {
-                GameObject npcObj;
-                if (npcPrefab != null)
-                    npcObj = Instantiate(npcPrefab, npcData.homePosition.ToVector3(), Quaternion.identity, transform);
-                else
-                {
-                    npcObj = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                    npcObj.transform.position = npcData.homePosition.ToVector3();
-                    npcObj.transform.SetParent(transform);
-                }
-
-                npcObj.name = $"NPC_{npcData.characterId}";
-                npcObj.tag = "NPC";
-
-                var controller = npcObj.GetComponent<NPCController>();
-                if (controller == null) controller = npcObj.AddComponent<NPCController>();
-                controller.InitFromData(npcData);
-            }
+                SpawnNPC(npcData);
 
             Debug.Log($"[Insimul] Spawned {worldData.entities.npcs.Length} NPCs");
+        }
+
+        private void SpawnNPC(InsimulNPCData data)
+        {
+            var position = data.homePosition.ToVector3();
+
+            var npcObj = new GameObject($"NPC_{data.characterId}");
+            npcObj.tag = "NPC";
+            npcObj.transform.position = position;
+            npcObj.transform.SetParent(transform);
+
+            if (_npcModelPrefab != null)
+            {
+                var model = Instantiate(_npcModelPrefab, npcObj.transform);
+                model.name = "Model";
+                model.transform.localPosition = Vector3.zero;
+            }
+            else
+            {
+                var capsule = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                capsule.transform.SetParent(npcObj.transform);
+                capsule.transform.localPosition = Vector3.zero;
+            }
+
+            npcObj.AddComponent<NavMeshAgent>();
+            var controller = npcObj.AddComponent<NPCController>();
+            controller.InitFromData(data);
         }
     }
 }
@@ -1240,6 +1314,12 @@ using Insimul.Data;
 
 namespace Insimul.World
 {
+    /// <summary>
+    /// Generates buildings from world IR data.
+    /// When a building has a modelAssetKey, the corresponding bundled GLTF/GLB is loaded
+    /// via Resources.Load (assets must be in Assets/Resources/). Falls back to procedural
+    /// cube geometry when no model is available.
+    /// </summary>
     public class ProceduralBuildingGenerator : MonoBehaviour
     {
         public Color baseColor = new Color(${theme.settlementBaseColor.r}f, ${theme.settlementBaseColor.g}f, ${theme.settlementBaseColor.b}f);
@@ -1249,21 +1329,37 @@ namespace Insimul.World
         {
             if (worldData?.entities?.buildings == null) return;
 
+            int loadedCount = 0, proceduralCount = 0;
             foreach (var bld in worldData.entities.buildings)
             {
-                GenerateBuilding(
-                    bld.position.ToVector3(),
-                    bld.rotation,
-                    bld.floors,
-                    bld.width,
-                    bld.depth,
-                    bld.buildingRole
-                );
+                var pos = bld.position.ToVector3();
+                bool placed = false;
+
+                if (!string.IsNullOrEmpty(bld.modelAssetKey))
+                {
+                    // Strip file extension — Resources.Load doesn't use it
+                    var resourcePath = System.IO.Path.ChangeExtension(bld.modelAssetKey, null);
+                    var prefab = Resources.Load<GameObject>(resourcePath);
+                    if (prefab != null)
+                    {
+                        var go = Instantiate(prefab, pos, Quaternion.Euler(0, bld.rotation, 0), transform);
+                        go.name = $"Building_{bld.id}";
+                        go.tag = "Building";
+                        loadedCount++;
+                        placed = true;
+                    }
+                }
+
+                if (!placed)
+                {
+                    GenerateBuildingProcedural(pos, bld.rotation, bld.floors, bld.width, bld.depth, bld.buildingRole);
+                    proceduralCount++;
+                }
             }
-            Debug.Log($"[Insimul] Generated {worldData.entities.buildings.Length} buildings");
+            Debug.Log($"[Insimul] Buildings: {loadedCount} from assets, {proceduralCount} procedural");
         }
 
-        public void GenerateBuilding(Vector3 position, float rotation, int floors,
+        private void GenerateBuildingProcedural(Vector3 position, float rotation, int floors,
             float width, float depth, string role)
         {
             float floorHeight = 3f;
