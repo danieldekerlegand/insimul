@@ -11,7 +11,7 @@ import { generateCSharpFiles } from './unity-csharp-generator';
 import { generateDataFiles } from './unity-data-generator';
 import { generateSceneFiles } from './unity-scene-generator';
 import { generateWorldIR } from '../ir-generator';
-import { bundleCoreAssets, generateAssetManifestJson, type BundledAsset } from '../asset-bundler';
+import { bundleCoreAssets, bundleAssetsFromCollection, generateAssetManifestJson, type BundledAsset } from '../asset-bundler';
 import type { WorldIR } from '@shared/game-engine/ir-types';
 import { createRequire } from 'node:module';
 
@@ -88,23 +88,39 @@ async function packageAsZip(
 /**
  * Generate a complete Unity project from a world ID.
  */
-export async function exportUnityProject(worldId: string): Promise<UnityExportResult> {
+export async function exportUnityProject(worldId: string): Promise<{
+  files: GeneratedFile[];
+  assetBundle: { assets: BundledAsset[]; manifest: string; totalSize: number };
+}> {
+  console.log('[Export] Starting Unity export for world:', worldId);
   const startTime = Date.now();
 
-  // 1. Generate IR with Unity-specific asset resolution
-  const ir = await generateWorldIR(worldId, 'unity');
+  // 1. Generate the World IR
+  const ir = await generateWorldIR(worldId);
+  
+  // 2. Get the world's selected asset collection
+  const { storage } = await import(/* webpackIgnore: true */ new URL('../../../db/storage.js', import.meta.url).href as any);
+  const world = await storage.getWorld(worldId);
+  const selectedCollectionId = (world as any)?.selectedAssetCollectionId;
 
-  // 2. Run all generators
+  // 3. Run all generators
   const allFiles = generateUnityFilesFromIR(ir);
 
-  // 3. Bundle core assets
-  const assetBundle = await bundleCoreAssets();
+  // 4. Bundle assets from the world's selected collection
+  let assetBundle;
+  if (selectedCollectionId) {
+    console.log(`[Export] Using asset collection: ${selectedCollectionId}`);
+    assetBundle = await bundleAssetsFromCollection(selectedCollectionId);
+  } else {
+    console.log('[Export] No asset collection selected, using core assets');
+    assetBundle = await bundleCoreAssets();
+  }
+  
   allFiles.push({
     path: 'Assets/Resources/Data/asset-manifest.json',
     content: generateAssetManifestJson(assetBundle.manifest),
   });
 
-  // 4. Package
   const worldSafe = sanitiseName(ir.meta.worldName) || 'InsimulWorld';
   const projectName = `InsimulExport_${worldSafe}`;
 
@@ -120,16 +136,11 @@ export async function exportUnityProject(worldId: string): Promise<UnityExportRe
   const elapsed = Date.now() - startTime;
 
   return {
-    projectName,
     files: allFiles,
-    zipBuffer,
-    stats: {
-      totalFiles: allFiles.length + assetBundle.fileCount,
-      csharpFiles: countByExtension(allFiles, '.cs'),
-      dataFiles: countByExtension(allFiles, '.json'),
-      configFiles: countByExtension(allFiles, '.asset', '.asmdef', '.md', '.gitignore'),
-      totalSizeBytes,
-      generationTimeMs: elapsed,
+    assetBundle: {
+      assets: assetBundle.assets,
+      manifest: generateAssetManifestJson(assetBundle.manifest),
+      totalSize: assetBundle.totalSizeBytes,
     },
   };
 }

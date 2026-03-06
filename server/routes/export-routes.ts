@@ -12,7 +12,7 @@ import { buildWorldAssetManifest } from '../services/game-export/asset-resolver'
 import { exportUnrealProject } from '../services/game-export/unreal/unreal-exporter';
 import { exportUnityProject } from '../services/game-export/unity/unity-exporter';
 import { exportGodotProject } from '../services/game-export/godot/godot-exporter';
-import { exportBabylonProject } from '../services/game-export/babylon/babylon-exporter';
+import { exportBabylonProject, exportBabylonProjectAsZip as packageBabylonExport } from '../services/game-export/babylon/babylon-exporter-new';
 
 export function registerExportRoutes(app: Express): void {
 
@@ -141,6 +141,9 @@ export function registerExportRoutes(app: Express): void {
    * - Unity/Godot: placeholder (returns IR with engine-specific asset resolution)
    */
   app.post('/api/worlds/:worldId/export/:engine', async (req, res) => {
+    // Increase timeout for export operations (5 minutes)
+    req.setTimeout(300000);
+    
     try {
       const { worldId, engine } = req.params;
       const supportedEngines = ['babylon', 'unreal', 'unity', 'godot'];
@@ -155,32 +158,25 @@ export function registerExportRoutes(app: Express): void {
       // ── Babylon.js: IR JSON bundle as ZIP ──
       if (engine === 'babylon') {
         const format = req.body.format || req.query.format || 'zip';
-
-        console.log(`[Export] Generating Babylon.js project for world ${worldId}...`);
-        const result = await exportBabylonProject(worldId);
-
-        if (format === 'zip' && result.zipBuffer) {
-          const filename = `${result.projectName}.zip`;
-          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-          res.setHeader('Content-Type', 'application/zip');
-          res.setHeader('Content-Length', result.zipBuffer.length.toString());
-          return res.send(result.zipBuffer);
+        const mode = req.body.mode || req.query.mode || 'web';
+        
+        if (mode !== 'web' && mode !== 'electron') {
+          return res.status(400).json({
+            success: false,
+            error: `Invalid mode: ${mode}. Supported: web, electron`,
+          });
         }
 
-        return res.json({
-          success: true,
-          engine: 'babylon',
-          status: 'project_generated',
-          projectName: result.projectName,
-          stats: result.stats,
-          files: result.files.map(f => ({
-            path: f.path,
-            sizeBytes: Buffer.byteLength(f.content, 'utf8'),
-          })),
-          message: result.zipBuffer
-            ? 'Project generated. Use format=zip to download as ZIP.'
-            : 'Project generated. Install "archiver" npm package to enable ZIP download.',
-        });
+        console.log(`[Export] Generating Babylon.js ${mode} project for world ${worldId}...`);
+        const zipBuffer = await exportBabylonProject(worldId, { mode });
+
+        // Get world IR for filename
+        const ir = await generateWorldIR(worldId);
+        const filename = `${ir.meta.worldName.replace(/\s+/g, '_')}_Babylon_${mode}.zip`;
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Length', zipBuffer.length.toString());
+        return res.send(zipBuffer);
       }
 
       // ── Unreal: full project export ──
@@ -300,6 +296,9 @@ export function registerExportRoutes(app: Express): void {
    * Direct browser download endpoint — opens in a new tab to trigger native download.
    */
   app.get('/api/worlds/:worldId/export/:engine/download', async (req, res) => {
+    // Increase timeout for export operations (5 minutes)
+    req.setTimeout(300000);
+    
     try {
       const { worldId, engine } = req.params;
       const supportedEngines = ['babylon', 'unreal', 'unity', 'godot'];
@@ -309,12 +308,22 @@ export function registerExportRoutes(app: Express): void {
       }
 
       if (engine === 'babylon') {
-        const result = await exportBabylonProject(worldId);
-        if (!result.zipBuffer) return res.status(500).json({ error: 'ZIP generation failed' });
-        res.setHeader('Content-Disposition', `attachment; filename="${result.projectName}.zip"`);
+        const mode = req.query.mode || 'web';
+        
+        if (mode !== 'web' && mode !== 'electron') {
+          return res.status(400).json({ error: `Invalid mode: ${mode}. Supported: web, electron` });
+        }
+        
+        const zipBuffer = await packageBabylonExport(worldId, { mode });
+        if (!zipBuffer) return res.status(500).json({ error: 'ZIP generation failed' });
+        
+        // Get world IR for filename
+        const ir = await generateWorldIR(worldId);
+        const filename = `${ir.meta.worldName.replace(/\s+/g, '_')}_Babylon_${mode}.zip`;
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Type', 'application/zip');
-        res.setHeader('Content-Length', result.zipBuffer.length.toString());
-        return res.send(result.zipBuffer);
+        res.setHeader('Content-Length', zipBuffer.length.toString());
+        return res.send(zipBuffer);
       }
 
       if (engine === 'unreal') {

@@ -62,11 +62,17 @@ interface World {
 }
 
 export class BabylonChatPanel {
-  private advancedTexture: AdvancedDynamicTexture;
+  private _advancedTexture: AdvancedDynamicTexture;
   private scene: Scene;
   private chatContainer: Rectangle | null = null;
   private messagesPanel: StackPanel | null = null;
+  private messagesDisplayArea: Rectangle | null = null;
   private inputText: InputText | null = null;
+  private inputContainer: Container | null = null;
+  private micButton: Button | null = null; // Store reference to mic button
+  private titleText: TextBlock | null = null; // Store reference to title text
+  private loadingIndicator: TextBlock | null = null; // Loading indicator
+  private streamingResponse: TextBlock | null = null; // Streaming response text
   private character: Character | null = null;
   private truths: Truth[] = [];
   private world: World | null = null;
@@ -74,13 +80,15 @@ export class BabylonChatPanel {
   private languageTracker: LanguageProgressTracker | null = null;
   private messages: Message[] = [];
   private isVisible = false;
+  private _enterKeyHandler: ((e: KeyboardEvent) => void) | null = null;
+  private _inputFocused = false;
+  private isProcessing = false;
 
   // Audio
   private mediaRecorder: MediaRecorder | null = null;
   private audioChunks: Blob[] = [];
   private currentAudio: HTMLAudioElement | null = null;
   private isRecording = false;
-  private isProcessing = false;
   private isSpeaking = false;
 
   // Dialogue Actions
@@ -103,17 +111,37 @@ export class BabylonChatPanel {
   private onQuestTurnedIn: ((questId: string, rewards: any) => void) | null = null;
   private pendingTurnInQuests: any[] = [];
 
+  // Expose advancedTexture for debugging
+  public get advancedTexture() {
+    return this._advancedTexture;
+  }
+
   constructor(advancedTexture: AdvancedDynamicTexture, scene: Scene) {
-    this.advancedTexture = advancedTexture;
+    this._advancedTexture = advancedTexture;
     this.scene = scene;
     this.talkingIndicator = new NPCTalkingIndicator(scene);
+    
+    // Test if GUI texture is working
+    console.log('[ChatPanel] Constructor - advancedTexture:', advancedTexture);
+    console.log('[ChatPanel] Constructor - scene:', scene);
+    console.log('[ChatPanel] Constructor - rootContainer children:', advancedTexture.rootContainer.children.length);
+    
+    // Add window resize listener
+    this.handleResize = this.handleResize.bind(this);
+    window.addEventListener('resize', this.handleResize);
   }
 
   public show(character: Character, truths: Truth[], npcMesh?: Mesh) {
+    console.log('[ChatPanel] SHOW() called for:', character.firstName, character.lastName);
+    console.log('[ChatPanel] Current time:', Date.now());
     this.character = character;
     this.truths = truths;
     this.npcMesh = npcMesh || null;
     this.isVisible = true;
+    
+    // Clear previous messages for new conversation
+    this.messages = [];
+    console.log('[ChatPanel] Cleared previous messages');
 
     // Notify that conversation started with this NPC (for quest tracking)
     if (this.onNPCConversationStarted) {
@@ -127,11 +155,24 @@ export class BabylonChatPanel {
     this.checkQuestTurnIn(character.id, character.worldId);
 
     if (this.chatContainer) {
+      // Chat container already exists, just update and show it
+      console.log('[ChatPanel] Chat container exists, updating...');
       this.chatContainer.isVisible = true;
+      this.chatContainer.alpha = 1;
+      
+      // Update the character name in the header
+      if (this.titleText) {
+        this.titleText.text = `${character.firstName} ${character.lastName}`;
+        console.log('[ChatPanel] Updated title to:', this.titleText.text);
+      }
+      
       this.initializeChat(truths);
+      this._advancedTexture.markAsDirty();
       return;
     }
 
+    // Create the chat UI for the first time
+    console.log('[ChatPanel] Creating chat UI for first time...');
     this.createChatUI();
     this.initializeChat(truths);
   }
@@ -162,13 +203,27 @@ export class BabylonChatPanel {
     }
   }
 
-  public hide() {
+  private handleResize() {
+    if (this.chatContainer && this.isVisible) {
+      console.log('[ChatPanel] Handling resize, refreshing GUI');
+      this._advancedTexture.markAsDirty();
+    }
+  }
+
+  public hide(userInitiated: boolean = false) {
+    console.log('[ChatPanel] Hide() called - was isVisible:', this.isVisible, 'userInitiated:', userInitiated);
+    console.log('[ChatPanel] Call stack:', new Error().stack);
     this.isVisible = false;
     if (this.chatContainer) {
       this.chatContainer.isVisible = false;
+      console.log('[ChatPanel] Chat container set to invisible');
     }
     if (this.dialogueActions) {
       this.dialogueActions.hide();
+    }
+    if (this._enterKeyHandler) {
+      window.removeEventListener("keydown", this._enterKeyHandler);
+      this._enterKeyHandler = null;
     }
     // End language tracking conversation and log results
     if (this.languageTracker) {
@@ -176,7 +231,7 @@ export class BabylonChatPanel {
       if (result && result.gain > 0) {
         console.log(`[LanguageTracker] Fluency: ${result.previousFluency.toFixed(1)} → ${result.newFluency.toFixed(1)} (+${result.gain.toFixed(2)})`);
         if (result.bonuses.length > 0) {
-          console.log(`[LanguageTracker] Bonuses: ${result.bonuses.join(', ')}`);
+          console.log(`[LanguageTracker] Bonuses: ${result.bonuses.join(", ")}`);
         }
       }
     }
@@ -185,6 +240,12 @@ export class BabylonChatPanel {
       this.talkingIndicator.hide(this.character.id);
     }
     this.stopAllAudio();
+    
+    // Only call onClose if user-initiated
+    if (userInitiated) {
+      console.log('[ChatPanel] Calling onClose callback');
+      this.onClose?.();
+    }
   }
 
   private stopAllAudio() {
@@ -209,249 +270,274 @@ export class BabylonChatPanel {
         this.character.worldId,
         this.world.targetLanguage
       );
-      if (this.worldLanguageContext) {
-        this.languageTracker.setWorldLanguageContext(this.worldLanguageContext);
-      }
-      this.languageTracker.startConversation(this.character.id, `${this.character.firstName} ${this.character.lastName}`);
-      this.languageTracker.setOnNewWordLearned((entry) => {
-        console.log(`[LanguageTracker] New word learned: ${entry.word} (${entry.meaning})`);
-      });
-      this.languageTracker.setOnWordMastered((entry) => {
-        console.log(`[LanguageTracker] Word mastered: ${entry.word}!`);
+    }
+
+    // Add welcome message if no messages exist
+    if (this.messages.length === 0) {
+      this.messages.push({
+        role: 'assistant',
+        content: `Hello! I'm ${this.character.firstName}. How can I help you today?`,
+        timestamp: new Date()
       });
     }
 
     // Build greeting dynamically based on all language fluencies
     const greeting = buildGreeting(this.character, truths, this.world?.targetLanguage);
 
-    this.messages = [{
-      role: 'assistant',
-      content: greeting,
-      timestamp: new Date()
-    }];
+    // Add greeting as first message if not already present
+    if (this.messages.length === 1 && this.messages[0].content.includes("How can I help you")) {
+      // Replace the generic welcome with the specific greeting
+      this.messages[0] = {
+        role: 'assistant',
+        content: greeting,
+        timestamp: new Date()
+      };
+    } else if (this.messages.length === 0) {
+      // Add greeting if no messages at all
+      this.messages.push({
+        role: 'assistant',
+        content: greeting,
+        timestamp: new Date()
+      });
+    }
+
+    // Set up language tracker if needed
+    if (this.languageTracker) {
+      this.languageTracker.setOnWordMastered((entry) => {
+        console.log(`[LanguageTracker] Word mastered: ${entry.word}!`);
+      });
+    }
 
     this.updateMessagesDisplay();
   }
 
   private createChatUI() {
-    // Main container
+    console.log('[ChatPanel] Creating chat UI...');
+    
+    // Main container - make it smaller and position at bottom right
     this.chatContainer = new Rectangle("chatContainer");
-    this.chatContainer.width = "600px";
-    this.chatContainer.height = "500px";
+    this.chatContainer.width = "400px";
+    this.chatContainer.height = "450px"; // Increased height to fit all elements
     this.chatContainer.background = "rgba(0, 0, 0, 0.95)";
     this.chatContainer.color = "white";
     this.chatContainer.thickness = 2;
     this.chatContainer.cornerRadius = 10;
-    this.chatContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    this.chatContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    this.chatContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    this.chatContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+    this.chatContainer.zIndex = 10000;
+    this.chatContainer.isVisible = true;
+    this.chatContainer.alpha = 1;
+    console.log('[ChatPanel] Chat container created with isVisible:', this.chatContainer.isVisible);
 
-    const mainStack = new StackPanel();
-    mainStack.width = "100%";
-    mainStack.height = "100%";
-    this.chatContainer.addControl(mainStack);
-
-    // Header
+    // Add to texture FIRST
+    this._advancedTexture.addControl(this.chatContainer);
+    console.log('[ChatPanel] Chat container added to texture');
+    
+    // Header with character name - positioned at top
     const header = new Rectangle("chatHeader");
     header.width = "100%";
-    header.height = "60px";
+    header.height = "40px";
     header.background = "rgba(30, 30, 30, 0.9)";
     header.thickness = 0;
-    mainStack.addControl(header);
-
-    const headerStack = new StackPanel();
-    headerStack.width = "100%";
-    headerStack.paddingTop = "10px";
-    header.addControl(headerStack);
-
-    const titleText = new TextBlock();
-    titleText.text = this.character ? `💬 ${this.character.firstName} ${this.character.lastName}` : "Chat";
-    titleText.color = "white";
-    titleText.fontSize = 20;
-    titleText.height = "30px";
-    titleText.fontWeight = "bold";
-    headerStack.addControl(titleText);
-
-    const subtitleText = new TextBlock();
-    subtitleText.text = "Press TAB to toggle voice mode";
-    subtitleText.color = "#888";
-    subtitleText.fontSize = 12;
-    subtitleText.height = "20px";
-    headerStack.addControl(subtitleText);
-
+    header.cornerRadius = 5;
+    header.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    header.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    header.top = "0px";
+    this.chatContainer.addControl(header);
+    console.log('[ChatPanel] Header added');
+    
+    // Character name text
+    this.titleText = new TextBlock();
+    this.titleText.text = this.character ? `${this.character.firstName} ${this.character.lastName}` : "Chat";
+    this.titleText.color = "white";
+    this.titleText.fontSize = 16;
+    this.titleText.fontWeight = "bold";
+    this.titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    this.titleText.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    this.titleText.name = "chatTitle"; // Give it a name to find it later
+    header.addControl(this.titleText);
+    console.log('[ChatPanel] Character name added');
+    
     // Close button
     const closeBtn = Button.CreateSimpleButton("closeChat", "✕");
-    closeBtn.width = "40px";
-    closeBtn.height = "40px";
+    closeBtn.width = "30px";
+    closeBtn.height = "30px";
     closeBtn.color = "white";
     closeBtn.background = "rgba(255, 50, 50, 0.8)";
     closeBtn.cornerRadius = 5;
-    closeBtn.fontSize = 20;
-    closeBtn.top = "10px";
-    closeBtn.left = "-10px";
+    closeBtn.fontSize = 14;
+    closeBtn.top = "5px";
+    closeBtn.left = "-5px";
     closeBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     closeBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     closeBtn.onPointerClickObservable.add(() => {
-      this.hide();
-      this.onClose?.();
+      console.log('[ChatPanel] Close button clicked');
+      this.hide(true);
     });
     header.addControl(closeBtn);
-
-    // Messages scroll area
-    const scrollViewer = new ScrollViewer("chatScroll");
-    scrollViewer.width = "100%";
-    scrollViewer.height = "240px";
-    scrollViewer.paddingTop = "10px";
-    scrollViewer.paddingBottom = "10px";
-    scrollViewer.background = "rgba(20, 20, 20, 0.5)";
-    mainStack.addControl(scrollViewer);
-
-    this.messagesPanel = new StackPanel("messagesPanel");
-    this.messagesPanel.width = "100%";
-    scrollViewer.addControl(this.messagesPanel);
-
-    // Actions container (for dialogue actions)
-    this.actionsContainer = new Container("actionsContainer");
-    this.actionsContainer.width = "100%";
-    this.actionsContainer.height = "100px";
-    this.actionsContainer.background = "transparent";
-    this.actionsContainer.paddingLeft = "10px";
-    this.actionsContainer.paddingRight = "10px";
-    mainStack.addControl(this.actionsContainer);
-
-    // Input area
-    const inputContainer = new Rectangle("inputContainer");
-    inputContainer.width = "100%";
-    inputContainer.height = "100px";
-    inputContainer.background = "rgba(30, 30, 30, 0.9)";
-    inputContainer.thickness = 0;
-    mainStack.addControl(inputContainer);
-
-    const inputStack = new StackPanel();
-    inputStack.isVertical = false;
-    inputStack.width = "100%";
-    inputStack.height = "100%";
-    inputStack.paddingLeft = "10px";
-    inputStack.paddingRight = "10px";
-    inputStack.paddingTop = "10px";
-    inputStack.paddingBottom = "10px";
-    inputContainer.addControl(inputStack);
-
-    // Text input
+    console.log('[ChatPanel] Close button added');
+    
+    // Messages area - simple rectangle for now
+    const messagesArea = new Rectangle("messagesArea");
+    messagesArea.width = "90%";
+    messagesArea.height = "200px";
+    messagesArea.background = "rgba(20, 20, 20, 0.5)";
+    messagesArea.thickness = 1;
+    messagesArea.color = "rgba(255, 255, 255, 0.3)";
+    messagesArea.top = "50px";
+    messagesArea.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    messagesArea.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    this.chatContainer.addControl(messagesArea);
+    console.log('[ChatPanel] Messages area added');
+    
+    // Store reference for updating messages
+    this.messagesDisplayArea = messagesArea;
+    
+    // Try to display messages directly
+    this.displayMessagesInArea(messagesArea);
+    
+    // Input area at the bottom
+    const inputArea = new Rectangle("inputArea");
+    inputArea.width = "90%";
+    inputArea.height = "40px";
+    inputArea.background = "rgba(30, 30, 30, 0.9)";
+    inputArea.thickness = 0;
+    inputArea.top = "250px"; // Position it below the messages area
+    inputArea.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    inputArea.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP; // Use TOP instead of BOTTOM
+    this.chatContainer.addControl(inputArea);
+    console.log('[ChatPanel] Input area added');
+    
+    // Input text field
     this.inputText = new InputText("chatInput");
-    this.inputText.width = "480px";
-    this.inputText.height = "80px";
+    this.inputText.width = "60%"; // Further reduced to make room for both buttons
+    this.inputText.height = "30px";
     this.inputText.color = "white";
-    this.inputText.background = "rgba(50, 50, 50, 0.8)";
-    this.inputText.placeholderText = "Type your message...";
-    this.inputText.placeholderColor = "#666";
-    this.inputText.fontSize = 14;
+    this.inputText.background = "rgba(60, 60, 60, 0.8)";
+    this.inputText.thickness = 1;
+    this.inputText.left = "5px";
+    this.inputText.text = "Type your message...";
+    this.inputText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.inputText.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
     this.inputText.paddingLeft = "10px";
-    this.inputText.paddingRight = "10px";
-    this.inputText.onTextChangedObservable.add(() => {
-      // Auto-resize not needed for Babylon GUI
+    
+    // Clear default text on focus
+    this.inputText.onFocusObservable.add(() => {
+      if (this.inputText && this.inputText.text === "Type your message...") {
+        this.inputText.text = "";
+      }
+      this._inputFocused = true;
     });
-    inputStack.addControl(this.inputText);
-
-    // Buttons container
-    const buttonsStack = new StackPanel();
-    buttonsStack.width = "100px";
-    buttonsStack.paddingLeft = "10px";
-    inputStack.addControl(buttonsStack);
-
-    // Mic button
-    const micBtn = Button.CreateSimpleButton("micBtn", "🎤");
-    micBtn.width = "100%";
-    micBtn.height = "35px";
-    micBtn.color = "white";
-    micBtn.background = this.isRecording ? "rgba(255, 50, 50, 0.8)" : "rgba(60, 60, 60, 0.8)";
-    micBtn.cornerRadius = 5;
-    micBtn.fontSize = 16;
-    micBtn.paddingBottom = "5px";
-    micBtn.onPointerClickObservable.add(() => {
+    
+    this.inputText.onBlurObservable.add(() => {
+      if (this.inputText && this.inputText.text === "") {
+        this.inputText.text = "Type your message...";
+      }
+      this._inputFocused = false;
+    });
+    
+    inputArea.addControl(this.inputText);
+    
+    // Microphone button
+    this.micButton = Button.CreateSimpleButton("micBtn", "🎤");
+    this.micButton.width = "30px";
+    this.micButton.height = "30px";
+    this.micButton.color = "white";
+    this.micButton.background = this.isRecording ? "rgba(255, 50, 50, 0.8)" : "rgba(60, 60, 60, 0.8)";
+    this.micButton.cornerRadius = 5;
+    this.micButton.fontSize = 16;
+    this.micButton.left = "61%"; // Position right after the input field
+    this.micButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.micButton.onPointerClickObservable.add(() => {
       if (this.isRecording) {
         this.stopRecording();
       } else {
         this.startRecording();
       }
     });
-    buttonsStack.addControl(micBtn);
-
+    inputArea.addControl(this.micButton);
+    console.log('[ChatPanel] Microphone button added');
+    
     // Send button
-    const sendBtn = Button.CreateSimpleButton("sendBtn", "📤 Send");
-    sendBtn.width = "100%";
-    sendBtn.height = "35px";
+    const sendBtn = Button.CreateSimpleButton("sendBtn", "Send");
+    sendBtn.width = "30%"; // Increased to fill remaining space
+    sendBtn.height = "30px";
     sendBtn.color = "white";
     sendBtn.background = "rgba(30, 150, 255, 0.8)";
     sendBtn.cornerRadius = 5;
     sendBtn.fontSize = 14;
-    sendBtn.paddingTop = "5px";
+    sendBtn.left = "-5px"; // Use negative left for right alignment
+    sendBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     sendBtn.onPointerClickObservable.add(() => {
       this.sendMessage();
     });
-    buttonsStack.addControl(sendBtn);
+    inputArea.addControl(sendBtn);
+    console.log('[ChatPanel] Send button added');
+    
+    // Add a simple Enter key handler
+    const handleEnter = (e: KeyboardEvent) => {
+      // Check if input is focused and Enter is pressed
+      if (e.key === "Enter" && this._inputFocused) {
+        this.sendMessage();
+      }
+    };
+    
+    // Store reference to remove later
+    this._enterKeyHandler = handleEnter;
+    window.addEventListener("keydown", handleEnter);
+    
+    // Create loading indicator (initially hidden)
+    this.loadingIndicator = new TextBlock("loadingIndicator");
+    this.loadingIndicator.text = "NPC is thinking...";
+    this.loadingIndicator.color = "#888";
+    this.loadingIndicator.fontSize = 12;
+    this.loadingIndicator.isVisible = false;
+    this.messagesDisplayArea.addControl(this.loadingIndicator);
+  }
+  
+  private displayMessagesInArea(messagesArea: Rectangle) {
+    // Clear existing messages
+    messagesArea.children.forEach(child => {
+      if (child.name && child.name.startsWith('msg-')) {
+        messagesArea.removeControl(child);
+      }
+    });
 
-    this.advancedTexture.addControl(this.chatContainer);
+    // Display last few messages to avoid overflow
+    const recentMessages = this.messages.slice(-5);
+    let yOffset = 10;
+
+    recentMessages.forEach((message, index) => {
+      const messageText = new TextBlock(`msg-${index}`);
+      messageText.text = message.content;
+      messageText.color = message.role === 'user' ? "#87CEEB" : "white";
+      messageText.fontSize = 14;
+      messageText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      messageText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+      messageText.textWrapping = TextWrapping.WordWrap;
+      messageText.top = yOffset + "px";
+      messageText.left = "10px";
+      messageText.width = "90%";
+      messagesArea.addControl(messageText);
+      
+      // Estimate height and update offset
+      yOffset += 25; // Approximate height per message
+    });
+    
+    // Position loading indicator at the bottom
+    if (this.loadingIndicator) {
+      this.loadingIndicator.top = yOffset + "px";
+      this.loadingIndicator.left = "10px";
+    }
+    
+    console.log('[ChatPanel] Displayed', this.messages.length, 'messages');
   }
 
   private updateMessagesDisplay() {
-    if (!this.messagesPanel) return;
-
-    this.messagesPanel.clearControls();
-
-    this.messages.forEach((message, index) => {
-      const messageContainer = new Rectangle(`msg-${index}`);
-      messageContainer.width = "95%";
-      messageContainer.height = "auto";
-      messageContainer.thickness = 0;
-      messageContainer.paddingTop = "5px";
-      messageContainer.paddingBottom = "5px";
-      messageContainer.horizontalAlignment = message.role === 'user'
-        ? Control.HORIZONTAL_ALIGNMENT_RIGHT
-        : Control.HORIZONTAL_ALIGNMENT_LEFT;
-
-      const messageBubble = new Rectangle(`bubble-${index}`);
-      messageBubble.width = "80%";
-      messageBubble.adaptHeightToChildren = true;
-      messageBubble.background = message.role === 'user' ? "rgba(30, 150, 255, 0.9)" : "rgba(60, 60, 60, 0.9)";
-      messageBubble.cornerRadius = 10;
-      messageBubble.thickness = 0;
-      messageBubble.paddingTop = "10px";
-      messageBubble.paddingBottom = "10px";
-      messageBubble.paddingLeft = "15px";
-      messageBubble.paddingRight = "15px";
-      messageBubble.horizontalAlignment = message.role === 'user'
-        ? Control.HORIZONTAL_ALIGNMENT_RIGHT
-        : Control.HORIZONTAL_ALIGNMENT_LEFT;
-      messageContainer.addControl(messageBubble);
-
-      const messageStack = new StackPanel();
-      messageStack.width = "100%";
-      messageBubble.addControl(messageStack);
-
-      const messageText = new TextBlock();
-      messageText.text = message.content;
-      messageText.color = "white";
-      messageText.fontSize = 14;
-      messageText.textWrapping = TextWrapping.WordWrap;
-      messageText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      messageText.resizeToFit = true;
-      messageStack.addControl(messageText);
-
-      const timeText = new TextBlock();
-      timeText.text = message.timestamp.toLocaleTimeString();
-      timeText.color = "rgba(255, 255, 255, 0.6)";
-      timeText.fontSize = 10;
-      timeText.height = "15px";
-      timeText.textHorizontalAlignment = message.role === 'user'
-        ? Control.HORIZONTAL_ALIGNMENT_RIGHT
-        : Control.HORIZONTAL_ALIGNMENT_LEFT;
-      timeText.paddingTop = "5px";
-      messageStack.addControl(timeText);
-
-      this.messagesPanel!.addControl(messageContainer);
-    });
-
-    // Scroll to bottom (not directly possible in Babylon GUI, but we add new messages at bottom)
+    // Use our simplified display method
+    if (this.messagesDisplayArea) {
+      this.displayMessagesInArea(this.messagesDisplayArea);
+    }
   }
 
   private async sendMessage() {
@@ -460,7 +546,7 @@ export class BabylonChatPanel {
     const userMessage = this.inputText.text.trim();
     if (!userMessage) return;
 
-    this.inputText.text = "";
+    this.inputText.text = "Type your message...";
     this.isProcessing = true;
 
     // Add user message
@@ -470,13 +556,18 @@ export class BabylonChatPanel {
       timestamp: new Date()
     });
     this.updateMessagesDisplay();
+    
+    // Show loading indicator
+    if (this.loadingIndicator) {
+      this.loadingIndicator.isVisible = true;
+    }
 
     try {
       // Send to Gemini API
       const aiResponse = await this.sendToGemini(userMessage);
 
       // Parse and create quest if present in response
-      let cleanedResponse = await this.parseAndCreateQuest(aiResponse);
+      let cleanedResponse = await this.parseAndCreateQuest(aiResponse.text);
 
       // Parse grammar feedback for language-learning games only
       const isLanguageLearning = this.world?.gameType === 'language-learning' ||
@@ -536,7 +627,132 @@ export class BabylonChatPanel {
     }
   }
 
-  private async sendToGemini(userMessage: string): Promise<string> {
+  private async streamAudioResponse(audioBlob: Blob, responseText: TextBlock): Promise<void> {
+    if (!this.character) throw new Error('No character selected');
+
+    // Convert blob to base64
+    const fileReader = new FileReader();
+    await new Promise((resolve, reject) => {
+      fileReader.onload = resolve;
+      fileReader.onerror = reject;
+      fileReader.readAsDataURL(audioBlob);
+    });
+    const base64Audio = fileReader.result as string;
+    
+    const systemPrompt = this.buildSystemPrompt();
+    const conversationHistory = this.messages.map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.content }]
+    }));
+
+    const response = await fetch('/api/gemini/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemPrompt,
+        messages: conversationHistory,
+        audioInput: base64Audio,
+        temperature: 0.8,
+        maxTokens: 2048,
+        returnAudio: true,
+        voice: this.character?.gender === 'female' ? 'Kore' : 'Charon',
+        stream: true // Enable streaming
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to get response from AI');
+    }
+
+    const streamReader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let fullText = "";
+    let audioBuffer = "";
+
+    while (true) {
+      const { done, value } = await streamReader!.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n');
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data === '[DONE]') continue;
+
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.text) {
+              fullText += parsed.text;
+              responseText.text = fullText;
+              // Force GUI update
+              this._advancedTexture.markAsDirty();
+            }
+            if (parsed.audio) {
+              audioBuffer += parsed.audio;
+            }
+          } catch (e) {
+            // Skip invalid JSON
+          }
+        }
+      }
+    }
+
+    // Play accumulated audio if available
+    if (audioBuffer) {
+      const audioBytes = Uint8Array.from(atob(audioBuffer), c => c.charCodeAt(0));
+      const audioBlob = new Blob([audioBytes], { type: 'audio/mp3' });
+      await this.playAudio(audioBlob);
+    }
+  }
+
+  private async sendAudioToGemini(audioBlob: Blob): Promise<{text: string, audio?: string, userTranscript?: string}> {
+    if (!this.character) throw new Error('No character selected');
+
+    // Convert blob to base64
+    const fileReader2 = new FileReader();
+    await new Promise((resolve, reject) => {
+      fileReader2.onload = resolve;
+      fileReader2.onerror = reject;
+      fileReader2.readAsDataURL(audioBlob);
+    });
+    const base64Audio = fileReader2.result as string;
+    
+    const systemPrompt = this.buildSystemPrompt();
+    const conversationHistory = this.messages.map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.content }]
+    }));
+
+    const response = await fetch('/api/gemini/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemPrompt,
+        messages: conversationHistory,
+        audioInput: base64Audio, // Send audio directly
+        temperature: 0.8,
+        maxTokens: 2048,
+        returnAudio: true, // Request audio in the response
+        voice: this.character?.gender === 'female' ? 'Kore' : 'Charon',
+        stream: false // Set to true for streaming responses
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to get response from AI');
+    }
+
+    const data = await response.json();
+    return {
+      text: data.response,
+      audio: data.audio, // Base64 encoded audio
+      userTranscript: data.userTranscript // Transcript of user's audio
+    };
+  }
+
+  private async sendToGemini(userMessage: string): Promise<{text: string, audio?: string}> {
     if (!this.character) throw new Error('No character selected');
 
     const systemPrompt = this.buildSystemPrompt();
@@ -557,7 +773,9 @@ export class BabylonChatPanel {
         systemPrompt,
         messages: conversationHistory,
         temperature: 0.8,
-        maxTokens: 2048
+        maxTokens: 2048,
+        returnAudio: true, // Request audio in the response
+        voice: this.character?.gender === 'female' ? 'Kore' : 'Charon'
       })
     });
 
@@ -566,7 +784,10 @@ export class BabylonChatPanel {
     }
 
     const data = await response.json();
-    return data.response;
+    return {
+      text: data.response,
+      audio: data.audio // Base64 encoded audio
+    };
   }
 
   private buildSystemPrompt(): string {
@@ -681,14 +902,115 @@ export class BabylonChatPanel {
         stream.getTracks().forEach(track => track.stop());
 
         this.isProcessing = true;
+        
+        // Update input text to show processing
+        if (this.inputText) {
+          this.inputText.text = "🔄 Transcribing audio...";
+          this.inputText.color = "#ffd93d";
+        }
+        
+        // Show thinking indicator
+        if (this.loadingIndicator) {
+          this.loadingIndicator.isVisible = true;
+        }
+        
         try {
-          const transcript = await this.speechToText(audioBlob);
-          if (this.inputText) {
-            this.inputText.text = transcript;
+          // First try to send audio directly to Gemini
+          let response: { text: string; audio?: string; userTranscript?: string };
+          let userTranscript: string;
+          
+          try {
+            // Get transcript first so we can show it immediately
+            userTranscript = await this.speechToText(audioBlob);
+            
+            // Show user message right away
+            this.messages.push({
+              role: 'user',
+              content: userTranscript,
+              timestamp: new Date()
+            });
+            this.updateMessagesDisplay();
+            
+            // Update input to show thinking status
+            if (this.inputText) {
+              this.inputText.text = "NPC is thinking...";
+              this.inputText.color = "#ffd93d";
+            }
+            
+            // Now send to Gemini
+            const textResponse = await this.sendToGemini(userTranscript);
+            response = {
+              ...textResponse,
+              userTranscript: userTranscript
+            };
+          } catch (e) {
+            console.log('Direct audio API failed, falling back to speech-to-text');
+            // Fallback to speech-to-text then text chat
+            userTranscript = await this.speechToText(audioBlob);
+            
+            // Show user message right away
+            this.messages.push({
+              role: 'user',
+              content: userTranscript,
+              timestamp: new Date()
+            });
+            this.updateMessagesDisplay();
+            
+            // Update input to show thinking status
+            if (this.inputText) {
+              this.inputText.text = "NPC is thinking...";
+              this.inputText.color = "#ffd93d";
+            }
+            
+            const textResponse = await this.sendToGemini(userTranscript);
+            response = {
+              ...textResponse,
+              userTranscript: userTranscript
+            };
           }
-          await this.sendMessage();
+          
+          // Add AI response
+          this.messages.push({
+            role: 'assistant',
+            content: response.text,
+            timestamp: new Date()
+          });
+          this.updateMessagesDisplay();
+          
+          // Play audio if available
+          if (response.audio) {
+            const audioBytes = Uint8Array.from(atob(response.audio), c => c.charCodeAt(0));
+            const audioBlob = new Blob([audioBytes], { type: 'audio/mp3' });
+            await this.playAudio(audioBlob);
+          } else {
+            // Fallback to TTS
+            await this.textToSpeech(response.text);
+          }
+          
+          // Hide thinking indicator
+          if (this.loadingIndicator) {
+            this.loadingIndicator.isVisible = false;
+          }
+          
+          // Reset input
+          if (this.inputText) {
+            this.inputText.text = "Type your message...";
+            this.inputText.color = "white";
+          }
+          
         } catch (error) {
-          console.error('Speech to text error:', error);
+          console.error('Audio processing error:', error);
+          
+          // Hide thinking indicator on error
+          if (this.loadingIndicator) {
+            this.loadingIndicator.isVisible = false;
+          }
+          
+          // Reset input on error
+          if (this.inputText) {
+            this.inputText.text = "Type your message...";
+            this.inputText.color = "white";
+          }
         } finally {
           this.isProcessing = false;
         }
@@ -696,6 +1018,18 @@ export class BabylonChatPanel {
 
       this.mediaRecorder.start();
       this.isRecording = true;
+      
+      // Update mic button appearance
+      if (this.micButton) {
+        this.micButton.background = "rgba(255, 50, 50, 0.8)";
+        this.micButton.color = "white";
+      }
+      
+      // Update input text to show recording
+      if (this.inputText) {
+        this.inputText.text = "🎤 Recording...";
+        this.inputText.color = "#ff6b6b";
+      }
     } catch (error) {
       console.error('Microphone error:', error);
     }
@@ -705,6 +1039,12 @@ export class BabylonChatPanel {
     if (this.mediaRecorder && this.isRecording) {
       this.mediaRecorder.stop();
       this.isRecording = false;
+      
+      // Update mic button appearance
+      if (this.micButton) {
+        this.micButton.background = "rgba(60, 60, 60, 0.8)";
+        this.micButton.color = "white";
+      }
     }
   }
 
@@ -936,11 +1276,11 @@ export class BabylonChatPanel {
     closeBtn.fontSize = 14;
     closeBtn.paddingTop = '10px';
     closeBtn.onPointerClickObservable.add(() => {
-      this.advancedTexture.removeControl(dialog);
+      this._advancedTexture.removeControl(dialog);
     });
     mainStack.addControl(closeBtn);
 
-    this.advancedTexture.addControl(dialog);
+    this._advancedTexture.addControl(dialog);
   }
 
   /**
@@ -962,7 +1302,7 @@ export class BabylonChatPanel {
         this.showQuestCompletionCelebration(quest);
         
         // Remove dialog
-        this.advancedTexture.removeControl(dialog);
+        this._advancedTexture.removeControl(dialog);
         
         // Notify callback
         if (this.onQuestTurnedIn) {
@@ -1023,11 +1363,11 @@ export class BabylonChatPanel {
     rewardText.height = '25px';
     stack.addControl(rewardText);
 
-    this.advancedTexture.addControl(celebration);
+    this._advancedTexture.addControl(celebration);
 
     // Auto-remove after 2.5 seconds
     setTimeout(() => {
-      this.advancedTexture.removeControl(celebration);
+      this._advancedTexture.removeControl(celebration);
     }, 2500);
   }
 
@@ -1144,11 +1484,11 @@ export class BabylonChatPanel {
     questText.textWrapping = TextWrapping.Ellipsis;
     notifStack.addControl(questText);
 
-    this.advancedTexture.addControl(notification);
+    this._advancedTexture.addControl(notification);
 
     // Auto-remove after 3 seconds
     setTimeout(() => {
-      this.advancedTexture.removeControl(notification);
+      this._advancedTexture.removeControl(notification);
     }, 3000);
   }
 
@@ -1196,7 +1536,9 @@ export class BabylonChatPanel {
       this.talkingIndicator = null;
     }
     if (this.chatContainer) {
-      this.advancedTexture.removeControl(this.chatContainer);
+      this._advancedTexture.removeControl(this.chatContainer);
     }
+    // Remove resize listener
+    window.removeEventListener('resize', this.handleResize);
   }
 }

@@ -11,7 +11,7 @@ import { generateCppFiles } from './unreal-cpp-generator';
 import { generateDataTableFiles } from './unreal-datatable-generator';
 import { generateLevelFiles } from './unreal-level-generator';
 import { generateWorldIR } from '../ir-generator';
-import { bundleCoreAssets, generateAssetManifestJson, type BundledAsset } from '../asset-bundler';
+import { bundleCoreAssets, bundleAssetsFromCollection, generateAssetManifestJson, type BundledAsset } from '../asset-bundler';
 import type { WorldIR } from '@shared/game-engine/ir-types';
 import { createRequire } from 'node:module';
 import { readFileSync, existsSync } from 'node:fs';
@@ -103,23 +103,39 @@ async function packageAsZip(
  * 3. Bundles Base Collection assets
  * 4. Packages everything into a ZIP buffer
  */
-export async function exportUnrealProject(worldId: string): Promise<UnrealExportResult> {
+export async function exportUnrealProject(worldId: string): Promise<{
+  files: GeneratedFile[];
+  assetBundle: { assets: BundledAsset[]; manifest: string; totalSize: number };
+}> {
+  console.log('[Export] Starting Unreal export for world:', worldId);
   const startTime = Date.now();
 
-  // 1. Generate IR with Unreal-specific asset resolution
-  const ir = await generateWorldIR(worldId, 'unreal');
+  // 1. Generate the World IR
+  const ir = await generateWorldIR(worldId);
+  
+  // 2. Get the world's selected asset collection
+  const { storage } = await import(/* webpackIgnore: true */ new URL('../../../db/storage.js', import.meta.url).href as any);
+  const world = await storage.getWorld(worldId);
+  const selectedCollectionId = (world as any)?.selectedAssetCollectionId;
 
-  // 2. Run all generators
+  // 3. Run all generators
   const allFiles = generateUnrealFilesFromIR(ir);
 
-  // 3. Bundle core assets
-  const assetBundle = await bundleCoreAssets();
+  // 4. Bundle assets from the world's selected collection
+  let assetBundle;
+  if (selectedCollectionId) {
+    console.log(`[Export] Using asset collection: ${selectedCollectionId}`);
+    assetBundle = await bundleAssetsFromCollection(selectedCollectionId);
+  } else {
+    console.log('[Export] No asset collection selected, using core assets');
+    assetBundle = await bundleCoreAssets();
+  }
+  
   allFiles.push({
     path: 'Content/Data/asset-manifest.json',
     content: generateAssetManifestJson(assetBundle.manifest),
   });
 
-  // 3b. Level creation is handled by the CreateLevelCommandlet after build.
   // Do NOT bundle template .umap files — they have wrong internal package names.
 
   // 4. Package
@@ -138,16 +154,11 @@ export async function exportUnrealProject(worldId: string): Promise<UnrealExport
   const elapsed = Date.now() - startTime;
 
   return {
-    projectName,
     files: allFiles,
-    zipBuffer,
-    stats: {
-      totalFiles: allFiles.length + assetBundle.fileCount,
-      cppFiles: countByExtension(allFiles, '.h', '.cpp'),
-      dataFiles: countByExtension(allFiles, '.json'),
-      configFiles: countByExtension(allFiles, '.ini', '.cs', '.uproject', '.md'),
-      totalSizeBytes,
-      generationTimeMs: elapsed,
+    assetBundle: {
+      assets: assetBundle.assets,
+      manifest: generateAssetManifestJson(assetBundle.manifest),
+      totalSize: assetBundle.totalSizeBytes,
     },
   };
 }

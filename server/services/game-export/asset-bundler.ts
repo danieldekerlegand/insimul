@@ -62,13 +62,11 @@ interface AssetDef {
 }
 
 const CORE_CHARACTERS: AssetDef[] = [
-  { sourcePath: 'characters/generic/player_default.glb', exportPath: 'assets/characters/player_default.glb', category: 'character', role: 'player_default' },
-  { sourcePath: 'characters/generic/player_male.glb', exportPath: 'assets/characters/player_male.glb', category: 'character', role: 'player_male' },
-  { sourcePath: 'characters/generic/player_female.glb', exportPath: 'assets/characters/player_female.glb', category: 'character', role: 'player_female' },
-  { sourcePath: 'characters/generic/npc_guard.glb', exportPath: 'assets/characters/npc_guard.glb', category: 'character', role: 'npc_guard' },
-  { sourcePath: 'characters/generic/npc_merchant.glb', exportPath: 'assets/characters/npc_merchant.glb', category: 'character', role: 'npc_merchant' },
-  { sourcePath: 'characters/generic/npc_civilian_male.glb', exportPath: 'assets/characters/npc_civilian_male.glb', category: 'character', role: 'npc_civilian_male' },
-  { sourcePath: 'characters/generic/npc_civilian_female.glb', exportPath: 'assets/characters/npc_civilian_female.glb', category: 'character', role: 'npc_civilian_female' },
+  // Same models used by the in-app BabylonGame: hardcoded fallback paths must match
+  // PLAYER_MODEL_URL and NPC_MODEL_URL constants in BabylonGame.ts
+  { sourcePath: 'player/Vincent-frontFacing.babylon', exportPath: 'assets/player/Vincent-frontFacing.babylon', category: 'character', role: 'player_default' },
+  { sourcePath: 'player/Vincent_texture_image.jpg', exportPath: 'assets/player/Vincent_texture_image.jpg', category: 'character', role: 'player_texture' },
+  { sourcePath: 'npc/starterAvatars.babylon', exportPath: 'assets/npc/starterAvatars.babylon', category: 'character', role: 'npc_default' },
 ];
 
 const CORE_GROUND: AssetDef[] = [
@@ -120,6 +118,16 @@ function getKayKitBuildings(): AssetDef[] {
       role: `${b.role}_bin`,
     });
   }
+
+  // All KayKit building GTLFs reference this shared texture by relative URI —
+  // it must be in the same directory as the .gltf files.
+  defs.push({
+    sourcePath: 'kaykit/models/medieval-buildings/hexagons_medieval.png',
+    exportPath: 'assets/buildings/hexagons_medieval.png',
+    category: 'building',
+    role: 'building_texture',
+  });
+
   return defs;
 }
 
@@ -128,24 +136,230 @@ function getKayKitBuildings(): AssetDef[] {
 // ─────────────────────────────────────────────
 
 function getAssetsBasePath(): string {
-  // Walk up from this file to the project root
-  // This file: server/services/game-export/asset-bundler.ts
-  // Project root: ../../../../
+  // Use the known absolute path to the assets directory
+  // In development, this is relative to the project root
+  // In production, this might need to be configured differently
   const thisDir = path.dirname(new URL(import.meta.url).pathname);
-  const projectRoot = path.resolve(thisDir, '..', '..', '..');
-  return path.join(projectRoot, 'client', 'public', 'assets');
+  let projectRoot: string;
+  
+  // Check if we're in development (file:// URL) or production
+  if (process.env.NODE_ENV === 'production') {
+    // In production, use the environment variable or default path
+    projectRoot = process.env.INSIMUL_ROOT || path.resolve(thisDir, '..', '..', '..');
+  } else {
+    // In development, walk up from this file
+    // This file: server/services/game-export/asset-bundler.ts
+    // Project root: ../../../../
+    projectRoot = path.resolve(thisDir, '..', '..', '..');
+  }
+  
+  const assetsPath = path.join(projectRoot, 'client', 'public', 'assets');
+  console.log(`[AssetBundler] Using assets path: ${assetsPath}`);
+  console.log(`[AssetBundler] Project root: ${projectRoot}`);
+  console.log(`[AssetBundler] This dir: ${thisDir}`);
+  
+  return assetsPath;
 }
 
 // ─────────────────────────────────────────────
 // Bundle core assets
 // ─────────────────────────────────────────────
 
+// ─────────────────────────────────────────────
+// Bundle assets from a specific collection
+// ─────────────────────────────────────────────
+
 /**
- * Bundle all core (Base Collection) assets from disk.
+ * Bundle assets from a specific asset collection.
+ *
+ * Uses the collection's model maps (buildingModels, characterModels, etc.)
+ * to resolve role → asset record → file on disk. Preserves directory
+ * structure so GLTF relative references (companion .bin + textures/) work.
+ *
  * Returns binary buffers ready to be added to a ZIP archive.
  */
+export async function bundleAssetsFromCollection(collectionId: string): Promise<BundleResult> {
+  const { storage } = await import(/* webpackIgnore: true */ new URL('../../db/storage.js', import.meta.url).href as any);
+
+  const collection = await storage.getAssetCollection(collectionId);
+  if (!collection) {
+    throw new Error(`Asset collection not found: ${collectionId}`);
+  }
+
+  // ── Build role → { assetId, category } lookup from all model maps ──
+  type RoleEntry = { role: string; assetId: string; category: BundledAsset['category'] };
+  const roleEntries: RoleEntry[] = [];
+
+  function addFromMap(map: Record<string, string> | null | undefined, category: BundledAsset['category']) {
+    if (!map) return;
+    for (const [role, assetId] of Object.entries(map)) {
+      if (assetId) roleEntries.push({ role, assetId, category });
+    }
+  }
+
+  addFromMap(collection.buildingModels as Record<string, string>, 'building');
+  addFromMap(collection.natureModels as Record<string, string>, 'nature' as any);
+  addFromMap((collection as any).objectModels as Record<string, string>, 'prop');
+  addFromMap(collection.characterModels as Record<string, string>, 'character');
+  addFromMap((collection as any).playerModels as Record<string, string>, 'character');
+  addFromMap((collection as any).questObjectModels as Record<string, string>, 'quest_object');
+  addFromMap((collection as any).audioAssets as Record<string, string>, 'audio');
+
+  // Named texture IDs get bundled under the 'ground' category with well-known roles
+  const namedTextureEntries: Array<{ role: string; assetId: string }> = [];
+  if (collection.groundTextureId) namedTextureEntries.push({ role: 'ground_diffuse', assetId: collection.groundTextureId });
+  if (collection.roadTextureId)   namedTextureEntries.push({ role: 'ground_road',    assetId: collection.roadTextureId });
+  if (collection.wallTextureId)   namedTextureEntries.push({ role: 'building_texture', assetId: collection.wallTextureId });
+  if (collection.roofTextureId)   namedTextureEntries.push({ role: 'roof_texture',   assetId: collection.roofTextureId });
+
+  if (roleEntries.length === 0 && namedTextureEntries.length === 0) {
+    console.warn(`[AssetBundler] Collection "${collection.name}" has no model map entries, falling back to core assets`);
+    return bundleCoreAssets();
+  }
+
+  // ── Fetch all referenced VisualAsset records ──
+  const allAssetIds = new Set<string>([
+    ...roleEntries.map(e => e.assetId),
+    ...namedTextureEntries.map(e => e.assetId),
+  ]);
+  const assetRecords: any[] = await storage.getVisualAssetsByIds(Array.from(allAssetIds));
+  const assetById = new Map<string, any>(assetRecords.map((a: any) => [a.id, a]));
+
+  const basePath = getAssetsBasePath();
+  const bundledAssets: BundledAsset[] = [];
+  const manifest: AssetManifestEntry[] = [];
+  let totalSizeBytes = 0;
+
+  // Track which source paths have already been bundled to avoid duplicates
+  const bundledSourcePaths = new Set<string>();
+
+  /**
+   * Bundle a single file and add it to the archive.
+   * Returns the added buffer length, or 0 if skipped.
+   */
+  function bundleFile(
+    sourcePath: string,
+    exportPath: string,
+    category: BundledAsset['category'],
+    role: string,
+    addToManifest = true
+  ): number {
+    if (bundledSourcePaths.has(sourcePath)) return 0;
+    const fullPath = path.join(basePath, sourcePath);
+    if (!fs.existsSync(fullPath)) {
+      console.warn(`[AssetBundler] Missing: ${sourcePath}`);
+      return 0;
+    }
+    const buffer = fs.readFileSync(fullPath);
+    bundledAssets.push({ exportPath, buffer, category, role });
+    if (addToManifest) {
+      manifest.push({ exportPath, category, role, fileSize: buffer.length });
+    }
+    totalSizeBytes += buffer.length;
+    bundledSourcePaths.add(sourcePath);
+    return buffer.length;
+  }
+
+  /**
+   * For GLTF files, also bundle the companion .bin and entire textures/ directory.
+   * The export preserves the source directory structure so relative paths work.
+   */
+  function bundleGltfDirectory(gltfSourcePath: string, gltfExportPath: string, category: BundledAsset['category'], role: string) {
+    const sourceDir = path.dirname(gltfSourcePath);
+    const exportDir = path.dirname(gltfExportPath);
+
+    // Companion .bin (same base name)
+    const binSource = gltfSourcePath.replace(/\.gltf$/i, '.bin');
+    const binExport = gltfExportPath.replace(/\.gltf$/i, '.bin');
+    bundleFile(binSource, binExport, category, `${role}_bin`, false);
+
+    // textures/ subdirectory
+    const texturesSourceDir = path.join(path.dirname(path.join(basePath, gltfSourcePath)), 'textures');
+    if (fs.existsSync(texturesSourceDir)) {
+      for (const texFile of fs.readdirSync(texturesSourceDir)) {
+        const texSource = `${sourceDir}/textures/${texFile}`;
+        const texExport = `${exportDir}/textures/${texFile}`;
+        bundleFile(texSource, texExport, category, `${role}_tex_${texFile}`, false);
+      }
+    }
+  }
+
+  // ── Process model map entries ──
+  for (const { role, assetId, category } of roleEntries) {
+    const asset = assetById.get(assetId);
+    if (!asset?.filePath) {
+      console.warn(`[AssetBundler] Asset ${assetId} (role: ${role}) not found or has no filePath`);
+      continue;
+    }
+
+    const dbFilePath = asset.filePath as string;
+    // DB filePath already includes 'assets/' prefix (e.g. 'assets/sketchfab/models/.../scene.gltf')
+    // but basePath already points to client/public/assets/ — strip prefix for disk reads.
+    const sourcePath = dbFilePath.replace(/^assets\//, '');
+    const ext = sourcePath.split('.').pop()?.toLowerCase() || '';
+    // Export path keeps the original format so the in-game fetch resolves correctly.
+    const exportPath = dbFilePath.startsWith('assets/') ? dbFilePath : `assets/${dbFilePath}`;
+
+    const added = bundleFile(sourcePath, exportPath, category, role);
+    if (added > 0 && ext === 'gltf') {
+      bundleGltfDirectory(sourcePath, exportPath, category, role);
+    }
+  }
+
+  // ── Process named texture entries ──
+  for (const { role, assetId } of namedTextureEntries) {
+    const asset = assetById.get(assetId);
+    if (!asset?.filePath) continue;
+
+    const dbFilePath = asset.filePath as string;
+    const sourcePath = dbFilePath.replace(/^assets\//, '');
+    const exportPath = dbFilePath.startsWith('assets/') ? dbFilePath : `assets/${dbFilePath}`;
+    bundleFile(sourcePath, exportPath, 'ground', role);
+  }
+
+  console.log(`[AssetBundler] Bundled ${bundledAssets.length} files from collection "${collection.name}" (${roleEntries.length} roles)`);
+
+  if (bundledAssets.length === 0) {
+    console.warn('[AssetBundler] No assets bundled from collection, falling back to core assets');
+    return bundleCoreAssets();
+  }
+
+  // ── Always supplement with core ground + conditionally supplement characters/audio/quests ──
+  // CORE_GROUND must always be included: createGround() hardcodes /assets/ground/ground_heightMap.png
+  // for terrain generation regardless of the collection's ground texture override.
+  const hasCharacters = bundledAssets.some(a => a.category === 'character');
+  const hasQuestObjects = bundledAssets.some(a => a.category === 'quest_object');
+  const hasAudio = bundledAssets.some(a => a.category === 'audio');
+
+  const coreSupplements: AssetDef[] = [
+    ...CORE_GROUND,
+    ...(!hasCharacters ? CORE_CHARACTERS : []),
+    ...(!hasQuestObjects ? CORE_QUEST_OBJECTS : []),
+    ...(!hasAudio ? CORE_AUDIO : []),
+  ];
+  for (const def of coreSupplements) {
+    const fullPath = path.join(basePath, def.sourcePath);
+    if (!fs.existsSync(fullPath)) continue;
+    if (bundledSourcePaths.has(def.sourcePath)) continue;
+    const buffer = fs.readFileSync(fullPath);
+    bundledAssets.push({ exportPath: def.exportPath, buffer, category: def.category, role: def.role });
+    manifest.push({ exportPath: def.exportPath, category: def.category, role: def.role, fileSize: buffer.length });
+    totalSizeBytes += buffer.length;
+    bundledSourcePaths.add(def.sourcePath);
+  }
+  console.log(`[AssetBundler] Supplemented with core ground + (chars=${!hasCharacters}, quests=${!hasQuestObjects}, audio=${!hasAudio})`);
+
+  return { assets: bundledAssets, manifest, totalSizeBytes, fileCount: bundledAssets.length };
+}
+
+// ─────────────────────────────────────────────
+// Bundle all core (Base Collection) assets from disk.
+// Returns binary buffers ready to be added to a ZIP archive.
+// ─────────────────────────────────────────────
 export async function bundleCoreAssets(): Promise<BundleResult> {
   const basePath = getAssetsBasePath();
+  console.log(`[AssetBundler] bundleCoreAssets: basePath=${basePath}`);
+  
   const allDefs: AssetDef[] = [
     ...CORE_CHARACTERS,
     ...CORE_GROUND,
@@ -153,6 +367,8 @@ export async function bundleCoreAssets(): Promise<BundleResult> {
     ...CORE_AUDIO,
     ...getKayKitBuildings(),
   ];
+  
+  console.log(`[AssetBundler] bundleCoreAssets: processing ${allDefs.length} asset definitions`);
 
   const assets: BundledAsset[] = [];
   const manifest: AssetManifestEntry[] = [];
@@ -160,9 +376,10 @@ export async function bundleCoreAssets(): Promise<BundleResult> {
 
   for (const def of allDefs) {
     const fullPath = path.join(basePath, def.sourcePath);
+    console.log(`[AssetBundler] Checking: ${fullPath}`);
     try {
       if (!fs.existsSync(fullPath)) {
-        console.warn(`[AssetBundler] Skipping missing file: ${def.sourcePath}`);
+        console.warn(`[AssetBundler] Skipping missing file: ${def.sourcePath} (full path: ${fullPath})`);
         continue;
       }
 
@@ -180,6 +397,7 @@ export async function bundleCoreAssets(): Promise<BundleResult> {
         fileSize: buffer.length,
       });
       totalSizeBytes += buffer.length;
+      console.log(`[AssetBundler] Bundled: ${def.sourcePath} (${buffer.length} bytes)`);
     } catch (err) {
       console.warn(`[AssetBundler] Failed to read ${def.sourcePath}:`, (err as Error).message);
     }

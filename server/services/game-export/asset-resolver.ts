@@ -9,6 +9,7 @@
  */
 
 import { storage } from '../../db/storage';
+import type { World } from '@shared/schema';
 import type { AssetReferenceIR } from '@shared/game-engine/ir-types';
 import {
   type TargetEngine,
@@ -136,16 +137,18 @@ function categoryToAssetType(category: string): string {
  */
 export async function buildWorldAssetManifest(
   worldId: string,
-  engine: TargetEngine
+  engine: TargetEngine,
+  world?: World | null
 ): Promise<{ manifest: AssetManifest; snapshot: AssetCollectionSnapshot | null }> {
-  const world = await storage.getWorld(worldId);
-  if (!world) {
+  // Use provided world or fetch if not available
+  const worldData = world || await storage.getWorld(worldId);
+  if (!worldData) {
     throw new Error(`World ${worldId} not found`);
   }
 
   let snapshot: AssetCollectionSnapshot | null = null;
-  if (world.selectedAssetCollectionId) {
-    snapshot = await loadCollectionSnapshot(world.selectedAssetCollectionId);
+  if (worldData.selectedAssetCollectionId) {
+    snapshot = await loadCollectionSnapshot(worldData.selectedAssetCollectionId);
   }
 
   const manifest = buildAssetManifest(engine, snapshot);

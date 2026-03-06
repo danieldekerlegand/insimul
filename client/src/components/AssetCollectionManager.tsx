@@ -30,6 +30,7 @@ const WORLD_TYPES = [
   { value: "high-fantasy", label: "High Fantasy" },
   { value: "low-fantasy", label: "Low Fantasy" },
   { value: "dark-fantasy", label: "Dark Fantasy" },
+  { value: "urban-fantasy", label: "Urban Fantasy" },
   { value: "cyberpunk", label: "Cyberpunk" },
   { value: "sci-fi-space", label: "Sci-Fi Space" },
   { value: "post-apocalyptic", label: "Post-Apocalyptic" },
@@ -41,7 +42,10 @@ const WORLD_TYPES = [
   { value: "historical-renaissance", label: "Historical Renaissance" },
   { value: "historical-victorian", label: "Historical Victorian" },
   { value: "wild-west", label: "Wild West" },
-  { value: "modern", label: "Modern" },
+  { value: "modern-realistic", label: "Modern Realistic" },
+  { value: "superhero", label: "Superhero" },
+  { value: "horror", label: "Horror" },
+  { value: "mythological", label: "Mythological" },
   { value: "generic", label: "Generic" },
 ];
 

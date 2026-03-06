@@ -9,6 +9,7 @@ import { Download, Package, CheckCircle2, AlertCircle, Loader2, FileText, Code2,
 import { useToast } from '@/hooks/use-toast';
 
 type EngineType = 'babylon' | 'unreal' | 'unity' | 'godot';
+type BabylonMode = 'web' | 'electron';
 
 interface ExportStep {
   label: string;
@@ -89,6 +90,7 @@ interface EngineExportDialogProps {
 
 export function EngineExportDialog({ open, onOpenChange, worldId, worldName }: EngineExportDialogProps) {
   const [selectedEngine, setSelectedEngine] = useState<EngineType>('unreal');
+  const [babylonMode, setBabylonMode] = useState<BabylonMode>('web');
   const [isExporting, setIsExporting] = useState(false);
   const [steps, setSteps] = useState<ExportStep[]>([]);
   const [progress, setProgress] = useState(0);
@@ -105,6 +107,17 @@ export function EngineExportDialog({ open, onOpenChange, worldId, worldName }: E
     setError(null);
     setIsDone(false);
   }, []);
+
+  // Reset Babylon mode when switching engines
+  const handleEngineChange = useCallback((engine: EngineType) => {
+    if (!isExporting) {
+      reset();
+      setSelectedEngine(engine);
+      if (engine !== 'babylon') {
+        setBabylonMode('web');
+      }
+    }
+  }, [isExporting, reset]);
 
   const advanceSteps = useCallback((stepsState: ExportStep[], toIndex: number) => {
     return stepsState.map((s, i) => {
@@ -136,10 +149,15 @@ export function EngineExportDialog({ open, onOpenChange, worldId, worldName }: E
     }, 800);
 
     try {
+      const body: any = { format: 'zip' };
+      if (selectedEngine === 'babylon') {
+        body.mode = babylonMode;
+      }
+      
       const response = await fetch(`/api/worlds/${worldId}/export/${selectedEngine}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ format: 'zip' }),
+        body: JSON.stringify(body),
       });
 
       clearInterval(stepInterval);
@@ -155,7 +173,8 @@ export function EngineExportDialog({ open, onOpenChange, worldId, worldName }: E
 
       // Read response as blob regardless of content-type
       const blob = await response.blob();
-      const filename = `InsimulExport_${worldName.replace(/[^a-zA-Z0-9]/g, '')}_${selectedEngine}.zip`;
+      const modeSuffix = selectedEngine === 'babylon' && babylonMode === 'electron' ? 'Electron' : selectedEngine;
+      const filename = `InsimulExport_${worldName.replace(/[^a-zA-Z0-9]/g, '')}_${modeSuffix}.zip`;
 
       // Validate ZIP magic bytes (PK = 0x50 0x4B)
       const header = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
@@ -218,7 +237,7 @@ export function EngineExportDialog({ open, onOpenChange, worldId, worldName }: E
     } finally {
       setIsExporting(false);
     }
-  }, [selectedEngine, worldId, worldName, reset, advanceSteps, toast]);
+  }, [selectedEngine, babylonMode, worldId, worldName, reset, advanceSteps, toast]);
 
   const engineInfo = ENGINE_OPTIONS.find(e => e.value === selectedEngine)!;
 
@@ -241,7 +260,7 @@ export function EngineExportDialog({ open, onOpenChange, worldId, worldName }: E
             <label className="text-sm font-medium">Target Engine</label>
             <Select
               value={selectedEngine}
-              onValueChange={(v) => { if (!isExporting) { reset(); setSelectedEngine(v as EngineType); } }}
+              onValueChange={(v) => handleEngineChange(v as EngineType)}
               disabled={isExporting}
             >
               <SelectTrigger>
@@ -261,6 +280,34 @@ export function EngineExportDialog({ open, onOpenChange, worldId, worldName }: E
             </Select>
           </div>
 
+          {/* Babylon Mode Selector */}
+          {selectedEngine === 'babylon' && !isExporting && !isDone && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Export Type</label>
+              <Select value={babylonMode} onValueChange={(v) => setBabylonMode(v as BabylonMode)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="web">
+                    <span className="flex items-center gap-2">
+                      <span>🌐</span>
+                      <span>Web App</span>
+                      <span className="text-xs text-muted-foreground ml-1">— Runs in browser</span>
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="electron">
+                    <span className="flex items-center gap-2">
+                      <span>🖥️</span>
+                      <span>Electron Desktop</span>
+                      <span className="text-xs text-muted-foreground ml-1">— Standalone app</span>
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Engine Info Card */}
           {!isExporting && !isDone && (
             <Card className={`border ${engineInfo.color}`}>
@@ -275,7 +322,12 @@ export function EngineExportDialog({ open, onOpenChange, worldId, worldName }: E
                         <>
                           <Badge variant="outline" className="text-xs"><Code2 className="w-3 h-3 mr-1" />TypeScript</Badge>
                           <Badge variant="outline" className="text-xs"><Database className="w-3 h-3 mr-1" />JSON Data</Badge>
-                          <Badge variant="outline" className="text-xs"><Settings className="w-3 h-3 mr-1" />Vite Config</Badge>
+                          <Badge variant="outline" className="text-xs"><Settings className="w-3 h-3 mr-1" />{babylonMode === 'electron' ? 'Electron' : 'Vite'} Config</Badge>
+                          {babylonMode === 'electron' && (
+                            <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-300">
+                              📦 Desktop App
+                            </Badge>
+                          )}
                         </>
                       )}
                       {selectedEngine === 'unreal' && (

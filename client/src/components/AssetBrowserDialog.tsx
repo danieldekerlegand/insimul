@@ -76,6 +76,8 @@ export function AssetBrowserDialog({
   const [comparisonAssets, setComparisonAssets] = useState<{ original: VisualAsset | null; processed: VisualAsset | null }>({ original: null, processed: null });
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [showBulkImport, setShowBulkImport] = useState(false);
+  const [loadedModelIds, setLoadedModelIds] = useState<string[]>([]);
+  const MAX_MODEL_PREVIEWS = 16;
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -464,15 +466,34 @@ export function AssetBrowserDialog({
                           : 'hover:border-primary'
                       }`}
                       onClick={() => setSelectedAsset(asset)}
+                      onMouseEnter={() => {
+                        if (isModelAsset(asset) && !loadedModelIds.includes(asset.id)) {
+                          setLoadedModelIds(prev => {
+                            const next = [...prev, asset.id];
+                            if (next.length > MAX_MODEL_PREVIEWS) next.shift();
+                            return next;
+                          });
+                        }
+                      }}
                     >
                       <CardContent className="p-0">
                         <div className="relative aspect-square">
                           {isModelAsset(asset) ? (
-                            <div className="flex flex-col h-full w-full items-center justify-center rounded-t-lg bg-gradient-to-br from-blue-500/20 to-cyan-500/20">
-                              <Box className="h-10 w-10 text-blue-500 mb-2" />
-                              <span className="text-xs font-medium text-blue-600">3D Model</span>
-                              <span className="text-[10px] text-muted-foreground mt-0.5">Click to preview</span>
-                            </div>
+                            loadedModelIds.includes(asset.id) ? (
+                              <div className="h-full w-full rounded-t-lg overflow-hidden">
+                                <ModelPreview
+                                  modelPath={asset.filePath}
+                                  className="h-full w-full"
+                                  showControls={false}
+                                />
+                              </div>
+                            ) : (
+                              <div className="flex flex-col h-full w-full items-center justify-center rounded-t-lg bg-gradient-to-br from-blue-500/20 to-cyan-500/20">
+                                <Box className="h-10 w-10 text-blue-500 mb-2" />
+                                <span className="text-xs font-medium text-blue-600">3D Model</span>
+                                <span className="text-[10px] text-muted-foreground mt-0.5">Hover to preview</span>
+                              </div>
+                            )
                           ) : isAudioAsset(asset) ? (
                             <div className="flex flex-col h-full w-full items-center justify-center rounded-t-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20">
                               <Volume2 className="h-10 w-10 text-purple-500 mb-2" />

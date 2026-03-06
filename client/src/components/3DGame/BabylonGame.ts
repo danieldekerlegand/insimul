@@ -83,6 +83,7 @@ import { NPCTalkingIndicator } from "@/components/3DGame/NPCTalkingIndicator.ts"
 import { NPCAmbientConversationManager } from "@/components/3DGame/NPCAmbientConversationManager.ts";
 import { BuildingInteriorGenerator, InteriorLayout } from "@/components/3DGame/BuildingInteriorGenerator.ts";
 import { GameMenuSystem, GameMenuCallbacks } from "@/components/3DGame/GameMenuSystem.ts";
+import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 
 // Constants
@@ -180,6 +181,7 @@ interface BabylonGameConfig {
   userId?: string;
   authToken?: string;
   onBack?: () => void;
+  dataSource?: DataSource;
 }
 
 function computeWorldVisualTheme(worldType?: string): WorldVisualTheme {
@@ -266,6 +268,7 @@ export class BabylonGame {
   // Configuration
   private config: BabylonGameConfig;
   private canvas: HTMLCanvasElement;
+  private dataSource: DataSource;
 
   // Core Babylon.js objects
   private engine: Engine | null = null;
@@ -344,7 +347,19 @@ export class BabylonGame {
 
   // Game state
   private sceneStatus: SceneStatus = "idle";
+  
+  // Game data
   private worldData: WorldData | null = null;
+  private characters: any[] = [];
+  private actions: any[] = [];
+  private quests: any[] = [];
+  private settlements: any[] = [];
+  private rules: any[] = [];
+  private countries: any[] = [];
+  private states: any[] = [];
+  private baseResources: any = {};
+  private assets: any[] = [];
+  private config3D: any = {};
   private terrainSize: number = 512;
   private actionInProgress: boolean = false;
   private isInCombat: boolean = false;
@@ -438,6 +453,7 @@ export class BabylonGame {
   constructor(canvas: HTMLCanvasElement, config: BabylonGameConfig) {
     this.canvas = canvas;
     this.config = config;
+    this.dataSource = config.dataSource || createDataSource(config.authToken);
     this.worldTheme = computeWorldVisualTheme(config.worldType);
   }
 
@@ -757,11 +773,16 @@ export class BabylonGame {
     this.audioManager = new AudioManager(scene);
 
     // Initialize GUI manager
+    console.log('[BabylonGame] About to initialize GUI manager...');
     this.guiManager = new BabylonGUIManager(scene, {
       worldName: this.config.worldName,
       worldId: this.config.worldId
     });
-
+    
+    // Check if GUI texture is properly attached
+    console.log('[BabylonGame] GUI texture created:', this.guiManager.advancedTexture);
+    console.log('[BabylonGame] Scene active camera:', scene.activeCamera);
+    
     // Set up GUI callbacks
     this.guiManager.setOnBackPressed(() => this.config.onBack?.());
     this.guiManager.setOnFullscreenPressed(() => this.handleToggleFullscreen());
@@ -838,8 +859,8 @@ export class BabylonGame {
         return {
           worldName: this.config.worldName,
           countries: this.worldData.countries?.length || 0,
-          settlements: this.worldData.settlements?.length || 0,
-          characters: this.worldData.characters?.length || 0,
+          settlements: this.settlements?.length || this.worldData.settlements?.length || 0,
+          characters: this.characters?.length || this.worldData.characters?.length || 0,
           rules: this.worldData.rules?.length || 0,
           baseRules: this.worldData.baseRules?.length || 0,
           actions: this.worldData.actions?.length || 0,
@@ -932,7 +953,11 @@ export class BabylonGame {
     });
 
     // Initialize chat panel
+    console.log('[BabylonGame] About to initialize chat panel...');
     this.chatPanel = new BabylonChatPanel(this.guiManager.advancedTexture, scene);
+    console.log('[BabylonGame] Chat panel initialized with texture:', this.chatPanel.advancedTexture);
+    console.log('[BabylonGame] GUI manager texture:', this.guiManager.advancedTexture);
+    console.log('[BabylonGame] Are they the same?', this.chatPanel.advancedTexture === this.guiManager.advancedTexture);
     this.chatPanel.setOnClose(() => {
       console.log('Chat closed');
       this.handleConversationEnd();
@@ -1067,70 +1092,9 @@ export class BabylonGame {
     try {
       const worldId = this.config.worldId;
 
-      const headers: HeadersInit = this.config.authToken
-        ? { 'Authorization': `Bearer ${this.config.authToken}` }
-        : {};
-
+      // Use the data source instead of direct API calls
       const [
-        worldRes,
-        charactersRes,
-        actionsRes,
-        baseActionsRes,
-        questsRes,
-        settlementsRes,
-        rulesRes,
-        baseRulesRes,
-        countriesRes,
-        statesRes,
-        baseConfigRes,
-        assetsRes,
-        config3DRes
-      ] = await Promise.all([
-        fetch(`/api/worlds/${worldId}`, { headers }),
-        fetch(`/api/worlds/${worldId}/characters`, { headers }),
-        fetch(`/api/worlds/${worldId}/actions`, { headers }),
-        fetch(`/api/actions/base`, { headers }),
-        fetch(`/api/worlds/${worldId}/quests`, { headers }),
-        fetch(`/api/worlds/${worldId}/settlements`, { headers }),
-        fetch(`/api/rules?worldId=${worldId}`, { headers }),
-        fetch(`/api/rules/base`, { headers }),
-        fetch(`/api/worlds/${worldId}/countries`, { headers }),
-        fetch(`/api/worlds/${worldId}/states`, { headers }),
-        fetch(`/api/worlds/${worldId}/base-resources/config`, { headers }),
-        fetch(`/api/worlds/${worldId}/assets`, { headers }),
-        fetch(`/api/worlds/${worldId}/3d-config`, { headers })
-      ]);
-
-      const world = worldRes.ok ? await worldRes.json() : {};
-      const characters = charactersRes.ok ? await charactersRes.json() : [];
-      const actions = actionsRes.ok ? await actionsRes.json() : [];
-      let baseActions = baseActionsRes.ok ? await baseActionsRes.json() : [];
-      const quests = questsRes.ok ? await questsRes.json() : [];
-      const settlements = settlementsRes.ok ? await settlementsRes.json() : [];
-      let rules = rulesRes.ok ? await rulesRes.json() : [];
-      let baseRules = baseRulesRes.ok ? await baseRulesRes.json() : [];
-      const countries = countriesRes.ok ? await countriesRes.json() : [];
-      const states = statesRes.ok ? await statesRes.json() : [];
-      const baseConfig = baseConfigRes.ok ? await baseConfigRes.json() : {};
-      const worldAssets: VisualAsset[] = assetsRes.ok ? await assetsRes.json() : [];
-      const world3DConfig = config3DRes.ok ? await config3DRes.json() : {};
-
-      // Set camera mode based on game type
-      const gameType = world.gameType || world.worldType || 'rpg';
-      this.setCameraModeForGameType(gameType);
-
-      // Filter disabled actions/rules
-      if (Array.isArray(baseConfig.disabledBaseActions) && baseConfig.disabledBaseActions.length > 0) {
-        baseActions = baseActions.filter((action: Action) => !baseConfig.disabledBaseActions.includes(action.id));
-      }
-      if (Array.isArray(baseConfig.disabledBaseRules) && baseConfig.disabledBaseRules.length > 0) {
-        baseRules = baseRules.filter((rule: any) => !baseConfig.disabledBaseRules.includes(rule.id));
-      }
-
-      const manager = new ActionManager(actions, baseActions);
-      this.actionManager = manager;
-
-      this.worldData = {
+        world,
         characters,
         actions,
         baseActions,
@@ -1138,15 +1102,61 @@ export class BabylonGame {
         settlements,
         rules,
         baseRules,
-        countries
-      };
+        countries,
+        states,
+        baseResources,
+        assets,
+        config3D
+      ] = await Promise.all([
+        this.dataSource.loadWorld(worldId),
+        this.dataSource.loadCharacters(worldId),
+        this.dataSource.loadActions(worldId),
+        this.dataSource.loadBaseActions(),
+        this.dataSource.loadQuests(worldId),
+        this.dataSource.loadSettlements(worldId),
+        this.dataSource.loadRules(worldId),
+        this.dataSource.loadBaseRules(),
+        this.dataSource.loadCountries(worldId),
+        this.dataSource.loadStates(worldId),
+        this.dataSource.loadBaseResources(worldId),
+        this.dataSource.loadAssets(worldId),
+        this.dataSource.loadConfig3D(worldId)
+      ]);
+
+      // Store the data (same as before)
+      this.worldData = world;
+      this.characters = characters;
+      this.actions = [...actions, ...baseActions];
+      this.quests = quests;
+      this.settlements = settlements;
+      this.rules = [...rules, ...baseRules];
+      this.countries = countries;
+      this.states = states;
+      this.baseResources = baseResources;
+      this.assets = assets;
+      this.config3D = config3D;
+
+      console.log('[BabylonGame] World data loaded successfully');
+      console.log('[BabylonGame] Data summary:', {
+        world: world?.name || 'no world',
+        settlements: settlements?.length || 0,
+        characters: characters?.length || 0,
+        quests: quests?.length || 0,
+        assets: assets?.length || 0
+      });
+
+      // Extract world assets from assets array
+      const worldAssets = assets || [];
+      const world3DConfig = config3D || {};
 
       // Store world assets, textures (for future texture panel use), and 3D config
       this.worldAssets = worldAssets;
       this.availableTextures = worldAssets.filter(
-        (asset) => asset.assetType.startsWith('texture_')
+        (asset) => asset.assetType && asset.assetType.startsWith('texture_')
       );
       this.world3DConfig = world3DConfig;
+
+      console.log('[BabylonGame] World data loaded successfully');
 
       // Apply 3D model overrides if generators are ready
       if (this.scene && this.buildingGenerator && this.natureGenerator) {
@@ -1426,7 +1436,8 @@ export class BabylonGame {
   private updateWorldStatsUI(): void {
     if (!this.guiManager || !this.worldData) return;
 
-    const { countries, settlements, characters, rules, baseRules, actions, baseActions, quests } = this.worldData;
+    // Add safety checks for undefined properties
+    const { countries = [], settlements = [], characters = [], rules = [], baseRules = [], actions = [], baseActions = [], quests = [] } = this.worldData;
 
     this.guiManager.updateWorldStats({
       countries: countries.length,
@@ -1465,7 +1476,9 @@ export class BabylonGame {
     // Clear any previously generated world meshes
     this.disposeWorld();
 
-    const settlements = this.worldData.settlements.slice(0, MAX_SETTLEMENTS_3D);
+    const settlements = (this.settlements || this.worldData.settlements || []).slice(0, MAX_SETTLEMENTS_3D);
+    console.log('[BabylonGame] Found settlements:', settlements.length, settlements);
+    
     if (settlements.length === 0) {
       console.log("No settlements found for procedural world generation");
       return;
@@ -1502,15 +1515,11 @@ export class BabylonGame {
       if (!settlement) continue;
 
       try {
-        const [businessesRes, lotsRes, residencesRes] = await Promise.all([
-          fetch(`/api/settlements/${settlement.id}/businesses`),
-          fetch(`/api/settlements/${settlement.id}/lots`),
-          fetch(`/api/settlements/${settlement.id}/residences`)
+        const [businesses, lots, residences] = await Promise.all([
+          this.dataSource.loadSettlementBusinesses(settlement.id),
+          this.dataSource.loadSettlementLots(settlement.id),
+          this.dataSource.loadSettlementResidences(settlement.id)
         ]);
-
-        const businesses = businessesRes.ok ? await businessesRes.json() : [];
-        const lots = lotsRes.ok ? await lotsRes.json() : [];
-        const residences = residencesRes.ok ? await residencesRes.json() : [];
 
         console.log(
           `Settlement ${settlement.name}: ${businesses.length} businesses, ${lots.length} lots, ${residences.length} residences`
@@ -2778,25 +2787,22 @@ export class BabylonGame {
     if (!this.config.authToken || !this.config.worldId) return;
 
     try {
-      const response = await fetch(`/api/worlds/${this.config.worldId}/playthroughs/start`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.config.authToken}`,
-        },
-        body: JSON.stringify({
-          name: `${this.config.worldName} - Playthrough`,
-        }),
-      });
-
-      if (response.ok) {
-        const playthrough = await response.json();
+      const playthrough = await this.dataSource.startPlaythrough(
+        this.config.worldId,
+        this.config.authToken || '',
+        `${this.config.worldName} - Playthrough`
+      );
+      
+      if (playthrough && playthrough.id) {
         this.playthroughId = playthrough.id;
+        console.log('[BabylonGame] Playthrough started:', this.playthroughId);
       } else {
-        console.warn('Failed to start playthrough', await response.text());
+        console.warn('[BabylonGame] Failed to start playthrough - no valid response');
+        // Continue without playthrough for development/testing
       }
     } catch (error) {
-      console.error('Error starting playthrough', error);
+      console.error('Error starting playthrough:', error);
+      // Continue without playthrough for development/testing
     }
   }
 
@@ -2838,7 +2844,8 @@ export class BabylonGame {
         playerMesh.position = this.firstSettlementSpawnPosition.clone();
         console.log('[BabylonGame] Player spawned in first settlement at:', playerMesh.position);
       } else {
-        playerMesh.position = new Vector3(0, 0, 0);
+        // Spawn at origin but above ground level
+        playerMesh.position = new Vector3(0, 10, 0);
         console.log('[BabylonGame] Player spawned at world origin (no settlements found)');
       }
 
@@ -2968,15 +2975,25 @@ export class BabylonGame {
   }
 
   private async loadNPCs(): Promise<void> {
+    console.log('[BabylonGame] loadNPCs called');
+    
     if (!this.scene || !this.worldData) {
-      console.warn('[BabylonGame] loadNPCs skipped: scene or worldData missing');
+      console.warn('[BabylonGame] loadNPCs skipped: scene or worldData missing', {
+        scene: !!this.scene,
+        worldData: !!this.worldData
+      });
       return;
     }
 
-    const characters = this.worldData.characters.slice(0, MAX_NPCS);
+    const characters = (this.characters || this.worldData.characters || []).slice(0, MAX_NPCS);
     console.log(`[BabylonGame] loadNPCs: ${characters.length} characters to load (max ${MAX_NPCS})`);
+    console.log('[BabylonGame] characters source:', this.characters ? 'this.characters' : this.worldData.characters ? 'worldData.characters' : 'none');
+    
     if (characters.length === 0) {
-      console.warn('[BabylonGame] No characters found in worldData!');
+      console.warn('[BabylonGame] No characters found!');
+      console.log('[BabylonGame] this.characters:', this.characters);
+      console.log('[BabylonGame] this.worldData.characters:', this.worldData.characters);
+      return;
     }
 
     for (const character of characters) {
@@ -3259,7 +3276,7 @@ export class BabylonGame {
     }
 
     // Fallback: place near a random settlement center if available
-    const settlements = this.worldData?.settlements || [];
+    const settlements = this.settlements || this.worldData?.settlements || [];
     if (settlements.length > 0 && this.settlementMeshes.size > 0) {
       // Pick a random settlement mesh to place near
       const meshEntries = Array.from(this.settlementMeshes.values());
@@ -3678,13 +3695,13 @@ export class BabylonGame {
         if (!instance || !instance.mesh) return;
         const mesh = instance.mesh;
 
-        // Selection outline
-        const isSelected = npcId === this.selectedNPCId;
-        mesh.renderOutline = isSelected;
-        mesh.outlineWidth = isSelected ? 0.06 : 0;
-        if (isSelected) {
-          mesh.outlineColor = new Color3(1, 0.9, 0.4);
-        }
+        // Selection outline - DISABLED for conversations
+        // const isSelected = npcId === this.selectedNPCId;
+        // mesh.renderOutline = isSelected;
+        // mesh.outlineWidth = isSelected ? 0.06 : 0;
+        // if (isSelected) {
+        //   mesh.outlineColor = new Color3(1, 0.9, 0.4);
+        // }
 
         // Snap NPCs to ground if they drift too far above/below terrain
         // Skip when inside a building (player is at Y=500+)
@@ -3756,6 +3773,34 @@ export class BabylonGame {
         instance.controller.walk(false);
         instance.controller.turnLeft(false);
         instance.controller.turnRight(false);
+        
+        // Make NPC continue to face the player during conversation
+        if (this.playerMesh && instance.mesh) {
+          const npcPos = instance.mesh.position;
+          const playerPos = this.playerMesh.position;
+          
+          // Calculate direction from NPC to player
+          const directionToPlayer = playerPos.subtract(npcPos).normalize();
+          
+          // Calculate the rotation angle (in radians)
+          // Add PI to make NPC face the player instead of away
+          const targetRotation = Math.atan2(directionToPlayer.x, directionToPlayer.z) + Math.PI;
+          
+          // Try multiple ways to rotate the NPC
+          // Method 1: Direct mesh rotation
+          instance.mesh.rotation.y = targetRotation;
+          
+          // Method 2: If CharacterController has an avatar, rotate that
+          if (instance.controller && (instance.controller as any)._avatar) {
+            (instance.controller as any)._avatar.rotation.y = targetRotation;
+          }
+          
+          // Method 3: Try rotating parent if it exists and is a Mesh
+          if (instance.mesh.parent && instance.mesh.parent instanceof Mesh) {
+            (instance.mesh.parent as Mesh).rotation.y = targetRotation;
+          }
+        }
+        
         return;
       }
       
@@ -3853,7 +3898,7 @@ export class BabylonGame {
 
     const settlementsData = Array.from(this.settlementMeshes.entries()).map(([id, mesh]) => {
       const stats = this.settlementStats.get(id);
-      const settlement = this.worldData!.settlements.find((s) => s.id === id);
+      const settlement = this.settlements?.find((s) => s.id === id) || this.worldData?.settlements?.find((s) => s.id === id);
 
       const type = settlement?.settlementType || stats?.type || "town";
       const zoneType = this.getZoneTypeForSettlement(type);
@@ -3912,10 +3957,21 @@ export class BabylonGame {
       return;
     }
 
-    // G - Interact with nearest NPC (selects + opens chat)
+    // G - Interact with nearest NPC (selects + opens chat) or exit conversation
     if (event.code === 'KeyG' && !event.repeat) {
       event.preventDefault();
-      await this.handleProximityInteraction();
+      if (this.conversationNPCId) {
+        // If in conversation, exit it
+        this.handleConversationEnd();
+        this.chatPanel?.hide(false); // Don't trigger onClose callback
+        this.guiManager?.showToast({
+          title: "Conversation Ended",
+          duration: 1500
+        });
+      } else {
+        // Otherwise, try to interact with nearest NPC
+        await this.handleProximityInteraction();
+      }
     }
 
     // V - Cycle camera mode (first person / third person / isometric)
@@ -4012,17 +4068,7 @@ export class BabylonGame {
       // Try to fetch truths for conversation context (optional - fallback to empty array)
       let truths: any[] = [];
       try {
-        const headers: Record<string, string> = {};
-        if (this.config.authToken) {
-          headers['Authorization'] = `Bearer ${this.config.authToken}`;
-        }
-
-        const truthsRes = await fetch(`/api/truths?worldId=${this.config.worldId}`, { headers });
-        if (truthsRes.ok) {
-          truths = await truthsRes.json();
-        } else {
-          console.warn(`[BabylonGame] Truths fetch failed: ${truthsRes.status}, using empty truths`);
-        }
+        truths = await this.dataSource.loadTruths(this.config.worldId);
       } catch (truthsError) {
         console.warn('[BabylonGame] Failed to fetch truths:', truthsError);
       }
@@ -4033,6 +4079,44 @@ export class BabylonGame {
       // Mark NPC as in conversation (stops their wandering)
       if (npcInstance) {
         npcInstance.isInConversation = true;
+        
+        // Make NPC turn to face the player
+        if (npcMesh && this.playerMesh) {
+          const npcPos = npcMesh.position;
+          const playerPos = this.playerMesh.position;
+          
+          // Calculate direction from NPC to player
+          const directionToPlayer = playerPos.subtract(npcPos).normalize();
+          
+          // Calculate the rotation angle (in radians)
+          // Note: Babylon.js uses Y rotation, where 0 = facing +Z, PI/2 = facing +X
+          // Add PI to make NPC face the player instead of away
+          const targetRotation = Math.atan2(directionToPlayer.x, directionToPlayer.z) + Math.PI;
+          
+          // Try multiple ways to rotate the NPC
+          console.log(`[Conversation] Rotating NPC to face player. Target rotation: ${targetRotation}`);
+          
+          // Method 1: Direct mesh rotation
+          npcMesh.rotation.y = targetRotation;
+          
+          // Method 2: If CharacterController has an avatar, rotate that
+          if (npcInstance.controller && (npcInstance.controller as any)._avatar) {
+            (npcInstance.controller as any)._avatar.rotation.y = targetRotation;
+            console.log('[Conversation] Rotated CharacterController avatar');
+          }
+          
+          // Method 3: Try rotating parent if it exists and is a Mesh
+          if (npcMesh.parent && npcMesh.parent instanceof Mesh) {
+            (npcMesh.parent as Mesh).rotation.y = targetRotation;
+          }
+          
+          // Also stop any ongoing movement
+          if (npcInstance.controller) {
+            npcInstance.controller.walk(false);
+            npcInstance.controller.turnLeft(false);
+            npcInstance.controller.turnRight(false);
+          }
+        }
       }
       this.conversationNPCId = npcId;
 
@@ -4040,25 +4124,47 @@ export class BabylonGame {
       if (this.cameraManager && this.camera && npcMesh) {
         this.preConversationCameraMode = this.cameraManager.getCurrentMode();
         
-        // Position camera to look at NPC's upper half (face)
+        // Stop the player's CharacterController to prevent camera updates
+        if (this.playerController) {
+          this.playerController.stop();
+        }
+        
+        // Get NPC and player positions
         const npcPos = npcMesh.position.clone();
-        const npcFaceHeight = 1.6; // Approximate head height
-        const cameraDistance = 3; // Close-up distance
+        const playerPos = this.playerMesh?.position || npcPos.add(new Vector3(1, 0, 0));
         
-        // Calculate camera position in front of NPC
-        const npcForward = npcMesh.forward || new Vector3(0, 0, 1);
-        const cameraOffset = npcForward.scale(-cameraDistance);
-        const targetPos = npcPos.add(new Vector3(0, npcFaceHeight, 0));
+        // DON'T switch to first-person mode - keep current mode but override position
+        // this.cameraManager.setMode('first_person', false);
         
+        // Calculate direction from player to NPC
+        const playerToNPC = npcPos.subtract(playerPos).normalize();
+        
+        // Calculate camera position: start from player, move back along the player-to-NPC direction
+        const conversationDistance = 4;
+        const cameraPos = playerPos.add(playerToNPC.scale(-conversationDistance));
+        
+        // Target is NPC's face
+        const targetPos = npcPos.add(new Vector3(0, 1.6, 0));
+        
+        // Set camera position directly
+        this.camera.position = cameraPos.add(new Vector3(0, 1.6, 0)); // Eye level
         this.camera.setTarget(targetPos);
-        this.camera.radius = cameraDistance;
-        this.camera.beta = Math.PI / 2.2; // Looking slightly down at face
         
-        // Switch to first-person-like mode for conversation
-        this.cameraManager.setMode('first_person', false);
+        // Adjust camera settings for conversation
+        this.camera.radius = conversationDistance;
+        this.camera.beta = Math.PI / 2.2; // Looking slightly down
+        this.camera.lowerRadiusLimit = conversationDistance;
+        this.camera.upperRadiusLimit = conversationDistance;
+        
+        // Lock the camera by disabling camera controls
+        this.camera.detachControl();
+        
+        // Force camera to update immediately
+        this.camera.rebuildAnglesAndRadius();
       }
 
       this.chatPanel.show(character, truths, npcMesh);
+      console.log('[Chat] Chat panel shown for character:', character.firstName, character.lastName);
 
       const actions = this.getAvailableActions(npcId);
       this.chatPanel.setDialogueActions(actions, this.playerEnergy);
@@ -4068,7 +4174,7 @@ export class BabylonGame {
 
       this.guiManager?.showToast({
         title: `Chatting with ${npcInfo.name}`,
-        description: "Press C again to close chat",
+        description: "Press G to close chat",
         duration: 2000
       });
     } catch (error) {
@@ -4093,15 +4199,30 @@ export class BabylonGame {
       this.conversationNPCId = null;
     }
 
+    // Restart the player's CharacterController
+    if (this.playerController) {
+      this.playerController.start();
+    }
+
     // Restore previous camera mode
-    if (this.cameraManager && this.preConversationCameraMode) {
-      this.cameraManager.setMode(this.preConversationCameraMode, false);
+    if (this.cameraManager && this.preConversationCameraMode && this.camera) {
+      // Reset camera limits
+      this.camera.lowerRadiusLimit = null;
+      this.camera.upperRadiusLimit = null;
+      
+      // Only switch mode if it's different from current
+      if (this.cameraManager.getCurrentMode() !== this.preConversationCameraMode) {
+        this.cameraManager.setMode(this.preConversationCameraMode, false);
+      }
       this.preConversationCameraMode = null;
       
       // Re-target camera to player if available
-      if (this.playerMesh && this.camera) {
+      if (this.playerMesh) {
         this.camera.setTarget(this.playerMesh.position.add(new Vector3(0, 1.6, 0)));
       }
+      
+      // Re-attach camera controls
+      this.camera.attachControl(this.canvas, true);
     }
   }
 
@@ -4525,15 +4646,12 @@ export class BabylonGame {
     if (!npcInfo) return;
 
     try {
-      const [characterRes, truthsRes] = await Promise.all([
-        fetch(`/api/characters/${npcId}`),
-        fetch(`/api/truths?worldId=${this.config.worldId}`)
+      const [character, truths] = await Promise.all([
+        this.dataSource.loadCharacter(npcId),
+        this.dataSource.loadTruths(this.config.worldId)
       ]);
 
-      if (!characterRes.ok || !truthsRes.ok) return;
-
-      const character = await characterRes.json();
-      const truths = await truthsRes.json();
+      if (!character) return;
 
       const npcInstance = this.npcMeshes.get(npcId);
       const npcMesh = npcInstance?.mesh;
@@ -4633,7 +4751,7 @@ export class BabylonGame {
     if (!this.actionManager || !this.worldData) return [];
 
     const context: ActionContext = {
-      actor: this.worldData.characters[0]?.id || DEFAULT_PLAYER_ID,
+      actor: this.characters[0]?.id || DEFAULT_PLAYER_ID,
       target: npcId,
       timestamp: Date.now(),
       playerEnergy: this.playerEnergy,
@@ -4651,7 +4769,7 @@ export class BabylonGame {
     const npcId = this.selectedNPCId;
 
     const context: ActionContext = {
-      actor: this.worldData.characters[0]?.id || DEFAULT_PLAYER_ID,
+      actor: this.characters[0]?.id || DEFAULT_PLAYER_ID,
       target: npcId,
       timestamp: Date.now(),
       playerEnergy: this.playerEnergy,
@@ -4713,7 +4831,7 @@ export class BabylonGame {
       const actionDefinition = this.findActionDefinition(actionId);
       const actionName = actionDefinition?.name || "Action";
 
-      const targetNPC = this.worldData.characters.find((npc) => npc.id === npcId);
+      const targetNPC = this.characters?.find((npc) => npc.id === npcId) || this.worldData?.characters?.find((npc) => npc.id === npcId);
       const targetName = targetNPC
         ? `${targetNPC.firstName || ''} ${targetNPC.lastName || ''}`.trim() || "NPC"
         : "NPC";
@@ -4787,19 +4905,9 @@ export class BabylonGame {
     }
 
     try {
-      const response = await fetch(
-        `/api/playthroughs/${this.playthroughId}/reputations/settlement/${this.currentZone.id}/pay-fines`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': this.config.authToken ? `Bearer ${this.config.authToken}` : ''
-          }
-        }
-      );
+      const result = await this.dataSource.payFines(this.playthroughId, this.currentZone.id);
 
-      if (response.ok) {
-        const result = await response.json();
+      if (result) {
 
         this.playerGold = Math.max(0, this.playerGold - fineAmount);
         this.updatePlayerStatusUI();
@@ -4826,10 +4934,10 @@ export class BabylonGame {
           duration: 4000
         });
       } else {
-        const errorText = await response.text();
+        console.error('Failed to pay fines');
         this.guiManager?.showToast({
           title: "Payment Failed",
-          description: `Failed to pay fines: ${errorText}`,
+          description: "Failed to pay fines",
           variant: "destructive",
           duration: 3000
         });
@@ -4923,10 +5031,7 @@ export class BabylonGame {
 
   private async handleQuestObjectiveCompleted(questId: string, objectiveId: string, type: string): Promise<void> {
     try {
-      const questRes = await fetch(`/api/worlds/${this.config.worldId}/quests`);
-      if (!questRes.ok) return;
-
-      const quests = await questRes.json();
+      const quests = await this.dataSource.loadQuests(this.config.worldId);
       const quest = quests.find((q: any) => q.id === questId);
       if (!quest) return;
 
@@ -4934,17 +5039,8 @@ export class BabylonGame {
 
       if (type === 'collect') {
         updatedProgress.collectedItems = updatedProgress.collectedItems || [];
-        updatedProgress.collectedItems.push(objectiveId);
-
-        if (this.inventory) {
-          this.inventory.addItem({
-            id: objectiveId,
-            name: 'Quest Item',
-            description: `Collected for: ${quest.title}`,
-            type: 'quest',
-            quantity: 1,
-            questId
-          });
+        if (!updatedProgress.collectedItems.includes(objectiveId)) {
+          updatedProgress.collectedItems.push(objectiveId);
         }
       } else if (type === 'visit') {
         updatedProgress.visitedLocations = updatedProgress.visitedLocations || [];
@@ -4953,14 +5049,10 @@ export class BabylonGame {
 
       const allObjectivesComplete = quest.objectives?.every((obj: any) => obj.completed);
 
-      await fetch(`/api/quests/${questId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          progress: updatedProgress,
-          status: allObjectivesComplete ? 'completed' : 'active',
-          completedAt: allObjectivesComplete ? new Date() : null
-        })
+      await this.dataSource.updateQuest(questId, {
+        progress: updatedProgress,
+        status: allObjectivesComplete ? 'completed' : 'active',
+        completedAt: allObjectivesComplete ? new Date() : null
       });
 
       this.questTracker?.updateQuests(this.config.worldId);
@@ -4985,10 +5077,7 @@ export class BabylonGame {
 
     try {
       // Fetch current quests
-      const response = await fetch(`/api/worlds/${this.config.worldId}/quests`);
-      if (!response.ok) return;
-
-      const quests = await response.json();
+      const quests = await this.dataSource.loadQuests(this.config.worldId);
 
       // Build NPC map from npcMeshes
       const npcMap = new Map<string, { mesh: Mesh; character: any }>();
@@ -5480,7 +5569,7 @@ export class BabylonGame {
     if (!this.guiManager || !this.worldData) return;
 
     const stats = this.settlementStats.get(settlementId);
-    const settlement = this.worldData.settlements.find((s) => s.id === settlementId);
+    const settlement = this.settlements?.find((s) => s.id === settlementId) || this.worldData?.settlements?.find((s) => s.id === settlementId);
     if (!stats || !settlement) return;
 
     const type = settlement.settlementType || stats.type;

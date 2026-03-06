@@ -11,7 +11,7 @@ import { generateGDScriptFiles } from './godot-gdscript-generator';
 import { generateDataFiles } from './godot-data-generator';
 import { generateSceneFiles } from './godot-scene-generator';
 import { generateWorldIR } from '../ir-generator';
-import { bundleCoreAssets, generateAssetManifestJson, type BundledAsset } from '../asset-bundler';
+import { bundleCoreAssets, bundleAssetsFromCollection, generateAssetManifestJson, type BundledAsset } from '../asset-bundler';
 import type { WorldIR } from '@shared/game-engine/ir-types';
 import { createRequire } from 'node:module';
 
@@ -88,23 +88,39 @@ async function packageAsZip(
 /**
  * Generate a complete Godot 4.x project from a world ID.
  */
-export async function exportGodotProject(worldId: string): Promise<GodotExportResult> {
+export async function exportGodotProject(worldId: string): Promise<{
+  files: GeneratedFile[];
+  assetBundle: { assets: BundledAsset[]; manifest: string; totalSize: number };
+}> {
+  console.log('[Export] Starting Godot export for world:', worldId);
   const startTime = Date.now();
 
-  // 1. Generate IR with Godot-specific asset resolution
-  const ir = await generateWorldIR(worldId, 'godot');
+  // 1. Generate the World IR
+  const ir = await generateWorldIR(worldId);
+  
+  // 2. Get the world's selected asset collection
+  const { storage } = await import(/* webpackIgnore: true */ new URL('../../../db/storage.js', import.meta.url).href as any);
+  const world = await storage.getWorld(worldId);
+  const selectedCollectionId = (world as any)?.selectedAssetCollectionId;
 
-  // 2. Run all generators
+  // 3. Run all generators
   const allFiles = generateGodotFilesFromIR(ir);
 
-  // 3. Bundle core assets
-  const assetBundle = await bundleCoreAssets();
+  // 4. Bundle assets from the world's selected collection
+  let assetBundle;
+  if (selectedCollectionId) {
+    console.log(`[Export] Using asset collection: ${selectedCollectionId}`);
+    assetBundle = await bundleAssetsFromCollection(selectedCollectionId);
+  } else {
+    console.log('[Export] No asset collection selected, using core assets');
+    assetBundle = await bundleCoreAssets();
+  }
+  
   allFiles.push({
     path: 'data/asset-manifest.json',
     content: generateAssetManifestJson(assetBundle.manifest),
   });
 
-  // 4. Package
   const worldSafe = sanitiseName(ir.meta.worldName) || 'InsimulWorld';
   const projectName = `InsimulExport_${worldSafe}`;
 
@@ -120,16 +136,11 @@ export async function exportGodotProject(worldId: string): Promise<GodotExportRe
   const elapsed = Date.now() - startTime;
 
   return {
-    projectName,
     files: allFiles,
-    zipBuffer,
-    stats: {
-      totalFiles: allFiles.length + assetBundle.fileCount,
-      gdscriptFiles: countByExtension(allFiles, '.gd'),
-      dataFiles: countByExtension(allFiles, '.json'),
-      configFiles: countByExtension(allFiles, '.godot', '.cfg', '.tres', '.tscn', '.svg', '.md', '.gitignore', '.gitattributes'),
-      totalSizeBytes,
-      generationTimeMs: elapsed,
+    assetBundle: {
+      assets: assetBundle.assets,
+      manifest: generateAssetManifestJson(assetBundle.manifest),
+      totalSize: assetBundle.totalSizeBytes,
     },
   };
 }

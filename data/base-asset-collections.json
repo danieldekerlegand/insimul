@@ -737,11 +737,11 @@
         "roofTextureId": "${polyhavenId:roof_tiles}"
       }
     },
-    "western-frontier": {
-      "name": "Western Frontier Base Collection",
+    "wild-west": {
+      "name": "Wild West Base Collection",
       "description": "Saloon furniture, rustic props, and frontier gear for Wild West settings",
       "collectionType": "complete_theme",
-      "worldType": "western-frontier",
+      "worldType": "wild-west",
       "isBase": true,
       "isPublic": true,
       "tags": ["base", "western", "frontier", "cowboy", "polyhaven"],
@@ -1186,15 +1186,15 @@
         "roofTextureId": "${polyhavenId:roof_tiles}"
       }
     },
-    "historical": {
-      "name": "Historical Base Collection",
-      "description": "Brass vessels, vintage lamps, and period props for historical settings",
+    "historical-ancient": {
+      "name": "Historical Ancient Base Collection",
+      "description": "Brass vessels, vintage lamps, and period props for ancient historical settings",
       "collectionType": "complete_theme",
-      "worldType": "historical",
+      "worldType": "historical-ancient",
       "isBase": true,
       "isPublic": true,
       "tags": ["base", "historical", "ancient", "classical", "polyhaven"],
-      "purpose": "Base collection for historical worlds",
+      "purpose": "Base collection for ancient historical worlds",
       "assets": {
         "nature": [
           {
@@ -1870,6 +1870,1037 @@
         "roadTextureId": "${polyhavenId:cobblestone_floor_01}",
         "wallTextureId": "${polyhavenId:stone_wall_04}",
         "roofTextureId": "${polyhavenId:slate_floor}"
+      }
+    },
+    "urban-fantasy": {
+      "name": "Urban Fantasy Base Collection",
+      "description": "Modern urban props with hints of magic — street lamps, arcane tomes, mystical candles, and city infrastructure",
+      "collectionType": "complete_theme",
+      "worldType": "urban-fantasy",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "urban-fantasy", "modern", "magic", "polyhaven"],
+      "purpose": "Base collection for urban fantasy worlds",
+      "assets": {
+        "nature": [
+          {
+            "polyhavenId": "tree_small_02",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Urban park tree"
+          },
+          {
+            "polyhavenId": "jacaranda_tree",
+            "semanticRole": "tree_magical",
+            "assetType": "model_tree",
+            "priority": 2,
+            "description": "Magical flowering tree blooming in city streets"
+          },
+          {
+            "polyhavenId": "boulder_01",
+            "semanticRole": "rock",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Urban rubble or decorative stone"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "street_lamp_01",
+            "semanticRole": "lamp",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "City street lamp"
+          },
+          {
+            "polyhavenId": "utility_box_01",
+            "semanticRole": "prop",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Urban utility box"
+          },
+          {
+            "polyhavenId": "brass_candleholders",
+            "semanticRole": "decoration",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Mystical brass candleholders"
+          },
+          {
+            "polyhavenId": "book_encyclopedia_set_01",
+            "semanticRole": "books",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Arcane tomes and urban grimoires"
+          },
+          {
+            "polyhavenId": "wooden_crate_02",
+            "semanticRole": "storage",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Urban storage crate"
+          },
+          {
+            "polyhavenId": "boombox",
+            "semanticRole": "electronics",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Street-corner boombox"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "asphalt_01",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "City asphalt ground"
+          },
+          {
+            "polyhavenId": "concrete_floor",
+            "semanticRole": "roadTexture",
+            "assetType": "texture_road",
+            "priority": 1,
+            "description": "Concrete sidewalk"
+          },
+          {
+            "polyhavenId": "brick_wall_003",
+            "semanticRole": "wallTexture",
+            "assetType": "texture_wall",
+            "priority": 1,
+            "description": "Urban brick building walls"
+          },
+          {
+            "polyhavenId": "corrugated_iron",
+            "semanticRole": "roofTexture",
+            "assetType": "texture_roof",
+            "priority": 1,
+            "description": "City rooftop metal panels"
+          }
+        ]
+      },
+      "config3D": {
+        "natureModels": {
+          "defaultTree": "${polyhavenId:tree_small_02}",
+          "tree_magical": "${polyhavenId:jacaranda_tree}",
+          "rock": "${polyhavenId:boulder_01}"
+        },
+        "objectModels": {
+          "lamp": "${polyhavenId:street_lamp_01}",
+          "prop": "${polyhavenId:utility_box_01}",
+          "decoration": "${polyhavenId:brass_candleholders}",
+          "books": "${polyhavenId:book_encyclopedia_set_01}",
+          "storage": "${polyhavenId:wooden_crate_02}",
+          "electronics": "${polyhavenId:boombox}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:book_encyclopedia_set_01}"
+        },
+        "groundTextureId": "${polyhavenId:asphalt_01}",
+        "roadTextureId": "${polyhavenId:concrete_floor}",
+        "wallTextureId": "${polyhavenId:brick_wall_003}",
+        "roofTextureId": "${polyhavenId:corrugated_iron}"
+      }
+    },
+    "historical-renaissance": {
+      "name": "Historical Renaissance Base Collection",
+      "description": "Elegant period furniture, scholarly props, and refined decor for Renaissance settings",
+      "collectionType": "complete_theme",
+      "worldType": "historical-renaissance",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "historical", "renaissance", "scholarly", "polyhaven"],
+      "purpose": "Base collection for Renaissance historical worlds",
+      "assets": {
+        "nature": [
+          {
+            "polyhavenId": "jacaranda_tree",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Flowering ornamental tree"
+          },
+          {
+            "polyhavenId": "tree_small_02",
+            "semanticRole": "tree_common",
+            "assetType": "model_tree",
+            "priority": 2,
+            "description": "Common European tree"
+          },
+          {
+            "polyhavenId": "boulder_01",
+            "semanticRole": "rock",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Stone garden feature"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "ClassicConsole_01",
+            "semanticRole": "furniture_table",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Elegant Renaissance console table"
+          },
+          {
+            "polyhavenId": "ArmChair_01",
+            "semanticRole": "furniture_chair",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Ornate Renaissance armchair"
+          },
+          {
+            "polyhavenId": "book_encyclopedia_set_01",
+            "semanticRole": "books",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Scholarly manuscripts and books"
+          },
+          {
+            "polyhavenId": "brass_candleholders",
+            "semanticRole": "decoration",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Ornate brass candleholders"
+          },
+          {
+            "polyhavenId": "vintage_oil_lamp",
+            "semanticRole": "lamp",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Period oil lamp"
+          },
+          {
+            "polyhavenId": "brass_goblets",
+            "semanticRole": "tableware",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Ornate goblets for banquets"
+          },
+          {
+            "polyhavenId": "wine_barrel_01",
+            "semanticRole": "storage",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Wine barrel for cellars"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "cobblestone_floor_01",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Renaissance cobblestone piazza"
+          },
+          {
+            "polyhavenId": "old_wood_floor",
+            "semanticRole": "roadTexture",
+            "assetType": "texture_road",
+            "priority": 1,
+            "description": "Polished wooden floor planks"
+          },
+          {
+            "polyhavenId": "brick_wall_003",
+            "semanticRole": "wallTexture",
+            "assetType": "texture_wall",
+            "priority": 1,
+            "description": "Renaissance brick palazzo walls"
+          },
+          {
+            "polyhavenId": "roof_tiles",
+            "semanticRole": "roofTexture",
+            "assetType": "texture_roof",
+            "priority": 1,
+            "description": "Italian terracotta roof tiles"
+          }
+        ]
+      },
+      "config3D": {
+        "natureModels": {
+          "defaultTree": "${polyhavenId:jacaranda_tree}",
+          "tree_common": "${polyhavenId:tree_small_02}",
+          "rock": "${polyhavenId:boulder_01}"
+        },
+        "objectModels": {
+          "furniture_table": "${polyhavenId:ClassicConsole_01}",
+          "furniture_chair": "${polyhavenId:ArmChair_01}",
+          "books": "${polyhavenId:book_encyclopedia_set_01}",
+          "decoration": "${polyhavenId:brass_candleholders}",
+          "lamp": "${polyhavenId:vintage_oil_lamp}",
+          "tableware": "${polyhavenId:brass_goblets}",
+          "storage": "${polyhavenId:wine_barrel_01}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:brass_goblets}"
+        },
+        "groundTextureId": "${polyhavenId:cobblestone_floor_01}",
+        "roadTextureId": "${polyhavenId:old_wood_floor}",
+        "wallTextureId": "${polyhavenId:brick_wall_003}",
+        "roofTextureId": "${polyhavenId:roof_tiles}"
+      }
+    },
+    "historical-victorian": {
+      "name": "Historical Victorian Base Collection",
+      "description": "Victorian era props — elegant furniture, industrial touches, and refined domestic items",
+      "collectionType": "complete_theme",
+      "worldType": "historical-victorian",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "historical", "victorian", "industrial", "polyhaven"],
+      "purpose": "Base collection for Victorian era worlds",
+      "assets": {
+        "nature": [
+          {
+            "polyhavenId": "tree_small_02",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Victorian park tree"
+          },
+          {
+            "polyhavenId": "boulder_01",
+            "semanticRole": "rock",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Garden stone"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "vintage_grandfather_clock_01",
+            "semanticRole": "decoration",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Ornate Victorian grandfather clock"
+          },
+          {
+            "polyhavenId": "ArmChair_01",
+            "semanticRole": "furniture_chair",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Tufted Victorian armchair"
+          },
+          {
+            "polyhavenId": "ClassicConsole_01",
+            "semanticRole": "furniture_table",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Victorian console table"
+          },
+          {
+            "polyhavenId": "tea_set_01",
+            "semanticRole": "tableware",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Victorian tea service"
+          },
+          {
+            "polyhavenId": "street_lamp_01",
+            "semanticRole": "lamp",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Victorian gas lamp"
+          },
+          {
+            "polyhavenId": "CashRegister_01",
+            "semanticRole": "prop",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Victorian cash register"
+          },
+          {
+            "polyhavenId": "book_encyclopedia_set_01",
+            "semanticRole": "books",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Victorian encyclopaedia volumes"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "cobblestone_floor_01",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Victorian cobblestone street"
+          },
+          {
+            "polyhavenId": "old_wood_floor",
+            "semanticRole": "roadTexture",
+            "assetType": "texture_road",
+            "priority": 1,
+            "description": "Victorian wooden floor boards"
+          },
+          {
+            "polyhavenId": "brick_wall_003",
+            "semanticRole": "wallTexture",
+            "assetType": "texture_wall",
+            "priority": 1,
+            "description": "Victorian red brick walls"
+          },
+          {
+            "polyhavenId": "roof_tiles",
+            "semanticRole": "roofTexture",
+            "assetType": "texture_roof",
+            "priority": 1,
+            "description": "Victorian clay roof tiles"
+          }
+        ]
+      },
+      "config3D": {
+        "natureModels": {
+          "defaultTree": "${polyhavenId:tree_small_02}",
+          "rock": "${polyhavenId:boulder_01}"
+        },
+        "objectModels": {
+          "decoration": "${polyhavenId:vintage_grandfather_clock_01}",
+          "furniture_chair": "${polyhavenId:ArmChair_01}",
+          "furniture_table": "${polyhavenId:ClassicConsole_01}",
+          "tableware": "${polyhavenId:tea_set_01}",
+          "lamp": "${polyhavenId:street_lamp_01}",
+          "prop": "${polyhavenId:CashRegister_01}",
+          "books": "${polyhavenId:book_encyclopedia_set_01}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:tea_set_01}"
+        },
+        "groundTextureId": "${polyhavenId:cobblestone_floor_01}",
+        "roadTextureId": "${polyhavenId:old_wood_floor}",
+        "wallTextureId": "${polyhavenId:brick_wall_003}",
+        "roofTextureId": "${polyhavenId:roof_tiles}"
+      }
+    },
+    "modern-realistic": {
+      "name": "Modern Realistic Base Collection",
+      "description": "Contemporary urban props for realistic present-day settings",
+      "collectionType": "complete_theme",
+      "worldType": "modern-realistic",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "modern", "realistic", "contemporary", "polyhaven"],
+      "purpose": "Base collection for modern realistic worlds",
+      "assets": {
+        "nature": [
+          {
+            "polyhavenId": "tree_small_02",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Urban park tree"
+          },
+          {
+            "polyhavenId": "boulder_01",
+            "semanticRole": "rock",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Decorative landscaping boulder"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "street_lamp_01",
+            "semanticRole": "lamp",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Modern street lamp"
+          },
+          {
+            "polyhavenId": "utility_box_01",
+            "semanticRole": "prop",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Electrical utility box"
+          },
+          {
+            "polyhavenId": "utility_box_02",
+            "semanticRole": "decoration",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Green utility control box"
+          },
+          {
+            "polyhavenId": "Barrel_01",
+            "semanticRole": "storage",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Industrial barrel"
+          },
+          {
+            "polyhavenId": "wooden_crate_02",
+            "semanticRole": "chest",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Modern shipping crate"
+          },
+          {
+            "polyhavenId": "boombox",
+            "semanticRole": "electronics",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Portable boombox"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "asphalt_01",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Modern asphalt"
+          },
+          {
+            "polyhavenId": "concrete_floor",
+            "semanticRole": "roadTexture",
+            "assetType": "texture_road",
+            "priority": 1,
+            "description": "Concrete pavement"
+          },
+          {
+            "polyhavenId": "concrete_wall_004",
+            "semanticRole": "wallTexture",
+            "assetType": "texture_wall",
+            "priority": 1,
+            "description": "Modern concrete building walls"
+          },
+          {
+            "polyhavenId": "corrugated_iron",
+            "semanticRole": "roofTexture",
+            "assetType": "texture_roof",
+            "priority": 1,
+            "description": "Modern metal roof panels"
+          }
+        ]
+      },
+      "config3D": {
+        "natureModels": {
+          "defaultTree": "${polyhavenId:tree_small_02}",
+          "rock": "${polyhavenId:boulder_01}"
+        },
+        "objectModels": {
+          "lamp": "${polyhavenId:street_lamp_01}",
+          "prop": "${polyhavenId:utility_box_01}",
+          "decoration": "${polyhavenId:utility_box_02}",
+          "storage": "${polyhavenId:Barrel_01}",
+          "chest": "${polyhavenId:wooden_crate_02}",
+          "electronics": "${polyhavenId:boombox}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:wooden_crate_02}"
+        },
+        "groundTextureId": "${polyhavenId:asphalt_01}",
+        "roadTextureId": "${polyhavenId:concrete_floor}",
+        "wallTextureId": "${polyhavenId:concrete_wall_004}",
+        "roofTextureId": "${polyhavenId:corrugated_iron}"
+      }
+    },
+    "superhero": {
+      "name": "Superhero Base Collection",
+      "description": "Modern urban environment props for superhero city settings",
+      "collectionType": "complete_theme",
+      "worldType": "superhero",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "superhero", "urban", "modern", "polyhaven"],
+      "purpose": "Base collection for superhero worlds",
+      "assets": {
+        "nature": [
+          {
+            "polyhavenId": "tree_small_02",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "City park tree"
+          },
+          {
+            "polyhavenId": "boulder_01",
+            "semanticRole": "rock",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Urban rubble"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "street_lamp_01",
+            "semanticRole": "lamp",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "City street lamp"
+          },
+          {
+            "polyhavenId": "utility_box_01",
+            "semanticRole": "prop",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Urban utility box"
+          },
+          {
+            "polyhavenId": "utility_box_02",
+            "semanticRole": "decoration",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Electrical control box"
+          },
+          {
+            "polyhavenId": "Barrel_01",
+            "semanticRole": "storage",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Industrial barrel"
+          },
+          {
+            "polyhavenId": "barrel_stove",
+            "semanticRole": "barrel_fire",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Street-side barrel fire"
+          },
+          {
+            "polyhavenId": "boombox",
+            "semanticRole": "electronics",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Street boombox"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "asphalt_01",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "City asphalt"
+          },
+          {
+            "polyhavenId": "concrete_floor",
+            "semanticRole": "roadTexture",
+            "assetType": "texture_road",
+            "priority": 1,
+            "description": "Concrete city sidewalk"
+          },
+          {
+            "polyhavenId": "concrete_wall_001",
+            "semanticRole": "wallTexture",
+            "assetType": "texture_wall",
+            "priority": 1,
+            "description": "City building concrete walls"
+          },
+          {
+            "polyhavenId": "corrugated_iron",
+            "semanticRole": "roofTexture",
+            "assetType": "texture_roof",
+            "priority": 1,
+            "description": "Urban rooftop metal"
+          }
+        ]
+      },
+      "config3D": {
+        "natureModels": {
+          "defaultTree": "${polyhavenId:tree_small_02}",
+          "rock": "${polyhavenId:boulder_01}"
+        },
+        "objectModels": {
+          "lamp": "${polyhavenId:street_lamp_01}",
+          "prop": "${polyhavenId:utility_box_01}",
+          "decoration": "${polyhavenId:utility_box_02}",
+          "storage": "${polyhavenId:Barrel_01}",
+          "barrel_fire": "${polyhavenId:barrel_stove}",
+          "electronics": "${polyhavenId:boombox}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:utility_box_02}"
+        },
+        "groundTextureId": "${polyhavenId:asphalt_01}",
+        "roadTextureId": "${polyhavenId:concrete_floor}",
+        "wallTextureId": "${polyhavenId:concrete_wall_001}",
+        "roofTextureId": "${polyhavenId:corrugated_iron}"
+      }
+    },
+    "horror": {
+      "name": "Horror Base Collection",
+      "description": "Decrepit props and eerie atmosphere for supernatural horror settings",
+      "collectionType": "complete_theme",
+      "worldType": "horror",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "horror", "gothic", "eerie", "polyhaven"],
+      "purpose": "Base collection for horror worlds",
+      "assets": {
+        "nature": [
+          {
+            "polyhavenId": "dead_tree_trunk",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Gnarled dead tree"
+          },
+          {
+            "polyhavenId": "tree_stump_01",
+            "semanticRole": "stump",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Rotting tree stump"
+          },
+          {
+            "polyhavenId": "boulder_01",
+            "semanticRole": "rock",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Dark ominous rock"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "brass_candleholders",
+            "semanticRole": "decoration",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Eerie flickering candleholders"
+          },
+          {
+            "polyhavenId": "wooden_bookshelf_worn",
+            "semanticRole": "furniture",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Decrepit bookshelf with dark tomes"
+          },
+          {
+            "polyhavenId": "Lantern_01",
+            "semanticRole": "lamp",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Dim flickering lantern"
+          },
+          {
+            "polyhavenId": "wooden_crate_01",
+            "semanticRole": "storage",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Rotting wooden crate"
+          },
+          {
+            "polyhavenId": "stone_fire_pit",
+            "semanticRole": "fire_pit",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Ritual stone fire pit"
+          },
+          {
+            "polyhavenId": "antique_estoc",
+            "semanticRole": "quest_weapon",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Cursed antique blade"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "moss_01",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Damp dark moss ground"
+          },
+          {
+            "polyhavenId": "mossy_cobblestone",
+            "semanticRole": "roadTexture",
+            "assetType": "texture_road",
+            "priority": 1,
+            "description": "Moss-choked cobblestone path"
+          },
+          {
+            "polyhavenId": "old_stone_wall",
+            "semanticRole": "wallTexture",
+            "assetType": "texture_wall",
+            "priority": 1,
+            "description": "Crumbling ancient stone wall"
+          },
+          {
+            "polyhavenId": "slate_floor",
+            "semanticRole": "roofTexture",
+            "assetType": "texture_roof",
+            "priority": 1,
+            "description": "Dark slate roof tiles"
+          }
+        ]
+      },
+      "config3D": {
+        "natureModels": {
+          "defaultTree": "${polyhavenId:dead_tree_trunk}",
+          "stump": "${polyhavenId:tree_stump_01}",
+          "rock": "${polyhavenId:boulder_01}"
+        },
+        "objectModels": {
+          "decoration": "${polyhavenId:brass_candleholders}",
+          "furniture": "${polyhavenId:wooden_bookshelf_worn}",
+          "lamp": "${polyhavenId:Lantern_01}",
+          "storage": "${polyhavenId:wooden_crate_01}",
+          "fire_pit": "${polyhavenId:stone_fire_pit}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:antique_estoc}"
+        },
+        "groundTextureId": "${polyhavenId:moss_01}",
+        "roadTextureId": "${polyhavenId:mossy_cobblestone}",
+        "wallTextureId": "${polyhavenId:old_stone_wall}",
+        "roofTextureId": "${polyhavenId:slate_floor}"
+      }
+    },
+    "solarpunk": {
+      "name": "Solarpunk Base Collection",
+      "description": "Lush greenery, natural materials, and sustainable tech for optimistic future settings",
+      "collectionType": "complete_theme",
+      "worldType": "solarpunk",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "solarpunk", "green", "sustainable", "polyhaven"],
+      "purpose": "Base collection for solarpunk worlds",
+      "assets": {
+        "nature": [
+          {
+            "polyhavenId": "jacaranda_tree",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Vibrant flowering tree"
+          },
+          {
+            "polyhavenId": "tree_small_02",
+            "semanticRole": "tree_common",
+            "assetType": "model_tree",
+            "priority": 2,
+            "description": "Urban green tree"
+          },
+          {
+            "polyhavenId": "fern_02",
+            "semanticRole": "bush",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Lush fern"
+          },
+          {
+            "polyhavenId": "boulder_01",
+            "semanticRole": "rock",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Mossy natural stone"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "street_lamp_01",
+            "semanticRole": "lamp",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Solar-powered street lamp"
+          },
+          {
+            "polyhavenId": "wooden_crate_02",
+            "semanticRole": "storage",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Recycled wooden crate"
+          },
+          {
+            "polyhavenId": "wooden_stool_01",
+            "semanticRole": "furniture_stool",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Natural wood stool"
+          },
+          {
+            "polyhavenId": "stone_fire_pit",
+            "semanticRole": "decoration",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Community fire pit"
+          },
+          {
+            "polyhavenId": "wooden_table_02",
+            "semanticRole": "furniture_table",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Communal wooden table"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "forrest_ground_01",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Lush forest floor ground"
+          },
+          {
+            "polyhavenId": "gravel_floor",
+            "semanticRole": "roadTexture",
+            "assetType": "texture_road",
+            "priority": 1,
+            "description": "Natural gravel pathway"
+          },
+          {
+            "polyhavenId": "brick_wall_001",
+            "semanticRole": "wallTexture",
+            "assetType": "texture_wall",
+            "priority": 1,
+            "description": "Natural brick community walls"
+          },
+          {
+            "polyhavenId": "roof_tiles",
+            "semanticRole": "roofTexture",
+            "assetType": "texture_roof",
+            "priority": 1,
+            "description": "Eco-friendly clay roof tiles"
+          }
+        ]
+      },
+      "config3D": {
+        "natureModels": {
+          "defaultTree": "${polyhavenId:jacaranda_tree}",
+          "tree_common": "${polyhavenId:tree_small_02}",
+          "bush": "${polyhavenId:fern_02}",
+          "rock": "${polyhavenId:boulder_01}"
+        },
+        "objectModels": {
+          "lamp": "${polyhavenId:street_lamp_01}",
+          "storage": "${polyhavenId:wooden_crate_02}",
+          "furniture_stool": "${polyhavenId:wooden_stool_01}",
+          "decoration": "${polyhavenId:stone_fire_pit}",
+          "furniture_table": "${polyhavenId:wooden_table_02}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:wooden_crate_02}"
+        },
+        "groundTextureId": "${polyhavenId:forrest_ground_01}",
+        "roadTextureId": "${polyhavenId:gravel_floor}",
+        "wallTextureId": "${polyhavenId:brick_wall_001}",
+        "roofTextureId": "${polyhavenId:roof_tiles}"
+      }
+    },
+    "dieselpunk": {
+      "name": "Dieselpunk Base Collection",
+      "description": "1920s-1950s industrial aesthetic with diesel-powered machinery and gritty urban props",
+      "collectionType": "complete_theme",
+      "worldType": "dieselpunk",
+      "isBase": true,
+      "isPublic": true,
+      "tags": ["base", "dieselpunk", "industrial", "1940s", "polyhaven"],
+      "purpose": "Base collection for dieselpunk worlds",
+      "assets": {
+        "nature": [
+          {
+            "polyhavenId": "dead_tree_trunk",
+            "semanticRole": "defaultTree",
+            "assetType": "model_tree",
+            "priority": 1,
+            "description": "Polluted dead tree"
+          },
+          {
+            "polyhavenId": "boulder_01",
+            "semanticRole": "rock",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Industrial rubble"
+          }
+        ],
+        "objects": [
+          {
+            "polyhavenId": "Barrel_01",
+            "semanticRole": "storage",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Red oil drum"
+          },
+          {
+            "polyhavenId": "barrel_03",
+            "semanticRole": "storage_alt",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Industrial steel barrel"
+          },
+          {
+            "polyhavenId": "barrel_stove",
+            "semanticRole": "barrel_fire",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Worker's barrel stove"
+          },
+          {
+            "polyhavenId": "utility_box_01",
+            "semanticRole": "prop",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Industrial electrical box"
+          },
+          {
+            "polyhavenId": "street_lamp_02",
+            "semanticRole": "lamp",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Industrial wall lamp"
+          },
+          {
+            "polyhavenId": "wooden_crate_02",
+            "semanticRole": "chest",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Wartime supply crate"
+          }
+        ],
+        "textures": [
+          {
+            "polyhavenId": "asphalt_01",
+            "semanticRole": "groundTexture",
+            "assetType": "texture_ground",
+            "priority": 1,
+            "description": "Industrial asphalt ground"
+          },
+          {
+            "polyhavenId": "concrete_floor",
+            "semanticRole": "roadTexture",
+            "assetType": "texture_road",
+            "priority": 1,
+            "description": "Rough concrete road"
+          },
+          {
+            "polyhavenId": "brick_wall_003",
+            "semanticRole": "wallTexture",
+            "assetType": "texture_wall",
+            "priority": 1,
+            "description": "Industrial brick factory walls"
+          },
+          {
+            "polyhavenId": "corrugated_iron",
+            "semanticRole": "roofTexture",
+            "assetType": "texture_roof",
+            "priority": 1,
+            "description": "Factory corrugated iron roofing"
+          }
+        ]
+      },
+      "config3D": {
+        "natureModels": {
+          "defaultTree": "${polyhavenId:dead_tree_trunk}",
+          "rock": "${polyhavenId:boulder_01}"
+        },
+        "objectModels": {
+          "storage": "${polyhavenId:Barrel_01}",
+          "storage_alt": "${polyhavenId:barrel_03}",
+          "barrel_fire": "${polyhavenId:barrel_stove}",
+          "prop": "${polyhavenId:utility_box_01}",
+          "lamp": "${polyhavenId:street_lamp_02}",
+          "chest": "${polyhavenId:wooden_crate_02}"
+        },
+        "questObjectModels": {
+          "collectible": "${polyhavenId:wooden_crate_02}"
+        },
+        "groundTextureId": "${polyhavenId:asphalt_01}",
+        "roadTextureId": "${polyhavenId:concrete_floor}",
+        "wallTextureId": "${polyhavenId:brick_wall_003}",
+        "roofTextureId": "${polyhavenId:corrugated_iron}"
       }
     }
   },

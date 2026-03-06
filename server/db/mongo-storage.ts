@@ -168,6 +168,10 @@ const RuleSchema = new Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
+// Add indexes for better query performance
+RuleSchema.index({ worldId: 1 });
+RuleSchema.index({ isBase: 1, worldId: 1 }); // Compound index for base rules query
+
 const GrammarSchema = new Schema({
   worldId: { type: String, required: true },
   name: { type: String, required: true, unique: true },
@@ -357,6 +361,10 @@ const ActionSchema = new Schema({
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
+
+// Add indexes for better query performance
+ActionSchema.index({ worldId: 1 });
+ActionSchema.index({ isBase: 1, worldId: 1 }); // Compound index for base actions query
 
 const TruthSchema = new Schema({
   worldId: { type: String, required: true },
@@ -679,20 +687,41 @@ const WorldLanguageModel = mongoose.model<WorldLanguageDoc>('WorldLanguage', Wor
 const LanguageChatMessageModel = mongoose.model<LanguageChatMessageDoc>('LanguageChatMessage', LanguageChatMessageSchema);
 
 // Helper to convert Mongoose doc to our type
-function docToRule(doc: RuleDoc): Rule {
-  return { ...doc.toObject(), id: doc._id.toString() };
+function docToRule(doc: RuleDoc | any): Rule {
+  // Check if it's a lean document (plain object) or Mongoose document
+  if (doc.toObject) {
+    // Mongoose document
+    console.log(`[docToRule] Processing Mongoose document, has content:`, !!doc.content);
+    return { ...doc.toObject(), id: doc._id.toString() };
+  } else {
+    // Lean document (plain object)
+    console.log(`[docToRule] Processing lean document, has content:`, !!doc.content);
+    return { ...doc, id: doc._id.toString() };
+  }
 }
 
-function docToGrammar(doc: GrammarDoc): Grammar {
-  return { ...doc.toObject(), id: doc._id.toString() };
+function docToGrammar(doc: GrammarDoc | any): Grammar {
+  if (doc.toObject) {
+    return { ...doc.toObject(), id: doc._id.toString() };
+  } else {
+    return { ...doc, id: doc._id.toString() };
+  }
 }
 
-function docToCharacter(doc: CharacterDoc): Character {
-  return { ...doc.toObject(), id: doc._id.toString() };
+function docToCharacter(doc: CharacterDoc | any): Character {
+  if (doc.toObject) {
+    return { ...doc.toObject(), id: doc._id.toString() };
+  } else {
+    return { ...doc, id: doc._id.toString() };
+  }
 }
 
-function docToWorld(doc: WorldDoc): World {
-  return { ...doc.toObject(), id: doc._id.toString() };
+function docToWorld(doc: WorldDoc | any): World {
+  if (doc.toObject) {
+    return { ...doc.toObject(), id: doc._id.toString() };
+  } else {
+    return { ...doc, id: doc._id.toString() };
+  }
 }
 
 function docToCountry(doc: CountryDoc): Country {
@@ -772,6 +801,9 @@ function docToLanguageChatMessage(doc: LanguageChatMessageDoc): LanguageChatMess
 }
 
 export class MongoStorage implements IStorage {
+  // TODO: Implement missing IStorage methods: getBusinessesByWorld, getOccupation, getOccupationsByCharacter, 
+  // getOccupationsByBusiness, getCurrentOccupation, getBaseRulesByCategory, getActionsByType, getBaseActions
+  
   private static connectionPromise: Promise<void> | null = null;
   private static isInitializing = false; // Track if we're in initialization to avoid deadlock (static to share across proxy)
   private connected = false;
@@ -788,27 +820,34 @@ export class MongoStorage implements IStorage {
 
     // If a connection is in progress, wait for it
     if (MongoStorage.connectionPromise) {
+      console.log(`[MongoStorage] Connection already in progress, waiting...`);
       await MongoStorage.connectionPromise;
       this.connected = true;
       return;
     }
 
-    // Start new connection
-    console.log(`Attempting to connect to MongoDB at: ${this.mongoUrl}`);
-    
+    // Otherwise, initiate connection
+    console.log(`[MongoStorage] Initiating new connection...`);
     MongoStorage.connectionPromise = (async () => {
       try {
         // Disconnect if there's a stale connection
         if (mongoose.connection.readyState !== 0) {
+          console.log(`[MongoStorage] Disconnecting stale connection (state: ${mongoose.connection.readyState})`);
           await mongoose.disconnect();
         }
 
+        console.log(`[MongoStorage] Connecting to MongoDB at: ${this.mongoUrl}`);
+        const connectStart = Date.now();
         await mongoose.connect(this.mongoUrl, {
-          serverSelectionTimeoutMS: 5000, // Fail faster for debugging
-          socketTimeoutMS: 45000,
+          serverSelectionTimeoutMS: 60000, // Increase to 60 seconds
+          socketTimeoutMS: 120000, // Increase to 2 minutes
+          connectTimeoutMS: 60000, // Increase to 60 seconds
+          maxPoolSize: 10, // Maintain up to 10 socket connections
+          retryWrites: true,
+          w: 'majority'
         });
-        
-        console.log("MongoDB connected successfully");
+        const connectElapsed = Date.now() - connectStart;
+        console.log(`[MongoStorage] MongoDB connected successfully in ${connectElapsed}ms`);
         
         // Mark as connected BEFORE initializing sample data to avoid deadlock
         this.connected = true;
@@ -1268,16 +1307,95 @@ export class MongoStorage implements IStorage {
     return doc ? docToRule(doc) : undefined;
   }
 
+  async getRuleWithContent(id: string): Promise<Rule | undefined> {
+    await this.connect();
+    const doc = await RuleModel.findById(id);
+    if (!doc) return undefined;
+    
+    // Return full rule with content
+    return docToRule(doc);
+  }
+
   async getRulesByWorld(worldId: string): Promise<Rule[]> {
     await this.connect();
     const docs = await RuleModel.find({ worldId });
     return docs.map(docToRule);
   }
 
-  async getBaseRules(): Promise<Rule[]> {
+  async getBaseRules(options?: { page?: number; limit?: number; includeContent?: boolean }): Promise<Rule[]> {
     await this.connect();
-    const docs = await RuleModel.find({ isBase: true, worldId: null });
-    return docs.map(docToRule);
+    
+    // Default pagination options
+    const page = options?.page || 1;
+    const limit = options?.limit || 100;
+    const skip = (page - 1) * limit;
+    const includeContent = options?.includeContent ?? false; // Default to false for better performance
+    
+    console.log(`[MongoStorage] getBaseRules: Executing paginated query { isBase: true }, page ${page}, limit ${limit}, includeContent: ${includeContent}`);
+    const startTime = Date.now();
+    
+    // Build projection based on whether we need content
+    const projection: Record<string, 1 | 0> = includeContent 
+      ? { _id: 1, worldId: 1, isBase: 1, content: 1, name: 1, sourceFormat: 1, 
+          ruleType: 1, category: 1, priority: 1, likelihood: 1, 
+          conditions: 1, effects: 1, tags: 1, dependencies: 1, 
+          isActive: 1, description: 1, isCompiled: 1, compiledOutput: 1, 
+          createdAt: 1, updatedAt: 1 }
+      : { _id: 1, worldId: 1, isBase: 1, name: 1, sourceFormat: 1, 
+          ruleType: 1, category: 1, priority: 1, likelihood: 1, 
+          tags: 1, dependencies: 1, isActive: 1, description: 1, 
+          isCompiled: 1, createdAt: 1, updatedAt: 1 };
+    
+    console.log(`[MongoStorage] Using projection:`, projection);
+    
+    // Use paginated query with just isBase: true
+    const query = RuleModel
+      .find({ isBase: true })
+      .lean()
+      .select(projection)
+      .skip(skip)
+      .limit(limit);
+    
+    console.log(`[MongoStorage] Executing query:`, query.getQuery());
+    const docs = await query;
+    
+    // Filter for worldId: null in application
+    const baseRules = docs.filter(doc => doc.worldId === null);
+    
+    const elapsed = Date.now() - startTime;
+    console.log(`[MongoStorage] getBaseRules: Query completed in ${elapsed}ms, page ${page} returned ${docs.length} rules with isBase:true, ${baseRules.length} with worldId:null`);
+    
+    return baseRules.map(docToRule);
+  }
+  
+  // New method to get all base rules with pagination (for export)
+  async getAllBaseRulesPaginated(): Promise<Rule[]> {
+    await this.connect();
+    console.log(`[MongoStorage] getAllBaseRulesPaginated: Fetching all base rules in batches`);
+    const startTime = Date.now();
+    
+    const allRules: Rule[] = [];
+    const pageSize = 50;
+    let page = 1;
+    let hasMore = true;
+    
+    while (hasMore) {
+      // For export, we need the content, so include it
+      const rules = await this.getBaseRules({ page, limit: pageSize, includeContent: true });
+      if (rules.length === 0) {
+        hasMore = false;
+      } else {
+        allRules.push(...rules);
+        console.log(`[MongoStorage] Fetched ${rules.length} rules, total: ${allRules.length}`);
+        if (rules.length < pageSize) hasMore = false;
+        page++;
+      }
+    }
+    
+    const elapsed = Date.now() - startTime;
+    console.log(`[MongoStorage] getAllBaseRulesPaginated: Completed in ${elapsed}ms, total rules: ${allRules.length}`);
+    
+    return allRules;
   }
 
   async getBaseRulesByCategory(category: string): Promise<Rule[]> {
@@ -2046,7 +2164,6 @@ export class MongoStorage implements IStorage {
       const world = await this.createWorld({
         name: "Medieval Kingdom",
         description: "A comprehensive medieval world combining all three simulation systems",
-        sourceFormats: ["insimul", "ensemble", "kismet", "tott"],
         config: {
           enableTracery: true,
           enableGenealogy: true

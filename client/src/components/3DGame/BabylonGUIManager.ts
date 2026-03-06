@@ -102,6 +102,7 @@ export class BabylonGUIManager {
   private feedbackPanel: Container | null = null;
   private menuButton: Button | null = null;
   private cameraButton: Button | null = null;
+  private fullscreenButton: Button | null = null;
   private menuPanel: Rectangle | null = null;
   private minimapPanel: Container | null = null;
   private reputationPanel: Container | null = null;
@@ -128,7 +129,13 @@ export class BabylonGUIManager {
   constructor(scene: Scene, config: GUIConfig) {
     this.scene = scene;
     this.config = config;
+    // Revert to layer mode (third parameter = true)
     this.advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI("UI", true, scene);
+    console.log('[GUIManager] Advanced texture created:', this.advancedTexture);
+    console.log('[GUIManager] Scene:', scene);
+    console.log('[GUIManager] Texture layer mode:', true);
+    console.log('[GUIManager] Texture rootContainer children:', this.advancedTexture.rootContainer.children.length);
+    
     this.initialize();
   }
 
@@ -136,6 +143,9 @@ export class BabylonGUIManager {
     this.createHUD();
     this.createMenuButton();
     this.createCameraButton();
+    this.createFullscreenButton();
+    
+    console.log('[GUIManager] GUI initialized successfully'); 
   }
 
   private createHUD() {
@@ -166,12 +176,15 @@ export class BabylonGUIManager {
     this.menuButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     this.menuButton.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     this.menuButton.fontSize = 16;
+    this.menuButton.isVisible = true; // Explicitly set visible
 
     this.menuButton.onPointerClickObservable.add(() => {
+      console.log('[GUIManager] Menu button clicked!');
       this.toggleMenu();
     });
 
     this.advancedTexture.addControl(this.menuButton);
+    console.log('[GUIManager] Menu button added, isVisible:', this.menuButton.isVisible);
   }
 
   private createCameraButton() {
@@ -181,8 +194,8 @@ export class BabylonGUIManager {
     this.cameraButton.color = "white";
     this.cameraButton.background = "rgba(0, 0, 0, 0.6)";
     this.cameraButton.cornerRadius = 5;
-    this.cameraButton.top = "10px";
-    this.cameraButton.left = "-120px";
+    this.cameraButton.top = "60px"; // Position below menu button
+    this.cameraButton.left = "-10px";
     this.cameraButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     this.cameraButton.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     this.cameraButton.fontSize = 14;
@@ -202,6 +215,26 @@ export class BabylonGUIManager {
       const icon = modeText === 'First Person' ? '👁️' : modeText === 'Isometric' ? '🗺️' : '📷';
       (this.cameraButton.children[0] as any).text = `${icon} ${modeText}`;
     }
+  }
+
+  private createFullscreenButton() {
+    this.fullscreenButton = Button.CreateSimpleButton("fullscreenBtn", "⛶ Fullscreen");
+    this.fullscreenButton.width = "120px";
+    this.fullscreenButton.height = "40px";
+    this.fullscreenButton.color = "white";
+    this.fullscreenButton.background = "rgba(0, 0, 0, 0.6)";
+    this.fullscreenButton.cornerRadius = 5;
+    this.fullscreenButton.top = "-10px";
+    this.fullscreenButton.left = "-10px";
+    this.fullscreenButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    this.fullscreenButton.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+    this.fullscreenButton.fontSize = 14;
+
+    this.fullscreenButton.onPointerClickObservable.add(() => {
+      this.onFullscreenPressed?.();
+    });
+
+    this.advancedTexture.addControl(this.fullscreenButton);
   }
 
   /**
@@ -235,7 +268,7 @@ export class BabylonGUIManager {
     this.menuPanel.color = "white";
     this.menuPanel.thickness = 2;
     this.menuPanel.cornerRadius = 10;
-    this.menuPanel.top = "60px";
+    this.menuPanel.top = "110px"; // Position below camera button
     this.menuPanel.left = "-10px";
     this.menuPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     this.menuPanel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
@@ -614,7 +647,7 @@ export class BabylonGUIManager {
     panel.color = "white";
     panel.thickness = 2;
     panel.cornerRadius = 5;
-    panel.top = "10px";
+    panel.top = "120px"; // Position below camera button
     panel.left = "-10px";
     panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     panel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
@@ -1534,6 +1567,7 @@ export class BabylonGUIManager {
     if (this.hudContainer) this.hudContainer.isVisible = visible;
     if (this.menuButton) this.menuButton.isVisible = visible;
     if (this.cameraButton) this.cameraButton.isVisible = visible;
+    if (this.fullscreenButton) this.fullscreenButton.isVisible = visible;
     if (this.toastContainer) this.toastContainer.isVisible = visible;
     if (this.minimapPanel) this.minimapPanel.isVisible = visible && this.minimapPanel.isVisible;
 

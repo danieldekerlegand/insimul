@@ -67,57 +67,68 @@ export async function getOrCreateDefaultCollectionForWorldType(
     return baseCollection;
   }
 
-  // FALLBACK: Map world types to collection names (legacy logic)
-  const collectionMapping: Record<string, string> = {
-    'medieval-fantasy': 'Medieval Fantasy',
-    'high-fantasy': 'Medieval Fantasy',
-    'low-fantasy': 'Medieval Fantasy',
-    'dark-fantasy': 'Medieval Fantasy',
-    'historical-medieval': 'Medieval Fantasy',
-    'mythological': 'Medieval Fantasy',
+  // FALLBACK: Map world types to the closest available base collection world type.
+  // Used for: (a) legacy DB entries with old worldType values, and (b) world types
+  // whose base collection is missing or was never seeded.
+  const worldTypeFallback: Record<string, string> = {
+    // Legacy DB entries with renamed worldType values
+    'western-frontier':       'wild-west',
+    'historical':             'historical-ancient',
 
-    'sci-fi-space': 'Sci-Fi City',
-    'cyberpunk': 'Sci-Fi City',
-    'solarpunk': 'Sci-Fi City',
-    'dieselpunk': 'Sci-Fi City',
-
-    'post-apocalyptic': 'Post-Apocalyptic',
-    'steampunk': 'Steampunk',
-    'western-frontier': 'Western Frontier',
-    'wild-west': 'Western Frontier',
-    'tropical-pirate': 'Tropical Pirate',
-
-    'historical': 'Historical',
-    'historical-ancient': 'Historical',
-    'historical-renaissance': 'Historical',
-    'historical-victorian': 'Historical',
-
-    'generic': 'Generic Default',
+    // Thematic fallbacks if own base collection is missing
+    'low-fantasy':            'medieval-fantasy',
+    'urban-fantasy':          'dark-fantasy',
+    'mythological':           'high-fantasy',
+    'horror':                 'dark-fantasy',
+    'superhero':              'generic',
+    'cyberpunk':              'sci-fi-space',
+    'historical-renaissance': 'historical-medieval',
+    'historical-victorian':   'steampunk',
+    'solarpunk':              'sci-fi-space',
+    'dieselpunk':             'post-apocalyptic',
+    'modern-realistic':       'generic',
+    'modern':                 'generic',              // Legacy alias
+    'tropical-pirate':        'historical-medieval',
   };
 
-  const collectionName = collectionMapping[normalizedType] || 'Generic Default';
+  const fallbackWorldType = worldTypeFallback[normalizedType] || 'generic';
 
-  console.warn(`No base collection found for ${normalizedType}, falling back to legacy collection: ${collectionName}`);
-
-  // Try to find existing collection by name
-  const existing = allCollections.find(
-    (c: AssetCollection) => c.name === collectionName && c.isPublic === true
+  console.warn(
+    `No base collection found for "${normalizedType}", falling back to "${fallbackWorldType}" base collection`
   );
 
-  if (existing) {
-    return existing;
+  // Try to find a base collection for the fallback world type
+  const fallbackCollection = allCollections.find(
+    (c: AssetCollection) =>
+      c.worldType === fallbackWorldType &&
+      (c as any).isBase === true &&
+      c.isPublic === true
+  );
+
+  if (fallbackCollection) {
+    console.log(`Using fallback base collection "${fallbackCollection.name}" for world type: ${normalizedType}`);
+    return fallbackCollection;
   }
 
-  // Create a new collection, pre-populated from templates if available
-  console.log(`Creating default asset collection: ${collectionName} for world type: ${normalizedType}`);
+  // Last resort: find any public base collection
+  const anyBase = allCollections.find(
+    (c: AssetCollection) => (c as any).isBase === true && c.isPublic === true
+  );
+  if (anyBase) {
+    console.warn(`Using any available base collection "${anyBase.name}" as last resort for: ${normalizedType}`);
+    return anyBase;
+  }
 
-  // Try to pre-populate from template
+  // Create a new empty collection as a last resort
+  const newName = `${normalizedType.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} Collection`;
+  console.log(`Creating new empty collection: ${newName} for world type: ${normalizedType}`);
+
   const template = getTemplateForWorldType(normalizedType);
   const prePopulated = template ? buildConfig3DFromTemplate(template) : { objectModels: {}, natureModels: {} };
 
   const collection = await storage.createAssetCollection({
-    name: collectionName,
-    description: `Default asset collection for ${collectionName.toLowerCase()} worlds`,
+    name: newName,
+    description: `Default asset collection for ${normalizedType} worlds`,
     collectionType: 'complete_theme',
     worldType: normalizedType,
     isPublic: true,
@@ -128,10 +139,6 @@ export async function getOrCreateDefaultCollectionForWorldType(
     characterModels: {},
     objectModels: prePopulated.objectModels || {},
   });
-
-  if (template) {
-    console.log(`Pre-populated collection "${collectionName}" with ${template.assets.length} asset slots from template "${template.name}"`);
-  }
 
   return collection;
 }

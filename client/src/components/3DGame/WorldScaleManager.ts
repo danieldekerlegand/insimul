@@ -278,6 +278,10 @@ export class WorldScaleManager {
     const gridWidth = (cols - 1) * lotSpacing;
     const gridHeight = (rows - 1) * lotSpacing;
 
+    // The player spawns at the settlement center. Keep a clear zone so no
+    // building lot lands too close to it.
+    const SPAWN_CLEAR_RADIUS = 15;
+
     for (let i = 0; i < lotCount; i++) {
       const row = Math.floor(i / cols);
       const col = i % cols;
@@ -289,11 +293,22 @@ export class WorldScaleManager {
       const jitterX = (rand() - 0.5) * 4;
       const jitterZ = (rand() - 0.5) * 4;
 
-      positions.push(new Vector3(
-        baseX + jitterX,
-        0,
-        baseZ + jitterZ
-      ));
+      let lotX = baseX + jitterX;
+      let lotZ = baseZ + jitterZ;
+
+      // If this lot falls within the player spawn clear zone, push it outward
+      // along the same direction until it clears the radius.
+      const dx = lotX - settlement.position.x;
+      const dz = lotZ - settlement.position.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist < SPAWN_CLEAR_RADIUS) {
+        // Push radially outward; if right at center use an arbitrary direction
+        const angle = dist > 0.001 ? Math.atan2(dz, dx) : (i * Math.PI * 0.618);
+        lotX = settlement.position.x + Math.cos(angle) * SPAWN_CLEAR_RADIUS;
+        lotZ = settlement.position.z + Math.sin(angle) * SPAWN_CLEAR_RADIUS;
+      }
+
+      positions.push(new Vector3(lotX, 0, lotZ));
     }
 
     return positions;

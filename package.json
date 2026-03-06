@@ -18,7 +18,8 @@
     "pdf": "node scripts/generate-pdf.js",
     "pdf:roadmap": "node scripts/generate-pdf.js STARTUP_ROADMAP.md",
     "pdf:vr": "node scripts/generate-pdf.js VR_SUPPORT_ROADMAP.md",
-    "pdf:assets": "node scripts/generate-pdf.js ASSET_PIPELINE_SURVEY.md"
+    "pdf:assets": "node scripts/generate-pdf.js ASSET_PIPELINE_SURVEY.md",
+    "test:export": "tsx server/services/game-export/babylon/test-export-build.ts"
   },
   "dependencies": {
     "@babylonjs/gui": "^8.38.0",

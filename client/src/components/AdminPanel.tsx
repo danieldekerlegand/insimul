@@ -21,49 +21,99 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const [baseRules, setBaseRules] = useState<any[]>([]);
   const [baseActions, setBaseActions] = useState<any[]>([]);
   const [expandedWorldId, setExpandedWorldId] = useState<string | null>(null);
+  
+  // Pagination state for base rules
+  const [rulesPage, setRulesPage] = useState(1);
+  const [rulesLimit] = useState(50);
+  const [rulesTotal, setRulesTotal] = useState<number | null>(null);
+  const [rulesHasMore, setRulesHasMore] = useState(false);
+  
+  // Pagination state for base actions
+  const [actionsPage, setActionsPage] = useState(1);
+  const [actionsLimit] = useState(50);
+  const [actionsTotal, setActionsTotal] = useState<number | null>(null);
+  const [actionsHasMore, setActionsHasMore] = useState(false);
 
   useEffect(() => {
     fetchAllData();
   }, []);
 
-  const fetchAllData = async () => {
+  const fetchAllData = async (page: number = 1) => {
     setLoading(true);
     try {
-      const baseRulesRes = await fetch('/api/rules/base');
+      // Fetch base rules with pagination
+      const baseRulesRes = await fetch(`/api/rules/base?page=${page}&limit=${rulesLimit}`);
       if (baseRulesRes.ok) {
         const baseRulesData = await baseRulesRes.json();
-        setBaseRules(baseRulesData);
+        if (baseRulesData.rules) {
+          // Paginated response
+          setBaseRules(baseRulesData.rules);
+          setRulesHasMore(baseRulesData.pagination?.hasMore || false);
+          if (page === 1) {
+            setRulesTotal(baseRulesData.rules.length); // We don't have total count, so estimate
+          }
+        } else {
+          // Non-paginated response (fallback)
+          setBaseRules(baseRulesData);
+          setRulesHasMore(false);
+          setRulesTotal(baseRulesData.length);
+        }
       } else {
         console.warn('Failed to fetch base rules:', baseRulesRes.status);
         setBaseRules([]);
+        setRulesHasMore(false);
       }
 
-      const baseActionsRes = await fetch('/api/actions/base');
+      // Fetch base actions (similar pagination)
+      const baseActionsRes = await fetch(`/api/actions/base?page=${page}&limit=${actionsLimit}`);
       if (baseActionsRes.ok) {
         const baseActionsData = await baseActionsRes.json();
-        setBaseActions(baseActionsData);
+        if (baseActionsData.rules) {
+          setBaseActions(baseActionsData.rules);
+          setActionsHasMore(baseActionsData.pagination?.hasMore || false);
+          if (page === 1) {
+            setActionsTotal(baseActionsData.rules.length);
+          }
+        } else {
+          setBaseActions(baseActionsData);
+          setActionsHasMore(false);
+          setActionsTotal(baseActionsData.length);
+        }
       } else {
         console.warn('Failed to fetch base actions:', baseActionsRes.status);
         setBaseActions([]);
+        setActionsHasMore(false);
       }
 
       const worldsRes = await fetch('/api/worlds');
       const worldsData = await worldsRes.json();
       setWorlds(worldsData);
 
+      setLoading(false);
+      
       toast({
         title: "Data Loaded",
         description: `Loaded ${worldsData.length} world(s), ${baseRules.length} base rules, ${baseActions.length} base actions`
       });
     } catch (error) {
+      console.error('Failed to fetch data:', error);
+      setLoading(false);
       toast({
-        title: "Error Loading Data",
-        description: error instanceof Error ? error.message : "Unknown error",
+        title: "Error",
+        description: "Failed to load admin data",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
+  };
+
+  const handleRulesPageChange = (newPage: number) => {
+    setRulesPage(newPage);
+    fetchAllData(newPage);
+  };
+
+  const handleActionsPageChange = (newPage: number) => {
+    setActionsPage(newPage);
+    fetchAllData(newPage);
   };
 
   return (
@@ -291,20 +341,94 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="base-rules" className="mt-4">
-                  <BaseResourcesManager
-                    resources={baseRules}
-                    resourceType="rule"
-                    icon={<BookOpen className="w-5 h-5 text-purple-500" />}
-                    onRefresh={fetchAllData}
-                  />
+                  <div className="space-y-4">
+                    {/* Pagination Controls */}
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-muted-foreground">
+                        Showing {baseRules.length} rules {rulesTotal && `of ~${rulesTotal}`}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (rulesPage > 1) {
+                              handleRulesPageChange(rulesPage - 1);
+                            }
+                          }}
+                          disabled={rulesPage <= 1}
+                        >
+                          Previous
+                        </Button>
+                        <span className="text-sm font-medium px-2">
+                          Page {rulesPage}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (rulesHasMore) {
+                              handleRulesPageChange(rulesPage + 1);
+                            }
+                          }}
+                          disabled={!rulesHasMore}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                    <BaseResourcesManager
+                      resources={baseRules}
+                      resourceType="rule"
+                      icon={<BookOpen className="w-5 h-5 text-purple-500" />}
+                      onRefresh={() => fetchAllData(rulesPage)}
+                    />
+                  </div>
                 </TabsContent>
                 <TabsContent value="base-actions" className="mt-4">
-                  <BaseResourcesManager
-                    resources={baseActions}
-                    resourceType="action"
-                    icon={<Sword className="w-5 h-5 text-pink-500" />}
-                    onRefresh={fetchAllData}
-                  />
+                  <div className="space-y-4">
+                    {/* Pagination Controls */}
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-muted-foreground">
+                        Showing {baseActions.length} actions {actionsTotal && `of ~${actionsTotal}`}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (actionsPage > 1) {
+                              handleActionsPageChange(actionsPage - 1);
+                            }
+                          }}
+                          disabled={actionsPage <= 1}
+                        >
+                          Previous
+                        </Button>
+                        <span className="text-sm font-medium px-2">
+                          Page {actionsPage}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (actionsHasMore) {
+                              handleActionsPageChange(actionsPage + 1);
+                            }
+                          }}
+                          disabled={!actionsHasMore}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                    <BaseResourcesManager
+                      resources={baseActions}
+                      resourceType="action"
+                      icon={<Sword className="w-5 h-5 text-pink-500" />}
+                      onRefresh={() => fetchAllData(actionsPage)}
+                    />
+                  </div>
                 </TabsContent>
               </Tabs>
             </div>

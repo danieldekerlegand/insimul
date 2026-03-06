@@ -549,7 +549,16 @@ export async function generateWorldIR(
   worldId: string,
   engine: TargetEngine = 'babylon'
 ): Promise<WorldIR> {
+  console.log(`[Export] Starting IR generation for world ${worldId}...`);
+  
+  // Ensure storage is initialized before parallel queries
+  console.log(`[Export] Initializing storage connection...`);
+  await (storage as any).connect?.();
+  
   // ── 1. Fetch all world data in parallel ──
+  console.log(`[Export] Fetching world data (11 parallel queries, skipping base rules/actions for performance)...`);
+  const startTime = Date.now();
+  
   const [
     world,
     countries,
@@ -557,42 +566,52 @@ export async function generateWorldIR(
     allSettlements,
     characters,
     worldRules,
-    baseRules,
+    // Skip baseRules for now due to performance issues
     worldActions,
-    baseActions,
+    // Skip baseActions for now due to performance issues
     quests,
     truths,
     grammars,
     languages,
   ] = await Promise.all([
-    storage.getWorld(worldId),
-    storage.getCountriesByWorld(worldId),
-    storage.getStatesByWorld(worldId),
-    storage.getSettlementsByWorld(worldId),
-    storage.getCharactersByWorld(worldId),
-    storage.getRulesByWorld(worldId),
-    storage.getBaseRules(),
-    storage.getActionsByWorld(worldId),
-    storage.getBaseActions(),
-    storage.getQuestsByWorld(worldId),
-    storage.getTruthsByWorld(worldId),
-    storage.getGrammarsByWorld(worldId),
-    storage.getWorldLanguagesByWorld(worldId),
+    storage.getWorld(worldId).then(r => { console.log(`[Export] ✓ getWorld`); return r; }),
+    storage.getCountriesByWorld(worldId).then(r => { console.log(`[Export] ✓ getCountriesByWorld`); return r; }),
+    storage.getStatesByWorld(worldId).then(r => { console.log(`[Export] ✓ getStatesByWorld`); return r; }),
+    storage.getSettlementsByWorld(worldId).then(r => { console.log(`[Export] ✓ getSettlementsByWorld`); return r; }),
+    storage.getCharactersByWorld(worldId).then(r => { console.log(`[Export] ✓ getCharactersByWorld`); return r; }),
+    storage.getRulesByWorld(worldId).then(r => { console.log(`[Export] ✓ getRulesByWorld`); return r; }),
+    // Skip baseRules - Promise.resolve([]).then(r => { console.log(`[Export] ✓ getBaseRules (skipped)`); return r; }),
+    storage.getActionsByWorld(worldId).then(r => { console.log(`[Export] ✓ getActionsByWorld`); return r; }),
+    // Skip baseActions - Promise.resolve([]).then(r => { console.log(`[Export] ✓ getBaseActions (skipped)`); return r; }),
+    storage.getQuestsByWorld(worldId).then(r => { console.log(`[Export] ✓ getQuestsByWorld`); return r; }),
+    storage.getTruthsByWorld(worldId).then(r => { console.log(`[Export] ✓ getTruthsByWorld`); return r; }),
+    storage.getGrammarsByWorld(worldId).then(r => { console.log(`[Export] ✓ getGrammarsByWorld`); return r; }),
+    storage.getWorldLanguagesByWorld(worldId).then(r => { console.log(`[Export] ✓ getWorldLanguagesByWorld`); return r; }),
   ]);
+  
+  const parallelTime = Date.now() - startTime;
+  console.log(`[Export] All parallel queries completed in ${parallelTime}ms`);
 
   if (!world) {
     throw new Error(`World ${worldId} not found`);
   }
 
   // Fetch asset collection snapshot and visual assets
+  console.log(`[Export] Fetching assets and building manifest...`);
+  const assetStartTime = Date.now();
   const assetCollectionId = world.selectedAssetCollectionId;
   const [collectionSnapshot, worldAssets] = await Promise.all([
-    assetCollectionId ? loadCollectionSnapshot(assetCollectionId) : Promise.resolve(null),
-    storage.getVisualAssetsByWorld(worldId),
+    assetCollectionId ? loadCollectionSnapshot(assetCollectionId).then(r => { console.log(`[Export] ✓ loadCollectionSnapshot`); return r; }) : Promise.resolve(null),
+    storage.getVisualAssetsByWorld(worldId).then(r => { console.log(`[Export] ✓ getVisualAssetsByWorld`); return r; }),
   ]);
 
   // Build asset manifest using the 3-tier fallback strategy
-  const { manifest: assetManifest } = await buildWorldAssetManifest(worldId, engine);
+  console.log(`[Export] Building asset manifest...`);
+  const { manifest: assetManifest } = await buildWorldAssetManifest(worldId, engine, world);
+  console.log(`[Export] ✓ Asset manifest built`);
+  
+  const assetTime = Date.now() - assetStartTime;
+  console.log(`[Export] Asset fetching and manifest completed in ${assetTime}ms`);
 
   // ── 2. Derive configuration ──
   const worldType = (world.config as any)?.worldType || (world as any).worldType || '';
@@ -888,15 +907,16 @@ export async function generateWorldIR(
     isActive: r.isActive ?? true,
   }));
 
-  const baseRuleIRs: RuleIR[] = baseRules.map(r => ({
-    id: r.id, name: r.name, description: r.description || null,
-    content: r.content, isBase: true, sourceFormat: r.sourceFormat,
-    ruleType: r.ruleType, category: r.category || null,
-    priority: r.priority ?? 5, likelihood: r.likelihood ?? 1.0,
-    conditions: (r.conditions as any[]) || [], effects: (r.effects as any[]) || [],
-    tags: (r.tags as string[]) || [], dependencies: (r.dependencies as string[]) || [],
-    isActive: r.isActive ?? true,
-  }));
+  const baseRuleIRs: RuleIR[] = []; // Skip base rules for now due to performance issues
+  // const baseRuleIRs: RuleIR[] = baseRules.map(r => ({
+  //   id: r.id, name: r.name, description: r.description || null,
+  //   content: r.content, isBase: true, sourceFormat: r.sourceFormat,
+  //   ruleType: r.ruleType, category: r.category || null,
+  //   priority: r.priority ?? 5, likelihood: r.likelihood ?? 1.0,
+  //   conditions: (r.conditions as any[]) || [], effects: (r.effects as any[]) || [],
+  //   tags: (r.tags as string[]) || [], dependencies: (r.dependencies as string[]) || [],
+  //   isActive: r.isActive ?? true,
+  // }));
 
   const actionIRs: ActionIR[] = worldActions.map(a => ({
     id: a.id, name: a.name, description: a.description || null,
@@ -921,28 +941,24 @@ export async function generateWorldIR(
     isActive: a.isActive ?? true,
   }));
 
-  const baseActionIRs: ActionIR[] = baseActions.map(a => ({
-    id: a.id, name: a.name, description: a.description || null,
-    isBase: true, sourceFormat: a.sourceFormat,
-    actionType: a.actionType, category: a.category || null,
-    duration: a.duration ?? 1, difficulty: a.difficulty ?? 0.5,
-    energyCost: a.energyCost ?? 1,
-    prerequisites: (a.prerequisites as any[]) || [],
-    effects: (a.effects as any[]) || [],
-    sideEffects: (a.sideEffects as any[]) || [],
-    targetType: a.targetType || null,
-    requiresTarget: a.requiresTarget ?? false,
-    range: a.range ?? 0,
-    isAvailable: a.isAvailable ?? true,
-    cooldown: a.cooldown ?? 0,
-    triggerConditions: (a.triggerConditions as any[]) || [],
-    verbPast: a.verbPast || null,
-    verbPresent: a.verbPresent || null,
-    narrativeTemplates: (a.narrativeTemplates as string[]) || [],
-    customData: (a.customData as Record<string, any>) || {},
-    tags: (a.tags as string[]) || [],
-    isActive: a.isActive ?? true,
-  }));
+  const baseActionIRs: ActionIR[] = []; // Skip base actions for now due to performance issues
+  // const baseActionIRs: ActionIR[] = baseActions.map(a => ({
+  //   id: a.id, name: a.name, description: a.description || null,
+  //   isBase: true, sourceFormat: a.sourceFormat,
+  //   actionType: a.actionType, category: a.category || null,
+  //   duration: a.duration ?? 1, difficulty: a.difficulty ?? 0.5,
+  //   energyCost: a.energyCost ?? 1,
+  //   prerequisites: (a.prerequisites as any[]) || [],
+  //   effects: (a.effects as any[]) || [],
+  //   sideEffects: (a.sideEffects as any[]) || [],
+  //   targetType: a.targetType || null,
+  //   requiresTarget: a.requiresTarget ?? false,
+  //   range: a.range || null,
+  //   cooldown: a.cooldown || null,
+  //   customData: (a.customData as Record<string, any>) || {},
+  //   tags: (a.tags as string[]) || [],
+  //   isActive: a.isActive ?? true,
+  // }));
 
   const questIRs: QuestIR[] = quests.map(q => ({
     id: q.id, worldId: q.worldId,
@@ -1058,6 +1074,7 @@ export async function generateWorldIR(
       exportTimestamp: new Date().toISOString(),
       exportVersion: world.version ?? 1,
       seed,
+      selectedAssetCollectionId: assetCollectionId || null,
     },
 
     geography: {

@@ -25,7 +25,8 @@ import {
   insertActionSchema,
   insertTruthSchema,
   insertVisualAssetSchema,
-  type InsertRule
+  type InsertRule,
+  type Rule
 } from "@shared/schema";
 import { z } from "zod";
 import { addImpulse, getImpulseStrength, decayImpulses } from "./extensions/kismet/impulse-system.js";
@@ -379,26 +380,167 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get base rules
-  app.get("/api/rules/base", async (req, res) => {
-    try {
-      const rules = await storage.getBaseRules();
-      console.log(`Found ${rules.length} base rules`);
-      if (rules.length > 0) {
-        console.log('First base rule:', {
-          id: rules[0].id,
-          name: rules[0].name,
-          isBase: rules[0].isBase,
-          worldId: rules[0].worldId,
-          worldIdType: typeof rules[0].worldId
-        });
-      }
-      res.json(rules);
-    } catch (error) {
-      console.error('Error fetching base rules:', error);
-      res.status(500).json({ error: "Failed to fetch base rules" });
+  // Cache for rules by world to avoid repeated database calls
+const rulesCache = new Map<string, { rules: Rule[]; timestamp: number }>();
+const RULES_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
+
+// Get single rule with content
+app.get("/api/rules/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const rule = await storage.getRuleWithContent(id);
+    
+    if (!rule) {
+      return res.status(404).json({ error: "Rule not found" });
     }
-  });
+    
+    res.json(rule);
+  } catch (error) {
+    console.error("Failed to fetch rule:", error);
+    res.status(500).json({ error: "Failed to fetch rule" });
+  }
+});
+
+// Get rules (with optional worldId filter)
+app.get("/api/rules", async (req, res) => {
+  try {
+    const { worldId, page, limit } = req.query;
+    
+    let rules: Rule[];
+    const cacheKey = (worldId as string) || 'base';
+    const now = Date.now();
+    
+    // Check cache first (only if not paginated)
+    const cached = rulesCache.get(cacheKey);
+    const isPaginated = page || limit;
+    
+    if (!isPaginated && cached && (now - cached.timestamp) < RULES_CACHE_DURATION) {
+      console.log(`Returning cached rules for ${cacheKey} (${cached.rules.length} rules)`);
+      return res.json(cached.rules);
+    }
+    
+    if (worldId) {
+      // Get rules for specific world with timeout
+      rules = await Promise.race([
+        storage.getRulesByWorld(worldId as string),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Database timeout')), 5000)
+        )
+      ]) as Rule[];
+    } else {
+      // Handle pagination for base rules
+      if (isPaginated) {
+        const pageNum = parseInt(page as string) || 1;
+        const limitNum = parseInt(limit as string) || 100;
+        console.log(`Returning paginated base rules, page ${pageNum}, limit ${limitNum}`);
+        rules = await storage.getBaseRules({ page: pageNum, limit: limitNum });
+        return res.json({
+          rules,
+          pagination: {
+            page: pageNum,
+            limit: limitNum,
+            hasMore: rules.length === limitNum
+          }
+        });
+      } else {
+        // Get all base rules (with timeout)
+        rules = await Promise.race([
+          storage.getBaseRules(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Database timeout')), 30000)
+          )
+        ]) as Rule[];
+      }
+    }
+    
+    // Update cache (only if not paginated)
+    if (!isPaginated) {
+      rulesCache.set(cacheKey, { rules, timestamp: now });
+    }
+    
+    res.json(rules);
+  } catch (error) {
+    console.error("Failed to fetch rules:", error);
+    // Return cached rules if available, otherwise empty array
+    const { worldId } = req.query;
+    const cacheKey = (worldId as string) || 'base';
+    const cached = rulesCache.get(cacheKey);
+    if (cached) {
+      console.log(`Database timeout for ${cacheKey}, returning cached rules`);
+      return res.json(cached.rules);
+    }
+    // Return empty array instead of error to prevent game from failing
+    res.json([]);
+  }
+});
+
+  // Cache for base rules to avoid repeated database calls
+let baseRulesCache: Rule[] | null = null;
+let baseRulesCacheTime = 0;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Get base rules
+app.get("/api/rules/base", async (req, res) => {
+  try {
+    // Check cache first
+    const now = Date.now();
+    if (baseRulesCache && (now - baseRulesCacheTime) < CACHE_DURATION) {
+      console.log(`Returning cached base rules (${baseRulesCache.length} rules)`);
+      return res.json(baseRulesCache);
+    }
+
+    // Support pagination via query parameters
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 100;
+    
+    // If pagination is requested, don't cache
+    if (req.query.page || req.query.limit) {
+      console.log(`Returning paginated base rules, page ${page}, limit ${limit}`);
+      const rules = await storage.getBaseRules({ page, limit });
+      return res.json({
+        rules,
+        pagination: {
+          page,
+          limit,
+          hasMore: rules.length === limit // Simple heuristic
+        }
+      });
+    }
+
+    // Add timeout handling (30 seconds)
+    const rules = await Promise.race([
+      storage.getBaseRules(),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database timeout')), 30000)
+      )
+    ]) as Rule[];
+    
+    // Update cache
+    baseRulesCache = rules;
+    baseRulesCacheTime = now;
+    
+    console.log(`Found ${rules.length} base rules`);
+    if (rules.length > 0) {
+      console.log('First base rule:', {
+        id: rules[0].id,
+        name: rules[0].name,
+        isBase: rules[0].isBase,
+        worldId: rules[0].worldId,
+        worldIdType: typeof rules[0].worldId
+      });
+    }
+    res.json(rules);
+  } catch (error) {
+    console.error('Error fetching base rules:', error);
+    // Return cached rules if available, otherwise empty array
+    if (baseRulesCache) {
+      console.log('Database timeout, returning cached base rules');
+      return res.json(baseRulesCache);
+    }
+    // Return empty array instead of error to prevent game from failing
+    res.json([]);
+  }
+});
 
   // Legacy route for backward compatibility
   app.get("/api/projects/:projectId/rules", async (req, res) => {
@@ -433,6 +575,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         worldId: validatedData.worldId,
         worldIdType: typeof validatedData.worldId
       });
+      
+      // Clear relevant caches when creating new rule
+      baseRulesCache = null;
+      baseRulesCacheTime = 0;
+      rulesCache.clear();
       
       const rule = await storage.createRule(validatedData);
       console.log('Created rule in DB:', {
@@ -471,6 +618,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/rules/:id", async (req, res) => {
     try {
       const validatedData = insertRuleSchema.partial().parse(req.body);
+      
+      // Clear relevant caches when updating rule
+      baseRulesCache = null;
+      baseRulesCacheTime = 0;
+      rulesCache.clear();
+      
       const rule = await storage.updateRule(req.params.id, validatedData);
       if (!rule) {
         return res.status(404).json({ error: "Rule not found" });
@@ -1419,6 +1572,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // State routes
+  app.get("/api/worlds/:worldId/states", async (req, res) => {
+    try {
+      const states = await storage.getStatesByWorld(req.params.worldId);
+      res.json(states);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch states" });
+    }
+  });
+
   app.post("/api/worlds/:worldId/countries", async (req, res) => {
     try {
       const { worldId } = req.params;
@@ -1431,12 +1594,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "You don't have permission to edit this world" });
       }
 
-      const countryData = { ...req.body, worldId };
-      const validatedData = insertCountrySchema.parse(countryData);
-      const country = await storage.createCountry(validatedData);
+      const validatedData = insertCountrySchema.parse(req.body);
+      const country = await storage.createCountry({
+        ...validatedData,
+        worldId
+      });
       res.status(201).json(country);
     } catch (error) {
-      console.error("Country creation error:", error);
+      console.error("Failed to create country:", error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid country data", details: error.errors });
       }
@@ -4805,7 +4970,16 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
   // Gemini Chat Endpoint
   app.post("/api/gemini/chat", async (req, res) => {
     try {
-      const { systemPrompt, messages, temperature = 0.7, maxTokens = 1000 } = req.body;
+      const { 
+        systemPrompt, 
+        messages, 
+        temperature = 0.7, 
+        maxTokens = 1000,
+        audioInput, // Base64 encoded audio
+        returnAudio = false, // Whether to return audio response
+        voice = 'Kore',
+        stream = false // Whether to stream response
+      } = req.body;
 
       if (!isGeminiConfigured()) {
         return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
@@ -4815,13 +4989,36 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       const { getGeminiApiKey } = await import('./config/gemini.js');
 
       const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
+      
+      // Use a model that supports audio if audio input is provided
       const model = genAI.getGenerativeModel({
-        model: GEMINI_MODELS.PRO,
+        model: audioInput ? "gemini-2.5-pro" : GEMINI_MODELS.PRO,
         generationConfig: {
           temperature,
           maxOutputTokens: maxTokens,
         }
       });
+
+      let userTranscript: string | undefined;
+      let lastMessageContent: any;
+
+      // Handle audio input
+      if (audioInput) {
+        // Import speech-to-text
+        const { speechToText } = await import("./services/tts-stt.js");
+        
+        // Decode base64 audio
+        const base64Data = audioInput.includes(',') ? audioInput.split(',')[1] : audioInput;
+        const audioBuffer = Buffer.from(base64Data, 'base64');
+        
+        // Get transcript
+        userTranscript = await speechToText(audioBuffer, 'audio/webm');
+        lastMessageContent = { text: userTranscript };
+      } else {
+        // Use text from the last message
+        const lastMessage = messages[messages.length - 1];
+        lastMessageContent = lastMessage.parts[0];
+      }
 
       // Build the conversation with system prompt
       const chat = model.startChat({
@@ -4838,11 +5035,10 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
         ]
       });
 
-      // Send the last message
-      const lastMessage = messages[messages.length - 1];
-      console.log("Sending to Gemini:", lastMessage.parts[0].text.substring(0, 100));
+      // Send the message
+      console.log("Sending to Gemini:", lastMessageContent.text?.substring(0, 100) || "[Audio message]");
       
-      const result = await chat.sendMessage(lastMessage.parts[0].text);
+      const result = await chat.sendMessage(lastMessageContent.text);
       
       // Log the full response for debugging
       console.log("Gemini response object:", JSON.stringify(result.response, null, 2));
@@ -4862,7 +5058,30 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       }
 
       console.log("Gemini response:", response.substring(0, 100));
-      res.json({ response });
+
+      // Prepare response object
+      const responseData: any = { response };
+
+      // Add user transcript if we had audio input
+      if (userTranscript) {
+        responseData.userTranscript = userTranscript;
+      }
+
+      // Generate audio if requested
+      if (returnAudio) {
+        try {
+          const { textToSpeech } = await import("./services/tts-stt.js");
+          const gender = voice === 'Kore' ? 'female' : 'male';
+          const audioBuffer = await textToSpeech(response, voice, gender, "MP3");
+          // Convert to base64 for JSON response
+          responseData.audio = audioBuffer.toString('base64');
+        } catch (audioError) {
+          console.error("Failed to generate audio:", audioError);
+          // Continue without audio
+        }
+      }
+
+      res.json(responseData);
     } catch (error) {
       console.error("Gemini chat error:", error);
       res.status(500).json({ error: error instanceof Error ? error.message : "Failed to get chat response" });
