@@ -168,7 +168,11 @@ export class ApiDataSource implements DataSource {
 // Reads a JSON data file, using Electron IPC when running from file:// (production build),
 // or falling back to fetch() in dev / web mode.
 async function readDataFile(relativePath: string): Promise<any> {
-  if (typeof window !== 'undefined' && (window as any).electronAPI?.readFile) {
+  const isElectronProduction =
+    typeof window !== 'undefined' &&
+    window.location?.protocol === 'file:' &&
+    (window as any).electronAPI?.readFile;
+  if (isElectronProduction) {
     const text = await (window as any).electronAPI.readFile(relativePath);
     return JSON.parse(text);
   }
