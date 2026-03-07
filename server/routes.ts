@@ -8778,6 +8778,248 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     }
   });
 
+  // ─── Ownership / Inventory / Mercantile ─────────────────────────────────────
+
+  // Get entity inventory (character or player)
+  app.get("/api/worlds/:worldId/entities/:entityId/inventory", async (req, res) => {
+    try {
+      const { worldId, entityId } = req.params;
+      const truths = await storage.getTruthsByWorld(worldId);
+      const inventoryTruths = truths.filter(
+        (t: any) => t.entryType === 'ownership' && t.characterId === entityId
+      );
+      const items = inventoryTruths.map((t: any) => {
+        const data = typeof t.customData === 'string' ? JSON.parse(t.customData) : (t.customData || {});
+        return {
+          id: data.itemId || t.id,
+          name: data.itemName || t.title,
+          description: data.itemDescription || t.content,
+          type: data.itemType || 'collectible',
+          quantity: data.quantity || 1,
+          value: data.value || 0,
+          sellValue: data.sellValue || 0,
+          tradeable: data.tradeable !== false,
+          truthId: t.id,
+        };
+      });
+      res.json({ entityId, items, gold: 0 });
+    } catch (error) {
+      console.error("Failed to get entity inventory:", error);
+      res.status(500).json({ error: "Failed to get entity inventory" });
+    }
+  });
+
+  // Transfer item between entities (buy, sell, steal, give, discard)
+  app.post("/api/worlds/:worldId/inventory/transfer", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { fromEntityId, toEntityId, itemId, itemName, itemDescription, itemType, quantity, transactionType, totalPrice } = req.body;
+
+      if (!worldId || !itemId || !transactionType) {
+        return res.status(400).json({ error: "Missing required fields: itemId, transactionType" });
+      }
+
+      const timestamp = Date.now();
+
+      // Create ownership truth for receiver (if not discard)
+      if (toEntityId && transactionType !== 'discard') {
+        await storage.createTruth({
+          worldId,
+          characterId: toEntityId,
+          title: `Acquired: ${itemName || itemId}`,
+          content: `${toEntityId} acquired ${itemName || itemId} via ${transactionType}`,
+          entryType: 'ownership',
+          importance: 3,
+          isPublic: true,
+          timestep: 0,
+          tags: ['ownership', 'inventory', transactionType],
+          customData: {
+            itemId,
+            itemName: itemName || itemId,
+            itemDescription: itemDescription || '',
+            itemType: itemType || 'collectible',
+            quantity: quantity || 1,
+            value: totalPrice || 0,
+            sellValue: Math.floor((totalPrice || 0) * 0.7),
+            tradeable: true,
+            transactionType,
+            fromEntityId: fromEntityId || null,
+            timestamp,
+          },
+        });
+      }
+
+      // Remove ownership truth from sender (if applicable)
+      if (fromEntityId) {
+        const senderTruths = await storage.getTruthsByWorld(worldId);
+        const matchingTruth = senderTruths.find(
+          (t: any) =>
+            t.entryType === 'ownership' &&
+            t.characterId === fromEntityId &&
+            (typeof t.customData === 'object' ? t.customData?.itemId : undefined) === itemId
+        );
+        if (matchingTruth) {
+          const existingData = typeof matchingTruth.customData === 'object' ? matchingTruth.customData as any : {};
+          const existingQty = existingData.quantity || 1;
+          const removeQty = quantity || 1;
+          if (removeQty >= existingQty) {
+            await storage.deleteTruth(matchingTruth.id);
+          } else {
+            await storage.updateTruth(matchingTruth.id, {
+              customData: { ...existingData, quantity: existingQty - removeQty },
+            });
+          }
+        }
+      }
+
+      // Create a transaction event truth
+      await storage.createTruth({
+        worldId,
+        characterId: fromEntityId || toEntityId,
+        title: `Transaction: ${transactionType} ${itemName || itemId}`,
+        content: `${transactionType} of ${itemName || itemId} (qty: ${quantity || 1}) for ${totalPrice || 0} gold`,
+        entryType: 'event',
+        importance: 2,
+        isPublic: true,
+        timestep: 0,
+        tags: ['transaction', transactionType, 'mercantile'],
+        customData: {
+          transactionType,
+          itemId,
+          itemName: itemName || itemId,
+          quantity: quantity || 1,
+          totalPrice: totalPrice || 0,
+          fromEntityId: fromEntityId || null,
+          toEntityId: toEntityId || null,
+          timestamp,
+        },
+      });
+
+      res.json({
+        success: true,
+        transactionType,
+        itemId,
+        quantity: quantity || 1,
+        totalPrice: totalPrice || 0,
+        timestamp,
+      });
+    } catch (error) {
+      console.error("Failed to transfer item:", error);
+      res.status(500).json({ error: "Failed to transfer item" });
+    }
+  });
+
+  // Get merchant inventory for an NPC
+  app.get("/api/worlds/:worldId/merchants/:merchantId/inventory", async (req, res) => {
+    try {
+      const { worldId, merchantId } = req.params;
+      const character = await storage.getCharacter(merchantId);
+      if (!character) {
+        return res.status(404).json({ error: "Merchant not found" });
+      }
+
+      const occupation = (character.occupation || '').toLowerCase();
+      const isMerchant = ['merchant', 'shopkeeper', 'trader', 'vendor', 'blacksmith', 'apothecary', 'baker', 'butcher', 'tailor', 'jeweler', 'armorer', 'weaponsmith'].some(
+        term => occupation.includes(term)
+      );
+
+      if (!isMerchant) {
+        return res.status(400).json({ error: "Character is not a merchant" });
+      }
+
+      // Generate stock based on merchant type
+      const merchantStock = generateMerchantStock(occupation, worldId);
+
+      res.json({
+        merchantId,
+        merchantName: `${character.firstName} ${character.lastName}`,
+        items: merchantStock.items,
+        goldReserve: merchantStock.goldReserve,
+        buyMultiplier: merchantStock.buyMultiplier,
+        sellMultiplier: merchantStock.sellMultiplier,
+      });
+    } catch (error) {
+      console.error("Failed to get merchant inventory:", error);
+      res.status(500).json({ error: "Failed to get merchant inventory" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// ─── Merchant Stock Generation ────────────────────────────────────────────
+
+function generateMerchantStock(occupation: string, worldId: string) {
+  const stockTemplates: Record<string, Array<{ name: string; type: string; basePrice: number; description: string }>> = {
+    default: [
+      { name: 'Bread', type: 'food', basePrice: 2, description: 'A fresh loaf of bread' },
+      { name: 'Water Flask', type: 'drink', basePrice: 1, description: 'A flask of clean water' },
+      { name: 'Torch', type: 'tool', basePrice: 3, description: 'A sturdy torch for dark places' },
+      { name: 'Rope', type: 'tool', basePrice: 5, description: 'Strong hemp rope, 50 feet' },
+      { name: 'Healing Herb', type: 'consumable', basePrice: 8, description: 'A herb with mild restorative properties' },
+    ],
+    blacksmith: [
+      { name: 'Iron Sword', type: 'weapon', basePrice: 25, description: 'A well-forged iron sword' },
+      { name: 'Iron Shield', type: 'armor', basePrice: 20, description: 'A sturdy iron shield' },
+      { name: 'Chainmail Vest', type: 'armor', basePrice: 40, description: 'A vest of interlocking iron rings' },
+      { name: 'Dagger', type: 'weapon', basePrice: 10, description: 'A sharp steel dagger' },
+      { name: 'Iron Pickaxe', type: 'tool', basePrice: 15, description: 'A heavy pickaxe for mining' },
+    ],
+    apothecary: [
+      { name: 'Health Potion', type: 'consumable', basePrice: 15, description: 'Restores a moderate amount of health' },
+      { name: 'Antidote', type: 'consumable', basePrice: 12, description: 'Cures common poisons' },
+      { name: 'Energy Tonic', type: 'consumable', basePrice: 10, description: 'Restores energy and vigor' },
+      { name: 'Healing Salve', type: 'consumable', basePrice: 8, description: 'A soothing salve for wounds' },
+      { name: 'Rare Herbs', type: 'material', basePrice: 20, description: 'A bundle of rare medicinal herbs' },
+    ],
+    baker: [
+      { name: 'Bread', type: 'food', basePrice: 2, description: 'A fresh loaf of bread' },
+      { name: 'Meat Pie', type: 'food', basePrice: 5, description: 'A hearty meat pie' },
+      { name: 'Sweet Roll', type: 'food', basePrice: 3, description: 'A delicious sweet roll' },
+      { name: 'Trail Rations', type: 'food', basePrice: 8, description: 'Packed food for long journeys' },
+    ],
+    tailor: [
+      { name: 'Leather Boots', type: 'armor', basePrice: 12, description: 'Comfortable leather boots' },
+      { name: 'Traveler\'s Cloak', type: 'armor', basePrice: 15, description: 'A warm cloak for the road' },
+      { name: 'Leather Gloves', type: 'armor', basePrice: 8, description: 'Sturdy leather gloves' },
+      { name: 'Fine Clothes', type: 'collectible', basePrice: 25, description: 'Elegant garments' },
+    ],
+    jeweler: [
+      { name: 'Silver Ring', type: 'collectible', basePrice: 30, description: 'A finely crafted silver ring' },
+      { name: 'Gold Amulet', type: 'collectible', basePrice: 50, description: 'An ornate gold amulet' },
+      { name: 'Gemstone', type: 'material', basePrice: 40, description: 'A polished precious gemstone' },
+    ],
+  };
+
+  // Determine which template to use
+  let templateKey = 'default';
+  for (const key of Object.keys(stockTemplates)) {
+    if (occupation.includes(key)) {
+      templateKey = key;
+      break;
+    }
+  }
+
+  const template = stockTemplates[templateKey];
+  const items = template.map((item, index) => ({
+    id: `merchant_item_${templateKey}_${index}`,
+    name: item.name,
+    description: item.description,
+    type: item.type,
+    quantity: 1,
+    buyPrice: item.basePrice,
+    sellPrice: Math.floor(item.basePrice * 0.6),
+    stock: Math.floor(Math.random() * 5) + 1,
+    maxStock: 10,
+    value: item.basePrice,
+    tradeable: true,
+  }));
+
+  return {
+    items,
+    goldReserve: 200 + Math.floor(Math.random() * 300),
+    buyMultiplier: 1.0,
+    sellMultiplier: 0.6,
+  };
 }

@@ -1,26 +1,22 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
-  Globe, Users, Map, Trash2, Lock, Edit3, Save, X,
+  Users, Save, X,
   Scroll, Zap, Target, FileText, Sparkles,
   BookOpen, Brain,
   Play, Gamepad2, BarChart3,
-  Upload, Download, Settings, ArrowRight, ChevronRight, Package,
+  Upload, Download, ChevronRight, Package,
 } from 'lucide-react';
 import { WorldSettingsDialog } from './WorldSettingsDialog';
 import { useToast } from '@/hooks/use-toast';
-import { useWorldPermissions } from '@/hooks/use-world-permissions';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
-import type { AssetCollection } from '@shared/schema';
 
 interface WorldManagementTabProps {
   worldId: string;
@@ -29,39 +25,22 @@ interface WorldManagementTabProps {
   onWorldDeleted?: () => void;
   onWorldUpdated?: () => void;
   onNavigate?: (tab: string) => void;
+  showSettingsDialog?: boolean;
+  onSettingsDialogChange?: (open: boolean) => void;
+  showDeleteDialog?: boolean;
+  onDeleteDialogChange?: (open: boolean) => void;
+  showEditDialog?: boolean;
+  onEditDialogChange?: (open: boolean) => void;
 }
 
-export function WorldManagementTab({ worldId, worldName, worldDescription, onWorldDeleted, onWorldUpdated, onNavigate }: WorldManagementTabProps) {
-  const [activeView, setActiveView] = useState<'overview'>('overview');
+export function WorldManagementTab({ worldId, worldName, worldDescription, onWorldDeleted, onWorldUpdated, onNavigate, showSettingsDialog = false, onSettingsDialogChange, showDeleteDialog: showDeleteDialogProp = false, onDeleteDialogChange, showEditDialog = false, onEditDialogChange }: WorldManagementTabProps) {
   const [settlements, setSettlements] = useState<any[]>([]);
-  const [totalPopulation, setTotalPopulation] = useState(0);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [name, setName] = useState(worldName || '');
-  const [description, setDescription] = useState(worldDescription || '');
-  const [selectedCollectionId, setSelectedCollectionId] = useState<string>('');
+  const [editName, setEditName] = useState(worldName || '');
+  const [editDescription, setEditDescription] = useState(worldDescription || '');
   const { toast } = useToast();
-  const { canEdit, isOwner, loading } = useWorldPermissions(worldId);
   const { token } = useAuth();
-
-  // Fetch available asset collections
-  const { data: availableCollections = [] } = useQuery<AssetCollection[]>({
-    queryKey: ['/api/asset-collections'],
-    queryFn: async () => {
-      const response = await fetch('/api/asset-collections');
-      if (!response.ok) throw new Error('Failed to fetch collections');
-      return response.json();
-    },
-  });
-
-  // Fetch current world data to get selected collection
-  const { data: worldData } = useQuery<any>({
-    queryKey: ['/api/worlds', worldId],
-    enabled: !!worldId,
-  });
 
   // Fetch world entities for quick-link previews
   const { data: characters = [] } = useQuery<any[]>({
@@ -146,124 +125,71 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
   });
 
   useEffect(() => {
-    loadWorldData();
+    loadSettlements();
   }, [worldId]);
 
   useEffect(() => {
-    setName(worldName || '');
-    setDescription(worldDescription || '');
+    setEditName(worldName || '');
+    setEditDescription(worldDescription || '');
   }, [worldName, worldDescription]);
 
-  useEffect(() => {
-    if (worldData) {
-      setSelectedCollectionId(worldData.selectedAssetCollectionId || '');
-    }
-  }, [worldData]);
-
-  const loadWorldData = async () => {
+  const loadSettlements = async () => {
     try {
       const settlementsRes = await fetch(`/api/worlds/${worldId}/settlements`);
-      
       if (settlementsRes.ok) {
-        const settlementsData = await settlementsRes.json();
-        setSettlements(settlementsData);
-        
-        // Calculate total population
-        const total = settlementsData.reduce((sum: number, s: any) => sum + (s.population || 0), 0);
-        setTotalPopulation(total);
+        setSettlements(await settlementsRes.json());
       }
     } catch (error) {
-      console.error('Failed to load world data:', error);
+      console.error('Failed to load settlements:', error);
     }
   };
 
   const handleDeleteWorld = async () => {
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/worlds/${worldId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete world');
-      }
-
+      const response = await fetch(`/api/worlds/${worldId}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Failed to delete world');
       toast({
         title: 'World deleted',
         description: `World ${worldName || worldId} and all associated data have been permanently deleted.`,
       });
-
-      // Call the parent callback to handle navigation
-      if (onWorldDeleted) {
-        onWorldDeleted();
-      }
+      onWorldDeleted?.();
     } catch (error) {
       console.error('Failed to delete world:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to delete world. Please try again.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to delete world. Please try again.', variant: 'destructive' });
     } finally {
       setIsDeleting(false);
-      setShowDeleteDialog(false);
+      onDeleteDialogChange?.(false);
     }
   };
 
-  const handleSave = async () => {
+  const handleEditSave = async () => {
     if (!token) {
-      toast({
-        title: 'Authentication required',
-        description: 'Sign in as the world owner to update this world.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Authentication required', description: 'Sign in as the world owner to update this world.', variant: 'destructive' });
       return;
     }
-
     setIsSaving(true);
     try {
       const response = await fetch(`/api/worlds/${worldId}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name,
-          description: description || null,
-          selectedAssetCollectionId: selectedCollectionId && selectedCollectionId !== 'none' ? selectedCollectionId : null
-        })
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: editName, description: editDescription || null }),
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to update world');
-      }
-
-      toast({
-        title: 'World Updated',
-        description: 'World information has been saved successfully'
-      });
-
-      setIsEditing(false);
-      if (onWorldUpdated) {
-        onWorldUpdated();
-      }
+      if (!response.ok) throw new Error('Failed to update world');
+      toast({ title: 'World Updated', description: 'World information has been saved successfully' });
+      onEditDialogChange?.(false);
+      onWorldUpdated?.();
     } catch (error) {
-      toast({
-        title: 'Update Failed',
-        description: error instanceof Error ? error.message : 'Failed to update world',
-        variant: 'destructive'
-      });
+      toast({ title: 'Update Failed', description: error instanceof Error ? error.message : 'Failed to update world', variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleCancel = () => {
-    setName(worldName || '');
-    setDescription(worldDescription || '');
-    setSelectedCollectionId(worldData?.selectedAssetCollectionId || '');
-    setIsEditing(false);
+  const handleEditCancel = () => {
+    setEditName(worldName || '');
+    setEditDescription(worldDescription || '');
+    onEditDialogChange?.(false);
   };
 
   // Build quick-link data for each section
@@ -370,190 +296,6 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
 
   return (
     <div className="space-y-6">
-      {/* Hero Header */}
-      <div className="flex items-center justify-between px-5 py-4 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl shadow-lg shadow-black/5">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-gradient-to-br from-primary to-primary/60 rounded-xl">
-            <Globe className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            {isEditing ? (
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="text-xl font-bold h-auto py-1 px-2 -ml-2"
-                placeholder="World name"
-              />
-            ) : (
-              <h1 className="text-2xl font-bold">{name || 'Unnamed World'}</h1>
-            )}
-            {isEditing ? (
-              <Textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe your world..."
-                rows={2}
-                className="mt-1 text-sm -ml-2 px-2"
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground mt-0.5">
-                {description || 'No description'}
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {isEditing ? (
-            <>
-              <Button size="sm" variant="ghost" onClick={handleCancel} disabled={isSaving} className="rounded-xl">
-                <X className="w-4 h-4 mr-1.5" />
-                Cancel
-              </Button>
-              <Button size="sm" onClick={handleSave} disabled={isSaving || !name.trim()} className="rounded-xl">
-                <Save className="w-4 h-4 mr-1.5" />
-                {isSaving ? 'Saving...' : 'Save'}
-              </Button>
-            </>
-          ) : (
-            <TooltipProvider>
-              <div className="flex gap-1.5">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <Button
-                        variant="ghost" size="icon"
-                        onClick={() => setIsEditing(true)}
-                        disabled={!canEdit || loading}
-                        className="rounded-xl hover:bg-white/50 dark:hover:bg-white/10"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>{canEdit ? 'Edit world' : 'Only the owner can edit'}</TooltipContent>
-                </Tooltip>
-
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <Button
-                        variant="ghost" size="icon"
-                        onClick={() => setShowSettingsDialog(true)}
-                        disabled={!canEdit || loading}
-                        className="rounded-xl hover:bg-white/50 dark:hover:bg-white/10"
-                      >
-                        <Settings className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>{canEdit ? 'Permissions' : 'Only the owner can manage permissions'}</TooltipContent>
-                </Tooltip>
-
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <Button
-                        variant="ghost" size="icon"
-                        onClick={() => setShowDeleteDialog(true)}
-                        disabled={!canEdit || loading}
-                        className="rounded-xl hover:bg-white/50 dark:hover:bg-white/10 text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>{canEdit ? 'Delete world' : 'Only the owner can delete'}</TooltipContent>
-                </Tooltip>
-              </div>
-            </TooltipProvider>
-          )}
-        </div>
-      </div>
-
-      {/* Asset Collection */}
-      <div className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl shadow-lg shadow-black/5 p-5">
-        <Label htmlFor="asset-collection" className="text-sm font-medium">Asset Collection</Label>
-        {canEdit ? (
-          <>
-            <Select
-              value={selectedCollectionId}
-              onValueChange={async (value) => {
-                setSelectedCollectionId(value);
-                if (!isEditing && token) {
-                  try {
-                    const res = await fetch(`/api/worlds/${worldId}`, {
-                      method: 'PATCH',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${token}`,
-                      },
-                      body: JSON.stringify({
-                        selectedAssetCollectionId: value !== 'none' ? value : null,
-                      }),
-                    });
-                    if (res.ok) {
-                      toast({ title: 'Asset collection updated' });
-                      onWorldUpdated?.();
-                    }
-                  } catch {
-                    toast({ title: 'Failed to update', variant: 'destructive' });
-                  }
-                }
-              }}
-            >
-              <SelectTrigger id="asset-collection" className="mt-2">
-                <SelectValue placeholder="Select an asset collection (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {availableCollections.map((collection) => (
-                  <SelectItem key={collection.id} value={collection.id}>
-                    {collection.name}
-                    {collection.isPublic && ' (Global)'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-1.5">
-              Asset collections provide themed sets of visual assets for your world
-            </p>
-          </>
-        ) : (
-          <p className="text-sm mt-2">
-            {availableCollections.find(c => c.id === selectedCollectionId)?.name || 'None selected'}
-          </p>
-        )}
-      </div>
-
-      {/* Quick Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-xl p-4 shadow-sm shadow-black/5">
-          <div className="flex items-center gap-2 text-muted-foreground mb-1">
-            <Map className="w-3.5 h-3.5" />
-            <span className="text-xs font-medium">Settlements</span>
-          </div>
-          <p className="text-2xl font-bold">{settlements.length}</p>
-        </div>
-        <div className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-xl p-4 shadow-sm shadow-black/5">
-          <div className="flex items-center gap-2 text-muted-foreground mb-1">
-            <Users className="w-3.5 h-3.5" />
-            <span className="text-xs font-medium">Population</span>
-          </div>
-          <p className="text-2xl font-bold">{totalPopulation.toLocaleString()}</p>
-        </div>
-        {selectedCollectionId && selectedCollectionId !== 'none' && (
-          <div className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-xl p-4 shadow-sm shadow-black/5">
-            <div className="flex items-center gap-2 text-muted-foreground mb-1">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="text-xs font-medium">Assets</span>
-            </div>
-            <p className="text-sm font-semibold truncate">
-              {availableCollections.find(c => c.id === selectedCollectionId)?.name || 'Custom'}
-            </p>
-          </div>
-        )}
-      </div>
-
       {/* Content Section */}
       <div className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl shadow-lg shadow-black/5">
         <div className="px-5 pt-4 pb-2 flex items-center gap-2">
@@ -606,7 +348,7 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
       </div>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <AlertDialog open={showDeleteDialogProp} onOpenChange={(open) => onDeleteDialogChange?.(open)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete World?</AlertDialogTitle>
@@ -640,12 +382,53 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Edit World Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={(open) => { if (!open) handleEditCancel(); else onEditDialogChange?.(open); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit World</DialogTitle>
+            <DialogDescription>Update your world's name and description</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-world-name">Name</Label>
+              <Input
+                id="edit-world-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="World name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-world-desc">Description</Label>
+              <Textarea
+                id="edit-world-desc"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="Describe your world..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleEditCancel} disabled={isSaving}>
+              <X className="w-4 h-4 mr-1.5" />
+              Cancel
+            </Button>
+            <Button onClick={handleEditSave} disabled={isSaving || !editName.trim()}>
+              <Save className="w-4 h-4 mr-1.5" />
+              {isSaving ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* World Settings Dialog */}
       <WorldSettingsDialog
         worldId={worldId}
         open={showSettingsDialog}
-        onOpenChange={setShowSettingsDialog}
-        onSettingsUpdated={loadWorldData}
+        onOpenChange={(open) => onSettingsDialogChange?.(open)}
+        onSettingsUpdated={onWorldUpdated}
       />
     </div>
   );

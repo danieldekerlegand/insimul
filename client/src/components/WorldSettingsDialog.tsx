@@ -15,7 +15,9 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useQuery } from '@tanstack/react-query';
 import { Loader2, X, Plus } from 'lucide-react';
+import type { AssetCollection } from '@shared/schema';
 
 interface World {
   id: string;
@@ -24,6 +26,7 @@ interface World {
   visibility?: string;
   requiresAuth?: boolean;
   allowedUserIds?: string[];
+  selectedAssetCollectionId?: string;
 }
 
 interface WorldSettingsDialogProps {
@@ -46,8 +49,19 @@ export function WorldSettingsDialog({
   const [requiresAuth, setRequiresAuth] = useState(false);
   const [allowedUserIds, setAllowedUserIds] = useState<string[]>([]);
   const [newUserId, setNewUserId] = useState('');
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string>('');
   const { token, user } = useAuth();
   const { toast } = useToast();
+
+  // Fetch available asset collections
+  const { data: availableCollections = [] } = useQuery<AssetCollection[]>({
+    queryKey: ['/api/asset-collections'],
+    queryFn: async () => {
+      const response = await fetch('/api/asset-collections');
+      if (!response.ok) throw new Error('Failed to fetch collections');
+      return response.json();
+    },
+  });
 
   useEffect(() => {
     if (open) {
@@ -69,6 +83,7 @@ export function WorldSettingsDialog({
         setVisibility(worldData.visibility || 'private');
         setRequiresAuth(worldData.requiresAuth || false);
         setAllowedUserIds(worldData.allowedUserIds || []);
+        setSelectedCollectionId(worldData.selectedAssetCollectionId || '');
       } else {
         toast({
           title: 'Error',
@@ -110,6 +125,7 @@ export function WorldSettingsDialog({
           visibility,
           requiresAuth,
           allowedUserIds,
+          selectedAssetCollectionId: selectedCollectionId && selectedCollectionId !== 'none' ? selectedCollectionId : null,
         }),
       });
 
@@ -215,6 +231,28 @@ export function WorldSettingsDialog({
                   </SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Asset Collection */}
+            <div className="space-y-2">
+              <Label htmlFor="asset-collection">Asset Collection</Label>
+              <Select value={selectedCollectionId || 'none'} onValueChange={setSelectedCollectionId}>
+                <SelectTrigger id="asset-collection">
+                  <SelectValue placeholder="Select an asset collection (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {availableCollections.map((collection) => (
+                    <SelectItem key={collection.id} value={collection.id}>
+                      {collection.name}
+                      {collection.isPublic && ' (Global)'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="text-xs text-muted-foreground">
+                Themed visual assets for your world
+              </div>
             </div>
 
             {/* Requires Auth */}

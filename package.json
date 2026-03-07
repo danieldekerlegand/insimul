@@ -25,8 +25,10 @@
     "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
+    "@babylonjs/core": "^8.54.1",
     "@babylonjs/gui": "^8.54.1",
     "@babylonjs/loaders": "^8.54.1",
+    "@dagrejs/dagre": "^2.0.4",
     "@google-cloud/text-to-speech": "^5.8.1",
     "@google/genai": "^1.44.0",
     "@google/generative-ai": "^0.24.1",
@@ -67,6 +69,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.1.0",
+    "@xyflow/react": "^12.10.1",
     "archiver": "^7.0.1",
     "babylonjs": "^8.54.1",
     "bcryptjs": "^3.0.3",

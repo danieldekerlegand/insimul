@@ -11,6 +11,7 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Globe,
   ChevronDown,
@@ -37,6 +38,9 @@ import {
   ArrowLeft,
   Package,
   Download,
+  Edit3,
+  Settings,
+  Trash2,
 } from "lucide-react";
 
 interface ModernNavbarProps {
@@ -47,6 +51,9 @@ interface ModernNavbarProps {
   onOpenAuth?: () => void;
   onOpenAdminPanel?: () => void;
   onExportGame?: () => void;
+  onEditWorld?: () => void;
+  onOpenSettings?: () => void;
+  onDeleteWorld?: () => void;
 }
 
 // Map tab IDs to labels and icons for breadcrumb display
@@ -130,6 +137,9 @@ export function ModernNavbar({
   onOpenAuth,
   onOpenAdminPanel,
   onExportGame,
+  onEditWorld,
+  onOpenSettings,
+  onDeleteWorld,
 }: ModernNavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
@@ -181,6 +191,51 @@ export function ModernNavbar({
                     </div>
                   </>
                 )}
+
+                {/* World actions */}
+                <TooltipProvider delayDuration={300}>
+                  <div className="hidden md:flex items-center gap-0.5 ml-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 rounded-lg hover:bg-white/50 dark:hover:bg-white/10"
+                          onClick={onEditWorld}
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Edit world</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 rounded-lg hover:bg-white/50 dark:hover:bg-white/10"
+                          onClick={onOpenSettings}
+                        >
+                          <Settings className="w-3.5 h-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>World settings</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 rounded-lg hover:bg-white/50 dark:hover:bg-white/10 text-destructive hover:text-destructive"
+                          onClick={onDeleteWorld}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Delete world</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </TooltipProvider>
               </>
             ) : (
               <span className="text-sm font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">

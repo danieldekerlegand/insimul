@@ -1,12 +1,134 @@
-import { useEffect, useState, useRef } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ZoomIn, ZoomOut, Maximize2, Globe, MapPin, Building2 } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
+import { ZoomIn, ZoomOut, Maximize2, MapPin } from 'lucide-react';
 
-type MapScope = 'world' | 'country' | 'settlement';
+// ─── Layout constants ─────────────────────────────────────────────────────────
+
+const SETT_COLS = 4;      // max settlements per row within a country region
+const SETT_STRIDE = 58;   // px between settlement centers
+const C_PAD = 20;         // padding inside country rect
+const C_HEADER_H = 40;    // height of the country name header
+const C_MIN_W = 200;      // minimum country rect width
+const WORLD_COLS = 3;     // countries per row in the world layout
+const C_GAP = 32;         // gap between country rects
+const WORLD_PAD = 40;     // outer padding
+
+// ─── Color helpers ────────────────────────────────────────────────────────────
+
+const TERRAIN_FILL: Record<string, string> = {
+  plains:    '#bbf7d0',
+  mountains: '#e2e8f0',
+  forest:    '#86efac',
+  desert:    '#fef08a',
+  coastal:   '#bae6fd',
+  tundra:    '#dbeafe',
+  swamp:     '#a7f3d0',
+  jungle:    '#6ee7b7',
+};
+
+const TYPE_STROKE: Record<string, string> = {
+  city:    '#7c3aed',
+  town:    '#2563eb',
+  village: '#16a34a',
+};
+
+const TYPE_RADIUS: Record<string, number> = {
+  city:    18,
+  town:    13,
+  village: 9,
+};
+
+function terrainFill(terrain: string | null): string {
+  return TERRAIN_FILL[terrain?.toLowerCase() ?? ''] ?? '#e5e7eb';
+}
+
+function typeStroke(type: string | null): string {
+  return TYPE_STROKE[type?.toLowerCase() ?? ''] ?? '#6b7280';
+}
+
+function typeRadius(type: string | null): number {
+  return TYPE_RADIUS[type?.toLowerCase() ?? ''] ?? 11;
+}
+
+// ─── Layout computation ───────────────────────────────────────────────────────
+
+interface Region {
+  label: string;
+  isUnaffiliated: boolean;
+  settlements: any[];
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+function computeLayout(countries: any[], settlements: any[]): {
+  regions: Region[];
+  totalW: number;
+  totalH: number;
+} {
+  // Group settlements by countryId
+  const byCountry = new Map<string | null, any[]>();
+  settlements.forEach(s => {
+    const k = s.countryId ?? null;
+    if (!byCountry.has(k)) byCountry.set(k, []);
+    byCountry.get(k)!.push(s);
+  });
+
+  const regions: Omit<Region, 'x' | 'y'>[] = [];
+
+  // One region per country (including empty countries)
+  for (const country of countries) {
+    const setts = byCountry.get(country.id) ?? [];
+    const cols = Math.min(Math.max(setts.length, 1), SETT_COLS);
+    const rows = Math.max(1, Math.ceil(setts.length / SETT_COLS));
+    const w = Math.max(C_MIN_W, cols * SETT_STRIDE + C_PAD * 2);
+    const h = C_HEADER_H + rows * SETT_STRIDE + C_PAD;
+    regions.push({ label: country.name, isUnaffiliated: false, settlements: setts, w, h });
+  }
+
+  // One region for unaffiliated settlements (if any)
+  const unaffiliated = byCountry.get(null) ?? [];
+  if (unaffiliated.length > 0) {
+    const cols = Math.min(unaffiliated.length, SETT_COLS);
+    const rows = Math.ceil(unaffiliated.length / SETT_COLS);
+    const w = Math.max(C_MIN_W, cols * SETT_STRIDE + C_PAD * 2);
+    const h = C_HEADER_H + rows * SETT_STRIDE + C_PAD;
+    regions.push({ label: 'Unaffiliated', isUnaffiliated: true, settlements: unaffiliated, w, h });
+  }
+
+  if (regions.length === 0) {
+    return { regions: [], totalW: 400, totalH: 200 };
+  }
+
+  // Arrange regions into WORLD_COLS columns, stacking top-to-bottom
+  const colWidths: number[] = Array(WORLD_COLS).fill(0);
+  const colHeights: number[] = Array(WORLD_COLS).fill(WORLD_PAD);
+  const placed: Region[] = regions.map((r, i) => {
+    const col = i % WORLD_COLS;
+    const x = 0; // placeholder, assigned below
+    const y = colHeights[col];
+    colHeights[col] += r.h + C_GAP;
+    colWidths[col] = Math.max(colWidths[col], r.w);
+    return { ...r, x, y };
+  });
+
+  // Now assign x positions based on actual column widths
+  const colX: number[] = [WORLD_PAD];
+  for (let c = 1; c < WORLD_COLS; c++) {
+    colX[c] = colX[c - 1] + colWidths[c - 1] + C_GAP;
+  }
+  placed.forEach((r, i) => { r.x = colX[i % WORLD_COLS]; });
+
+  const usedCols = Math.min(WORLD_COLS, regions.length);
+  const totalW = colX[usedCols - 1] + colWidths[usedCols - 1] + WORLD_PAD;
+  const totalH = Math.max(...colHeights) + WORLD_PAD;
+
+  return { regions: placed, totalW, totalH };
+}
+
+// ─── Props ────────────────────────────────────────────────────────────────────
 
 interface GeographyMapProps {
   worldId: string;
@@ -14,439 +136,314 @@ interface GeographyMapProps {
   countries?: any[];
 }
 
-export function GeographyMap({ worldId, settlements: initialSettlements, countries: initialCountries }: GeographyMapProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [scope, setScope] = useState<MapScope>('settlement');
-  const [settlements, setSettlements] = useState<any[]>(initialSettlements || []);
-  const [countries, setCountries] = useState<any[]>(initialCountries || []);
-  const [states, setStates] = useState<any[]>([]);
-  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
-  const [selectedSettlement, setSelectedSettlement] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [panX, setPanX] = useState(0);
-  const [panY, setPanY] = useState(0);
-  const [selectedItem, setSelectedItem] = useState<any>(null);
+// ─── Component ────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    fetchData();
-  }, [worldId, scope, selectedCountry, selectedSettlement]);
+export function GeographyMap({ settlements = [], countries = [] }: GeographyMapProps) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
+  const [selectedSettlement, setSelectedSettlement] = useState<any>(null);
 
-  useEffect(() => {
-    renderMap();
-  }, [scope, countries, states, settlements, selectedCountry, selectedSettlement, zoom, panX, panY]);
+  // Drag state kept in refs to avoid re-renders during drag
+  const dragging = useRef(false);
+  const dragOrigin = useRef({ x: 0, y: 0, tx: 0, ty: 0 });
 
-  const fetchData = async () => {
-    try {
-      // Fetch countries if not provided
-      if (!initialCountries && countries.length === 0) {
-        const countriesRes = await fetch(`/api/worlds/${worldId}/countries`);
-        if (countriesRes.ok) {
-          const countriesData = await countriesRes.json();
-          setCountries(countriesData);
-          if (countriesData.length > 0 && !selectedCountry && scope === 'country') {
-            setSelectedCountry(countriesData[0].id);
-          }
-        }
-      } else if (initialCountries && initialCountries.length > 0 && !selectedCountry && scope === 'country') {
-        setSelectedCountry(initialCountries[0].id);
-      }
+  const { regions, totalW, totalH } = useMemo(
+    () => computeLayout(countries, settlements),
+    [countries, settlements]
+  );
 
-      // Fetch settlements if not provided
-      if (!initialSettlements && settlements.length === 0) {
-        const settlementsRes = await fetch(`/api/worlds/${worldId}/settlements`);
-        if (settlementsRes.ok) {
-          const settlementsData = await settlementsRes.json();
-          setSettlements(settlementsData);
-          if (settlementsData.length > 0 && !selectedSettlement && scope === 'settlement') {
-            setSelectedSettlement(settlementsData[0].id);
-          }
-        }
-      } else if (initialSettlements && initialSettlements.length > 0 && !selectedSettlement && scope === 'settlement') {
-        setSelectedSettlement(initialSettlements[0].id);
-      }
+  // ── Pointer events for pan ──────────────────────────────────────────────────
 
-      // Fetch states if country selected
-      if (selectedCountry && scope === 'country') {
-        const statesRes = await fetch(`/api/countries/${selectedCountry}/states`);
-        if (statesRes.ok) {
-          const statesData = await statesRes.json();
-          setStates(statesData);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch data:', error);
-    }
+  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (e.button !== 0) return;
+    dragging.current = true;
+    dragOrigin.current = { x: e.clientX, y: e.clientY, tx: transform.x, ty: transform.y };
+    e.currentTarget.setPointerCapture(e.pointerId);
   };
 
-  const renderMap = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Apply transforms
-    ctx.save();
-    ctx.translate(panX, panY);
-    ctx.scale(zoom, zoom);
-
-    // Draw grid
-    ctx.strokeStyle = '#e5e7eb';
-    ctx.lineWidth = 0.5;
-    for (let i = 0; i <= canvas.width / zoom; i += 50) {
-      ctx.beginPath();
-      ctx.moveTo(i, 0);
-      ctx.lineTo(i, canvas.height / zoom);
-      ctx.stroke();
-    }
-    for (let i = 0; i <= canvas.height / zoom; i += 50) {
-      ctx.beginPath();
-      ctx.moveTo(0, i);
-      ctx.lineTo(canvas.width / zoom, i);
-      ctx.stroke();
-    }
-
-    if (scope === 'world') {
-      renderWorldMap(ctx, canvas);
-    } else if (scope === 'country') {
-      renderCountryMap(ctx, canvas);
-    } else if (scope === 'settlement') {
-      renderSettlementMap(ctx, canvas);
-    }
-
-    ctx.restore();
+  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!dragging.current) return;
+    setTransform(t => ({
+      ...t,
+      x: dragOrigin.current.tx + e.clientX - dragOrigin.current.x,
+      y: dragOrigin.current.ty + e.clientY - dragOrigin.current.y,
+    }));
   };
 
-  const renderWorldMap = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
-    const cols = Math.ceil(Math.sqrt(countries.length));
-    const itemWidth = 200;
-    const itemHeight = 150;
-    const padding = 30;
+  const onPointerUp = () => { dragging.current = false; };
 
-    countries.forEach((country, idx) => {
-      const col = idx % cols;
-      const row = Math.floor(idx / cols);
-      const x = col * (itemWidth + padding) + 50;
-      const y = row * (itemHeight + padding) + 50;
-
-      // Draw country box
-      ctx.fillStyle = 'rgba(59, 130, 246, 0.2)';
-      ctx.strokeStyle = '#3b82f6';
-      ctx.lineWidth = 3;
-      ctx.fillRect(x, y, itemWidth, itemHeight);
-      ctx.strokeRect(x, y, itemWidth, itemHeight);
-
-      // Draw country name
-      ctx.fillStyle = '#1f2937';
-      ctx.font = 'bold 18px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(country.name, x + itemWidth / 2, y + 30);
-
-      // Draw stats
-      ctx.font = '12px sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillStyle = '#6b7280';
-      ctx.fillText(`Government: ${country.governmentType || 'N/A'}`, x + 15, y + 60);
-      ctx.fillText(`Economy: ${country.economicSystem || 'N/A'}`, x + 15, y + 80);
-      ctx.fillText(`Founded: ${country.foundedYear || 'Unknown'}`, x + 15, y + 100);
-    });
+  const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 0.89;
+    const rect = svgRef.current!.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    setTransform(t => ({
+      scale: Math.max(0.15, Math.min(5, t.scale * factor)),
+      x: mx - (mx - t.x) * factor,
+      y: my - (my - t.y) * factor,
+    }));
   };
 
-  const renderCountryMap = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
-    const items = states.length > 0 ? states : settlements.filter(s => s.countryId === selectedCountry);
-    const cols = Math.ceil(Math.sqrt(items.length));
-    const itemWidth = 180;
-    const itemHeight = 120;
-    const padding = 25;
+  const resetView = () => setTransform({ x: 0, y: 0, scale: 1 });
 
-    items.forEach((item, idx) => {
-      const col = idx % cols;
-      const row = Math.floor(idx / cols);
-      const x = col * (itemWidth + padding) + 50;
-      const y = row * (itemHeight + padding) + 50;
+  // ── Empty state ─────────────────────────────────────────────────────────────
 
-      // Draw item box
-      const isState = 'stateType' in item;
-      ctx.fillStyle = isState ? 'rgba(168, 85, 247, 0.2)' : 'rgba(34, 197, 94, 0.2)';
-      ctx.strokeStyle = isState ? '#a855f7' : '#22c55e';
-      ctx.lineWidth = 2;
-      ctx.fillRect(x, y, itemWidth, itemHeight);
-      ctx.strokeRect(x, y, itemWidth, itemHeight);
-
-      // Draw name
-      ctx.fillStyle = '#1f2937';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(item.name, x + itemWidth / 2, y + 25);
-
-      // Draw stats
-      ctx.font = '11px sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillStyle = '#6b7280';
-      if (isState) {
-        ctx.fillText(`Type: ${item.stateType || 'State'}`, x + 10, y + 50);
-      } else {
-        ctx.fillText(`Type: ${item.settlementType || 'Settlement'}`, x + 10, y + 50);
-        ctx.fillText(`Population: ${item.population?.toLocaleString() || 0}`, x + 10, y + 70);
-        ctx.fillText(`Terrain: ${item.terrain || 'N/A'}`, x + 10, y + 90);
-      }
-    });
-  };
-
-  const renderSettlementMap = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
-    const settlement = settlements.find(s => s.id === selectedSettlement);
-    if (!settlement) return;
-
-    // Draw settlement representation
-    const centerX = canvas.width / zoom / 2;
-    const centerY = canvas.height / zoom / 2;
-    const radius = 150;
-
-    // Draw settlement circle
-    ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
-    ctx.strokeStyle = '#3b82f6';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Draw settlement name
-    ctx.fillStyle = '#1f2937';
-    ctx.font = 'bold 24px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(settlement.name, centerX, centerY - 20);
-
-    // Draw info
-    ctx.font = '16px sans-serif';
-    ctx.fillStyle = '#6b7280';
-    ctx.fillText(`${settlement.settlementType || 'Settlement'}`, centerX, centerY + 10);
-    ctx.fillText(`Population: ${settlement.population?.toLocaleString() || 0}`, centerX, centerY + 35);
-    ctx.fillText(`Terrain: ${settlement.terrain || 'Unknown'}`, centerX, centerY + 60);
-
-    // Draw surrounding markers for districts/areas
-    const markers = [
-      { label: 'Residential', angle: 0, color: '#10b981' },
-      { label: 'Commercial', angle: Math.PI / 2, color: '#f59e0b' },
-      { label: 'Industrial', angle: Math.PI, color: '#6b7280' },
-      { label: 'Civic', angle: 3 * Math.PI / 2, color: '#8b5cf6' }
-    ];
-
-    markers.forEach(marker => {
-      const mx = centerX + Math.cos(marker.angle) * (radius + 80);
-      const my = centerY + Math.sin(marker.angle) * (radius + 80);
-
-      ctx.fillStyle = marker.color;
-      ctx.beginPath();
-      ctx.arc(mx, my, 20, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = '#1f2937';
-      ctx.font = '12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(marker.label, mx, my + 40);
-    });
-  };
-
-  const handleZoomIn = () => setZoom(Math.min(zoom * 1.2, 3));
-  const handleZoomOut = () => setZoom(Math.max(zoom / 1.2, 0.3));
-  const handleReset = () => {
-    setZoom(1);
-    setPanX(0);
-    setPanY(0);
-  };
-
-  const getMapTitle = () => {
-    if (scope === 'world') return 'World Map';
-    if (scope === 'country') {
-      const country = countries.find(c => c.id === selectedCountry);
-      return country ? `${country.name} Map` : 'Country Map';
-    }
-    const settlement = settlements.find(s => s.id === selectedSettlement);
-    return settlement ? `${settlement.name} Map` : 'Settlement Map';
-  };
-
-  const getMapDescription = () => {
-    if (scope === 'world') return `${countries.length} countries`;
-    if (scope === 'country') {
-      const stateCount = states.length || settlements.filter(s => s.countryId === selectedCountry).length;
-      return `${stateCount} ${states.length > 0 ? 'states/provinces' : 'settlements'}`;
-    }
-    const settlement = settlements.find(s => s.id === selectedSettlement);
-    return settlement ? `Population: ${settlement.population?.toLocaleString() || 0}` : '';
-  };
-
-  if (settlements.length === 0 && countries.length === 0) {
+  if (countries.length === 0 && settlements.length === 0) {
     return (
-      <Card className="flex-1">
-        <CardHeader>
-          <CardTitle>Geography Map</CardTitle>
-          <CardDescription>
-            No geographic data found. Generate a world first.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <div className="flex items-center justify-center h-80 border rounded-lg bg-muted/20 text-muted-foreground text-sm">
+        No geographic data yet. Add countries and settlements first.
+      </div>
     );
   }
 
+  // ── Render ──────────────────────────────────────────────────────────────────
+
+  const { x: tx, y: ty, scale } = transform;
+
   return (
-    <div className="flex h-full gap-4">
-      <Card className="flex-1">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>{getMapTitle()}</CardTitle>
-              <CardDescription>{getMapDescription()}</CardDescription>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="icon" onClick={handleZoomIn}>
-                <ZoomIn className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" size="icon" onClick={handleZoomOut}>
-                <ZoomOut className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" size="icon" onClick={handleReset}>
-                <Maximize2 className="w-4 h-4" />
-              </Button>
-            </div>
+    <div className="flex gap-4 h-[640px]">
+      {/* Map SVG */}
+      <div className="flex-1 relative border rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-900">
+        {/* Zoom controls */}
+        <div className="absolute top-3 right-3 z-10 flex flex-col gap-1">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-7 w-7 bg-white/80 dark:bg-black/50"
+            onClick={() => setTransform(t => ({ ...t, scale: Math.min(5, t.scale * 1.25) }))}
+          >
+            <ZoomIn className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-7 w-7 bg-white/80 dark:bg-black/50"
+            onClick={() => setTransform(t => ({ ...t, scale: Math.max(0.15, t.scale * 0.8) }))}
+          >
+            <ZoomOut className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-7 w-7 bg-white/80 dark:bg-black/50"
+            onClick={resetView}
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+
+        <svg
+          ref={svgRef}
+          width="100%"
+          height="100%"
+          viewBox={`0 0 ${totalW} ${totalH}`}
+          preserveAspectRatio="xMidYMid meet"
+          style={{ cursor: dragging.current ? 'grabbing' : 'grab', userSelect: 'none' }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerLeave={onPointerUp}
+          onWheel={onWheel}
+        >
+          <g transform={`translate(${tx},${ty}) scale(${scale})`}>
+            {regions.map((region, ri) => {
+              const isUnaffiliated = region.isUnaffiliated;
+              return (
+                <g key={ri} transform={`translate(${region.x},${region.y})`}>
+                  {/* Country background */}
+                  <rect
+                    x={0}
+                    y={0}
+                    width={region.w}
+                    height={region.h}
+                    rx={12}
+                    fill={isUnaffiliated ? '#f4f4f5' : '#eff6ff'}
+                    stroke={isUnaffiliated ? '#a1a1aa' : '#93c5fd'}
+                    strokeWidth={1.5}
+                    strokeDasharray={isUnaffiliated ? '6 3' : undefined}
+                  />
+                  {/* Country name */}
+                  <text
+                    x={region.w / 2}
+                    y={24}
+                    textAnchor="middle"
+                    fontSize={13}
+                    fontWeight="600"
+                    fill={isUnaffiliated ? '#71717a' : '#1e40af'}
+                    fontFamily="sans-serif"
+                  >
+                    {region.label}
+                  </text>
+                  {/* Divider */}
+                  <line
+                    x1={C_PAD}
+                    y1={C_HEADER_H - 6}
+                    x2={region.w - C_PAD}
+                    y2={C_HEADER_H - 6}
+                    stroke={isUnaffiliated ? '#d4d4d8' : '#bfdbfe'}
+                    strokeWidth={1}
+                  />
+
+                  {/* Settlement nodes */}
+                  {region.settlements.map((s, si) => {
+                    const col = si % SETT_COLS;
+                    const row = Math.floor(si / SETT_COLS);
+                    const cx = C_PAD + col * SETT_STRIDE + SETT_STRIDE / 2;
+                    const cy = C_HEADER_H + row * SETT_STRIDE + SETT_STRIDE / 2;
+                    const r = typeRadius(s.settlementType);
+                    const isSelected = selectedSettlement?.id === s.id;
+
+                    return (
+                      <g
+                        key={s.id}
+                        transform={`translate(${cx},${cy})`}
+                        style={{ cursor: 'pointer' }}
+                        onClick={e => { e.stopPropagation(); setSelectedSettlement(s); }}
+                      >
+                        {/* Selection ring */}
+                        {isSelected && (
+                          <circle r={r + 7} fill="none" stroke="#f59e0b" strokeWidth={2.5} />
+                        )}
+                        {/* Main circle */}
+                        <circle
+                          r={r}
+                          fill={terrainFill(s.terrain)}
+                          stroke={typeStroke(s.settlementType)}
+                          strokeWidth={2}
+                        />
+                        {/* Settlement initial */}
+                        <text
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                          fontSize={r > 13 ? 10 : 8}
+                          fontWeight="700"
+                          fill={typeStroke(s.settlementType)}
+                          fontFamily="sans-serif"
+                        >
+                          {s.settlementType?.[0]?.toUpperCase() ?? '?'}
+                        </text>
+                        {/* Settlement name below */}
+                        <text
+                          y={r + 12}
+                          textAnchor="middle"
+                          fontSize={9}
+                          fill="#374151"
+                          fontFamily="sans-serif"
+                        >
+                          {s.name}
+                        </text>
+                      </g>
+                    );
+                  })}
+
+                  {/* Empty country message */}
+                  {region.settlements.length === 0 && (
+                    <text
+                      x={region.w / 2}
+                      y={C_HEADER_H + SETT_STRIDE / 2 + 4}
+                      textAnchor="middle"
+                      fontSize={11}
+                      fill="#9ca3af"
+                      fontFamily="sans-serif"
+                    >
+                      No settlements
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+          </g>
+        </svg>
+      </div>
+
+      {/* Detail panel */}
+      <div className="w-64 shrink-0 flex flex-col gap-3">
+        {/* Legend */}
+        <div className="border rounded-lg p-4 bg-white dark:bg-white/5 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Legend</p>
+          <div className="space-y-1.5">
+            {[
+              { label: 'City', stroke: TYPE_STROKE.city, r: 8 },
+              { label: 'Town', stroke: TYPE_STROKE.town, r: 6 },
+              { label: 'Village', stroke: TYPE_STROKE.village, r: 4.5 },
+            ].map(({ label, stroke, r }) => (
+              <div key={label} className="flex items-center gap-2 text-xs">
+                <svg width={18} height={18}>
+                  <circle cx={9} cy={9} r={r} fill="#e5e7eb" stroke={stroke} strokeWidth={2} />
+                </svg>
+                {label}
+              </div>
+            ))}
           </div>
-        </CardHeader>
-        <CardContent>
-          <canvas
-            ref={canvasRef}
-            width={1200}
-            height={800}
-            className="border rounded-lg bg-slate-50 dark:bg-slate-900 w-full"
-            style={{ cursor: 'grab' }}
-          />
-        </CardContent>
-      </Card>
-
-      <Card className="w-80">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className="w-5 h-5" />
-            Map Controls
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>View Scope</Label>
-            <Select value={scope} onValueChange={(v) => setScope(v as MapScope)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="world">
-                  <div className="flex items-center gap-2">
-                    <Globe className="w-4 h-4" />
-                    World View
-                  </div>
-                </SelectItem>
-                <SelectItem value="country" disabled={countries.length === 0}>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4" />
-                    Country View
-                  </div>
-                </SelectItem>
-                <SelectItem value="settlement" disabled={settlements.length === 0}>
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4" />
-                    Settlement View
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="border-t pt-2 space-y-1.5">
+            <p className="text-xs text-muted-foreground">Terrain fill</p>
+            {Object.entries(TERRAIN_FILL).slice(0, 4).map(([terrain, color]) => (
+              <div key={terrain} className="flex items-center gap-2 text-xs">
+                <div className="w-3 h-3 rounded-full border border-gray-300" style={{ background: color }} />
+                <span className="capitalize">{terrain}</span>
+              </div>
+            ))}
           </div>
+        </div>
 
-          {scope === 'country' && countries.length > 0 && (
-            <div className="space-y-2">
-              <Label>Select Country</Label>
-              <Select value={selectedCountry || ''} onValueChange={setSelectedCountry}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a country" />
-                </SelectTrigger>
-                <SelectContent>
-                  {countries.map(country => (
-                    <SelectItem key={country.id} value={country.id}>
-                      {country.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        {/* Selected settlement detail */}
+        {selectedSettlement ? (
+          <div className="border rounded-lg p-4 bg-white dark:bg-white/5 space-y-3 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-semibold text-base leading-tight">{selectedSettlement.name}</p>
+                <Badge
+                  variant="secondary"
+                  className="mt-1 text-xs"
+                  style={{
+                    background: terrainFill(selectedSettlement.terrain),
+                    color: typeStroke(selectedSettlement.settlementType),
+                    border: `1px solid ${typeStroke(selectedSettlement.settlementType)}40`,
+                  }}
+                >
+                  {selectedSettlement.settlementType}
+                </Badge>
+              </div>
+              <button
+                onClick={() => setSelectedSettlement(null)}
+                className="text-muted-foreground hover:text-foreground text-xs mt-0.5"
+              >
+                ✕
+              </button>
             </div>
-          )}
 
-          {scope === 'settlement' && settlements.length > 0 && (
-            <div className="space-y-2">
-              <Label>Select Settlement</Label>
-              <Select value={selectedSettlement || ''} onValueChange={setSelectedSettlement}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a settlement" />
-                </SelectTrigger>
-                <SelectContent>
-                  {settlements.map(settlement => (
-                    <SelectItem key={settlement.id} value={settlement.id}>
-                      {settlement.name} ({settlement.settlementType})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+            {selectedSettlement.description && (
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {selectedSettlement.description}
+              </p>
+            )}
 
-          <div className="pt-4 border-t">
-            <h3 className="text-sm font-semibold mb-2">Legend</h3>
-            <div className="space-y-2 text-xs">
-              {scope === 'world' && (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-blue-500/20 border-2 border-blue-500 rounded"></div>
-                  <span>Countries</span>
+            <div className="space-y-1.5 text-xs">
+              {[
+                ['Population', selectedSettlement.population?.toLocaleString() ?? '—'],
+                ['Terrain', selectedSettlement.terrain ?? '—'],
+                ['Founded', selectedSettlement.foundedYear ?? 'Unknown'],
+                ['Generation', selectedSettlement.currentGeneration ?? '—'],
+              ].map(([label, value]) => (
+                <div key={label} className="flex justify-between">
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="font-medium">{value}</span>
                 </div>
-              )}
-              {scope === 'country' && (
-                <>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-purple-500/20 border-2 border-purple-500 rounded"></div>
-                    <span>States/Provinces</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-green-500/20 border-2 border-green-500 rounded"></div>
-                    <span>Settlements</span>
-                  </div>
-                </>
-              )}
-              {scope === 'settlement' && (
-                <>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
-                    <span>Main Settlement</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-green-600 rounded-full"></div>
-                    <span>Residential</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                    <span>Commercial</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-gray-600 rounded-full"></div>
-                    <span>Industrial</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-purple-600 rounded-full"></div>
-                    <span>Civic</span>
-                  </div>
-                </>
-              )}
+              ))}
             </div>
           </div>
-        </CardContent>
-      </Card>
+        ) : (
+          <div className="border rounded-lg p-4 bg-white dark:bg-white/5 flex-1 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+            <MapPin className="w-6 h-6 opacity-30" />
+            <p className="text-xs text-center">Click a settlement node to see its details</p>
+          </div>
+        )}
+
+        <p className="text-xs text-muted-foreground text-center">
+          {settlements.length} settlement{settlements.length !== 1 ? 's' : ''} across {countries.length} countr{countries.length !== 1 ? 'ies' : 'y'}
+        </p>
+      </div>
     </div>
   );
 }

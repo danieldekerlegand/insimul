@@ -2,15 +2,15 @@ import { useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { WorldSelectionScreen } from '@/components/WorldSelectionScreen';
 import { ModernNavbar } from '@/components/ModernNavbar';
-import { HierarchicalRulesTab } from '@/components/HierarchicalRulesTab';
+import { RulesHub } from '@/components/rules/RulesHub';
 import { UnifiedWorldExplorerTab } from '@/components/UnifiedWorldExplorerTab';
-import { HierarchicalActionsTab } from '@/components/HierarchicalActionsTab';
+import { ActionsHub } from '@/components/actions/ActionsHub';
 import { WorldManagementTab } from '@/components/WorldManagementTab';
 import { TruthTab } from '@/components/TruthTab';
-import { QuestsTab } from '@/components/QuestsTab';
+import { QuestsHub } from '@/components/quests/QuestsHub';
 import { PrologKnowledgeBase } from '@/components/PrologKnowledgeBase';
-import { GrammarsTab } from '@/components/GrammarsTab';
-import { LanguagesTab } from '@/components/LanguagesTab';
+import { GrammarsHub } from '@/components/grammars/GrammarsHub';
+import { LanguagesHub } from '@/components/languages/LanguagesHub';
 import { ExportDialog } from '@/components/ExportDialog';
 import { EngineExportDialog } from '@/components/EngineExportDialog';
 import { ImportDialog } from '@/components/ImportDialog';
@@ -54,6 +54,9 @@ export default function Home() {
   const [engineExportDialogOpen, setEngineExportDialogOpen] = useState(false);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
+  const [worldSettingsOpen, setWorldSettingsOpen] = useState(false);
+  const [worldDeleteDialogOpen, setWorldDeleteDialogOpen] = useState(false);
+  const [worldEditDialogOpen, setWorldEditDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const ruleCompiler = new InsimulRuleCompiler();
   const { toast } = useToast();
@@ -163,6 +166,9 @@ export default function Home() {
         activeTab={activeTab}
         onOpenAdminPanel={() => setAdminPanelOpen(true)}
         onExportGame={() => setEngineExportDialogOpen(true)}
+        onEditWorld={() => setWorldEditDialogOpen(true)}
+        onOpenSettings={() => setWorldSettingsOpen(true)}
+        onDeleteWorld={() => setWorldDeleteDialogOpen(true)}
         onTabChange={(tab) => {
           // Handle special tabs
           if (tab === 'import') {
@@ -193,9 +199,11 @@ export default function Home() {
       />
 
       <div className="max-w-6xl mx-auto p-6">
-        {/* Rules Tab - Using HierarchicalRulesTab */}
+        {/* Rules Tab */}
         {activeTab === 'rules' && selectedWorld && (
-          <HierarchicalRulesTab worldId={selectedWorld} />
+          <div className="px-2 py-4">
+            <RulesHub worldId={selectedWorld} />
+          </div>
         )}
 
         {/* Society Tab - Unified World Explorer */}
@@ -203,9 +211,11 @@ export default function Home() {
           <UnifiedWorldExplorerTab worldId={selectedWorld} />
         )}
 
-        {/* Actions Tab - Using HierarchicalActionsTab */}
+        {/* Actions Tab */}
         {activeTab === 'actions' && selectedWorld && (
-          <HierarchicalActionsTab worldId={selectedWorld} />
+          <div className="px-2 py-4">
+            <ActionsHub worldId={selectedWorld} />
+          </div>
         )}
 
         {/* Truth Tab */}
@@ -220,17 +230,23 @@ export default function Home() {
 
         {/* Quests Tab */}
         {activeTab === 'quests' && selectedWorld && (
-          <QuestsTab worldId={selectedWorld} />
+          <div className="px-2 py-4">
+            <QuestsHub worldId={selectedWorld} />
+          </div>
         )}
 
         {/* Grammars Tab */}
         {activeTab === 'grammars' && selectedWorld && (
-          <GrammarsTab worldId={selectedWorld} />
+          <div className="px-2 py-4">
+            <GrammarsHub worldId={selectedWorld} />
+          </div>
         )}
 
         {/* Languages Tab */}
         {activeTab === 'languages' && selectedWorld && (
-          <LanguagesTab worldId={selectedWorld} />
+          <div className="px-2 py-4">
+            <LanguagesHub worldId={selectedWorld} />
+          </div>
         )}
 
         {/* Simulations Tab */}
@@ -398,8 +414,8 @@ export default function Home() {
 
         {/* World Home Tab */}
         {(activeTab === 'home' || activeTab === 'worlds') && selectedWorld && (
-          <WorldManagementTab 
-            worldId={selectedWorld} 
+          <WorldManagementTab
+            worldId={selectedWorld}
             worldName={currentWorld.name}
             worldDescription={currentWorld.description}
             onWorldDeleted={() => setSelectedWorld('')}
@@ -407,6 +423,12 @@ export default function Home() {
               queryClient.invalidateQueries({ queryKey: ['/api/worlds'] });
               queryClient.invalidateQueries({ queryKey: ['/api/worlds', selectedWorld] });
             }}
+            showSettingsDialog={worldSettingsOpen}
+            onSettingsDialogChange={setWorldSettingsOpen}
+            showDeleteDialog={worldDeleteDialogOpen}
+            onDeleteDialogChange={setWorldDeleteDialogOpen}
+            showEditDialog={worldEditDialogOpen}
+            onEditDialogChange={setWorldEditDialogOpen}
             onNavigate={(tab) => {
               if (tab === 'import') {
                 setImportDialogOpen(true);

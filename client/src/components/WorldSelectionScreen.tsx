@@ -227,18 +227,20 @@ export function WorldSelectionScreen({ onWorldSelected, onOpenAuth, onOpenAdminP
       />
       <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-primary/10 flex items-center justify-center p-6">
       <div className="w-full max-w-6xl">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary to-primary/60 rounded-2xl mb-6 shadow-lg shadow-primary/20">
-            <Globe className="w-10 h-10 text-white" />
+        {/* Header - only show for new users with no worlds */}
+        {!loading && worlds.length === 0 && (
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary to-primary/60 rounded-2xl mb-6 shadow-lg shadow-primary/20">
+              <Globe className="w-10 h-10 text-white" />
+            </div>
+            <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
+              Welcome to Insimul
+            </h1>
+            <p className="text-xl text-muted-foreground">
+              Select a world to begin, or create a new one
+            </p>
           </div>
-          <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
-            Welcome to Insimul
-          </h1>
-          <p className="text-xl text-muted-foreground">
-            Select a world to begin, or create a new one
-          </p>
-        </div>
+        )}
 
         {/* Worlds Grid */}
         <ScrollArea className="h-[500px] mb-8">
