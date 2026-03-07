@@ -55,7 +55,6 @@ export class GameFileCopier {
       { src: 'TurnBasedCombatSystem.ts', dest: 'src/TurnBasedCombatSystem.ts' },
       { src: 'CraftingSystem.ts', dest: 'src/CraftingSystem.ts' },
       { src: 'ResourceSystem.ts', dest: 'src/ResourceSystem.ts' },
-      { src: 'SurvivalNeedsSystem.ts', dest: 'src/SurvivalNeedsSystem.ts' },
       { src: 'RunManager.ts', dest: 'src/RunManager.ts' },
       
       // VR Components

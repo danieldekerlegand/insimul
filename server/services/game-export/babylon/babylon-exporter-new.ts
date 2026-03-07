@@ -35,46 +35,26 @@ let archiver: any;
 async function copySharedTypes(): Promise<GeneratedFile[]> {
   const sharedDir = path.join(path.dirname(new URL(import.meta.url).pathname), '..', '..', '..', '..', 'shared');
   const files: GeneratedFile[] = [];
-  
+
   if (!fsSync.existsSync(sharedDir)) {
     console.warn(`[Export] Shared directory not found: ${sharedDir}`);
     return files;
   }
-  
-  const entries = fsSync.readdirSync(sharedDir, { withFileTypes: true });
-  
-  for (const entry of entries) {
-    if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.js'))) {
-      const filePath = path.join(sharedDir, entry.name);
-      const content = fsSync.readFileSync(filePath, 'utf8');
-      
-      files.push({
-        path: `src/shared/${entry.name}`,
-        content
-      });
-    }
-  }
-  
-  // Also copy subdirectories like game-genres
-  for (const entry of entries) {
-    if (entry.isDirectory()) {
-      const subDirPath = path.join(sharedDir, entry.name);
-      const subEntries = fsSync.readdirSync(subDirPath, { withFileTypes: true });
-      
-      for (const subEntry of subEntries) {
-        if (subEntry.isFile() && (subEntry.name.endsWith('.ts') || subEntry.name.endsWith('.js'))) {
-          const filePath = path.join(subDirPath, subEntry.name);
-          const content = fsSync.readFileSync(filePath, 'utf8');
-          
-          files.push({
-            path: `src/shared/${entry.name}/${subEntry.name}`,
-            content
-          });
-        }
+
+  function walkDir(absDir: string, relPrefix: string): void {
+    const entries = fsSync.readdirSync(absDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const absPath = path.join(absDir, entry.name);
+      const relPath = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        walkDir(absPath, relPath);
+      } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.js'))) {
+        files.push({ path: `src/shared/${relPath}`, content: fsSync.readFileSync(absPath, 'utf8') });
       }
     }
   }
-  
+
+  walkDir(sharedDir, '');
   console.log(`[Export] Copied ${files.length} files from shared`);
   return files;
 }

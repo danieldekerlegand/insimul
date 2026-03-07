@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Pre-commit hook: check for engine drift before allowing a commit.
+#
+# Install once with:  npm run prepare
+# Skip for emergencies with:  git commit --no-verify
+#
+# If this hook fails, read the output — it will tell you exactly which
+# source files changed and which export templates need updating.
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# Only run if any tracked system file is staged
+SYSTEM_PATHS=(
+  "shared/game-engine/systems/"
+  "shared/game-engine/system-contracts.ts"
+  "client/src/components/3DGame/CombatSystem.ts"
+  "client/src/components/3DGame/RuleEnforcer.ts"
+  "client/src/components/3DGame/CraftingSystem.ts"
+  "client/src/components/3DGame/ResourceSystem.ts"
+  "client/src/components/3DGame/BabylonInventory.ts"
+  "client/src/components/3DGame/BabylonDialogueActions.ts"
+  "client/src/components/3DGame/actions/ActionManager.ts"
+  "client/src/components/3DGame/ProceduralBuildingGenerator.ts"
+  "client/src/components/3DGame/WorldScaleManager.ts"
+)
+
+STAGED=$(git diff --cached --name-only)
+
+RELEVANT=false
+for pattern in "${SYSTEM_PATHS[@]}"; do
+  if echo "$STAGED" | grep -q "$pattern"; then
+    RELEVANT=true
+    break
+  fi
+done
+
+if [ "$RELEVANT" = false ]; then
+  exit 0
+fi
+
+echo "[drift] Tracked game-system files are staged — running engine drift check..."
+
+if npx tsx scripts/check-engine-drift.ts; then
+  echo "[drift] ✓ Drift check passed."
+else
+  echo ""
+  echo "[drift] Commit blocked. Fix the drift issues above, then:"
+  echo "  npm run drift:update   # record new hashes after updating templates"
+  echo "  git add shared/game-engine/drift-manifest.json"
+  echo "  git commit             # retry"
+  exit 1
+fi

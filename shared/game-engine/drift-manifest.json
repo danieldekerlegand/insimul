@@ -1,0 +1,263 @@
+{
+  "version": "1",
+  "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
+  "lastUpdated": "2026-03-07T02:52:35.296Z",
+  "trackedFiles": [
+    {
+      "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
+      "description": "Canonical survival-needs implementation. Changes here require updating engine-native SurvivalSystem templates.",
+      "hash": "3f2fe006f35e2cb192ba14f6ab0e0fc4fce74bc95a3cb65b6e6f59f3d1dee3d0",
+      "engineMappings": [
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/systems/SurvivalSystem.h",
+          "description": "Header: needs, decay, thresholds"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/systems/SurvivalSystem.cpp",
+          "description": "Implementation stub"
+        },
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/Systems/SurvivalSystem.cs",
+          "description": "Unity C# implementation"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/survival_system.gd",
+          "description": "Godot GDScript implementation"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/CombatSystem.ts",
+      "description": "Combat system: damage, critical hits, blocks, dodge. Changes require updating combat templates in all engines.",
+      "hash": "689448bf4514f81c20f11ee66b5ff213a6b607c52fbf2a9ee8f4c7394e2f38d4",
+      "engineMappings": [
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/systems/CombatSystem.h"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/systems/CombatSystem.cpp"
+        },
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/Systems/CombatSystem.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/combat_system.gd"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/RuleEnforcer.ts",
+      "description": "Rule enforcement: condition evaluation, violation callbacks. Changes require updating rule enforcer templates.",
+      "hash": "77599b0a3781e6f64927f279634c8cf98c201f60c0d27f6de7e83f80cf6ce9c7",
+      "engineMappings": [
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/systems/RuleEnforcer.h"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/systems/RuleEnforcer.cpp"
+        },
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/Systems/RuleEnforcer.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/rule_enforcer.gd"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/CraftingSystem.ts",
+      "description": "Crafting: recipe matching, ingredient deduction, output production.",
+      "hash": "d0dcf6c86a91f4daacde03c292e65fe9878c74d936be99291877b042e7fab5d1",
+      "engineMappings": [
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/systems/CraftingSystem.h"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/systems/CraftingSystem.cpp"
+        },
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/Systems/CraftingSystem.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/crafting_system.gd"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/ResourceSystem.ts",
+      "description": "Resource nodes: harvesting, respawn timers.",
+      "hash": "b88d14b1a604ca235b55355c075c3c00da0aabff358c0732450b89ba81f12a09",
+      "engineMappings": [
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/systems/ResourceSystem.h"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/systems/ResourceSystem.cpp"
+        },
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/Systems/ResourceSystem.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/resource_system.gd"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/BabylonInventory.ts",
+      "description": "Inventory: stacking, weight, add/remove items.",
+      "hash": "5fb595fec082fb98a2f946c5a44248257a94df6a895728989fcaf1a5543b7c4e",
+      "engineMappings": [
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/systems/InventorySystem.h"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/systems/InventorySystem.cpp"
+        },
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/Systems/InventorySystem.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/inventory_system.gd"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/BabylonDialogueActions.ts",
+      "description": "Dialogue tree traversal, choice selection, NPC conversation flow.",
+      "hash": "2de63523cb04fc56f8805626b87dc562b6c8cf551ed94481741e3f1feca6f772",
+      "engineMappings": [
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/systems/DialogueSystem.h"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/systems/DialogueSystem.cpp"
+        },
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/Systems/DialogueSystem.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/dialogue_system.gd"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/actions/ActionManager.ts",
+      "description": "Action execution pipeline: availability checks, cooldowns, energy costs, effects.",
+      "hash": "22f29f4f1c88ecddb5a8be960b84e25911d0069e09a9eedae818372ef1f6d853",
+      "engineMappings": [
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/systems/ActionSystem.h"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/systems/ActionSystem.cpp"
+        },
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/Systems/ActionSystem.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/action_system.gd"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/ProceduralBuildingGenerator.ts",
+      "description": "Procedural building placement and geometry. Changes affect world-generator templates.",
+      "hash": "9796224e011dc9c6398504e0c4123896637829abe26c9fd533d69609fcf4db04",
+      "engineMappings": [
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/world/ProceduralBuildingGenerator.h"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/world/ProceduralBuildingGenerator.cpp"
+        },
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/World/ProceduralBuildingGenerator.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/world/procedural_building_generator.gd"
+        }
+      ]
+    },
+    {
+      "path": "client/src/components/3DGame/WorldScaleManager.ts",
+      "description": "World-to-scene coordinate scaling, biome setup, terrain parameters.",
+      "hash": "494e5991d98064d1341ced95a1677c06a9a4446631869418be1d8879a57099d6",
+      "engineMappings": [
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/world/WorldScaleManager.h"
+        },
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/world/WorldScaleManager.cpp"
+        },
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/World/WorldScaleManager.cs"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/world/world_scale_manager.gd"
+        }
+      ]
+    },
+    {
+      "path": "shared/game-engine/system-contracts.ts",
+      "description": "Cross-engine behavioral contracts (interfaces). Changes here must be reflected in all engine implementations.",
+      "hash": "23c9a3fe06d26752a8a22bc4ec65d7e99788f3e6483365093efa74462651d1a9",
+      "engineMappings": [
+        {
+          "engine": "unreal",
+          "templatePath": "server/services/game-export/unreal/templates/source/systems/",
+          "description": "All system headers"
+        },
+        {
+          "engine": "unity",
+          "templatePath": "server/services/game-export/unity/templates/Scripts/Systems/",
+          "description": "All system C# files"
+        },
+        {
+          "engine": "godot",
+          "templatePath": "server/services/game-export/godot/templates/scripts/",
+          "description": "All system GDScript files"
+        }
+      ]
+    }
+  ]
+}
