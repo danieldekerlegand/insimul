@@ -212,7 +212,7 @@ export interface ActionResult {
 }
 
 export interface ActionEffect {
-  type: 'relationship' | 'attribute' | 'status' | 'event' | 'item' | 'knowledge';
+  type: 'relationship' | 'attribute' | 'status' | 'event' | 'item' | 'knowledge' | 'gold';
   target: string;
   value: any;
   description: string;
@@ -587,7 +587,7 @@ export interface DamageResult {
 
 // ─── Inventory ──────────────────────────────────────────────────────────────
 
-export type ItemType = 'quest' | 'collectible' | 'key' | 'consumable';
+export type ItemType = 'quest' | 'collectible' | 'key' | 'consumable' | 'weapon' | 'armor' | 'food' | 'drink' | 'material' | 'tool';
 
 export interface InventoryItem {
   id: string;
@@ -597,6 +597,39 @@ export interface InventoryItem {
   quantity: number;
   icon?: string;
   questId?: string;
+  value?: number;
+  sellValue?: number;
+  weight?: number;
+  tradeable?: boolean;
+}
+
+// ─── Mercantile ─────────────────────────────────────────────────────────────
+
+export interface ShopItem extends InventoryItem {
+  buyPrice: number;
+  sellPrice: number;
+  stock: number;
+  maxStock: number;
+  restockRate?: number;
+}
+
+export interface MerchantInventory {
+  merchantId: string;
+  merchantName: string;
+  items: ShopItem[];
+  goldReserve: number;
+  buyMultiplier: number;
+  sellMultiplier: number;
+}
+
+export interface TradeTransaction {
+  type: 'buy' | 'sell' | 'steal' | 'discard';
+  itemId: string;
+  quantity: number;
+  totalPrice: number;
+  merchantId?: string;
+  success: boolean;
+  timestamp: number;
 }
 
 // ─── Resources ──────────────────────────────────────────────────────────────

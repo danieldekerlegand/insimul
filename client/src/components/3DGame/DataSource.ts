@@ -28,6 +28,19 @@ export interface DataSource {
   loadSettlementLots(settlementId: string): Promise<any[]>;
   loadSettlementResidences(settlementId: string): Promise<any[]>;
   payFines(playthroughId: string, settlementId: string): Promise<any>;
+  getEntityInventory(worldId: string, entityId: string): Promise<any>;
+  transferItem(worldId: string, transfer: {
+    fromEntityId?: string;
+    toEntityId?: string;
+    itemId: string;
+    itemName?: string;
+    itemDescription?: string;
+    itemType?: string;
+    quantity?: number;
+    transactionType: 'buy' | 'sell' | 'steal' | 'discard' | 'give' | 'quest_reward';
+    totalPrice?: number;
+  }): Promise<any>;
+  getMerchantInventory(worldId: string, merchantId: string): Promise<any>;
 }
 
 /**
@@ -161,6 +174,25 @@ export class ApiDataSource implements DataSource {
         }
       }
     );
+    return res.ok ? await res.json() : null;
+  }
+
+  async getEntityInventory(worldId: string, entityId: string): Promise<any> {
+    const res = await fetch(`/api/worlds/${worldId}/entities/${entityId}/inventory`, { headers: this.getHeaders() });
+    return res.ok ? await res.json() : { entityId, items: [], gold: 0 };
+  }
+
+  async transferItem(worldId: string, transfer: any): Promise<any> {
+    const res = await fetch(`/api/worlds/${worldId}/inventory/transfer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify(transfer),
+    });
+    return res.ok ? await res.json() : { success: false };
+  }
+
+  async getMerchantInventory(worldId: string, merchantId: string): Promise<any> {
+    const res = await fetch(`/api/worlds/${worldId}/merchants/${merchantId}/inventory`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : null;
   }
 }
@@ -481,6 +513,22 @@ export class FileDataSource implements DataSource {
   async payFines(playthroughId: string, settlementId: string): Promise<any> {
     // In exported games, fines are handled locally
     return { success: true };
+  }
+
+  async getEntityInventory(worldId: string, entityId: string): Promise<any> {
+    // In exported games, inventory is managed locally
+    return { entityId, items: [], gold: 0 };
+  }
+
+  async transferItem(worldId: string, transfer: any): Promise<any> {
+    // In exported games, transfers are handled locally
+    console.log('Item transferred:', transfer);
+    return { success: true, ...transfer, timestamp: Date.now() };
+  }
+
+  async getMerchantInventory(worldId: string, merchantId: string): Promise<any> {
+    // In exported games, merchant inventory is generated locally
+    return null;
   }
 }
 

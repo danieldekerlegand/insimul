@@ -30,9 +30,32 @@ void UActionSystem::LoadFromIR(const FString& JsonString)
     }
 }
 
-bool UActionSystem::ExecuteAction(const FString& ActionId, AActor* Source, AActor* Target)
+FInsimulActionResult UActionSystem::ExecuteAction(const FString& ActionId, AActor* Source, AActor* Target)
 {
-    // TODO: Look up action by ID, validate preconditions, apply effects
+    FInsimulActionResult Result;
+    // TODO: Look up action by ID and validate preconditions
+
     UE_LOG(LogTemp, Log, TEXT("[Insimul] ExecuteAction: %s"), *ActionId);
-    return true;
+
+    // Process effects from action definition
+    // Effects with category 'item' produce item grants/removals
+    // Effects with category 'gold' produce gold changes
+    // The game should listen to OnGoldEffect / OnItemEffect delegates
+    // to apply changes to the InventorySystem.
+
+    // Example: iterate parsed effects and broadcast
+    for (const FInsimulActionEffect& Effect : Result.Effects)
+    {
+        if (Effect.Type == TEXT("gold"))
+        {
+            OnGoldEffect.Broadcast(static_cast<int32>(Effect.Value));
+        }
+        else if (Effect.Type == TEXT("item"))
+        {
+            OnItemEffect.Broadcast(Effect.ItemId, Effect.Quantity);
+        }
+    }
+
+    Result.bSuccess = true;
+    return Result;
 }

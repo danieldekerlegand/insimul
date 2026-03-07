@@ -31,6 +31,7 @@ export class PrologSyncService {
       await this.syncLocationsToProlog(worldId);
       await this.syncBusinessesToProlog(worldId);
       await this.syncKnowledgeToProlog(worldId);  // Phase 6: Knowledge & Beliefs
+      await this.syncOwnershipToProlog(worldId);  // Item ownership
       await this.addHelperRules();
       
       console.log(`✅ World ${worldId} synced to Prolog`);
@@ -319,6 +320,50 @@ export class PrologSyncService {
   }
 
   /**
+   * Sync item ownership truths to Prolog facts
+   */
+  private async syncOwnershipToProlog(worldId: string): Promise<void> {
+    console.log(`  📦 Syncing item ownership...`);
+
+    try {
+      const truths = await this.storage.getTruthsByWorld(worldId);
+      const ownershipTruths = truths.filter((t: any) => t.entryType === 'ownership');
+
+      for (const truth of ownershipTruths) {
+        const data = typeof truth.customData === 'object' ? truth.customData as any : {};
+        if (!truth.characterId || !data.itemId) continue;
+
+        // Find the character to build proper Prolog ID
+        const characters = await this.storage.getCharactersByWorld(worldId);
+        const character = characters.find(c => c.id === truth.characterId);
+
+        if (character) {
+          const charId = this.sanitizeAtom(`${character.firstName}_${character.lastName}_${character.id}`);
+          const itemId = this.sanitizeAtom(data.itemId);
+          const itemName = this.escapeString(data.itemName || data.itemId);
+          const quantity = data.quantity || 1;
+
+          await this.prologManager.addFact(`has_item(${charId}, ${itemId}, ${quantity})`);
+          await this.prologManager.addFact(`item_name(${itemId}, '${itemName}')`);
+
+          if (data.itemType) {
+            const itemType = this.sanitizeAtom(data.itemType);
+            await this.prologManager.addFact(`item_type(${itemId}, ${itemType})`);
+          }
+
+          if (data.value) {
+            await this.prologManager.addFact(`item_value(${itemId}, ${data.value})`);
+          }
+        }
+      }
+
+      console.log(`    ✅ Synced ${ownershipTruths.length} ownership facts`);
+    } catch (error) {
+      console.warn('  ⚠️  Failed to sync ownership:', error);
+    }
+  }
+
+  /**
    * Add helper rules for common queries
    */
   private async addHelperRules(): Promise<void> {
@@ -367,6 +412,20 @@ export class PrologSyncService {
       'child(X) :- age(X, A), A < 18'
     );
     
+    // Item ownership helper rules
+    await this.prologManager.addRule(
+      'owns_item(X, Item) :- has_item(X, Item, Q), Q > 0'
+    );
+    await this.prologManager.addRule(
+      'has_item_type(X, Type) :- has_item(X, Item, _), item_type(Item, Type)'
+    );
+    await this.prologManager.addRule(
+      'total_item_value(X, Total) :- findall(V, (has_item(X, Item, Q), item_value(Item, BaseV), V is BaseV * Q), Values), sum_list(Values, Total)'
+    );
+    await this.prologManager.addRule(
+      'is_merchant(X) :- person(X), occupation(X, Occ), (Occ = merchant ; Occ = shopkeeper ; Occ = trader ; Occ = vendor ; Occ = blacksmith ; Occ = apothecary)'
+    );
+
     // Phase 6: Knowledge & Belief helper rules
     
     // Can share knowledge about subject

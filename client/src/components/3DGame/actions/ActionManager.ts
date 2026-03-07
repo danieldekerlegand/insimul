@@ -188,6 +188,20 @@ export class ActionManager {
           value: effect.value,
           description: effect.type
         });
+      } else if (effect.category === 'item') {
+        effects.push({
+          type: 'item',
+          target: effect.first === 'initiator' ? context.actor : context.target || '',
+          value: { itemId: effect.type, quantity: effect.value || 1 },
+          description: `${effect.value > 0 ? 'Gained' : 'Lost'} item: ${effect.type}`
+        });
+      } else if (effect.category === 'gold') {
+        effects.push({
+          type: 'gold',
+          target: effect.first === 'initiator' ? context.actor : context.target || '',
+          value: effect.value,
+          description: `${effect.value > 0 ? 'Gained' : 'Lost'} ${Math.abs(effect.value)} gold`
+        });
       }
     }
 

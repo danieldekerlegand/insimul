@@ -77,6 +77,7 @@ export class BabylonChatPanel {
   private truths: Truth[] = [];
   private world: World | null = null;
   private worldLanguageContext: WorldLanguageContext | null = null;
+  private playerInventoryContext: string = '';
   private languageTracker: LanguageProgressTracker | null = null;
   private messages: Message[] = [];
   private isVisible = false;
@@ -792,11 +793,15 @@ export class BabylonChatPanel {
 
   private buildSystemPrompt(): string {
     if (!this.character) return '';
-    return buildLanguageAwareSystemPrompt(
+    let prompt = buildLanguageAwareSystemPrompt(
       this.character,
       this.truths,
       this.worldLanguageContext || undefined
     );
+    if (this.playerInventoryContext) {
+      prompt += this.playerInventoryContext;
+    }
+    return prompt;
   }
 
   private async textToSpeech(text: string) {
@@ -1124,6 +1129,15 @@ export class BabylonChatPanel {
 
   public setOnNPCConversationStarted(callback: (npcId: string) => void) {
     this.onNPCConversationStarted = callback;
+  }
+
+  public setPlayerInventoryContext(items: Array<{ name: string; type: string; quantity: number }>, gold: number) {
+    if (items.length === 0 && gold === 0) {
+      this.playerInventoryContext = '';
+      return;
+    }
+    const itemList = items.map(i => `${i.name} (x${i.quantity})`).join(', ');
+    this.playerInventoryContext = `\nThe player currently has ${gold} gold${items.length > 0 ? ` and carries: ${itemList}` : ''}.`;
   }
 
   public setOnQuestTurnedIn(callback: (questId: string, rewards: any) => void) {

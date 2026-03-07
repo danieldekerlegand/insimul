@@ -206,6 +206,21 @@ export class QuestObjectManager {
       });
     }
 
+    // Check for deliver_item objectives
+    if (quest.completionCriteria?.type === 'deliver_item') {
+      objectives.push({
+        id: `${quest.id}_deliver`,
+        questId: quest.id,
+        type: 'deliver_item',
+        description: quest.completionCriteria.description || `Deliver ${quest.completionCriteria.itemName} to ${quest.completionCriteria.targetNpc}`,
+        completed: false,
+        itemName: quest.completionCriteria.itemName,
+        npcId: quest.completionCriteria.targetNpcId,
+        npcName: quest.completionCriteria.targetNpc,
+        delivered: false,
+      });
+    }
+
     // Check for vocabulary objectives
     if (quest.completionCriteria?.type === 'vocabulary_usage') {
       objectives.push({
@@ -718,6 +733,48 @@ export class QuestObjectManager {
         if (objective.type === 'collect_item' && !objective.completed) {
           const objName = (objective.itemName || '').toLowerCase();
           if (objName && objName === key) {
+            this.completeObjective(quest.id, objective.id);
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Track item delivery - when talking to an NPC while holding the quest item
+   */
+  public trackItemDelivery(npcId: string, playerItemNames: string[]): void {
+    const normalizedItems = playerItemNames.map(n => n.toLowerCase());
+
+    this.activeQuests.forEach(quest => {
+      quest.objectives?.forEach(objective => {
+        if (objective.type === 'deliver_item' && !objective.completed) {
+          const matchesNpc = objective.npcId === npcId || !objective.npcId;
+          const matchesItem = objective.itemName &&
+            normalizedItems.includes(objective.itemName.toLowerCase());
+
+          if (matchesNpc && matchesItem) {
+            objective.delivered = true;
+            this.completeObjective(quest.id, objective.id);
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Check ownership-based objectives against current inventory
+   */
+  public checkInventoryObjectives(playerItemNames: string[]): void {
+    const normalizedItems = playerItemNames.map(n => n.toLowerCase());
+
+    this.activeQuests.forEach(quest => {
+      quest.objectives?.forEach(objective => {
+        if (objective.completed) return;
+
+        if (objective.type === 'collect_item' || objective.type === 'collect_items') {
+          const objName = (objective.itemName || '').toLowerCase();
+          if (objName && normalizedItems.includes(objName)) {
             this.completeObjective(quest.id, objective.id);
           }
         }

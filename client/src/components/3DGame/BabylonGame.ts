@@ -53,6 +53,7 @@ import { WorldScaleManager, ScaledSettlement } from "@/components/3DGame/WorldSc
 import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay.ts";
 import { BabylonMinimap } from "@/components/3DGame/BabylonMinimap.ts";
 import { BabylonInventory, InventoryItem } from "@/components/3DGame/BabylonInventory.ts";
+import { BabylonShopPanel, ShopTransaction } from "@/components/3DGame/BabylonShopPanel.ts";
 import { BabylonRulesPanel, Rule } from "@/components/3DGame/BabylonRulesPanel.ts";
 import { RuleEnforcer, RuleViolation } from "@/components/3DGame/RuleEnforcer.ts";
 import { CombatSystem, CombatStyle, DamageResult } from "@/components/3DGame/CombatSystem.ts";
@@ -293,6 +294,7 @@ export class BabylonGame {
   private buildingInfoDisplay: BuildingInfoDisplay | null = null;
   private minimap: BabylonMinimap | null = null;
   private inventory: BabylonInventory | null = null;
+  private shopPanel: BabylonShopPanel | null = null;
   private rulesPanel: BabylonRulesPanel | null = null;
   private ruleEnforcer: RuleEnforcer | null = null;
   private combatSystem: CombatSystem | null = null;
@@ -1010,6 +1012,20 @@ export class BabylonGame {
 
     // Initialize inventory
     this.inventory = new BabylonInventory(scene, this.guiManager.advancedTexture);
+    this.inventory.setOnItemDropped((item) => this.handleDropItem(item));
+    this.inventory.setOnItemUsed((item) => this.handleUseItem(item));
+
+    // Initialize shop panel
+    this.shopPanel = new BabylonShopPanel(this.guiManager.advancedTexture);
+    this.shopPanel.setOnBuy((transaction) => this.handleShopBuy(transaction));
+    this.shopPanel.setOnSell((transaction) => this.handleShopSell(transaction));
+    this.shopPanel.setOnClose(() => {
+      // Sync gold back to inventory
+      if (this.inventory && this.shopPanel) {
+        this.inventory.setGold(this.shopPanel.getPlayerGold());
+        this.playerGold = this.shopPanel.getPlayerGold();
+      }
+    });
 
     // Initialize rules panel
     this.rulesPanel = new BabylonRulesPanel(scene, this.guiManager.advancedTexture);
@@ -4163,6 +4179,14 @@ export class BabylonGame {
         this.camera.rebuildAnglesAndRadius();
       }
 
+      // Set player inventory context for NPC awareness
+      if (this.inventory) {
+        this.chatPanel.setPlayerInventoryContext(
+          this.inventory.getAllItems().map(i => ({ name: i.name, type: i.type, quantity: i.quantity })),
+          this.playerGold
+        );
+      }
+
       this.chatPanel.show(character, truths, npcMesh);
       console.log('[Chat] Chat panel shown for character:', character.firstName, character.lastName);
 
@@ -4171,6 +4195,12 @@ export class BabylonGame {
 
       // Track NPC conversation for quests
       this.questObjectManager?.trackNPCConversation(npcId);
+
+      // Check if player can deliver any quest items to this NPC
+      if (this.inventory && this.questObjectManager) {
+        const playerItemNames = this.inventory.getAllItems().map(i => i.name);
+        this.questObjectManager.trackItemDelivery(npcId, playerItemNames);
+      }
 
       this.guiManager?.showToast({
         title: `Chatting with ${npcInfo.name}`,
@@ -4185,6 +4215,126 @@ export class BabylonGame {
         description: `Failed to load character data: ${errorMessage}`,
         variant: "destructive",
         duration: 3000
+      });
+    }
+  }
+
+  // ─── Shop / Mercantile Handlers ──────────────────────────────────────────
+
+  private async handleOpenShop(merchantId: string): Promise<void> {
+    if (!this.shopPanel || !this.inventory) return;
+
+    try {
+      const merchantData = await this.dataSource.getMerchantInventory(
+        this.config.worldId,
+        merchantId
+      );
+
+      if (!merchantData) {
+        this.guiManager?.showToast({
+          title: 'Shop Unavailable',
+          description: 'This merchant has nothing to sell right now.',
+          duration: 2000,
+        });
+        return;
+      }
+
+      this.shopPanel.open(
+        merchantData,
+        this.inventory.getAllItems(),
+        this.playerGold
+      );
+    } catch (error) {
+      console.error('[BabylonGame] Failed to open shop:', error);
+      this.guiManager?.showToast({
+        title: 'Shop Error',
+        description: 'Failed to load merchant inventory',
+        variant: 'destructive',
+        duration: 2000,
+      });
+    }
+  }
+
+  private handleShopBuy(transaction: ShopTransaction): void {
+    const item: InventoryItem = {
+      id: transaction.item.id,
+      name: transaction.item.name,
+      description: transaction.item.description,
+      type: transaction.item.type as any,
+      quantity: transaction.quantity,
+      value: (transaction.item as any).buyPrice || transaction.totalPrice,
+      sellValue: (transaction.item as any).sellPrice,
+      tradeable: true,
+    };
+
+    this.inventory?.addItem(item);
+    this.playerGold -= transaction.totalPrice;
+    this.inventory?.setGold(this.playerGold);
+
+    // Record transfer via API
+    this.dataSource.transferItem(this.config.worldId, {
+      toEntityId: 'player',
+      itemId: item.id,
+      itemName: item.name,
+      itemDescription: item.description,
+      itemType: item.type,
+      quantity: transaction.quantity,
+      transactionType: 'buy',
+      totalPrice: transaction.totalPrice,
+    }).catch(err => console.warn('[Shop] Failed to record buy transaction:', err));
+
+    // Check quest objectives for item collection
+    this.questObjectManager?.trackCollectedItemByName(item.name);
+  }
+
+  private handleShopSell(transaction: ShopTransaction): void {
+    this.inventory?.removeItem(transaction.item.id, transaction.quantity);
+    this.playerGold += transaction.totalPrice;
+    this.inventory?.setGold(this.playerGold);
+
+    // Record transfer via API
+    this.dataSource.transferItem(this.config.worldId, {
+      fromEntityId: 'player',
+      itemId: transaction.item.id,
+      itemName: transaction.item.name,
+      itemDescription: transaction.item.description,
+      itemType: transaction.item.type,
+      quantity: transaction.quantity,
+      transactionType: 'sell',
+      totalPrice: transaction.totalPrice,
+    }).catch(err => console.warn('[Shop] Failed to record sell transaction:', err));
+  }
+
+  private handleDropItem(item: InventoryItem): void {
+    this.inventory?.removeItem(item.id, 1);
+
+    this.dataSource.transferItem(this.config.worldId, {
+      fromEntityId: 'player',
+      itemId: item.id,
+      itemName: item.name,
+      itemType: item.type,
+      quantity: 1,
+      transactionType: 'discard',
+      totalPrice: 0,
+    }).catch(err => console.warn('[Inventory] Failed to record drop:', err));
+
+    this.guiManager?.showToast({
+      title: `Dropped ${item.name}`,
+      description: 'Item removed from inventory',
+      duration: 2000,
+    });
+  }
+
+  private handleUseItem(item: InventoryItem): void {
+    this.inventory?.removeItem(item.id, 1);
+
+    if (item.type === 'consumable') {
+      // Restore some energy for consumables
+      this.playerEnergy = Math.min(100, this.playerEnergy + 15);
+      this.guiManager?.showToast({
+        title: `Used ${item.name}`,
+        description: 'Energy restored +15',
+        duration: 2000,
       });
     }
   }
@@ -4760,11 +4910,35 @@ export class BabylonGame {
         : { x: 0, y: 0 }
     };
 
-    return this.actionManager.getSocialActionsForNPC(npcId, context);
+    const actions = this.actionManager.getSocialActionsForNPC(npcId, context);
+
+    // Add "Browse Wares" action for merchant NPCs
+    const npcInstance = this.npcMeshes.get(npcId);
+    if (npcInstance?.role === 'merchant') {
+      actions.unshift({
+        id: '__browse_wares__',
+        name: 'Browse Wares',
+        description: 'See what this merchant has for sale',
+        category: 'social',
+        energyCost: 0,
+        effects: [],
+        conditions: [],
+      } as any);
+    }
+
+    return actions;
   }
 
   private async handlePerformAction(actionId: string): Promise<void> {
-    if (!this.actionManager || !this.selectedNPCId || !this.worldData) return;
+    if (!this.selectedNPCId || !this.worldData) return;
+
+    // Handle shop action specially
+    if (actionId === '__browse_wares__') {
+      await this.handleOpenShop(this.selectedNPCId);
+      return;
+    }
+
+    if (!this.actionManager) return;
 
     const npcId = this.selectedNPCId;
 
@@ -4839,6 +5013,28 @@ export class BabylonGame {
       if (result.energyUsed) {
         this.playerEnergy = Math.max(0, this.playerEnergy - result.energyUsed);
         this.updatePlayerStatusUI();
+      }
+
+      // Process item and gold effects
+      if (result.success && result.effects) {
+        for (const effect of result.effects) {
+          if (effect.type === 'gold' && typeof effect.value === 'number') {
+            this.playerGold += effect.value;
+            this.inventory?.setGold(this.playerGold);
+          } else if (effect.type === 'item' && effect.value) {
+            const { itemId, quantity } = effect.value;
+            if (quantity > 0) {
+              this.inventory?.addItem({
+                id: itemId,
+                name: itemId.replace(/_/g, ' '),
+                type: 'collectible',
+                quantity,
+              });
+            } else if (quantity < 0) {
+              this.inventory?.removeItem(itemId, Math.abs(quantity));
+            }
+          }
+        }
       }
 
       this.guiManager?.showToast({
@@ -5057,6 +5253,11 @@ export class BabylonGame {
 
       this.questTracker?.updateQuests(this.config.worldId);
 
+      // Apply quest rewards on completion
+      if (allObjectivesComplete) {
+        this.applyQuestRewards(quest);
+      }
+
       this.guiManager?.showToast({
         title: allObjectivesComplete ? 'Quest Completed!' : 'Objective Completed',
         description: allObjectivesComplete
@@ -5067,6 +5268,68 @@ export class BabylonGame {
     } catch (error) {
       console.error('Failed to update quest progress:', error);
     }
+  }
+
+  private applyQuestRewards(quest: any): void {
+    const rewards = quest.rewards || quest.completionCriteria?.rewards || {};
+
+    // Gold reward
+    const goldReward = rewards.gold || rewards.goldReward || 0;
+    if (goldReward > 0) {
+      this.playerGold += goldReward;
+      this.inventory?.setGold(this.playerGold);
+      this.guiManager?.showToast({
+        title: `+${goldReward} Gold`,
+        description: 'Quest reward',
+        duration: 2000,
+      });
+    }
+
+    // Item rewards
+    const itemRewards = rewards.items || [];
+    for (const rewardItem of itemRewards) {
+      const item: InventoryItem = {
+        id: rewardItem.id || `reward_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        name: rewardItem.name || 'Quest Reward',
+        description: rewardItem.description,
+        type: rewardItem.type || 'collectible',
+        quantity: rewardItem.quantity || 1,
+        value: rewardItem.value || 0,
+        tradeable: true,
+      };
+      this.inventory?.addItem(item);
+    }
+
+    // XP reward (store for future use)
+    const xpReward = rewards.xp || rewards.experience || 0;
+    if (xpReward > 0) {
+      this.guiManager?.showToast({
+        title: `+${xpReward} XP`,
+        description: 'Quest experience',
+        duration: 2000,
+      });
+    }
+
+    // Default gold reward if none specified
+    if (goldReward === 0 && itemRewards.length === 0) {
+      const defaultGold = quest.difficulty === 'hard' ? 50 : quest.difficulty === 'medium' ? 25 : 10;
+      this.playerGold += defaultGold;
+      this.inventory?.setGold(this.playerGold);
+      this.guiManager?.showToast({
+        title: `+${defaultGold} Gold`,
+        description: 'Quest completion reward',
+        duration: 2000,
+      });
+    }
+
+    // Record quest reward transaction
+    this.dataSource.transferItem(this.config.worldId, {
+      toEntityId: 'player',
+      itemId: `quest_reward_${quest.id}`,
+      itemName: `${quest.title} Reward`,
+      transactionType: 'quest_reward',
+      totalPrice: goldReward,
+    }).catch(err => console.warn('[Quest] Failed to record reward:', err));
   }
 
   /**
@@ -5599,6 +5862,7 @@ export class BabylonGame {
     this.buildingInfoDisplay?.dispose();
     this.minimap?.dispose();
     this.inventory?.dispose();
+    this.shopPanel?.dispose();
     this.rulesPanel?.dispose();
     this.ruleEnforcer?.dispose();
     this.questObjectManager?.dispose();

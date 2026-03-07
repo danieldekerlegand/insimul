@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-07T02:52:35.296Z",
+  "lastUpdated": "2026-03-07T11:26:52.007Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -125,7 +125,7 @@
     {
       "path": "client/src/components/3DGame/BabylonInventory.ts",
       "description": "Inventory: stacking, weight, add/remove items.",
-      "hash": "5fb595fec082fb98a2f946c5a44248257a94df6a895728989fcaf1a5543b7c4e",
+      "hash": "07defa2ee84bef8ef19e533cd103cf6876141eb5b9bb7ff96cadbb9264a5bb04",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -171,7 +171,7 @@
     {
       "path": "client/src/components/3DGame/actions/ActionManager.ts",
       "description": "Action execution pipeline: availability checks, cooldowns, energy costs, effects.",
-      "hash": "22f29f4f1c88ecddb5a8be960b84e25911d0069e09a9eedae818372ef1f6d853",
+      "hash": "8fe4c765f1036367bccf4f89f90fda698ec417b4bc08a53aae6005e811f71284",
       "engineMappings": [
         {
           "engine": "unreal",

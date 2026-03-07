@@ -19,8 +19,12 @@ export class BabylonInventory {
   private isVisible: boolean = false;
 
   private items: Map<string, InventoryItem> = new Map();
+  private playerGold: number = 100;
+  private goldDisplay: GUI.TextBlock | null = null;
   private onItemAdded: ((item: InventoryItem) => void) | null = null;
   private onItemRemoved: ((itemId: string) => void) | null = null;
+  private onItemDropped: ((item: InventoryItem) => void) | null = null;
+  private onItemUsed: ((item: InventoryItem) => void) | null = null;
 
   constructor(scene: Scene, advancedTexture: GUI.AdvancedDynamicTexture) {
     this.scene = scene;
@@ -64,8 +68,24 @@ export class BabylonInventory {
     titleText.fontWeight = 'bold';
     titleText.color = 'white';
     titleText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+    titleText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
     titleText.top = '15px';
+    titleText.left = '15px';
+    titleText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
     this.container.addControl(titleText);
+
+    // Gold display
+    this.goldDisplay = new GUI.TextBlock('inventoryGold');
+    this.goldDisplay.text = `Gold: ${this.playerGold}`;
+    this.goldDisplay.fontSize = 16;
+    this.goldDisplay.fontWeight = 'bold';
+    this.goldDisplay.color = '#FFD700';
+    this.goldDisplay.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+    this.goldDisplay.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    this.goldDisplay.top = '17px';
+    this.goldDisplay.left = '-50px';
+    this.goldDisplay.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    this.container.addControl(this.goldDisplay);
 
     // Close button
     const closeButton = GUI.Button.CreateSimpleButton('inventoryClose', 'X');
@@ -249,7 +269,7 @@ export class BabylonInventory {
   private createItemCard(item: InventoryItem): GUI.Rectangle {
     const card = new GUI.Rectangle(`item_${item.id}`);
     card.width = '300px';
-    card.height = '80px';
+    card.height = '95px';
     card.cornerRadius = 5;
     card.color = 'rgba(150, 150, 150, 0.5)';
     card.thickness = 1;
@@ -264,48 +284,93 @@ export class BabylonInventory {
     nameText.height = '20px';
     nameText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
     nameText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    nameText.top = '10px';
+    nameText.top = '8px';
     nameText.left = '15px';
     nameText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
     card.addControl(nameText);
 
-    // Quantity badge
-    if (item.quantity > 1) {
-      const quantityBadge = new GUI.Rectangle(`item_qty_${item.id}`);
-      quantityBadge.width = '40px';
-      quantityBadge.height = '24px';
-      quantityBadge.cornerRadius = 12;
-      quantityBadge.background = 'rgba(100, 100, 255, 0.8)';
-      quantityBadge.color = 'white';
-      quantityBadge.thickness = 1;
-      quantityBadge.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      quantityBadge.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-      quantityBadge.top = '8px';
-      quantityBadge.left = '-10px';
-      card.addControl(quantityBadge);
+    // Quantity and value row
+    const infoRow = new GUI.StackPanel(`item_info_${item.id}`);
+    infoRow.isVertical = false;
+    infoRow.height = '20px';
+    infoRow.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+    infoRow.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    infoRow.top = '8px';
+    infoRow.left = '-10px';
+    card.addControl(infoRow);
 
-      const quantityText = new GUI.TextBlock(`item_qty_text_${item.id}`);
-      quantityText.text = `×${item.quantity}`;
+    if (item.value) {
+      const valueText = new GUI.TextBlock(`item_val_${item.id}`);
+      valueText.text = `${item.value}g`;
+      valueText.fontSize = 12;
+      valueText.color = '#FFD700';
+      valueText.width = '40px';
+      infoRow.addControl(valueText);
+    }
+
+    if (item.quantity > 1) {
+      const quantityText = new GUI.TextBlock(`item_qty_${item.id}`);
+      quantityText.text = `x${item.quantity}`;
       quantityText.fontSize = 12;
       quantityText.fontWeight = 'bold';
-      quantityText.color = 'white';
-      quantityBadge.addControl(quantityText);
+      quantityText.color = '#8888FF';
+      quantityText.width = '35px';
+      infoRow.addControl(quantityText);
     }
 
     // Item description
     if (item.description) {
       const descText = new GUI.TextBlock(`item_desc_${item.id}`);
       descText.text = item.description;
-      descText.fontSize = 12;
+      descText.fontSize = 11;
       descText.color = '#CCCCCC';
-      descText.height = '35px';
+      descText.height = '30px';
       descText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
       descText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-      descText.top = '35px';
+      descText.top = '30px';
       descText.left = '15px';
       descText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
       descText.textWrapping = true;
       card.addControl(descText);
+    }
+
+    // Action buttons row
+    const buttonsRow = new GUI.StackPanel(`item_btns_${item.id}`);
+    buttonsRow.isVertical = false;
+    buttonsRow.height = '25px';
+    buttonsRow.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+    buttonsRow.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    buttonsRow.top = '-5px';
+    buttonsRow.left = '-10px';
+    card.addControl(buttonsRow);
+
+    if (item.type === 'consumable') {
+      const useBtn = GUI.Button.CreateSimpleButton(`use_${item.id}`, 'Use');
+      useBtn.width = '50px';
+      useBtn.height = '22px';
+      useBtn.color = 'white';
+      useBtn.background = 'rgba(60, 130, 60, 0.9)';
+      useBtn.cornerRadius = 3;
+      useBtn.fontSize = 11;
+      useBtn.onPointerUpObservable.add(() => {
+        if (this.onItemUsed) this.onItemUsed(item);
+      });
+      buttonsRow.addControl(useBtn);
+    }
+
+    if (item.type !== 'quest') {
+      const dropBtn = GUI.Button.CreateSimpleButton(`drop_${item.id}`, 'Drop');
+      dropBtn.width = '50px';
+      dropBtn.height = '22px';
+      dropBtn.color = 'white';
+      dropBtn.background = 'rgba(130, 60, 60, 0.9)';
+      dropBtn.cornerRadius = 3;
+      dropBtn.fontSize = 11;
+      dropBtn.paddingLeft = '4px';
+      dropBtn.onPointerUpObservable.add(() => {
+        if (this.onItemDropped) this.onItemDropped(item);
+      });
+      buttonsRow.addControl(dropBtn);
     }
 
     return card;
@@ -317,30 +382,74 @@ export class BabylonInventory {
   private getItemColor(type: string): string {
     switch (type) {
       case 'quest':
-        return '#FFD700'; // Gold for quest items
+        return '#FFD700';
       case 'collectible':
-        return '#87CEEB'; // Sky blue for collectibles
+        return '#87CEEB';
       case 'key':
-        return '#FF6347'; // Tomato red for keys
+        return '#FF6347';
       case 'consumable':
-        return '#90EE90'; // Light green for consumables
+        return '#90EE90';
+      case 'weapon':
+        return '#FF8C00';
+      case 'armor':
+        return '#B0C4DE';
+      case 'food':
+      case 'drink':
+        return '#DEB887';
+      case 'material':
+        return '#D2B48C';
+      case 'tool':
+        return '#C0C0C0';
       default:
         return 'white';
     }
   }
 
-  /**
-   * Set callback for when item is added
-   */
+  // ─── Gold Management ──────────────────────────────────────────────────────
+
+  public getGold(): number {
+    return this.playerGold;
+  }
+
+  public setGold(amount: number): void {
+    this.playerGold = Math.max(0, amount);
+    this.updateGoldDisplay();
+  }
+
+  public addGold(amount: number): void {
+    this.playerGold += amount;
+    this.updateGoldDisplay();
+  }
+
+  public removeGold(amount: number): boolean {
+    if (this.playerGold < amount) return false;
+    this.playerGold -= amount;
+    this.updateGoldDisplay();
+    return true;
+  }
+
+  private updateGoldDisplay(): void {
+    if (this.goldDisplay) {
+      this.goldDisplay.text = `Gold: ${this.playerGold}`;
+    }
+  }
+
+  // ─── Callbacks ────────────────────────────────────────────────────────────
+
   public setOnItemAdded(callback: (item: InventoryItem) => void): void {
     this.onItemAdded = callback;
   }
 
-  /**
-   * Set callback for when item is removed
-   */
   public setOnItemRemoved(callback: (itemId: string) => void): void {
     this.onItemRemoved = callback;
+  }
+
+  public setOnItemDropped(callback: (item: InventoryItem) => void): void {
+    this.onItemDropped = callback;
+  }
+
+  public setOnItemUsed(callback: (item: InventoryItem) => void): void {
+    this.onItemUsed = callback;
   }
 
   /**
