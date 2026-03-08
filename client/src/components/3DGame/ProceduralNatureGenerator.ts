@@ -5,7 +5,7 @@
  * based on terrain type and biome.
  */
 
-import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3, InstancedMesh, Matrix, AbstractMesh, SceneLoader } from '@babylonjs/core';
+import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3, InstancedMesh, Matrix, AbstractMesh, SceneLoader, Quaternion } from '@babylonjs/core';
 import { createDebugLabel } from './DebugLabelUtils';
 import "@babylonjs/loaders/glTF";
 
@@ -446,8 +446,15 @@ export class ProceduralNatureGenerator {
               m.setEnabled(true);
               m.isPickable = false;
               m.freezeWorldMatrix();
+              // LOD: cull glTF tree child meshes at distance
+              if (m instanceof Mesh) {
+                m.addLODLevel(120, null);
+              }
             });
-            if (treeRoot instanceof Mesh) treeRoot.freezeWorldMatrix();
+            if (treeRoot instanceof Mesh) {
+              treeRoot.freezeWorldMatrix();
+              treeRoot.addLODLevel(120, null);
+            }
             this.treeMeshes.push(treeRoot as AbstractMesh);
           }
         } else if (chosenTemplate.getTotalVertices() > 0) {
@@ -767,14 +774,17 @@ export class ProceduralNatureGenerator {
               m.setEnabled(true);
               m.isPickable = false;
               m.freezeWorldMatrix();
+              if (m instanceof Mesh) m.addLODLevel(80, null);
             });
-            if (rockRoot instanceof Mesh) rockRoot.freezeWorldMatrix();
+            if (rockRoot instanceof Mesh) {
+              rockRoot.freezeWorldMatrix();
+              rockRoot.addLODLevel(80, null);
+            }
             this.rockMeshes.push(rockRoot as AbstractMesh);
           }
-        } else {
-          const rock = chosenTemplate.clone(`rock_${i}`, null, false, false) as Mesh;
-          if (!rock) continue;
-          rock.setEnabled(true);
+        } else if (chosenTemplate.getTotalVertices() > 0) {
+          // Phase 2: Use createInstance instead of clone for efficient rendering
+          const rock = chosenTemplate.createInstance(`rock_${i}`);
           rock.position = new Vector3(x, baseHeight, z);
           rock.scaling = new Vector3(scaleVariation, scaleVariation, scaleVariation);
           rock.rotation.y = Math.random() * Math.PI * 2;
@@ -870,8 +880,12 @@ export class ProceduralNatureGenerator {
               m.setEnabled(true);
               m.isPickable = false;
               m.freezeWorldMatrix();
+              if (m instanceof Mesh) m.addLODLevel(60, null);
             });
-            if (shrubRoot instanceof Mesh) shrubRoot.freezeWorldMatrix();
+            if (shrubRoot instanceof Mesh) {
+              shrubRoot.freezeWorldMatrix();
+              shrubRoot.addLODLevel(60, null);
+            }
             this.vegetationMeshes.push(shrubRoot as AbstractMesh);
           }
         } else {
@@ -973,36 +987,38 @@ export class ProceduralNatureGenerator {
     plane2.dispose();
     grassTemplate.name = 'grass_template';
     grassTemplate.material = grassMat;
-    grassTemplate.setEnabled(false);
+    grassTemplate.isPickable = false;
 
-    // LOD: hide grass at 30+ units (tiny detail, instances inherit)
+    // LOD: hide grass at 30+ units
     grassTemplate.addLODLevel(30, null);
+
+    // Phase 2: Use ThinInstances for ultra-dense grass — single draw call
+    // Build a Float32Array of 4x4 world matrices for all grass patches
+    const matrices = new Float32Array(adjustedDensity * 16);
+    const tmpMatrix = Matrix.Identity();
+    const tmpRotation = Quaternion.Identity();
+    const tmpScaling = Vector3.Zero();
+    const tmpPosition = Vector3.Zero();
 
     for (let i = 0; i < adjustedDensity; i++) {
       const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
       const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
-
       const baseHeight = heightSampler ? heightSampler(x, z) : 0;
 
-      const grass = grassTemplate.createInstance(`grass_${i}`);
-      grass.position = new Vector3(x, baseHeight + 0.1, z);
-      grass.rotation.y = Math.random() * Math.PI * 2;
-
+      const rotY = Math.random() * Math.PI * 2;
       const scaleVar = 0.3 + Math.random() * 0.3;
-      grass.scaling = new Vector3(scaleVar, scaleVar, scaleVar);
-      grass.isPickable = false;
-      grass.freezeWorldMatrix();
 
-      // Debug label on first grass instance only
-      if (i === 0) {
-        const labelAnchor = new Mesh(`grass_label_anchor`, this.scene);
-        labelAnchor.position = new Vector3(x, baseHeight + 1.5, z);
-        createDebugLabel(this.scene, labelAnchor, 'GRASS (procedural)', 1);
-        this.vegetationMeshes.push(labelAnchor);
-      }
-
-      this.vegetationMeshes.push(grass);
+      tmpPosition.set(x, baseHeight + 0.1, z);
+      Quaternion.RotationYawPitchRollToRef(rotY, 0, 0, tmpRotation);
+      tmpScaling.set(scaleVar, scaleVar, scaleVar);
+      Matrix.ComposeToRef(tmpScaling, tmpRotation, tmpPosition, tmpMatrix);
+      tmpMatrix.copyToArray(matrices, i * 16);
     }
+
+    grassTemplate.thinInstanceSetBuffer('matrix', matrices, 16);
+    grassTemplate.thinInstanceRefreshBoundingInfo(false);
+    grassTemplate.freezeWorldMatrix();
+    this.vegetationMeshes.push(grassTemplate);
   }
 
   /**
@@ -1042,39 +1058,53 @@ export class ProceduralNatureGenerator {
       head.scaling.y = 0.5; // Flatten into a disc shape
       head.material = flowerMat;
 
-      // Merge with multiMaterial=false — single material so createInstance works
+      // Merge with multiMaterial=false — single material so instancing works
       const merged = this.mergePartsSimple(`flower_template_${idx}`, [stem, head], flowerMat);
-      merged.setEnabled(false);
-      // LOD: hide flowers at 40+ units (small detail, instances inherit)
+      merged.isPickable = false;
+      // LOD: hide flowers at 40+ units
       merged.addLODLevel(40, null);
       return merged;
     });
+
+    // Phase 2: Use ThinInstances for flowers — single draw call per color
+    // Pre-allocate positions per color template
+    const positionsPerColor: { x: number; z: number; y: number; s: number }[][] =
+      flowerTemplates.map(() => []);
 
     for (let i = 0; i < count; i++) {
       const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
       const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
       const baseHeight = heightSampler ? heightSampler(x, z) : 0;
-
       const colorIdx = Math.floor(Math.random() * flowerTemplates.length);
-      if (flowerTemplates[colorIdx].getTotalVertices() === 0) continue;
-      const flower = flowerTemplates[colorIdx].createInstance(`flower_${i}`);
-      flower.position = new Vector3(x, baseHeight, z);
-
-      // Small random scale variation
       const s = 0.8 + Math.random() * 0.5;
-      flower.scaling = new Vector3(s, s, s);
-      flower.isPickable = false;
-      flower.freezeWorldMatrix();
+      positionsPerColor[colorIdx].push({ x, z, y: baseHeight, s });
+    }
 
-      // Debug label on first flower instance only
-      if (i === 0) {
-        const labelAnchor = new Mesh(`flower_label_anchor`, this.scene);
-        labelAnchor.position = new Vector3(x, baseHeight + 1.5, z);
-        createDebugLabel(this.scene, labelAnchor, 'FLOWER (procedural)', 1);
-        this.vegetationMeshes.push(labelAnchor);
+    const tmpMatrix = Matrix.Identity();
+    const tmpRotation = Quaternion.Identity();
+    const tmpScaling = Vector3.Zero();
+    const tmpPosition = Vector3.Zero();
+
+    for (let idx = 0; idx < flowerTemplates.length; idx++) {
+      const template = flowerTemplates[idx];
+      if (template.getTotalVertices() === 0) continue;
+      const positions = positionsPerColor[idx];
+      if (positions.length === 0) continue;
+
+      const matrices = new Float32Array(positions.length * 16);
+      for (let i = 0; i < positions.length; i++) {
+        const p = positions[i];
+        tmpPosition.set(p.x, p.y, p.z);
+        Quaternion.RotationYawPitchRollToRef(0, 0, 0, tmpRotation);
+        tmpScaling.set(p.s, p.s, p.s);
+        Matrix.ComposeToRef(tmpScaling, tmpRotation, tmpPosition, tmpMatrix);
+        tmpMatrix.copyToArray(matrices, i * 16);
       }
 
-      this.vegetationMeshes.push(flower);
+      template.thinInstanceSetBuffer('matrix', matrices, 16);
+      template.thinInstanceRefreshBoundingInfo(false);
+      template.freezeWorldMatrix();
+      this.vegetationMeshes.push(template);
     }
   }
 

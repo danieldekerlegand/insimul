@@ -544,16 +544,39 @@ export class AudioManager {
     this.playSoundOneShot(role, mesh.position);
   }
 
+  /** Phase 3: Maximum distance for spatial sounds to play (chunk audio culling) */
+  private static readonly AUDIO_CULL_DISTANCE = 80;
+
+  /**
+   * Phase 3: Set the listener position for distance-based audio culling.
+   * Call this from the render loop with the player's position.
+   */
+  public setListenerPosition(position: Vector3): void {
+    this._listenerPosition = position;
+  }
+  private _listenerPosition: Vector3 | null = null;
+
   /**
    * Per-frame update: sync sound positions to their bound meshes.
+   * Phase 3: Also pauses sounds beyond AUDIO_CULL_DISTANCE.
    */
   private updateSpatialBindings(): void {
+    const listener = this._listenerPosition;
+
     for (const binding of this.spatialBindings) {
       if (binding.mesh.isDisposed()) {
         binding.sound.dispose();
         continue;
       }
       binding.sound.setPosition(binding.mesh.position);
+
+      // Phase 3: Distance-based audio culling
+      if (listener && binding.sound.spatialSound) {
+        const dist = Vector3.Distance(listener, binding.mesh.position);
+        if (dist > AudioManager.AUDIO_CULL_DISTANCE) {
+          if (binding.sound.isPlaying) binding.sound.pause();
+        }
+      }
     }
 
     // Clean up disposed meshes

@@ -10,8 +10,51 @@ export class TextureManager {
   private textureCache: Map<string, Texture> = new Map();
   private assetCache: Map<string, VisualAsset> = new Map();
 
+  // Texture load queue: limit concurrent loads to prevent bandwidth saturation
+  private static readonly MAX_CONCURRENT_LOADS = 4;
+  private _inFlightCount = 0;
+  private _loadQueue: Array<{ path: string; resolve: (tex: Texture) => void }> = [];
+
   constructor(scene: Scene) {
     this.scene = scene;
+  }
+
+  /**
+   * Queue a texture load, respecting the concurrent load limit.
+   * Returns a Promise that resolves when the texture is ready.
+   */
+  private queueTextureLoad(texturePath: string): Promise<Texture> {
+    return new Promise((resolve) => {
+      this._loadQueue.push({ path: texturePath, resolve });
+      this._processLoadQueue();
+    });
+  }
+
+  private _processLoadQueue(): void {
+    while (this._inFlightCount < TextureManager.MAX_CONCURRENT_LOADS && this._loadQueue.length > 0) {
+      const item = this._loadQueue.shift()!;
+      this._inFlightCount++;
+
+      const texture = new Texture(
+        item.path,
+        this.scene,
+        false, // noMipmap
+        true,  // invertY
+        Texture.TRILINEAR_SAMPLINGMODE,
+        () => {
+          // onLoad callback
+          this._inFlightCount--;
+          this._processLoadQueue();
+        },
+        () => {
+          // onError callback
+          this._inFlightCount--;
+          this._processLoadQueue();
+        }
+      );
+
+      item.resolve(texture);
+    }
   }
 
   /**
@@ -93,6 +136,28 @@ export class TextureManager {
     // Cache it
     this.textureCache.set(asset.id, texture);
 
+    return texture;
+  }
+
+  /**
+   * Load a texture with concurrency-limited queuing.
+   * Use this for bulk texture loads (e.g., during world gen) to prevent
+   * bandwidth saturation. Returns a promise that resolves when the texture is ready.
+   */
+  async loadTextureQueued(asset: VisualAsset): Promise<Texture> {
+    if (this.textureCache.has(asset.id)) {
+      return this.textureCache.get(asset.id)!;
+    }
+
+    let texturePath = asset.filePath;
+    if (!texturePath.startsWith('http://') && !texturePath.startsWith('https://')) {
+      if (!texturePath.startsWith('/')) texturePath = `/${texturePath}`;
+    }
+
+    const texture = await this.queueTextureLoad(texturePath);
+    texture.wrapU = Texture.WRAP_ADDRESSMODE;
+    texture.wrapV = Texture.WRAP_ADDRESSMODE;
+    this.textureCache.set(asset.id, texture);
     return texture;
   }
 

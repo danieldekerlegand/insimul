@@ -452,6 +452,36 @@ export class ProceduralBuildingGenerator {
     const label = spec.businessType || spec.type;
     createDebugLabel(this.scene, parent, `BUILDING: ${label}`, (spec.floors * 4) + 6);
 
+    // Phase 2: Merge all procedural building sub-meshes that share the same
+    // material into fewer meshes to reduce draw calls. Group by material.
+    const childMeshes = parent.getChildMeshes(false).filter(m => m instanceof Mesh) as Mesh[];
+    const materialGroups = new Map<string, Mesh[]>();
+    for (const child of childMeshes) {
+      const matId = child.material?.uniqueId?.toString() ?? 'none';
+      let group = materialGroups.get(matId);
+      if (!group) {
+        group = [];
+        materialGroups.set(matId, group);
+      }
+      group.push(child);
+    }
+    // Merge groups with 2+ meshes sharing the same material
+    materialGroups.forEach((meshes) => {
+      if (meshes.length >= 2) {
+        // Bake transforms before merge
+        for (const m of meshes) {
+          m.parent = null;
+          m.bakeCurrentTransformIntoVertices();
+        }
+        const merged = Mesh.MergeMeshes(meshes, true, true, undefined, false, false);
+        if (merged) {
+          merged.parent = parent;
+          merged.isPickable = false;
+          merged.alwaysSelectAsActiveMesh = false;
+        }
+      }
+    });
+
     this.buildingMeshes.set(spec.id, parent);
 
     // Freeze world matrices on all procedural building parts (static geometry)

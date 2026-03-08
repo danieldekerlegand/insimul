@@ -86,6 +86,7 @@ import { NPCAmbientConversationManager } from "@/components/3DGame/NPCAmbientCon
 import { BuildingInteriorGenerator, InteriorLayout } from "@/components/3DGame/BuildingInteriorGenerator.ts";
 import { GameMenuSystem, GameMenuCallbacks } from "@/components/3DGame/GameMenuSystem.ts";
 import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts";
+import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 
 // Constants
@@ -93,6 +94,9 @@ const PLAYER_MODEL_URL = "/assets/player/Vincent-frontFacing.babylon";
 const NPC_MODEL_URL = "/assets/npc/starterAvatars.babylon";
 const FOOTSTEP_SOUND_URL = "/assets/footstep_carpet_000.ogg";
 const MAX_NPCS = 100;
+const MAX_VISIBLE_NPCS = 20;
+const MAX_WANDER_RAYCASTS_PER_TICK = 3;
+const NPC_BATCH_BUDGET_MS = 2;
 const MAX_SETTLEMENTS_3D = 16;
 const DEFAULT_PLAYER_ID = "player";
 const INITIAL_ENERGY = 100;
@@ -165,6 +169,12 @@ interface NPCInstance {
   // Animation tracking
   animationGroups?: any[];
   currentAnimation?: any;
+  // Phase 7: per-NPC throttling
+  lastAIUpdate?: number;
+  blendingDisabled?: boolean;
+  // Phase 4: NPC billboard LOD
+  billboardLOD?: Mesh;
+  isBillboardMode?: boolean;
 }
 
 interface WorldVisualTheme {
@@ -349,6 +359,8 @@ export class BabylonGame {
     buildingCount: number;
     terrain?: string;
   }> = new Map();
+  // Phase 8: Settlement scene isolation
+  private settlementSceneManager: SettlementSceneManager | null = null;
 
   // Game state
   private sceneStatus: SceneStatus = "idle";
@@ -442,6 +454,11 @@ export class BabylonGame {
   private pointerObserver: Observer<PointerInfo> | null = null;
   private renderObserver: Observer<Scene> | null = null;
   private npcBehaviorInterval: number | null = null;
+  // Phase 7: batched NPC update state
+  private _npcBehaviorObserver: Observer<Scene> | null = null;
+  private _npcBatchIndex = 0;
+  private _npcBehaviorAccum = 0;
+  private _wanderRaycastsThisTick = 0;
 
   private updatePlayerStatusUI(status: string = "Ready"): void {
     if (!this.guiManager) return;
@@ -471,48 +488,99 @@ export class BabylonGame {
   /**
    * Initialize the game - call this after construction
    */
+  // Loading screen overlay
+  private _loadingOverlay: HTMLDivElement | null = null;
+  private _loadingText: HTMLDivElement | null = null;
+  private _loadingBar: HTMLDivElement | null = null;
+
+  private showLoadingScreen(): void {
+    this._loadingOverlay = document.createElement('div');
+    this._loadingOverlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;background:#111;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10000;';
+
+    this._loadingText = document.createElement('div');
+    this._loadingText.style.cssText = 'color:#ccc;font:16px sans-serif;margin-bottom:16px;';
+    this._loadingText.textContent = 'Loading world...';
+
+    const barContainer = document.createElement('div');
+    barContainer.style.cssText = 'width:280px;height:6px;background:#333;border-radius:3px;overflow:hidden;';
+
+    this._loadingBar = document.createElement('div');
+    this._loadingBar.style.cssText = 'width:0%;height:100%;background:#4a9;border-radius:3px;transition:width 0.2s;';
+
+    barContainer.appendChild(this._loadingBar);
+    this._loadingOverlay.appendChild(this._loadingText);
+    this._loadingOverlay.appendChild(barContainer);
+    this.canvas.parentElement?.appendChild(this._loadingOverlay);
+  }
+
+  private updateLoadingScreen(step: string, progress: number): void {
+    if (this._loadingText) this._loadingText.textContent = step;
+    if (this._loadingBar) this._loadingBar.style.width = `${Math.min(100, progress)}%`;
+  }
+
+  private hideLoadingScreen(): void {
+    if (this._loadingOverlay) {
+      this._loadingOverlay.style.transition = 'opacity 0.4s';
+      this._loadingOverlay.style.opacity = '0';
+      setTimeout(() => {
+        this._loadingOverlay?.remove();
+        this._loadingOverlay = null;
+        this._loadingText = null;
+        this._loadingBar = null;
+      }, 400);
+    }
+  }
+
   public async init(): Promise<void> {
     try {
-      console.log('[BabylonGame] Step 1/12: initializeEngine...');
+      this.showLoadingScreen();
+
+      this.updateLoadingScreen('Initializing engine...', 5);
       await this.initializeEngine();
-      console.log('[BabylonGame] Step 2/12: initializeScene...');
+      this.updateLoadingScreen('Setting up scene...', 10);
       await this.initializeScene();
-      console.log('[BabylonGame] Step 3/12: initializeSystems...');
+      this.updateLoadingScreen('Initializing systems...', 15);
       await this.initializeSystems();
 
-      // Start rendering early so player sees terrain + sky while assets load
-      console.log('[BabylonGame] Starting render loop (progressive loading)...');
-      this.startGameLoop();
+      // Start a minimal render loop so the engine can process GPU uploads
+      // during asset loading. The full game loop replaces this after init.
+      this.engine!.runRenderLoop(() => {
+        this.scene?.render();
+      });
 
-      console.log('[BabylonGame] Step 4/12: loadWorldData...');
+      this.updateLoadingScreen('Loading world data...', 20);
       await this.loadWorldData();
-      console.log('[BabylonGame] Step 5/12: generateProceduralWorld...');
+      this.updateLoadingScreen('Generating world...', 30);
       await this.generateProceduralWorld();
-      console.log('[BabylonGame] Step 6/12: startPlaythrough...');
+      this.updateLoadingScreen('Starting playthrough...', 50);
       await this.startPlaythrough();
-      console.log('[BabylonGame] Step 7/12: loadPlayer...');
+      this.updateLoadingScreen('Loading player...', 60);
       try {
         await this.loadPlayer();
       } catch (playerError) {
-        console.error('[BabylonGame] ❌ loadPlayer failed (continuing to NPCs):', playerError);
+        console.error('[BabylonGame] loadPlayer failed (continuing to NPCs):', playerError);
       }
-      console.log('[BabylonGame] Step 8/12: loadNPCs...');
+      this.updateLoadingScreen('Loading NPCs...', 70);
       await this.loadNPCs();
-      console.log('[BabylonGame] Step 9/12: setupKeyboardHandlers...');
+      this.updateLoadingScreen('Setting up controls...', 90);
       await this.setupKeyboardHandlers();
-      console.log('[BabylonGame] Step 10/12: setupPointerHandlers...');
       this.setupPointerHandlers();
-      console.log('[BabylonGame] Step 11/12: setupUpdateLoop...');
       this.setupUpdateLoop();
 
       // Start ambient conversation system
       if (this.ambientConversationManager) {
         this.ambientConversationManager.start();
-        console.log('[BabylonGame] Ambient conversation system started');
       }
+
+      // Everything loaded — start rendering and hide loading screen
+      this.updateLoadingScreen('Ready!', 100);
+      this.startGameLoop();
+      this.hideLoadingScreen();
+
       console.log('[BabylonGame] Init complete!');
     } catch (error) {
       console.error('[BabylonGame] Failed to initialize game:', error);
+      this.hideLoadingScreen();
       this.guiManager?.showToast({
         title: "Initialization Error",
         description: error instanceof Error ? error.message : "Unknown error",
@@ -614,6 +682,11 @@ export class BabylonGame {
       return mesh.isPickable && mesh.isEnabled() && mesh.isVisible;
     };
 
+    // Phase 1: Ensure debug layer is never active in production
+    if (scene.debugLayer.isVisible()) {
+      scene.debugLayer.hide();
+    }
+
     // Lighting
     const hemiLight = new HemisphericLight("hemi-light", new Vector3(0, 1, 0), scene);
     hemiLight.intensity = 0.7;
@@ -621,6 +694,10 @@ export class BabylonGame {
     const sun = new DirectionalLight("sun", new Vector3(-0.5, -1, -0.5), scene);
     sun.position = new Vector3(0, 20, 0);
     sun.intensity = 1.1;
+
+    // Phase 1: Shadow configuration — low resolution, limited casters
+    // Shadows are expensive; use 512x512 and limit to nearby dynamic objects only
+    sun.autoCalcShadowZBounds = true;
 
     // Sky dome with gradient shader
     const skyDome = MeshBuilder.CreateSphere("sky-dome", { diameter: 1000, segments: 16, sideOrientation: Mesh.BACKSIDE }, scene);
@@ -1995,6 +2072,13 @@ export class BabylonGame {
         signPlate.material = signMat;
         this.worldPropMeshes.push(signPlate);
 
+        // Phase 4: Billboard impostor for distant settlement — the signplate
+        // already has BILLBOARDMODE_Y and the settlement name. Add LOD levels
+        // to the signpost so it remains visible at distance while buildings cull.
+        signPlate.addLODLevel(300, null); // Hide at extreme distance
+        signPole.addLODLevel(200, null);  // Hide pole at 200u
+        settlementMarker.addLODLevel(200, null); // Hide disc at 200u
+
         // Spawn a small cluster of world-type-specific props around the settlement center
         if (this.objectModelTemplates.size > 0) {
           const preferredRoles = ["chest", "data_pad", "lantern"];
@@ -2321,6 +2405,181 @@ export class BabylonGame {
 
     const stats = this.chunkManager.getStats();
     console.log(`[Perf] Optimized: ${frozenCount} meshes frozen, ${nonPickableCount} non-pickable, ${chunkedCount} chunked (${stats.totalChunks} chunks), ${frozenMaterials} materials frozen, octree built`);
+
+    // Phase 8: Initialize settlement scene isolation
+    this.initSettlementSceneManager();
+  }
+
+  /**
+   * Phase 8: Initialize the SettlementSceneManager by registering zones,
+   * categorizing all meshes, and associating NPCs with settlements.
+   */
+  private initSettlementSceneManager(): void {
+    if (!this.scene) return;
+
+    this.settlementSceneManager = new SettlementSceneManager(this.scene, {
+      exitBufferDistance: 8,
+      onEnterSettlement: (zone) => {
+        this.guiManager?.showToast({
+          title: `Entering ${zone.name}`,
+          description: zone.type.charAt(0).toUpperCase() + zone.type.slice(1),
+          duration: 2000,
+        });
+      },
+      onExitSettlement: (zone) => {
+        this.guiManager?.showToast({
+          title: `Leaving ${zone.name}`,
+          description: 'Returning to the overworld',
+          duration: 2000,
+        });
+      },
+    });
+
+    // Register settlement zones from pre-calculated zone boundaries
+    this.zoneBoundaryMeshes.forEach((zoneData, id) => {
+      if (!zoneData.zoneRadius) return;
+      const settlementMesh = this.settlementMeshes.get(id);
+      if (!settlementMesh) return;
+      const stats = this.settlementStats.get(id);
+
+      this.settlementSceneManager!.registerZone({
+        id,
+        name: stats?.name ?? id,
+        center: settlementMesh.position.clone(),
+        radius: zoneData.zoneRadius,
+        type: stats?.type ?? 'town',
+      });
+    });
+
+    // Categorize all meshes
+    const globalNames = new Set(['ground', 'sky-dome', 'sky_dome', 'skybox', 'sunLight', 'hemisphericLight']);
+
+    for (const mesh of this.scene.meshes) {
+      if (mesh.isDisposed()) continue;
+      const name = mesh.name;
+
+      // Skip NPC meshes (managed separately) and player
+      if (name.startsWith('npc_') || name.startsWith('player')) continue;
+
+      // Global meshes: terrain, sky, lighting — always visible
+      if (globalNames.has(name) || name.includes('light') || name.includes('camera')) {
+        this.settlementSceneManager!.registerGlobalMesh(mesh);
+        continue;
+      }
+
+      // Building/settlement meshes: check metadata for settlementId
+      const settlementId = mesh.metadata?.settlementId as string | undefined;
+      if (settlementId) {
+        this.settlementSceneManager!.registerSettlementMesh(mesh, settlementId);
+        // Also register child meshes
+        for (const child of mesh.getChildMeshes()) {
+          this.settlementSceneManager!.registerSettlementMesh(child, settlementId);
+        }
+        continue;
+      }
+
+      // Settlement markers and their children
+      if (name.startsWith('settlement_')) {
+        // Find which settlement this belongs to
+        const markerSettlementId = mesh.metadata?.settlementId as string | undefined;
+        if (markerSettlementId) {
+          this.settlementSceneManager!.registerSettlementMesh(mesh, markerSettlementId);
+          continue;
+        }
+      }
+
+      // Street props with settlement ID in name (e.g., "street_prop_<settlementId>_N")
+      if (name.startsWith('street_prop_')) {
+        const match = this.findSettlementForMesh(mesh);
+        if (match) {
+          this.settlementSceneManager!.registerSettlementMesh(mesh, match);
+          continue;
+        }
+      }
+
+      // Everything else is overworld (nature, wilderness, roads between settlements)
+      this.settlementSceneManager!.registerOverworldMesh(mesh);
+    }
+
+    // Categorize building data meshes (these have explicit settlementId)
+    this.buildingData.forEach((data) => {
+      if (data.metadata?.settlementId && data.mesh && !data.mesh.isDisposed()) {
+        this.settlementSceneManager!.registerSettlementMesh(data.mesh, data.metadata.settlementId);
+        for (const child of data.mesh.getChildMeshes()) {
+          this.settlementSceneManager!.registerSettlementMesh(child, data.metadata.settlementId);
+        }
+      }
+    });
+
+    // Associate NPCs with settlements via their building assignments
+    this.npcMeshes.forEach((instance, npcId) => {
+      const settlementId = this.findNPCSettlement(npcId, instance);
+      if (settlementId) {
+        this.settlementSceneManager!.registerNPC(npcId, settlementId);
+      }
+    });
+
+    const ssmStats = this.settlementSceneManager!.getStats();
+    console.log(`[Phase 8] SettlementSceneManager initialized: ${ssmStats.totalZones} zones, ${ssmStats.categorized.settlement} settlement meshes, ${ssmStats.categorized.overworld} overworld meshes, ${ssmStats.categorized.global} global meshes`);
+  }
+
+  /**
+   * Phase 8: Find which settlement a mesh belongs to by proximity to settlement centers.
+   */
+  private findSettlementForMesh(mesh: AbstractMesh): string | null {
+    if (!this.settlementSceneManager) return null;
+    const pos = mesh.getAbsolutePosition();
+    let closestId: string | null = null;
+    let closestDist = Infinity;
+
+    this.zoneBoundaryMeshes.forEach((zoneData, id) => {
+      const settlementMesh = this.settlementMeshes.get(id);
+      if (!settlementMesh || !zoneData.zoneRadius) return;
+      const dist = Vector3.Distance(pos, settlementMesh.position);
+      if (dist <= zoneData.zoneRadius && dist < closestDist) {
+        closestId = id;
+        closestDist = dist;
+      }
+    });
+
+    return closestId;
+  }
+
+  /**
+   * Phase 8: Determine which settlement an NPC belongs to via building metadata.
+   */
+  private findNPCSettlement(npcId: string, instance: NPCInstance): string | null {
+    const character = instance.characterData;
+    if (!character) return null;
+    const characterId = character.id;
+
+    // Check building data for a link
+    let foundSettlementId: string | null = null;
+    this.buildingData.forEach((data) => {
+      if (foundSettlementId) return; // Already found
+      const meta = data.metadata;
+      if (!meta?.settlementId) return;
+
+      if (meta.buildingType === 'business') {
+        if (meta.ownerId === characterId ||
+            (Array.isArray(meta.employees) && meta.employees.some((e: any) =>
+              typeof e === 'string' ? e === characterId : e?.id === characterId
+            ))) {
+          foundSettlementId = meta.settlementId;
+        }
+      }
+      if (meta.buildingType === 'residence') {
+        if (Array.isArray(meta.occupants) && meta.occupants.some((o: any) =>
+          typeof o === 'string' ? o === characterId : o?.id === characterId
+        )) {
+          foundSettlementId = meta.settlementId;
+        }
+      }
+    });
+    if (foundSettlementId) return foundSettlementId;
+
+    // Fallback: assign to nearest settlement by NPC position
+    return this.findSettlementForMesh(instance.mesh);
   }
 
   /**
@@ -3284,13 +3543,28 @@ export class BabylonGame {
     const cached = this.npcModelCache.get(cacheKey);
     if (cached) {
       // Clone the cached template
-      const cloned = cached.root.instantiateHierarchy(
+      const clonedNode = cached.root.instantiateHierarchy(
         null,
         undefined,
         (source, clone) => { clone.name = `${source.name}_clone`; }
-      ) as Mesh | null;
+      );
 
-      if (cloned) {
+      if (clonedNode) {
+        // instantiateHierarchy may return a TransformNode (not Mesh) for glTF models.
+        // CharacterController requires the root to be a Mesh, so wrap if needed.
+        let cloned: Mesh;
+        if (clonedNode instanceof Mesh) {
+          cloned = clonedNode;
+        } else {
+          cloned = new Mesh(`${cacheKey}_wrapper`, this.scene!);
+          // Copy transform from the TransformNode to the wrapper Mesh
+          cloned.position.copyFrom(clonedNode.position);
+          cloned.rotation.copyFrom(clonedNode.rotation);
+          cloned.scaling.copyFrom(clonedNode.scaling);
+          // Reparent children under the wrapper (preserves local transforms)
+          clonedNode.getChildren().forEach(child => child.parent = cloned);
+          clonedNode.dispose();
+        }
         cloned.setEnabled(true);
         cloned.getChildMeshes().forEach(m => m.setEnabled(true));
         // Clone animation groups targeting the new mesh hierarchy
@@ -3312,13 +3586,24 @@ export class BabylonGame {
       const templateRoot = testMesh as Mesh;
 
       // Clone for the first NPC before caching the template
-      const firstClone = templateRoot.instantiateHierarchy(
+      const firstCloneNode = templateRoot.instantiateHierarchy(
         null,
         undefined,
         (source, clone) => { clone.name = `${source.name}_clone`; }
-      ) as Mesh | null;
+      );
 
-      if (firstClone) {
+      let firstClone: Mesh | null = null;
+      if (firstCloneNode) {
+        if (firstCloneNode instanceof Mesh) {
+          firstClone = firstCloneNode;
+        } else {
+          firstClone = new Mesh(`${cacheKey}_wrapper`, this.scene!);
+          firstClone.position.copyFrom(firstCloneNode.position);
+          firstClone.rotation.copyFrom(firstCloneNode.rotation);
+          firstClone.scaling.copyFrom(firstCloneNode.scaling);
+          firstCloneNode.getChildren().forEach(child => child.parent = firstClone!);
+          firstCloneNode.dispose();
+        }
         firstClone.setEnabled(true);
         firstClone.getChildMeshes().forEach(m => m.setEnabled(true));
       }
@@ -3441,11 +3726,15 @@ export class BabylonGame {
         currentAnimation: null
       };
 
+      // Phase 4: Create billboard LOD plane for distant NPC rendering
+      const npcName = `${character.firstName || ''} ${character.lastName || ''}`.trim() || character.id;
+      npcInstance.billboardLOD = this.createNPCBillboard(npcName, role, root.position);
+
       this.npcMeshes.set(character.id, npcInstance);
 
       const npcInfo: NPCDisplayInfo = {
         id: character.id,
-        name: `${character.firstName || ''} ${character.lastName || ''}`.trim() || character.id,
+        name: npcName,
         occupation: character.occupation,
         disposition: character.disposition,
         questGiver: role === 'questgiver',
@@ -3591,6 +3880,41 @@ export class BabylonGame {
   }
 
   /**
+   * Phase 4: Create a billboard LOD plane for an NPC.
+   * At medium distance (60-120u), the full mesh is hidden and replaced
+   * with a simple colored rectangle + name label. Starts hidden.
+   */
+  private createNPCBillboard(name: string, role: NPCRole, position: Vector3): Mesh {
+    const billboard = MeshBuilder.CreatePlane(
+      `npc_billboard_${name}`,
+      { width: 1.2, height: 2.4 },
+      this.scene!
+    );
+    billboard.position = position.clone();
+    billboard.position.y += 1.2;
+    billboard.billboardMode = Mesh.BILLBOARDMODE_Y;
+    billboard.isPickable = false;
+    billboard.setEnabled(false); // Hidden by default
+
+    const roleColors: Record<NPCRole, Color3> = {
+      guard: new Color3(0.85, 0.4, 0.35),
+      merchant: new Color3(0.85, 0.75, 0.35),
+      questgiver: new Color3(0.4, 0.55, 0.9),
+      civilian: new Color3(0.6, 0.6, 0.6),
+    };
+
+    const mat = new StandardMaterial(`npc_billboard_mat_${name}`, this.scene!);
+    const color = roleColors[role] || roleColors.civilian;
+    mat.diffuseColor = color;
+    mat.emissiveColor = color.scale(0.4);
+    mat.disableLighting = true;
+    mat.backFaceCulling = false;
+    billboard.material = mat;
+
+    return billboard;
+  }
+
+  /**
    * Phase 4B: Enter a building interior. Generates the interior if needed,
    * performs a fade-to-black transition, and teleports the player inside.
    */
@@ -3717,6 +4041,64 @@ export class BabylonGame {
         }
       });
     });
+  }
+
+  /**
+   * Phase 8: Check if the player has entered or exited a settlement zone.
+   * Triggers scene isolation transitions with fade effects.
+   */
+  private async checkSettlementTransition(): Promise<void> {
+    if (!this.settlementSceneManager || !this.playerMesh) return;
+    if (this.settlementSceneManager.transitioning) return;
+
+    const zone = this.settlementSceneManager.checkPlayerZone(this.playerMesh.position);
+    const currentId = this.settlementSceneManager.activeSettlementId;
+
+    if (zone && !currentId) {
+      // Player entered a settlement
+      this.settlementSceneManager.transitioning = true;
+      await this.performFadeTransition(true);
+
+      this.settlementSceneManager.enterSettlement(zone.id);
+
+      // Hide NPCs not in this settlement
+      this.npcMeshes.forEach((instance, npcId) => {
+        if (!this.settlementSceneManager!.isNPCInActiveSettlement(npcId)) {
+          if (instance.mesh && instance.mesh.isEnabled()) {
+            instance.mesh.setEnabled(false);
+          }
+          if (instance.controller) {
+            instance.controller.walk(false);
+            instance.controller.turnLeft(false);
+            instance.controller.turnRight(false);
+          }
+        }
+      });
+
+      this.settlementSceneManager.transitioning = false;
+      await this.performFadeTransition(false);
+    } else if (!zone && currentId) {
+      // Player exited a settlement
+      this.settlementSceneManager.transitioning = true;
+      await this.performFadeTransition(true);
+
+      this.settlementSceneManager.exitSettlement();
+
+      // Re-enable all NPCs (Phase 7 distance culling will manage visibility)
+      this.npcMeshes.forEach((instance) => {
+        if (instance.mesh) {
+          instance.mesh.setEnabled(true);
+        }
+      });
+
+      // Force chunk manager to re-evaluate all chunks after restoring overworld
+      if (this.chunkManager && this.playerMesh) {
+        this.chunkManager.update(this.playerMesh.position);
+      }
+
+      this.settlementSceneManager.transitioning = false;
+      await this.performFadeTransition(false);
+    }
   }
 
   private setupKeyboardHandlers(): void {
@@ -3957,6 +4339,7 @@ export class BabylonGame {
   private _npcGroundSnapTimer = 0;
   private _minimapUpdateTimer = 0;
   private _fpsDisplayTimer = 0;
+  private _settlementCheckTimer = 0;
 
   private setupUpdateLoop(): void {
     if (!this.scene) return;
@@ -3966,8 +4349,16 @@ export class BabylonGame {
       const dt = this.scene?.getEngine().getDeltaTime() || 16;
 
       // Update chunk visibility based on player position (cheap: just compares chunk coords)
-      if (this.chunkManager && this.playerMesh) {
+      // Phase 8: Skip chunk updates during settlement isolation (settlement manager handles visibility)
+      if (this.chunkManager && this.playerMesh && !this.settlementSceneManager?.isIsolated) {
         this.chunkManager.update(this.playerMesh.position);
+      }
+
+      // Phase 8: Settlement proximity detection (every 500ms)
+      this._settlementCheckTimer += dt;
+      if (this._settlementCheckTimer >= 500 && this.settlementSceneManager && this.playerMesh && !this.isInsideBuilding) {
+        this._settlementCheckTimer = 0;
+        this.checkSettlementTransition();
       }
 
       // Ground-snap NPCs at most every 500ms
@@ -3977,6 +4368,8 @@ export class BabylonGame {
         if (!this.isInsideBuilding) {
           this.npcMeshes.forEach((instance) => {
             if (!instance?.mesh) return;
+            // Phase 8: Skip ground snapping for disabled NPCs (hidden by isolation or distance)
+            if (!instance.mesh.isEnabled()) return;
             const mesh = instance.mesh;
             const groundPos = this.projectToGround(mesh.position.x, mesh.position.z);
             const targetY = groundPos.y;
@@ -4021,185 +4414,299 @@ export class BabylonGame {
           });
         }
       }
+
+      // Phase 3: Update audio listener position for distance-based culling
+      if (this.playerMesh && this.audioManager) {
+        this.audioManager.setListenerPosition(this.playerMesh.position);
+      }
     });
 
-    // NPC behavior update interval - 200ms is sufficient for wandering AI
-    this.npcBehaviorInterval = window.setInterval(() => {
-      this.updateNPCBehaviors();
-    }, 200);
+    // Phase 7: Batched NPC behavior updates with frame budget
+    // Replaces the old 200ms setInterval with a per-frame budget-limited system.
+    // Accumulates time and processes NPCs round-robin within a 2ms budget per frame.
+    this._npcBehaviorObserver = this.scene.onBeforeRenderObservable.add(() => {
+      const dt = this.scene?.getEngine().getDeltaTime() || 16;
+      this._npcBehaviorAccum += dt;
+      if (this._npcBehaviorAccum < 100) return; // Check at most every 100ms
+      this._npcBehaviorAccum = 0;
+      this.updateNPCBehaviorsBatched();
+    });
   }
 
 
-  // Distance thresholds for NPC optimization
+  // Distance thresholds for NPC optimization (Phase 7 enhanced)
   private static readonly NPC_HIDE_DISTANCE = 120;      // Hide mesh entirely
+  private static readonly NPC_BILLBOARD_DISTANCE = 60;   // Show billboard instead of full mesh
   private static readonly NPC_SKIP_AI_DISTANCE = 80;     // Skip wandering AI
-  private static readonly NPC_SLOW_AI_DISTANCE = 40;     // Reduce AI frequency
+  private static readonly NPC_DISABLE_BLEND_DISTANCE = 40; // Snap animations (no blending)
+  private static readonly NPC_DISABLE_COLLISION_DISTANCE = 30; // Simplified collision
+  private static readonly NPC_THROTTLE_AI_DISTANCE = 20; // 500ms ticks instead of 200ms
 
-  private updateNPCBehaviors(): void {
+  /**
+   * Phase 7: Batched NPC behavior update with frame budget.
+   * Processes NPCs round-robin within NPC_BATCH_BUDGET_MS per call.
+   * Also enforces: visible NPC cap, distance-based AI throttling,
+   * collision simplification, and animation blending toggling.
+   */
+  private updateNPCBehaviorsBatched(): void {
     const now = Date.now();
     const playerPos = this.playerMesh?.position;
+    const entries = Array.from(this.npcMeshes.entries());
+    if (entries.length === 0) return;
 
-    this.npcMeshes.forEach((instance, npcId) => {
-      if (!instance.mesh || !instance.controller) return;
+    this._wanderRaycastsThisTick = 0;
 
-      // Distance-based NPC optimization
-      if (playerPos) {
-        const dist = Vector3.Distance(playerPos, instance.mesh.position);
+    // Phase 7: Sort by distance for visible NPC cap
+    let sorted: { npcId: string; instance: NPCInstance; dist: number }[] | null = null;
+    if (playerPos) {
+      sorted = entries.map(([npcId, instance]) => ({
+        npcId,
+        instance,
+        dist: instance.mesh ? Vector3.Distance(playerPos, instance.mesh.position) : Infinity,
+      }));
+      sorted.sort((a, b) => a.dist - b.dist);
+    }
 
-        // Beyond hide distance: disable mesh entirely, skip all updates
-        if (dist > BabylonGame.NPC_HIDE_DISTANCE) {
-          if (instance.mesh.isEnabled()) {
-            instance.mesh.setEnabled(false);
-            instance.controller.walk(false);
-            instance.controller.turnLeft(false);
-            instance.controller.turnRight(false);
-          }
-          return;
-        }
+    const npcList = sorted || entries.map(([npcId, instance]) => ({ npcId, instance, dist: Infinity }));
+    const count = npcList.length;
 
-        // Re-enable if was hidden
-        if (!instance.mesh.isEnabled()) {
-          instance.mesh.setEnabled(true);
-        }
+    // Pass 1: Visibility updates for ALL NPCs (cheap — no frame budget)
+    for (let i = 0; i < count; i++) {
+      const { npcId, instance, dist } = npcList[i];
+      if (!instance.mesh || !instance.controller) continue;
 
-        // Beyond skip-AI distance: no wandering, just idle
-        if (dist > BabylonGame.NPC_SKIP_AI_DISTANCE) {
+      // Phase 8: Hide NPCs not in active settlement during isolation
+      if (this.settlementSceneManager?.isIsolated &&
+          !this.settlementSceneManager.isNPCInActiveSettlement(npcId)) {
+        if (instance.mesh.isEnabled()) {
+          instance.mesh.setEnabled(false);
           instance.controller.walk(false);
           instance.controller.turnLeft(false);
           instance.controller.turnRight(false);
-          return;
         }
-
-        // Between slow and skip: only update every other tick
-        if (dist > BabylonGame.NPC_SLOW_AI_DISTANCE && now % 400 < 200) {
-          return;
-        }
+        if (instance.billboardLOD?.isEnabled()) instance.billboardLOD.setEnabled(false);
+        continue;
       }
 
-      // Skip AI if NPC is in conversation
-      if (instance.isInConversation) {
-        // Stop all movement when in conversation
-        instance.controller.walk(false);
-        instance.controller.turnLeft(false);
-        instance.controller.turnRight(false);
-        
-        // Make NPC continue to face the player during conversation
-        if (this.playerMesh && instance.mesh) {
-          const npcPos = instance.mesh.position;
-          const playerPos = this.playerMesh.position;
-          
-          // Calculate direction from NPC to player
-          const directionToPlayer = playerPos.subtract(npcPos).normalize();
-          
-          // Calculate the rotation angle (in radians)
-          // Add PI to make NPC face the player instead of away
-          const targetRotation = Math.atan2(directionToPlayer.x, directionToPlayer.z) + Math.PI;
-          
-          // Try multiple ways to rotate the NPC
-          // Method 1: Direct mesh rotation
-          instance.mesh.rotation.y = targetRotation;
-          
-          // Method 2: If CharacterController has an avatar, rotate that
-          if (instance.controller && (instance.controller as any)._avatar) {
-            (instance.controller as any)._avatar.rotation.y = targetRotation;
-          }
-          
-          // Method 3: Try rotating parent if it exists and is a Mesh
-          if (instance.mesh.parent && instance.mesh.parent instanceof Mesh) {
-            (instance.mesh.parent as Mesh).rotation.y = targetRotation;
-          }
+      // Phase 7: Visible NPC cap — beyond MAX_VISIBLE_NPCS, hide mesh
+      if (sorted && i >= MAX_VISIBLE_NPCS) {
+        if (instance.mesh.isEnabled()) {
+          instance.mesh.setEnabled(false);
+          instance.controller.walk(false);
+          instance.controller.turnLeft(false);
+          instance.controller.turnRight(false);
         }
-        
-        return;
+        if (instance.billboardLOD?.isEnabled()) instance.billboardLOD.setEnabled(false);
+        instance.isBillboardMode = false;
+        continue;
       }
-      
-      // Wandering AI
-      const homePos = instance.homePosition || instance.mesh.position;
-      const currentPos = instance.mesh.position;
-      const wanderRadius = 15; // NPCs wander within 15 units of their spawn point
-      
-      // If waiting, check if wait is over
-      if (instance.wanderWaitUntil && now < instance.wanderWaitUntil) {
-        // Stop walking while waiting
+
+      // Distance-based visibility
+      if (dist > BabylonGame.NPC_HIDE_DISTANCE) {
+        if (instance.mesh.isEnabled()) {
+          instance.mesh.setEnabled(false);
+          instance.controller.walk(false);
+          instance.controller.turnLeft(false);
+          instance.controller.turnRight(false);
+        }
+        if (instance.billboardLOD?.isEnabled()) instance.billboardLOD.setEnabled(false);
+        instance.isBillboardMode = false;
+        continue;
+      }
+
+      if (dist > BabylonGame.NPC_BILLBOARD_DISTANCE) {
+        if (instance.mesh.isEnabled()) {
+          instance.mesh.setEnabled(false);
+          instance.controller.walk(false);
+          instance.controller.turnLeft(false);
+          instance.controller.turnRight(false);
+        }
+        if (instance.billboardLOD) {
+          instance.billboardLOD.position.x = instance.mesh.position.x;
+          instance.billboardLOD.position.y = instance.mesh.position.y + 1.2;
+          instance.billboardLOD.position.z = instance.mesh.position.z;
+          if (!instance.billboardLOD.isEnabled()) instance.billboardLOD.setEnabled(true);
+        }
+        instance.isBillboardMode = true;
+        continue;
+      }
+
+      // Close range: show full mesh, hide billboard
+      if (!instance.mesh.isEnabled()) instance.mesh.setEnabled(true);
+      if (instance.isBillboardMode && instance.billboardLOD?.isEnabled()) {
+        instance.billboardLOD.setEnabled(false);
+        instance.isBillboardMode = false;
+      }
+
+      // Distance-based animation blending toggle
+      if (dist > BabylonGame.NPC_DISABLE_BLEND_DISTANCE) {
+        if (!instance.blendingDisabled) {
+          instance.controller.disableBlending();
+          instance.blendingDisabled = true;
+        }
+      } else if (instance.blendingDisabled) {
+        instance.controller.enableBlending(0.05);
+        instance.blendingDisabled = false;
+      }
+
+      // Simplified collision at distance
+      if (dist > BabylonGame.NPC_DISABLE_COLLISION_DISTANCE) {
+        if (instance.mesh.checkCollisions) instance.mesh.checkCollisions = false;
+      } else if (!instance.mesh.checkCollisions) {
+        instance.mesh.checkCollisions = true;
+      }
+    }
+
+    // Pass 2: AI behavior updates (budget-limited, round-robin)
+    const startTime = performance.now();
+    if (this._npcBatchIndex >= count) this._npcBatchIndex = 0;
+    let processed = 0;
+
+    for (let i = 0; i < count; i++) {
+      if (processed > 0 && (performance.now() - startTime) >= NPC_BATCH_BUDGET_MS) break;
+
+      const idx = (this._npcBatchIndex + i) % count;
+      const { npcId, instance, dist } = npcList[idx];
+      if (!instance.mesh || !instance.controller) continue;
+      if (!instance.mesh.isEnabled()) continue; // Skip hidden NPCs
+
+      // Beyond skip-AI distance: no wandering, just idle
+      if (dist > BabylonGame.NPC_SKIP_AI_DISTANCE) {
         instance.controller.walk(false);
         instance.controller.turnLeft(false);
         instance.controller.turnRight(false);
-        return;
+        continue;
       }
-      
-      // If no wander target or reached target, pick new one
-      if (!instance.wanderTarget || Vector3.Distance(currentPos, instance.wanderTarget) < 2) {
-        // Stop walking when reaching target
-        instance.controller.walk(false);
-        instance.controller.turnLeft(false);
-        instance.controller.turnRight(false);
-        
-        // Wait for a bit before picking new target
-        instance.wanderWaitUntil = now + 2000 + Math.random() * 3000; // Wait 2-5 seconds
-        
-        // Pick new random target near home position
+
+      // Distance-based AI throttling
+      const tickInterval = dist > BabylonGame.NPC_THROTTLE_AI_DISTANCE ? 500 : 200;
+      const lastUpdate = instance.lastAIUpdate || 0;
+      if (now - lastUpdate < tickInterval) continue;
+      instance.lastAIUpdate = now;
+
+      processed++;
+      this.updateSingleNPCBehavior(instance, now);
+    }
+
+    this._npcBatchIndex = (this._npcBatchIndex + processed) % Math.max(count, 1);
+
+    // Minimap overlay (cheap, runs after NPC updates)
+    this.updateMinimapOverlay();
+  }
+
+  /**
+   * Updates a single NPC's wandering AI behavior.
+   */
+  private updateSingleNPCBehavior(instance: NPCInstance, now: number): void {
+    if (!instance.mesh || !instance.controller) return;
+
+    // Skip AI if NPC is in conversation
+    if (instance.isInConversation) {
+      instance.controller.walk(false);
+      instance.controller.turnLeft(false);
+      instance.controller.turnRight(false);
+
+      // Make NPC face the player during conversation
+      if (this.playerMesh && instance.mesh) {
+        const npcPos = instance.mesh.position;
+        const pPos = this.playerMesh.position;
+        const directionToPlayer = pPos.subtract(npcPos).normalize();
+        const targetRotation = Math.atan2(directionToPlayer.x, directionToPlayer.z) + Math.PI;
+
+        instance.mesh.rotation.y = targetRotation;
+        if ((instance.controller as any)._avatar) {
+          (instance.controller as any)._avatar.rotation.y = targetRotation;
+        }
+        if (instance.mesh.parent && instance.mesh.parent instanceof Mesh) {
+          (instance.mesh.parent as Mesh).rotation.y = targetRotation;
+        }
+      }
+      return;
+    }
+
+    // Wandering AI
+    const homePos = instance.homePosition || instance.mesh.position;
+    const currentPos = instance.mesh.position;
+    const wanderRadius = 15;
+
+    // If waiting, check if wait is over
+    if (instance.wanderWaitUntil && now < instance.wanderWaitUntil) {
+      instance.controller.walk(false);
+      instance.controller.turnLeft(false);
+      instance.controller.turnRight(false);
+      return;
+    }
+
+    // If no wander target or reached target, pick new one
+    if (!instance.wanderTarget || Vector3.Distance(currentPos, instance.wanderTarget) < 2) {
+      instance.controller.walk(false);
+      instance.controller.turnLeft(false);
+      instance.controller.turnRight(false);
+
+      instance.wanderWaitUntil = now + 2000 + Math.random() * 3000;
+
+      // Phase 7: Cap wander target raycasts per tick
+      if (this._wanderRaycastsThisTick < MAX_WANDER_RAYCASTS_PER_TICK) {
         const angle = Math.random() * Math.PI * 2;
         const distance = Math.random() * wanderRadius;
         const offsetX = Math.cos(angle) * distance;
         const offsetZ = Math.sin(angle) * distance;
-        
+
         const targetPos = this.projectToGround(
           homePos.x + offsetX,
           homePos.z + offsetZ
         );
-        
         instance.wanderTarget = targetPos;
-        return;
+        this._wanderRaycastsThisTick++;
+      } else {
+        // Fallback: use flat target without raycast
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.random() * wanderRadius;
+        instance.wanderTarget = new Vector3(
+          homePos.x + Math.cos(angle) * distance,
+          currentPos.y,
+          homePos.z + Math.sin(angle) * distance
+        );
       }
-      
-      // Move toward wander target using CharacterController
-      if (instance.wanderTarget) {
-        const direction = instance.wanderTarget.subtract(currentPos);
-        direction.y = 0; // Only move horizontally
-        const distance = direction.length();
-        
-        if (distance > 0.1) {
-          const normalized = direction.normalize();
-          
-          // Calculate desired rotation
-          const targetRotation = Math.atan2(normalized.x, normalized.z);
-          const currentRotation = instance.mesh.rotation.y;
-          
-          // Calculate rotation difference (normalized to [-PI, PI])
-          let rotationDiff = targetRotation - currentRotation;
-          while (rotationDiff > Math.PI) rotationDiff -= Math.PI * 2;
-          while (rotationDiff < -Math.PI) rotationDiff += Math.PI * 2;
-          
-          // Determine turn direction and walk
-          const turnThreshold = 0.1; // About 6 degrees
-          
-          if (Math.abs(rotationDiff) < turnThreshold) {
-            // Facing the right direction - walk forward
-            instance.controller.walk(true);
-            instance.controller.turnLeft(false);
-            instance.controller.turnRight(false);
-          } else if (rotationDiff > 0) {
-            // Need to turn left
-            instance.controller.turnLeft(true);
-            instance.controller.turnRight(false);
-            instance.controller.walk(true); // Walk while turning
-          } else {
-            // Need to turn right
-            instance.controller.turnRight(true);
-            instance.controller.turnLeft(false);
-            instance.controller.walk(true); // Walk while turning
-          }
-        } else {
-          // Reached target - stop moving
-          instance.controller.walk(false);
+      return;
+    }
+
+    // Move toward wander target
+    if (instance.wanderTarget) {
+      const direction = instance.wanderTarget.subtract(currentPos);
+      direction.y = 0;
+      const distance = direction.length();
+
+      if (distance > 0.1) {
+        const normalized = direction.normalize();
+        const targetRotation = Math.atan2(normalized.x, normalized.z);
+        const currentRotation = instance.mesh.rotation.y;
+
+        let rotationDiff = targetRotation - currentRotation;
+        while (rotationDiff > Math.PI) rotationDiff -= Math.PI * 2;
+        while (rotationDiff < -Math.PI) rotationDiff += Math.PI * 2;
+
+        const turnThreshold = 0.1;
+
+        if (Math.abs(rotationDiff) < turnThreshold) {
+          instance.controller.walk(true);
           instance.controller.turnLeft(false);
           instance.controller.turnRight(false);
+        } else if (rotationDiff > 0) {
+          instance.controller.turnLeft(true);
+          instance.controller.turnRight(false);
+          instance.controller.walk(true);
+        } else {
+          instance.controller.turnRight(true);
+          instance.controller.turnLeft(false);
+          instance.controller.walk(true);
         }
+      } else {
+        instance.controller.walk(false);
+        instance.controller.turnLeft(false);
+        instance.controller.turnRight(false);
       }
-    });
-    
-    // Use this interval primarily to keep the GUI minimap in sync with the world state
-    this.updateMinimapOverlay();
+    }
   }
 
   private updateMinimapOverlay(): void {
@@ -4247,6 +4754,7 @@ export class BabylonGame {
 
     this.engine.runRenderLoop(() => {
       if (!this.scene) return;
+
       this.scene.render();
 
       // Update perf overlay every 500ms
@@ -4256,9 +4764,16 @@ export class BabylonGame {
         const fps = this.engine!.getFps().toFixed(0);
         const activeMeshes = this.scene.getActiveMeshes().length;
         const totalMeshes = this.scene.meshes.length;
-        const drawCalls = (this.engine as any)._drawCalls?.current ?? 0;
+        const drawCalls = (this.engine as any)._drawCalls?.lastSecAverage?.toFixed(0) ?? (this.engine as any)._drawCalls?.current ?? 0;
         const materials = this.scene.materials.length;
-        this._perfDiv.textContent = `${fps} FPS | ${activeMeshes}/${totalMeshes} meshes | ${drawCalls} draws | ${materials} mats`;
+        const frameMs = this.engine!.getDeltaTime().toFixed(1);
+        this._perfDiv.textContent = `${fps} FPS | ${frameMs}ms | ${activeMeshes}/${totalMeshes} meshes | ${drawCalls} draws | ${materials} mats`;
+
+        // Measurement: log slow frames (>33ms)
+        const dt = this.engine!.getDeltaTime();
+        if (dt > 33) {
+          console.warn(`[Perf] Slow frame: ${dt.toFixed(1)}ms (${(1000 / dt).toFixed(0)} FPS) | ${activeMeshes} active meshes | ${drawCalls} draw calls`);
+        }
       }
     });
   }
@@ -5969,6 +6484,11 @@ export class BabylonGame {
       window.clearInterval(this.npcBehaviorInterval);
       this.npcBehaviorInterval = null;
     }
+    // Phase 7: Clean up batched NPC behavior observer
+    if (this.scene && this._npcBehaviorObserver) {
+      this.scene.onBeforeRenderObservable.remove(this._npcBehaviorObserver);
+      this._npcBehaviorObserver = null;
+    }
   }
 
   private disposeAudio(): void {
@@ -6035,6 +6555,7 @@ export class BabylonGame {
     this.npcMeshes.forEach((instance) => {
       instance.controller?.stop();
       instance.questMarker?.dispose();
+      instance.billboardLOD?.dispose();
       instance.mesh?.dispose();
     });
     this.npcMeshes.clear();
@@ -6062,6 +6583,8 @@ export class BabylonGame {
   }
 
   private disposeWorld(): void {
+    this.settlementSceneManager?.dispose();
+    this.settlementSceneManager = null;
     this.chunkManager?.dispose();
     this.chunkManager = null;
 

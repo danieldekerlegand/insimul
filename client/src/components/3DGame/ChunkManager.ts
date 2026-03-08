@@ -4,6 +4,10 @@
  * Divides the world into a grid of chunks and only enables meshes within
  * the player's active radius. Disabled meshes are completely skipped by
  * Babylon's render pipeline (geometry, shadows, physics).
+ *
+ * Phase 3 enhancements:
+ * - Chunk-based collision toggling (disable physics on out-of-range meshes)
+ * - Async preloading of the next ring of chunks during idle frames
  */
 
 import { AbstractMesh, Vector3 } from '@babylonjs/core';
@@ -15,6 +19,8 @@ export interface ChunkManagerConfig {
   chunkSize: number;
   /** Number of chunks visible in each direction from the player (default 2) */
   renderRadius: number;
+  /** Chunks beyond this radius are fully disposed to free GPU memory (default 5; 0 = disabled) */
+  disposeRadius: number;
 }
 
 interface Chunk {
@@ -22,6 +28,8 @@ interface Chunk {
   z: number;
   meshes: AbstractMesh[];
   active: boolean;
+  /** Phase 3: Track whether collision was enabled before deactivation */
+  collisionStates: boolean[];
 }
 
 export class ChunkManager {
@@ -29,12 +37,16 @@ export class ChunkManager {
   private currentChunkX = Infinity;
   private currentChunkZ = Infinity;
   private config: ChunkManagerConfig;
+  /** Phase 3: Chunks queued for async preloading */
+  private _preloadQueue: string[] = [];
+  private _preloadTimer: number | null = null;
 
   constructor(config: Partial<ChunkManagerConfig> = {}) {
     this.config = {
       worldSize: config.worldSize ?? 512,
       chunkSize: config.chunkSize ?? 64,
       renderRadius: config.renderRadius ?? 2,
+      disposeRadius: config.disposeRadius ?? 5,
     };
   }
 
@@ -60,10 +72,11 @@ export class ChunkManager {
 
     let chunk = this.chunks.get(key);
     if (!chunk) {
-      chunk = { x: cx, z: cz, meshes: [], active: false };
+      chunk = { x: cx, z: cz, meshes: [], active: false, collisionStates: [] };
       this.chunks.set(key, chunk);
     }
     chunk.meshes.push(mesh);
+    chunk.collisionStates.push(mesh.checkCollisions);
   }
 
   /**
@@ -110,17 +123,24 @@ export class ChunkManager {
       if (shouldBeActive && !chunk.active) {
         // Activate chunk
         chunk.active = true;
-        for (const mesh of chunk.meshes) {
+        for (let i = 0; i < chunk.meshes.length; i++) {
+          const mesh = chunk.meshes[i];
           if (!mesh.isDisposed()) {
             mesh.setEnabled(true);
+            // Phase 3: Restore collision state
+            mesh.checkCollisions = chunk.collisionStates[i] ?? false;
           }
         }
         changed = true;
       } else if (!shouldBeActive && chunk.active) {
         // Deactivate chunk
         chunk.active = false;
-        for (const mesh of chunk.meshes) {
+        for (let i = 0; i < chunk.meshes.length; i++) {
+          const mesh = chunk.meshes[i];
           if (!mesh.isDisposed()) {
+            // Phase 3: Save collision state before disabling
+            chunk.collisionStates[i] = mesh.checkCollisions;
+            mesh.checkCollisions = false;
             mesh.setEnabled(false);
           }
         }
@@ -128,7 +148,106 @@ export class ChunkManager {
       }
     });
 
+    // Phase 3: Queue next ring for async preloading
+    if (changed) {
+      this.queuePreloadRing(cx, cz, r);
+    }
+
+    // Dispose meshes in very distant chunks to free GPU memory
+    if (this.config.disposeRadius > 0 && changed) {
+      this.disposeDistantChunks(cx, cz);
+    }
+
     return changed;
+  }
+
+  /**
+   * Phase 3: Queue the chunks in the ring just beyond render radius
+   * for preloading during idle frames. This avoids stutter when the
+   * player moves into a new chunk.
+   */
+  private queuePreloadRing(cx: number, cz: number, r: number): void {
+    const preloadR = r + 1;
+    this._preloadQueue = [];
+
+    // Only the outer ring (not already in active set)
+    for (let dx = -preloadR; dx <= preloadR; dx++) {
+      for (let dz = -preloadR; dz <= preloadR; dz++) {
+        if (Math.abs(dx) <= r && Math.abs(dz) <= r) continue; // skip inner
+        const key = this.chunkKey(cx + dx, cz + dz);
+        if (this.chunks.has(key)) {
+          this._preloadQueue.push(key);
+        }
+      }
+    }
+
+    // Start async preloading if not already running
+    if (this._preloadQueue.length > 0 && this._preloadTimer === null) {
+      this.processPreloadQueue();
+    }
+  }
+
+  /**
+   * Phase 3: Process one preload chunk per idle callback.
+   * "Preloading" here means enabling the mesh briefly to warm GPU buffers,
+   * then disabling again. This prevents the GPU stall when the chunk
+   * actually becomes visible.
+   */
+  private processPreloadQueue(): void {
+    if (typeof requestIdleCallback === 'undefined') return;
+
+    this._preloadTimer = requestIdleCallback((deadline) => {
+      this._preloadTimer = null;
+
+      while (this._preloadQueue.length > 0 && deadline.timeRemaining() > 2) {
+        const key = this._preloadQueue.shift()!;
+        const chunk = this.chunks.get(key);
+        if (!chunk || chunk.active) continue;
+
+        // Briefly enable meshes to warm GPU buffers, then disable
+        for (const mesh of chunk.meshes) {
+          if (!mesh.isDisposed() && !mesh.isEnabled()) {
+            mesh.setEnabled(true);
+            mesh.setEnabled(false);
+          }
+        }
+      }
+
+      // Continue if more to process
+      if (this._preloadQueue.length > 0) {
+        this.processPreloadQueue();
+      }
+    }) as unknown as number;
+  }
+
+  /**
+   * Dispose meshes in chunks beyond disposeRadius to free GPU memory.
+   * Disposed meshes cannot be re-enabled; the chunk entry is removed.
+   */
+  private disposeDistantChunks(cx: number, cz: number): void {
+    const dr = this.config.disposeRadius;
+    const keysToDelete: string[] = [];
+
+    this.chunks.forEach((chunk, key) => {
+      if (chunk.active) return;
+      const dist = Math.max(Math.abs(chunk.x - cx), Math.abs(chunk.z - cz));
+      if (dist > dr) {
+        for (const mesh of chunk.meshes) {
+          if (!mesh.isDisposed()) {
+            mesh.dispose(false, false);
+          }
+        }
+        keysToDelete.push(key);
+      }
+    });
+
+    for (const key of keysToDelete) {
+      this.chunks.delete(key);
+    }
+
+    if (keysToDelete.length > 0) {
+      console.log(`[ChunkManager] Disposed ${keysToDelete.length} distant chunks`);
+    }
   }
 
   /**
@@ -137,9 +256,11 @@ export class ChunkManager {
   activateAll(): void {
     this.chunks.forEach((chunk) => {
       chunk.active = true;
-      for (const mesh of chunk.meshes) {
+      for (let i = 0; i < chunk.meshes.length; i++) {
+        const mesh = chunk.meshes[i];
         if (!mesh.isDisposed()) {
           mesh.setEnabled(true);
+          mesh.checkCollisions = chunk.collisionStates[i] ?? false;
         }
       }
     });
@@ -171,6 +292,11 @@ export class ChunkManager {
    * Remove all meshes and reset state.
    */
   dispose(): void {
+    if (this._preloadTimer !== null && typeof cancelIdleCallback !== 'undefined') {
+      cancelIdleCallback(this._preloadTimer as any);
+      this._preloadTimer = null;
+    }
+    this._preloadQueue = [];
     this.chunks.clear();
     this.currentChunkX = Infinity;
     this.currentChunkZ = Infinity;
