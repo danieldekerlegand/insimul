@@ -83,8 +83,8 @@ export class TextureManager {
       console.warn(`[TextureManager] Loading texture from external URL (not recommended): ${texturePath}`);
     }
 
-    // Create new texture
-    const texture = new Texture(texturePath, this.scene);
+    // Create new texture with mipmaps enabled for LOD
+    const texture = new Texture(texturePath, this.scene, false, true, Texture.TRILINEAR_SAMPLINGMODE);
 
     // Make it seamless/tileable
     texture.wrapU = Texture.WRAP_ADDRESSMODE;

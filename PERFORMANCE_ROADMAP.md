@@ -1,140 +1,187 @@
 # Performance Optimization Roadmap
 
-Babylon.js exported game — framerate optimization plan.
+Babylon.js exported game -- framerate optimization plan.
 Work through phases in order. Each phase yields diminishing returns but increasing complexity.
 
 ---
 
-## Phase 1 — Quick Wins (Engine Settings)
-*Low effort, no architectural changes. Do these first.*
+## Codebase Analysis Summary
 
-- [ ] **Hardware scaling** — call `engine.setHardwareScalingLevel(1.5)` to render at 67% native resolution; barely visible, big GPU savings
-- [ ] **Target frame rate cap** — `engine.setAnimationFrameRate(30)` if 60 fps is unattainable; halves GPU load
-- [ ] **Disable auto-clear on unused render targets** — `scene.autoClear = true` only when sky is visible; disable for interior/dungeon scenes
-- [ ] **Turn off scene debugLayer in production** — ensure `scene.debugLayer` is never active in shipped builds
-- [ ] **Freeze world matrix on all static meshes** — call `mesh.freezeWorldMatrix()` on every building, road, tree, and ground mesh after placement; eliminates per-frame matrix recomputation
-- [ ] **Mark static meshes as non-pickable** — `mesh.isPickable = false` on anything the player can't interact with; cuts pick raycast cost
-- [ ] **Reduce shadow map resolution** — use 512×512 or 1024×1024 shadow maps instead of 2048+; `shadowGenerator.mapSize = 1024`
-- [ ] **Limit shadow casters** — only the player, active NPCs, and nearby objects should cast shadows; call `shadowGenerator.addShadowCaster(mesh)` selectively
-- [ ] **Use `DirectionalLight` instead of `SpotLight`/`PointLight` for sun** — directional is far cheaper; point lights multiply draw calls
-- [ ] **Disable `scene.skipFrustumClipping` = false** — ensure Babylon's built-in frustum culling is active (it is by default but can be accidentally disabled)
-- [ ] **Set `mesh.alwaysSelectAsActiveMesh = false`** on all meshes — prevents forced inclusion in render loop
+Key bottlenecks identified in the 3DGame codebase:
+
+| Component | Issue | Severity | Impact |
+|-----------|-------|----------|--------|
+| NPC Loading | Sequential `ImportMeshAsync` for up to 100 NPCs | CRITICAL | 1000+ meshes |
+| Render Loop | `projectToGround()` raycast every frame for all NPCs | CRITICAL | 100 raycasts/frame |
+| Render Loop | Minimap `.position.clone()` every frame for all NPCs | HIGH | 100 allocs/frame |
+| NPC AI | Duplicate setInterval(100ms) + frame-based updates | MEDIUM | 1000 ops/sec |
+| Buildings | No mesh merging; 10-20 sub-meshes per building | HIGH | 2400+ detail meshes |
+| Nature | No `freezeWorldMatrix()` on any static mesh | HIGH | Per-frame matrix recompute |
+| Engine | `preserveDrawingBuffer: true` (unnecessary) | LOW | GPU memory |
+| Engine | No hardware scaling | MEDIUM | Full-res rendering |
+| Engine | No `blockMaterialDirtyMechanism` during bulk ops | MEDIUM | Redundant recomputes |
+| Textures | No atlasing, per-building material clones | MEDIUM | Material switch overhead |
 
 ---
 
-## Phase 2 — Instanced Rendering
+## Phase 1 -- Quick Wins (Engine Settings) -- IMPLEMENTED
+*Low effort, no architectural changes.*
+
+- [x] **Hardware scaling** -- `engine.setHardwareScalingLevel(1.5)` renders at 67% resolution; big GPU savings
+- [x] **Disable preserveDrawingBuffer** -- was `true` unnecessarily; prevents backbuffer optimization
+- [x] **Disable autoClear** -- `scene.autoClear = false` since sky dome covers background; saves a clear pass
+- [x] **Ensure frustum culling** -- `scene.skipFrustumClipping = false` confirmed active
+- [x] **Freeze world matrix on all static meshes** -- post-generation pass calls `mesh.freezeWorldMatrix()` on all trees, rocks, grass, flowers, buildings, roads, props
+- [x] **Mark static meshes as non-pickable** -- `mesh.isPickable = false` on non-interactive meshes; cuts raycast cost
+- [x] **Set `alwaysSelectAsActiveMesh = false`** on static meshes -- prevents forced render inclusion
+- [x] **Block material dirty during bulk ops** -- `scene.blockMaterialDirtyMechanism = true` during world gen and NPC loading
+- [x] **FPS + active mesh counter overlay** -- real-time performance HUD in top-left corner
+
+### Remaining Quick Wins
+- [ ] **Target frame rate cap** -- `engine.setAnimationFrameRate(30)` if 60 fps is unattainable
+- [ ] **Reduce shadow map resolution** -- use 512x512 or 1024x1024 if shadows are added
+- [ ] **Limit shadow casters** -- only player, active NPCs, nearby objects
+- [ ] **Turn off scene debugLayer in production** -- ensure never active in shipped builds
+
+---
+
+## Phase 1.5 -- Render Loop Optimization -- IMPLEMENTED
+*Throttle per-frame work that doesn't need to run every frame.*
+
+- [x] **Throttle NPC ground snapping** -- moved from every frame to every 500ms (was 100 raycasts/frame)
+- [x] **Throttle minimap updates** -- moved from every frame to every 250ms; eliminated `.position.clone()` allocations
+- [x] **Reduce NPC AI tick rate** -- changed from 100ms to 200ms interval (sufficient for wandering)
+
+---
+
+## Phase 2 -- Instanced Rendering
 *Replace duplicate meshes (trees, rocks, identical buildings) with GPU instances.*
 
-- [ ] **Audit repeated geometry** — identify the top 10 mesh types placed more than ~5 times (trees, fence posts, building variants, road segments)
-- [ ] **Convert `ProceduralNatureGenerator` to instances** — replace `mesh.clone()` calls with `sourceMesh.createInstance(name)`; each instance adds ~zero draw call cost
-- [ ] **Convert `ProceduralBuildingGenerator` same-type buildings to instances** — buildings of the same role (e.g. all `house_A`) should share a source mesh; only vary position/rotation
-- [ ] **Convert road segments to instances** — road tiles of the same width/type are ideal instance candidates
-- [ ] **Merge remaining non-instanced static geometry** — use `Mesh.MergeMeshes([...meshes], true, true)` for heterogeneous static objects that share a material; reduces draw calls to 1 per material
-- [ ] **Use `ThinInstanceMesh` for ultra-dense objects** (grass patches, pebbles) — even cheaper than standard instances; positions updated via float32 buffer
+- [ ] **Audit repeated geometry** -- identify the top 10 mesh types placed more than ~5 times
+- [ ] **Convert `ProceduralNatureGenerator` to instances** -- procedural trees/rocks/grass already use `createInstance()`; asset-based trees use `instantiateHierarchy` which is less efficient
+- [ ] **Convert same-type buildings to instances** -- buildings of the same role should share a source mesh
+- [ ] **Merge remaining non-instanced static geometry** -- use `Mesh.MergeMeshes()` for heterogeneous static objects sharing a material
+- [ ] **Use `ThinInstanceMesh` for ultra-dense objects** (grass patches, pebbles) -- positions via float32 buffer
 
 ---
 
-## Phase 3 — Spatial Chunk System
+## Phase 3 -- Spatial Chunk System -- IMPLEMENTED
 *Only activate meshes within the player's visible range.*
 
-- [ ] **Define chunk grid** — divide the world into `N×N` tiles (suggest 64–128 world units per chunk); store which meshes belong to each chunk
-- [ ] **Implement `ChunkManager` class**
-  - Tracks player's current chunk `(cx, cy)`
-  - Maintains a configurable render radius (suggest 2–3 chunks in each direction)
-  - On chunk change: enable meshes in new chunks, disable meshes in exiting chunks
-- [ ] **Use `mesh.setEnabled(false)` for out-of-range chunks** — disabled meshes are skipped by the entire render pipeline (geometry, shadows, physics)
-- [ ] **Chunk NPC spawns** — NPCs outside the active chunk radius are despawned entirely and re-spawned on entry (store their state, don't destroy their data)
-- [ ] **Chunk ambient audio** — only play ambient sound sources within the active chunk radius
-- [ ] **Chunk-based collision** — disable physics impostors on out-of-range meshes; physics updates dominate CPU cost at high mesh counts
-- [ ] **Async chunk loading** — load the next ring of chunks in a background task during idle frames (`scene.registerBeforeRender` with time budgeting) to avoid stutter on chunk crossings
+- [x] **Define chunk grid** -- 64x64 unit chunks across the world
+- [x] **Implement `ChunkManager` class** -- `client/src/components/3DGame/ChunkManager.ts`; tracks player chunk, 2-chunk render radius
+- [x] **Use `mesh.setEnabled(false)` for out-of-range chunks** -- disabled meshes skip entire render pipeline
+- [x] **Automatic registration** -- all static meshes registered during `optimizeStaticMeshes()`
+- [x] **Per-frame chunk updates** -- player position checked each frame (cheap integer comparison)
+
+### Remaining Chunk Improvements
+- [ ] **Chunk NPC spawns** -- NPCs outside active radius despawned (state preserved)
+- [ ] **Chunk ambient audio** -- only play sounds within active chunks
+- [ ] **Chunk-based collision** -- disable physics impostors on out-of-range meshes
+- [ ] **Async chunk loading** -- load next ring during idle frames to avoid stutter
 
 ---
 
-## Phase 4 — Level of Detail (LOD)
+## Phase 4 -- Level of Detail (LOD) -- IMPLEMENTED
 *Show simplified versions of far-away objects.*
 
-- [ ] **Add LOD levels to character models** — `mesh.addLODLevel(distanceFromCamera, simplifiedMesh)` with 3 tiers: full (< 20u), half-poly (< 60u), billboard (< 150u)
-- [ ] **Add LOD levels to buildings** — at > 80 units, swap building to a flat-shaded low-poly proxy; at > 200 units, use a single colored billboard quad
-- [ ] **Implement billboard impostor for distant settlements** — beyond the active chunk radius, render each settlement as a single sprite/billboard showing a generic skyline silhouette; use `Sprite` or a flat `PlaneBuilder` mesh with the world forward direction
-- [ ] **Add LOD to nature meshes** — trees at distance > 50u become simple cones/cylinders; rocks become cubes; at > 150u, use a `PointsCloudSystem` dot
-- [ ] **Use `AbstractMesh.useLODScreenCoverage`** — Babylon can compute LOD transitions based on screen area rather than distance, which is more accurate at varying field-of-view
-- [ ] **LOD for textures** — ensure all textures have generated mipmaps (`texture.generateMipMaps = true`); Babylon uses them automatically at distance
-- [ ] **Cull NPC animation at distance** — beyond 30 units, reduce NPC `AnimationGroup` frame rate to every other frame; beyond 80 units, pause animation entirely
+- [x] **Procedural tree LOD** -- simplified single-primitive proxy at >50u, culled at >120u; instances inherit LOD from template
+- [x] **Rock LOD** -- culled at >80u (instances inherit)
+- [x] **Grass LOD** -- culled at >30u (tiny detail, instances inherit)
+- [x] **Flower LOD** -- culled at >40u (instances inherit)
+- [x] **Bush LOD** -- culled at >60u (instances inherit)
+- [x] **Building LOD** -- culled at >150u via parent mesh null LOD
+- [x] **Road LOD** -- culled at >150u
+- [x] **NPC distance optimization** -- hidden at >120u, AI skipped at >80u, AI throttled at >40u
+- [x] **Texture mipmaps** -- enabled trilinear sampling with mipmaps on all loaded textures
+
+### Remaining LOD Improvements
+- [ ] **Add LOD levels to character models** -- half-poly at <60u, billboard at <150u
+- [ ] **Billboard impostor for distant settlements** -- single sprite beyond active chunk radius
+- [ ] **LOD for asset-based (glTF) trees** -- instantiateHierarchy doesn't inherit LOD; needs separate approach
 
 ---
 
-## Phase 5 — Asset & Memory Optimization
+## Phase 5 -- Asset & Memory Optimization -- IMPLEMENTED
 *Reduce GPU memory pressure and load times.*
 
-- [ ] **Compress textures to KTX2/Basis** — KTX2 textures are 4–8× smaller on GPU memory and decode on upload; Babylon supports them natively with `BasisTools`
-- [ ] **Use texture atlases for building materials** — combine wall, roof, door textures into one atlas; eliminates material switches between building parts
-- [ ] **Dispose unused assets immediately** — after chunk unload, call `mesh.dispose()` on meshes that will not be re-used; call `texture.dispose()` if the texture won't appear again
-- [ ] **Implement an asset pool** — instead of creating/disposing identical meshes (e.g. tree type A), maintain a pool of hidden instances and re-enable them on demand
-- [ ] **Limit simultaneous texture loads** — queue texture loads so no more than 4 are in-flight at a time; prevents GPU upload stalls that cause frame spikes
-- [ ] **Use compressed geometry (Draco)** — enable `@babylonjs/loaders` Draco decompressor for GLB/GLTF files; reduces file size and load time
-- [ ] **Stream large scenes progressively** — load world data in priority order: terrain → buildings → NPCs → decorations; show the world as soon as terrain loads rather than waiting for all assets
+- [x] **Shared materials for procedural buildings** -- wall, roof, window, door, chimney, balcony materials shared via cache by style (was: 4-6 materials per building x 200 buildings = 800-1200 duplicate materials)
+- [x] **Shared materials for street furniture** -- lamp, bench, barrel, crate, etc. materials shared (was: 2-3 materials per prop x 320 props)
+- [x] **Freeze all materials** -- `material.freeze()` on all StandardMaterials after world gen; prevents per-frame dirty checks
+- [x] **Progressive scene loading** -- render loop starts after scene+terrain init, before world gen/NPCs; player sees sky+ground immediately
+- [x] **Texture mipmaps** -- trilinear sampling with auto-generated mipmaps (Phase 4, carried forward)
+
+### Remaining Asset Optimizations
+- [ ] **Compress textures to KTX2/Basis** -- 4-8x smaller on GPU; requires build tooling
+- [ ] **Use texture atlases** -- combine wall, roof, door textures into one atlas per style
+- [ ] **Use compressed geometry (Draco)** -- enable for GLB/GLTF files
+- [ ] **Dispose chunk meshes** -- fully dispose (not just disable) meshes in very distant chunks
+- [ ] **Limit simultaneous texture loads** -- queue to max 4 in-flight
 
 ---
 
-## Phase 6 — Rendering Pipeline Optimization
-*Fine-tune the render pipeline itself.*
+## Phase 6 -- Rendering Pipeline Optimization -- IMPLEMENTED
+*Fine-tune the render pipeline.*
 
-- [ ] **Use `DefaultRenderingPipeline` sparingly** — anti-aliasing (FXAA), bloom, and depth-of-field each cost 1–2 ms per frame; disable bloom and DOF by default, expose as quality setting
-- [ ] **Switch to `SSAO2RenderingPipeline` only when stationary** — SSAO is expensive; only compute it on frames where the camera hasn't moved
-- [ ] **Reduce post-process chain** — audit all active post-processes and disable any that are not visually essential
-- [ ] **Use `FastBuildLevelExtension`** for terrain — Babylon's groundMesh with subdivisions scales badly; prefer a low-subdivision ground with a normal map for detail illusion
-- [ ] **Enable `scene.blockMaterialDirtyMechanism`** during bulk operations — prevents redundant material state recomputation when spawning many objects; re-enable afterward
-- [ ] **Use `scene.getActiveMeshes().data.length` as a real-time budget gauge** — log this each second during testing; target < 300 active meshes per frame
-- [ ] **Enable WebGL2 / WebGPU** — ensure the engine is initialized with `{ antialias: false }` and forced to WebGL2 for instancing/compute shader support
+- [x] **Disable antialiasing** -- `antialias: false` in engine init; reduces fragment shader cost
+- [x] **Disable per-frame pointer picking** -- `scene.constantlyUpdateMeshUnderPointer = false`, `scene.skipPointerMovePicking = true`; eliminates expensive per-move raycasts
+- [x] **Pointer pick predicate** -- `scene.pointerDownPredicate` filters to pickable+enabled+visible meshes only
+- [x] **Octree spatial partitioning** -- `scene.createOrUpdateSelectionOctree(64, 4)` for faster frustum culling
+- [x] **Reduced tessellation** -- lowered polygon counts on procedural meshes (rocks 6→4, bushes 8→4, pine cones 8→5, oak canopy 4→3, barrel 10→6, roof cylinders 8→5)
+- [x] **Enhanced perf overlay** -- shows FPS, active/total meshes, draw calls, material count
+- [ ] **Use `DefaultRenderingPipeline` sparingly** -- disable bloom and DOF by default (not currently used)
+- [ ] **SSAO only when stationary** -- expensive; skip when camera moves (not currently used)
 
 ---
 
-## Phase 7 — NPC & Simulation Optimization
+## Phase 7 -- NPC & Simulation Optimization
 *AI and NPC updates are often CPU bottlenecks.*
 
-- [ ] **Throttle NPC AI ticks** — NPCs beyond 20 units update their pathfinding every 500ms instead of every frame
-- [ ] **Cap simultaneous pathfinding queries** — allow at most 3 NPCs to recompute paths per frame; queue the rest
-- [ ] **Use simplified collision avoidance at distance** — nearby NPCs use full physics avoidance; distant NPCs use a cheap grid-based repulsion
-- [ ] **Batch NPC state updates** — consolidate all NPC state machine ticks into a single `scene.registerBeforeRender` callback with a frame budget (e.g. max 2ms per frame)
-- [ ] **Limit visible NPC count** — cap simultaneous rendered NPCs at a configurable `MAX_VISIBLE_NPCS` (suggest 15–20); beyond that, NPCs are represented by a name marker only
-- [ ] **Skip NPC animation blending at distance** — animation cross-fades are expensive; snap to target animation immediately for NPCs beyond 40 units
+- [ ] **Throttle NPC AI ticks by distance** -- NPCs beyond 20u update every 500ms instead of 200ms
+- [ ] **Cap simultaneous pathfinding queries** -- max 3 NPCs recompute paths per frame
+- [ ] **Simplified collision at distance** -- grid-based repulsion for distant NPCs
+- [ ] **Batch NPC state updates** -- single `registerBeforeRender` with frame budget (max 2ms)
+- [ ] **Limit visible NPC count** -- cap at `MAX_VISIBLE_NPCS` (15-20); beyond = name marker only
+- [ ] **Skip NPC animation blending at distance** -- snap to target animation at >40u
+- [x] **NPC model caching** -- load each model URL once, cache template, clone via `instantiateHierarchy` for subsequent NPCs (was: 100 separate `ImportMeshAsync` calls)
 
 ---
 
-## Phase 8 — Settlement Scene Isolation
+## Phase 8 -- Settlement Scene Isolation
 *Last resort if the open world approach is fundamentally too heavy.*
 
-- [ ] **Design settlement "portal" system** — each settlement has an invisible trigger zone; crossing it initiates a scene transition
-- [ ] **Implement `SceneManager`** — manages loading/unloading of the overworld scene and individual settlement scenes; only one scene is fully active at a time
-- [ ] **Overworld scene during settlement visit** — suspend (not dispose) the overworld scene: pause render loop, freeze all meshes, stop physics; resume on exit
-- [ ] **Settlement scenes are self-contained** — each settlement scene loads only its own buildings, NPCs, and assets; re-uses shared materials via `SharedMaterial` references
-- [ ] **Use `Scene.createDefaultCamera` with culling mask** — settlement scene camera only renders settlement layer; overworld camera only renders overworld layer; no overlap
-- [ ] **Persist player state across scenes** — serialize player position, inventory, quest state to a lightweight state object before transition; restore on return
-- [ ] **Transition UX** — show a loading screen or "entering [settlement name]" fade during the scene swap; target < 1 second load time for pre-cached settlement data
+- [ ] **Settlement portal system** -- invisible trigger zones initiate scene transitions
+- [ ] **`SceneManager`** -- manages loading/unloading of overworld and settlement scenes
+- [ ] **Suspend overworld during settlement visits** -- pause render, freeze meshes, stop physics
+- [ ] **Self-contained settlement scenes** -- only load own buildings, NPCs, assets
+- [ ] **Transition UX** -- loading screen / fade during scene swap (<1s target)
 
 ---
 
 ## Measurement & Profiling
-*Cannot optimize what you cannot measure.*
 
-- [ ] **Add FPS overlay** — display `engine.getFps().toFixed()` in a corner HUD element; always visible during development
-- [ ] **Add active mesh counter** — display `scene.getActiveMeshes().length` alongside FPS
-- [ ] **Use Babylon Inspector** — `scene.debugLayer.show()` in dev mode; profile draw calls, material counts, and texture sizes in the Statistics tab
-- [ ] **Add frame time logging** — log slow frames (> 33ms) to console with a breakdown: `scene.onAfterRenderObservable`
-- [ ] **Profile before each phase** — record baseline FPS/draw call count before starting each phase; record after; track gains
+- [x] **FPS overlay** -- displays `engine.getFps()` in corner HUD
+- [x] **Active mesh counter** -- displays `scene.getActiveMeshes().length` alongside FPS
+- [ ] **Use Babylon Inspector** -- `scene.debugLayer.show()` in dev mode
+- [ ] **Add frame time logging** -- log slow frames (>33ms) with breakdown
+- [ ] **Profile before each phase** -- record baseline FPS/draw calls before and after
 
 ---
 
-## Priority Order (Recommended Start)
+## Priority Order (Recommended Next Steps)
 
-| Priority | Item | Expected Gain |
-|----------|------|--------------|
-| 1 | Freeze world matrices on static meshes | Medium |
-| 2 | Instanced rendering for trees/buildings | High |
-| 3 | `setEnabled(false)` beyond chunk radius | High |
-| 4 | Shadow map size + caster reduction | Medium |
-| 5 | LOD for buildings and characters | High |
-| 6 | NPC AI throttling | Medium |
-| 7 | Hardware scaling level | Medium |
-| 8 | Texture compression (KTX2) | Low-Medium |
-| 9 | Settlement scene isolation | High (if needed) |
+| Priority | Item | Expected Gain | Status |
+|----------|------|--------------|--------|
+| 1 | Freeze world matrices on static meshes | Medium | DONE |
+| 2 | Throttle render-loop NPC updates | High | DONE |
+| 3 | Engine settings (scaling, autoClear, etc.) | Medium | DONE |
+| 4 | Block material dirty during bulk ops | Medium | DONE |
+| 5 | FPS/mesh counter overlay | - | DONE |
+| 6 | Spatial chunk system (`setEnabled(false)`) | High | DONE |
+| 7 | NPC model caching (load once, clone) | High | DONE |
+| 8 | LOD for nature, buildings, NPCs | High | DONE |
+| 9 | Material sharing + freezing | High | DONE |
+| 10 | Progressive scene loading | Medium | DONE |
+| 11 | Rendering pipeline (antialias, octree, tessellation) | Medium | DONE |
+| 12 | Texture compression (KTX2) | Low-Medium | Future |
+| 13 | Settlement scene isolation | High (if needed) | Future |

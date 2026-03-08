@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 using Insimul.Data;
 
 namespace Insimul.World
@@ -8,11 +9,26 @@ namespace Insimul.World
     /// When a building has a modelAssetKey, the corresponding bundled GLTF/GLB is loaded
     /// via Resources.Load (assets must be in Assets/Resources/). Falls back to procedural
     /// cube geometry when no model is available.
+    /// Uses shared material cache and LOD groups for performance.
     /// </summary>
     public class ProceduralBuildingGenerator : MonoBehaviour
     {
         public Color baseColor = new Color({{BASE_COLOR_R}}f, {{BASE_COLOR_G}}f, {{BASE_COLOR_B}}f);
         public Color roofColor = new Color({{ROOF_COLOR_R}}f, {{ROOF_COLOR_G}}f, {{ROOF_COLOR_B}}f);
+
+        [Tooltip("Distance at which buildings are culled")]
+        public float lodCullDistance = 150f;
+
+        private Dictionary<string, Material> _materialCache = new Dictionary<string, Material>();
+
+        private Material GetSharedMaterial(string key, Color color)
+        {
+            if (_materialCache.TryGetValue(key, out var cached)) return cached;
+            var mat = new Material(Shader.Find("Standard"));
+            mat.color = color;
+            _materialCache[key] = mat;
+            return mat;
+        }
 
         public void GenerateFromData(InsimulWorldIR worldData)
         {
@@ -34,6 +50,7 @@ namespace Insimul.World
                         var go = Instantiate(prefab, pos, Quaternion.Euler(0, bld.rotation, 0), transform);
                         go.name = $"Building_{bld.id}";
                         go.tag = "Building";
+                        go.isStatic = true;
                         loadedCount++;
                         placed = true;
                     }
@@ -63,11 +80,11 @@ namespace Insimul.World
             building.transform.rotation = Quaternion.Euler(0, rotation, 0);
             building.transform.SetParent(transform);
 
+            // Shared material instead of per-building allocation
             var renderer = building.GetComponent<Renderer>();
             if (renderer != null)
             {
-                renderer.material = new Material(Shader.Find("Standard"));
-                renderer.material.color = baseColor;
+                renderer.sharedMaterial = GetSharedMaterial("wall", baseColor);
             }
 
             // Roof
@@ -81,9 +98,20 @@ namespace Insimul.World
             var roofRenderer = roof.GetComponent<Renderer>();
             if (roofRenderer != null)
             {
-                roofRenderer.material = new Material(Shader.Find("Standard"));
-                roofRenderer.material.color = roofColor;
+                roofRenderer.sharedMaterial = GetSharedMaterial("roof", roofColor);
             }
+
+            // Mark as static for batching and add LOD culling
+            building.isStatic = true;
+            roof.isStatic = true;
+
+            var lodGroup = building.AddComponent<LODGroup>();
+            var renderers = building.GetComponentsInChildren<Renderer>();
+            lodGroup.SetLODs(new LOD[] {
+                new LOD(lodCullDistance / 1000f, renderers),
+                new LOD(0, new Renderer[0])
+            });
+            lodGroup.RecalculateBounds();
         }
     }
 }

@@ -43,6 +43,10 @@ export class ProceduralBuildingGenerator {
   private wallTexture: Texture | null = null;
   private roofTexture: Texture | null = null;
 
+  // Shared material cache: avoids creating duplicate materials per building.
+  // Key format: "wall_{styleHash}", "roof_{styleHash}", "window_{styleHash}", etc.
+  private materialCache: Map<string, StandardMaterial> = new Map();
+
   // World-level model overrides by logical role (e.g. 'default', 'smallResidence')
   private roleModelPrototypes: Map<string, Mesh> = new Map();
   // Per-role scale hints from asset metadata (overrides automatic unit detection)
@@ -359,6 +363,9 @@ export class ProceduralBuildingGenerator {
     parent.position = spec.position.clone();
     parent.rotation.y = spec.rotation;
 
+    // LOD: hide building entirely at 150+ units from camera
+    parent.addLODLevel(150, null);
+
     // Prefer world-level overrides by logical role, then fall back to
     // style-based assetSet models, and finally to primitive geometry.
     const role = this.getRoleForSpec(spec);
@@ -404,8 +411,15 @@ export class ProceduralBuildingGenerator {
         instance.setEnabled(true);
         instance.getChildMeshes().forEach(m => m.setEnabled(true));
         this.adjustModelToSpec(instance as Mesh, spec, role || undefined);
+
+        // Freeze world matrices on all building child meshes (static geometry)
+        instance.getChildMeshes().forEach(m => {
+          m.freezeWorldMatrix();
+          m.alwaysSelectAsActiveMesh = false;
+        });
       }
       this.buildingMeshes.set(spec.id, parent);
+      parent.freezeWorldMatrix();
       return parent;
     }
 
@@ -439,6 +453,14 @@ export class ProceduralBuildingGenerator {
     createDebugLabel(this.scene, parent, `BUILDING: ${label}`, (spec.floors * 4) + 6);
 
     this.buildingMeshes.set(spec.id, parent);
+
+    // Freeze world matrices on all procedural building parts (static geometry)
+    parent.getChildMeshes().forEach(m => {
+      m.freezeWorldMatrix();
+      m.alwaysSelectAsActiveMesh = false;
+    });
+    parent.freezeWorldMatrix();
+
     return parent;
   }
 
@@ -487,6 +509,19 @@ export class ProceduralBuildingGenerator {
   }
 
   /**
+   * Get or create a shared material by cache key.
+   * Avoids creating hundreds of duplicate materials for identical styles.
+   */
+  private getSharedMaterial(key: string, create: () => StandardMaterial): StandardMaterial {
+    let mat = this.materialCache.get(key);
+    if (!mat) {
+      mat = create();
+      this.materialCache.set(key, mat);
+    }
+    return mat;
+  }
+
+  /**
    * Create main building structure
    */
   private createBuildingStructure(spec: BuildingSpec): Mesh {
@@ -505,25 +540,28 @@ export class ProceduralBuildingGenerator {
 
     building.position.y = totalHeight / 2;
 
-    // Create material
-    const material = new StandardMaterial(`building_mat_${spec.id}`, this.scene);
-    material.diffuseColor = spec.style.baseColor;
-    material.specularColor = new Color3(0.1, 0.1, 0.1);
+    // Shared material keyed by style + material type + wall texture presence
+    const matKey = `wall_${spec.style.name}_${spec.style.materialType}_${this.wallTexture ? 'tex' : 'notex'}`;
+    const material = this.getSharedMaterial(matKey, () => {
+      const m = new StandardMaterial(matKey, this.scene);
+      m.diffuseColor = spec.style.baseColor;
+      m.specularColor = new Color3(0.1, 0.1, 0.1);
 
-    // Apply wall texture from asset collection if available, otherwise tint by material type
-    if (this.wallTexture) {
-      const wallTex = this.wallTexture.clone();
-      if (wallTex) {
-        wallTex.uScale = 2;
-        wallTex.vScale = 2;
-        material.diffuseTexture = wallTex;
-        material.diffuseColor = new Color3(1, 1, 1); // Don't tint the texture
+      if (this.wallTexture) {
+        const wallTex = this.wallTexture.clone();
+        if (wallTex) {
+          wallTex.uScale = 2;
+          wallTex.vScale = 2;
+          m.diffuseTexture = wallTex;
+          m.diffuseColor = new Color3(1, 1, 1);
+        }
+      } else if (spec.style.materialType === 'brick') {
+        m.diffuseColor = spec.style.baseColor.scale(0.9);
+      } else if (spec.style.materialType === 'stone') {
+        m.diffuseColor = spec.style.baseColor.scale(0.95);
       }
-    } else if (spec.style.materialType === 'brick') {
-      material.diffuseColor = spec.style.baseColor.scale(0.9);
-    } else if (spec.style.materialType === 'stone') {
-      material.diffuseColor = spec.style.baseColor.scale(0.95);
-    }
+      return m;
+    });
 
     building.material = material;
     building.checkCollisions = true;
@@ -542,14 +580,14 @@ export class ProceduralBuildingGenerator {
     let roof: Mesh;
 
     if (spec.style.architectureStyle === 'medieval' || spec.style.architectureStyle === 'rustic') {
-      // Peaked hip roof — higher tessellation for smoother light distribution
+      // Peaked hip roof
       roof = MeshBuilder.CreateCylinder(
         `roof_${spec.id}`,
         {
           diameterTop: 0,
           diameterBottom: Math.max(spec.width, spec.depth) * 1.2,
           height: roofHeight,
-          tessellation: 8
+          tessellation: 5
         },
         this.scene
       );
@@ -573,14 +611,14 @@ export class ProceduralBuildingGenerator {
         this.scene
       );
     } else {
-      // Cone roof — higher tessellation for smoother appearance
+      // Cone roof
       roof = MeshBuilder.CreateCylinder(
         `roof_${spec.id}`,
         {
           diameterTop: 1,
           diameterBottom: Math.max(spec.width, spec.depth) * 1.1,
           height: roofHeight,
-          tessellation: 8
+          tessellation: 5
         },
         this.scene
       );
@@ -588,23 +626,26 @@ export class ProceduralBuildingGenerator {
 
     roof.position.y = totalHeight + roofHeight / 2;
 
-    // Roof material — apply roof texture if available from asset collection
-    const roofMat = new StandardMaterial(`roof_mat_${spec.id}`, this.scene);
-    if (this.roofTexture) {
-      const roofTex = this.roofTexture.clone();
-      if (roofTex) {
-        roofTex.uScale = 2;
-        roofTex.vScale = 2;
-        roofMat.diffuseTexture = roofTex;
-        roofMat.diffuseColor = new Color3(1, 1, 1);
+    // Shared roof material
+    const roofMatKey = `roof_${spec.style.name}_${this.roofTexture ? 'tex' : 'notex'}`;
+    const roofMat = this.getSharedMaterial(roofMatKey, () => {
+      const m = new StandardMaterial(roofMatKey, this.scene);
+      if (this.roofTexture) {
+        const roofTex = this.roofTexture.clone();
+        if (roofTex) {
+          roofTex.uScale = 2;
+          roofTex.vScale = 2;
+          m.diffuseTexture = roofTex;
+          m.diffuseColor = new Color3(1, 1, 1);
+        }
+      } else {
+        const rc = spec.style.roofColor || new Color3(0.3, 0.2, 0.15);
+        m.diffuseColor = rc;
+        m.emissiveColor = rc.scale(0.35);
       }
-    } else {
-      const rc = spec.style.roofColor || new Color3(0.3, 0.2, 0.15);
-      roofMat.diffuseColor = rc;
-      // Strong emissive tint so roof color is always visible under any lighting
-      roofMat.emissiveColor = rc.scale(0.35);
-    }
-    roofMat.specularColor = Color3.Black();
+      m.specularColor = Color3.Black();
+      return m;
+    });
     roof.material = roofMat;
 
     return roof;
@@ -619,10 +660,14 @@ export class ProceduralBuildingGenerator {
     const windowHeight = 2;
     const windowsPerFloor = Math.floor(spec.width / 3);
 
-    const windowMat = new StandardMaterial(`window_mat_${spec.id}`, this.scene);
-    windowMat.diffuseColor = spec.style.windowColor;
-    windowMat.emissiveColor = spec.style.windowColor.scale(0.3);
-    windowMat.alpha = 0.7;
+    const windowMatKey = `window_${spec.style.name}`;
+    const windowMat = this.getSharedMaterial(windowMatKey, () => {
+      const m = new StandardMaterial(windowMatKey, this.scene);
+      m.diffuseColor = spec.style.windowColor;
+      m.emissiveColor = spec.style.windowColor.scale(0.3);
+      m.alpha = 0.7;
+      return m;
+    });
 
     for (let floor = 0; floor < spec.floors; floor++) {
       const y = floor * floorHeight + floorHeight / 2;
@@ -672,9 +717,13 @@ export class ProceduralBuildingGenerator {
     door.position = new Vector3(0, doorHeight / 2, spec.depth / 2 + 0.06);
     door.parent = building;
 
-    const doorMat = new StandardMaterial(`door_mat_${spec.id}`, this.scene);
-    doorMat.diffuseColor = spec.style.doorColor;
-    doorMat.specularColor = new Color3(0.2, 0.2, 0.2);
+    const doorMatKey = `door_${spec.style.name}`;
+    const doorMat = this.getSharedMaterial(doorMatKey, () => {
+      const m = new StandardMaterial(doorMatKey, this.scene);
+      m.diffuseColor = spec.style.doorColor;
+      m.specularColor = new Color3(0.2, 0.2, 0.2);
+      return m;
+    });
     door.material = doorMat;
   }
 
@@ -698,8 +747,12 @@ export class ProceduralBuildingGenerator {
       -spec.depth / 4
     );
 
-    const chimneyMat = new StandardMaterial(`chimney_mat_${spec.id}`, this.scene);
-    chimneyMat.diffuseColor = spec.style.baseColor.scale(0.7);
+    const chimneyMatKey = `chimney_${spec.style.name}`;
+    const chimneyMat = this.getSharedMaterial(chimneyMatKey, () => {
+      const m = new StandardMaterial(chimneyMatKey, this.scene);
+      m.diffuseColor = spec.style.baseColor.scale(0.7);
+      return m;
+    });
     chimney.material = chimneyMat;
 
     return chimney;
@@ -721,8 +774,12 @@ export class ProceduralBuildingGenerator {
 
     balcony.position = new Vector3(0, balconyY, spec.depth / 2 + 1);
 
-    const balconyMat = new StandardMaterial(`balcony_mat_${spec.id}`, this.scene);
-    balconyMat.diffuseColor = spec.style.baseColor.scale(0.8);
+    const balconyMatKey = `balcony_${spec.style.name}`;
+    const balconyMat = this.getSharedMaterial(balconyMatKey, () => {
+      const m = new StandardMaterial(balconyMatKey, this.scene);
+      m.diffuseColor = spec.style.baseColor.scale(0.8);
+      return m;
+    });
     balcony.material = balconyMat;
 
     return balcony;

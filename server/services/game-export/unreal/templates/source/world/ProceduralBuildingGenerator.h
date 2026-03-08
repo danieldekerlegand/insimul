@@ -21,4 +21,13 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
     FLinearColor RoofColor = FLinearColor({{ROOF_COLOR_R}}, {{ROOF_COLOR_G}}, {{ROOF_COLOR_B}});
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Performance")
+    float LODCullDistance = 15000.0f;
+
+private:
+    UPROPERTY()
+    TMap<FString, UMaterialInstanceDynamic*> MaterialCache;
+
+    UMaterialInstanceDynamic* GetSharedMaterial(const FString& Key, UMaterialInterface* Parent, FLinearColor Color);
 };

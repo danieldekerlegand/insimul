@@ -442,7 +442,12 @@ export class ProceduralNatureGenerator {
             treeRoot.rotation.y = Math.random() * Math.PI * 2;
             treeRoot.scaling = new Vector3(scale, scale, scale);
             treeRoot.setEnabled(true);
-            treeRoot.getChildMeshes().forEach(m => m.setEnabled(true));
+            treeRoot.getChildMeshes().forEach(m => {
+              m.setEnabled(true);
+              m.isPickable = false;
+              m.freezeWorldMatrix();
+            });
+            if (treeRoot instanceof Mesh) treeRoot.freezeWorldMatrix();
             this.treeMeshes.push(treeRoot as AbstractMesh);
           }
         } else if (chosenTemplate.getTotalVertices() > 0) {
@@ -451,6 +456,8 @@ export class ProceduralNatureGenerator {
           tree.position = position;
           tree.rotation.y = Math.random() * Math.PI * 2;
           tree.scaling = new Vector3(scale, scale, scale);
+          tree.isPickable = false;
+          tree.freezeWorldMatrix();
           this.treeMeshes.push(tree);
         } else {
           continue;
@@ -495,14 +502,75 @@ export class ProceduralNatureGenerator {
   }
 
   private createTree(type: 'pine' | 'oak' | 'palm' | 'dead', name: string): Mesh {
+    let tree: Mesh;
     if (type === 'pine') {
-      return this.createPineTree(name);
+      tree = this.createPineTree(name);
     } else if (type === 'oak') {
-      return this.createOakTree(name);
+      tree = this.createOakTree(name);
     } else if (type === 'palm') {
-      return this.createPalmTree(name);
+      tree = this.createPalmTree(name);
     } else {
-      return this.createDeadTree(name);
+      tree = this.createDeadTree(name);
+    }
+
+    // Add LOD: at medium distance use a simple low-poly proxy,
+    // at far distance hide entirely. Instances inherit LOD from source.
+    const lodMid = this.createTreeLOD(type, `${name}_lod1`);
+    if (lodMid) {
+      lodMid.setEnabled(false);
+      lodMid.isPickable = false;
+      tree.addLODLevel(50, lodMid);
+    }
+    // At 120+ units, hide tree entirely (null = cull)
+    tree.addLODLevel(120, null);
+
+    return tree;
+  }
+
+  /**
+   * Create a minimal LOD proxy for a tree type — single low-poly shape.
+   */
+  private createTreeLOD(type: 'pine' | 'oak' | 'palm' | 'dead', name: string): Mesh | null {
+    const mat = new StandardMaterial(`${name}_mat`, this.scene);
+    mat.specularColor = Color3.Black();
+
+    if (type === 'pine') {
+      mat.diffuseColor = new Color3(0.15, 0.4, 0.15);
+      const lod = MeshBuilder.CreateCylinder(name, {
+        height: 10, diameterTop: 0, diameterBottom: 3, tessellation: 4
+      }, this.scene);
+      lod.position.y = 5;
+      lod.bakeCurrentTransformIntoVertices();
+      lod.material = mat;
+      return lod;
+    } else if (type === 'oak') {
+      mat.diffuseColor = new Color3(0.2, 0.5, 0.15);
+      const lod = MeshBuilder.CreateSphere(name, {
+        diameter: 4, segments: 3
+      }, this.scene);
+      lod.position.y = 6;
+      lod.scaling.y = 0.7;
+      lod.bakeCurrentTransformIntoVertices();
+      lod.material = mat;
+      return lod;
+    } else if (type === 'palm') {
+      mat.diffuseColor = new Color3(0.2, 0.6, 0.2);
+      const lod = MeshBuilder.CreateCylinder(name, {
+        height: 10, diameterTop: 0.3, diameterBottom: 0.5, tessellation: 4
+      }, this.scene);
+      lod.position.y = 5;
+      lod.bakeCurrentTransformIntoVertices();
+      lod.material = mat;
+      return lod;
+    } else {
+      mat.diffuseColor = new Color3(0.3, 0.25, 0.2);
+      const lod = MeshBuilder.CreateCylinder(name, {
+        height: 7, diameterTop: 0.2, diameterBottom: 0.5, tessellation: 4
+      }, this.scene);
+      lod.position.y = 3.5;
+      lod.bakeCurrentTransformIntoVertices();
+      lod.material = mat;
+      return lod;
     }
   }
 
@@ -529,7 +597,7 @@ export class ProceduralNatureGenerator {
     for (let i = 0; i < 3; i++) {
       const cone = MeshBuilder.CreateCylinder(
         `${name}_foliage_${i}`,
-        { height: 4, diameterTop: 0, diameterBottom: 4 - i * 0.5, tessellation: 8 },
+        { height: 4, diameterTop: 0, diameterBottom: 4 - i * 0.5, tessellation: 5 },
         this.scene
       );
       cone.position.y = 6 + i * 2.5;
@@ -571,7 +639,7 @@ export class ProceduralNatureGenerator {
     cpDefs.forEach((cp, i) => {
       const part = MeshBuilder.CreateSphere(
         `${name}_canopy_${i}`,
-        { diameter: cp.d, segments: 4 },
+        { diameter: cp.d, segments: 3 },
         this.scene
       );
       part.position = new Vector3(cp.x, cp.y, cp.z);
@@ -695,7 +763,12 @@ export class ProceduralNatureGenerator {
             rockRoot.scaling = new Vector3(scaleVariation, scaleVariation, scaleVariation);
             rockRoot.rotation.y = Math.random() * Math.PI * 2;
             rockRoot.setEnabled(true);
-            rockRoot.getChildMeshes().forEach(m => m.setEnabled(true));
+            rockRoot.getChildMeshes().forEach(m => {
+              m.setEnabled(true);
+              m.isPickable = false;
+              m.freezeWorldMatrix();
+            });
+            if (rockRoot instanceof Mesh) rockRoot.freezeWorldMatrix();
             this.rockMeshes.push(rockRoot as AbstractMesh);
           }
         } else {
@@ -705,6 +778,8 @@ export class ProceduralNatureGenerator {
           rock.position = new Vector3(x, baseHeight, z);
           rock.scaling = new Vector3(scaleVariation, scaleVariation, scaleVariation);
           rock.rotation.y = Math.random() * Math.PI * 2;
+          rock.isPickable = false;
+          rock.freezeWorldMatrix();
           this.rockMeshes.push(rock);
         }
       }
@@ -716,14 +791,17 @@ export class ProceduralNatureGenerator {
     rockMat.diffuseColor = biome.rockColor;
     rockMat.specularColor = new Color3(0.1, 0.1, 0.1);
 
-    // Create template rock and disable it
+    // Create template rock and disable it (low segments — rocks are irregular anyway)
     const rockTemplate = MeshBuilder.CreateSphere(
       'rock_template',
-      { diameter: 1, segments: 6 },
+      { diameter: 1, segments: 4 },
       this.scene
     );
     rockTemplate.material = rockMat;
     rockTemplate.setEnabled(false);
+
+    // LOD: hide rocks entirely at 80+ units (instances inherit)
+    rockTemplate.addLODLevel(80, null);
 
     for (let i = 0; i < count; i++) {
       const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
@@ -742,6 +820,8 @@ export class ProceduralNatureGenerator {
         scale
       );
       rock.rotation.y = Math.random() * Math.PI * 2;
+      rock.isPickable = false;
+      rock.freezeWorldMatrix();
 
       // Debug label on first procedural rock only
       if (i === 0) {
@@ -786,7 +866,12 @@ export class ProceduralNatureGenerator {
             shrubRoot.scaling = new Vector3(scaleVariation, scaleVariation, scaleVariation);
             shrubRoot.rotation.y = Math.random() * Math.PI * 2;
             shrubRoot.setEnabled(true);
-            shrubRoot.getChildMeshes().forEach(m => m.setEnabled(true));
+            shrubRoot.getChildMeshes().forEach(m => {
+              m.setEnabled(true);
+              m.isPickable = false;
+              m.freezeWorldMatrix();
+            });
+            if (shrubRoot instanceof Mesh) shrubRoot.freezeWorldMatrix();
             this.vegetationMeshes.push(shrubRoot as AbstractMesh);
           }
         } else {
@@ -796,6 +881,8 @@ export class ProceduralNatureGenerator {
           shrub.position = new Vector3(x, baseHeight, z);
           shrub.scaling = new Vector3(scaleVariation, scaleVariation, scaleVariation);
           shrub.rotation.y = Math.random() * Math.PI * 2;
+          shrub.isPickable = false;
+          shrub.freezeWorldMatrix();
           this.vegetationMeshes.push(shrub);
         }
       }
@@ -809,11 +896,13 @@ export class ProceduralNatureGenerator {
     // Create template bush and disable it
     const bushTemplate = MeshBuilder.CreateSphere(
       'bush_template',
-      { diameter: 1, segments: 8 },
+      { diameter: 1, segments: 4 },
       this.scene
     );
     bushTemplate.material = bushMat;
     bushTemplate.setEnabled(false);
+    // LOD: hide bushes at 60+ units (instances inherit)
+    bushTemplate.addLODLevel(60, null);
 
     for (let i = 0; i < count; i++) {
       const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
@@ -824,6 +913,8 @@ export class ProceduralNatureGenerator {
       const bush = bushTemplate.createInstance(`bush_${i}`);
       bush.position = new Vector3(x, baseHeight + size / 2, z);
       bush.scaling = new Vector3(size, size * (0.6 + Math.random() * 0.3), size);
+      bush.isPickable = false;
+      bush.freezeWorldMatrix();
 
       // Debug label on first procedural shrub only
       if (i === 0) {
@@ -884,6 +975,9 @@ export class ProceduralNatureGenerator {
     grassTemplate.material = grassMat;
     grassTemplate.setEnabled(false);
 
+    // LOD: hide grass at 30+ units (tiny detail, instances inherit)
+    grassTemplate.addLODLevel(30, null);
+
     for (let i = 0; i < adjustedDensity; i++) {
       const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
       const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
@@ -896,6 +990,8 @@ export class ProceduralNatureGenerator {
 
       const scaleVar = 0.3 + Math.random() * 0.3;
       grass.scaling = new Vector3(scaleVar, scaleVar, scaleVar);
+      grass.isPickable = false;
+      grass.freezeWorldMatrix();
 
       // Debug label on first grass instance only
       if (i === 0) {
@@ -949,6 +1045,8 @@ export class ProceduralNatureGenerator {
       // Merge with multiMaterial=false — single material so createInstance works
       const merged = this.mergePartsSimple(`flower_template_${idx}`, [stem, head], flowerMat);
       merged.setEnabled(false);
+      // LOD: hide flowers at 40+ units (small detail, instances inherit)
+      merged.addLODLevel(40, null);
       return merged;
     });
 
@@ -965,6 +1063,8 @@ export class ProceduralNatureGenerator {
       // Small random scale variation
       const s = 0.8 + Math.random() * 0.5;
       flower.scaling = new Vector3(s, s, s);
+      flower.isPickable = false;
+      flower.freezeWorldMatrix();
 
       // Debug label on first flower instance only
       if (i === 0) {

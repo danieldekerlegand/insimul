@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-07T11:26:52.007Z",
+  "lastUpdated": "2026-03-08T01:43:18.653Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -194,7 +194,7 @@
     {
       "path": "client/src/components/3DGame/ProceduralBuildingGenerator.ts",
       "description": "Procedural building placement and geometry. Changes affect world-generator templates.",
-      "hash": "9796224e011dc9c6398504e0c4123896637829abe26c9fd533d69609fcf4db04",
+      "hash": "08dbdaf9451358baef2a7c4c6bc605310cc949a3556e532da15d7f8e20aa7803",
       "engineMappings": [
         {
           "engine": "unreal",

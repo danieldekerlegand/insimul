@@ -255,6 +255,9 @@ export class RoadGenerator {
         mat.emissiveColor = this.roadColor;
       }
       road.material = mat;
+      // LOD: hide road at 150+ units
+      road.addLODLevel(150, null);
+      road.freezeWorldMatrix();
 
       return road;
     } catch (err) {

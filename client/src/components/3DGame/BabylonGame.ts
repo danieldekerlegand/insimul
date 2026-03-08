@@ -51,6 +51,7 @@ import { ProceduralNatureGenerator, BiomeStyle } from "@/components/3DGame/Proce
 import { RoadGenerator } from "@/components/3DGame/RoadGenerator.ts";
 import { WorldScaleManager, ScaledSettlement } from "@/components/3DGame/WorldScaleManager.ts";
 import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay.ts";
+import { ChunkManager } from "@/components/3DGame/ChunkManager.ts";
 import { BabylonMinimap } from "@/components/3DGame/BabylonMinimap.ts";
 import { BabylonInventory, InventoryItem } from "@/components/3DGame/BabylonInventory.ts";
 import { BabylonShopPanel, ShopTransaction } from "@/components/3DGame/BabylonShopPanel.ts";
@@ -329,6 +330,8 @@ export class BabylonGame {
   private selectedNPCId: string | null = null;
   private conversationNPCId: string | null = null;
   private preConversationCameraMode: CameraMode | null = null;
+  // NPC model cache: load each model URL once, clone for subsequent NPCs
+  private npcModelCache: Map<string, { root: Mesh; animationGroups: any[] }> = new Map();
 
   // Settlements and world
   private settlementMeshes: Map<string, Mesh> = new Map();
@@ -413,6 +416,9 @@ export class BabylonGame {
   private objectModelOriginalHeights: Map<string, number> = new Map();
   private worldPropMeshes: Mesh[] = [];
 
+  // Shared material cache for furniture props (avoids duplicate materials)
+  private furnitureMaterialCache: Map<string, StandardMaterial> = new Map();
+
   // Audio
   private zoneEnterSound: Sound | null = null;
   private zoneExitSound: Sound | null = null;
@@ -420,6 +426,9 @@ export class BabylonGame {
 
   // Theme
   private worldTheme: WorldVisualTheme;
+
+  // Spatial chunk system for distance culling
+  private chunkManager: ChunkManager | null = null;
 
   // Phase 4: Building interiors
   private interiorGenerator: BuildingInteriorGenerator | null = null;
@@ -470,6 +479,11 @@ export class BabylonGame {
       await this.initializeScene();
       console.log('[BabylonGame] Step 3/12: initializeSystems...');
       await this.initializeSystems();
+
+      // Start rendering early so player sees terrain + sky while assets load
+      console.log('[BabylonGame] Starting render loop (progressive loading)...');
+      this.startGameLoop();
+
       console.log('[BabylonGame] Step 4/12: loadWorldData...');
       await this.loadWorldData();
       console.log('[BabylonGame] Step 5/12: generateProceduralWorld...');
@@ -490,8 +504,6 @@ export class BabylonGame {
       this.setupPointerHandlers();
       console.log('[BabylonGame] Step 11/12: setupUpdateLoop...');
       this.setupUpdateLoop();
-      console.log('[BabylonGame] Step 12/12: startGameLoop...');
-      this.startGameLoop();
 
       // Start ambient conversation system
       if (this.ambientConversationManager) {
@@ -525,6 +537,12 @@ export class BabylonGame {
     this.disposeSystems();
     this.disposeScene();
     this.disposeEngine();
+
+    // Remove FPS overlay
+    if (this._perfDiv) {
+      this._perfDiv.remove();
+      this._perfDiv = null;
+    }
   }
 
   // ============================================================================
@@ -532,10 +550,14 @@ export class BabylonGame {
   // ============================================================================
 
   private async initializeEngine(): Promise<void> {
-    this.engine = new Engine(this.canvas, true, {
-      preserveDrawingBuffer: true,
-      stencil: true
+    this.engine = new Engine(this.canvas, false, {
+      preserveDrawingBuffer: false,
+      stencil: true,
+      antialias: false
     });
+
+    // Render at 67% resolution for significant GPU savings (barely visible)
+    this.engine.setHardwareScalingLevel(1.5);
 
     // Handle resize
     this.resizeHandler = () => {
@@ -574,6 +596,23 @@ export class BabylonGame {
     scene.clearColor = new Color4(0.75, 0.75, 0.75, 1);
     scene.ambientColor = new Color3(1, 1, 1);
     scene.collisionsEnabled = true;
+
+    // Performance: skip unnecessary per-frame clears when sky dome covers background
+    scene.autoClear = false;
+    scene.autoClearDepthAndStencil = true;
+
+    // Performance: enable frustum culling (default but ensure not disabled)
+    scene.skipFrustumClipping = false;
+
+    // Performance: disable constant pointer-move picking (expensive per-frame raycast)
+    scene.constantlyUpdateMeshUnderPointer = false;
+    // Only pick on pointer down, not on move
+    scene.skipPointerMovePicking = true;
+
+    // Performance: pointer picking should only test pickable meshes
+    scene.pointerDownPredicate = (mesh) => {
+      return mesh.isPickable && mesh.isEnabled() && mesh.isVisible;
+    };
 
     // Lighting
     const hemiLight = new HemisphericLight("hemi-light", new Vector3(0, 1, 0), scene);
@@ -1489,6 +1528,9 @@ export class BabylonGame {
 
     const sampleHeight = (x: number, z: number) => this.projectToGround(x, z).y;
 
+    // Block material dirty mechanism during bulk world generation
+    scene.blockMaterialDirtyMechanism = true;
+
     // Clear any previously generated world meshes
     this.disposeWorld();
 
@@ -2142,6 +2184,12 @@ export class BabylonGame {
 
     console.log('Procedural world generation complete!');
 
+    // Re-enable material dirty mechanism after bulk generation
+    scene.blockMaterialDirtyMechanism = false;
+
+    // Performance: freeze world matrices and optimize static meshes
+    this.optimizeStaticMeshes();
+
     // Diagnostic: find any abnormally large meshes in the scene
     if (this.scene) {
       for (const m of this.scene.meshes) {
@@ -2180,6 +2228,99 @@ export class BabylonGame {
 
     // Create visual zone boundaries around settlements
     this.createZoneBoundaries(boundaryData);
+  }
+
+  /**
+   * Freeze world matrices and mark non-pickable on all static meshes.
+   * Also registers them with the chunk manager for distance-based culling.
+   * Called once after world generation is complete.
+   */
+  private optimizeStaticMeshes(): void {
+    if (!this.scene) return;
+
+    // Initialize chunk manager
+    const terrainSize = this.terrainSize || 512;
+    this.chunkManager = new ChunkManager({
+      worldSize: terrainSize,
+      chunkSize: 64,
+      renderRadius: 2,
+    });
+
+    const skipNames = new Set(['ground', 'sky-dome']);
+    let frozenCount = 0;
+    let nonPickableCount = 0;
+    let chunkedCount = 0;
+
+    for (const mesh of this.scene.meshes) {
+      if (mesh.isDisposed()) continue;
+      const name = mesh.name;
+
+      // Skip ground (needed for raycasts), sky dome, player, and NPC meshes
+      if (skipNames.has(name)) continue;
+      if (name.startsWith('npc_') || name.startsWith('player')) continue;
+
+      // Identify static meshes: trees, rocks, grass, flowers, buildings,
+      // roads, settlement markers, signs, street furniture, props
+      const isStatic =
+        name.includes('tree') ||
+        name.includes('rock') ||
+        name.includes('grass') ||
+        name.includes('flower') ||
+        name.includes('shrub') ||
+        name.includes('bush') ||
+        name.includes('building') ||
+        name.includes('road') ||
+        name.includes('settlement_sign') ||
+        name.includes('street_prop') ||
+        name.includes('prop_') ||
+        name.includes('wilderness_') ||
+        name.includes('zone_boundary') ||
+        name.includes('pine') ||
+        name.includes('oak') ||
+        name.includes('palm') ||
+        name.includes('dead_tree');
+
+      if (isStatic) {
+        // Freeze world matrix - eliminates per-frame matrix recomputation
+        mesh.freezeWorldMatrix();
+        frozenCount++;
+
+        // Mark non-pickable unless it's an interactive building
+        if (!mesh.metadata?.buildingId && !mesh.metadata?.settlementId) {
+          mesh.isPickable = false;
+          nonPickableCount++;
+        }
+
+        // Ensure mesh doesn't force itself into the active list
+        mesh.alwaysSelectAsActiveMesh = false;
+
+        // Register with chunk manager for distance culling
+        // Skip child meshes of parented hierarchies (parent handles enable/disable)
+        if (!mesh.parent) {
+          this.chunkManager.registerMesh(mesh);
+          chunkedCount++;
+        }
+      }
+    }
+
+    // Freeze all materials — prevents per-frame dirty checks on material properties
+    let frozenMaterials = 0;
+    for (const material of this.scene.materials) {
+      if (material instanceof StandardMaterial) {
+        material.freeze();
+        frozenMaterials++;
+      }
+    }
+
+    // Create octree for faster frustum culling and picking.
+    // The octree spatially partitions the scene so the engine only tests
+    // nearby meshes instead of iterating all meshes per frame.
+    const octreeCapacity = 64; // meshes per octree block
+    const maxDepth = 4;
+    this.scene.createOrUpdateSelectionOctree(octreeCapacity, maxDepth);
+
+    const stats = this.chunkManager.getStats();
+    console.log(`[Perf] Optimized: ${frozenCount} meshes frozen, ${nonPickableCount} non-pickable, ${chunkedCount} chunked (${stats.totalChunks} chunks), ${frozenMaterials} materials frozen, octree built`);
   }
 
   /**
@@ -2309,39 +2450,51 @@ export class BabylonGame {
       }
     }
 
-    // Fallback to procedural primitives
+    // Fallback to procedural primitives with shared materials
     const parent = new Mesh(name, scene);
 
+    // Helper to get or create a shared furniture material
+    const getFurnMat = (key: string, create: () => StandardMaterial): StandardMaterial => {
+      let mat = this.furnitureMaterialCache.get(key);
+      if (!mat) {
+        mat = create();
+        this.furnitureMaterialCache.set(key, mat);
+      }
+      return mat;
+    };
+
     if (type === 'lamp_post' || type === 'streetlight') {
-      // Pole
       const pole = MeshBuilder.CreateCylinder(`${name}_pole`, { height: 2.5, diameter: 0.15, tessellation: 6 }, scene);
       pole.position.y = 1.25;
       pole.parent = parent;
-      const poleMat = new StandardMaterial(`${name}_pole_mat`, scene);
-      poleMat.diffuseColor = type === 'streetlight' ? new Color3(0.4, 0.4, 0.45) : new Color3(0.25, 0.2, 0.15);
-      poleMat.specularColor = Color3.Black();
-      pole.material = poleMat;
+      pole.material = getFurnMat(`furn_pole_${type}`, () => {
+        const m = new StandardMaterial(`furn_pole_${type}`, scene);
+        m.diffuseColor = type === 'streetlight' ? new Color3(0.4, 0.4, 0.45) : new Color3(0.25, 0.2, 0.15);
+        m.specularColor = Color3.Black();
+        return m;
+      });
 
-      // Lamp head
       const lamp = MeshBuilder.CreateSphere(`${name}_lamp`, { diameter: 0.4, segments: 6 }, scene);
       lamp.position.y = 2.6;
       lamp.parent = parent;
-      const lampMat = new StandardMaterial(`${name}_lamp_mat`, scene);
-      lampMat.diffuseColor = new Color3(1, 0.9, 0.6);
-      lampMat.emissiveColor = new Color3(0.4, 0.35, 0.2);
-      lamp.material = lampMat;
+      lamp.material = getFurnMat('furn_lamp_glow', () => {
+        const m = new StandardMaterial('furn_lamp_glow', scene);
+        m.diffuseColor = new Color3(1, 0.9, 0.6);
+        m.emissiveColor = new Color3(0.4, 0.35, 0.2);
+        return m;
+      });
 
     } else if (type === 'bench') {
-      // Seat
+      const seatMat = getFurnMat('furn_bench_wood', () => {
+        const m = new StandardMaterial('furn_bench_wood', scene);
+        m.diffuseColor = new Color3(0.45, 0.3, 0.2);
+        m.specularColor = Color3.Black();
+        return m;
+      });
       const seat = MeshBuilder.CreateBox(`${name}_seat`, { width: 2, height: 0.15, depth: 0.6 }, scene);
       seat.position.y = 0.5;
       seat.parent = parent;
-      const seatMat = new StandardMaterial(`${name}_seat_mat`, scene);
-      seatMat.diffuseColor = new Color3(0.45, 0.3, 0.2);
-      seatMat.specularColor = Color3.Black();
       seat.material = seatMat;
-
-      // Legs
       for (const dx of [-0.8, 0.8]) {
         const leg = MeshBuilder.CreateBox(`${name}_leg_${dx}`, { width: 0.1, height: 0.5, depth: 0.5 }, scene);
         leg.position = new Vector3(dx, 0.25, 0);
@@ -2350,16 +2503,16 @@ export class BabylonGame {
       }
 
     } else if (type === 'well') {
-      // Stone ring
-      const ring = MeshBuilder.CreateTorus(`${name}_ring`, { diameter: 1.5, thickness: 0.4, tessellation: 12 }, scene);
+      const stoneMat = getFurnMat('furn_well_stone', () => {
+        const m = new StandardMaterial('furn_well_stone', scene);
+        m.diffuseColor = new Color3(0.5, 0.5, 0.45);
+        m.specularColor = Color3.Black();
+        return m;
+      });
+      const ring = MeshBuilder.CreateTorus(`${name}_ring`, { diameter: 1.5, thickness: 0.4, tessellation: 8 }, scene);
       ring.position.y = 0.5;
       ring.parent = parent;
-      const stoneMat = new StandardMaterial(`${name}_stone_mat`, scene);
-      stoneMat.diffuseColor = new Color3(0.5, 0.5, 0.45);
-      stoneMat.specularColor = Color3.Black();
       ring.material = stoneMat;
-
-      // Roof posts
       for (const dx of [-0.6, 0.6]) {
         const post = MeshBuilder.CreateCylinder(`${name}_post_${dx}`, { height: 2, diameter: 0.12, tessellation: 4 }, scene);
         post.position = new Vector3(dx, 1.5, 0);
@@ -2368,78 +2521,90 @@ export class BabylonGame {
       }
 
     } else if (type === 'barrel') {
-      const barrel = MeshBuilder.CreateCylinder(`${name}_barrel`, { height: 1.2, diameter: 0.7, tessellation: 10 }, scene);
+      const barrel = MeshBuilder.CreateCylinder(`${name}_barrel`, { height: 1.2, diameter: 0.7, tessellation: 6 }, scene);
       barrel.position.y = 0.6;
       barrel.parent = parent;
-      const barrelMat = new StandardMaterial(`${name}_barrel_mat`, scene);
-      barrelMat.diffuseColor = new Color3(0.5, 0.35, 0.2);
-      barrelMat.specularColor = Color3.Black();
-      barrel.material = barrelMat;
+      barrel.material = getFurnMat('furn_barrel_wood', () => {
+        const m = new StandardMaterial('furn_barrel_wood', scene);
+        m.diffuseColor = new Color3(0.5, 0.35, 0.2);
+        m.specularColor = Color3.Black();
+        return m;
+      });
 
     } else if (type === 'crate') {
       const crate = MeshBuilder.CreateBox(`${name}_crate`, { width: 0.8, height: 0.8, depth: 0.8 }, scene);
       crate.position.y = 0.4;
       crate.parent = parent;
-      const crateMat = new StandardMaterial(`${name}_crate_mat`, scene);
-      crateMat.diffuseColor = new Color3(0.55, 0.4, 0.25);
-      crateMat.specularColor = Color3.Black();
-      crate.material = crateMat;
+      crate.material = getFurnMat('furn_crate_wood', () => {
+        const m = new StandardMaterial('furn_crate_wood', scene);
+        m.diffuseColor = new Color3(0.55, 0.4, 0.25);
+        m.specularColor = Color3.Black();
+        return m;
+      });
 
     } else if (type === 'market_stall') {
-      // Table
+      const woodMat = getFurnMat('furn_stall_wood', () => {
+        const m = new StandardMaterial('furn_stall_wood', scene);
+        m.diffuseColor = new Color3(0.5, 0.35, 0.2);
+        m.specularColor = Color3.Black();
+        return m;
+      });
       const table = MeshBuilder.CreateBox(`${name}_table`, { width: 2.5, height: 0.1, depth: 1.2 }, scene);
       table.position.y = 1;
       table.parent = parent;
-      const woodMat = new StandardMaterial(`${name}_wood_mat`, scene);
-      woodMat.diffuseColor = new Color3(0.5, 0.35, 0.2);
-      woodMat.specularColor = Color3.Black();
       table.material = woodMat;
 
-      // Awning
       const awning = MeshBuilder.CreateBox(`${name}_awning`, { width: 2.8, height: 0.05, depth: 1.5 }, scene);
       awning.position.y = 2.5;
       awning.parent = parent;
-      const awningMat = new StandardMaterial(`${name}_awning_mat`, scene);
-      awningMat.diffuseColor = new Color3(0.7, 0.2, 0.15);
-      awningMat.specularColor = Color3.Black();
-      awning.material = awningMat;
+      awning.material = getFurnMat('furn_awning', () => {
+        const m = new StandardMaterial('furn_awning', scene);
+        m.diffuseColor = new Color3(0.7, 0.2, 0.15);
+        m.specularColor = Color3.Black();
+        return m;
+      });
 
     } else if (type === 'terminal') {
-      // Sci-fi terminal post
       const post = MeshBuilder.CreateBox(`${name}_post`, { width: 0.5, height: 1.5, depth: 0.3 }, scene);
       post.position.y = 0.75;
       post.parent = parent;
-      const metalMat = new StandardMaterial(`${name}_metal_mat`, scene);
-      metalMat.diffuseColor = new Color3(0.35, 0.35, 0.4);
-      metalMat.specularColor = new Color3(0.3, 0.3, 0.3);
-      post.material = metalMat;
+      post.material = getFurnMat('furn_terminal_metal', () => {
+        const m = new StandardMaterial('furn_terminal_metal', scene);
+        m.diffuseColor = new Color3(0.35, 0.35, 0.4);
+        m.specularColor = new Color3(0.3, 0.3, 0.3);
+        return m;
+      });
 
-      // Screen
       const screen = MeshBuilder.CreatePlane(`${name}_screen`, { width: 0.4, height: 0.3 }, scene);
       screen.position.y = 1.3;
       screen.position.z = -0.16;
       screen.parent = parent;
-      const screenMat = new StandardMaterial(`${name}_screen_mat`, scene);
-      screenMat.diffuseColor = new Color3(0.1, 0.3, 0.5);
-      screenMat.emissiveColor = new Color3(0.1, 0.25, 0.4);
-      screen.material = screenMat;
+      screen.material = getFurnMat('furn_terminal_screen', () => {
+        const m = new StandardMaterial('furn_terminal_screen', scene);
+        m.diffuseColor = new Color3(0.1, 0.3, 0.5);
+        m.emissiveColor = new Color3(0.1, 0.25, 0.4);
+        return m;
+      });
 
     } else if (type === 'planter') {
       const pot = MeshBuilder.CreateCylinder(`${name}_pot`, { height: 0.6, diameterTop: 0.8, diameterBottom: 0.5, tessellation: 8 }, scene);
       pot.position.y = 0.3;
       pot.parent = parent;
-      const potMat = new StandardMaterial(`${name}_pot_mat`, scene);
-      potMat.diffuseColor = new Color3(0.5, 0.35, 0.25);
-      potMat.specularColor = Color3.Black();
-      pot.material = potMat;
+      pot.material = getFurnMat('furn_planter_pot', () => {
+        const m = new StandardMaterial('furn_planter_pot', scene);
+        m.diffuseColor = new Color3(0.5, 0.35, 0.25);
+        m.specularColor = Color3.Black();
+        return m;
+      });
 
-      // Bush on top
       const bush = MeshBuilder.CreateSphere(`${name}_bush`, { diameter: 0.7, segments: 6 }, scene);
       bush.position.y = 0.8;
       bush.parent = parent;
-      const bushMat = new StandardMaterial(`${name}_bush_mat`, scene);
-      bushMat.diffuseColor = new Color3(0.2, 0.5, 0.2);
-      bush.material = bushMat;
+      bush.material = getFurnMat('furn_planter_bush', () => {
+        const m = new StandardMaterial('furn_planter_bush', scene);
+        m.diffuseColor = new Color3(0.2, 0.5, 0.2);
+        return m;
+      });
 
     } else {
       parent.dispose();
@@ -3004,13 +3169,17 @@ export class BabylonGame {
     const characters = (this.characters || this.worldData.characters || []).slice(0, MAX_NPCS);
     console.log(`[BabylonGame] loadNPCs: ${characters.length} characters to load (max ${MAX_NPCS})`);
     console.log('[BabylonGame] characters source:', this.characters ? 'this.characters' : this.worldData.characters ? 'worldData.characters' : 'none');
-    
+
     if (characters.length === 0) {
       console.warn('[BabylonGame] No characters found!');
       console.log('[BabylonGame] this.characters:', this.characters);
       console.log('[BabylonGame] this.worldData.characters:', this.worldData.characters);
       return;
     }
+
+    // Block material dirty mechanism during bulk NPC loading to prevent
+    // redundant material state recomputation per NPC
+    if (this.scene) this.scene.blockMaterialDirtyMechanism = true;
 
     for (const character of characters) {
       try {
@@ -3019,6 +3188,9 @@ export class BabylonGame {
         console.error(`Failed to load NPC ${character.id}:`, error);
       }
     }
+
+    // Re-enable material dirty mechanism
+    if (this.scene) this.scene.blockMaterialDirtyMechanism = false;
 
     // Populate NPC list panel
     if (this.guiManager) {
@@ -3079,51 +3251,130 @@ export class BabylonGame {
     return 'civilian';
   }
 
+  /**
+   * Resolve the model URL for an NPC based on role overrides and world config.
+   */
+  private resolveNPCModelUrl(role: NPCRole): { rootUrl: string; file: string; cacheKey: string } | null {
+    const characterModels = this.world3DConfig?.characterModels || {};
+    const roleSpecificId = characterModels[role];
+    const defaultId = characterModels.npcDefault;
+    const npcConfigId = roleSpecificId || defaultId;
+
+    if (npcConfigId && this.worldAssets && this.worldAssets.length > 0) {
+      const overrideAsset = this.worldAssets.find((a) => a.id === npcConfigId);
+      if (overrideAsset && overrideAsset.filePath) {
+        const cleanPath = overrideAsset.filePath.replace(/^\//, '');
+        const lastSlash = cleanPath.lastIndexOf('/');
+        const rootUrl = lastSlash >= 0 ? '/' + cleanPath.substring(0, lastSlash + 1) : '/';
+        const file = lastSlash >= 0 ? cleanPath.substring(lastSlash + 1) : cleanPath;
+        return { rootUrl, file, cacheKey: npcConfigId };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Load or retrieve a cached NPC model template. The first call for a given
+   * cacheKey loads the model via ImportMeshAsync; subsequent calls clone it.
+   */
+  private async getOrLoadNPCModel(cacheKey: string, rootUrl: string, file: string): Promise<{ root: Mesh; animationGroups: any[] } | null> {
+    if (!this.scene) return null;
+
+    // Check cache first
+    const cached = this.npcModelCache.get(cacheKey);
+    if (cached) {
+      // Clone the cached template
+      const cloned = cached.root.instantiateHierarchy(
+        null,
+        undefined,
+        (source, clone) => { clone.name = `${source.name}_clone`; }
+      ) as Mesh | null;
+
+      if (cloned) {
+        cloned.setEnabled(true);
+        cloned.getChildMeshes().forEach(m => m.setEnabled(true));
+        // Clone animation groups targeting the new mesh hierarchy
+        const clonedAnims = cached.animationGroups.map(ag => ag.clone(`${ag.name}_clone`));
+        return { root: cloned, animationGroups: clonedAnims };
+      }
+    }
+
+    // First load for this model URL
+    try {
+      const result = await SceneLoader.ImportMeshAsync('', rootUrl, file, this.scene);
+      const testMesh = this.selectPlayerMesh(result.meshes) || result.meshes[0];
+      if (!testMesh) {
+        result.meshes.forEach((m: any) => m.dispose());
+        return null;
+      }
+
+      // Cache the template (hidden) and create a clone for actual use
+      const templateRoot = testMesh as Mesh;
+
+      // Clone for the first NPC before caching the template
+      const firstClone = templateRoot.instantiateHierarchy(
+        null,
+        undefined,
+        (source, clone) => { clone.name = `${source.name}_clone`; }
+      ) as Mesh | null;
+
+      if (firstClone) {
+        firstClone.setEnabled(true);
+        firstClone.getChildMeshes().forEach(m => m.setEnabled(true));
+      }
+
+      // Hide the template
+      templateRoot.setEnabled(false);
+      templateRoot.getChildMeshes().forEach(m => m.setEnabled(false));
+
+      // Cache template
+      this.npcModelCache.set(cacheKey, {
+        root: templateRoot,
+        animationGroups: result.animationGroups || [],
+      });
+
+      const clonedAnims = (result.animationGroups || []).map((ag: any) => ag.clone(`${ag.name}_clone`));
+
+      return firstClone ? { root: firstClone, animationGroups: clonedAnims } : null;
+    } catch (err) {
+      console.warn(`[BabylonGame] Failed to load NPC model ${cacheKey}:`, err);
+      return null;
+    }
+  }
+
   private async loadNPC(character: WorldCharacter): Promise<void> {
     if (!this.scene) return;
 
     try {
       const role = this.getRoleForCharacter(character);
-      let result: any = null;
+      let root: Mesh | null = null;
+      let animationGroups: any[] = [];
 
       // Try world-level NPC override first (role-specific, then npcDefault fallback)
-      const characterModels = this.world3DConfig?.characterModels || {};
-      const roleSpecificId = characterModels[role];
-      const defaultId = characterModels.npcDefault;
-      const npcConfigId = roleSpecificId || defaultId;
-      if (npcConfigId && this.worldAssets && this.worldAssets.length > 0) {
-        const overrideAsset = this.worldAssets.find((a) => a.id === npcConfigId);
-        if (overrideAsset && overrideAsset.filePath) {
-          try {
-            const cleanPath = overrideAsset.filePath.replace(/^\//, '');
-            const lastSlash = cleanPath.lastIndexOf('/');
-            const rootUrl = lastSlash >= 0 ? '/' + cleanPath.substring(0, lastSlash + 1) : '/';
-            const file = lastSlash >= 0 ? cleanPath.substring(lastSlash + 1) : cleanPath;
-            console.log(`[BabylonGame] Loading NPC override: rootUrl="${rootUrl}", file="${file}" for ${character.id} (role: ${role})`);
-            const overrideResult = await SceneLoader.ImportMeshAsync('', rootUrl, file, this.scene);
-            // Verify the override actually produced a usable mesh
-            const testMesh = this.selectPlayerMesh(overrideResult.meshes) || overrideResult.meshes[0];
-            if (testMesh) {
-              result = overrideResult;
-              console.log(`[BabylonGame] ✅ NPC override loaded: ${overrideResult.meshes.length} meshes for ${character.id}`);
-            } else {
-              console.warn(`[BabylonGame] NPC override loaded but no usable mesh found, falling back to default for ${character.id}`);
-              // Dispose the unusable override meshes
-              overrideResult.meshes.forEach((m: any) => m.dispose());
-            }
-          } catch (overrideError) {
-            console.warn(`[BabylonGame] Failed to load NPC override model for ${character.id}:`, npcConfigId, overrideError);
-          }
+      const modelInfo = this.resolveNPCModelUrl(role);
+      if (modelInfo) {
+        const modelResult = await this.getOrLoadNPCModel(modelInfo.cacheKey, modelInfo.rootUrl, modelInfo.file);
+        if (modelResult) {
+          root = modelResult.root;
+          animationGroups = modelResult.animationGroups;
         }
       }
 
       // Fallback to shared default NPC model
-      if (!result) {
-        console.log(`[BabylonGame] Loading default NPC model for ${character.id}: ${NPC_MODEL_URL}`);
-        result = await SceneLoader.ImportMeshAsync("", "", NPC_MODEL_URL, this.scene);
+      if (!root) {
+        const defaultResult = await this.getOrLoadNPCModel('__default_npc__', '', NPC_MODEL_URL);
+        if (defaultResult) {
+          root = defaultResult.root;
+          animationGroups = defaultResult.animationGroups;
+        }
       }
 
-      const root = (this.selectPlayerMesh(result.meshes) || (result.meshes[0] as Mesh));
+      // Final fallback: direct load if caching failed
+      if (!root) {
+        const result = await SceneLoader.ImportMeshAsync("", "", NPC_MODEL_URL, this.scene);
+        root = (this.selectPlayerMesh(result.meshes) || (result.meshes[0] as Mesh));
+        animationGroups = result.animationGroups || [];
+      }
       if (!root) {
         console.error(`[BabylonGame] ❌ No usable mesh found for NPC ${character.id}, skipping`);
         return;
@@ -3141,7 +3392,8 @@ export class BabylonGame {
       root.position = spawnPos;
 
       // Phase 8B: Apply role-based color tint for visual distinction
-      this.applyNPCRoleTint(result.meshes, role);
+      const allNpcMeshes = [root, ...root.getChildMeshes()];
+      this.applyNPCRoleTint(allNpcMeshes, role);
 
       // Create CharacterController for NPCs (with null camera for programmatic control)
       let controller: CharacterController | null = null;
@@ -3185,7 +3437,7 @@ export class BabylonGame {
         homePosition: root.position.clone(),
         disposition: 0,
         characterData: character,
-        animationGroups: result.animationGroups || [],
+        animationGroups: animationGroups || [],
         currentAnimation: null
       };
 
@@ -3702,87 +3954,128 @@ export class BabylonGame {
     }
   }
 
+  private _npcGroundSnapTimer = 0;
+  private _minimapUpdateTimer = 0;
+  private _fpsDisplayTimer = 0;
+
   private setupUpdateLoop(): void {
     if (!this.scene) return;
 
-    // NPC selection outline update, ground snapping, and minimap updates
+    // Throttled NPC ground snapping, minimap updates, and chunk culling
     this.renderObserver = this.scene.onBeforeRenderObservable.add(() => {
-      this.npcMeshes.forEach((instance, npcId) => {
-        if (!instance || !instance.mesh) return;
-        const mesh = instance.mesh;
+      const dt = this.scene?.getEngine().getDeltaTime() || 16;
 
-        // Selection outline - DISABLED for conversations
-        // const isSelected = npcId === this.selectedNPCId;
-        // mesh.renderOutline = isSelected;
-        // mesh.outlineWidth = isSelected ? 0.06 : 0;
-        // if (isSelected) {
-        //   mesh.outlineColor = new Color3(1, 0.9, 0.4);
-        // }
-
-        // Snap NPCs to ground if they drift too far above/below terrain
-        // Skip when inside a building (player is at Y=500+)
-        if (!this.isInsideBuilding) {
-          const groundPos = this.projectToGround(mesh.position.x, mesh.position.z);
-          const targetY = groundPos.y;
-          if (Math.abs(mesh.position.y - targetY) > 0.5) {
-            mesh.position.y = targetY;
-            instance.homePosition = mesh.position.clone();
-          }
-        }
-
-        // Update NPC marker on minimap
-        const npcInfo = this.npcInfos.find((n) => n.id === npcId);
-        const label = npcInfo?.name ?? npcId;
-        let color: string | undefined;
-        switch (instance.role) {
-          case 'guard':
-            color = '#F44336'; // Red
-            break;
-          case 'merchant':
-            color = '#4CAF50'; // Green
-            break;
-          case 'questgiver':
-            color = '#FFC107'; // Yellow
-            break;
-          case 'civilian':
-          default:
-            color = '#9E9E9E'; // Grey
-            break;
-        }
-        this.minimap?.addMarker({
-          id: `npc_${npcId}`,
-          position: mesh.position.clone(),
-          type: 'npc',
-          label,
-          color
-        });
-      });
-
-      // Update player marker on minimap
-      if (this.playerMesh) {
-        this.minimap?.addMarker({
-          id: 'player',
-          position: this.playerMesh.position.clone(),
-          type: 'player',
-          label: 'You'
-        });
+      // Update chunk visibility based on player position (cheap: just compares chunk coords)
+      if (this.chunkManager && this.playerMesh) {
+        this.chunkManager.update(this.playerMesh.position);
       }
 
+      // Ground-snap NPCs at most every 500ms
+      this._npcGroundSnapTimer += dt;
+      if (this._npcGroundSnapTimer >= 500) {
+        this._npcGroundSnapTimer = 0;
+        if (!this.isInsideBuilding) {
+          this.npcMeshes.forEach((instance) => {
+            if (!instance?.mesh) return;
+            const mesh = instance.mesh;
+            const groundPos = this.projectToGround(mesh.position.x, mesh.position.z);
+            const targetY = groundPos.y;
+            if (Math.abs(mesh.position.y - targetY) > 0.5) {
+              mesh.position.y = targetY;
+              instance.homePosition = mesh.position.clone();
+            }
+          });
+        }
+      }
+
+      // Update minimap markers at most every 250ms
+      this._minimapUpdateTimer += dt;
+      if (this._minimapUpdateTimer >= 250) {
+        this._minimapUpdateTimer = 0;
+        this.npcMeshes.forEach((instance, npcId) => {
+          if (!instance?.mesh) return;
+          const npcInfo = this.npcInfos.find((n) => n.id === npcId);
+          const label = npcInfo?.name ?? npcId;
+          let color: string | undefined;
+          switch (instance.role) {
+            case 'guard': color = '#F44336'; break;
+            case 'merchant': color = '#4CAF50'; break;
+            case 'questgiver': color = '#FFC107'; break;
+            default: color = '#9E9E9E'; break;
+          }
+          this.minimap?.addMarker({
+            id: `npc_${npcId}`,
+            position: instance.mesh.position,
+            type: 'npc',
+            label,
+            color
+          });
+        });
+
+        if (this.playerMesh) {
+          this.minimap?.addMarker({
+            id: 'player',
+            position: this.playerMesh.position,
+            type: 'player',
+            label: 'You'
+          });
+        }
+      }
     });
 
-    // NPC behavior update interval
+    // NPC behavior update interval - 200ms is sufficient for wandering AI
     this.npcBehaviorInterval = window.setInterval(() => {
       this.updateNPCBehaviors();
-    }, 100);
+    }, 200);
   }
 
 
+  // Distance thresholds for NPC optimization
+  private static readonly NPC_HIDE_DISTANCE = 120;      // Hide mesh entirely
+  private static readonly NPC_SKIP_AI_DISTANCE = 80;     // Skip wandering AI
+  private static readonly NPC_SLOW_AI_DISTANCE = 40;     // Reduce AI frequency
+
   private updateNPCBehaviors(): void {
     const now = Date.now();
-    
+    const playerPos = this.playerMesh?.position;
+
     this.npcMeshes.forEach((instance, npcId) => {
       if (!instance.mesh || !instance.controller) return;
-      
+
+      // Distance-based NPC optimization
+      if (playerPos) {
+        const dist = Vector3.Distance(playerPos, instance.mesh.position);
+
+        // Beyond hide distance: disable mesh entirely, skip all updates
+        if (dist > BabylonGame.NPC_HIDE_DISTANCE) {
+          if (instance.mesh.isEnabled()) {
+            instance.mesh.setEnabled(false);
+            instance.controller.walk(false);
+            instance.controller.turnLeft(false);
+            instance.controller.turnRight(false);
+          }
+          return;
+        }
+
+        // Re-enable if was hidden
+        if (!instance.mesh.isEnabled()) {
+          instance.mesh.setEnabled(true);
+        }
+
+        // Beyond skip-AI distance: no wandering, just idle
+        if (dist > BabylonGame.NPC_SKIP_AI_DISTANCE) {
+          instance.controller.walk(false);
+          instance.controller.turnLeft(false);
+          instance.controller.turnRight(false);
+          return;
+        }
+
+        // Between slow and skip: only update every other tick
+        if (dist > BabylonGame.NPC_SLOW_AI_DISTANCE && now % 400 < 200) {
+          return;
+        }
+      }
+
       // Skip AI if NPC is in conversation
       if (instance.isInConversation) {
         // Stop all movement when in conversation
@@ -3941,11 +4234,32 @@ export class BabylonGame {
     });
   }
 
+  private _perfDiv: HTMLDivElement | null = null;
+  private _perfTimer = 0;
+
   private startGameLoop(): void {
     if (!this.engine) return;
 
+    // Create FPS/mesh counter overlay
+    this._perfDiv = document.createElement('div');
+    this._perfDiv.style.cssText = 'position:absolute;top:4px;left:4px;color:#0f0;font:bold 13px monospace;background:rgba(0,0,0,0.5);padding:4px 8px;pointer-events:none;z-index:9999;border-radius:4px;';
+    this.canvas.parentElement?.appendChild(this._perfDiv);
+
     this.engine.runRenderLoop(() => {
-      this.scene?.render();
+      if (!this.scene) return;
+      this.scene.render();
+
+      // Update perf overlay every 500ms
+      this._perfTimer += this.engine!.getDeltaTime();
+      if (this._perfTimer >= 500 && this._perfDiv) {
+        this._perfTimer = 0;
+        const fps = this.engine!.getFps().toFixed(0);
+        const activeMeshes = this.scene.getActiveMeshes().length;
+        const totalMeshes = this.scene.meshes.length;
+        const drawCalls = (this.engine as any)._drawCalls?.current ?? 0;
+        const materials = this.scene.materials.length;
+        this._perfDiv.textContent = `${fps} FPS | ${activeMeshes}/${totalMeshes} meshes | ${drawCalls} draws | ${materials} mats`;
+      }
     });
   }
 
@@ -5728,6 +6042,12 @@ export class BabylonGame {
 
     this.npcHealthBars.forEach((bar) => bar.dispose());
     this.npcHealthBars.clear();
+
+    // Dispose cached NPC model templates
+    this.npcModelCache.forEach(({ root }) => {
+      if (!root.isDisposed()) root.dispose();
+    });
+    this.npcModelCache.clear();
   }
 
   private disposePlayer(): void {
@@ -5742,6 +6062,9 @@ export class BabylonGame {
   }
 
   private disposeWorld(): void {
+    this.chunkManager?.dispose();
+    this.chunkManager = null;
+
     this.settlementMeshes.forEach((mesh) => mesh.dispose());
     this.settlementMeshes.clear();
 
