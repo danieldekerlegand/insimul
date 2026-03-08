@@ -54,6 +54,8 @@ import type {
   AssetReferenceIR,
   AnimationReferenceIR,
   ResourceDefinitionIR,
+  NPCDialogueContext,
+  AIConfigIR,
 } from '@shared/game-engine/ir-types';
 import type {
   Vec3,
@@ -64,6 +66,9 @@ import type {
   CombatStyle,
 } from '@shared/game-engine/types';
 import type { World, Country, State, Settlement, Character, Quest } from '@shared/schema';
+import { buildLanguageAwareSystemPrompt } from '@shared/language-utils';
+import type { CharacterInfo, Truth, WorldLanguageContext } from '@shared/language-utils';
+import type { WorldLanguage } from '@shared/language';
 
 // ─────────────────────────────────────────────
 // Constants (match client-side values exactly)
@@ -1029,6 +1034,67 @@ export async function generateWorldIR(
     sampleWords: l.sampleWords || null,
   }));
 
+  // ── 6b. Dialogue contexts (pre-built system prompts for NPC chat) ──
+  const primaryLanguage = languageIRs.find(l => l.isPrimary) || null;
+  const worldLanguageContext: WorldLanguageContext | undefined = primaryLanguage ? {
+    targetLanguage: primaryLanguage.realCode ? primaryLanguage.name : 'English',
+    worldLanguages: languageIRs as unknown as WorldLanguage[],
+    primaryLanguage: primaryLanguage as unknown as WorldLanguage,
+    gameType,
+  } : undefined;
+
+  const dialogueContexts: NPCDialogueContext[] = npcIRs.map(npc => {
+    const char = characters.find(c => c.id === npc.characterId);
+    if (!char) return null;
+
+    const charInfo: CharacterInfo = {
+      firstName: char.firstName,
+      lastName: char.lastName,
+      age: char.birthYear ? new Date().getFullYear() - char.birthYear : null,
+      gender: char.gender,
+      occupation: char.occupation,
+      currentLocation: char.currentLocation,
+      personality: char.personality as Record<string, any>,
+      friendIds: (char.friendIds as string[]) || [],
+      coworkerIds: (char.coworkerIds as string[]) || [],
+      spouseId: char.spouseId,
+    };
+
+    const charTruths: Truth[] = truths
+      .filter(t => t.characterId === char.id || !t.characterId)
+      .map(t => ({
+        id: t.id,
+        characterId: t.characterId,
+        entryType: t.entryType,
+        title: t.title,
+        content: t.content,
+        timestep: t.timestep,
+      }));
+
+    const systemPrompt = buildLanguageAwareSystemPrompt(charInfo, charTruths, worldLanguageContext);
+    const voice = char.gender?.toLowerCase() === 'female' ? 'Kore' : 'Charon';
+
+    return {
+      characterId: char.id,
+      characterName: `${char.firstName} ${char.lastName}`.trim(),
+      systemPrompt,
+      greeting: npc.greeting || `Hello, I'm ${char.firstName}.`,
+      voice,
+      truths: charTruths
+        .filter(t => t.characterId === char.id)
+        .map(t => ({ title: t.title || '', content: t.content || '' })),
+    };
+  }).filter((ctx): ctx is NPCDialogueContext => ctx !== null);
+
+  const aiConfig: AIConfigIR = {
+    apiMode: 'insimul',
+    insimulEndpoint: '/api/gemini/chat',
+    geminiModel: 'gemini-2.5-flash',
+    geminiApiKeyPlaceholder: 'YOUR_GEMINI_API_KEY',
+    voiceEnabled: true,
+    defaultVoice: 'Kore',
+  };
+
   // ── 7. Assets ──
   const textureAssets: AssetReferenceIR[] = worldAssets
     .filter(a => a.assetType?.includes('texture'))
@@ -1104,6 +1170,7 @@ export async function generateWorldIR(
       truths: truthIRs,
       grammars: grammarIRs,
       languages: languageIRs,
+      dialogueContexts,
     },
 
     theme: {
@@ -1160,6 +1227,8 @@ export async function generateWorldIR(
     resources: genreConfig.features.resources || gameType === 'survival'
       ? { definitions: DEFAULT_RESOURCE_DEFS }
       : null,
+
+    aiConfig,
   };
 
   return ir;

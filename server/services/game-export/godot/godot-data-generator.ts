@@ -214,5 +214,21 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     });
   }
 
+  // NPC dialogue contexts (pre-built system prompts for AI chat)
+  if (ir.systems.dialogueContexts?.length > 0) {
+    files.push({
+      path: `${base}/dialogue_contexts.json`,
+      content: JSON.stringify(ir.systems.dialogueContexts, null, 2),
+    });
+  }
+
+  // AI configuration
+  if (ir.aiConfig) {
+    files.push({
+      path: `${base}/ai_config.json`,
+      content: JSON.stringify(ir.aiConfig, null, 2),
+    });
+  }
+
   return files;
 }

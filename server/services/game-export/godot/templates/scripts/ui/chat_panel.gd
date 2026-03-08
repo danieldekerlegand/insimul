@@ -1,0 +1,209 @@
+extends PanelContainer
+## Chat Panel — NPC conversation UI with streaming text display.
+
+signal chat_closed
+
+var _current_character_id := ""
+var _is_streaming := false
+var _streaming_label: RichTextLabel = null
+
+@onready var header_label: Label = %HeaderLabel
+@onready var scroll_container: ScrollContainer = %ScrollContainer
+@onready var message_container: VBoxContainer = %MessageContainer
+@onready var input_field: LineEdit = %InputField
+@onready var send_button: Button = %SendButton
+@onready var close_button: Button = %CloseButton
+
+func _ready() -> void:
+	visible = false
+	_build_ui()
+	send_button.pressed.connect(_on_send_pressed)
+	close_button.pressed.connect(close_chat)
+	input_field.text_submitted.connect(func(_t): _on_send_pressed())
+
+	# Connect to AI service signals
+	if Engine.has_singleton("AIService") or has_node("/root/AIService"):
+		var ai = get_node_or_null("/root/AIService")
+		if ai:
+			ai.chunk_received.connect(_on_chunk_received)
+			ai.response_complete.connect(_on_response_complete)
+			ai.response_error.connect(_on_response_error)
+
+func open_chat(character_id: String) -> void:
+	_current_character_id = character_id
+	_clear_messages()
+	visible = true
+	input_field.text = ""
+	input_field.grab_focus()
+
+	# Show greeting
+	var ai = get_node_or_null("/root/AIService")
+	if ai:
+		var ctx = ai.get_context(character_id)
+		if not ctx.is_empty():
+			header_label.text = ctx.get("characterName", character_id)
+			var greeting = ctx.get("greeting", "")
+			if greeting != "":
+				_add_npc_message(greeting)
+		else:
+			header_label.text = character_id
+
+func close_chat() -> void:
+	visible = false
+	_current_character_id = ""
+	_is_streaming = false
+	chat_closed.emit()
+
+func _on_send_pressed() -> void:
+	if _is_streaming:
+		return
+	var text = input_field.text.strip_edges()
+	if text.is_empty():
+		return
+
+	input_field.text = ""
+	_add_user_message(text)
+
+	# Start streaming
+	_is_streaming = true
+	_streaming_label = _create_message_bubble(false)
+	_streaming_label.text = ""
+
+	var ai = get_node_or_null("/root/AIService")
+	if ai:
+		ai.send_message(_current_character_id, text)
+
+func _on_chunk_received(npc_id: String, text: String) -> void:
+	if npc_id != _current_character_id:
+		return
+	if _streaming_label:
+		_streaming_label.text += text
+		_scroll_to_bottom()
+
+func _on_response_complete(npc_id: String, _full_text: String) -> void:
+	if npc_id != _current_character_id:
+		return
+	_is_streaming = false
+	_streaming_label = null
+	input_field.grab_focus()
+
+func _on_response_error(npc_id: String, error: String) -> void:
+	if npc_id != _current_character_id:
+		return
+	_is_streaming = false
+	if _streaming_label:
+		_streaming_label.text = "[Error: %s]" % error
+	_streaming_label = null
+	push_error("[ChatPanel] AI error: %s" % error)
+
+func _add_user_message(text: String) -> void:
+	var label = _create_message_bubble(true)
+	label.text = text
+	_scroll_to_bottom()
+
+func _add_npc_message(text: String) -> void:
+	var label = _create_message_bubble(false)
+	label.text = text
+	_scroll_to_bottom()
+
+func _create_message_bubble(is_user: bool) -> RichTextLabel:
+	var panel = PanelContainer.new()
+	var style = StyleBoxFlat.new()
+	if is_user:
+		style.bg_color = Color(0.2, 0.4, 0.8, 0.9)
+	else:
+		style.bg_color = Color(0.25, 0.25, 0.3, 0.9)
+	style.set_corner_radius_all(6)
+	style.set_content_margin_all(8)
+	panel.add_theme_stylebox_override("panel", style)
+
+	var label = RichTextLabel.new()
+	label.bbcode_enabled = true
+	label.fit_content = true
+	label.scroll_active = false
+	label.custom_minimum_size = Vector2(0, 20)
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_child(label)
+
+	var margin = MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 10 if is_user else 0)
+	margin.add_theme_constant_override("margin_right", 0 if is_user else 10)
+	margin.add_child(panel)
+	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	message_container.add_child(margin)
+	return label
+
+func _clear_messages() -> void:
+	for child in message_container.get_children():
+		child.queue_free()
+
+func _scroll_to_bottom() -> void:
+	await get_tree().process_frame
+	scroll_container.scroll_vertical = int(scroll_container.get_v_scroll_bar().max_value)
+
+func _build_ui() -> void:
+	# Build UI programmatically if scene nodes don't exist
+	if header_label != null:
+		return
+
+	custom_minimum_size = Vector2(350, 500)
+	anchors_preset = Control.PRESET_BOTTOM_RIGHT
+	anchor_left = 0.6
+	anchor_top = 0.05
+	anchor_right = 0.98
+	anchor_bottom = 0.95
+
+	var bg_style = StyleBoxFlat.new()
+	bg_style.bg_color = Color(0.1, 0.1, 0.15, 0.95)
+	bg_style.set_corner_radius_all(8)
+	bg_style.set_content_margin_all(8)
+	add_theme_stylebox_override("panel", bg_style)
+
+	var vbox = VBoxContainer.new()
+	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	add_child(vbox)
+
+	# Header
+	var header_hbox = HBoxContainer.new()
+	vbox.add_child(header_hbox)
+
+	header_label = Label.new()
+	header_label.unique_name_in_owner = true
+	header_label.text = "NPC"
+	header_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header_hbox.add_child(header_label)
+
+	close_button = Button.new()
+	close_button.unique_name_in_owner = true
+	close_button.text = "X"
+	close_button.custom_minimum_size = Vector2(30, 30)
+	header_hbox.add_child(close_button)
+
+	# Scroll area
+	scroll_container = ScrollContainer.new()
+	scroll_container.unique_name_in_owner = true
+	scroll_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll_container.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vbox.add_child(scroll_container)
+
+	message_container = VBoxContainer.new()
+	message_container.unique_name_in_owner = true
+	message_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll_container.add_child(message_container)
+
+	# Input area
+	var input_hbox = HBoxContainer.new()
+	vbox.add_child(input_hbox)
+
+	input_field = LineEdit.new()
+	input_field.unique_name_in_owner = true
+	input_field.placeholder_text = "Type a message..."
+	input_field.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	input_hbox.add_child(input_field)
+
+	send_button = Button.new()
+	send_button.unique_name_in_owner = true
+	send_button.text = "Send"
+	send_button.custom_minimum_size = Vector2(60, 0)
+	input_hbox.add_child(send_button)

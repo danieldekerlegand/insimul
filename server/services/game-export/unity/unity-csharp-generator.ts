@@ -27,6 +27,8 @@ function genDataClasses(): GeneratedFile[] {
     { path: `${base}/InsimulBuildingData.cs`,  content: loadStaticTemplate('scripts/data/InsimulBuildingData.cs') },
     { path: `${base}/InsimulWorldIR.cs`,       content: loadStaticTemplate('scripts/data/InsimulWorldIR.cs') },
     { path: `${base}/InsimulAssetManifest.cs`, content: loadStaticTemplate('scripts/data/InsimulAssetManifest.cs') },
+    { path: `${base}/InsimulDialogueContext.cs`, content: loadStaticTemplate('scripts/data/InsimulDialogueContext.cs') },
+    { path: `${base}/InsimulAIConfig.cs`, content: loadStaticTemplate('scripts/data/InsimulAIConfig.cs') },
   ];
 }
 
@@ -161,6 +163,18 @@ function genUIClasses(): GeneratedFile[] {
     { path: `${base}/HUDManager.cs`,      content: loadStaticTemplate('scripts/ui/HUDManager.cs') },
     { path: `${base}/QuestTrackerUI.cs`,  content: loadStaticTemplate('scripts/ui/QuestTrackerUI.cs') },
     { path: `${base}/GameMenuUI.cs`,      content: loadStaticTemplate('scripts/ui/GameMenuUI.cs') },
+    { path: `${base}/ChatPanel.cs`,       content: loadStaticTemplate('scripts/ui/ChatPanel.cs') },
+  ];
+}
+
+// ─────────────────────────────────────────────
+// Services
+// ─────────────────────────────────────────────
+
+function genServiceClasses(): GeneratedFile[] {
+  const base = 'Assets/Scripts/Services';
+  return [
+    { path: `${base}/InsimulAIService.cs`, content: loadStaticTemplate('scripts/services/InsimulAIService.cs') },
   ];
 }
 
@@ -176,5 +190,6 @@ export function generateCSharpFiles(ir: WorldIR): GeneratedFile[] {
     ...genSystemClasses(ir),
     ...genWorldGenerators(ir),
     ...genUIClasses(),
+    ...genServiceClasses(),
   ];
 }

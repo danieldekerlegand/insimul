@@ -135,6 +135,17 @@ function genUIScripts(): GeneratedFile[] {
     { path: 'scripts/ui/hud.gd',             content: loadStaticTemplate('scripts/ui/hud.gd') },
     { path: 'scripts/ui/quest_tracker_ui.gd', content: loadStaticTemplate('scripts/ui/quest_tracker_ui.gd') },
     { path: 'scripts/ui/game_menu.gd',        content: loadStaticTemplate('scripts/ui/game_menu.gd') },
+    { path: 'scripts/ui/chat_panel.gd',       content: loadStaticTemplate('scripts/ui/chat_panel.gd') },
+  ];
+}
+
+// ─────────────────────────────────────────────
+// Service scripts
+// ─────────────────────────────────────────────
+
+function genServiceScripts(): GeneratedFile[] {
+  return [
+    { path: 'scripts/services/ai_service.gd', content: loadStaticTemplate('scripts/services/ai_service.gd') },
   ];
 }
 
@@ -149,5 +160,6 @@ export function generateGDScriptFiles(ir: WorldIR): GeneratedFile[] {
     ...genSystemScripts(ir),
     ...genWorldScripts(ir),
     ...genUIScripts(),
+    ...genServiceScripts(),
   ];
 }

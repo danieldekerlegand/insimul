@@ -2,11 +2,14 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
+#include "Data/DialogueContextData.h"
 #include "DialogueSystem.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDialogueStarted, const FString&, NPCId);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDialogueEnded);
+
 /**
- * NPC dialogue and conversation management
- * Ported from Insimul's Babylon.js DialogueSystem to Unreal subsystem.
+ * NPC dialogue and conversation management with AI-powered chat.
  */
 UCLASS()
 class INSIMULEXPORT_API UDialogueSystem : public UGameInstanceSubsystem
@@ -21,6 +24,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DialogueSystem")
     void LoadFromIR(const FString& JsonString);
 
+    /** Load dialogue contexts and AI config from JSON files */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DialogueSystem")
+    void LoadDialogueData();
+
     UFUNCTION(BlueprintCallable, Category = "Dialogue")
     void StartDialogue(const FString& NPCCharacterId);
 
@@ -32,4 +39,14 @@ public:
 
     UPROPERTY(BlueprintReadOnly, Category = "Dialogue")
     FString CurrentNPCId;
+
+    UPROPERTY(BlueprintAssignable, Category = "Dialogue")
+    FOnDialogueStarted OnDialogueStarted;
+
+    UPROPERTY(BlueprintAssignable, Category = "Dialogue")
+    FOnDialogueEnded OnDialogueEnded;
+
+private:
+    FInsimulAIConfig AIConfig;
+    TArray<FInsimulDialogueContext> DialogueContexts;
 };

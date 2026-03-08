@@ -29,6 +29,7 @@ function genDataStructs(): GeneratedFile[] {
     { path: `${base}/QuestData.h`,      content: loadStaticTemplate('source/data/QuestData.h') },
     { path: `${base}/SettlementData.h`, content: loadStaticTemplate('source/data/SettlementData.h') },
     { path: `${base}/BuildingData.h`,   content: loadStaticTemplate('source/data/BuildingData.h') },
+    { path: `${base}/DialogueContextData.h`, content: loadStaticTemplate('source/data/DialogueContextData.h') },
   ];
 }
 
@@ -200,6 +201,18 @@ function genWorldGenerators(ir: WorldIR): GeneratedFile[] {
 }
 
 // ─────────────────────────────────────────────
+// Services
+// ─────────────────────────────────────────────
+
+function genServiceClasses(): GeneratedFile[] {
+  const base = `Source/${M}/Services`;
+  return [
+    { path: `${base}/InsimulAIService.h`,   content: loadStaticTemplate('source/services/InsimulAIService.h') },
+    { path: `${base}/InsimulAIService.cpp`, content: loadStaticTemplate('source/services/InsimulAIService.cpp') },
+  ];
+}
+
+// ─────────────────────────────────────────────
 // Asset Setup Scripts
 // ─────────────────────────────────────────────
 
@@ -222,6 +235,7 @@ export function generateCppFiles(ir: WorldIR): GeneratedFile[] {
     ...genCoreClasses(ir),
     ...genCharacterClasses(ir),
     ...genSystemClasses(ir),
+    ...genServiceClasses(),
     ...genWorldGenerators(ir),
     ...genAssetScripts(),
   ];

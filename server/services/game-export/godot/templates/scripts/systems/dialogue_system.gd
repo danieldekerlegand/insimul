@@ -1,5 +1,6 @@
 extends Node
 ## Dialogue System — autoloaded singleton.
+## Manages NPC conversations with AI-powered chat.
 
 signal dialogue_started(npc_id: String)
 signal dialogue_ended
@@ -7,10 +8,71 @@ signal dialogue_ended
 var is_in_dialogue := false
 var current_npc_id := ""
 
+var _chat_panel = null
+var _ai_config: Dictionary = {}
+var _dialogue_contexts: Array = []
+
+func _ready() -> void:
+	_load_dialogue_data()
+	call_deferred("_setup_ai_service")
+	call_deferred("_setup_chat_panel")
+
+func _load_dialogue_data() -> void:
+	var config_file = FileAccess.open("res://data/ai_config.json", FileAccess.READ)
+	if config_file:
+		var parsed = JSON.parse_string(config_file.get_as_text())
+		if parsed is Dictionary:
+			_ai_config = parsed
+			print("[Insimul] AI config loaded: mode=%s" % _ai_config.get("apiMode", "insimul"))
+	else:
+		_ai_config = {"apiMode": "insimul", "insimulEndpoint": "/api/gemini/chat", "geminiModel": "gemini-2.5-flash", "voiceEnabled": true, "defaultVoice": "Kore"}
+		print("[Insimul] ai_config.json not found, using defaults")
+
+	var ctx_file = FileAccess.open("res://data/dialogue_contexts.json", FileAccess.READ)
+	if ctx_file:
+		var parsed = JSON.parse_string(ctx_file.get_as_text())
+		if parsed is Array:
+			_dialogue_contexts = parsed
+			print("[Insimul] Loaded %d dialogue contexts" % _dialogue_contexts.size())
+	else:
+		print("[Insimul] dialogue_contexts.json not found")
+
+func _setup_ai_service() -> void:
+	var ai = get_node_or_null("/root/AIService")
+	if ai:
+		ai.initialize(_ai_config, _dialogue_contexts)
+
+func _setup_chat_panel() -> void:
+	var root = get_tree().root
+	_chat_panel = _find_chat_panel(root)
+	if _chat_panel == null:
+		var ChatPanelScript = load("res://scripts/ui/chat_panel.gd")
+		if ChatPanelScript:
+			_chat_panel = PanelContainer.new()
+			_chat_panel.set_script(ChatPanelScript)
+			root.add_child(_chat_panel)
+			_chat_panel.chat_closed.connect(_on_chat_closed)
+
+func _find_chat_panel(node: Node):
+	if node.has_method("open_chat"):
+		return node
+	for child in node.get_children():
+		var result = _find_chat_panel(child)
+		if result:
+			return result
+	return null
+
 func start_dialogue(npc_character_id: String) -> void:
+	if is_in_dialogue:
+		end_dialogue()
+
 	is_in_dialogue = true
 	current_npc_id = npc_character_id
 	dialogue_started.emit(npc_character_id)
+
+	if _chat_panel and _chat_panel.has_method("open_chat"):
+		_chat_panel.open_chat(npc_character_id)
+
 	print("[Insimul] Dialogue started with NPC: %s" % npc_character_id)
 
 func end_dialogue() -> void:
@@ -18,4 +80,12 @@ func end_dialogue() -> void:
 	is_in_dialogue = false
 	current_npc_id = ""
 	dialogue_ended.emit()
+
+	if _chat_panel and _chat_panel.has_method("close_chat"):
+		_chat_panel.close_chat()
+
 	print("[Insimul] Dialogue ended with NPC: %s" % npc_id)
+
+func _on_chat_closed() -> void:
+	if is_in_dialogue:
+		end_dialogue()
