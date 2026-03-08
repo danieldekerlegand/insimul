@@ -52,6 +52,7 @@ export default function Home() {
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [engineExportDialogOpen, setEngineExportDialogOpen] = useState(false);
+  const [exportEngine, setExportEngine] = useState<'babylon' | 'unreal' | 'unity' | 'godot'>('unreal');
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [worldSettingsOpen, setWorldSettingsOpen] = useState(false);
@@ -165,7 +166,7 @@ export default function Home() {
         currentWorld={currentWorld}
         activeTab={activeTab}
         onOpenAdminPanel={() => setAdminPanelOpen(true)}
-        onExportGame={() => setEngineExportDialogOpen(true)}
+        onExportGame={(engine) => { setExportEngine(engine); setEngineExportDialogOpen(true); }}
         onEditWorld={() => setWorldEditDialogOpen(true)}
         onOpenSettings={() => setWorldSettingsOpen(true)}
         onDeleteWorld={() => setWorldDeleteDialogOpen(true)}
@@ -463,6 +464,7 @@ export default function Home() {
           onOpenChange={setEngineExportDialogOpen}
           worldId={selectedWorld}
           worldName={currentWorld?.name || 'world'}
+          initialEngine={exportEngine}
         />
       )}
 

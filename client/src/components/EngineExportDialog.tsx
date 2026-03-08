@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -86,10 +86,11 @@ interface EngineExportDialogProps {
   onOpenChange: (open: boolean) => void;
   worldId: string;
   worldName: string;
+  initialEngine?: EngineType;
 }
 
-export function EngineExportDialog({ open, onOpenChange, worldId, worldName }: EngineExportDialogProps) {
-  const [selectedEngine, setSelectedEngine] = useState<EngineType>('unreal');
+export function EngineExportDialog({ open, onOpenChange, worldId, worldName, initialEngine }: EngineExportDialogProps) {
+  const [selectedEngine, setSelectedEngine] = useState<EngineType>(initialEngine || 'unreal');
   const [babylonMode, setBabylonMode] = useState<BabylonMode>('web');
   const [isExporting, setIsExporting] = useState(false);
   const [steps, setSteps] = useState<ExportStep[]>([]);
@@ -107,6 +108,14 @@ export function EngineExportDialog({ open, onOpenChange, worldId, worldName }: E
     setError(null);
     setIsDone(false);
   }, []);
+
+  // Sync selected engine when dialog opens with a new initialEngine
+  useEffect(() => {
+    if (open && initialEngine) {
+      setSelectedEngine(initialEngine);
+      reset();
+    }
+  }, [open, initialEngine, reset]);
 
   // Reset Babylon mode when switching engines
   const handleEngineChange = useCallback((engine: EngineType) => {

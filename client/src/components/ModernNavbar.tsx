@@ -50,7 +50,7 @@ interface ModernNavbarProps {
   onChangeWorld: () => void;
   onOpenAuth?: () => void;
   onOpenAdminPanel?: () => void;
-  onExportGame?: () => void;
+  onExportGame?: (engine: ExportEngineType) => void;
   onEditWorld?: () => void;
   onOpenSettings?: () => void;
   onDeleteWorld?: () => void;
@@ -72,7 +72,9 @@ const tabMeta: Record<string, { label: string; icon: any }> = {
   "my-playthroughs": { label: "My Playthroughs", icon: History },
 };
 
-function ExportGameDropdown({ onExportGame }: { onExportGame?: () => void }) {
+export type ExportEngineType = 'babylon' | 'unreal' | 'unity' | 'godot';
+
+function ExportGameDropdown({ onExportGame }: { onExportGame?: (engine: ExportEngineType) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -85,11 +87,11 @@ function ExportGameDropdown({ onExportGame }: { onExportGame?: () => void }) {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const engines = [
-    { label: "Babylon.js (Web)", color: "text-blue-500" },
-    { label: "Unreal Engine", color: "text-purple-500" },
-    { label: "Unity", color: "text-green-500" },
-    { label: "Godot", color: "text-sky-500" },
+  const engines: { key: ExportEngineType; label: string; color: string }[] = [
+    { key: "babylon", label: "Babylon.js (Web)", color: "text-blue-500" },
+    { key: "unreal", label: "Unreal Engine", color: "text-purple-500" },
+    { key: "unity", label: "Unity", color: "text-green-500" },
+    { key: "godot", label: "Godot", color: "text-sky-500" },
   ];
 
   return (
@@ -112,10 +114,10 @@ function ExportGameDropdown({ onExportGame }: { onExportGame?: () => void }) {
           </div>
           {engines.map((engine) => (
             <button
-              key={engine.label}
+              key={engine.key}
               onClick={() => {
                 setOpen(false);
-                onExportGame?.();
+                onExportGame?.(engine.key);
               }}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
             >
@@ -404,20 +406,31 @@ export function ModernNavbar({
                         </div>
                       </button>
                     )}
-                    {onExportGame && onExportGame !== undefined && (
-                      <button
-                        onClick={() => {
-                          onExportGame();
-                          setMobileMenuOpen(false);
-                        }}
-                        className="w-full flex items-center gap-3 p-3 rounded-lg transition-all hover:bg-blue-500/10 text-blue-600 dark:text-blue-400"
-                      >
-                        <Package className="w-5 h-5" />
-                        <div className="text-left">
-                          <span className="font-medium block">Export Game</span>
-                          <span className="text-xs opacity-70">Download project for an engine</span>
+                    {onExportGame && (
+                      <>
+                        <div className="px-3 pt-2 pb-1 text-xs font-semibold text-muted-foreground flex items-center gap-2">
+                          <Package className="w-3.5 h-3.5" />
+                          Export Game
                         </div>
-                      </button>
+                        {([
+                          { key: 'babylon' as ExportEngineType, label: 'Babylon.js (Web)', color: 'text-blue-500' },
+                          { key: 'unreal' as ExportEngineType, label: 'Unreal Engine', color: 'text-purple-500' },
+                          { key: 'unity' as ExportEngineType, label: 'Unity', color: 'text-green-500' },
+                          { key: 'godot' as ExportEngineType, label: 'Godot', color: 'text-sky-500' },
+                        ]).map((engine) => (
+                          <button
+                            key={engine.key}
+                            onClick={() => {
+                              onExportGame(engine.key);
+                              setMobileMenuOpen(false);
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-all hover:bg-accent hover:text-accent-foreground"
+                          >
+                            <Package className={`w-4 h-4 ${engine.color}`} />
+                            <span className="text-sm">{engine.label}</span>
+                          </button>
+                        ))}
+                      </>
                     )}
                     <Button
                       variant="outline"

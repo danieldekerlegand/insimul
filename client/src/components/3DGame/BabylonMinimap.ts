@@ -53,11 +53,11 @@ export class BabylonMinimap {
     this.container.background = 'rgba(0, 0, 0, 0.7)';
     this.advancedTexture.addControl(this.container);
 
-    // Position in bottom-right corner
+    // Position in top-right corner
     this.container.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    this.container.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+    this.container.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
     this.container.left = '-20px';
-    this.container.top = '-20px';
+    this.container.top = '20px';
 
     // Title
     const title = new GUI.TextBlock('minimapTitle');

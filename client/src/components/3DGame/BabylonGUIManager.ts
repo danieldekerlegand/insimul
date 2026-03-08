@@ -644,7 +644,7 @@ export class BabylonGUIManager {
     panel.color = "white";
     panel.thickness = 2;
     panel.cornerRadius = 5;
-    panel.top = "120px"; // Position below camera button
+    panel.top = "10px";
     panel.left = "-10px";
     panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     panel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
