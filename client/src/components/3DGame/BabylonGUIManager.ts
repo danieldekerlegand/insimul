@@ -141,11 +141,9 @@ export class BabylonGUIManager {
 
   private initialize() {
     this.createHUD();
-    this.createMenuButton();
-    this.createCameraButton();
     this.createFullscreenButton();
-    
-    console.log('[GUIManager] GUI initialized successfully'); 
+
+    console.log('[GUIManager] GUI initialized successfully');
   }
 
   private createHUD() {
@@ -156,7 +154,6 @@ export class BabylonGUIManager {
     // Create all HUD panels
     this.createPlayerStatsPanel();
     this.createWorldStatsPanel();
-    this.createSettlementDetailsPanel();
     this.createNPCListPanel();
     this.createActionPanel();
     this.createFeedbackPanel();

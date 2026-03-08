@@ -103,10 +103,7 @@ async function packageAsZip(
  * 3. Bundles Base Collection assets
  * 4. Packages everything into a ZIP buffer
  */
-export async function exportUnrealProject(worldId: string): Promise<{
-  files: GeneratedFile[];
-  assetBundle: { assets: BundledAsset[]; manifest: string; totalSize: number };
-}> {
+export async function exportUnrealProject(worldId: string): Promise<UnrealExportResult> {
   console.log('[Export] Starting Unreal export for world:', worldId);
   const startTime = Date.now();
 
@@ -155,11 +152,16 @@ export async function exportUnrealProject(worldId: string): Promise<{
   const elapsed = Date.now() - startTime;
 
   return {
+    projectName,
     files: allFiles,
-    assetBundle: {
-      assets: assetBundle.assets,
-      manifest: generateAssetManifestJson(assetBundle.manifest),
-      totalSize: assetBundle.totalSizeBytes,
+    zipBuffer,
+    stats: {
+      totalFiles: allFiles.length,
+      cppFiles: countByExtension(allFiles, '.cpp', '.h'),
+      dataFiles: countByExtension(allFiles, '.json', '.csv'),
+      configFiles: countByExtension(allFiles, '.ini', '.uproject', '.Build.cs'),
+      totalSizeBytes,
+      generationTimeMs: elapsed,
     },
   };
 }

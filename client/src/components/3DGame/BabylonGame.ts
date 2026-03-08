@@ -175,6 +175,8 @@ interface NPCInstance {
   // Phase 4: NPC billboard LOD
   billboardLOD?: Mesh;
   isBillboardMode?: boolean;
+  // Debug
+  _debugLogged?: boolean;
 }
 
 interface WorldVisualTheme {
@@ -494,8 +496,14 @@ export class BabylonGame {
   private _loadingBar: HTMLDivElement | null = null;
 
   private showLoadingScreen(): void {
+    // Ensure the canvas parent is a positioning context so the overlay covers it exactly
+    const parent = this.canvas.parentElement;
+    if (parent && !parent.style.position) {
+      parent.style.position = 'relative';
+    }
+
     this._loadingOverlay = document.createElement('div');
-    this._loadingOverlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;background:#111;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10000;';
+    this._loadingOverlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;background:#111;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10000;pointer-events:auto;';
 
     this._loadingText = document.createElement('div');
     this._loadingText.style.cssText = 'color:#ccc;font:16px sans-serif;margin-bottom:16px;';
@@ -510,7 +518,7 @@ export class BabylonGame {
     barContainer.appendChild(this._loadingBar);
     this._loadingOverlay.appendChild(this._loadingText);
     this._loadingOverlay.appendChild(barContainer);
-    this.canvas.parentElement?.appendChild(this._loadingOverlay);
+    parent?.appendChild(this._loadingOverlay);
   }
 
   private updateLoadingScreen(step: string, progress: number): void {
@@ -653,8 +661,6 @@ export class BabylonGame {
         description: displayName,
         duration: 1500
       });
-      // Update camera button text
-      this.guiManager?.updateCameraButtonText(displayName);
     });
 
     this.sceneStatus = "ready";
@@ -775,9 +781,10 @@ export class BabylonGame {
   private createCamera(scene: Scene, canvas: HTMLCanvasElement): ArcRotateCamera {
     const camera = new ArcRotateCamera("orbit-camera", -Math.PI / 2, Math.PI / 3, 10, new Vector3(0, 1.5, 0), scene);
     camera.attachControl(canvas, true);
-    camera.lowerRadiusLimit = 3;
-    camera.upperRadiusLimit = 40;
-    camera.wheelPrecision = 15;
+    // Lock camera zoom — radius is fixed, no mouse wheel zoom
+    camera.lowerRadiusLimit = 10;
+    camera.upperRadiusLimit = 10;
+    camera.inputs.removeByType("ArcRotateCameraMouseWheelInput");
     camera.checkCollisions = true;
     camera.lowerBetaLimit = 0.3;
     camera.upperBetaLimit = Math.PI / 2.1;
@@ -909,7 +916,6 @@ export class BabylonGame {
     this.guiManager.setOnNPCSelected((npcId) => this.setSelectedNPC(npcId));
     this.guiManager.setOnActionSelected((actionId) => this.handlePerformAction(actionId));
     this.guiManager.setOnPayFines(() => this.handlePayFines());
-    this.guiManager.setOnCameraModePressed(() => this.cameraManager?.cycleMode());
 
     // Initialize unified game menu system (ESC to toggle)
     const menuCallbacks: GameMenuCallbacks = {
@@ -2396,15 +2402,13 @@ export class BabylonGame {
       }
     }
 
-    // Create octree for faster frustum culling and picking.
-    // The octree spatially partitions the scene so the engine only tests
-    // nearby meshes instead of iterating all meshes per frame.
-    const octreeCapacity = 64; // meshes per octree block
-    const maxDepth = 4;
-    this.scene.createOrUpdateSelectionOctree(octreeCapacity, maxDepth);
+    // Note: Octree spatial partitioning is NOT used because it indexes meshes
+    // at creation time. Meshes added later (player, NPCs) are excluded from
+    // frustum checks and become invisible. The ChunkManager already provides
+    // effective spatial culling for static geometry.
 
     const stats = this.chunkManager.getStats();
-    console.log(`[Perf] Optimized: ${frozenCount} meshes frozen, ${nonPickableCount} non-pickable, ${chunkedCount} chunked (${stats.totalChunks} chunks), ${frozenMaterials} materials frozen, octree built`);
+    console.log(`[Perf] Optimized: ${frozenCount} meshes frozen, ${nonPickableCount} non-pickable, ${chunkedCount} chunked (${stats.totalChunks} chunks), ${frozenMaterials} materials frozen`);
 
     // Phase 8: Initialize settlement scene isolation
     this.initSettlementSceneManager();
@@ -3291,6 +3295,14 @@ export class BabylonGame {
 
       this.playerMesh = playerMesh;
 
+      // Ensure player mesh and all children are visible
+      playerMesh.setEnabled(true);
+      playerMesh.visibility = 1;
+      playerMesh.getChildMeshes().forEach(child => {
+        child.setEnabled(true);
+        child.visibility = 1;
+      });
+
       if (this.camera) {
         this.camera.target = playerMesh.position.add(new Vector3(0, 1.6, 0));
         this.camera.radius = 10;
@@ -3299,7 +3311,7 @@ export class BabylonGame {
 
         const controller = new CharacterController(playerMesh, this.camera, this.scene, undefined, true);
         controller.setCameraTarget(new Vector3(0, 1.6, 0));
-        controller.setNoFirstPerson(false);
+        controller.setNoFirstPerson(true);
         controller.setStepOffset(0.4);
         controller.setSlopeLimit(30, 60);
         controller.setWalkSpeed(2.5);
@@ -3353,6 +3365,13 @@ export class BabylonGame {
         if (this.cameraManager) {
           this.cameraManager.setCharacterController(controller);
           this.cameraManager.setPlayerMesh(playerMesh);
+
+          // Apply world creator's camera perspective if specified
+          const perspective = (this.worldData as any)?.cameraPerspective;
+          if (perspective && ['first_person', 'third_person', 'isometric', 'side_scroll', 'top_down', 'fighting'].includes(perspective)) {
+            this.cameraManager.setMode(perspective as CameraMode, false);
+            console.log(`[BabylonGame] Camera perspective set to: ${perspective}`);
+          }
         }
       }
 
@@ -3536,93 +3555,30 @@ export class BabylonGame {
    * Load or retrieve a cached NPC model template. The first call for a given
    * cacheKey loads the model via ImportMeshAsync; subsequent calls clone it.
    */
-  private async getOrLoadNPCModel(cacheKey: string, rootUrl: string, file: string): Promise<{ root: Mesh; animationGroups: any[] } | null> {
+  private async getOrLoadNPCModel(_cacheKey: string, rootUrl: string, file: string): Promise<{ root: Mesh; animationGroups: any[] } | null> {
     if (!this.scene) return null;
 
-    // Check cache first
-    const cached = this.npcModelCache.get(cacheKey);
-    if (cached) {
-      // Clone the cached template
-      const clonedNode = cached.root.instantiateHierarchy(
-        null,
-        undefined,
-        (source, clone) => { clone.name = `${source.name}_clone`; }
-      );
-
-      if (clonedNode) {
-        // instantiateHierarchy may return a TransformNode (not Mesh) for glTF models.
-        // CharacterController requires the root to be a Mesh, so wrap if needed.
-        let cloned: Mesh;
-        if (clonedNode instanceof Mesh) {
-          cloned = clonedNode;
-        } else {
-          cloned = new Mesh(`${cacheKey}_wrapper`, this.scene!);
-          // Copy transform from the TransformNode to the wrapper Mesh
-          cloned.position.copyFrom(clonedNode.position);
-          cloned.rotation.copyFrom(clonedNode.rotation);
-          cloned.scaling.copyFrom(clonedNode.scaling);
-          // Reparent children under the wrapper (preserves local transforms)
-          clonedNode.getChildren().forEach(child => child.parent = cloned);
-          clonedNode.dispose();
-        }
-        cloned.setEnabled(true);
-        cloned.getChildMeshes().forEach(m => m.setEnabled(true));
-        // Clone animation groups targeting the new mesh hierarchy
-        const clonedAnims = cached.animationGroups.map(ag => ag.clone(`${ag.name}_clone`));
-        return { root: cloned, animationGroups: clonedAnims };
-      }
-    }
-
-    // First load for this model URL
     try {
+      // Load a fresh copy each time — the browser caches the file download.
+      // instantiateHierarchy/clone approaches break for .babylon files where
+      // geometry meshes are siblings rather than children of __root__.
       const result = await SceneLoader.ImportMeshAsync('', rootUrl, file, this.scene);
-      const testMesh = this.selectPlayerMesh(result.meshes) || result.meshes[0];
-      if (!testMesh) {
+      const root = this.selectPlayerMesh(result.meshes) || result.meshes[0];
+      if (!root || !(root instanceof Mesh)) {
         result.meshes.forEach((m: any) => m.dispose());
         return null;
       }
 
-      // Cache the template (hidden) and create a clone for actual use
-      const templateRoot = testMesh as Mesh;
-
-      // Clone for the first NPC before caching the template
-      const firstCloneNode = templateRoot.instantiateHierarchy(
-        null,
-        undefined,
-        (source, clone) => { clone.name = `${source.name}_clone`; }
-      );
-
-      let firstClone: Mesh | null = null;
-      if (firstCloneNode) {
-        if (firstCloneNode instanceof Mesh) {
-          firstClone = firstCloneNode;
-        } else {
-          firstClone = new Mesh(`${cacheKey}_wrapper`, this.scene!);
-          firstClone.position.copyFrom(firstCloneNode.position);
-          firstClone.rotation.copyFrom(firstCloneNode.rotation);
-          firstClone.scaling.copyFrom(firstCloneNode.scaling);
-          firstCloneNode.getChildren().forEach(child => child.parent = firstClone!);
-          firstCloneNode.dispose();
+      // Reparent sibling meshes under root so they move together
+      for (const m of result.meshes) {
+        if (m !== root && !m.parent) {
+          m.parent = root;
         }
-        firstClone.setEnabled(true);
-        firstClone.getChildMeshes().forEach(m => m.setEnabled(true));
       }
 
-      // Hide the template
-      templateRoot.setEnabled(false);
-      templateRoot.getChildMeshes().forEach(m => m.setEnabled(false));
-
-      // Cache template
-      this.npcModelCache.set(cacheKey, {
-        root: templateRoot,
-        animationGroups: result.animationGroups || [],
-      });
-
-      const clonedAnims = (result.animationGroups || []).map((ag: any) => ag.clone(`${ag.name}_clone`));
-
-      return firstClone ? { root: firstClone, animationGroups: clonedAnims } : null;
+      return { root, animationGroups: result.animationGroups || [] };
     } catch (err) {
-      console.warn(`[BabylonGame] Failed to load NPC model ${cacheKey}:`, err);
+      console.warn(`[BabylonGame] Failed to load NPC model ${_cacheKey}:`, err);
       return null;
     }
   }
@@ -3667,6 +3623,25 @@ export class BabylonGame {
       root.name = `npc_${character.id}`;
       root.metadata = { npcId: character.id, npcRole: role };
       root.checkCollisions = true;
+
+      // Debug: log mesh state to diagnose visibility issues
+      const childMeshes = root.getChildMeshes();
+      console.log(`[BabylonGame] NPC ${character.id} mesh debug:`, {
+        rootType: root.constructor.name,
+        rootEnabled: root.isEnabled(),
+        rootVisibility: root.visibility,
+        rootIsVisible: root.isVisible,
+        childCount: childMeshes.length,
+        children: childMeshes.map(m => ({
+          name: m.name,
+          type: m.constructor.name,
+          enabled: m.isEnabled(),
+          visibility: m.visibility,
+          isVisible: m.isVisible,
+          hasMaterial: !!m.material,
+          vertexCount: m instanceof Mesh ? m.getTotalVertices() : 0
+        }))
+      });
 
       // Collision ellipsoid for NPCs (same as player)
       root.ellipsoid = new Vector3(0.5, 1, 0.5);
@@ -4130,12 +4105,7 @@ export class BabylonGame {
         return;
       }
 
-      // Settlement selection
-      const settlementId = metadata.settlementId as string | undefined;
-      if (settlementId && this.settlementStats.has(settlementId)) {
-        this.handleSettlementSelected(settlementId);
-        return;
-      }
+      // Settlement click — no-op (details panel removed)
 
       // Phase 4B: Interior exit door — click to leave building
       if (metadata.interiorExit && metadata.buildingId) {
@@ -4819,12 +4789,6 @@ export class BabylonGame {
       }
     }
 
-    // V - Cycle camera mode (first person / third person / isometric)
-    if (event.code === 'KeyV' && !event.shiftKey && !event.repeat) {
-      event.preventDefault();
-      this.cameraManager?.cycleMode();
-    }
-
     // F - Attack/Respawn
     if (event.code === 'KeyF' && !event.repeat) {
       event.preventDefault();
@@ -5185,9 +5149,9 @@ export class BabylonGame {
 
     // Restore previous camera mode
     if (this.cameraManager && this.preConversationCameraMode && this.camera) {
-      // Reset camera limits
-      this.camera.lowerRadiusLimit = null;
-      this.camera.upperRadiusLimit = null;
+      // Restore locked camera radius
+      this.camera.lowerRadiusLimit = 10;
+      this.camera.upperRadiusLimit = 10;
       
       // Only switch mode if it's different from current
       if (this.cameraManager.getCurrentMode() !== this.preConversationCameraMode) {

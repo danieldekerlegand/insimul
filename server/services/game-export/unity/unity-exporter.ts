@@ -90,10 +90,7 @@ async function packageAsZip(
 /**
  * Generate a complete Unity project from a world ID.
  */
-export async function exportUnityProject(worldId: string): Promise<{
-  files: GeneratedFile[];
-  assetBundle: { assets: BundledAsset[]; manifest: string; totalSize: number };
-}> {
+export async function exportUnityProject(worldId: string): Promise<UnityExportResult> {
   console.log('[Export] Starting Unity export for world:', worldId);
   const startTime = Date.now();
 
@@ -139,11 +136,16 @@ export async function exportUnityProject(worldId: string): Promise<{
   const elapsed = Date.now() - startTime;
 
   return {
+    projectName,
     files: allFiles,
-    assetBundle: {
-      assets: assetBundle.assets,
-      manifest: generateAssetManifestJson(assetBundle.manifest),
-      totalSize: assetBundle.totalSizeBytes,
+    zipBuffer,
+    stats: {
+      totalFiles: allFiles.length,
+      csharpFiles: countByExtension(allFiles, '.cs'),
+      dataFiles: countByExtension(allFiles, '.json', '.asset'),
+      configFiles: countByExtension(allFiles, '.asmdef', '.meta', '.csproj'),
+      totalSizeBytes,
+      generationTimeMs: elapsed,
     },
   };
 }

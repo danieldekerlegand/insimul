@@ -57,13 +57,13 @@ const CAMERA_CONFIGS: Record<CameraMode, CameraModeConfig> = {
     radius: 10,
     beta: Math.PI / 3, // 60 degrees
     fov: 0.8,
-    lowerRadiusLimit: 3,
-    upperRadiusLimit: 25,
+    lowerRadiusLimit: 10,
+    upperRadiusLimit: 10,
     lowerBetaLimit: 0.3,
     upperBetaLimit: Math.PI / 2.1,
     controllerMode: 0,
     playerVisible: true,
-    wheelPrecision: 15
+    wheelPrecision: 100 // Zoom disabled
   },
   isometric: {
     mode: 'isometric',
@@ -223,7 +223,7 @@ export class CameraManager {
     // Update character controller mode
     if (this.characterController) {
       this.characterController.setMode(config.controllerMode);
-      this.characterController.setNoFirstPerson(mode !== 'third_person');
+      this.characterController.setNoFirstPerson(mode !== 'first_person' && mode !== 'third_person');
     }
 
     // Update player visibility

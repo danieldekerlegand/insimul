@@ -27,6 +27,7 @@ interface World {
   requiresAuth?: boolean;
   allowedUserIds?: string[];
   selectedAssetCollectionId?: string;
+  cameraPerspective?: string;
 }
 
 interface WorldSettingsDialogProps {
@@ -50,6 +51,7 @@ export function WorldSettingsDialog({
   const [allowedUserIds, setAllowedUserIds] = useState<string[]>([]);
   const [newUserId, setNewUserId] = useState('');
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>('');
+  const [cameraPerspective, setCameraPerspective] = useState<string>('third_person');
   const { token, user } = useAuth();
   const { toast } = useToast();
 
@@ -84,6 +86,7 @@ export function WorldSettingsDialog({
         setRequiresAuth(worldData.requiresAuth || false);
         setAllowedUserIds(worldData.allowedUserIds || []);
         setSelectedCollectionId(worldData.selectedAssetCollectionId || '');
+        setCameraPerspective(worldData.cameraPerspective || 'third_person');
       } else {
         toast({
           title: 'Error',
@@ -126,6 +129,7 @@ export function WorldSettingsDialog({
           requiresAuth,
           allowedUserIds,
           selectedAssetCollectionId: selectedCollectionId && selectedCollectionId !== 'none' ? selectedCollectionId : null,
+          cameraPerspective: cameraPerspective || 'third_person',
         }),
       });
 
@@ -252,6 +256,27 @@ export function WorldSettingsDialog({
               </Select>
               <div className="text-xs text-muted-foreground">
                 Themed visual assets for your world
+              </div>
+            </div>
+
+            {/* Camera Perspective */}
+            <div className="space-y-2">
+              <Label htmlFor="camera-perspective">Camera Perspective</Label>
+              <Select value={cameraPerspective} onValueChange={setCameraPerspective}>
+                <SelectTrigger id="camera-perspective">
+                  <SelectValue placeholder="Select camera perspective" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="third_person">Third Person</SelectItem>
+                  <SelectItem value="first_person">First Person</SelectItem>
+                  <SelectItem value="isometric">Isometric</SelectItem>
+                  <SelectItem value="side_scroll">Side-Scroll</SelectItem>
+                  <SelectItem value="top_down">Top-Down</SelectItem>
+                  <SelectItem value="fighting">Fighting</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="text-xs text-muted-foreground">
+                Camera mode used when playing this world
               </div>
             </div>
 

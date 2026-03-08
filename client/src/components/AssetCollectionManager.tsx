@@ -162,16 +162,15 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
     setTags(collection.tags?.join(', ') || '');
     setIsPublic(collection.isPublic ?? true);
     
-    // Load 3D config if available
-    const config = (collection as any).config3D || {};
-    setGroundTextureId(config.groundTextureId || '');
-    setRoadTextureId(config.roadTextureId || '');
-    setBuildingModels(config.buildingModels || {});
-    setNatureModels(config.natureModels || {});
-    setCharacterModels(config.characterModels || {});
-    setObjectModels(config.objectModels || {});
-    setPlayerModels(config.playerModels || {});
-    setQuestObjectModels(config.questObjectModels || {});
+    // Load 3D config fields (stored at top level on the collection)
+    setGroundTextureId((collection as any).groundTextureId || '');
+    setRoadTextureId((collection as any).roadTextureId || '');
+    setBuildingModels((collection as any).buildingModels || {});
+    setNatureModels((collection as any).natureModels || {});
+    setCharacterModels((collection as any).characterModels || {});
+    setObjectModels((collection as any).objectModels || {});
+    setPlayerModels((collection as any).playerModels || {});
+    setQuestObjectModels((collection as any).questObjectModels || {});
   };
 
   const handleCreate = async () => {
@@ -231,7 +230,7 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
           isPublic,
           isBase: false, // User-created collections are never base
           assetIds: initialAssets, // Copy from base if selected
-          config3D: initial3DConfig,
+          ...initial3DConfig,
         }),
       });
 
@@ -277,16 +276,14 @@ export function AssetCollectionManager({ onRefresh }: AssetCollectionManagerProp
           purpose: purpose || null,
           tags: tags.split(',').map(t => t.trim()).filter(Boolean),
           isPublic,
-          config3D: {
-            groundTextureId: groundTextureId || null,
-            roadTextureId: roadTextureId || null,
-            buildingModels,
-            natureModels,
-            characterModels,
-            objectModels,
-            playerModels,
-            questObjectModels,
-          },
+          groundTextureId: groundTextureId || null,
+          roadTextureId: roadTextureId || null,
+          buildingModels,
+          natureModels,
+          characterModels,
+          objectModels,
+          playerModels,
+          questObjectModels,
         }),
       });
 

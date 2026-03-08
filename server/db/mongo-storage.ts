@@ -229,6 +229,9 @@ const WorldSchema = new Schema({
   // Asset collection reference
   selectedAssetCollectionId: { type: String, default: null },
 
+  // Camera perspective
+  cameraPerspective: { type: String, default: null },
+
   sourceFormats: { type: Schema.Types.Mixed, default: null },
   config: { type: Schema.Types.Mixed, default: null },
   worldData: { type: Schema.Types.Mixed, default: null },

@@ -263,6 +263,9 @@ export const worlds = pgTable("worlds", {
   // Asset collection reference
   selectedAssetCollectionId: varchar("selected_asset_collection_id"), // Reference to the asset collection this world uses
 
+  // Camera perspective: first_person, third_person, isometric, side_scroll, top_down, fighting
+  cameraPerspective: text("camera_perspective"),
+
   // Configuration
   config: jsonb("config").$type<Record<string, any>>().default({}),
 

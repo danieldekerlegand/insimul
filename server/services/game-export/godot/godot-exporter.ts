@@ -88,10 +88,7 @@ async function packageAsZip(
 /**
  * Generate a complete Godot 4.x project from a world ID.
  */
-export async function exportGodotProject(worldId: string): Promise<{
-  files: GeneratedFile[];
-  assetBundle: { assets: BundledAsset[]; manifest: string; totalSize: number };
-}> {
+export async function exportGodotProject(worldId: string): Promise<GodotExportResult> {
   console.log('[Export] Starting Godot export for world:', worldId);
   const startTime = Date.now();
 
@@ -137,11 +134,16 @@ export async function exportGodotProject(worldId: string): Promise<{
   const elapsed = Date.now() - startTime;
 
   return {
+    projectName,
     files: allFiles,
-    assetBundle: {
-      assets: assetBundle.assets,
-      manifest: generateAssetManifestJson(assetBundle.manifest),
-      totalSize: assetBundle.totalSizeBytes,
+    zipBuffer,
+    stats: {
+      totalFiles: allFiles.length,
+      gdscriptFiles: countByExtension(allFiles, '.gd'),
+      dataFiles: countByExtension(allFiles, '.json', '.tres'),
+      configFiles: countByExtension(allFiles, '.godot', '.cfg', '.import'),
+      totalSizeBytes,
+      generationTimeMs: elapsed,
     },
   };
 }
