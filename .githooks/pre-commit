@@ -16,6 +16,9 @@ cd "$REPO_ROOT"
 SYSTEM_PATHS=(
   "shared/game-engine/systems/"
   "shared/game-engine/system-contracts.ts"
+  "shared/game-engine/ir-types.ts"
+  "shared/game-engine/types.ts"
+  "shared/prolog/quest-converter.ts"
   "client/src/components/3DGame/CombatSystem.ts"
   "client/src/components/3DGame/RuleEnforcer.ts"
   "client/src/components/3DGame/CraftingSystem.ts"
@@ -25,6 +28,10 @@ SYSTEM_PATHS=(
   "client/src/components/3DGame/actions/ActionManager.ts"
   "client/src/components/3DGame/ProceduralBuildingGenerator.ts"
   "client/src/components/3DGame/WorldScaleManager.ts"
+  "client/src/components/3DGame/GameEventBus.ts"
+  "client/src/components/3DGame/GamePrologEngine.ts"
+  "client/src/components/3DGame/DataSource.ts"
+  "client/src/components/3DGame/QuestObjectManager.ts"
 )
 
 STAGED=$(git diff --cached --name-only)

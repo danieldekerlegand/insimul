@@ -134,6 +134,11 @@ function generateQuestsDT(ir: WorldIR): object[] {
     Status: q.status,
     Tags: q.tags,
     PrerequisiteQuestIds: q.prerequisiteQuestIds || [],
+    ItemRewards: (q.itemRewards || []).map(r => ({
+      ItemId: r.itemId,
+      Quantity: r.quantity,
+      ItemName: r.name,
+    })),
   }));
 }
 
@@ -248,6 +253,51 @@ function generateBusinessesDT(ir: WorldIR): object[] {
   }));
 }
 
+// ─────────────────────────────────────────────
+// Item DataTable
+// ─────────────────────────────────────────────
+
+function generateItemsDT(ir: WorldIR): object[] {
+  return ir.systems.items.map(item => ({
+    Name: item.id,
+    ItemId: item.id,
+    ItemName: item.name,
+    Description: item.description || '',
+    ItemType: item.itemType,
+    Icon: item.icon || '',
+    Value: item.value,
+    SellValue: item.sellValue,
+    Weight: item.weight,
+    bTradeable: item.tradeable,
+    bStackable: item.stackable,
+    MaxStack: item.maxStack,
+    ObjectRole: item.objectRole || '',
+    Effects: item.effects || {},
+    LootWeight: item.lootWeight,
+    Tags: item.tags,
+  }));
+}
+
+// ─────────────────────────────────────────────
+// Loot Table DataTable
+// ─────────────────────────────────────────────
+
+function generateLootTablesDT(ir: WorldIR): object[] {
+  return ir.systems.lootTables.map((lt, i) => ({
+    Name: `loot_${lt.enemyType}_${i}`,
+    EnemyType: lt.enemyType,
+    Entries: lt.entries.map(e => ({
+      ItemId: e.itemId,
+      ItemName: e.itemName,
+      DropChance: e.dropChance,
+      MinQuantity: e.minQuantity,
+      MaxQuantity: e.maxQuantity,
+    })),
+    GoldMin: lt.goldMin,
+    GoldMax: lt.goldMax,
+  }));
+}
+
 // ═════════════════════════════════════════════
 // Public API
 // ═════════════════════════════════════════════
@@ -275,6 +325,8 @@ export function generateDataTableFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'DT_Truths', data: generateTruthsDT(ir) },
     { name: 'DT_Roads', data: generateRoadsDT(ir) },
     { name: 'DT_Businesses', data: generateBusinessesDT(ir) },
+    { name: 'DT_Items', data: generateItemsDT(ir) },
+    { name: 'DT_LootTables', data: generateLootTablesDT(ir) },
   ];
 
   for (const table of tables) {

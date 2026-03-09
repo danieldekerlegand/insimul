@@ -264,6 +264,15 @@ export class RuleEnforcer {
       case 'tag':
         return this.checkTagCondition(condition, context);
 
+      case 'has_item':
+        return this.checkHasItemCondition(condition, context);
+
+      case 'item_count':
+        return this.checkItemCountCondition(condition, context);
+
+      case 'item_type':
+        return this.checkItemTypeCondition(condition, context);
+
       default:
         return true; // Unknown condition types pass by default
     }
@@ -349,6 +358,51 @@ export class RuleEnforcer {
     // This would check if context has certain tags
     // For now, always return true
     return true;
+  }
+
+  /**
+   * Check if player has a specific item
+   */
+  private checkHasItemCondition(condition: RuleCondition, context: GameContext): boolean {
+    if (!context.playerInventory) return false;
+    if (condition.itemId) {
+      return context.playerInventory.some(item => item.id === condition.itemId);
+    }
+    if (condition.itemName) {
+      const name = condition.itemName.toLowerCase();
+      return context.playerInventory.some(item => item.name.toLowerCase() === name);
+    }
+    return false;
+  }
+
+  /**
+   * Check if player has enough of an item
+   */
+  private checkItemCountCondition(condition: RuleCondition, context: GameContext): boolean {
+    if (!context.playerInventory) return false;
+    const matchingItem = context.playerInventory.find(item =>
+      (condition.itemId && item.id === condition.itemId) ||
+      (condition.itemName && item.name.toLowerCase() === condition.itemName.toLowerCase())
+    );
+    const qty = matchingItem?.quantity || 0;
+    const required = condition.quantity || 1;
+    const operator = condition.operator || '>=';
+    switch (operator) {
+      case '>': return qty > required;
+      case '>=': return qty >= required;
+      case '<': return qty < required;
+      case '<=': return qty <= required;
+      case '==': return qty === required;
+      default: return qty >= required;
+    }
+  }
+
+  /**
+   * Check if player has any item of a given type
+   */
+  private checkItemTypeCondition(condition: RuleCondition, context: GameContext): boolean {
+    if (!context.playerInventory || !condition.itemType) return false;
+    return context.playerInventory.some(item => item.type === condition.itemType);
   }
 
   /**

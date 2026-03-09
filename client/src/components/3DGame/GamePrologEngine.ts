@@ -14,6 +14,7 @@ import { TauPrologEngine } from '@shared/prolog/tau-engine';
 import { getNPCReasoningRules, getPersonalityFacts, getRelationshipFacts, getEmotionalStateFacts } from '@shared/prolog/npc-reasoning';
 import { getTotTPredicates } from '@shared/prolog/tott-predicates';
 import { getAdvancedPredicates } from '@shared/prolog/advanced-predicates';
+import type { GameEventBus, GameEvent } from './GameEventBus';
 
 export interface GameState {
   playerCharacterId: string;
@@ -27,9 +28,179 @@ export interface GameState {
 export class GamePrologEngine {
   private engine: TauPrologEngine;
   private initialized = false;
+  private eventBusUnsubscribe: (() => void) | null = null;
+  private activeQuestIds: string[] = [];
+  private onQuestCompleted?: (questId: string) => void;
 
   constructor() {
     this.engine = new TauPrologEngine();
+  }
+
+  /**
+   * Set callback for when Prolog determines a quest is complete.
+   */
+  setOnQuestCompleted(callback: (questId: string) => void): void {
+    this.onQuestCompleted = callback;
+  }
+
+  /**
+   * Register active quest IDs for re-evaluation.
+   */
+  setActiveQuests(questIds: string[]): void {
+    this.activeQuestIds = questIds;
+  }
+
+  /**
+   * Subscribe to game events and assert corresponding Prolog facts.
+   * This bridges the event bus to the Prolog knowledge base.
+   */
+  subscribeToEventBus(eventBus: GameEventBus): void {
+    if (this.eventBusUnsubscribe) {
+      this.eventBusUnsubscribe();
+    }
+    this.eventBusUnsubscribe = eventBus.onAny((event: GameEvent) => {
+      this.handleGameEvent(event).catch((e) => {
+        console.warn('[GamePrologEngine] Error handling game event:', e);
+      });
+    });
+  }
+
+  /**
+   * Handle a game event by asserting Prolog facts and re-evaluating quests.
+   */
+  private async handleGameEvent(event: GameEvent): Promise<void> {
+    if (!this.initialized) return;
+
+    switch (event.type) {
+      case 'item_collected':
+        await this.engine.assertFact(
+          `collected(player, ${this.sanitize(event.itemName)}, ${event.quantity})`
+        );
+        await this.engine.assertFact(
+          `has(player, ${this.sanitize(event.itemName)})`
+        );
+        break;
+      case 'enemy_defeated':
+        await this.engine.assertFact(
+          `defeated(player, ${this.sanitize(event.enemyType)})`
+        );
+        break;
+      case 'location_visited':
+        await this.engine.assertFact(
+          `visited(player, ${this.sanitize(event.locationId)})`
+        );
+        break;
+      case 'npc_talked':
+        await this.engine.assertFact(
+          `talked_to(player, ${this.sanitize(event.npcId)}, ${event.turnCount})`
+        );
+        break;
+      case 'item_delivered':
+        await this.engine.assertFact(
+          `delivered(player, ${this.sanitize(event.npcId)}, ${this.sanitize(event.itemName)})`
+        );
+        break;
+      case 'vocabulary_used':
+        await this.engine.assertFact(
+          `vocab_used(player, ${this.sanitize(event.word)}, ${event.correct ? 1 : 0})`
+        );
+        break;
+      case 'item_crafted':
+        await this.engine.assertFact(
+          `crafted(player, ${this.sanitize(event.itemName)}, ${event.quantity})`
+        );
+        await this.engine.assertFact(
+          `has(player, ${this.sanitize(event.itemName)})`
+        );
+        break;
+      case 'location_discovered':
+        await this.engine.assertFact(
+          `discovered(player, ${this.sanitize(event.locationId)})`
+        );
+        break;
+      case 'settlement_entered':
+        await this.engine.assertFact(
+          `visited(player, ${this.sanitize(event.settlementId)})`
+        );
+        break;
+      case 'reputation_changed':
+        await this.engine.assertFact(
+          `reputation_change(player, ${this.sanitize(event.factionId)}, ${event.delta})`
+        );
+        break;
+      case 'quest_accepted':
+        await this.engine.assertFact(
+          `quest_active(player, ${this.sanitize(event.questId)})`
+        );
+        break;
+      case 'quest_completed':
+        await this.engine.assertFact(
+          `quest_completed(player, ${this.sanitize(event.questId)})`
+        );
+        break;
+      case 'puzzle_solved':
+        await this.engine.assertFact(
+          `puzzle_solved(player, ${this.sanitize(event.puzzleId)})`
+        );
+        break;
+      case 'item_removed':
+      case 'item_dropped':
+        await this.engine.retractFact(
+          `has(player, ${this.sanitize(event.itemName)})`
+        );
+        break;
+      case 'item_used':
+        await this.engine.retractFact(
+          `has(player, ${this.sanitize(event.itemName)})`
+        );
+        break;
+      case 'item_equipped':
+        await this.engine.assertFact(
+          `equipped(player, ${this.sanitize(event.itemName)}, ${this.sanitize(event.slot)})`
+        );
+        break;
+      case 'item_unequipped':
+        await this.engine.retractFact(
+          `equipped(player, ${this.sanitize(event.itemName)}, ${this.sanitize(event.slot)})`
+        );
+        break;
+      default:
+        return; // No re-evaluation needed for unhandled events
+    }
+
+    // Re-evaluate active quest postconditions after fact assertion
+    await this.reevaluateQuests();
+  }
+
+  /**
+   * Re-evaluate all active quests to see if any are now complete.
+   */
+  private async reevaluateQuests(): Promise<void> {
+    for (const questId of this.activeQuestIds) {
+      const complete = await this.isQuestComplete(questId, 'player');
+      if (complete && this.onQuestCompleted) {
+        this.onQuestCompleted(questId);
+      }
+    }
+  }
+
+  /**
+   * Initialize inventory items as Prolog facts.
+   * Call after initialize() to sync existing inventory to Prolog.
+   */
+  async initializeInventory(items: Array<{ id: string; name: string; type?: string; value?: number }>): Promise<void> {
+    if (!this.initialized) return;
+    for (const item of items) {
+      const name = this.sanitize(item.name);
+      await this.engine.assertFact(`has(player, ${name})`);
+      if (item.type) {
+        await this.engine.assertFact(`item_type(${name}, ${this.sanitize(item.type)})`);
+      }
+      if (item.value !== undefined && item.value > 0) {
+        await this.engine.assertFact(`item_value(${name}, ${item.value})`);
+      }
+    }
+    console.log(`[GamePrologEngine] Initialized ${items.length} inventory items as Prolog facts`);
   }
 
   /**
@@ -216,6 +387,22 @@ export class GamePrologEngine {
     try {
       const result = await this.engine.queryOnce(
         `quest_complete(${this.sanitize(playerId)}, ${this.sanitize(questId)})`
+      );
+      return !!result;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Check if a specific quest stage is complete.
+   */
+  async isStageComplete(questId: string, stageId: string, playerId: string): Promise<boolean> {
+    if (!this.initialized) return false;
+
+    try {
+      const result = await this.engine.queryOnce(
+        `stage_complete(${this.sanitize(playerId)}, ${this.sanitize(questId)}, ${this.sanitize(stageId)})`
       );
       return !!result;
     } catch {
@@ -465,6 +652,10 @@ export class GamePrologEngine {
    * Dispose the engine.
    */
   dispose(): void {
+    if (this.eventBusUnsubscribe) {
+      this.eventBusUnsubscribe();
+      this.eventBusUnsubscribe = null;
+    }
     this.engine.clear();
     this.initialized = false;
   }

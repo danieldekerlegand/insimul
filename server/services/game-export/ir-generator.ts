@@ -582,6 +582,7 @@ export async function generateWorldIR(
     truths,
     grammars,
     languages,
+    worldItems,
   ] = await Promise.all([
     storage.getWorld(worldId).then(r => { console.log(`[Export] ✓ getWorld`); return r; }),
     storage.getCountriesByWorld(worldId).then(r => { console.log(`[Export] ✓ getCountriesByWorld`); return r; }),
@@ -596,6 +597,7 @@ export async function generateWorldIR(
     storage.getTruthsByWorld(worldId).then(r => { console.log(`[Export] ✓ getTruthsByWorld`); return r; }),
     storage.getGrammarsByWorld(worldId).then(r => { console.log(`[Export] ✓ getGrammarsByWorld`); return r; }),
     storage.getWorldLanguagesByWorld(worldId).then(r => { console.log(`[Export] ✓ getWorldLanguagesByWorld`); return r; }),
+    storage.getItemsByWorld(worldId).then(r => { console.log(`[Export] ✓ getItemsByWorld`); return r; }),
   ]);
   
   const parallelTime = Date.now() - startTime;
@@ -1177,6 +1179,24 @@ export async function generateWorldIR(
       truths: truthIRs,
       grammars: grammarIRs,
       languages: languageIRs,
+      items: (worldItems || []).map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        description: item.description || null,
+        itemType: item.itemType || 'collectible',
+        icon: item.icon || null,
+        value: item.value || 0,
+        sellValue: item.sellValue || 0,
+        weight: item.weight || 1,
+        tradeable: item.tradeable !== false,
+        stackable: item.stackable !== false,
+        maxStack: item.maxStack || 99,
+        objectRole: item.objectRole || null,
+        effects: item.effects || null,
+        lootWeight: item.lootWeight || 0,
+        tags: item.tags || [],
+      })),
+      lootTables: buildLootTables(worldItems || []),
       dialogueContexts,
       knowledgeBase: await buildKnowledgeBase(ruleIRs, actionIRs, questIRs, characters),
     },
@@ -1240,6 +1260,34 @@ export async function generateWorldIR(
   };
 
   return ir;
+}
+
+// ── Loot Table Builder ───────────────────────────────────────────────────
+
+function buildLootTables(items: any[]): any[] {
+  const lootItems = items.filter((item: any) => item.lootWeight > 0);
+  if (lootItems.length === 0) return [];
+
+  // Group by rarity tag to create tiered loot tables
+  const common = lootItems.filter((i: any) => i.tags?.includes('loot:common'));
+  const uncommon = lootItems.filter((i: any) => i.tags?.includes('loot:uncommon'));
+  const rare = lootItems.filter((i: any) => i.tags?.includes('loot:rare'));
+
+  // Create a generic loot table usable by any enemy type
+  return [{
+    enemyType: 'default',
+    entries: lootItems.map((item: any) => ({
+      itemId: item.id,
+      itemName: item.name,
+      dropChance: item.tags?.includes('loot:rare') ? 0.05
+        : item.tags?.includes('loot:uncommon') ? 0.15
+        : 0.3,
+      minQuantity: 1,
+      maxQuantity: item.stackable ? 3 : 1,
+    })),
+    goldMin: 1,
+    goldMax: 20,
+  }];
 }
 
 // ── Prolog Knowledge Base Builder ─────────────────────────────────────────

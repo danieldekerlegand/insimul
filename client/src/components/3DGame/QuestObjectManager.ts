@@ -250,6 +250,74 @@ export class QuestObjectManager {
       });
     }
 
+    // Check for defeat_enemies objectives
+    if (quest.completionCriteria?.type === 'defeat_enemies') {
+      objectives.push({
+        id: `${quest.id}_defeat`,
+        questId: quest.id,
+        type: 'defeat_enemies',
+        description: quest.completionCriteria.description || `Defeat ${quest.completionCriteria.count || 1} ${quest.completionCriteria.enemyType || 'enemies'}`,
+        completed: false,
+        enemyType: quest.completionCriteria.enemyType,
+        enemiesDefeated: 0,
+        enemiesRequired: quest.completionCriteria.count || 1,
+      });
+    }
+
+    // Check for craft_item objectives
+    if (quest.completionCriteria?.type === 'craft_item') {
+      objectives.push({
+        id: `${quest.id}_craft`,
+        questId: quest.id,
+        type: 'craft_item',
+        description: quest.completionCriteria.description || `Craft ${quest.completionCriteria.itemName}`,
+        completed: false,
+        craftedItemId: quest.completionCriteria.itemName,
+        craftedCount: 0,
+        requiredCount: quest.completionCriteria.count || 1,
+      });
+    }
+
+    // Check for discover_location objectives
+    if (quest.completionCriteria?.type === 'discover_location') {
+      objectives.push({
+        id: `${quest.id}_discover`,
+        questId: quest.id,
+        type: 'discover_location',
+        description: quest.completionCriteria.description || `Discover ${quest.completionCriteria.locationName}`,
+        completed: false,
+        locationName: quest.completionCriteria.locationId || quest.completionCriteria.locationName,
+      });
+    }
+
+    // Check for escort_npc objectives
+    if (quest.completionCriteria?.type === 'escort_npc') {
+      objectives.push({
+        id: `${quest.id}_escort`,
+        questId: quest.id,
+        type: 'escort_npc',
+        description: quest.completionCriteria.description || `Escort ${quest.completionCriteria.npcName} to destination`,
+        completed: false,
+        escortNpcId: quest.completionCriteria.npcId,
+        npcName: quest.completionCriteria.npcName,
+        arrived: false,
+      });
+    }
+
+    // Check for gain_reputation objectives
+    if (quest.completionCriteria?.type === 'gain_reputation') {
+      objectives.push({
+        id: `${quest.id}_reputation`,
+        questId: quest.id,
+        type: 'gain_reputation',
+        description: quest.completionCriteria.description || `Gain reputation with ${quest.completionCriteria.factionId}`,
+        completed: false,
+        factionId: quest.completionCriteria.factionId,
+        reputationGained: 0,
+        reputationRequired: quest.completionCriteria.amount || 100,
+      });
+    }
+
     // Check for NPC talk objectives
     if (quest.assignedByCharacterId) {
       objectives.push({
@@ -312,6 +380,71 @@ export class QuestObjectManager {
             locationName,
             locationPosition: this.generateLocationPosition(),
             locationRadius: 5
+          });
+        } else if (desc.includes('defeat') || desc.includes('kill') || desc.includes('slay') || desc.includes('destroy')) {
+          // Enemy defeat objective
+          const enemyMatch = desc.match(/defeat|kill|slay|destroy\s+(?:\d+\s+)?(?:the\s+)?(\w+)/i);
+          const enemyType = enemyMatch ? enemyMatch[1] : 'enemy';
+          const countMatch = desc.match(/(\d+)/);
+          const count = countMatch ? parseInt(countMatch[1]) : 1;
+
+          objectives.push({
+            id: `${quest.id}_obj_${index}`,
+            questId: quest.id,
+            type: 'defeat_enemies',
+            description: obj.description,
+            completed: obj.isCompleted || false,
+            enemyType,
+            enemiesDefeated: 0,
+            enemiesRequired: count,
+          });
+        } else if (desc.includes('craft') || desc.includes('create') || desc.includes('build') || desc.includes('forge')) {
+          // Crafting objective
+          const itemMatch = desc.match(/craft|create|build|forge\s+(?:a\s+|the\s+)?(\w+)/i);
+          const itemName = itemMatch ? itemMatch[1] : `item_${index}`;
+
+          objectives.push({
+            id: `${quest.id}_obj_${index}`,
+            questId: quest.id,
+            type: 'craft_item',
+            description: obj.description,
+            completed: obj.isCompleted || false,
+            craftedItemId: itemName,
+            craftedCount: 0,
+            requiredCount: 1,
+          });
+        } else if (desc.includes('deliver') || desc.includes('bring') || desc.includes('give')) {
+          // Delivery objective
+          objectives.push({
+            id: `${quest.id}_obj_${index}`,
+            questId: quest.id,
+            type: 'deliver_item',
+            description: obj.description,
+            completed: obj.isCompleted || false,
+            delivered: false,
+          });
+        } else if (desc.includes('discover') || desc.includes('explore') || desc.includes('investigate')) {
+          // Discovery objective
+          const locationMatch = desc.match(/discover|explore|investigate\s+(?:the\s+)?(\w+)/i);
+          const locationName = locationMatch ? locationMatch[1] : `location_${index}`;
+
+          objectives.push({
+            id: `${quest.id}_obj_${index}`,
+            questId: quest.id,
+            type: 'discover_location',
+            description: obj.description,
+            completed: obj.isCompleted || false,
+            locationName,
+          });
+        } else if (desc.includes('escort') || desc.includes('protect') || desc.includes('accompany')) {
+          // Escort objective
+          objectives.push({
+            id: `${quest.id}_obj_${index}`,
+            questId: quest.id,
+            type: 'escort_npc',
+            description: obj.description,
+            completed: obj.isCompleted || false,
+            arrived: false,
           });
         }
       });

@@ -28,6 +28,7 @@ import {
   insertSimulationSchema,
   insertActionSchema,
   insertTruthSchema,
+  insertItemSchema,
   insertVisualAssetSchema,
   type InsertRule,
   type Rule
@@ -6824,6 +6825,124 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete quest" });
+    }
+  });
+
+  // ============= ITEMS =============
+
+  // Get all items for a world (includes matching base items)
+  app.get("/api/worlds/:worldId/items", async (req, res) => {
+    try {
+      const items = await storage.getItemsByWorld(req.params.worldId);
+      res.json(items);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch items" });
+    }
+  });
+
+  // Get base item templates
+  app.get("/api/items/base", async (req, res) => {
+    try {
+      const worldType = req.query.worldType as string | undefined;
+      const items = await storage.getBaseItems(worldType);
+      res.json(items);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch base items" });
+    }
+  });
+
+  // Get single item
+  app.get("/api/items/:id", async (req, res) => {
+    try {
+      const item = await storage.getItem(req.params.id);
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      res.json(item);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch item" });
+    }
+  });
+
+  // Create item for a world
+  app.post("/api/worlds/:worldId/items", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+
+      const token = req.headers.authorization?.split(' ')[1];
+      const payload = token ? AuthService.verifyToken(token) : null;
+
+      if (!(await canEditWorld(payload?.userId, worldId))) {
+        return res.status(403).json({ error: "You don't have permission to edit this world" });
+      }
+
+      const itemData = { ...req.body, worldId };
+      const validatedData = insertItemSchema.parse(itemData);
+      const item = await storage.createItem(validatedData);
+      res.status(201).json(item);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid item data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create item" });
+    }
+  });
+
+  // Update item
+  app.put("/api/items/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const existingItem = await storage.getItem(id);
+      if (!existingItem) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+
+      if (existingItem.worldId) {
+        const token = req.headers.authorization?.split(' ')[1];
+        const payload = token ? AuthService.verifyToken(token) : null;
+        if (!(await canEditWorld(payload?.userId, existingItem.worldId))) {
+          return res.status(403).json({ error: "You don't have permission to edit this world" });
+        }
+      }
+
+      const validatedData = insertItemSchema.partial().parse(req.body);
+      const item = await storage.updateItem(id, validatedData);
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      res.json(item);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid item data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update item" });
+    }
+  });
+
+  // Delete item
+  app.delete("/api/items/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const existingItem = await storage.getItem(id);
+      if (!existingItem) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+
+      if (existingItem.worldId) {
+        const token = req.headers.authorization?.split(' ')[1];
+        const payload = token ? AuthService.verifyToken(token) : null;
+        if (!(await canEditWorld(payload?.userId, existingItem.worldId))) {
+          return res.status(403).json({ error: "You don't have permission to edit this world" });
+        }
+      }
+
+      const deleted = await storage.deleteItem(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete item" });
     }
   });
 

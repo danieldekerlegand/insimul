@@ -197,6 +197,11 @@ export class ApiDataSource implements DataSource {
     return res.ok ? await res.json() : null;
   }
 
+  async loadWorldItems(worldId: string): Promise<any[]> {
+    const res = await fetch(`/api/worlds/${worldId}/items`, { headers: this.getHeaders() });
+    return res.ok ? await res.json() : [];
+  }
+
   async loadPrologContent(worldId: string): Promise<string | null> {
     try {
       const res = await fetch(`/api/prolog/tau/export/${worldId}`, { headers: this.getHeaders() });

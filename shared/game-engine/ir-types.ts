@@ -372,6 +372,31 @@ export interface QuestObjectIR {
 // Systems
 // ─────────────────────────────────────────────
 
+export interface ItemIR {
+  id: string;
+  name: string;
+  description: string | null;
+  itemType: string;
+  icon: string | null;
+  value: number;
+  sellValue: number;
+  weight: number;
+  tradeable: boolean;
+  stackable: boolean;
+  maxStack: number;
+  objectRole: string | null;
+  effects: Record<string, number> | null;
+  lootWeight: number;
+  tags: string[];
+}
+
+export interface LootTableIR {
+  enemyType: string;
+  entries: { itemId: string; itemName: string; dropChance: number; minQuantity: number; maxQuantity: number }[];
+  goldMin: number;
+  goldMax: number;
+}
+
 export interface SystemsIR {
   rules: RuleIR[];
   baseRules: RuleIR[];
@@ -381,6 +406,8 @@ export interface SystemsIR {
   truths: TruthIR[];
   grammars: GrammarIR[];
   languages: LanguageIR[];
+  items: ItemIR[];
+  lootTables: LootTableIR[];
   dialogueContexts: NPCDialogueContext[];
   /** Prolog knowledge base content (combined .pl from all entities) */
   knowledgeBase: string | null;

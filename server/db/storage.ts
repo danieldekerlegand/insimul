@@ -34,7 +34,9 @@ import {
   type AssetCollection,
   type InsertAssetCollection,
   type GenerationJob,
-  type InsertGenerationJob
+  type InsertGenerationJob,
+  type Item,
+  type InsertItem
 } from "@shared/schema";
 import type {
   WorldLanguage,
@@ -160,6 +162,14 @@ export interface IStorage {
   createTruth(entry: InsertTruth): Promise<Truth>;
   updateTruth(id: string, entry: Partial<InsertTruth>): Promise<Truth | undefined>;
   deleteTruth(id: string): Promise<boolean>;
+
+  // Items
+  getItem(id: string): Promise<Item | undefined>;
+  getItemsByWorld(worldId: string): Promise<Item[]>;
+  getBaseItems(worldType?: string): Promise<Item[]>;
+  createItem(item: InsertItem): Promise<Item>;
+  updateItem(id: string, item: Partial<InsertItem>): Promise<Item | undefined>;
+  deleteItem(id: string): Promise<boolean>;
 
   // Quests
   getQuest(id: string): Promise<Quest | undefined>;

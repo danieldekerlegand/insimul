@@ -7,6 +7,7 @@
  */
 
 import type { WorldLanguage } from './language';
+import { getQuestTypeForWorld, type QuestTypeDefinition } from './quest-types';
 
 // ==========================================
 // Types
@@ -540,7 +541,8 @@ export function buildWorldLanguageSection(worldContext: WorldLanguageContext): s
 export function buildLanguageAwareSystemPrompt(
   character: CharacterInfo,
   truths: Truth[],
-  worldContext?: WorldLanguageContext
+  worldContext?: WorldLanguageContext,
+  worldInfo?: { id: string; name: string; worldType?: string; gameType?: string; description?: string; targetLanguage?: string }
 ): string {
   const presentTruths = truths.filter(t => t.timestep === 0);
   const fluencies = extractLanguageFluencies(truths);
@@ -613,22 +615,39 @@ ${buildLanguageSection(fluencies, worldContext?.targetLanguage)}
     prompt += `Family: You are married.\n`;
   }
 
-  // Quest system
+  // Quest system — dynamic based on world/game type
+  const questTypeDef = worldInfo
+    ? getQuestTypeForWorld(worldInfo)
+    : null;
+
+  const questCategories = questTypeDef
+    ? questTypeDef.questCategories.map(c => c.id).join(', ')
+    : 'conversation, translation, vocabulary, grammar, cultural, combat, collection, exploration, escort, delivery, crafting, social';
+
+  const objectiveTypes = questTypeDef
+    ? questTypeDef.objectiveTypes.map(o => o.id).join(', ')
+    : 'collect_item, visit_location, talk_to_npc, use_vocabulary, complete_conversation, defeat_enemies, deliver_item, craft_item, discover_location, escort_npc, gain_reputation';
+
+  const difficultyLevels = questTypeDef
+    ? Object.keys(questTypeDef.difficultyScaling).join('/')
+    : 'beginner/intermediate/advanced';
+
+  const rewardTypes = questTypeDef
+    ? questTypeDef.rewardTypes.join(', ')
+    : 'experience, gold, items, reputation';
+
   prompt += `\nQUEST SYSTEM: You can assign quests using this format:
 **QUEST_ASSIGN**
 Title: [short title]
 Description: [1-2 sentences]
-Type: [quest category - varies by world type]
-Difficulty: [beginner/intermediate/advanced for language learning, or easy/normal/hard/legendary for RPG worlds]
-[Additional fields based on quest type]
+Type: [one of: ${questCategories}]
+Difficulty: [${difficultyLevels}]
+Objectives: [list objectives, each with type from: ${objectiveTypes}]
+Rewards: [${rewardTypes}]
 **END_QUEST**
 
-AVAILABLE QUEST TYPES (varies by world):
-- Language Learning: conversation, translation, vocabulary, grammar, cultural
-- RPG/Fantasy: combat, collection, exploration, escort, delivery, crafting, social
-- Choose quest types that fit the world setting and current conversation context
-
 Only assign quests when natural in conversation. Base difficulty on player's experience level.
+Choose quest types and objectives that fit the world setting and current conversation context.
 
 Stay in character. Show your abilities authentically. You can reference your location, the world, and your life experiences.`;
 

@@ -8,6 +8,7 @@ import { ActionsHub } from '@/components/actions/ActionsHub';
 import { WorldManagementTab } from '@/components/WorldManagementTab';
 import { TruthTab } from '@/components/TruthTab';
 import { QuestsHub } from '@/components/quests/QuestsHub';
+import { ItemsHub } from '@/components/items/ItemsHub';
 import { PrologKnowledgeBase } from '@/components/PrologKnowledgeBase';
 import { PrologSimulationPanel } from '@/components/prolog/PrologSimulationPanel';
 import { GrammarsHub } from '@/components/grammars/GrammarsHub';
@@ -239,6 +240,13 @@ export default function Home() {
         {activeTab === 'quests' && selectedWorld && (
           <div className="px-2 py-4">
             <QuestsHub worldId={selectedWorld} />
+          </div>
+        )}
+
+        {/* Items Tab */}
+        {activeTab === 'items' && selectedWorld && (
+          <div className="px-2 py-4">
+            <ItemsHub worldId={selectedWorld} />
           </div>
         )}
 

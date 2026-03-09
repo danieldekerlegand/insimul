@@ -557,6 +557,19 @@ export const quests = pgTable("quests", {
   skillRewards: jsonb("skill_rewards").$type<Array<{ skillId: string; name: string; level: number }>>(),
   unlocks: jsonb("unlocks").$type<Array<{ type: 'area' | 'npc' | 'feature'; id: string; name: string }>>(),
 
+  // Multi-stage quests
+  stages: jsonb("stages").$type<Array<{
+    stageId: string;
+    title: string;
+    description: string;
+    objectives: any[];
+    preconditions?: string[];
+    postconditions?: string[];
+    nextStageIds?: string[];
+  }>>(),
+  currentStageId: varchar("current_stage_id", { length: 255 }),
+  parentQuestId: varchar("parent_quest_id", { length: 255 }),
+
   // Failure conditions
   failureConditions: jsonb("failure_conditions").$type<Record<string, any>>(),
   
@@ -571,6 +584,42 @@ export const quests = pgTable("quests", {
 
   // Prolog
   prologContent: text("prolog_content"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Items - first-class item definitions for worlds
+export const items = pgTable("items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worldId: varchar("world_id"), // null = base template item
+
+  // Item identity
+  name: text("name").notNull(),
+  description: text("description"),
+  itemType: text("item_type").notNull(), // quest, collectible, key, consumable, weapon, armor, food, drink, material, tool
+  icon: text("icon"), // emoji or icon identifier
+
+  // Economics
+  value: integer("value").default(0), // base purchase value
+  sellValue: integer("sell_value").default(0),
+  weight: real("weight").default(1),
+  tradeable: boolean("tradeable").default(true),
+  stackable: boolean("stackable").default(true),
+  maxStack: integer("max_stack").default(99),
+
+  // World type (for base templates)
+  worldType: text("world_type"), // medieval-fantasy, cyberpunk, sci-fi-space, etc.
+  objectRole: text("object_role"), // maps to asset collection objectModels key
+
+  // Gameplay
+  effects: jsonb("effects").$type<Record<string, number>>(), // { health: 20, energy: 10 }
+  lootWeight: integer("loot_weight").default(0), // drop probability weight, 0 = not lootable
+  tags: jsonb("tags").$type<string[]>().default([]),
+  isBase: boolean("is_base").default(false), // true for global template items
+
+  // Extensibility
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
 
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -861,6 +910,30 @@ export const insertQuestSchema = createInsertSchema(quests).pick({
   tags: true,
   prologContent: true,
 });
+
+export const insertItemSchema = createInsertSchema(items).pick({
+  worldId: true,
+  name: true,
+  description: true,
+  itemType: true,
+  icon: true,
+  value: true,
+  sellValue: true,
+  weight: true,
+  tradeable: true,
+  stackable: true,
+  maxStack: true,
+  worldType: true,
+  objectRole: true,
+  effects: true,
+  lootWeight: true,
+  tags: true,
+  isBase: true,
+  metadata: true,
+});
+
+export type InsertItem = z.infer<typeof insertItemSchema>;
+export type Item = typeof items.$inferSelect;
 
 // ============= USER AUTHENTICATION AND PLAYER PROGRESS =============
 

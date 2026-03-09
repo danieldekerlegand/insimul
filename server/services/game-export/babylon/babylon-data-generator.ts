@@ -58,6 +58,22 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     content: JSON.stringify([...ir.systems.rules, ...ir.systems.baseRules], null, 2),
   });
 
+  // Items
+  if (ir.systems.items?.length > 0) {
+    files.push({
+      path: 'public/data/items.json',
+      content: JSON.stringify(ir.systems.items, null, 2),
+    });
+  }
+
+  // Loot tables
+  if (ir.systems.lootTables?.length > 0) {
+    files.push({
+      path: 'public/data/loot_tables.json',
+      content: JSON.stringify(ir.systems.lootTables, null, 2),
+    });
+  }
+
   // Geography
   files.push({
     path: 'public/data/geography.json',

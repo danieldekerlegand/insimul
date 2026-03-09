@@ -42,7 +42,9 @@ import {
   type PlaythroughDelta,
   type InsertPlaythroughDelta,
   type PlayTrace,
-  type InsertPlayTrace
+  type InsertPlayTrace,
+  type Item,
+  type InsertItem
 } from "@shared/schema";
 import type {
   WorldLanguage,
@@ -94,6 +96,10 @@ interface TruthDoc extends Omit<Truth, 'id'>, Document {
 }
 
 interface QuestDoc extends Omit<Quest, 'id'>, Document {
+  _id: string;
+}
+
+interface ItemDoc extends Omit<Item, 'id'>, Document {
   _id: string;
 }
 
@@ -420,6 +426,32 @@ const QuestSchema = new Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
+const ItemSchema = new Schema({
+  worldId: { type: String, default: null },
+  name: { type: String, required: true },
+  description: { type: String, default: null },
+  itemType: { type: String, required: true },
+  icon: { type: String, default: null },
+  value: { type: Number, default: 0 },
+  sellValue: { type: Number, default: 0 },
+  weight: { type: Number, default: 1 },
+  tradeable: { type: Boolean, default: true },
+  stackable: { type: Boolean, default: true },
+  maxStack: { type: Number, default: 99 },
+  worldType: { type: String, default: null },
+  objectRole: { type: String, default: null },
+  effects: { type: Schema.Types.Mixed, default: null },
+  lootWeight: { type: Number, default: 0 },
+  tags: { type: Schema.Types.Mixed, default: [] },
+  isBase: { type: Boolean, default: false },
+  metadata: { type: Schema.Types.Mixed, default: {} },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+ItemSchema.index({ worldId: 1 });
+ItemSchema.index({ isBase: 1, worldType: 1 });
+
 const VisualAssetSchema = new Schema({
   worldId: { type: String, default: null },
   name: { type: String, required: true },
@@ -679,6 +711,7 @@ const SimulationModel = mongoose.model<SimulationDoc>('Simulation', SimulationSc
 const ActionModel = mongoose.model<ActionDoc>('Action', ActionSchema);
 const TruthModel = mongoose.model<TruthDoc>('Truth', TruthSchema);
 const QuestModel = mongoose.model<QuestDoc>('Quest', QuestSchema);
+const ItemModel = mongoose.model<ItemDoc>('Item', ItemSchema);
 const VisualAssetModel = mongoose.model<VisualAssetDoc>('VisualAsset', VisualAssetSchema);
 const AssetCollectionModel = mongoose.model<AssetCollectionDoc>('AssetCollection', AssetCollectionSchema);
 const GenerationJobModel = mongoose.model<GenerationJobDoc>('GenerationJob', GenerationJobSchema);
@@ -755,6 +788,10 @@ function docToTruth(doc: TruthDoc): Truth {
 }
 
 function docToQuest(doc: QuestDoc): Quest {
+  return { ...doc.toObject(), id: doc._id.toString() };
+}
+
+function docToItem(doc: ItemDoc): Item {
   return { ...doc.toObject(), id: doc._id.toString() };
 }
 
@@ -1689,6 +1726,64 @@ export class MongoStorage implements IStorage {
   async deleteQuest(id: string): Promise<boolean> {
     await this.connect();
     const result = await QuestModel.findByIdAndDelete(id);
+    return !!result;
+  }
+
+  // ============= ITEMS =============
+
+  async getItem(id: string): Promise<Item | undefined> {
+    await this.connect();
+    const doc = await ItemModel.findById(id);
+    return doc ? docToItem(doc) : undefined;
+  }
+
+  async getItemsByWorld(worldId: string): Promise<Item[]> {
+    await this.connect();
+    // Get world-specific items
+    const worldItems = await ItemModel.find({ worldId });
+    // Get the world to determine its worldType for base items
+    const world = await WorldModel.findById(worldId);
+    const worldType = world?.worldType || world?.gameType;
+    // Get matching base items
+    const baseItems = await ItemModel.find({
+      isBase: true,
+      $or: [
+        { worldType: worldType },
+        { worldType: null },
+        { worldType: { $exists: false } }
+      ]
+    });
+    // Merge: world items override base items with same objectRole
+    const worldObjectRoles = new Set(worldItems.map(d => d.objectRole).filter(Boolean));
+    const filteredBase = baseItems.filter(b => !b.objectRole || !worldObjectRoles.has(b.objectRole));
+    return [...worldItems.map(docToItem), ...filteredBase.map(docToItem)];
+  }
+
+  async getBaseItems(worldType?: string): Promise<Item[]> {
+    await this.connect();
+    const query: any = { isBase: true };
+    if (worldType) {
+      query.$or = [{ worldType }, { worldType: null }, { worldType: { $exists: false } }];
+    }
+    const docs = await ItemModel.find(query);
+    return docs.map(docToItem);
+  }
+
+  async createItem(item: InsertItem): Promise<Item> {
+    await this.connect();
+    const doc = await ItemModel.create(item);
+    return docToItem(doc);
+  }
+
+  async updateItem(id: string, item: Partial<InsertItem>): Promise<Item | undefined> {
+    await this.connect();
+    const doc = await ItemModel.findByIdAndUpdate(id, { ...item, updatedAt: new Date() }, { new: true });
+    return doc ? docToItem(doc) : undefined;
+  }
+
+  async deleteItem(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await ItemModel.findByIdAndDelete(id);
     return !!result;
   }
 

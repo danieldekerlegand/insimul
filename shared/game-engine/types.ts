@@ -286,13 +286,18 @@ export interface Rule {
 }
 
 export interface RuleCondition {
-  type: string;
+  type: string; // location, zone, action, energy, proximity, tag, has_item, item_count, item_type
   property?: string;
   operator?: string;
   value?: any;
   action?: string;
   location?: string;
   zone?: string;
+  // Item conditions
+  itemId?: string;     // for has_item: specific item ID
+  itemName?: string;   // for has_item: match by name
+  itemType?: string;   // for item_type: weapon, armor, key, etc.
+  quantity?: number;    // for item_count: minimum count required
 }
 
 export interface RuleEffect {
@@ -323,6 +328,7 @@ export interface GameContext {
   settlementId?: string;
   inSettlement?: boolean;
   nearNPC?: boolean;
+  playerInventory?: InventoryItem[];
 }
 
 // ─── Buildings ──────────────────────────────────────────────────────────────
@@ -589,6 +595,8 @@ export interface DamageResult {
 
 export type ItemType = 'quest' | 'collectible' | 'key' | 'consumable' | 'weapon' | 'armor' | 'food' | 'drink' | 'material' | 'tool';
 
+export type EquipmentSlot = 'weapon' | 'armor' | 'accessory';
+
 export interface InventoryItem {
   id: string;
   name: string;
@@ -601,6 +609,9 @@ export interface InventoryItem {
   sellValue?: number;
   weight?: number;
   tradeable?: boolean;
+  equipped?: boolean;
+  effects?: Record<string, number>;
+  equipSlot?: EquipmentSlot;
 }
 
 // ─── Mercantile ─────────────────────────────────────────────────────────────
@@ -630,6 +641,26 @@ export interface TradeTransaction {
   merchantId?: string;
   success: boolean;
   timestamp: number;
+}
+
+// ─── Loot Tables ────────────────────────────────────────────────────────────
+
+export interface LootTableEntry {
+  itemId: string;
+  itemName: string;
+  itemType: ItemType;
+  dropChance: number; // 0.0-1.0
+  minQuantity: number;
+  maxQuantity: number;
+  value?: number;
+  sellValue?: number;
+}
+
+export interface LootTable {
+  enemyType: string;
+  entries: LootTableEntry[];
+  goldMin: number;
+  goldMax: number;
 }
 
 // ─── Resources ──────────────────────────────────────────────────────────────

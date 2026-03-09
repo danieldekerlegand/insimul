@@ -58,6 +58,7 @@ import { BabylonShopPanel, ShopTransaction } from "@/components/3DGame/BabylonSh
 import { BabylonRulesPanel, Rule } from "@/components/3DGame/BabylonRulesPanel.ts";
 import { RuleEnforcer, RuleViolation } from "@/components/3DGame/RuleEnforcer.ts";
 import { CombatSystem, CombatStyle, DamageResult } from "@/components/3DGame/CombatSystem.ts";
+import { EquipmentManager } from "@/components/3DGame/EquipmentManager.ts";
 import { RangedCombatSystem } from "@/components/3DGame/RangedCombatSystem.ts";
 import { FightingCombatSystem } from "@/components/3DGame/FightingCombatSystem.ts";
 import { TurnBasedCombatSystem } from "@/components/3DGame/TurnBasedCombatSystem.ts";
@@ -88,6 +89,7 @@ import { GameMenuSystem, GameMenuCallbacks } from "@/components/3DGame/GameMenuS
 import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts";
 import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
 import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
+import { GameEventBus } from "@/components/3DGame/GameEventBus.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 
 // Constants
@@ -312,7 +314,9 @@ export class BabylonGame {
   private rulesPanel: BabylonRulesPanel | null = null;
   private ruleEnforcer: RuleEnforcer | null = null;
   private prologEngine: GamePrologEngine | null = null;
+  private eventBus: GameEventBus = new GameEventBus();
   private combatSystem: CombatSystem | null = null;
+  private equipmentManager: EquipmentManager | null = null;
   private rangedCombat: RangedCombatSystem | null = null;
   private fightingCombat: FightingCombatSystem | null = null;
   private turnBasedCombat: TurnBasedCombatSystem | null = null;
@@ -381,6 +385,7 @@ export class BabylonGame {
   private baseResources: any = {};
   private assets: any[] = [];
   private config3D: any = {};
+  private worldItems: any[] = [];
   private terrainSize: number = 512;
   private actionInProgress: boolean = false;
   private isInCombat: boolean = false;
@@ -1098,6 +1103,7 @@ export class BabylonGame {
         title: 'New Quest!',
         description: questData.title || 'Quest assigned',
       });
+      this.eventBus.emit({ type: 'quest_accepted', questId: questData.id || '', questTitle: questData.title || '' });
     });
     this.chatPanel.setOnQuestTurnedIn((questId, rewards) => {
       this.questTracker?.updateQuests(this.config.worldId);
@@ -1110,13 +1116,18 @@ export class BabylonGame {
     this.chatPanel.setOnNPCConversationStarted((npcId: string) => {
       // Track NPC conversation for quest objectives (talk_to_npc)
       this.questObjectManager?.trackNPCConversation(npcId);
+      this.eventBus.emit({ type: 'npc_talked', npcId, npcName: npcId, turnCount: 1 });
       console.log('[BabylonGame] NPC conversation started with:', npcId);
     });
     this.chatPanel.setOnVocabularyUsed((word: string) => {
       this.questObjectManager?.trackVocabularyUsage(word);
+      this.eventBus.emit({ type: 'vocabulary_used', word, correct: true });
     });
     this.chatPanel.setOnConversationTurn((keywords: string[]) => {
       this.questObjectManager?.trackConversationTurn(keywords);
+      if (this.conversationNPCId) {
+        this.eventBus.emit({ type: 'conversation_turn', npcId: this.conversationNPCId, keywords });
+      }
     });
 
     // Initialize quest tracker
@@ -1156,6 +1167,8 @@ export class BabylonGame {
     this.inventory = new BabylonInventory(scene, this.guiManager.advancedTexture);
     this.inventory.setOnItemDropped((item) => this.handleDropItem(item));
     this.inventory.setOnItemUsed((item) => this.handleUseItem(item));
+    this.inventory.setOnItemEquipped((item) => this.handleEquipItem(item));
+    this.inventory.setOnItemUnequipped((item) => this.handleUnequipItem(item));
 
     // Initialize shop panel
     this.shopPanel = new BabylonShopPanel(this.guiManager.advancedTexture);
@@ -1183,8 +1196,14 @@ export class BabylonGame {
       });
     });
 
-    // Initialize Prolog engine
+    // Initialize Prolog engine and connect to event bus
     this.prologEngine = new GamePrologEngine();
+    this.prologEngine.subscribeToEventBus(this.eventBus);
+    this.prologEngine.setOnQuestCompleted((questId) => {
+      console.log('[BabylonGame] Prolog determined quest complete:', questId);
+      this.questTracker?.updateQuests(this.config.worldId);
+      this.updateQuestIndicators();
+    });
 
     // Wire Prolog engine into rule enforcer
     this.ruleEnforcer.setPrologEngine(this.prologEngine);
@@ -1270,7 +1289,8 @@ export class BabylonGame {
         states,
         baseResources,
         assets,
-        config3D
+        config3D,
+        worldItems
       ] = await Promise.all([
         this.dataSource.loadWorld(worldId),
         this.dataSource.loadCharacters(worldId),
@@ -1284,7 +1304,8 @@ export class BabylonGame {
         this.dataSource.loadStates(worldId),
         this.dataSource.loadBaseResources(worldId),
         this.dataSource.loadAssets(worldId),
-        this.dataSource.loadConfig3D(worldId)
+        this.dataSource.loadConfig3D(worldId),
+        this.dataSource.loadWorldItems(worldId)
       ]);
 
       // Store the data (same as before)
@@ -1299,6 +1320,7 @@ export class BabylonGame {
       this.baseResources = baseResources;
       this.assets = assets;
       this.config3D = config3D;
+      this.worldItems = worldItems || [];
 
       console.log('[BabylonGame] World data loaded successfully');
       console.log('[BabylonGame] Data summary:', {
@@ -1324,6 +1346,14 @@ export class BabylonGame {
             prologContent: prologContent || undefined,
           });
           console.log('[BabylonGame] Prolog engine initialized:', this.prologEngine.getStats());
+
+          // Sync existing inventory items to Prolog
+          if (this.inventory) {
+            const existingItems = this.inventory.getAllItems();
+            if (existingItems.length > 0) {
+              await this.prologEngine.initializeInventory(existingItems);
+            }
+          }
         } catch (prologError) {
           console.warn('[BabylonGame] Prolog engine initialization failed (non-fatal):', prologError);
         }
@@ -3434,6 +3464,7 @@ export class BabylonGame {
           10,
           0.15
         );
+        this.equipmentManager = new EquipmentManager(this.combatSystem, 'player');
       }
 
       // Set player mesh for ambient conversation manager
@@ -4082,6 +4113,10 @@ export class BabylonGame {
 
       this.settlementSceneManager.enterSettlement(zone.id);
 
+      // Track location discovery for quest objectives
+      this.questObjectManager?.trackLocationDiscovery(zone.id);
+      this.eventBus.emit({ type: 'settlement_entered', settlementId: zone.id, settlementName: zone.name || zone.id });
+
       // Hide NPCs not in this settlement
       this.npcMeshes.forEach((instance, npcId) => {
         if (!this.settlementSceneManager!.isNPCInActiveSettlement(npcId)) {
@@ -4198,6 +4233,7 @@ export class BabylonGame {
     if (this.questObjectManager) {
       this.questObjectManager.trackCollectedItemByName(item.name);
     }
+    this.eventBus.emit({ type: 'item_collected', itemId: item.id, itemName: item.name, quantity: 1 });
 
     this.guiManager?.showToast({
       title: `Collected ${item.name}`,
@@ -4218,6 +4254,26 @@ export class BabylonGame {
         .join(" ");
     };
 
+    // Try to find item definition from loaded world items (DB-driven)
+    const dbItem = this.worldItems.find(
+      (item: any) => item.objectRole && item.objectRole.toLowerCase() === role
+    );
+    if (dbItem) {
+      return {
+        id: dbItem.id || id,
+        name: dbItem.name,
+        description: dbItem.description || '',
+        type: dbItem.itemType || 'collectible',
+        quantity: 1,
+        value: dbItem.value || 0,
+        sellValue: dbItem.sellValue || 0,
+        weight: dbItem.weight || 1,
+        tradeable: dbItem.tradeable !== false,
+        effects: dbItem.effects || undefined,
+      };
+    }
+
+    // Fallback to hardcoded mapping for backward compatibility
     switch (role) {
       case "chest":
         return {
@@ -4375,6 +4431,11 @@ export class BabylonGame {
       if (this._settlementCheckTimer >= 500 && this.settlementSceneManager && this.playerMesh && !this.isInsideBuilding) {
         this._settlementCheckTimer = 0;
         this.checkSettlementTransition();
+
+        // Check quest location proximity while we have the timer
+        if (this.questObjectManager && this.playerMesh) {
+          this.questObjectManager.checkLocationProximity(this.playerMesh.position);
+        }
       }
 
       // Ground-snap NPCs at most every 500ms
@@ -5134,6 +5195,8 @@ export class BabylonGame {
     this.playerGold -= transaction.totalPrice;
     this.inventory?.setGold(this.playerGold);
 
+    this.eventBus.emit({ type: 'item_collected', itemId: item.id, itemName: item.name, quantity: transaction.quantity });
+
     // Record transfer via API
     this.dataSource.transferItem(this.config.worldId, {
       toEntityId: 'player',
@@ -5155,6 +5218,8 @@ export class BabylonGame {
     this.playerGold += transaction.totalPrice;
     this.inventory?.setGold(this.playerGold);
 
+    this.eventBus.emit({ type: 'item_removed', itemId: transaction.item.id, itemName: transaction.item.name, quantity: transaction.quantity });
+
     // Record transfer via API
     this.dataSource.transferItem(this.config.worldId, {
       fromEntityId: 'player',
@@ -5170,6 +5235,8 @@ export class BabylonGame {
 
   private handleDropItem(item: InventoryItem): void {
     this.inventory?.removeItem(item.id, 1);
+
+    this.eventBus.emit({ type: 'item_dropped', itemId: item.id, itemName: item.name, quantity: 1 });
 
     this.dataSource.transferItem(this.config.worldId, {
       fromEntityId: 'player',
@@ -5189,17 +5256,106 @@ export class BabylonGame {
   }
 
   private handleUseItem(item: InventoryItem): void {
-    this.inventory?.removeItem(item.id, 1);
-
-    if (item.type === 'consumable') {
-      // Restore some energy for consumables
-      this.playerEnergy = Math.min(100, this.playerEnergy + 15);
+    // Quest and key items: emit event without consuming
+    if (item.type === 'quest' || item.type === 'key') {
+      this.eventBus.emit({ type: 'item_used', itemId: item.id, itemName: item.name });
       this.guiManager?.showToast({
         title: `Used ${item.name}`,
-        description: 'Energy restored +15',
+        description: item.type === 'key' ? 'Key item activated' : 'Quest item used',
+        duration: 2000,
+      });
+      return;
+    }
+
+    // Consumable, food, drink: apply effects and consume
+    if (['consumable', 'food', 'drink'].includes(item.type)) {
+      this.inventory?.removeItem(item.id, 1);
+      this.eventBus.emit({ type: 'item_used', itemId: item.id, itemName: item.name });
+
+      const effects = item.effects || {};
+      const descriptions: string[] = [];
+
+      if (effects.health) {
+        this.playerHealth = Math.min(100, this.playerHealth + effects.health);
+        this.playerHealthBar?.updateHealth(this.playerHealth / 100);
+        const entity = this.combatSystem?.getEntity('player');
+        if (entity) entity.health = this.playerHealth;
+        descriptions.push(`Health +${effects.health}`);
+      }
+      if (effects.energy) {
+        this.playerEnergy = Math.min(100, this.playerEnergy + effects.energy);
+        descriptions.push(`Energy +${effects.energy}`);
+      }
+
+      // Fallback if no effects defined
+      if (descriptions.length === 0) {
+        this.playerEnergy = Math.min(100, this.playerEnergy + 15);
+        descriptions.push('Energy +15');
+      }
+
+      this.guiManager?.showToast({
+        title: `Used ${item.name}`,
+        description: descriptions.join(', '),
         duration: 2000,
       });
     }
+  }
+
+  private handleEquipItem(item: InventoryItem): void {
+    if (!this.equipmentManager) return;
+
+    const result = this.equipmentManager.equip(item);
+    if (result) {
+      // If a previous item was in that slot, mark it unequipped
+      if (result.previousItem) {
+        result.previousItem.equipped = false;
+      }
+      item.equipped = true;
+
+      this.inventory?.refreshItemList();
+      this.inventory?.updateEquipmentDisplay(this.equipmentManager.getAllEquipped());
+
+      this.eventBus.emit({
+        type: 'item_equipped',
+        itemId: item.id,
+        itemName: item.name,
+        slot: result.slot,
+      });
+
+      const entity = this.combatSystem?.getEntity('player');
+      this.guiManager?.showToast({
+        title: `Equipped ${item.name}`,
+        description: `ATK: ${entity?.attackPower.toFixed(1)} | DEF: ${entity?.defense}`,
+        duration: 2000,
+      });
+    }
+  }
+
+  private handleUnequipItem(item: InventoryItem): void {
+    if (!this.equipmentManager) return;
+
+    const slot = this.equipmentManager.findSlot(item);
+    if (!slot) return;
+
+    this.equipmentManager.unequip(slot);
+    item.equipped = false;
+
+    this.inventory?.refreshItemList();
+    this.inventory?.updateEquipmentDisplay(this.equipmentManager.getAllEquipped());
+
+    this.eventBus.emit({
+      type: 'item_unequipped',
+      itemId: item.id,
+      itemName: item.name,
+      slot,
+    });
+
+    const entity = this.combatSystem?.getEntity('player');
+    this.guiManager?.showToast({
+      title: `Unequipped ${item.name}`,
+      description: `ATK: ${entity?.attackPower.toFixed(1)} | DEF: ${entity?.defense}`,
+      duration: 2000,
+    });
   }
 
   private handleConversationEnd(): void {
@@ -5320,7 +5476,8 @@ export class BabylonGame {
         playerPosition: this.playerMesh.position,
         actionType: 'combat',
         inSettlement: settlementInfo.inSettlement,
-        settlementId: settlementInfo.settlementId
+        settlementId: settlementInfo.settlementId,
+        playerInventory: this.inventory?.getAllItems() || [],
       };
 
       const combatAllowed = this.ruleEnforcer.canPerformAction('attack', 'combat', gameContext);
@@ -5859,7 +6016,8 @@ export class BabylonGame {
         actionType,
         inSettlement: settlementInfo.inSettlement,
         settlementId: settlementInfo.settlementId,
-        nearNPC: true
+        nearNPC: true,
+        playerInventory: this.inventory?.getAllItems() || [],
       };
 
       const ruleCheck = this.ruleEnforcer.canPerformAction(actionId, actionType, gameContext);
@@ -6118,11 +6276,15 @@ export class BabylonGame {
       }
     }
 
-    // Track enemy defeat for quest objectives
-    if (killedBy === 'player' && this.questObjectManager) {
+    // Track enemy defeat for quest objectives and drop loot
+    if (killedBy === 'player') {
       const entity = this.combatSystem?.getEntity(entityId);
       const enemyType = entity?.name || entityId;
-      this.questObjectManager.trackEnemyDefeat(enemyType);
+      this.questObjectManager?.trackEnemyDefeat(enemyType);
+      this.eventBus.emit({ type: 'enemy_defeated', entityId, enemyType });
+
+      // Drop loot at enemy position
+      this.dropLootAtEntity(entityId);
     }
 
     // Exit combat when enemy dies
@@ -6130,6 +6292,84 @@ export class BabylonGame {
       this.combatTargetId = null;
       this.isInCombat = false;
       this.combatSystem.exitCombat('player');
+    }
+  }
+
+  /**
+   * Drop loot items at an entity's position after it is defeated.
+   * Generates loot from world items with lootWeight > 0, spawns pickup meshes.
+   */
+  private dropLootAtEntity(entityId: string): void {
+    const npcInstance = this.npcMeshes.get(entityId);
+    if (!npcInstance?.mesh || !this.scene) return;
+
+    const dropPosition = npcInstance.mesh.position.clone();
+    dropPosition.y += 0.5; // Slightly above ground
+
+    // Get lootable items from world items
+    const lootableItems = this.worldItems.filter((item: any) => item.lootWeight > 0);
+    if (lootableItems.length === 0) return;
+
+    // Calculate total weight for probability
+    const totalWeight = lootableItems.reduce((sum: number, item: any) => sum + item.lootWeight, 0);
+
+    // Roll for 1-3 loot drops
+    const dropCount = Math.floor(Math.random() * 3) + 1;
+    const droppedItems: InventoryItem[] = [];
+
+    for (let i = 0; i < dropCount; i++) {
+      // Weighted random selection
+      let roll = Math.random() * totalWeight;
+      for (const item of lootableItems) {
+        roll -= item.lootWeight;
+        if (roll <= 0) {
+          // Drop chance based on rarity tags
+          const dropChance = item.tags?.includes('loot:rare') ? 0.1
+            : item.tags?.includes('loot:uncommon') ? 0.3
+            : 0.5;
+          if (Math.random() < dropChance) {
+            droppedItems.push({
+              id: `loot_${item.id || item.name}_${Date.now()}_${i}`,
+              name: item.name,
+              description: item.description || '',
+              type: item.itemType || 'collectible',
+              quantity: 1,
+              value: item.value || 0,
+              sellValue: item.sellValue || 0,
+              tradeable: item.tradeable !== false,
+            });
+          }
+          break;
+        }
+      }
+    }
+
+    // Also drop gold
+    const goldDrop = Math.floor(Math.random() * 15) + 1;
+    if (goldDrop > 0 && this.inventory) {
+      this.inventory.addGold(goldDrop);
+      this.playerGold += goldDrop;
+    }
+
+    if (droppedItems.length === 0 && goldDrop <= 0) return;
+
+    // Add items directly to inventory and emit events
+    for (const item of droppedItems) {
+      this.inventory?.addItem(item);
+      this.eventBus.emit({ type: 'item_collected', itemId: item.id, itemName: item.name, quantity: 1 });
+      this.questObjectManager?.trackCollectedItemByName(item.name);
+    }
+
+    // Show loot toast
+    const lootDesc = droppedItems.map(i => i.name).join(', ');
+    const goldDesc = goldDrop > 0 ? `${goldDrop} gold` : '';
+    const parts = [lootDesc, goldDesc].filter(Boolean).join(' + ');
+    if (parts) {
+      this.guiManager?.showToast({
+        title: 'Loot Dropped!',
+        description: parts,
+        duration: 3000,
+      });
     }
   }
 
@@ -6422,6 +6662,9 @@ export class BabylonGame {
           description: `x${item.quantity}`,
           duration: 3000,
         });
+        // Track crafting for quest objectives
+        this.questObjectManager?.trackItemCrafted(item.name);
+        this.eventBus.emit({ type: 'item_crafted', itemId: item.name, itemName: item.name, quantity: item.quantity || 1 });
       });
       this.craftingSystem.setOnCraftFailed((_recipeId, reason) => {
         this.guiManager?.showToast({
@@ -6805,6 +7048,7 @@ export class BabylonGame {
     this.ruleEnforcer?.dispose();
     this.prologEngine?.dispose();
     this.prologEngine = null;
+    this.eventBus.dispose();
     this.questObjectManager?.dispose();
     this.radialMenu?.dispose();
     this.questTracker?.dispose();

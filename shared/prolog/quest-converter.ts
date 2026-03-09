@@ -15,6 +15,16 @@
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
+interface QuestStage {
+  stageId: string;
+  title: string;
+  description: string;
+  objectives: any[];
+  preconditions?: string[];
+  postconditions?: string[];
+  nextStageIds?: string[];
+}
+
 interface QuestData {
   title: string;
   description?: string;
@@ -37,6 +47,8 @@ interface QuestData {
   questChainId?: string | null;
   questChainOrder?: number | null;
   tags?: string[] | null;
+  stages?: QuestStage[] | null;
+  parentQuestId?: string | null;
 }
 
 interface ConversionResult {
@@ -232,6 +244,61 @@ export function convertQuestToProlog(quest: QuestData): ConversionResult {
     }
   }
 
+  // ── Multi-stage quests ─────────────────────────────────────────────────
+
+  const stages = quest.stages || [];
+  if (stages.length > 0) {
+    lines.push('');
+    lines.push(`% Quest stages for ${quest.title}`);
+
+    for (const stage of stages) {
+      const stageAtom = sanitizeAtom(stage.stageId);
+      const nextStages = (stage.nextStageIds || []).map(s => sanitizeAtom(s));
+      const nextList = nextStages.length > 0 ? `[${nextStages.join(', ')}]` : '[]';
+
+      lines.push(`quest_stage(${questId}, ${stageAtom}, ${nextList}).`);
+
+      // Stage objectives
+      for (let i = 0; i < stage.objectives.length; i++) {
+        const goal = convertObjective(stage.objectives[i], i, errors);
+        if (goal) {
+          lines.push(`stage_objective(${questId}, ${stageAtom}, ${i}, ${goal}).`);
+        }
+      }
+
+      // Stage preconditions
+      if (stage.preconditions && stage.preconditions.length > 0) {
+        for (const pre of stage.preconditions) {
+          lines.push(`stage_precondition(${questId}, ${stageAtom}, ${sanitizeAtom(pre)}).`);
+        }
+      }
+
+      // Stage postconditions
+      if (stage.postconditions && stage.postconditions.length > 0) {
+        for (const post of stage.postconditions) {
+          lines.push(`stage_postcondition(${questId}, ${stageAtom}, ${sanitizeAtom(post)}).`);
+        }
+      }
+    }
+
+    predicates.push('quest_stage/3', 'stage_objective/4', 'stage_precondition/3', 'stage_postcondition/3');
+
+    // Stage completion rule
+    lines.push('');
+    lines.push(`% Stage complete: all objectives done`);
+    lines.push(`stage_complete(Player, ${questId}, Stage) :-`);
+    lines.push(`    quest_stage(${questId}, Stage, _),`);
+    lines.push(`    \\+ (stage_objective(${questId}, Stage, Idx, _), \\+ objective_complete(Player, ${questId}, Stage, Idx)).`);
+    predicates.push('stage_complete/3');
+  }
+
+  // ── Parent quest ────────────────────────────────────────────────────
+
+  if (quest.parentQuestId) {
+    lines.push(`quest_parent(${questId}, ${sanitizeAtom(quest.parentQuestId)}).`);
+    predicates.push('quest_parent/2');
+  }
+
   return {
     prologContent: lines.join('\n'),
     predicates: Array.from(new Set(predicates)),
@@ -261,6 +328,8 @@ export function convertQuestsToProlog(quests: QuestData[]): ConversionResult {
     'quest_reward/3', 'quest_item_reward/3', 'quest_skill_reward/3',
     'quest_unlock/3', 'quest_available/2', 'quest_complete/2',
     'quest_status/3', 'quest_progress/3',
+    'quest_stage/3', 'stage_objective/4', 'stage_precondition/3',
+    'stage_postcondition/3', 'stage_complete/3', 'quest_parent/2',
   ];
   for (const p of dynamicPreds) {
     allLines.push(`:- dynamic(${p}).`);
@@ -355,15 +424,86 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
     return `practice_grammar('${escapeString(pattern)}', ${count})`;
   }
 
-  if (type === 'craft') {
+  if (type === 'craft' || type === 'craft_item') {
     const item = obj.item || obj.target || '';
-    return `craft_item(${sanitizeAtom(item)})`;
+    const count = obj.count || obj.quantity || 1;
+    return `craft_item(${sanitizeAtom(item)}, ${count})`;
   }
 
   if (type === 'reach_level' || type === 'level') {
     const skill = obj.skill || obj.attribute || '';
     const level = obj.level || obj.value || 1;
     return `reach_level(${sanitizeAtom(skill)}, ${level})`;
+  }
+
+  if (type === 'escort' || type === 'escort_npc') {
+    const npc = obj.npc || obj.target || '';
+    const dest = obj.destination || obj.location || '';
+    return `escort('${escapeString(npc)}', '${escapeString(dest)}')`;
+  }
+
+  if (type === 'discover' || type === 'discover_location' || type === 'explore') {
+    const location = obj.location || obj.target || '';
+    return `discover_location('${escapeString(location)}')`;
+  }
+
+  if (type === 'reputation' || type === 'gain_reputation') {
+    const faction = obj.faction || obj.target || '';
+    const amount = obj.amount || obj.required || 100;
+    return `gain_reputation(${sanitizeAtom(faction)}, ${amount})`;
+  }
+
+  if (type === 'survive' || type === 'survive_duration') {
+    const duration = obj.duration || obj.time || 60;
+    return `survive(${duration})`;
+  }
+
+  if (type === 'puzzle' || type === 'solve_puzzle') {
+    const puzzleId = obj.puzzleId || obj.target || '';
+    return `solve_puzzle('${escapeString(puzzleId)}')`;
+  }
+
+  if (type === 'collect_item' || type === 'collect_items') {
+    const item = obj.item || obj.itemName || obj.target || '';
+    const count = obj.count || obj.quantity || 1;
+    return `collect(${sanitizeAtom(item)}, ${count})`;
+  }
+
+  if (type === 'talk_to_npc') {
+    const npc = obj.npc || obj.npcId || obj.target || '';
+    const turns = obj.requiredTurns || obj.minTurns || 1;
+    return `talk_to('${escapeString(npc)}', ${turns})`;
+  }
+
+  if (type === 'deliver_item') {
+    const item = obj.item || obj.itemName || '';
+    const npc = obj.npc || obj.npcId || obj.to || '';
+    return `deliver(${sanitizeAtom(item)}, '${escapeString(npc)}')`;
+  }
+
+  if (type === 'visit_location') {
+    const location = obj.location || obj.locationId || obj.target || '';
+    return `visit_location('${escapeString(location)}')`;
+  }
+
+  if (type === 'defeat_enemies') {
+    const enemyType = obj.enemyType || obj.target || obj.enemy || '';
+    const count = obj.count || obj.required || 1;
+    return `defeat('${escapeString(enemyType)}', ${count})`;
+  }
+
+  if (type === 'use_vocabulary') {
+    const words = obj.targetWords || obj.words || [];
+    const count = obj.requiredCount || words.length || 1;
+    if (words.length > 0) {
+      return `learn_words([${words.map((w: string) => `'${escapeString(w)}'`).join(', ')}])`;
+    }
+    return `learn_words_count(${count})`;
+  }
+
+  if (type === 'complete_conversation') {
+    const turns = obj.requiredTurns || obj.requiredCount || 5;
+    return `conversation_turns(${turns})`;
   }
 
   // Generic: store as a quoted description
@@ -418,6 +558,46 @@ function convertCompletionCriteria(criteria: Record<string, any>, errors: string
     return `score_reached(${target})`;
   }
 
+  if (type === 'collect_items' || type === 'collect_item') {
+    const itemName = criteria.itemName || criteria.items?.[0] || '';
+    const count = criteria.count || criteria.items?.length || 1;
+    return `collect(${sanitizeAtom(itemName)}, ${count})`;
+  }
+
+  if (type === 'defeat_enemies') {
+    const enemyType = criteria.enemyType || '';
+    const count = criteria.count || 1;
+    return `defeat('${escapeString(enemyType)}', ${count})`;
+  }
+
+  if (type === 'deliver_item') {
+    const itemName = criteria.itemName || '';
+    const npc = criteria.targetNpc || '';
+    return `deliver(${sanitizeAtom(itemName)}, '${escapeString(npc)}')`;
+  }
+
+  if (type === 'discover_location') {
+    const location = criteria.locationId || criteria.locationName || '';
+    return `discover_location('${escapeString(location)}')`;
+  }
+
+  if (type === 'escort_npc') {
+    const npc = criteria.npcName || criteria.npcId || '';
+    return `escort('${escapeString(npc)}', destination)`;
+  }
+
+  if (type === 'gain_reputation') {
+    const faction = criteria.factionId || '';
+    const amount = criteria.amount || 100;
+    return `gain_reputation(${sanitizeAtom(faction)}, ${amount})`;
+  }
+
+  if (type === 'craft_item') {
+    const itemName = criteria.itemName || '';
+    const count = criteria.count || 1;
+    return `craft_item(${sanitizeAtom(itemName)}, ${count})`;
+  }
+
   if (type === 'custom' && criteria.predicate) {
     return sanitizeAtom(criteria.predicate);
   }
@@ -445,6 +625,47 @@ function convertCompletionCheck(criteria: Record<string, any>, questId: string, 
   if (type === 'grammar_pattern') {
     const count = criteria.requiredCount || 1;
     return `quest_progress(Player, ${questId}, Count), Count >= ${count}`;
+  }
+
+  if (type === 'collect_items' || type === 'collect_item') {
+    const itemName = sanitizeAtom(criteria.itemName || '');
+    const count = criteria.count || criteria.items?.length || 1;
+    return `collected(Player, ${itemName}, Qty), Qty >= ${count}`;
+  }
+
+  if (type === 'defeat_enemies') {
+    const enemyType = sanitizeAtom(criteria.enemyType || 'any');
+    const count = criteria.count || 1;
+    return `aggregate_all(count, defeated(Player, ${enemyType}), C), C >= ${count}`;
+  }
+
+  if (type === 'deliver_item') {
+    const itemName = sanitizeAtom(criteria.itemName || '');
+    const npcId = sanitizeAtom(criteria.targetNpcId || '');
+    return `delivered(Player, ${npcId}, ${itemName})`;
+  }
+
+  if (type === 'discover_location') {
+    const locationId = sanitizeAtom(criteria.locationId || criteria.locationName || '');
+    return `discovered(Player, ${locationId})`;
+  }
+
+  if (type === 'escort_npc') {
+    const npcId = sanitizeAtom(criteria.npcId || '');
+    const destId = sanitizeAtom(criteria.destinationId || 'destination');
+    return `escorted(Player, ${npcId}, ${destId})`;
+  }
+
+  if (type === 'gain_reputation') {
+    const factionId = sanitizeAtom(criteria.factionId || '');
+    const amount = criteria.amount || 100;
+    return `reputation(Player, ${factionId}, Rep), Rep >= ${amount}`;
+  }
+
+  if (type === 'craft_item') {
+    const itemName = sanitizeAtom(criteria.itemName || '');
+    const count = criteria.count || 1;
+    return `crafted(Player, ${itemName}, Qty), Qty >= ${count}`;
   }
 
   if (type === 'conversation_engagement') {

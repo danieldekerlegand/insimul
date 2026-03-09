@@ -91,6 +91,7 @@ function generateQuests(ir: WorldIR): object[] {
     tags: q.tags,
     prerequisiteQuestIds: q.prerequisiteQuestIds || [],
     objectives: q.objectives,
+    itemRewards: q.itemRewards || [],
   }));
 }
 
@@ -178,6 +179,41 @@ function generateTruths(ir: WorldIR): object[] {
   }));
 }
 
+function generateItems(ir: WorldIR): object[] {
+  return ir.systems.items.map(item => ({
+    id: item.id,
+    name: item.name,
+    description: item.description || '',
+    itemType: item.itemType,
+    icon: item.icon || '',
+    value: item.value,
+    sellValue: item.sellValue,
+    weight: item.weight,
+    tradeable: item.tradeable,
+    stackable: item.stackable,
+    maxStack: item.maxStack,
+    objectRole: item.objectRole || '',
+    effects: item.effects || {},
+    lootWeight: item.lootWeight,
+    tags: item.tags,
+  }));
+}
+
+function generateLootTables(ir: WorldIR): object[] {
+  return ir.systems.lootTables.map(lt => ({
+    enemyType: lt.enemyType,
+    entries: lt.entries.map(e => ({
+      itemId: e.itemId,
+      itemName: e.itemName,
+      dropChance: e.dropChance,
+      minQuantity: e.minQuantity,
+      maxQuantity: e.maxQuantity,
+    })),
+    goldMin: lt.goldMin,
+    goldMax: lt.goldMax,
+  }));
+}
+
 // ═════════════════════════════════════════════
 // Public API
 // ═════════════════════════════════════════════
@@ -205,6 +241,8 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'businesses', data: generateBusinesses(ir) },
     { name: 'grammars', data: generateGrammars(ir) },
     { name: 'truths', data: generateTruths(ir) },
+    { name: 'items', data: generateItems(ir) },
+    { name: 'loot_tables', data: generateLootTables(ir) },
   ];
 
   for (const table of tables) {

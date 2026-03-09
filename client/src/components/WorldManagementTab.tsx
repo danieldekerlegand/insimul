@@ -88,6 +88,15 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
     enabled: !!worldId,
   });
 
+  const { data: items = [] } = useQuery<any[]>({
+    queryKey: ['/api/worlds', worldId, 'items'],
+    queryFn: async () => {
+      const res = await fetch(`/api/worlds/${worldId}/items`);
+      return res.ok ? res.json() : [];
+    },
+    enabled: !!worldId,
+  });
+
   const { data: grammars = [] } = useQuery<any[]>({
     queryKey: ['/api/worlds', worldId, 'grammars'],
     queryFn: async () => {
@@ -203,6 +212,7 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
   const rulesLinks = rules.slice(0, 4).map((r: any) => ({ label: r.name || r.title || 'Untitled', type: 'rule' }));
   const actionsLinks = actions.slice(0, 4).map((a: any) => ({ label: a.name || a.actionType || 'Untitled', type: 'action' }));
   const questsLinks = quests.slice(0, 4).map((q: any) => ({ label: q.name || q.title || 'Untitled', type: 'quest' }));
+  const itemsLinks = items.slice(0, 4).map((i: any) => ({ label: i.name || 'Untitled', type: 'item' }));
   const grammarsLinks = grammars.slice(0, 4).map((g: any) => ({ label: g.name || 'Untitled', type: 'grammar' }));
   const languagesLinks = languages.slice(0, 4).map((l: any) => ({ label: l.name || 'Untitled', type: 'language' }));
 
@@ -221,6 +231,7 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
     { id: 'rules', label: 'Rules', icon: Scroll, description: 'World rules and logic systems', color: 'from-purple-500/20 to-violet-500/20', iconColor: 'text-purple-500', quickLinks: rulesLinks, totalCount: rules.length, emptyHint: 'No world rules defined yet' },
     { id: 'actions', label: 'Actions', icon: Zap, description: 'Character actions and behaviors', color: 'from-amber-500/20 to-orange-500/20', iconColor: 'text-amber-500', quickLinks: actionsLinks, totalCount: actions.length, emptyHint: 'No actions created yet' },
     { id: 'quests', label: 'Quests', icon: Target, description: 'Quest lines and objectives', color: 'from-red-500/20 to-rose-500/20', iconColor: 'text-red-500', quickLinks: questsLinks, totalCount: quests.length, emptyHint: 'No quests created yet' },
+    { id: 'items', label: 'Items', icon: Package, description: 'World items, loot, and equipment', color: 'from-yellow-500/20 to-amber-500/20', iconColor: 'text-yellow-500', quickLinks: itemsLinks, totalCount: items.length, emptyHint: 'No custom items defined yet' },
     { id: 'grammars', label: 'Grammars', icon: FileText, description: 'Tracery grammars for narrative', color: 'from-emerald-500/20 to-green-500/20', iconColor: 'text-emerald-500', quickLinks: grammarsLinks, totalCount: grammars.length, emptyHint: 'No grammars defined yet' },
     { id: 'languages', label: 'Languages', icon: Sparkles, description: 'Constructed languages', color: 'from-pink-500/20 to-fuchsia-500/20', iconColor: 'text-pink-500', quickLinks: languagesLinks, totalCount: languages.length, emptyHint: 'No languages created yet' },
   ];

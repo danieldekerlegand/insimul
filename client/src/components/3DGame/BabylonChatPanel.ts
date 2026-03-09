@@ -957,7 +957,15 @@ export class BabylonChatPanel {
     let prompt = buildLanguageAwareSystemPrompt(
       this.character,
       this.truths,
-      this.worldLanguageContext || undefined
+      this.worldLanguageContext || undefined,
+      this.world ? {
+        id: this.world.id,
+        name: this.world.name,
+        worldType: this.world.worldType,
+        gameType: this.world.gameType,
+        description: this.world.description,
+        targetLanguage: this.world.targetLanguage,
+      } : undefined
     );
     if (this.playerInventoryContext) {
       prompt += this.playerInventoryContext;
@@ -1563,6 +1571,8 @@ export class BabylonChatPanel {
     const descMatch = questBlock.match(/Description:\s*(.+)/);
     const typeMatch = questBlock.match(/Type:\s*(\w+)/);
     const difficultyMatch = questBlock.match(/Difficulty:\s*(\w+)/);
+    const objectivesMatch = questBlock.match(/Objectives?:\s*(.+)/);
+    const rewardsMatch = questBlock.match(/Rewards?:\s*(.+)/);
 
     if (titleMatch && descMatch && typeMatch && difficultyMatch) {
       try {
@@ -1580,6 +1590,17 @@ export class BabylonChatPanel {
         else if (difficulty === 'hard') experienceReward = 200;
         else if (difficulty === 'legendary') experienceReward = 500;
 
+        // Parse objectives from the quest block
+        const parsedObjectives: { description: string; type?: string }[] = [];
+        if (objectivesMatch) {
+          const objText = objectivesMatch[1].trim();
+          // Split by comma, semicolon, or numbered list
+          const parts = objText.split(/[;,]|\d+\.\s+/).filter(p => p.trim());
+          for (const part of parts) {
+            parsedObjectives.push({ description: part.trim() });
+          }
+        }
+
         const questData = {
           assignedTo: 'Player',
           assignedBy: `${this.character.firstName} ${this.character.lastName}`,
@@ -1593,6 +1614,8 @@ export class BabylonChatPanel {
           status: 'active',
           experienceReward,
           gameType: this.world?.gameType || this.world?.worldType || 'language-learning',
+          objectives: parsedObjectives.length > 0 ? parsedObjectives : undefined,
+          rewards: rewardsMatch ? rewardsMatch[1].trim() : undefined,
         };
 
         // Create the quest via API
