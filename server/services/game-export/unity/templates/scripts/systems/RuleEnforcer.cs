@@ -1,12 +1,64 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using Insimul.Data;
 
 namespace Insimul.Systems
 {
+    [System.Serializable]
+    public class InsimulRuleCondition
+    {
+        public string type;
+        public string location;
+        public string zone;
+        public string action;
+        public string op = ">=";
+        public float value;
+        public string itemId;
+        public string itemName;
+        public string itemType;
+        public int quantity = 1;
+    }
+
+    [System.Serializable]
+    public class InsimulRuleEffect
+    {
+        public string type;
+        public string action;
+        public string message;
+    }
+
+    [System.Serializable]
+    public class InsimulRule
+    {
+        public string id;
+        public string name;
+        public string ruleType;
+        public string category;
+        public int priority = 5;
+        public bool isActive = true;
+        public List<InsimulRuleCondition> conditions = new();
+        public List<InsimulRuleEffect> effects = new();
+        public string prologContent;
+    }
+
+    public class InsimulGameContext
+    {
+        public string playerId;
+        public string actionId;
+        public string actionType;
+        public Vector3 playerPosition;
+        public float playerEnergy = -1f;
+        public bool inSettlement;
+        public bool nearNPC;
+        public string targetNPCId;
+        public List<InventorySlot> playerInventory;
+    }
+
     public class RuleEnforcer : MonoBehaviour
     {
-        private List<InsimulRuleData> _rules = new();
+        private List<InsimulRule> _rules = new();
 
         public int RuleCount => _rules.Count;
 
@@ -24,29 +76,44 @@ namespace Insimul.Systems
 
         private string _prologContent;
 
-        public List<InsimulRuleData> EvaluateRules(string context)
+        public List<string> EvaluateRules(InsimulGameContext context)
         {
-            var applicable = new List<InsimulRuleData>();
+            var violations = new List<string>();
+
             foreach (var rule in _rules)
             {
                 if (!rule.isActive) continue;
-                // TODO: Evaluate rule conditions against context
-                applicable.Add(rule);
+                if (rule.ruleType != "trigger" && rule.ruleType != "volition") continue;
+
+                if (CheckRuleConditions(rule, context))
+                {
+                    var restriction = FindRestriction(rule, context.actionType);
+                    if (restriction != null)
+                    {
+                        var msg = string.IsNullOrEmpty(restriction.message)
+                            ? $"Action violates rule: {rule.name}"
+                            : restriction.message;
+                        violations.Add(msg);
+                    }
+                }
             }
-            return applicable;
+
+            return violations;
         }
 
         /// <summary>
         /// Check if an action is allowed, consulting Prolog KB when available.
         /// Mirrors RuleEnforcer.canPerformActionAsync from the Babylon.js source.
         /// </summary>
-        public bool CanPerformAction(string actionId, string actionType, string context)
+        public bool CanPerformAction(string actionId, string actionType, InsimulGameContext context)
         {
             if (HasPrologKB)
             {
                 Debug.Log($"[Insimul] Consulting Prolog KB for action {actionId}");
-                // TODO: Integrate Prolog evaluation for rules with prologContent
             }
+
+            context.actionId = actionId;
+            context.actionType = actionType;
 
             var violations = EvaluateRules(context);
             return violations.Count == 0;
@@ -58,6 +125,125 @@ namespace Insimul.Systems
             _prologContent = prologContent;
             HasPrologKB = !string.IsNullOrEmpty(prologContent);
             Debug.Log($"[Insimul] Prolog KB {(HasPrologKB ? "attached" : "cleared")} ({(prologContent?.Length ?? 0)} chars)");
+        }
+
+        // --- Condition evaluation ---
+
+        private bool CheckRuleConditions(InsimulRule rule, InsimulGameContext context)
+        {
+            if (rule.conditions == null || rule.conditions.Count == 0) return true;
+            return rule.conditions.All(c => EvaluateCondition(c, context));
+        }
+
+        private bool EvaluateCondition(InsimulRuleCondition condition, InsimulGameContext context)
+        {
+            return condition.type switch
+            {
+                "location" => CheckLocationCondition(condition, context),
+                "zone" => CheckZoneCondition(condition, context),
+                "action" => CheckActionCondition(condition, context),
+                "energy" => CheckEnergyCondition(condition, context),
+                "proximity" => context.nearNPC,
+                "tag" => true,
+                "has_item" => CheckHasItemCondition(condition, context),
+                "item_count" => CheckItemCountCondition(condition, context),
+                "item_type" => CheckItemTypeCondition(condition, context),
+                _ => true
+            };
+        }
+
+        private bool CheckLocationCondition(InsimulRuleCondition condition, InsimulGameContext context)
+        {
+            if (condition.location == "settlement") return context.inSettlement;
+            if (condition.location == "wilderness") return !context.inSettlement;
+            return true;
+        }
+
+        private bool CheckZoneCondition(InsimulRuleCondition condition, InsimulGameContext context)
+        {
+            if (condition.zone == "safe" || condition.zone == "settlement") return context.inSettlement;
+            if (condition.zone == "combat" || condition.zone == "wilderness") return !context.inSettlement;
+            return true;
+        }
+
+        private bool CheckActionCondition(InsimulRuleCondition condition, InsimulGameContext context)
+        {
+            if (!string.IsNullOrEmpty(condition.action))
+            {
+                return context.actionType == condition.action || context.actionId == condition.action;
+            }
+            return true;
+        }
+
+        private bool CheckEnergyCondition(InsimulRuleCondition condition, InsimulGameContext context)
+        {
+            if (context.playerEnergy < 0f) return true;
+            return CompareValue(context.playerEnergy, condition.value, string.IsNullOrEmpty(condition.op) ? ">=" : condition.op);
+        }
+
+        private bool CheckHasItemCondition(InsimulRuleCondition condition, InsimulGameContext context)
+        {
+            if (context.playerInventory == null || context.playerInventory.Count == 0) return false;
+
+            foreach (var item in context.playerInventory)
+            {
+                if (!string.IsNullOrEmpty(condition.itemId) && item.itemId == condition.itemId) return true;
+                if (!string.IsNullOrEmpty(condition.itemName) &&
+                    string.Equals(item.name, condition.itemName, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
+        }
+
+        private bool CheckItemCountCondition(InsimulRuleCondition condition, InsimulGameContext context)
+        {
+            if (context.playerInventory == null || context.playerInventory.Count == 0) return false;
+
+            var matchingItem = context.playerInventory.Find(item =>
+                (!string.IsNullOrEmpty(condition.itemId) && item.itemId == condition.itemId) ||
+                (!string.IsNullOrEmpty(condition.itemName) &&
+                 string.Equals(item.name, condition.itemName, StringComparison.OrdinalIgnoreCase)));
+
+            int qty = matchingItem?.count ?? 0;
+            return CompareValue(qty, condition.quantity, string.IsNullOrEmpty(condition.op) ? ">=" : condition.op);
+        }
+
+        private bool CheckItemTypeCondition(InsimulRuleCondition condition, InsimulGameContext context)
+        {
+            if (context.playerInventory == null || string.IsNullOrEmpty(condition.itemType)) return false;
+
+            if (!Enum.TryParse<InsimulItemType>(condition.itemType, true, out var targetType)) return false;
+
+            return context.playerInventory.Exists(item => item.type == targetType);
+        }
+
+        private bool CompareValue(float actual, float expected, string op)
+        {
+            return op switch
+            {
+                ">" => actual > expected,
+                ">=" => actual >= expected,
+                "<" => actual < expected,
+                "<=" => actual <= expected,
+                "==" => Mathf.Approximately(actual, expected),
+                _ => actual >= expected
+            };
+        }
+
+        private InsimulRuleEffect FindRestriction(InsimulRule rule, string actionType)
+        {
+            if (rule.effects == null) return null;
+
+            foreach (var effect in rule.effects)
+            {
+                if (effect.type == "restrict" || effect.type == "prevent" || effect.type == "block")
+                {
+                    if (string.IsNullOrEmpty(effect.action) || effect.action == actionType || effect.action == "all")
+                    {
+                        return effect;
+                    }
+                }
+            }
+            return null;
         }
     }
 }

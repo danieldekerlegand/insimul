@@ -23,7 +23,19 @@ enum class EInsimulItemType : uint8
 };
 
 /**
- * A single inventory item with value/trade metadata.
+ * Equipment slot types.
+ */
+UENUM(BlueprintType)
+enum class EInsimulEquipSlot : uint8
+{
+    None      UMETA(DisplayName = "None"),
+    Weapon    UMETA(DisplayName = "Weapon"),
+    Armor     UMETA(DisplayName = "Armor"),
+    Accessory UMETA(DisplayName = "Accessory")
+};
+
+/**
+ * A single inventory item with value/trade metadata and equipment support.
  */
 USTRUCT(BlueprintType)
 struct FInsimulInventoryItem
@@ -40,15 +52,22 @@ struct FInsimulInventoryItem
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float Weight = 0.f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bTradeable = true;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString QuestId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bEquipped = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) EInsimulEquipSlot EquipSlot = EInsimulEquipSlot::None;
+
+    /** Effects map: keys like "attackPower", "defense", "health", "energy" */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, float> Effects;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemChanged, const FString&, ItemId, int32, Count);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGoldChanged, int32, NewGold);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemDropped, const FInsimulInventoryItem&, Item);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemUsed, const FInsimulInventoryItem&, Item);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemEquipped, const FInsimulInventoryItem&, Item, EInsimulEquipSlot, Slot);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemUnequipped, const FInsimulInventoryItem&, Item, EInsimulEquipSlot, Slot);
 
 /**
- * Player inventory with item stacks, gold, and mercantile support.
+ * Player inventory with item stacks, gold, equipment slots, and mercantile support.
  * Ported from Insimul's Babylon.js InventorySystem to Unreal subsystem.
  */
 UCLASS()
@@ -93,6 +112,20 @@ public:
     UFUNCTION(BlueprintPure, Category = "Inventory")
     TArray<FInsimulInventoryItem> GetAllItems() const;
 
+    // --- Equipment Management ---
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory|Equipment")
+    bool EquipItem(const FString& ItemId);
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory|Equipment")
+    bool UnequipSlot(EInsimulEquipSlot Slot);
+
+    UFUNCTION(BlueprintPure, Category = "Inventory|Equipment")
+    FInsimulInventoryItem GetEquippedItem(EInsimulEquipSlot Slot) const;
+
+    UFUNCTION(BlueprintPure, Category = "Inventory|Equipment")
+    bool HasEquippedInSlot(EInsimulEquipSlot Slot) const;
+
     // --- Gold Management ---
 
     UFUNCTION(BlueprintPure, Category = "Inventory|Gold")
@@ -124,6 +157,12 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Inventory")
     FOnItemUsed OnItemUsed;
 
+    UPROPERTY(BlueprintAssignable, Category = "Inventory|Equipment")
+    FOnItemEquipped OnItemEquipped;
+
+    UPROPERTY(BlueprintAssignable, Category = "Inventory|Equipment")
+    FOnItemUnequipped OnItemUnequipped;
+
 private:
     UPROPERTY()
     TArray<FInsimulInventoryItem> Items;
@@ -131,6 +170,11 @@ private:
     UPROPERTY()
     int32 PlayerGold = 100;
 
+    /** Equipped items by slot */
+    UPROPERTY()
+    TMap<EInsimulEquipSlot, FString> EquippedSlots;
+
     FInsimulInventoryItem* FindItem(const FString& ItemId);
     const FInsimulInventoryItem* FindItem(const FString& ItemId) const;
+    EInsimulEquipSlot GetSlotForType(EInsimulItemType Type) const;
 };

@@ -13,6 +13,7 @@ void UInventorySystem::Initialize(FSubsystemCollectionBase& Collection)
 void UInventorySystem::Deinitialize()
 {
     Items.Empty();
+    EquippedSlots.Empty();
     Super::Deinitialize();
 }
 
@@ -35,6 +36,17 @@ FInsimulInventoryItem* UInventorySystem::FindItem(const FString& ItemId)
 const FInsimulInventoryItem* UInventorySystem::FindItem(const FString& ItemId) const
 {
     return Items.FindByPredicate([&](const FInsimulInventoryItem& I) { return I.ItemId == ItemId; });
+}
+
+EInsimulEquipSlot UInventorySystem::GetSlotForType(EInsimulItemType Type) const
+{
+    switch (Type)
+    {
+        case EInsimulItemType::Weapon: return EInsimulEquipSlot::Weapon;
+        case EInsimulItemType::Armor:  return EInsimulEquipSlot::Armor;
+        case EInsimulItemType::Tool:   return EInsimulEquipSlot::Accessory;
+        default: return EInsimulEquipSlot::None;
+    }
 }
 
 // --- Item Management ---
@@ -83,6 +95,7 @@ bool UInventorySystem::DropItem(const FString& ItemId)
     const FInsimulInventoryItem* Existing = FindItem(ItemId);
     if (!Existing) return false;
     if (Existing->Type == EInsimulItemType::Quest) return false; // Cannot drop quest items
+    if (Existing->bEquipped) return false; // Cannot drop equipped items
 
     FInsimulInventoryItem Copy = *Existing;
     RemoveItem(ItemId, 1);
@@ -92,14 +105,28 @@ bool UInventorySystem::DropItem(const FString& ItemId)
 
 bool UInventorySystem::UseItem(const FString& ItemId)
 {
-    const FInsimulInventoryItem* Existing = FindItem(ItemId);
+    FInsimulInventoryItem* Existing = FindItem(ItemId);
     if (!Existing) return false;
-    if (Existing->Type != EInsimulItemType::Consumable) return false;
 
-    FInsimulInventoryItem Copy = *Existing;
-    RemoveItem(ItemId, 1);
-    OnItemUsed.Broadcast(Copy);
-    return true;
+    // Quest and key items: emit event without consuming
+    if (Existing->Type == EInsimulItemType::Quest || Existing->Type == EInsimulItemType::Key)
+    {
+        OnItemUsed.Broadcast(*Existing);
+        return true;
+    }
+
+    // Consumable, food, drink: apply effects and consume
+    if (Existing->Type == EInsimulItemType::Consumable ||
+        Existing->Type == EInsimulItemType::Food ||
+        Existing->Type == EInsimulItemType::Drink)
+    {
+        FInsimulInventoryItem Copy = *Existing;
+        RemoveItem(ItemId, 1);
+        OnItemUsed.Broadcast(Copy);
+        return true;
+    }
+
+    return false;
 }
 
 int32 UInventorySystem::GetItemCount(const FString& ItemId) const
@@ -116,6 +143,60 @@ bool UInventorySystem::HasItem(const FString& ItemId) const
 TArray<FInsimulInventoryItem> UInventorySystem::GetAllItems() const
 {
     return Items;
+}
+
+// --- Equipment Management ---
+
+bool UInventorySystem::EquipItem(const FString& ItemId)
+{
+    FInsimulInventoryItem* Item = FindItem(ItemId);
+    if (!Item) return false;
+
+    EInsimulEquipSlot Slot = Item->EquipSlot != EInsimulEquipSlot::None
+        ? Item->EquipSlot
+        : GetSlotForType(Item->Type);
+    if (Slot == EInsimulEquipSlot::None) return false;
+
+    // Unequip any existing item in the slot
+    UnequipSlot(Slot);
+
+    Item->bEquipped = true;
+    EquippedSlots.Add(Slot, ItemId);
+    OnItemEquipped.Broadcast(*Item, Slot);
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Equipped: %s in slot %d"), *Item->Name, (int32)Slot);
+    return true;
+}
+
+bool UInventorySystem::UnequipSlot(EInsimulEquipSlot Slot)
+{
+    const FString* ItemId = EquippedSlots.Find(Slot);
+    if (!ItemId) return false;
+
+    FInsimulInventoryItem* Item = FindItem(*ItemId);
+    if (Item)
+    {
+        Item->bEquipped = false;
+        OnItemUnequipped.Broadcast(*Item, Slot);
+        UE_LOG(LogTemp, Log, TEXT("[Insimul] Unequipped: %s from slot %d"), *Item->Name, (int32)Slot);
+    }
+    EquippedSlots.Remove(Slot);
+    return true;
+}
+
+FInsimulInventoryItem UInventorySystem::GetEquippedItem(EInsimulEquipSlot Slot) const
+{
+    const FString* ItemId = EquippedSlots.Find(Slot);
+    if (ItemId)
+    {
+        const FInsimulInventoryItem* Item = FindItem(*ItemId);
+        if (Item) return *Item;
+    }
+    return FInsimulInventoryItem();
+}
+
+bool UInventorySystem::HasEquippedInSlot(EInsimulEquipSlot Slot) const
+{
+    return EquippedSlots.Contains(Slot);
 }
 
 // --- Gold Management ---
