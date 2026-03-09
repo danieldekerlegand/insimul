@@ -12,6 +12,7 @@
 
 import { storage } from '../../db/storage';
 import type { Character } from '@shared/schema';
+import { prologKnows, prologBelieves, prologShouldPropagate, prologAssertFact } from './prolog-queries.js';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -245,24 +246,32 @@ export async function addKnownFact(
   observerId: string,
   subjectId: string,
   fact: KnownFact,
-  currentTimestep: number = 0
+  currentTimestep: number = 0,
+  worldId?: string
 ): Promise<void> {
   const model = await getMentalModel(observerId, subjectId, true, currentTimestep);
-  
+
   if (!model) {
     throw new Error('Failed to get/create mental model');
   }
-  
+
   model.knownFacts[fact] = true;
   model.lastUpdated = currentTimestep;
-  
+
   const observer = await storage.getCharacter(observerId);
   const knowledge = (observer!.mentalModels as CharacterKnowledge) || { mentalModels: {} };
   knowledge.mentalModels[subjectId] = model;
-  
+
   await storage.updateCharacter(observerId, {
     mentalModels: knowledge as any
   });
+
+  // Sync to Prolog knowledge base
+  if (worldId) {
+    const obs = observerId.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    const sub = subjectId.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    await prologAssertFact(worldId, `knows(${obs}, ${sub}, ${fact})`);
+  }
 }
 
 /**
@@ -299,14 +308,21 @@ export async function addKnownValue(
 export async function knowsFact(
   observerId: string,
   subjectId: string,
-  fact: KnownFact
+  fact: KnownFact,
+  worldId?: string
 ): Promise<boolean> {
+  // Try Prolog first
+  if (worldId) {
+    const prologResult = await prologKnows(worldId, observerId, subjectId, fact);
+    if (prologResult !== null) return prologResult;
+  }
+
   const model = await getMentalModel(observerId, subjectId, false);
-  
+
   if (!model) {
     return false;
   }
-  
+
   return model.knownFacts[fact] === true;
 }
 
@@ -426,15 +442,28 @@ export async function propagateKnowledge(
   listenerId: string,
   subjectId: string,
   currentTimestep: number,
-  trustOverride?: number
+  trustOverride?: number,
+  worldId?: string
 ): Promise<KnowledgePropagationResult> {
+  // Check Prolog first — should knowledge propagate between these characters?
+  if (worldId) {
+    const shouldProp = await prologShouldPropagate(worldId, speakerId, listenerId);
+    if (shouldProp === false) {
+      return {
+        speakerId, listenerId, subjectId,
+        factsShared: [], valuesShared: [], beliefsShared: [],
+        success: false, timestamp: currentTimestep
+      };
+    }
+  }
+
   const speaker = await storage.getCharacter(speakerId);
   const listener = await storage.getCharacter(listenerId);
-  
+
   if (!speaker || !listener) {
     throw new Error('Speaker or listener not found');
   }
-  
+
   // Get speaker's knowledge about subject
   const speakerModel = await getMentalModel(speakerId, subjectId, false);
   

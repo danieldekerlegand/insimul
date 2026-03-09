@@ -27,6 +27,7 @@
 import { storage } from '../../db/storage';
 import type { Character } from '@shared/schema';
 import { getPersonality, getStressResponse, type BigFivePersonality } from './personality-behavior-system.js';
+import { prologGrieving, prologAssertFact, prologRetractFact } from './prolog-queries.js';
 
 // ============================================================================
 // TYPES & CONSTANTS
@@ -115,7 +116,10 @@ export async function initiateGrief(
   };
   
   grievingData.activeGrief.push(newGrief);
-  
+
+  // Assert grieving fact in Prolog
+  await prologAssertFact(character.worldId, `grieving(${characterId})`);
+
   // Update character
   await storage.updateCharacter(characterId, {
     customData: {
@@ -123,7 +127,7 @@ export async function initiateGrief(
       grieving: grievingData
     }
   } as any);
-  
+
   console.log(`💔 ${character.firstName} is grieving ${relationship}: intensity ${intensity.toFixed(2)}`);
 }
 
@@ -176,10 +180,15 @@ export async function updateGrief(
   // Move resolved grief to past
   const stillGrieving = grievingData.activeGrief.filter(g => g.intensity > 0.05);
   const resolved = grievingData.activeGrief.filter(g => g.intensity <= 0.05);
-  
+
   grievingData.activeGrief = stillGrieving;
   grievingData.pastGrief.push(...resolved);
-  
+
+  // Retract Prolog grieving fact if no longer grieving
+  if (stillGrieving.length === 0 && resolved.length > 0) {
+    await prologRetractFact(character.worldId, `grieving(${characterId})`);
+  }
+
   // Update character
   await storage.updateCharacter(characterId, {
     customData: {
@@ -280,13 +289,28 @@ export async function getGriefImpact(characterId: string): Promise<{
       dominantStage: null
     };
   }
-  
+
+  // Check Prolog for grieving state first
+  const prologIsGrieving = await prologGrieving(character.worldId, characterId);
+  if (prologIsGrieving !== null && !prologIsGrieving) {
+    // Prolog says not grieving — return default
+    return {
+      isGrieving: false,
+      totalIntensity: 0,
+      socialModifier: 1.0,
+      workModifier: 1.0,
+      riskModifier: 1.0,
+      stressModifier: 1.0,
+      dominantStage: null
+    };
+  }
+
   const customData = (character as any).customData || {};
   const grievingData: GrievingData = customData.grieving || {
     activeGrief: [],
     pastGrief: []
   };
-  
+
   if (grievingData.activeGrief.length === 0) {
     return {
       isGrieving: false,

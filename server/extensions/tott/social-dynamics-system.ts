@@ -11,6 +11,7 @@
 
 import { storage } from '../../db/storage';
 import type { Character, BigFivePersonality } from '@shared/schema';
+import { prologCompatibility, prologShouldSocialize, prologWillBefriend, prologAssertFact, prologHasAuthority } from './prolog-queries.js';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -500,21 +501,30 @@ export async function getMostSalientPeople(
 /**
  * Determine if a character should socialize based on personality and context
  */
+export async function shouldSocializeAsync(character: Character, salienceOfOther: number, worldId?: string): Promise<boolean> {
+  // Try Prolog first
+  if (worldId) {
+    const prologResult = await prologShouldSocialize(worldId, character.id);
+    if (prologResult !== null) return prologResult;
+  }
+  return shouldSocialize(character, salienceOfOther);
+}
+
 export function shouldSocialize(character: Character, salienceOfOther: number): boolean {
   const traits = character.personality as BigFivePersonality | null;
-  
+
   if (!traits) {
     return Math.random() < CONFIG.baseChanceToSocialize;
   }
-  
+
   // Extroverts socialize more
   const extroversionBoost = traits.extroversion * CONFIG.extroversionBoostToSocialize;
-  
+
   // More salient people are approached more
   const salienceBoost = salienceOfOther * CONFIG.salienceBoostToSocialize;
-  
+
   const totalChance = CONFIG.baseChanceToSocialize + extroversionBoost + salienceBoost;
-  
+
   return Math.random() < Math.min(0.9, totalChance);
 }
 
@@ -552,7 +562,22 @@ export async function socialize(
   if (initiatorTraits) {
     interactionQuality -= initiatorTraits.neuroticism * 0.1;
   }
-  
+
+  // Authority modifier: if one character has authority over the other,
+  // skew the interaction (subordinates are more agreeable, superiors more dominant)
+  const authorityWorldId = (initiator as any).worldId as string | undefined;
+  if (authorityWorldId) {
+    const initiatorHasAuthority = await prologHasAuthority(authorityWorldId, initiatorId, targetId);
+    const targetHasAuthority = await prologHasAuthority(authorityWorldId, targetId, initiatorId);
+    if (initiatorHasAuthority === true) {
+      // Superior initiating: interaction slightly more positive (deference)
+      interactionQuality += 0.1;
+    } else if (targetHasAuthority === true) {
+      // Subordinate initiating: slight tension from status difference
+      interactionQuality -= 0.05;
+    }
+  }
+
   // Random variation
   interactionQuality += (Math.random() - 0.5) * 0.3;
   
@@ -572,6 +597,19 @@ export async function socialize(
   const sparkChange = relationshipAfter.spark - relationshipBefore.spark;
   const trustChange = relationshipAfter.trust - relationshipBefore.trust;
   
+  // Record interaction in Prolog knowledge base
+  const worldId = (initiator as any).worldId;
+  if (worldId) {
+    const id1 = initiatorId.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    const id2 = targetId.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    await prologAssertFact(worldId, `had_conversation(${id1}, ${id2})`);
+    if (chargeChange > 0.5) {
+      await prologAssertFact(worldId, `positive_interaction(${id1}, ${id2})`);
+    } else if (chargeChange < -0.5) {
+      await prologAssertFact(worldId, `negative_interaction(${id1}, ${id2})`);
+    }
+  }
+
   return {
     initiatorId,
     targetId,

@@ -16,6 +16,7 @@
 
 import { storage } from '../../db/storage';
 import type { Character } from '@shared/schema';
+import { prologDramaticTension } from './prolog-queries.js';
 
 // ============================================================================
 // TYPES & DRAMA STRUCTURES
@@ -115,9 +116,25 @@ const THRESHOLDS = {
 /**
  * Excavate all dramatic situations in the world
  */
+/**
+ * Check Prolog for dramatic tension between two characters.
+ * Returns the tension type or null if Prolog has no data.
+ */
+export async function checkPrologDrama(
+  worldId: string,
+  char1Id: string,
+  char2Id: string
+): Promise<string | null> {
+  const prologResult = await prologDramaticTension(worldId, char1Id, char2Id);
+  if (prologResult !== null) {
+    return prologResult;
+  }
+  return null;
+}
+
 export async function excavateDrama(worldId: string): Promise<DramaAnalysis> {
   console.log('🎭 Excavating dramatic narratives...');
-  
+
   const unrequitedLove = await excavateUnrequitedLove(worldId);
   console.log(`  Found ${unrequitedLove.length} cases of unrequited love`);
   
@@ -357,9 +374,13 @@ async function excavateRivalries(worldId: string): Promise<Rivalry[]> {
       if (mutualDislike) {
         const person2 = await storage.getCharacter(person2Id);
         if (!person2) continue;
-        
+
         const intensity = await getDislikeIntensity(person1.id, person2Id);
-        
+
+        // Augment with Prolog dramatic tension type if available
+        const tensionType = await prologDramaticTension(worldId, person1.id, person2Id);
+        const context = tensionType || undefined;
+
         rivalries.push({
           type: 'rivalry',
           person1: person1.id,
@@ -367,7 +388,8 @@ async function excavateRivalries(worldId: string): Promise<Rivalry[]> {
           person1Name: person1.firstName,
           person2Name: person2.firstName,
           intensity,
-          description: `${person1.firstName} and ${person2.firstName} are rivals ⚔️`
+          context,
+          description: `${person1.firstName} and ${person2.firstName} are rivals${tensionType ? ` (${tensionType})` : ''} ⚔️`
         });
       }
     }

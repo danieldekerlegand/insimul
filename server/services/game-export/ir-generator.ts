@@ -57,6 +57,10 @@ import type {
   NPCDialogueContext,
   AIConfigIR,
 } from '@shared/game-engine/ir-types';
+import { getNPCReasoningRules } from '@shared/prolog/npc-reasoning';
+import { getTotTPredicates } from '@shared/prolog/tott-predicates';
+import { getAdvancedPredicates } from '@shared/prolog/advanced-predicates';
+import { validateExportKnowledgeBase } from '@shared/prolog/export-validator';
 import type {
   Vec3,
   Color3,
@@ -910,6 +914,7 @@ export async function generateWorldIR(
     conditions: (r.conditions as any[]) || [], effects: (r.effects as any[]) || [],
     tags: (r.tags as string[]) || [], dependencies: (r.dependencies as string[]) || [],
     isActive: r.isActive ?? true,
+    prologContent: (r as any).prologContent || null,
   }));
 
   const baseRuleIRs: RuleIR[] = []; // Skip base rules for now due to performance issues
@@ -944,6 +949,7 @@ export async function generateWorldIR(
     customData: (a.customData as Record<string, any>) || {},
     tags: (a.tags as string[]) || [],
     isActive: a.isActive ?? true,
+    prologContent: (a as any).prologContent || null,
   }));
 
   const baseActionIRs: ActionIR[] = []; // Skip base actions for now due to performance issues
@@ -986,6 +992,7 @@ export async function generateWorldIR(
     assignedByCharacterId: q.assignedByCharacterId || null,
     tags: (q.tags as string[]) || [],
     status: q.status || 'active',
+    prologContent: (q as any).prologContent || null,
   }));
 
   const truthIRs: TruthIR[] = truths.map(t => ({
@@ -1171,6 +1178,7 @@ export async function generateWorldIR(
       grammars: grammarIRs,
       languages: languageIRs,
       dialogueContexts,
+      knowledgeBase: await buildKnowledgeBase(ruleIRs, actionIRs, questIRs, characters),
     },
 
     theme: {
@@ -1232,4 +1240,109 @@ export async function generateWorldIR(
   };
 
   return ir;
+}
+
+// ── Prolog Knowledge Base Builder ─────────────────────────────────────────
+
+async function buildKnowledgeBase(
+  rules: RuleIR[],
+  actions: ActionIR[],
+  quests: QuestIR[],
+  characters: any[],
+): Promise<string | null> {
+  const parts: string[] = [];
+
+  parts.push('% Insimul Knowledge Base - Auto-generated for game export');
+  parts.push(`% Generated: ${new Date().toISOString()}`);
+  parts.push('');
+
+  // NPC reasoning rules (lifecycle, social, emotional, decision-making)
+  parts.push('% === NPC Reasoning Rules ===');
+  parts.push(getNPCReasoningRules());
+  parts.push('');
+
+  // TotT social simulation predicates (hiring, social dynamics, economics, lifecycle)
+  parts.push('% === TotT Social Simulation Predicates ===');
+  parts.push(getTotTPredicates());
+  parts.push('');
+
+  // Advanced predicates (resources, probabilistic, abductive, meta, procedural)
+  parts.push('% === Advanced Predicates ===');
+  parts.push(getAdvancedPredicates());
+  parts.push('');
+
+  // Character facts
+  parts.push('% === Character Facts ===');
+  for (const char of characters) {
+    const id = sanitizeAtom(`${char.firstName}_${char.lastName}_${char.id}`);
+    parts.push(`person(${id}).`);
+    if (char.age) parts.push(`age(${id}, ${char.age}).`);
+    if (char.gender) parts.push(`gender(${id}, ${sanitizeAtom(char.gender)}).`);
+    if (char.occupation) parts.push(`occupation(${id}, ${sanitizeAtom(char.occupation)}).`);
+  }
+  parts.push('');
+
+  // Prolog content from rules
+  let hasContent = false;
+  const ruleContents = rules.filter(r => r.prologContent).map(r => r.prologContent!);
+  if (ruleContents.length > 0) {
+    parts.push('% === Rules ===');
+    parts.push(ruleContents.join('\n\n'));
+    parts.push('');
+    hasContent = true;
+  }
+
+  // Prolog content from actions
+  const actionContents = actions.filter(a => a.prologContent).map(a => a.prologContent!);
+  if (actionContents.length > 0) {
+    parts.push('% === Actions ===');
+    parts.push(actionContents.join('\n\n'));
+    parts.push('');
+    hasContent = true;
+  }
+
+  // Prolog content from quests
+  const questContents = quests.filter(q => q.prologContent).map(q => q.prologContent!);
+  if (questContents.length > 0) {
+    parts.push('% === Quests ===');
+    parts.push(questContents.join('\n\n'));
+    parts.push('');
+    hasContent = true;
+  }
+
+  // Return null if no meaningful content beyond boilerplate
+  if (!hasContent && characters.length === 0) return null;
+
+  const knowledgeBase = parts.join('\n');
+
+  // Validate the generated knowledge base (log warnings but don't block export)
+  try {
+    const validation = await validateExportKnowledgeBase(knowledgeBase);
+    if (validation.warnings.length > 0) {
+      console.warn('[IR Export] Knowledge base validation warnings:');
+      for (const w of validation.warnings) {
+        console.warn(`  - ${w}`);
+      }
+    }
+    if (!validation.valid) {
+      console.error('[IR Export] Knowledge base validation errors (export continues):');
+      for (const e of validation.errors) {
+        console.error(`  - ${e}`);
+      }
+    }
+    console.log(`[IR Export] Knowledge base stats: ${validation.stats.factCount} facts, ${validation.stats.ruleCount} rules, ${validation.stats.predicateCount} predicates`);
+  } catch (err) {
+    console.warn('[IR Export] Knowledge base validation skipped due to error:', err);
+  }
+
+  return knowledgeBase;
+}
+
+function sanitizeAtom(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/^([0-9])/, '_$1')
+    .replace(/_+/g, '_')
+    .replace(/_$/, '');
 }

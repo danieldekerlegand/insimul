@@ -230,5 +230,13 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     });
   }
 
+  // Prolog knowledge base
+  if (ir.systems.knowledgeBase) {
+    files.push({
+      path: `${base}/knowledge_base.pl`,
+      content: ir.systems.knowledgeBase,
+    });
+  }
+
   return files;
 }

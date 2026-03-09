@@ -7,6 +7,7 @@ import { storage } from '../../db/storage';
 import { generateEvent } from './event-system.js';
 import { fireEmployee } from './hiring-system.js';
 import type { Business, Character, BusinessType, OccupationVocation } from '@shared/schema';
+import { prologBusinessOwner, prologCanFoundBusiness, prologAssertFact } from './prolog-queries.js';
 
 export interface BusinessFoundingOptions {
   worldId: string;
@@ -46,13 +47,25 @@ export interface OwnershipTransferOptions {
  */
 export async function foundBusiness(options: BusinessFoundingOptions): Promise<Business> {
   const { worldId, founderId, name, businessType, address, currentYear, currentTimestep, initialVacancies } = options;
-  
+
   // Get founder
   const founder = await storage.getCharacter(founderId);
   if (!founder) {
     throw new Error(`Founder character ${founderId} not found`);
   }
-  
+
+  // Check Prolog if character can found a business
+  const prologCanFound = await prologCanFoundBusiness(worldId, founderId);
+  if (prologCanFound !== null && !prologCanFound) {
+    throw new Error(`Prolog: ${founder.firstName} cannot found a business`);
+  }
+
+  // Check Prolog if character already owns a business
+  const prologOwns = await prologBusinessOwner(worldId, founderId);
+  if (prologOwns !== null && prologOwns) {
+    console.log(`Prolog: ${founder.firstName} already owns a business, proceeding with additional founding`);
+  }
+
   // Create business
   const business = await storage.createBusiness({
     worldId,
@@ -66,7 +79,10 @@ export async function foundBusiness(options: BusinessFoundingOptions): Promise<B
   });
   
   console.log(`✓ Founded business: ${name} (${businessType}) by ${founder.firstName} ${founder.lastName}`);
-  
+
+  // Assert ownership fact in Prolog
+  await prologAssertFact(worldId, `owns(${founderId}, ${business.id})`);
+
   // Store in founder's business history
   const customData = (founder as any).customData as Record<string, any> | undefined;
   const businessHistory = (customData?.businessHistory as any[]) || [];

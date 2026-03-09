@@ -1,6 +1,10 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from './db/storage';
+import { prologAutoSync } from './engines/prolog/prolog-auto-sync';
+import { convertRuleToProlog } from '../shared/prolog/rule-converter';
+import { convertActionToProlog } from '../shared/prolog/action-converter';
+import { convertQuestToProlog } from '../shared/prolog/quest-converter';
 import { nameGenerator } from './generators/name-generator.js';
 import { isGeminiConfigured, getModel, GEMINI_MODELS } from './config/gemini.js';
 import {
@@ -384,6 +388,153 @@ export async function registerRoutes(app: Express): Promise<Server> {
 const rulesCache = new Map<string, { rules: Rule[]; timestamp: number }>();
 const RULES_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
 
+// Cache for base rules to avoid repeated database calls
+let baseRulesCache: Rule[] | null = null;
+let baseRulesCacheTime = 0;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Get base rules (must be registered before /api/rules/:id to avoid route conflict)
+app.get("/api/rules/base", async (req, res) => {
+  try {
+    // Check cache first
+    const now = Date.now();
+    if (baseRulesCache && (now - baseRulesCacheTime) < CACHE_DURATION) {
+      console.log(`Returning cached base rules (${baseRulesCache.length} rules)`);
+      return res.json(baseRulesCache);
+    }
+
+    // Support pagination via query parameters
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 100;
+
+    // If pagination is requested, don't cache
+    if (req.query.page || req.query.limit) {
+      console.log(`Returning paginated base rules, page ${page}, limit ${limit}`);
+      const rules = await storage.getBaseRules({ page, limit });
+      return res.json({
+        rules,
+        pagination: {
+          page,
+          limit,
+          hasMore: rules.length === limit // Simple heuristic
+        }
+      });
+    }
+
+    // Add timeout handling (30 seconds)
+    const rules = await Promise.race([
+      storage.getBaseRules(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Database timeout')), 30000)
+      )
+    ]) as Rule[];
+
+    // Update cache
+    baseRulesCache = rules;
+    baseRulesCacheTime = now;
+
+    console.log(`Found ${rules.length} base rules`);
+    if (rules.length > 0) {
+      console.log('First base rule:', {
+        id: rules[0].id,
+        name: rules[0].name,
+        isBase: rules[0].isBase,
+        worldId: rules[0].worldId,
+        worldIdType: typeof rules[0].worldId
+      });
+    }
+    res.json(rules);
+  } catch (error) {
+    console.error('Error fetching base rules:', error);
+    // Return cached rules if available, otherwise empty array
+    if (baseRulesCache) {
+      console.log('Database timeout, returning cached base rules');
+      return res.json(baseRulesCache);
+    }
+    // Return empty array instead of error to prevent game from failing
+    res.json([]);
+  }
+});
+
+// Batch convert base rules to Prolog
+app.post("/api/rules/base/convert-all", async (req, res) => {
+  try {
+    const rules = await storage.getBaseRules({ includeContent: true, limit: 1000 });
+    let converted = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (const rule of rules) {
+      if (!rule.content || rule.prologContent) {
+        skipped++;
+        continue;
+      }
+      try {
+        const result = convertRuleToProlog(rule as any);
+        await storage.updateRule(rule.id, { prologContent: result.prologContent });
+        converted++;
+      } catch (err: any) {
+        errors.push(`Rule "${rule.name}" (${rule.id}): ${err.message || String(err)}`);
+      }
+    }
+
+    res.json({ converted, skipped, errors });
+  } catch (error: any) {
+    console.error('Error batch converting base rules:', error);
+    res.status(500).json({ error: error.message || 'Failed to batch convert rules' });
+  }
+});
+
+// Categorize uncategorized base rules by keyword matching
+app.post("/api/rules/base/categorize", async (req, res) => {
+  try {
+    const rules = await storage.getBaseRules({ includeContent: true, limit: 1000 });
+    const uncategorizedRules = rules.filter((r: any) => !r.category);
+
+    const categoryKeywords: Record<string, string[]> = {
+      employment: ["employ", "hire", "fire", "job", "work", "occupation"],
+      social: ["friend", "social", "relationship", "talk", "gossip"],
+      business: ["business", "shop", "store", "market"],
+      economics: ["money", "wealth", "trade", "buy", "sell", "price", "gold"],
+      life_events: ["marry", "birth", "death", "age", "child", "parent"],
+      personality: ["personality", "trait", "mood", "emotion"],
+      cognition: ["know", "believe", "learn", "think", "remember"],
+      governance: ["law", "govern", "council", "authority", "tax"],
+      education: ["school", "teach", "student", "degree"],
+      health: ["health", "sick", "heal", "doctor"],
+      conflict: ["fight", "conflict", "war", "attack", "defend"],
+      environment: ["weather", "season", "nature", "environment"],
+    };
+
+    let categorized = 0;
+    let uncategorizedCount = 0;
+
+    for (const rule of uncategorizedRules) {
+      const text = `${rule.name || ''} ${rule.description || ''}`.toLowerCase();
+      let matched: string | null = null;
+
+      for (const [category, keywords] of Object.entries(categoryKeywords)) {
+        if (keywords.some((kw) => text.includes(kw))) {
+          matched = category;
+          break;
+        }
+      }
+
+      if (matched) {
+        await storage.updateRule(rule.id, { category: matched });
+        categorized++;
+      } else {
+        uncategorizedCount++;
+      }
+    }
+
+    res.json({ categorized, uncategorized: uncategorizedCount });
+  } catch (error: any) {
+    console.error('Error categorizing base rules:', error);
+    res.status(500).json({ error: error.message || 'Failed to categorize rules' });
+  }
+});
+
 // Get single rule with content
 app.get("/api/rules/:id", async (req, res) => {
   try {
@@ -474,73 +625,6 @@ app.get("/api/rules", async (req, res) => {
   }
 });
 
-  // Cache for base rules to avoid repeated database calls
-let baseRulesCache: Rule[] | null = null;
-let baseRulesCacheTime = 0;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-// Get base rules
-app.get("/api/rules/base", async (req, res) => {
-  try {
-    // Check cache first
-    const now = Date.now();
-    if (baseRulesCache && (now - baseRulesCacheTime) < CACHE_DURATION) {
-      console.log(`Returning cached base rules (${baseRulesCache.length} rules)`);
-      return res.json(baseRulesCache);
-    }
-
-    // Support pagination via query parameters
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 100;
-    
-    // If pagination is requested, don't cache
-    if (req.query.page || req.query.limit) {
-      console.log(`Returning paginated base rules, page ${page}, limit ${limit}`);
-      const rules = await storage.getBaseRules({ page, limit });
-      return res.json({
-        rules,
-        pagination: {
-          page,
-          limit,
-          hasMore: rules.length === limit // Simple heuristic
-        }
-      });
-    }
-
-    // Add timeout handling (30 seconds)
-    const rules = await Promise.race([
-      storage.getBaseRules(),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Database timeout')), 30000)
-      )
-    ]) as Rule[];
-    
-    // Update cache
-    baseRulesCache = rules;
-    baseRulesCacheTime = now;
-    
-    console.log(`Found ${rules.length} base rules`);
-    if (rules.length > 0) {
-      console.log('First base rule:', {
-        id: rules[0].id,
-        name: rules[0].name,
-        isBase: rules[0].isBase,
-        worldId: rules[0].worldId,
-        worldIdType: typeof rules[0].worldId
-      });
-    }
-    res.json(rules);
-  } catch (error) {
-    console.error('Error fetching base rules:', error);
-    // Return cached rules if available, otherwise empty array
-    if (baseRulesCache) {
-      console.log('Database timeout, returning cached base rules');
-      return res.json(baseRulesCache);
-    }
-    // Return empty array instead of error to prevent game from failing
-    res.json([]);
-  }
-});
 
   // Legacy route for backward compatibility
   app.get("/api/projects/:projectId/rules", async (req, res) => {
@@ -575,12 +659,24 @@ app.get("/api/rules/base", async (req, res) => {
         worldId: validatedData.worldId,
         worldIdType: typeof validatedData.worldId
       });
-      
+
+      // Auto-generate Prolog content if not already provided
+      if (!validatedData.prologContent) {
+        try {
+          const conversion = convertRuleToProlog(validatedData as any);
+          if (conversion.prologContent) {
+            (validatedData as any).prologContent = conversion.prologContent;
+          }
+        } catch (e) {
+          console.warn('[PrologConvert] Failed to convert rule:', e);
+        }
+      }
+
       // Clear relevant caches when creating new rule
       baseRulesCache = null;
       baseRulesCacheTime = 0;
       rulesCache.clear();
-      
+
       const rule = await storage.createRule(validatedData);
       console.log('Created rule in DB:', {
         id: rule.id,
@@ -618,12 +714,28 @@ app.get("/api/rules/base", async (req, res) => {
   app.put("/api/rules/:id", async (req, res) => {
     try {
       const validatedData = insertRuleSchema.partial().parse(req.body);
-      
+
+      // Re-generate Prolog content when rule content/conditions/effects change
+      if (validatedData.content || validatedData.conditions || validatedData.effects) {
+        try {
+          const existing = await storage.getRuleWithContent(req.params.id);
+          if (existing) {
+            const merged = { ...existing, ...validatedData };
+            const conversion = convertRuleToProlog(merged as any);
+            if (conversion.prologContent) {
+              (validatedData as any).prologContent = conversion.prologContent;
+            }
+          }
+        } catch (e) {
+          console.warn('[PrologConvert] Failed to convert rule on update:', e);
+        }
+      }
+
       // Clear relevant caches when updating rule
       baseRulesCache = null;
       baseRulesCacheTime = 0;
       rulesCache.clear();
-      
+
       const rule = await storage.updateRule(req.params.id, validatedData);
       if (!rule) {
         return res.status(404).json({ error: "Rule not found" });
@@ -1124,6 +1236,9 @@ app.get("/api/rules/base", async (req, res) => {
       console.log("Character created successfully:", character);
       console.log("=== END CREATE CHARACTER ===");
 
+      // Auto-sync to Prolog
+      prologAutoSync.onCharacterChanged(worldId, character as any).catch(e => console.warn('[PrologAutoSync] character create:', e));
+
       res.status(201).json(character);
     } catch (error) {
       console.error("Failed to create character:", error);
@@ -1139,6 +1254,12 @@ app.get("/api/rules/base", async (req, res) => {
     try {
       const validatedData = insertCharacterSchema.parse(req.body);
       const character = await storage.createCharacter(validatedData);
+
+      // Auto-sync to Prolog
+      if (character.worldId) {
+        prologAutoSync.onCharacterChanged(character.worldId, character as any).catch(e => console.warn('[PrologAutoSync] character create:', e));
+      }
+
       res.status(201).json(character);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1171,6 +1292,10 @@ app.get("/api/rules/base", async (req, res) => {
       if (!character) {
         return res.status(404).json({ error: "Character not found" });
       }
+
+      // Auto-sync to Prolog
+      prologAutoSync.onCharacterChanged(character.worldId, character as any).catch(e => console.warn('[PrologAutoSync] character update:', e));
+
       res.json(character);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1198,10 +1323,19 @@ app.get("/api/rules/base", async (req, res) => {
         return res.status(403).json({ error: "You don't have permission to edit this world" });
       }
 
+      // Capture info before deleting
+      const charWorldId = existingCharacter.worldId;
+      const charFirstName = existingCharacter.firstName;
+      const charLastName = existingCharacter.lastName;
+
       const deleted = await storage.deleteCharacter(id);
       if (!deleted) {
         return res.status(404).json({ error: "Character not found" });
       }
+
+      // Auto-sync to Prolog
+      prologAutoSync.onCharacterDeleted(charWorldId, id, charFirstName, charLastName).catch(e => console.warn('[PrologAutoSync] character delete:', e));
+
       res.status(204).send();
     } catch (error) {
       console.error("Failed to delete character:", error);
@@ -1759,6 +1893,10 @@ app.get("/api/rules/base", async (req, res) => {
       const settlementData = { ...req.body, worldId };
       const validatedData = insertSettlementSchema.parse(settlementData);
       const settlement = await storage.createSettlement(validatedData);
+
+      // Auto-sync to Prolog
+      prologAutoSync.onSettlementChanged(worldId, settlement as any).catch(e => console.warn('[PrologAutoSync] settlement create:', e));
+
       res.status(201).json(settlement);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1802,6 +1940,10 @@ app.get("/api/rules/base", async (req, res) => {
       if (!settlement) {
         return res.status(404).json({ error: "Settlement not found" });
       }
+
+      // Auto-sync to Prolog
+      prologAutoSync.onSettlementChanged(settlement.worldId, settlement as any).catch(e => console.warn('[PrologAutoSync] settlement update:', e));
+
       res.json(settlement);
     } catch (error) {
       res.status(500).json({ error: "Failed to update settlement" });
@@ -1826,10 +1968,17 @@ app.get("/api/rules/base", async (req, res) => {
         return res.status(403).json({ error: "You don't have permission to edit this world" });
       }
 
+      const settlementWorldId = existingSettlement.worldId;
+      const settlementName = existingSettlement.name;
+
       const success = await storage.deleteSettlement(id);
       if (!success) {
         return res.status(404).json({ error: "Settlement not found" });
       }
+
+      // Auto-sync to Prolog
+      prologAutoSync.onSettlementDeleted(settlementWorldId, settlementName).catch(e => console.warn('[PrologAutoSync] settlement delete:', e));
+
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete settlement" });
@@ -1868,6 +2017,13 @@ app.get("/api/rules/base", async (req, res) => {
   app.post("/api/businesses", async (req, res) => {
     try {
       const business = await storage.createBusiness(req.body);
+
+      // Auto-sync to Prolog
+      if (business.worldId) {
+        const owner = business.ownerId ? await storage.getCharacter(business.ownerId) : undefined;
+        prologAutoSync.onBusinessChanged(business.worldId, business as any, owner as any).catch(e => console.warn('[PrologAutoSync] business create:', e));
+      }
+
       res.status(201).json(business);
     } catch (error) {
       res.status(500).json({ error: "Failed to create business" });
@@ -1893,7 +2049,11 @@ app.get("/api/rules/base", async (req, res) => {
         currentTimestep,
         initialVacancies
       });
-      
+
+      // Auto-sync to Prolog
+      const founder = await storage.getCharacter(founderId);
+      prologAutoSync.onBusinessChanged(worldId, business as any, founder as any).catch(e => console.warn('[PrologAutoSync] business found:', e));
+
       res.status(201).json(business);
     } catch (error) {
       res.status(500).json({ error: "Failed to found business", details: (error as Error).message });
@@ -2497,7 +2657,14 @@ app.get("/api/rules/base", async (req, res) => {
         relationshipType,
         currentTimestep || 0
       );
-      
+
+      // Auto-sync knowledge to Prolog
+      const observer = await storage.getCharacter(observerId);
+      const subject = await storage.getCharacter(subjectId);
+      if (observer && subject && observer.worldId) {
+        prologAutoSync.onKnowledgeChanged(observer.worldId, observer as any, subjectId, subject as any).catch(e => console.warn('[PrologAutoSync] knowledge init:', e));
+      }
+
       res.json(model);
     } catch (error) {
       res.status(500).json({ error: "Failed to initialize mental model", details: (error as Error).message });
@@ -2542,6 +2709,14 @@ app.get("/api/rules/base", async (req, res) => {
       }
       
       await addKnownFact(observerId, subjectId, fact, currentTimestep || 0);
+
+      // Auto-sync knowledge to Prolog
+      const observer = await storage.getCharacter(observerId);
+      const subject = await storage.getCharacter(subjectId);
+      if (observer && subject && observer.worldId) {
+        prologAutoSync.onKnowledgeChanged(observer.worldId, observer as any, subjectId, subject as any).catch(e => console.warn('[PrologAutoSync] knowledge add-fact:', e));
+      }
+
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to add known fact", details: (error as Error).message });
@@ -2558,6 +2733,14 @@ app.get("/api/rules/base", async (req, res) => {
       }
       
       await addKnownValue(observerId, subjectId, attribute, value, currentTimestep || 0);
+
+      // Auto-sync knowledge to Prolog
+      const observer = await storage.getCharacter(observerId);
+      const subject = await storage.getCharacter(subjectId);
+      if (observer && subject && observer.worldId) {
+        prologAutoSync.onKnowledgeChanged(observer.worldId, observer as any, subjectId, subject as any).catch(e => console.warn('[PrologAutoSync] knowledge add-value:', e));
+      }
+
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to add known value", details: (error as Error).message });
@@ -2581,7 +2764,14 @@ app.get("/api/rules/base", async (req, res) => {
         evidence,
         currentTimestep || 0
       );
-      
+
+      // Auto-sync knowledge to Prolog
+      const observer = await storage.getCharacter(observerId);
+      const subject = await storage.getCharacter(subjectId);
+      if (observer && subject && observer.worldId) {
+        prologAutoSync.onKnowledgeChanged(observer.worldId, observer as any, subjectId, subject as any).catch(e => console.warn('[PrologAutoSync] knowledge add-belief:', e));
+      }
+
       res.json(belief);
     } catch (error) {
       res.status(500).json({ error: "Failed to add belief", details: (error as Error).message });
@@ -4970,16 +5160,62 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
   // Gemini Chat Endpoint
   app.post("/api/gemini/chat", async (req, res) => {
     try {
-      const { 
-        systemPrompt, 
-        messages, 
-        temperature = 0.7, 
+      const {
+        systemPrompt,
+        messages,
+        temperature = 0.7,
         maxTokens = 1000,
         audioInput, // Base64 encoded audio
         returnAudio = false, // Whether to return audio response
         voice = 'Kore',
-        stream = false // Whether to stream response
+        stream = false, // Whether to stream response
+        worldId, // Optional: for Prolog-first routing
+        npcId, // Optional: NPC being spoken to
+        playerId // Optional: player character ID
       } = req.body;
+
+      // Try Prolog-first routing for simple queries (reduces Gemini API calls)
+      if (worldId && !audioInput && messages?.length > 0) {
+        const lastMsg = messages[messages.length - 1];
+        const userText = (lastMsg?.parts?.[0]?.text || '').toLowerCase().trim();
+        if (userText) {
+          try {
+            const { prologLLMRouter } = await import('./services/prolog-llm-router.js');
+            let queryType: string | null = null;
+            const greetings = ['hello', 'hi', 'hey', 'greetings', 'good day', 'good morning', 'good evening', 'howdy'];
+            const farewells = ['bye', 'goodbye', 'farewell', 'see you', 'later', 'take care', 'good night'];
+            const trade = ['buy', 'sell', 'trade', 'wares', 'shop', 'purchase', 'merchandise', 'goods'];
+
+            if (greetings.some(g => userText.startsWith(g) || userText === g)) queryType = 'greeting';
+            else if (farewells.some(f => userText.startsWith(f) || userText === f)) queryType = 'farewell';
+            else if (trade.some(t => userText.includes(t))) queryType = 'trade_offer';
+
+            if (queryType) {
+              const prologResult = await prologLLMRouter.tryPrologFirst(worldId, queryType, {
+                speakerId: npcId,
+                listenerId: playerId || 'player',
+              });
+              if (prologResult.answered && prologResult.confidence >= 0.6) {
+                console.log(`[PrologLLMRouter] Handled "${queryType}" without Gemini (confidence: ${prologResult.confidence})`);
+                const responseData: any = { response: prologResult.answer, source: prologResult.source };
+                if (returnAudio) {
+                  try {
+                    const { textToSpeech } = await import("./services/tts-stt.js");
+                    const audioBuffer = await textToSpeech(prologResult.answer!, voice);
+                    if (audioBuffer) {
+                      responseData.audio = `data:audio/mp3;base64,${audioBuffer.toString('base64')}`;
+                    }
+                  } catch { /* audio generation optional */ }
+                }
+                return res.json(responseData);
+              }
+            }
+          } catch (e) {
+            // Prolog routing failed, fall through to Gemini
+            console.warn('[PrologLLMRouter] Error in chat routing:', e);
+          }
+        }
+      }
 
       if (!isGeminiConfigured()) {
         return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
@@ -5578,14 +5814,29 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       
       // Clear existing facts before syncing
       await syncService.clearWorldFromProlog(worldId);
-      
-      // Sync all world data
+
+      // Sync all world data (SWI-Prolog)
       await syncService.syncWorldToProlog(worldId);
+
+      // Also sync to tau-prolog (portable engine)
+      const characters = await storage.getCharactersByWorld(worldId);
+      const settlements = await storage.getSettlementsByWorld(worldId);
+      const businesses = typeof (storage as any).getBusinessesByWorld === 'function'
+        ? await (storage as any).getBusinessesByWorld(worldId)
+        : [];
+      const truths = await storage.getTruthsByWorld(worldId);
+      const tauStats = await prologAutoSync.syncWorld(worldId, {
+        characters: characters as any[],
+        settlements: settlements as any[],
+        businesses,
+        truths: truths as any[],
+      });
 
       res.json({
         status: "success",
         message: `World ${worldId} synced to Prolog knowledge base`,
-        factsCount: prologManager.getAllFacts().length
+        factsCount: prologManager.getAllFacts().length,
+        tauProlog: tauStats,
       });
     } catch (error: any) {
       console.error('❌ Error syncing to Prolog:', error);
@@ -5599,6 +5850,396 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
         message: error.message || "Failed to sync to Prolog",
         details: error.stack
       });
+    }
+  });
+
+  // Core predicates schema endpoint (serves core-predicates.json)
+  app.get("/api/prolog/predicates", async (_req, res) => {
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const filePath = path.join(process.cwd(), 'server', 'schema', 'core-predicates.json');
+      const content = fs.readFileSync(filePath, 'utf-8');
+      res.json(JSON.parse(content));
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load core predicates", message: error.message });
+    }
+  });
+
+  // Tau-prolog query endpoint (uses auto-synced in-memory knowledge base)
+  app.post("/api/prolog/tau/query", async (req, res) => {
+    try {
+      const { worldId, query: queryString, maxResults } = req.body;
+
+      if (!worldId || !queryString) {
+        return res.status(400).json({ error: "worldId and query are required" });
+      }
+
+      // Auto-sync world if not yet loaded
+      if (!prologAutoSync.isWorldSynced(worldId)) {
+        const characters = await storage.getCharactersByWorld(worldId);
+        const settlements = await storage.getSettlementsByWorld(worldId);
+        const businesses = typeof (storage as any).getBusinessesByWorld === 'function'
+          ? await (storage as any).getBusinessesByWorld(worldId)
+          : [];
+        const truths = await storage.getTruthsByWorld(worldId);
+        await prologAutoSync.syncWorld(worldId, {
+          characters: characters as any[],
+          settlements: settlements as any[],
+          businesses,
+          truths: truths as any[],
+        });
+      }
+
+      const result = await prologAutoSync.query(worldId, queryString, maxResults || 100);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Query failed" });
+    }
+  });
+
+  // Tau-prolog stats endpoint
+  app.get("/api/prolog/tau/stats/:worldId", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const stats = prologAutoSync.getWorldStats(worldId);
+      res.json({
+        ...stats,
+        synced: prologAutoSync.isWorldSynced(worldId),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get stats" });
+    }
+  });
+
+  // Tau-prolog export endpoint
+  app.get("/api/prolog/tau/export/:worldId", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const program = prologAutoSync.exportWorld(worldId);
+      res.type('text/plain').send(program);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to export" });
+    }
+  });
+
+  // Tau-prolog sync-back endpoint: sync Prolog state changes back to DB
+  app.post("/api/prolog/tau/sync-back/:worldId", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      if (!prologAutoSync.isWorldSynced(worldId)) {
+        return res.status(400).json({
+          error: "World not synced to Prolog yet. Run DB → Prolog sync first.",
+        });
+      }
+      const result = await prologAutoSync.syncPrologToDatabase(worldId);
+      res.json({
+        status: result.errors.length === 0 ? "success" : "partial",
+        changesApplied: result.changesApplied,
+        details: result.details,
+        errors: result.errors,
+        timestamp: result.timestamp.toISOString(),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Sync-back failed" });
+    }
+  });
+
+  // ── Prolog-LLM Router ────────────────────────────────────────────────────
+
+  // Route query through Prolog first before falling back to AI
+  app.post("/api/prolog/tau/smart-query", async (req, res) => {
+    try {
+      const { prologLLMRouter } = await import("./services/prolog-llm-router.js");
+      const { worldId, queryType, params } = req.body;
+      if (!worldId || !queryType) {
+        return res.status(400).json({ error: "worldId and queryType are required" });
+      }
+      const result = await prologLLMRouter.tryPrologFirst(worldId, queryType, params || {});
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Smart query failed" });
+    }
+  });
+
+  // Get available smart query types
+  app.get("/api/prolog/tau/smart-query/types", async (_req, res) => {
+    try {
+      const { prologLLMRouter } = await import("./services/prolog-llm-router.js");
+      res.json({ types: prologLLMRouter.getQueryTypes() });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ── Prolog Simulation & Testing Endpoints ─────────────────────────────────
+
+  // What-if query: temporarily assert facts, run query, then retract
+  app.post("/api/prolog/tau/what-if", async (req, res) => {
+    try {
+      const { worldId, hypotheticalFacts, query: queryString, maxResults } = req.body;
+      if (!worldId || !queryString) {
+        return res.status(400).json({ error: "worldId and query are required" });
+      }
+
+      const engine = prologAutoSync.getEngine(worldId);
+      const tempFacts: string[] = hypotheticalFacts || [];
+
+      // Assert hypothetical facts
+      for (const fact of tempFacts) {
+        await engine.assertFact(fact);
+      }
+
+      // Run query
+      const result = await engine.query(queryString, maxResults || 20);
+
+      // Retract hypothetical facts
+      for (const fact of tempFacts) {
+        await engine.retractFact(fact);
+      }
+
+      res.json({
+        status: result.success ? 'success' : 'no_results',
+        results: result.bindings,
+        count: result.bindings.length,
+        hypotheticalFacts: tempFacts,
+        query: queryString,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "What-if query failed" });
+    }
+  });
+
+  // Consistency checker: find contradictions in knowledge base
+  app.post("/api/prolog/tau/consistency-check", async (req, res) => {
+    try {
+      const { worldId } = req.body;
+      if (!worldId) {
+        return res.status(400).json({ error: "worldId is required" });
+      }
+
+      const engine = prologAutoSync.getEngine(worldId);
+      const issues: { type: string; description: string; details?: any }[] = [];
+
+      // Check 1: Person both alive and dead
+      const aliveAndDead = await engine.query("person(X), alive(X), dead(X)", 50);
+      if (aliveAndDead.success && aliveAndDead.bindings.length > 0) {
+        for (const b of aliveAndDead.bindings) {
+          issues.push({ type: 'contradiction', description: `${b.X} is both alive and dead` });
+        }
+      }
+
+      // Check 2: Person married to self
+      const selfMarried = await engine.query("married_to(X, X)", 50);
+      if (selfMarried.success && selfMarried.bindings.length > 0) {
+        for (const b of selfMarried.bindings) {
+          issues.push({ type: 'contradiction', description: `${b.X} is married to themselves` });
+        }
+      }
+
+      // Check 3: Parent of self
+      const selfParent = await engine.query("parent_of(X, X)", 50);
+      if (selfParent.success && selfParent.bindings.length > 0) {
+        for (const b of selfParent.bindings) {
+          issues.push({ type: 'contradiction', description: `${b.X} is their own parent` });
+        }
+      }
+
+      // Check 4: Negative age
+      const negAge = await engine.query("age(X, A), A < 0", 50);
+      if (negAge.success && negAge.bindings.length > 0) {
+        for (const b of negAge.bindings) {
+          issues.push({ type: 'invalid_value', description: `${b.X} has negative age: ${b.A}` });
+        }
+      }
+
+      // Check 5: Person with no age
+      const noAge = await engine.query("person(X), \\+ age(X, _)", 100);
+      if (noAge.success && noAge.bindings.length > 0) {
+        for (const b of noAge.bindings) {
+          issues.push({ type: 'missing_data', description: `${b.X} has no age defined` });
+        }
+      }
+
+      // Check 6: Person with no gender
+      const noGender = await engine.query("person(X), \\+ gender(X, _)", 100);
+      if (noGender.success && noGender.bindings.length > 0) {
+        for (const b of noGender.bindings) {
+          issues.push({ type: 'missing_data', description: `${b.X} has no gender defined` });
+        }
+      }
+
+      // Check 7: Asymmetric marriage (X married to Y but not Y to X)
+      const asymMarriage = await engine.query("married_to(X, Y), \\+ married_to(Y, X)", 50);
+      if (asymMarriage.success && asymMarriage.bindings.length > 0) {
+        for (const b of asymMarriage.bindings) {
+          issues.push({ type: 'inconsistency', description: `${b.X} married to ${b.Y} but not reciprocated` });
+        }
+      }
+
+      // Check 8: Dead person with active occupation
+      const deadWorking = await engine.query("dead(X), occupation(X, O), O \\= none", 50);
+      if (deadWorking.success && deadWorking.bindings.length > 0) {
+        for (const b of deadWorking.bindings) {
+          issues.push({ type: 'inconsistency', description: `${b.X} is dead but has occupation: ${b.O}` });
+        }
+      }
+
+      const stats = engine.getStats();
+
+      res.json({
+        status: 'success',
+        issues,
+        issueCount: issues.length,
+        summary: {
+          contradictions: issues.filter(i => i.type === 'contradiction').length,
+          inconsistencies: issues.filter(i => i.type === 'inconsistency').length,
+          missingData: issues.filter(i => i.type === 'missing_data').length,
+          invalidValues: issues.filter(i => i.type === 'invalid_value').length,
+        },
+        knowledgeBaseStats: stats,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Consistency check failed" });
+    }
+  });
+
+  // Scenario test: run a series of queries and assertions to validate world state
+  app.post("/api/prolog/tau/scenario-test", async (req, res) => {
+    try {
+      const { worldId, scenarios } = req.body;
+      if (!worldId || !scenarios || !Array.isArray(scenarios)) {
+        return res.status(400).json({ error: "worldId and scenarios array are required" });
+      }
+
+      const engine = prologAutoSync.getEngine(worldId);
+      const results: { name: string; query: string; expected: string; actual: string; passed: boolean }[] = [];
+
+      for (const scenario of scenarios) {
+        const { name, setup, query: queryStr, expect } = scenario;
+
+        // Setup: temporarily assert facts
+        const setupFacts: string[] = setup || [];
+        for (const fact of setupFacts) {
+          await engine.assertFact(fact);
+        }
+
+        // Run query
+        const result = await engine.query(queryStr, 20);
+
+        // Evaluate expectation
+        let passed = false;
+        let actual = '';
+
+        if (expect === 'true' || expect === true) {
+          passed = result.success && result.bindings.length > 0;
+          actual = passed ? 'true (has results)' : 'false (no results)';
+        } else if (expect === 'false' || expect === false) {
+          passed = !result.success || result.bindings.length === 0;
+          actual = passed ? 'false (no results)' : 'true (has results)';
+        } else if (typeof expect === 'number') {
+          passed = result.bindings.length === expect;
+          actual = `${result.bindings.length} results`;
+        } else {
+          passed = result.success;
+          actual = result.success ? `${result.bindings.length} results` : 'query failed';
+        }
+
+        results.push({
+          name: name || queryStr,
+          query: queryStr,
+          expected: String(expect),
+          actual,
+          passed,
+        });
+
+        // Teardown: retract setup facts
+        for (const fact of setupFacts) {
+          await engine.retractFact(fact);
+        }
+      }
+
+      const passCount = results.filter(r => r.passed).length;
+      res.json({
+        status: 'success',
+        results,
+        summary: {
+          total: results.length,
+          passed: passCount,
+          failed: results.length - passCount,
+          passRate: results.length > 0 ? Math.round((passCount / results.length) * 100) : 0,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Scenario test failed" });
+    }
+  });
+
+  // Coverage report: which predicates are referenced by rules/actions/quests
+  app.get("/api/prolog/tau/coverage/:worldId", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const fs = await import('fs');
+      const path = await import('path');
+
+      // Load core predicates
+      const predPath = path.join(process.cwd(), 'server', 'schema', 'core-predicates.json');
+      const predData = JSON.parse(fs.readFileSync(predPath, 'utf-8'));
+      const predicateNames = Object.keys(predData.predicates || {});
+
+      // Fetch world content
+      const [rules, actions, quests] = await Promise.all([
+        storage.getRulesByWorld(worldId),
+        storage.getActionsByWorld(worldId),
+        storage.getQuestsByWorld(worldId),
+      ]);
+
+      // Analyze coverage
+      const coverage: Record<string, { rules: number; actions: number; quests: number; total: number }> = {};
+      for (const name of predicateNames) {
+        coverage[name] = { rules: 0, actions: 0, quests: 0, total: 0 };
+      }
+
+      const countOccurrences = (content: string | null | undefined, predName: string): number => {
+        if (!content) return 0;
+        const regex = new RegExp(`\\b${predName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\(`, 'g');
+        return (content.match(regex) || []).length;
+      };
+
+      for (const rule of rules) {
+        for (const name of predicateNames) {
+          const count = countOccurrences((rule as any).prologContent, name) + countOccurrences(rule.content, name);
+          if (count > 0) { coverage[name].rules += count; coverage[name].total += count; }
+        }
+      }
+      for (const action of actions) {
+        for (const name of predicateNames) {
+          const count = countOccurrences((action as any).prologContent, name);
+          if (count > 0) { coverage[name].actions += count; coverage[name].total += count; }
+        }
+      }
+      for (const quest of quests) {
+        for (const name of predicateNames) {
+          const count = countOccurrences((quest as any).prologContent, name);
+          if (count > 0) { coverage[name].quests += count; coverage[name].total += count; }
+        }
+      }
+
+      const covered = Object.values(coverage).filter(c => c.total > 0).length;
+      const uncovered = Object.values(coverage).filter(c => c.total === 0).length;
+
+      res.json({
+        status: 'success',
+        coverage,
+        summary: {
+          totalPredicates: predicateNames.length,
+          covered,
+          uncovered,
+          coveragePercent: predicateNames.length > 0 ? Math.round((covered / predicateNames.length) * 100) : 0,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Coverage report failed" });
     }
   });
 
@@ -5719,7 +6360,17 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
         worldId: validatedData.worldId,
         worldIdType: typeof validatedData.worldId
       });
-      
+
+      // Auto-generate Prolog content if not provided
+      if (!validatedData.prologContent && validatedData.name) {
+        try {
+          const result = convertActionToProlog(validatedData as any);
+          (validatedData as any).prologContent = result.prologContent;
+        } catch (e) {
+          console.warn('[ActionProlog] Failed to convert action:', e);
+        }
+      }
+
       const action = await storage.createAction(validatedData);
       console.log('Created action in DB:', {
         id: action.id,
@@ -5768,6 +6419,17 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
 
       const actionData = { ...req.body, worldId };
       const validatedData = insertActionSchema.parse(actionData);
+
+      // Auto-generate Prolog content if not provided
+      if (!validatedData.prologContent && validatedData.name) {
+        try {
+          const result = convertActionToProlog(validatedData as any);
+          (validatedData as any).prologContent = result.prologContent;
+        } catch (e) {
+          console.warn('[ActionProlog] Failed to convert action:', e);
+        }
+      }
+
       const action = await storage.createAction(validatedData);
       res.status(201).json(action);
     } catch (error) {
@@ -5798,6 +6460,18 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       }
 
       const validatedData = insertActionSchema.partial().parse(req.body);
+
+      // Re-generate Prolog content on update
+      if (validatedData.name || validatedData.prerequisites || validatedData.effects) {
+        try {
+          const merged = { ...existingAction, ...validatedData };
+          const result = convertActionToProlog(merged as any);
+          (validatedData as any).prologContent = result.prologContent;
+        } catch (e) {
+          console.warn('[ActionProlog] Failed to convert action on update:', e);
+        }
+      }
+
       const action = await storage.updateAction(id, validatedData);
       if (!action) {
         return res.status(404).json({ error: "Action not found" });
@@ -5970,6 +6644,13 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       const entryData = { ...req.body, worldId: req.params.worldId };
       const validatedData = insertTruthSchema.parse(entryData);
       const entry = await storage.createTruth(validatedData);
+
+      // Auto-sync item ownership to Prolog
+      if ((entry as any).entryType === 'ownership' && (entry as any).characterId) {
+        const owner = await storage.getCharacter((entry as any).characterId);
+        prologAutoSync.onTruthChanged(req.params.worldId, entry as any, owner as any).catch(e => console.warn('[PrologAutoSync] truth create:', e));
+      }
+
       res.status(201).json(entry);
     } catch (error) {
       console.error("Failed to create truth entry:", error);
@@ -5984,6 +6665,13 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     try {
       const validatedData = insertTruthSchema.parse(req.body);
       const entry = await storage.createTruth(validatedData);
+
+      // Auto-sync item ownership to Prolog
+      if ((entry as any).entryType === 'ownership' && (entry as any).characterId && (entry as any).worldId) {
+        const owner = await storage.getCharacter((entry as any).characterId);
+        prologAutoSync.onTruthChanged((entry as any).worldId, entry as any, owner as any).catch(e => console.warn('[PrologAutoSync] truth create:', e));
+      }
+
       res.status(201).json(entry);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -6000,6 +6688,13 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       if (!entry) {
         return res.status(404).json({ error: "Truth entry not found" });
       }
+
+      // Auto-sync item ownership to Prolog
+      if ((entry as any).entryType === 'ownership' && (entry as any).characterId && (entry as any).worldId) {
+        const owner = await storage.getCharacter((entry as any).characterId);
+        prologAutoSync.onTruthChanged((entry as any).worldId, entry as any, owner as any).catch(e => console.warn('[PrologAutoSync] truth update:', e));
+      }
+
       res.json(entry);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -6011,10 +6706,19 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
 
   app.delete("/api/truth/:id", async (req, res) => {
     try {
+      // Get truth before deleting for Prolog sync
+      const existingTruth = await storage.getTruth(req.params.id);
+
       const deleted = await storage.deleteTruth(req.params.id);
       if (!deleted) {
         return res.status(404).json({ error: "Truth entry not found" });
       }
+
+      // Auto-sync to Prolog
+      if (existingTruth && (existingTruth as any).worldId) {
+        prologAutoSync.onTruthDeleted((existingTruth as any).worldId, existingTruth as any).catch(e => console.warn('[PrologAutoSync] truth delete:', e));
+      }
+
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete truth entry" });
@@ -6054,18 +6758,53 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
 
   app.post("/api/worlds/:worldId/quests", async (req, res) => {
     try {
-      const quest = await storage.createQuest({
-        ...req.body,
-        worldId: req.params.worldId,
-      });
+      const questData = { ...req.body, worldId: req.params.worldId };
+
+      // Auto-generate Prolog content
+      if (!questData.prologContent && questData.title) {
+        try {
+          const result = convertQuestToProlog(questData);
+          questData.prologContent = result.prologContent;
+        } catch (e) {
+          console.warn('[QuestProlog] Failed to convert quest:', e);
+        }
+      }
+
+      const quest = await storage.createQuest(questData);
       res.status(201).json(quest);
     } catch (error) {
       res.status(500).json({ error: "Failed to create quest" });
     }
   });
 
+  app.get("/api/quests/:id", async (req, res) => {
+    try {
+      const quest = await storage.getQuest(req.params.id);
+      if (!quest) {
+        return res.status(404).json({ error: "Quest not found" });
+      }
+      res.json(quest);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch quest" });
+    }
+  });
+
   app.put("/api/quests/:id", async (req, res) => {
     try {
+      // Re-generate Prolog content on update if relevant fields changed
+      if (req.body.title || req.body.objectives || req.body.completionCriteria) {
+        try {
+          const existing = await storage.getQuest(req.params.id);
+          if (existing) {
+            const merged = { ...existing, ...req.body };
+            const result = convertQuestToProlog(merged as any);
+            req.body.prologContent = result.prologContent;
+          }
+        } catch (e) {
+          console.warn('[QuestProlog] Failed to convert quest on update:', e);
+        }
+      }
+
       const quest = await storage.updateQuest(req.params.id, req.body);
       if (!quest) {
         return res.status(404).json({ error: "Quest not found" });
@@ -6108,9 +6847,18 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
         assignedTo
       });
 
-      // Save generated quests to database
+      // Save generated quests to database (with Prolog content)
       const createdQuests = [];
       for (const questData of generatedQuests) {
+        // Auto-generate Prolog content for each generated quest
+        if (!questData.prologContent && questData.title) {
+          try {
+            const result = convertQuestToProlog(questData as any);
+            (questData as any).prologContent = result.prologContent;
+          } catch (e) {
+            console.warn('[QuestProlog] Failed to convert generated quest:', e);
+          }
+        }
         const created = await storage.createQuest(questData);
         createdQuests.push(created);
       }
@@ -6122,6 +6870,61 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     } catch (error) {
       console.error('[Quest Generation] Error:', error);
       res.status(500).json({ error: "Failed to generate quests" });
+    }
+  });
+
+  // Mystery Quest Generation (Prolog abductive reasoning)
+  app.post("/api/worlds/:worldId/quests/generate-mystery", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { victimId, crimeType } = req.body;
+
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      const { generateMysteryQuest } = await import('./services/mystery-quest-generator.js');
+      const mystery = await generateMysteryQuest(worldId, { victimId, crimeType });
+
+      if (!mystery) {
+        return res.status(422).json({
+          error: "Could not generate mystery quest",
+          detail: "Not enough data in the Prolog knowledge base (needs characters with relationships, enemies, or wealth)."
+        });
+      }
+
+      // Optionally persist as a regular quest
+      const questData = {
+        worldId,
+        title: mystery.title,
+        description: mystery.description,
+        category: 'mystery',
+        difficulty: 'hard',
+        objectives: mystery.objectives as any,
+        customData: {
+          mysteryType: crimeType || 'auto',
+          victim: mystery.victim,
+          suspects: mystery.suspects,
+          clues: mystery.clues,
+          solution: mystery.solution,
+        },
+      };
+
+      let savedQuest = null;
+      try {
+        savedQuest = await storage.createQuest(questData);
+      } catch (e) {
+        console.warn('[MysteryQuest] Failed to persist quest:', e);
+      }
+
+      res.status(201).json({
+        quest: savedQuest,
+        mystery,
+      });
+    } catch (error) {
+      console.error('[MysteryQuest] Error:', error);
+      res.status(500).json({ error: "Failed to generate mystery quest" });
     }
   });
 

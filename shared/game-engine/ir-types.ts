@@ -65,6 +65,9 @@ export interface WorldIR {
 
   /** Resource system configuration (if genre enables it) */
   resources: ResourcesIR | null;
+
+  /** AI configuration for NPC dialogue */
+  aiConfig: AIConfigIR;
 }
 
 // ─────────────────────────────────────────────
@@ -378,6 +381,27 @@ export interface SystemsIR {
   truths: TruthIR[];
   grammars: GrammarIR[];
   languages: LanguageIR[];
+  dialogueContexts: NPCDialogueContext[];
+  /** Prolog knowledge base content (combined .pl from all entities) */
+  knowledgeBase: string | null;
+}
+
+export interface NPCDialogueContext {
+  characterId: string;
+  characterName: string;
+  systemPrompt: string;
+  greeting: string;
+  voice: string;
+  truths: { title: string; content: string }[];
+}
+
+export interface AIConfigIR {
+  apiMode: 'insimul' | 'gemini';
+  insimulEndpoint: string;
+  geminiModel: string;
+  geminiApiKeyPlaceholder: string;
+  voiceEnabled: boolean;
+  defaultVoice: string;
 }
 
 export interface RuleIR {
@@ -396,6 +420,7 @@ export interface RuleIR {
   tags: string[];
   dependencies: string[];
   isActive: boolean;
+  prologContent: string | null;
 }
 
 export interface ActionIR {
@@ -424,6 +449,7 @@ export interface ActionIR {
   customData: Record<string, any>;
   tags: string[];
   isActive: boolean;
+  prologContent: string | null;
 }
 
 export interface QuestIR {
@@ -452,6 +478,7 @@ export interface QuestIR {
   assignedByCharacterId: string | null;
   tags: string[];
   status: string;
+  prologContent: string | null;
 }
 
 export interface TruthIR {

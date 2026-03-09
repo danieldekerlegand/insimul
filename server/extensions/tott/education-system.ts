@@ -17,6 +17,7 @@
 import { storage } from '../../db/storage';
 import type { Character } from '@shared/schema';
 import { getPersonality, type BigFivePersonality } from './personality-behavior-system.js';
+import { prologIsSchoolAge, prologEducationEligible } from './prolog-queries.js';
 
 // ============================================================================
 // TYPES & CONSTANTS
@@ -121,10 +122,22 @@ const MAJOR_CATEGORIES = {
  * Determine if character should attend college
  * Based on personality, intelligence, and family background
  */
-export function shouldAttendCollege(
+export async function shouldAttendCollege(
   character: Character,
-  personality: BigFivePersonality
-): { shouldAttend: boolean; probability: number } {
+  personality: BigFivePersonality,
+  worldId?: string
+): Promise<{ shouldAttend: boolean; probability: number }> {
+  // Check Prolog for education eligibility first
+  if (worldId) {
+    const prologEligible = await prologEducationEligible(worldId, character.id, 'bachelors');
+    if (prologEligible !== null) {
+      // Prolog gave a definitive answer on eligibility
+      if (!prologEligible) {
+        return { shouldAttend: false, probability: 0 };
+      }
+    }
+  }
+
   let probability = BASE_COLLEGE_ATTENDANCE_RATE;
   
   // Conscientiousness strongly predicts college attendance
@@ -257,11 +270,21 @@ export async function enrollInCollege(
   characterId: string,
   major: Major,
   institution: string,
-  currentTimestep: number
+  currentTimestep: number,
+  worldId?: string
 ): Promise<void> {
   const character = await storage.getCharacter(characterId);
   if (!character) return;
-  
+
+  // Check Prolog school-age eligibility before enrolling
+  if (worldId) {
+    const prologSchoolAge = await prologIsSchoolAge(worldId, characterId);
+    if (prologSchoolAge !== null && !prologSchoolAge) {
+      console.log(`Prolog: ${character.firstName} is not school age, skipping enrollment`);
+      return;
+    }
+  }
+
   const creditsRequired = 120; // Standard bachelor's degree
   const expectedGraduation = currentTimestep + DEGREE_DURATIONS.bachelors;
   

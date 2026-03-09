@@ -7,6 +7,9 @@ import {
   CheckCircle2, Clock, XCircle, Trophy, Target, Plus, ChevronRight, ChevronDown,
 } from 'lucide-react';
 import { QuestCreateDialog } from '../QuestCreateDialog';
+import { PredicatePalette } from '../prolog/PredicatePalette';
+import { PrologQueryTester } from '../prolog/PrologQueryTester';
+import { PrologSyntaxHighlight } from '../prolog/PrologSyntaxHighlight';
 
 interface Quest {
   id: string;
@@ -31,6 +34,7 @@ interface Quest {
   expiresAt: Date | null;
   conversationContext: string | null;
   tags: string[] | null;
+  prologContent: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -64,6 +68,8 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
   const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['active']));
+  const [codeView, setCodeView] = useState<'source' | 'prolog'>('source');
+  const [rightTab, setRightTab] = useState<'details' | 'predicates' | 'query'>('details');
   const queryClient = useQueryClient();
 
   const { data: quests = [] } = useQuery<Quest[]>({
@@ -78,6 +84,18 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
       else next.add(group);
       return next;
     });
+  };
+
+  const selectQuest = async (quest: Quest) => {
+    setSelectedQuest(quest);
+    try {
+      const res = await fetch(`/api/quests/${quest.id}`);
+      if (res.ok) {
+        setSelectedQuest(await res.json());
+      }
+    } catch {
+      // Use partial data
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -155,7 +173,7 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
                             ? 'bg-primary/15 text-primary font-medium'
                             : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                         }`}
-                        onClick={() => setSelectedQuest(quest)}
+                        onClick={() => selectQuest(quest)}
                       >
                         <span className="mr-1">{getTypeIcon(quest.questType)}</span>
                         {quest.title}
@@ -301,15 +319,77 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
         )}
       </div>
 
-      {/* Right Panel - Progress & Completion */}
+      {/* Right Panel - Progress & Completion, Predicates, Query */}
       <div className="w-64 flex-shrink-0 border-l border-white/15 dark:border-white/10 flex flex-col">
-        <div className="p-3 border-b border-white/15 dark:border-white/10">
-          <span className="text-sm font-semibold">Progress</span>
+        {/* Tab switcher */}
+        <div className="flex bg-muted/30 border-b shrink-0">
+          <button
+            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'details' ? 'bg-background border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setRightTab('details')}
+          >
+            Progress
+          </button>
+          <button
+            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'predicates' ? 'bg-background border-b-2 border-purple-500 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setRightTab('predicates')}
+          >
+            Predicates
+          </button>
+          <button
+            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'query' ? 'bg-background border-b-2 border-green-500 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setRightTab('query')}
+          >
+            Query
+          </button>
         </div>
 
+        {rightTab === 'predicates' && (
+          <PredicatePalette compact onInsert={(text) => navigator.clipboard.writeText(text)} />
+        )}
+
+        {rightTab === 'query' && (
+          <PrologQueryTester worldId={worldId} compact />
+        )}
+
+        {rightTab === 'details' && (
         <ScrollArea className="flex-1">
           {selectedQuest ? (
             <div className="p-3 space-y-4">
+              {/* Source / Prolog Toggle */}
+              <div className="flex gap-1 p-0.5 bg-muted/50 rounded-md">
+                <button
+                  className={`flex-1 px-2 py-1 text-[10px] font-medium rounded transition-colors ${
+                    codeView === 'source'
+                      ? 'bg-background shadow-sm text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  onClick={() => setCodeView('source')}
+                >
+                  Source
+                </button>
+                <button
+                  className={`flex-1 px-2 py-1 text-[10px] font-medium rounded transition-colors ${
+                    codeView === 'prolog'
+                      ? 'bg-purple-500/20 shadow-sm text-purple-600 dark:text-purple-400'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  onClick={() => setCodeView('prolog')}
+                >
+                  Prolog
+                </button>
+              </div>
+
+              {codeView === 'prolog' ? (
+                <div className="p-2 bg-purple-500/5 border border-purple-500/10 rounded-lg">
+                  {selectedQuest.prologContent ? (
+                    <PrologSyntaxHighlight code={selectedQuest.prologContent} className="text-[11px]" />
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">No Prolog content generated yet</p>
+                  )}
+                </div>
+              ) : (
+              <>
+
               {/* Completion Criteria */}
               {selectedQuest.completionCriteria && (
                 <div>
@@ -426,6 +506,8 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
                   )}
                 </div>
               </div>
+              </>
+              )}
             </div>
           ) : (
             <div className="p-3 text-xs text-muted-foreground italic">
@@ -433,6 +515,7 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
             </div>
           )}
         </ScrollArea>
+        )}
       </div>
 
       {/* Create Dialog */}

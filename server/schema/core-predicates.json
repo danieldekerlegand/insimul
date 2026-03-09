@@ -474,6 +474,82 @@
         "random_chance(0.3)"
       ],
       "builtIn": true
+    },
+    "knows": {
+      "category": "knowledge",
+      "arity": 3,
+      "description": "Observer knows a fact about a subject",
+      "args": [
+        { "name": "observer", "type": "entity", "description": "The character who knows" },
+        { "name": "subject", "type": "entity", "description": "The character being observed" },
+        { "name": "fact", "type": "atom", "description": "The known fact (e.g. name, age, occupation)" }
+      ],
+      "examples": ["knows(?alice, ?bob, name)", "knows(?alice, ?bob, occupation)"],
+      "builtIn": true
+    },
+    "knows_value": {
+      "category": "knowledge",
+      "arity": 4,
+      "description": "Observer knows a specific attribute value about a subject",
+      "args": [
+        { "name": "observer", "type": "entity" },
+        { "name": "subject", "type": "entity" },
+        { "name": "attribute", "type": "atom", "description": "The attribute name" },
+        { "name": "value", "type": "any", "description": "The known value" }
+      ],
+      "examples": ["knows_value(?alice, ?bob, occupation, baker)"],
+      "builtIn": true
+    },
+    "believes": {
+      "category": "knowledge",
+      "arity": 4,
+      "description": "Observer believes something about a subject with a confidence level",
+      "args": [
+        { "name": "observer", "type": "entity" },
+        { "name": "subject", "type": "entity" },
+        { "name": "quality", "type": "atom", "description": "The believed quality (e.g. trustworthy, kind)" },
+        { "name": "confidence", "type": "number", "description": "0.0 to 1.0 confidence level" }
+      ],
+      "examples": ["believes(?alice, ?bob, trustworthy, 0.8)"],
+      "builtIn": true
+    },
+    "evidence": {
+      "category": "knowledge",
+      "arity": 6,
+      "description": "Evidence supporting a belief",
+      "args": [
+        { "name": "observer", "type": "entity" },
+        { "name": "subject", "type": "entity" },
+        { "name": "quality", "type": "atom" },
+        { "name": "evidence_type", "type": "atom", "description": "observation, hearsay, direct_experience, rumor, testimony" },
+        { "name": "strength", "type": "number", "description": "0.0 to 1.0 evidence strength" },
+        { "name": "timestamp", "type": "number" }
+      ],
+      "examples": ["evidence(?alice, ?bob, trustworthy, observation, 0.9, 42)"],
+      "builtIn": true
+    },
+    "has_mental_model": {
+      "category": "knowledge",
+      "arity": 2,
+      "description": "Observer has a mental model of the subject",
+      "args": [
+        { "name": "observer", "type": "entity" },
+        { "name": "subject", "type": "entity" }
+      ],
+      "examples": ["has_mental_model(?alice, ?bob)"],
+      "builtIn": true
+    },
+    "mental_model_confidence": {
+      "category": "knowledge",
+      "arity": 3,
+      "description": "Confidence level of an observer's mental model of a subject",
+      "args": [
+        { "name": "observer", "type": "entity" },
+        { "name": "subject", "type": "entity" },
+        { "name": "confidence", "type": "number", "description": "0.0 to 1.0" }
+      ],
+      "examples": ["mental_model_confidence(?alice, ?bob, 0.7)"],
+      "builtIn": true
     }
   }
 }

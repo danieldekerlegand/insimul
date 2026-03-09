@@ -11,6 +11,9 @@ import {
 } from 'lucide-react';
 import { ActionCreateDialog } from '../ActionCreateDialog';
 import { ActionEditDialog } from '../ActionEditDialog';
+import { PredicatePalette } from '../prolog/PredicatePalette';
+import { PrologQueryTester } from '../prolog/PrologQueryTester';
+import { PrologSyntaxHighlight } from '../prolog/PrologSyntaxHighlight';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -43,6 +46,7 @@ interface Action {
   verbPresent: string | null;
   narrativeTemplates: string[];
   sourceFormat: string | null;
+  prologContent: string | null;
   customData: Record<string, any>;
   tags: string[];
   createdAt: Date | null;
@@ -81,6 +85,12 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
 
   // Selection
   const [selectedAction, setSelectedAction] = useState<Action | null>(null);
+
+  // Code view toggle
+  const [codeView, setCodeView] = useState<'source' | 'prolog'>('source');
+
+  // Right panel tab
+  const [rightTab, setRightTab] = useState<'details' | 'predicates' | 'query'>('details');
 
   // Dialogs
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -219,6 +229,20 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
     return ACTION_TYPE_COLORS[type] || 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20';
   };
 
+  const selectAction = async (action: Action) => {
+    setSelectedAction(action);
+    // Fetch full details including prologContent
+    try {
+      const res = await fetch(`/api/actions/${action.id}`);
+      if (res.ok) {
+        const full = await res.json();
+        setSelectedAction(full);
+      }
+    } catch (e) {
+      // Use the partial data we already have
+    }
+  };
+
   const isBase = selectedAction ? baseActions.some(a => a.id === selectedAction.id) : false;
   const isEnabled = selectedAction ? enabledBaseActionIds.includes(selectedAction.id) : false;
 
@@ -269,7 +293,7 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
                         ? 'bg-primary/15 text-primary font-medium'
                         : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                     }`}
-                    onClick={() => setSelectedAction(action)}
+                    onClick={() => selectAction(action)}
                   >
                     {action.name}
                   </button>
@@ -315,7 +339,7 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
                             ? 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                             : 'text-muted-foreground/50 hover:bg-muted/50'
                       }`}
-                      onClick={() => setSelectedAction(action)}
+                      onClick={() => selectAction(action)}
                     >
                       {action.name}
                     </button>
@@ -524,15 +548,77 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
         )}
       </div>
 
-      {/* Right Panel - Prerequisites, Effects, Side Effects */}
+      {/* Right Panel - Prerequisites, Effects, Side Effects, Predicates, Query */}
       <div className="w-64 flex-shrink-0 border-l border-white/15 dark:border-white/10 flex flex-col">
-        <div className="p-3 border-b border-white/15 dark:border-white/10">
-          <span className="text-sm font-semibold">Details</span>
+        {/* Tab switcher */}
+        <div className="flex bg-muted/30 border-b shrink-0">
+          <button
+            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'details' ? 'bg-background border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setRightTab('details')}
+          >
+            Details
+          </button>
+          <button
+            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'predicates' ? 'bg-background border-b-2 border-purple-500 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setRightTab('predicates')}
+          >
+            Predicates
+          </button>
+          <button
+            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'query' ? 'bg-background border-b-2 border-green-500 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setRightTab('query')}
+          >
+            Query
+          </button>
         </div>
 
+        {rightTab === 'predicates' && (
+          <PredicatePalette compact onInsert={(text) => navigator.clipboard.writeText(text)} />
+        )}
+
+        {rightTab === 'query' && (
+          <PrologQueryTester worldId={worldId} compact />
+        )}
+
+        {rightTab === 'details' && (
         <ScrollArea className="flex-1">
           {selectedAction ? (
             <div className="p-3 space-y-4">
+              {/* Source / Prolog Toggle */}
+              <div className="flex gap-1 p-0.5 bg-muted/50 rounded-md">
+                <button
+                  className={`flex-1 px-2 py-1 text-[10px] font-medium rounded transition-colors ${
+                    codeView === 'source'
+                      ? 'bg-background shadow-sm text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  onClick={() => setCodeView('source')}
+                >
+                  Source
+                </button>
+                <button
+                  className={`flex-1 px-2 py-1 text-[10px] font-medium rounded transition-colors ${
+                    codeView === 'prolog'
+                      ? 'bg-purple-500/20 shadow-sm text-purple-600 dark:text-purple-400'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  onClick={() => setCodeView('prolog')}
+                >
+                  Prolog
+                </button>
+              </div>
+
+              {codeView === 'prolog' ? (
+                <div className="p-2 bg-purple-500/5 border border-purple-500/10 rounded-lg">
+                  {selectedAction.prologContent ? (
+                    <PrologSyntaxHighlight code={selectedAction.prologContent} className="text-[11px]" />
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">No Prolog content generated yet</p>
+                  )}
+                </div>
+              ) : (
+              <>
+
               {/* Prerequisites */}
               <div>
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
@@ -612,6 +698,8 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
                   <p className="text-xs text-muted-foreground italic">No trigger conditions</p>
                 )}
               </div>
+              </>
+              )}
             </div>
           ) : (
             <div className="p-3 text-xs text-muted-foreground italic">
@@ -619,6 +707,7 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
             </div>
           )}
         </ScrollArea>
+        )}
       </div>
 
       {/* Create Dialog */}

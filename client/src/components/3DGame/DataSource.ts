@@ -41,6 +41,7 @@ export interface DataSource {
     totalPrice?: number;
   }): Promise<any>;
   getMerchantInventory(worldId: string, merchantId: string): Promise<any>;
+  loadPrologContent(worldId: string): Promise<string | null>;
 }
 
 /**
@@ -194,6 +195,17 @@ export class ApiDataSource implements DataSource {
   async getMerchantInventory(worldId: string, merchantId: string): Promise<any> {
     const res = await fetch(`/api/worlds/${worldId}/merchants/${merchantId}/inventory`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : null;
+  }
+
+  async loadPrologContent(worldId: string): Promise<string | null> {
+    try {
+      const res = await fetch(`/api/prolog/tau/export/${worldId}`, { headers: this.getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        return data.content || null;
+      }
+    } catch { /* Prolog not available */ }
+    return null;
   }
 }
 
@@ -529,6 +541,15 @@ export class FileDataSource implements DataSource {
   async getMerchantInventory(worldId: string, merchantId: string): Promise<any> {
     // In exported games, merchant inventory is generated locally
     return null;
+  }
+
+  async loadPrologContent(worldId: string): Promise<string | null> {
+    try {
+      const content = await readDataFile('data/knowledge-base.pl');
+      return typeof content === 'string' ? content : null;
+    } catch {
+      return null;
+    }
   }
 }
 

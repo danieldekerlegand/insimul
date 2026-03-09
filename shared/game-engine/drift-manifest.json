@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-08T08:31:57.040Z",
+  "lastUpdated": "2026-03-09T01:53:44.316Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -56,7 +56,7 @@
     {
       "path": "client/src/components/3DGame/RuleEnforcer.ts",
       "description": "Rule enforcement: condition evaluation, violation callbacks. Changes require updating rule enforcer templates.",
-      "hash": "77599b0a3781e6f64927f279634c8cf98c201f60c0d27f6de7e83f80cf6ce9c7",
+      "hash": "dd3e96f66026bc68ba35ca81707665b22db6e294a40b2b6418eae5a1c3b59278",
       "engineMappings": [
         {
           "engine": "unreal",

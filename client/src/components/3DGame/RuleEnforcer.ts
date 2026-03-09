@@ -13,6 +13,7 @@ import type {
   GameContext as SharedGameContext,
   Vec3,
 } from '@shared/game-engine/types';
+import type { GamePrologEngine } from './GamePrologEngine';
 
 // Re-export shared types for backward compatibility
 export type { Rule, RuleCondition, RuleEffect } from '@shared/game-engine/types';
@@ -37,6 +38,7 @@ export class RuleEnforcer {
   private worldRules: Rule[] = [];
   private baseRules: Rule[] = [];
   private violations: RuleViolation[] = [];
+  private prologEngine: GamePrologEngine | null = null;
 
   private onViolation: ((violation: RuleViolation) => void) | null = null;
   private onRestriction: ((message: string, rule: Rule) => void) | null = null;
@@ -46,6 +48,59 @@ export class RuleEnforcer {
 
   constructor(scene: Scene) {
     this.scene = scene;
+  }
+
+  /**
+   * Attach a Prolog engine for enhanced rule evaluation.
+   * Rules with prologContent will be evaluated via Prolog queries.
+   */
+  public setPrologEngine(engine: GamePrologEngine): void {
+    this.prologEngine = engine;
+  }
+
+  /**
+   * Evaluate a rule's conditions via Prolog if prologContent is available.
+   * Returns null if no Prolog evaluation is possible (falls through to JS).
+   */
+  private async evaluateRuleViaProlog(rule: Rule, context: GameContext): Promise<boolean | null> {
+    if (!this.prologEngine || !(rule as any).prologContent) return null;
+
+    try {
+      const actorId = context.playerId || 'player';
+      const results = await this.prologEngine.query(
+        `rule_applies(${this.sanitizeAtom(rule.name || rule.id)}, ${this.sanitizeAtom(actorId)}, _)`
+      );
+      return results.length > 0;
+    } catch {
+      return null; // Fall through to JS evaluation
+    }
+  }
+
+  /**
+   * Check action permission with optional Prolog evaluation.
+   * Tries Prolog first for rules with prologContent, falls back to JS.
+   */
+  public async canPerformActionAsync(actionId: string, actionType: string, context: GameContext): Promise<{
+    allowed: boolean;
+    reason?: string;
+    violatedRule?: Rule;
+  }> {
+    // Check Prolog-based action prerequisites
+    if (this.prologEngine && context.playerId) {
+      const prologResult = await this.prologEngine.canPerformAction(
+        actionId, context.playerId, context.targetNPCId
+      );
+      if (!prologResult.allowed) {
+        return { allowed: false, reason: prologResult.reason };
+      }
+    }
+
+    // Fall through to standard JS rule checking
+    return this.canPerformAction(actionId, actionType, context);
+  }
+
+  private sanitizeAtom(str: string): string {
+    return str.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/^([0-9])/, '_$1').replace(/_+/g, '_').replace(/_$/, '');
   }
 
   /**

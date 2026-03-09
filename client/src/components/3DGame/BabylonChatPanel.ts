@@ -85,6 +85,10 @@ export class BabylonChatPanel {
   private _inputFocused = false;
   private isProcessing = false;
 
+  // Audio queue for sentence-level TTS playback
+  private audioQueue: { index: number; blob: Blob }[] = [];
+  private isPlayingQueue = false;
+
   // Audio
   private mediaRecorder: MediaRecorder | null = null;
   private audioChunks: Blob[] = [];
@@ -557,15 +561,44 @@ export class BabylonChatPanel {
       timestamp: new Date()
     });
     this.updateMessagesDisplay();
-    
+
     // Show loading indicator
     if (this.loadingIndicator) {
       this.loadingIndicator.isVisible = true;
     }
 
     try {
-      // Send to Gemini API
-      const aiResponse = await this.sendToGemini(userMessage);
+      // Add a placeholder assistant message for streaming
+      const placeholderMsg = {
+        role: 'assistant' as const,
+        content: '',
+        timestamp: new Date()
+      };
+      this.messages.push(placeholderMsg);
+      this.updateMessagesDisplay();
+
+      // Stream response from Gemini
+      const aiResponse = await this.sendToGeminiStreaming(userMessage, (partialText: string) => {
+        // Update placeholder message content as chunks arrive
+        placeholderMsg.content = partialText;
+        // Directly update the last TextBlock for performance (avoid full rebuild)
+        if (this.messagesDisplayArea) {
+          const recentCount = Math.min(this.messages.length, 5);
+          const lastIdx = recentCount - 1;
+          const existing = this.messagesDisplayArea.children.find(
+            c => c.name === `msg-${lastIdx}`
+          );
+          if (existing && existing instanceof TextBlock) {
+            existing.text = partialText;
+            this._advancedTexture.markAsDirty();
+          }
+        }
+      });
+
+      // Hide loading indicator
+      if (this.loadingIndicator) {
+        this.loadingIndicator.isVisible = false;
+      }
 
       // Parse and create quest if present in response
       let cleanedResponse = await this.parseAndCreateQuest(aiResponse.text);
@@ -601,19 +634,19 @@ export class BabylonChatPanel {
         this.languageTracker.analyzeNPCResponse(cleanedResponse);
       }
 
-      // Add AI response (with quest and grammar markers removed)
-      this.messages.push({
-        role: 'assistant',
-        content: cleanedResponse,
-        timestamp: new Date()
-      });
+      // Update final cleaned message content and do full display rebuild
+      placeholderMsg.content = cleanedResponse;
       this.updateMessagesDisplay();
 
       // Track vocabulary usage for quests
       this.trackQuestProgress(userMessage, cleanedResponse);
 
-      // Convert to speech and play (without markers)
-      await this.textToSpeech(cleanedResponse);
+      // Play queued sentence audio, or fall back to full TTS
+      if (this.audioQueue.length > 0) {
+        await this.playAudioQueue();
+      } else {
+        await this.textToSpeech(cleanedResponse);
+      }
 
     } catch (error) {
       console.error('Chat error:', error);
@@ -626,6 +659,126 @@ export class BabylonChatPanel {
     } finally {
       this.isProcessing = false;
     }
+  }
+
+  /**
+   * Stream a chat response from Gemini via SSE.
+   * Calls onChunk with the accumulated text as each token arrives.
+   */
+  private async sendToGeminiStreaming(
+    userMessage: string,
+    onChunk: (partialText: string) => void
+  ): Promise<{text: string, audio?: string}> {
+    if (!this.character) throw new Error('No character selected');
+
+    const systemPrompt = this.buildSystemPrompt();
+    const conversationHistory = this.messages
+      .filter(m => m.content) // skip empty placeholder
+      .map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content }]
+      }));
+
+    // Ensure the last entry is the user message
+    if (!conversationHistory.length || conversationHistory[conversationHistory.length - 1].parts[0].text !== userMessage) {
+      conversationHistory.push({ role: 'user', parts: [{ text: userMessage }] });
+    }
+
+    const response = await fetch('/api/gemini/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemPrompt,
+        messages: conversationHistory,
+        temperature: 0.8,
+        maxTokens: 2048,
+        returnAudio: true,
+        voice: this.character?.gender === 'female' ? 'Kore' : 'Charon',
+        stream: true
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to get response from AI');
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let fullText = '';
+    // Reset audio queue for this response
+    this.audioQueue = [];
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n');
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6);
+        if (data === '[DONE]') continue;
+
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.text) {
+            fullText += parsed.text;
+            onChunk(fullText);
+          }
+          if (parsed.audio) {
+            // Sentence-level audio chunk — queue for sequential playback
+            const audioBytes = Uint8Array.from(atob(parsed.audio), c => c.charCodeAt(0));
+            const audioBlob = new Blob([audioBytes], { type: 'audio/mp3' });
+            const idx = parsed.sentenceIndex ?? this.audioQueue.length;
+            this.audioQueue.push({ index: idx, blob: audioBlob });
+            // Start playing immediately if this is the first chunk
+            if (!this.isPlayingQueue) {
+              this.playAudioQueue();
+            }
+          }
+          if (parsed.error) {
+            console.error('[ChatPanel] Stream error:', parsed.error);
+          }
+        } catch {
+          // Skip invalid JSON lines
+        }
+      }
+    }
+
+    return { text: fullText };
+  }
+
+  /**
+   * Play queued sentence audio blobs in order.
+   * Audio chunks arrive asynchronously from parallel TTS;
+   * this drains them sequentially so sentences play in order.
+   */
+  private async playAudioQueue(): Promise<void> {
+    if (this.isPlayingQueue) return;
+    this.isPlayingQueue = true;
+    // Sort by sentence index
+    this.audioQueue.sort((a, b) => a.index - b.index);
+    let nextIndex = 0;
+
+    while (nextIndex < this.audioQueue.length || this.isProcessing) {
+      const entry = this.audioQueue.find(e => e.index === nextIndex);
+      if (entry) {
+        await this.playAudio(entry.blob);
+        nextIndex++;
+      } else {
+        // Wait briefly for the next chunk to arrive
+        await new Promise(r => setTimeout(r, 100));
+      }
+    }
+    // Drain any remaining chunks that arrived after processing finished
+    this.audioQueue.sort((a, b) => a.index - b.index);
+    for (const entry of this.audioQueue.filter(e => e.index >= nextIndex)) {
+      await this.playAudio(entry.blob);
+    }
+    this.isPlayingQueue = false;
   }
 
   private async streamAudioResponse(audioBlob: Blob, responseText: TextBlock): Promise<void> {
@@ -791,8 +944,16 @@ export class BabylonChatPanel {
     };
   }
 
+  private _cachedSystemPrompt: string | null = null;
+  private _systemPromptCharId: string | null = null;
+
   private buildSystemPrompt(): string {
     if (!this.character) return '';
+    // Return cached prompt if character hasn't changed
+    if (this._cachedSystemPrompt && this._systemPromptCharId === this.character.id) {
+      // Only rebuild if inventory context changed
+      if (!this.playerInventoryContext) return this._cachedSystemPrompt;
+    }
     let prompt = buildLanguageAwareSystemPrompt(
       this.character,
       this.truths,
@@ -801,6 +962,8 @@ export class BabylonChatPanel {
     if (this.playerInventoryContext) {
       prompt += this.playerInventoryContext;
     }
+    this._cachedSystemPrompt = prompt;
+    this._systemPromptCharId = this.character.id as string;
     return prompt;
   }
 

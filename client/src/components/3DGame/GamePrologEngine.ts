@@ -1,0 +1,498 @@
+/**
+ * Game Prolog Engine
+ *
+ * Client-side Prolog engine for the Babylon.js game runtime.
+ * Wraps tau-prolog (via shared TauPrologEngine) to provide:
+ *   - Loading Prolog knowledge base on game start
+ *   - Real-time fact assertion/retraction as game state changes
+ *   - Rule condition evaluation via Prolog queries
+ *   - Action prerequisite checking
+ *   - Quest completion evaluation
+ */
+
+import { TauPrologEngine } from '@shared/prolog/tau-engine';
+import { getNPCReasoningRules, getPersonalityFacts, getRelationshipFacts, getEmotionalStateFacts } from '@shared/prolog/npc-reasoning';
+import { getTotTPredicates } from '@shared/prolog/tott-predicates';
+import { getAdvancedPredicates } from '@shared/prolog/advanced-predicates';
+
+export interface GameState {
+  playerCharacterId: string;
+  playerName: string;
+  playerEnergy: number;
+  playerPosition?: { x: number; y: number; z: number };
+  currentSettlement?: string;
+  nearbyNPCs: string[];
+}
+
+export class GamePrologEngine {
+  private engine: TauPrologEngine;
+  private initialized = false;
+
+  constructor() {
+    this.engine = new TauPrologEngine();
+  }
+
+  /**
+   * Initialize the engine with game data.
+   * Call once at game start after data is loaded.
+   */
+  async initialize(data: {
+    characters: any[];
+    settlements: any[];
+    rules: any[];
+    actions: any[];
+    quests: any[];
+    truths: any[];
+    prologContent?: string; // Pre-generated .pl content from server
+  }): Promise<void> {
+    this.engine.clear();
+
+    // If server provided pre-generated Prolog content, load it
+    if (data.prologContent) {
+      await this.engine.consult(data.prologContent);
+    }
+
+    // Assert character facts
+    for (const char of data.characters) {
+      const charId = this.sanitize(`${char.firstName}_${char.lastName}_${char.id}`);
+      await this.engine.assertFact(`person(${charId})`);
+      if (char.firstName) {
+        await this.engine.assertFact(`name(${charId}, '${this.escape(char.firstName + ' ' + (char.lastName || ''))}')`);
+      }
+      if (char.age) await this.engine.assertFact(`age(${charId}, ${char.age})`);
+      if (char.occupation) await this.engine.assertFact(`occupation(${charId}, ${this.sanitize(char.occupation)})`);
+      if (char.gender) await this.engine.assertFact(`gender(${charId}, ${this.sanitize(char.gender)})`);
+    }
+
+    // Assert settlement facts
+    for (const settlement of data.settlements) {
+      const sId = this.sanitize(settlement.name || settlement.id);
+      await this.engine.assertFact(`settlement(${sId})`);
+      if (settlement.type) await this.engine.assertFact(`settlement_type(${sId}, ${this.sanitize(settlement.type)})`);
+    }
+
+    // Load prologContent from rules, actions, quests
+    for (const rule of data.rules) {
+      if (rule.prologContent) {
+        try { await this.engine.consult(rule.prologContent); } catch { /* skip invalid */ }
+      }
+    }
+    for (const action of data.actions) {
+      if (action.prologContent) {
+        try { await this.engine.consult(action.prologContent); } catch { /* skip invalid */ }
+      }
+    }
+    for (const quest of data.quests) {
+      if (quest.prologContent) {
+        try { await this.engine.consult(quest.prologContent); } catch { /* skip invalid */ }
+      }
+    }
+
+    // Load NPC reasoning rules
+    try {
+      await this.engine.consult(getNPCReasoningRules());
+    } catch (e) {
+      console.warn('[GamePrologEngine] Failed to load NPC reasoning rules:', e);
+    }
+
+    // Load TotT social simulation predicates
+    try {
+      await this.engine.consult(getTotTPredicates());
+    } catch (e) {
+      console.warn('[GamePrologEngine] Failed to load TotT predicates:', e);
+    }
+
+    // Load advanced predicates (resources, probabilistic, abductive, meta, procedural)
+    try {
+      await this.engine.consult(getAdvancedPredicates());
+    } catch (e) {
+      console.warn('[GamePrologEngine] Failed to load advanced predicates:', e);
+    }
+
+    // Assert personality facts for characters that have them
+    for (const char of data.characters) {
+      const charId = this.sanitize(`${char.firstName}_${char.lastName}_${char.id}`);
+      if (char.personality) {
+        const facts = getPersonalityFacts(charId, char.personality);
+        for (const f of facts) {
+          await this.engine.assertFact(f);
+        }
+      }
+      // Mood/emotional state
+      if (char.mood || char.energy) {
+        const emotionFacts = getEmotionalStateFacts(charId, {
+          mood: char.mood,
+          energy: char.energy,
+        });
+        for (const f of emotionFacts) {
+          await this.engine.assertFact(f);
+        }
+      }
+    }
+
+    this.initialized = true;
+    console.log('[GamePrologEngine] Initialized:', this.engine.getStats());
+  }
+
+  /**
+   * Update game state facts (call each frame or on state change).
+   */
+  async updateGameState(state: GameState): Promise<void> {
+    if (!this.initialized) return;
+
+    const playerId = this.sanitize(state.playerCharacterId);
+
+    // Retract old dynamic game state
+    await this.retractPattern('energy', playerId);
+    await this.retractPattern('at_location', playerId);
+    await this.retractPattern('nearby_npc', playerId);
+
+    // Assert current state
+    await this.engine.assertFact(`energy(${playerId}, ${state.playerEnergy})`);
+
+    if (state.currentSettlement) {
+      await this.engine.assertFact(`at_location(${playerId}, ${this.sanitize(state.currentSettlement)})`);
+    }
+
+    for (const npcId of state.nearbyNPCs) {
+      await this.engine.assertFact(`nearby_npc(${playerId}, ${this.sanitize(npcId)})`);
+    }
+  }
+
+  /**
+   * Check if an action's Prolog prerequisites are met.
+   */
+  async canPerformAction(actionId: string, actorId: string, targetId?: string): Promise<{
+    allowed: boolean;
+    reason?: string;
+  }> {
+    if (!this.initialized) return { allowed: true };
+
+    const actionAtom = this.sanitize(actionId);
+    const actorAtom = this.sanitize(actorId);
+
+    try {
+      let query: string;
+      if (targetId) {
+        query = `can_perform(${actorAtom}, ${actionAtom}, ${this.sanitize(targetId)})`;
+      } else {
+        query = `can_perform(${actorAtom}, ${actionAtom})`;
+      }
+
+      const result = await this.engine.queryOnce(query);
+      if (result) {
+        return { allowed: true };
+      }
+
+      return { allowed: false, reason: `Prerequisites not met for action: ${actionId}` };
+    } catch {
+      // If query fails, allow by default (graceful degradation)
+      return { allowed: true };
+    }
+  }
+
+  /**
+   * Check if a quest is available to the player.
+   */
+  async isQuestAvailable(questId: string, playerId: string): Promise<boolean> {
+    if (!this.initialized) return true;
+
+    try {
+      const result = await this.engine.queryOnce(
+        `quest_available(${this.sanitize(playerId)}, ${this.sanitize(questId)})`
+      );
+      return !!result;
+    } catch {
+      return true;
+    }
+  }
+
+  /**
+   * Check if a quest is complete for the player.
+   */
+  async isQuestComplete(questId: string, playerId: string): Promise<boolean> {
+    if (!this.initialized) return false;
+
+    try {
+      const result = await this.engine.queryOnce(
+        `quest_complete(${this.sanitize(playerId)}, ${this.sanitize(questId)})`
+      );
+      return !!result;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Evaluate a rule condition via Prolog query.
+   * Returns true if the condition is satisfied.
+   */
+  async evaluateCondition(prologGoal: string): Promise<boolean> {
+    if (!this.initialized) return true;
+
+    try {
+      const result = await this.engine.queryOnce(prologGoal);
+      return !!result;
+    } catch {
+      return true; // Graceful degradation
+    }
+  }
+
+  /**
+   * Find all applicable rules for a context.
+   */
+  async getApplicableRules(actorId: string): Promise<string[]> {
+    if (!this.initialized) return [];
+
+    try {
+      const results = await this.engine.query(
+        `rule_applies(RuleName, ${this.sanitize(actorId)}, _)`
+      );
+      return results.map(r => String(r.RuleName || ''));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Assert a new fact during gameplay (e.g., item pickup, quest progress).
+   */
+  async assertFact(fact: string): Promise<void> {
+    if (!this.initialized) return;
+    await this.engine.assertFact(fact);
+  }
+
+  /**
+   * Retract a fact during gameplay (e.g., item used, status removed).
+   */
+  async retractFact(fact: string): Promise<void> {
+    if (!this.initialized) return;
+    await this.engine.retractFact(fact);
+  }
+
+  /**
+   * Run an arbitrary Prolog query and return results.
+   */
+  async query(goal: string): Promise<Record<string, any>[]> {
+    if (!this.initialized) return [];
+    return this.engine.query(goal);
+  }
+
+  /**
+   * Get engine stats for debugging.
+   */
+  getStats(): { factCount: number; ruleCount: number } {
+    return this.engine.getStats();
+  }
+
+  // ── NPC Intelligence Queries ──────────────────────────────────────────────
+
+  /**
+   * Determine who an NPC should talk to based on personality and relationships.
+   */
+  async whoShouldTalkTo(npcId: string): Promise<string[]> {
+    if (!this.initialized) return [];
+    try {
+      const results = await this.engine.query(`should_talk_to(${this.sanitize(npcId)}, Y)`);
+      return results.map(r => String(r.Y || '')).filter(Boolean);
+    } catch { return []; }
+  }
+
+  /**
+   * Get preferred dialogue topics for an NPC.
+   */
+  async getPreferredTopics(npcId: string): Promise<string[]> {
+    if (!this.initialized) return [];
+    try {
+      const results = await this.engine.query(`prefers_topic(${this.sanitize(npcId)}, Topic)`);
+      return results.map(r => String(r.Topic || '')).filter(Boolean);
+    } catch { return []; }
+  }
+
+  /**
+   * Get an NPC's conflict resolution style.
+   */
+  async getConflictStyle(npcId: string): Promise<string | null> {
+    if (!this.initialized) return null;
+    try {
+      const result = await this.engine.queryOnce(`conflict_style(${this.sanitize(npcId)}, Style)`);
+      return result ? String(result.Style || '') : null;
+    } catch { return null; }
+  }
+
+  /**
+   * Check if an NPC wants to socialize.
+   */
+  async wantsToSocialize(npcId: string): Promise<boolean> {
+    if (!this.initialized) return false;
+    try {
+      const result = await this.engine.queryOnce(`wants_to_socialize(${this.sanitize(npcId)})`);
+      return !!result;
+    } catch { return false; }
+  }
+
+  /**
+   * Check if an NPC is grieving.
+   */
+  async isGrieving(npcId: string): Promise<boolean> {
+    if (!this.initialized) return false;
+    try {
+      const result = await this.engine.queryOnce(`is_grieving(${this.sanitize(npcId)})`);
+      return !!result;
+    } catch { return false; }
+  }
+
+  /**
+   * Check if this is a first meeting between NPC and player.
+   */
+  async isFirstMeeting(npcId: string, playerId: string): Promise<boolean> {
+    if (!this.initialized) return true;
+    try {
+      const result = await this.engine.queryOnce(
+        `\\+ has_mental_model(${this.sanitize(npcId)}, ${this.sanitize(playerId)})`
+      );
+      return !!result;
+    } catch { return true; }
+  }
+
+  /**
+   * Get NPCs that should be avoided by a given NPC.
+   */
+  async whoToAvoid(npcId: string): Promise<string[]> {
+    if (!this.initialized) return [];
+    try {
+      const results = await this.engine.query(`should_avoid(${this.sanitize(npcId)}, Y)`);
+      return results.map(r => String(r.Y || '')).filter(Boolean);
+    } catch { return []; }
+  }
+
+  /**
+   * Check if an NPC is willing to share knowledge with another.
+   */
+  async isWillingToShare(npcId: string, targetId: string): Promise<boolean> {
+    if (!this.initialized) return true;
+    try {
+      const result = await this.engine.queryOnce(
+        `willing_to_share(${this.sanitize(npcId)}, ${this.sanitize(targetId)})`
+      );
+      return !!result;
+    } catch { return true; }
+  }
+
+  /**
+   * Update NPC personality facts.
+   */
+  async updateNPCPersonality(npcId: string, personality: {
+    openness?: number;
+    conscientiousness?: number;
+    extroversion?: number;
+    agreeableness?: number;
+    neuroticism?: number;
+  }): Promise<void> {
+    if (!this.initialized) return;
+    const id = this.sanitize(npcId);
+    await this.retractPattern('personality', id);
+    const facts = getPersonalityFacts(id, personality);
+    for (const f of facts) {
+      await this.engine.assertFact(f);
+    }
+  }
+
+  /**
+   * Update NPC emotional state.
+   */
+  async updateNPCEmotionalState(npcId: string, state: {
+    mood?: string;
+    stressLevel?: number;
+    socialDesire?: number;
+    energy?: number;
+  }): Promise<void> {
+    if (!this.initialized) return;
+    const id = this.sanitize(npcId);
+    await this.retractPattern('mood', id);
+    await this.retractPattern('stress_level', id);
+    await this.retractPattern('social_desire', id);
+    const facts = getEmotionalStateFacts(id, state);
+    for (const f of facts) {
+      await this.engine.assertFact(f);
+    }
+  }
+
+  /**
+   * Update NPC relationship facts.
+   */
+  async updateNPCRelationship(npc1Id: string, npc2Id: string, relationship: {
+    charge?: number;
+    trust?: number;
+    conversationCount?: number;
+    isFriend?: boolean;
+    isEnemy?: boolean;
+  }): Promise<void> {
+    if (!this.initialized) return;
+    const id1 = this.sanitize(npc1Id);
+    const id2 = this.sanitize(npc2Id);
+    // Retract old relationship facts for this pair
+    await this.retractPattern('relationship_charge', id1, id2);
+    await this.retractPattern('relationship_trust', id1, id2);
+    await this.retractPattern('conversation_count', id1, id2);
+    await this.retractPattern('friends', id1, id2);
+    await this.retractPattern('enemies', id1, id2);
+    const facts = getRelationshipFacts(id1, id2, relationship);
+    for (const f of facts) {
+      await this.engine.assertFact(f);
+    }
+  }
+
+  /**
+   * Record that the player performed an action on an NPC.
+   */
+  async recordPlayerAction(playerId: string, npcId: string, actionName: string): Promise<void> {
+    if (!this.initialized) return;
+    const pId = this.sanitize(playerId);
+    const nId = this.sanitize(npcId);
+    const action = this.sanitize(actionName);
+    await this.engine.assertFact(`player_action(${pId}, ${nId}, ${action})`);
+  }
+
+  /**
+   * Export the current knowledge base as Prolog text.
+   */
+  exportKnowledgeBase(): string {
+    return this.engine.export();
+  }
+
+  /**
+   * Dispose the engine.
+   */
+  dispose(): void {
+    this.engine.clear();
+    this.initialized = false;
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  private async retractPattern(predicate: string, firstArg: string, secondArg?: string): Promise<void> {
+    const allFacts = this.engine.getAllFacts();
+    const prefix = secondArg
+      ? `${predicate}(${firstArg}, ${secondArg}`
+      : `${predicate}(${firstArg}`;
+    for (const fact of allFacts) {
+      if (fact.startsWith(prefix)) {
+        await this.engine.retractFact(fact.replace(/\.\s*$/, ''));
+      }
+    }
+  }
+
+  private sanitize(str: string): string {
+    return str
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '_')
+      .replace(/^([0-9])/, '_$1')
+      .replace(/_+/g, '_')
+      .replace(/_$/, '');
+  }
+
+  private escape(str: string): string {
+    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  }
+}

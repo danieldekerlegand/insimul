@@ -12,6 +12,7 @@ import {
 import { Scene, Vector3 } from "@babylonjs/core";
 import { QuestWaypointManager } from './QuestWaypointManager';
 import { getQuestTypeForWorld } from '@shared/quest-types';
+import type { GamePrologEngine } from './GamePrologEngine';
 
 interface Quest {
   id: string;
@@ -48,6 +49,10 @@ export class BabylonQuestTracker {
 
   // World context for quest types
   private worldId: string = '';
+
+  // Prolog engine for quest evaluation
+  private prologEngine: GamePrologEngine | null = null;
+  private playerId: string = 'player';
 
   // Callbacks
   private onClose: (() => void) | null = null;
@@ -349,6 +354,15 @@ export class BabylonQuestTracker {
     const criteria = quest.completionCriteria;
     const progress = quest.progress;
 
+    // Check Prolog-based completion (async, fire-and-forget for UI update)
+    if (this.prologEngine && quest.status === 'active') {
+      this.evaluateQuestCompletion(quest.id).then(complete => {
+        if (complete && quest.status === 'active') {
+          console.log(`[BabylonQuestTracker] Prolog reports quest "${quest.title}" is complete`);
+        }
+      }).catch(() => { /* non-fatal */ });
+    }
+
     switch (criteria.type) {
       case 'vocabulary_usage':
         if (criteria.requiredCount && progress.currentCount !== undefined) {
@@ -453,6 +467,37 @@ export class BabylonQuestTracker {
 
   public setOnClose(callback: () => void) {
     this.onClose = callback;
+  }
+
+  /**
+   * Set the Prolog engine for quest goal evaluation.
+   */
+  public setPrologEngine(engine: GamePrologEngine): void {
+    this.prologEngine = engine;
+  }
+
+  /**
+   * Evaluate quest completion via Prolog and update quest status.
+   */
+  public async evaluateQuestCompletion(questId: string): Promise<boolean> {
+    if (!this.prologEngine) return false;
+    try {
+      return await this.prologEngine.isQuestComplete(questId, this.playerId);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Check quest availability via Prolog.
+   */
+  public async isQuestAvailable(questId: string): Promise<boolean> {
+    if (!this.prologEngine) return true;
+    try {
+      return await this.prologEngine.isQuestAvailable(questId, this.playerId);
+    } catch {
+      return true;
+    }
   }
 
   /**

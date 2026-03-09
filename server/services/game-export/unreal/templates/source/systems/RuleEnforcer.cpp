@@ -43,3 +43,26 @@ TArray<FString> URuleEnforcer::EvaluateRules(const FString& Context)
     UE_LOG(LogTemp, Log, TEXT("[Insimul] EvaluateRules: %s"), *Context);
     return TArray<FString>();
 }
+
+bool URuleEnforcer::CanPerformAction(const FString& ActionId, const FString& ActionType, const FString& Context)
+{
+    // If Prolog KB is attached, it would be consulted first for rules with prologContent.
+    // Falls through to standard rule evaluation.
+    if (bHasPrologKB)
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Consulting Prolog KB for action %s"), *ActionId);
+        // TODO: Integrate Prolog evaluation (e.g. via embedded SWI-Prolog or external query)
+    }
+
+    // Standard rule check — evaluate all active rules against action context
+    TArray<FString> Violations = EvaluateRules(Context);
+    return Violations.Num() == 0;
+}
+
+void URuleEnforcer::SetPrologKnowledgeBase(const FString& PrologContent)
+{
+    bHasPrologKB = !PrologContent.IsEmpty();
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Prolog KB %s (%d chars)"),
+        bHasPrologKB ? TEXT("attached") : TEXT("cleared"), PrologContent.Len());
+    // TODO: Parse and store Prolog clauses for rule_applies/3 queries
+}

@@ -12,6 +12,9 @@ import {
 } from 'lucide-react';
 import { RuleCreateDialog } from '../RuleCreateDialog';
 import { RuleConvertDialog } from '../RuleConvertDialog';
+import { PredicatePalette } from '../prolog/PredicatePalette';
+import { PrologQueryTester } from '../prolog/PrologQueryTester';
+import { PrologSyntaxHighlight } from '../prolog/PrologSyntaxHighlight';
 
 interface RulesHubProps {
   worldId: string;
@@ -60,6 +63,10 @@ export function RulesHub({ worldId }: RulesHubProps) {
   // Editing
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
+  const [codeView, setCodeView] = useState<'source' | 'prolog'>('source');
+
+  // Right panel tab
+  const [rightTab, setRightTab] = useState<'details' | 'predicates' | 'query'>('details');
 
   // Dialogs
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -164,11 +171,25 @@ export function RulesHub({ worldId }: RulesHubProps) {
     });
   };
 
-  const selectRule = (rule: any) => {
+  const selectRule = async (rule: any) => {
     setSelectedRule(rule);
     setShowDetail(true);
     setIsEditing(false);
     setEditedContent('');
+    setCodeView('source');
+
+    // Fetch full rule content (including prologContent) if not already loaded
+    if (!rule.content && rule.id) {
+      try {
+        const res = await fetch(`/api/rules/${rule.id}`);
+        if (res.ok) {
+          const fullRule = await res.json();
+          setSelectedRule(fullRule);
+        }
+      } catch {
+        // Keep partial rule data
+      }
+    }
   };
 
   const toggleBaseRule = async (ruleId: string, enabled: boolean) => {
@@ -508,7 +529,22 @@ export function RulesHub({ worldId }: RulesHubProps) {
         <div className="flex-1 min-h-0 flex flex-col">
           <div className="px-4 py-2 shrink-0 flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <Code className="w-3.5 h-3.5" />
-            Rule Code
+            {!isEditing && (
+              <div className="flex gap-1 bg-muted/50 rounded-md p-0.5">
+                <button
+                  className={`px-2 py-0.5 rounded text-xs transition-colors ${codeView === 'source' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => setCodeView('source')}
+                >
+                  Source
+                </button>
+                <button
+                  className={`px-2 py-0.5 rounded text-xs transition-colors ${codeView === 'prolog' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => setCodeView('prolog')}
+                >
+                  Prolog
+                </button>
+              </div>
+            )}
             {isEditing && <span className="text-primary">(Editing)</span>}
           </div>
           {isEditing ? (
@@ -518,6 +554,16 @@ export function RulesHub({ worldId }: RulesHubProps) {
               className="flex-1 mx-4 mb-4 font-mono text-sm resize-none rounded-lg"
               placeholder="Enter rule code..."
             />
+          ) : codeView === 'prolog' ? (
+            <ScrollArea className="flex-1 mx-4 mb-4">
+              <div className="bg-purple-500/5 p-4 rounded-lg overflow-x-auto border border-purple-500/10">
+                {selectedRule.prologContent ? (
+                  <PrologSyntaxHighlight code={selectedRule.prologContent} />
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No Prolog content generated yet. Save the rule to auto-generate.</p>
+                )}
+              </div>
+            </ScrollArea>
           ) : (
             <ScrollArea className="flex-1 mx-4 mb-4">
               <pre className="bg-muted/50 p-4 rounded-lg text-sm font-mono overflow-x-auto whitespace-pre-wrap">
@@ -530,98 +576,145 @@ export function RulesHub({ worldId }: RulesHubProps) {
     );
   };
 
-  // ─── Right panel: triggers/conditions ──────────────────────────────────────
+  // ─── Predicate insert handler ─────────────────────────────────────────────
+
+  const handlePredicateInsert = (text: string) => {
+    if (isEditing) {
+      setEditedContent(prev => prev + (prev.endsWith('\n') || prev === '' ? '' : '\n') + text);
+    } else {
+      navigator.clipboard.writeText(text);
+    }
+  };
+
+  // ─── Right panel: triggers/conditions/predicates/query ──────────────────────
 
   const renderRight = () => {
-    if (!selectedRule) {
-      return (
-        <div className="w-64 shrink-0 border-l flex items-center justify-center p-4 text-center text-sm text-muted-foreground">
-          Select a rule to view details
-        </div>
-      );
-    }
-
-    const hasTriggers = selectedRule.triggers?.length > 0;
-    const hasConditions = selectedRule.conditions?.length > 0;
-    const hasEffects = selectedRule.effects?.length > 0;
-    const hasDeps = selectedRule.dependencies?.length > 0;
-
-    if (!hasTriggers && !hasConditions && !hasEffects && !hasDeps) {
-      return (
-        <div className="w-64 shrink-0 border-l flex items-center justify-center p-4 text-center text-sm text-muted-foreground">
-          No triggers, conditions, or effects
-        </div>
-      );
-    }
-
     return (
       <div className="w-64 shrink-0 border-l flex flex-col min-h-0">
-        {hasTriggers && (
-          <div className="flex flex-col min-h-0 max-h-[30%]">
-            <div className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 shrink-0">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Triggers</span>
-              <span className="ml-auto text-xs text-muted-foreground">{selectedRule.triggers.length}</span>
-            </div>
-            <ScrollArea className="flex-1">
-              <div className="p-2 space-y-1">
-                {selectedRule.triggers.map((t: string, i: number) => (
-                  <div key={i} className="px-2 py-1 text-sm rounded bg-muted/30">{t}</div>
-                ))}
-              </div>
-            </ScrollArea>
-          </div>
+        {/* Tab switcher */}
+        <div className="flex bg-muted/30 border-b shrink-0">
+          <button
+            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'details' ? 'bg-background border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setRightTab('details')}
+          >
+            Details
+          </button>
+          <button
+            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'predicates' ? 'bg-background border-b-2 border-purple-500 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setRightTab('predicates')}
+          >
+            Predicates
+          </button>
+          <button
+            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'query' ? 'bg-background border-b-2 border-green-500 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setRightTab('query')}
+          >
+            Query
+          </button>
+        </div>
+
+        {/* Tab content */}
+        {rightTab === 'predicates' && (
+          <PredicatePalette compact onInsert={handlePredicateInsert} />
         )}
 
-        {hasConditions && (
-          <div className="flex flex-col min-h-0 max-h-[35%] border-t">
-            <div className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 shrink-0">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Conditions</span>
-              <span className="ml-auto text-xs text-muted-foreground">{selectedRule.conditions.length}</span>
-            </div>
-            <ScrollArea className="flex-1">
-              <div className="p-2 space-y-1">
-                {selectedRule.conditions.map((c: any, i: number) => (
-                  <div key={i} className="px-2 py-1 text-xs font-mono rounded bg-muted/30 break-all">
-                    {typeof c === 'string' ? c : JSON.stringify(c)}
+        {rightTab === 'query' && (
+          <PrologQueryTester worldId={worldId} compact />
+        )}
+
+        {rightTab === 'details' && (
+          <>
+            {!selectedRule ? (
+              <div className="flex-1 flex items-center justify-center p-4 text-center text-sm text-muted-foreground">
+                Select a rule to view details
+              </div>
+            ) : (() => {
+              const hasTriggers = selectedRule.triggers?.length > 0;
+              const hasConditions = selectedRule.conditions?.length > 0;
+              const hasEffects = selectedRule.effects?.length > 0;
+              const hasDeps = selectedRule.dependencies?.length > 0;
+
+              if (!hasTriggers && !hasConditions && !hasEffects && !hasDeps) {
+                return (
+                  <div className="flex-1 flex items-center justify-center p-4 text-center text-sm text-muted-foreground">
+                    No triggers, conditions, or effects
                   </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </div>
-        )}
+                );
+              }
 
-        {hasEffects && (
-          <div className="flex flex-col min-h-0 flex-1 border-t">
-            <div className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 shrink-0">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Effects</span>
-              <span className="ml-auto text-xs text-muted-foreground">{selectedRule.effects.length}</span>
-            </div>
-            <ScrollArea className="flex-1">
-              <div className="p-2 space-y-1">
-                {selectedRule.effects.map((e: any, i: number) => (
-                  <div key={i} className="px-2 py-1 text-xs font-mono rounded bg-muted/30 break-all">
-                    {typeof e === 'string' ? e : JSON.stringify(e)}
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </div>
-        )}
+              return (
+                <>
+                  {hasTriggers && (
+                    <div className="flex flex-col min-h-0 max-h-[30%]">
+                      <div className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 shrink-0">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Triggers</span>
+                        <span className="ml-auto text-xs text-muted-foreground">{selectedRule.triggers.length}</span>
+                      </div>
+                      <ScrollArea className="flex-1">
+                        <div className="p-2 space-y-1">
+                          {selectedRule.triggers.map((t: string, i: number) => (
+                            <div key={i} className="px-2 py-1 text-sm rounded bg-muted/30">{t}</div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
 
-        {hasDeps && (
-          <div className="flex flex-col min-h-0 max-h-[25%] border-t">
-            <div className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 shrink-0">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Dependencies</span>
-              <span className="ml-auto text-xs text-muted-foreground">{selectedRule.dependencies.length}</span>
-            </div>
-            <ScrollArea className="flex-1">
-              <div className="p-2 space-y-1">
-                {selectedRule.dependencies.map((d: string, i: number) => (
-                  <div key={i} className="px-2 py-1 text-sm rounded bg-muted/30">{d}</div>
-                ))}
-              </div>
-            </ScrollArea>
-          </div>
+                  {hasConditions && (
+                    <div className="flex flex-col min-h-0 max-h-[35%] border-t">
+                      <div className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 shrink-0">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Conditions</span>
+                        <span className="ml-auto text-xs text-muted-foreground">{selectedRule.conditions.length}</span>
+                      </div>
+                      <ScrollArea className="flex-1">
+                        <div className="p-2 space-y-1">
+                          {selectedRule.conditions.map((c: any, i: number) => (
+                            <div key={i} className="px-2 py-1 text-xs font-mono rounded bg-muted/30 break-all">
+                              {typeof c === 'string' ? c : JSON.stringify(c)}
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+
+                  {hasEffects && (
+                    <div className="flex flex-col min-h-0 flex-1 border-t">
+                      <div className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 shrink-0">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Effects</span>
+                        <span className="ml-auto text-xs text-muted-foreground">{selectedRule.effects.length}</span>
+                      </div>
+                      <ScrollArea className="flex-1">
+                        <div className="p-2 space-y-1">
+                          {selectedRule.effects.map((e: any, i: number) => (
+                            <div key={i} className="px-2 py-1 text-xs font-mono rounded bg-muted/30 break-all">
+                              {typeof e === 'string' ? e : JSON.stringify(e)}
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+
+                  {hasDeps && (
+                    <div className="flex flex-col min-h-0 max-h-[25%] border-t">
+                      <div className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 shrink-0">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Dependencies</span>
+                        <span className="ml-auto text-xs text-muted-foreground">{selectedRule.dependencies.length}</span>
+                      </div>
+                      <ScrollArea className="flex-1">
+                        <div className="p-2 space-y-1">
+                          {selectedRule.dependencies.map((d: string, i: number) => (
+                            <div key={i} className="px-2 py-1 text-sm rounded bg-muted/30">{d}</div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </>
         )}
       </div>
     );

@@ -6,6 +6,7 @@
 import { storage } from '../../db/storage';
 import type { Character, OccupationVocation, ShiftType, TerminationReason } from '@shared/schema';
 import { getRelationshipStrength } from './relationship-utils.js';
+import { prologQualifiedForJob, prologCandidateScore, prologCanBeHired, prologAssertFact } from './prolog-queries.js';
 
 export interface OccupationData {
   id: string;
@@ -143,7 +144,22 @@ export async function evaluateCandidate(
   }
 
   // Final score calculation
-  const finalScore = Math.max(0, Math.min(100, qualificationScore + ageBonus));
+  let finalScore = Math.max(0, Math.min(100, qualificationScore + ageBonus));
+
+  // Augment with Prolog qualification check if available
+  const worldId = (candidate as any).worldId;
+  if (worldId) {
+    const prologQualified = await prologQualifiedForJob(worldId, candidateId, vocation);
+    if (prologQualified === false && qualified) {
+      // Prolog says not qualified — reduce score
+      finalScore = Math.max(0, finalScore - 20);
+    }
+    const prologScore = await prologCandidateScore(worldId, candidateId, vocation);
+    if (prologScore !== null) {
+      // Blend Prolog score with TS score (30% Prolog, 70% TS)
+      finalScore = Math.round(finalScore * 0.7 + prologScore * 0.3);
+    }
+  }
 
   return {
     characterId: candidateId,
@@ -181,17 +197,27 @@ export async function findCandidates(
   const allCharacters = await storage.getCharactersByWorld(worldId);
   
   // Filter to those who are employable
-  const employable = allCharacters.filter(char => {
+  const employablePromises = allCharacters.map(async (char) => {
     const age = currentYear - (char.birthYear || 1880);
     const currentOccupation = (char.customData as any)?.currentOccupation as OccupationData | undefined;
-    
-    return (
-      age >= 16 && 
-      !char.retired && 
+
+    const jsEmployable = (
+      age >= 16 &&
+      !char.retired &&
       char.status === 'active' &&
       !currentOccupation // Not currently employed
     );
+
+    if (!jsEmployable) return null;
+
+    // Augment with Prolog check
+    const prologResult = await prologCanBeHired(worldId, char.id);
+    if (prologResult === false) return null;
+
+    return char;
   });
+  const employableResults = await Promise.all(employablePromises);
+  const employable = employableResults.filter((c): c is NonNullable<typeof c> => c !== null);
 
   // Evaluate each candidate
   const evaluations: CandidateEvaluation[] = [];
@@ -282,6 +308,12 @@ export async function fillVacancy(
   }
   
   await storage.updateBusiness(businessId, { vacancies });
+
+  // Sync hiring fact to Prolog knowledge base
+  const worldId = (candidate as any).worldId;
+  if (worldId) {
+    await prologAssertFact(worldId, `occupation(${candidateId.toLowerCase().replace(/[^a-z0-9_]/g, '_')}, ${vocation.toLowerCase().replace(/[^a-z0-9_]/g, '_')})`);
+  }
 
   console.log(`✓ Hired ${candidate.firstName} ${candidate.lastName} as ${vocation} at ${business.name}`);
 }

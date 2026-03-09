@@ -8,6 +8,7 @@
 
 import { Vector3, Scene, Mesh } from '@babylonjs/core';
 import { NPCTalkingIndicator } from './NPCTalkingIndicator';
+import type { GamePrologEngine } from './GamePrologEngine';
 
 interface NPCInstance {
   mesh: Mesh;
@@ -69,6 +70,9 @@ export class NPCAmbientConversationManager {
   // Audio
   private currentlySpeaking: Set<string> = new Set();
 
+  // Prolog engine for personality-based conversation matching
+  private prologEngine: GamePrologEngine | null = null;
+
   constructor(scene: Scene, worldId: string, talkingIndicator: NPCTalkingIndicator) {
     this.scene = scene;
     this.worldId = worldId;
@@ -92,6 +96,13 @@ export class NPCAmbientConversationManager {
       id: npcId,
       name: npcName
     });
+  }
+
+  /**
+   * Set the Prolog engine for personality-based conversation selection.
+   */
+  public setPrologEngine(engine: GamePrologEngine): void {
+    this.prologEngine = engine;
   }
 
   /**
@@ -189,7 +200,33 @@ export class NPCAmbientConversationManager {
     // Need at least 2 NPCs to have a conversation
     if (availableNPCs.length < 2) return;
 
-    // Find pairs of NPCs who are close to each other
+    // If Prolog engine is available, use personality-based partner selection
+    if (this.prologEngine && availableNPCs.length >= 2) {
+      for (const npc of availableNPCs) {
+        try {
+          const wantsTo = await this.prologEngine.wantsToSocialize(npc.id);
+          if (!wantsTo) continue;
+
+          const preferredPartners = await this.prologEngine.whoShouldTalkTo(npc.id);
+          const avoidList = await this.prologEngine.whoToAvoid(npc.id);
+          const avoidSet = new Set(avoidList);
+
+          for (const partnerId of preferredPartners) {
+            const partner = availableNPCs.find(n => n.id === partnerId);
+            if (!partner || avoidSet.has(partnerId)) continue;
+            const distance = Vector3.Distance(npc.mesh.position, partner.mesh.position);
+            if (distance <= 8) {
+              await this.startConversation(npc.id, partnerId);
+              return;
+            }
+          }
+        } catch {
+          // Fall through to proximity-based selection
+        }
+      }
+    }
+
+    // Fallback: Find pairs of NPCs who are close to each other
     for (let i = 0; i < availableNPCs.length - 1; i++) {
       for (let j = i + 1; j < availableNPCs.length; j++) {
         const npc1 = availableNPCs[i];

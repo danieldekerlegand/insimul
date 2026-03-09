@@ -139,10 +139,11 @@ export const rules = pgTable("rules", {
   name: text("name").notNull(),
   description: text("description"),
   content: text("content").notNull(), // Always stored in Insimul format for execution
-  
+  prologContent: text("prolog_content"), // Auto-generated Prolog representation of the rule
+
   // Base rule indicator
   isBase: boolean("is_base").default(false), // true for global rules, false for world-specific
-  
+
   // Authoring format (for display/editing only, not execution)
   sourceFormat: text("source_format").notNull().default("insimul"), // ensemble, kismet, tott, insimul
   
@@ -452,6 +453,7 @@ export const actions = pgTable("actions", {
   prerequisites: jsonb("prerequisites").$type<any[]>().default([]),
   effects: jsonb("effects").$type<any[]>().default([]),
   sideEffects: jsonb("side_effects").$type<any[]>().default([]),
+  prologContent: text("prolog_content"), // Auto-generated Prolog representation
 
   // Targeting and scope
   targetType: text("target_type"), // self, other, location, object, none
@@ -566,7 +568,10 @@ export const quests = pgTable("quests", {
   // Metadata
   conversationContext: text("conversation_context"), // Context from the conversation that triggered the quest
   tags: jsonb("tags").$type<string[]>().default([]),
-  
+
+  // Prolog
+  prologContent: text("prolog_content"),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -711,6 +716,7 @@ export const insertRuleSchema = createInsertSchema(rules).pick({
   name: true,
   description: true,
   content: true,
+  prologContent: true,
   isBase: true,
   sourceFormat: true,
   ruleType: true,
@@ -798,6 +804,7 @@ export const insertActionSchema = createInsertSchema(actions).pick({
   prerequisites: true,
   effects: true,
   sideEffects: true,
+  prologContent: true,
   targetType: true,
   requiresTarget: true,
   range: true,
@@ -852,6 +859,7 @@ export const insertQuestSchema = createInsertSchema(quests).pick({
   expiresAt: true,
   conversationContext: true,
   tags: true,
+  prologContent: true,
 });
 
 // ============= USER AUTHENTICATION AND PLAYER PROGRESS =============

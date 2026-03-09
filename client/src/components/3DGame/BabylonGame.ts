@@ -87,6 +87,7 @@ import { BuildingInteriorGenerator, InteriorLayout } from "@/components/3DGame/B
 import { GameMenuSystem, GameMenuCallbacks } from "@/components/3DGame/GameMenuSystem.ts";
 import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts";
 import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
+import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 
 // Constants
@@ -310,6 +311,7 @@ export class BabylonGame {
   private shopPanel: BabylonShopPanel | null = null;
   private rulesPanel: BabylonRulesPanel | null = null;
   private ruleEnforcer: RuleEnforcer | null = null;
+  private prologEngine: GamePrologEngine | null = null;
   private combatSystem: CombatSystem | null = null;
   private rangedCombat: RangedCombatSystem | null = null;
   private fightingCombat: FightingCombatSystem | null = null;
@@ -577,6 +579,9 @@ export class BabylonGame {
 
       // Start ambient conversation system
       if (this.ambientConversationManager) {
+        if (this.prologEngine) {
+          this.ambientConversationManager.setPrologEngine(this.prologEngine);
+        }
         this.ambientConversationManager.start();
       }
 
@@ -1107,9 +1112,18 @@ export class BabylonGame {
       this.questObjectManager?.trackNPCConversation(npcId);
       console.log('[BabylonGame] NPC conversation started with:', npcId);
     });
+    this.chatPanel.setOnVocabularyUsed((word: string) => {
+      this.questObjectManager?.trackVocabularyUsage(word);
+    });
+    this.chatPanel.setOnConversationTurn((keywords: string[]) => {
+      this.questObjectManager?.trackConversationTurn(keywords);
+    });
 
     // Initialize quest tracker
     this.questTracker = new BabylonQuestTracker(this.guiManager.advancedTexture, scene);
+    if (this.prologEngine) {
+      this.questTracker.setPrologEngine(this.prologEngine);
+    }
 
     // Initialize zone audio
     this.initializeZoneAudio(scene);
@@ -1121,6 +1135,12 @@ export class BabylonGame {
     this.questObjectManager = new QuestObjectManager(scene);
     this.questObjectManager.setOnObjectCollected((questId, objectiveId) => {
       this.handleQuestObjectiveCompleted(questId, objectiveId, 'collect');
+    });
+    this.questObjectManager.setOnLocationVisited((questId, objectiveId) => {
+      this.handleQuestObjectiveCompleted(questId, objectiveId, 'visit');
+    });
+    this.questObjectManager.setOnObjectiveCompleted((questId, objectiveId) => {
+      this.handleQuestObjectiveCompleted(questId, objectiveId, 'objective');
     });
 
     // Initialize quest indicator manager
@@ -1162,6 +1182,12 @@ export class BabylonGame {
         duration: 4000
       });
     });
+
+    // Initialize Prolog engine
+    this.prologEngine = new GamePrologEngine();
+
+    // Wire Prolog engine into rule enforcer
+    this.ruleEnforcer.setPrologEngine(this.prologEngine);
 
     // Initialize combat system
     this.combatSystem = new CombatSystem(scene);
@@ -1282,6 +1308,26 @@ export class BabylonGame {
         quests: quests?.length || 0,
         assets: assets?.length || 0
       });
+
+      // Initialize Prolog engine with world data
+      if (this.prologEngine) {
+        try {
+          const prologContent = await this.dataSource.loadPrologContent(worldId);
+          const truths = await this.dataSource.loadTruths(worldId);
+          await this.prologEngine.initialize({
+            characters: characters || [],
+            settlements: settlements || [],
+            rules: rules || [],
+            actions: [...(actions || []), ...(baseActions || [])],
+            quests: quests || [],
+            truths: truths || [],
+            prologContent: prologContent || undefined,
+          });
+          console.log('[BabylonGame] Prolog engine initialized:', this.prologEngine.getStats());
+        } catch (prologError) {
+          console.warn('[BabylonGame] Prolog engine initialization failed (non-fatal):', prologError);
+        }
+      }
 
       // Extract world assets from assets array
       const worldAssets = assets || [];
@@ -4389,6 +4435,26 @@ export class BabylonGame {
       if (this.playerMesh && this.audioManager) {
         this.audioManager.setListenerPosition(this.playerMesh.position);
       }
+
+      // Update Prolog game state (every 500ms, aligned with ground snap timer)
+      if (this._npcGroundSnapTimer === 0 && this.prologEngine && this.playerMesh) {
+        const pPos = this.playerMesh.position;
+        const nearbyNPCIds: string[] = [];
+        this.npcMeshes.forEach((instance, npcId) => {
+          if (instance.mesh && instance.mesh.isEnabled()) {
+            const d = Vector3.Distance(pPos, instance.mesh.position);
+            if (d <= 30) nearbyNPCIds.push(npcId);
+          }
+        });
+        this.prologEngine.updateGameState({
+          playerCharacterId: 'player',
+          playerName: 'player',
+          playerEnergy: this.playerEnergy,
+          playerPosition: { x: pPos.x, y: pPos.y, z: pPos.z },
+          currentSettlement: this.currentZone?.name,
+          nearbyNPCs: nearbyNPCIds,
+        }).catch(() => { /* non-fatal */ });
+      }
     });
 
     // Phase 7: Batched NPC behavior updates with frame budget
@@ -4983,7 +5049,11 @@ export class BabylonGame {
       this.chatPanel.show(character, truths, npcMesh);
       console.log('[Chat] Chat panel shown for character:', character.firstName, character.lastName);
 
-      const actions = this.getAvailableActions(npcId);
+      let actions = this.getAvailableActions(npcId);
+      // Filter actions through Prolog prerequisites (async, non-blocking)
+      this.filterActionsByProlog(actions, npcId).then(filtered => {
+        this.chatPanel?.setDialogueActions(filtered, this.playerEnergy);
+      }).catch(() => { /* use unfiltered on error */ });
       this.chatPanel.setDialogueActions(actions, this.playerEnergy);
 
       // Track NPC conversation for quests
@@ -5722,6 +5792,29 @@ export class BabylonGame {
     return actions;
   }
 
+  /**
+   * Filter actions through Prolog prerequisites asynchronously.
+   * Returns only actions whose Prolog prerequisites are met.
+   */
+  private async filterActionsByProlog(actions: Action[], npcId: string): Promise<Action[]> {
+    if (!this.prologEngine || actions.length === 0) return actions;
+
+    const actorId = this.characters[0]?.id || 'player';
+    const results = await Promise.all(
+      actions.map(async (action) => {
+        // Skip non-game actions like __browse_wares__
+        if (action.id.startsWith('__')) return { action, allowed: true };
+        try {
+          const result = await this.prologEngine!.canPerformAction(action.id, actorId, npcId);
+          return { action, allowed: result.allowed };
+        } catch {
+          return { action, allowed: true }; // Graceful degradation
+        }
+      })
+    );
+    return results.filter(r => r.allowed).map(r => r.action);
+  }
+
   private async handlePerformAction(actionId: string): Promise<void> {
     if (!this.selectedNPCId || !this.worldData) return;
 
@@ -5835,6 +5928,21 @@ export class BabylonGame {
         description: result.narrativeText || result.message,
         variant: result.success ? "default" : "destructive"
       });
+
+      // Record action in Prolog knowledge base (for quest tracking & NPC memory)
+      if (result.success && this.prologEngine) {
+        this.prologEngine.recordPlayerAction('player', npcId, actionId).catch(() => {});
+        // Assert effects as Prolog facts
+        if (result.effects) {
+          for (const effect of result.effects) {
+            if (effect.type === 'item' && effect.value?.itemId) {
+              this.prologEngine.assertFact(
+                `has_item(player, ${effect.value.itemId.toLowerCase().replace(/[^a-z0-9_]/g, '_')})`
+              ).catch(() => {});
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error("Failed to perform action", error);
       this.guiManager?.showToast({
@@ -6010,6 +6118,13 @@ export class BabylonGame {
       }
     }
 
+    // Track enemy defeat for quest objectives
+    if (killedBy === 'player' && this.questObjectManager) {
+      const entity = this.combatSystem?.getEntity(entityId);
+      const enemyType = entity?.name || entityId;
+      this.questObjectManager.trackEnemyDefeat(enemyType);
+    }
+
     // Exit combat when enemy dies
     if (this.combatSystem && entityId === this.combatTargetId) {
       this.combatTargetId = null;
@@ -6045,6 +6160,19 @@ export class BabylonGame {
       });
 
       this.questTracker?.updateQuests(this.config.worldId);
+
+      // Sync quest state changes to Prolog knowledge base
+      if (this.prologEngine) {
+        const qId = questId.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+        if (type === 'collect') {
+          this.prologEngine.assertFact(`quest_collected(player, ${qId}, ${objectiveId.toLowerCase().replace(/[^a-z0-9_]/g, '_')})`).catch(() => {});
+        } else if (type === 'visit') {
+          this.prologEngine.assertFact(`quest_visited(player, ${qId}, ${objectiveId.toLowerCase().replace(/[^a-z0-9_]/g, '_')})`).catch(() => {});
+        }
+        if (allObjectivesComplete) {
+          this.prologEngine.assertFact(`quest_completed(player, ${qId})`).catch(() => {});
+        }
+      }
 
       // Apply quest rewards on completion
       if (allObjectivesComplete) {
@@ -6675,6 +6803,8 @@ export class BabylonGame {
     this.shopPanel?.dispose();
     this.rulesPanel?.dispose();
     this.ruleEnforcer?.dispose();
+    this.prologEngine?.dispose();
+    this.prologEngine = null;
     this.questObjectManager?.dispose();
     this.radialMenu?.dispose();
     this.questTracker?.dispose();

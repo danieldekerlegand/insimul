@@ -5,6 +5,7 @@
 
 import { storage } from '../../db/storage';
 import type { Character, TimeOfDay, ActivityOccasion, LocationType, OccupationVocation } from '@shared/schema';
+import { prologRoutine } from './prolog-queries.js';
 
 export interface TimeBlock {
   startHour: number; // 0-23
@@ -82,6 +83,28 @@ export async function getCurrentActivity(
     return null;
   }
 
+  // Try Prolog routine query first
+  const prologLocation = await prologRoutine(character.worldId, characterId, timeOfDay);
+  if (prologLocation !== null) {
+    return {
+      characterId,
+      characterName: `${character.firstName} ${character.lastName}`,
+      timeOfDay,
+      currentHour,
+      location: prologLocation,
+      locationType: 'home' as LocationType, // Prolog doesn't distinguish type
+      occasion: 'relaxing' as ActivityOccasion,
+      timeBlock: {
+        startHour: 0,
+        endHour: 24,
+        location: prologLocation,
+        locationType: 'home' as LocationType,
+        occasion: 'relaxing' as ActivityOccasion
+      }
+    };
+  }
+
+  // Fall back to JS routine data
   const customData = (character as any).customData as Record<string, any> | undefined;
   const routineData = customData?.routine as RoutineData | undefined;
 
@@ -93,7 +116,7 @@ export async function getCurrentActivity(
   const schedule = timeOfDay === 'day' ? routineData.routine.day : routineData.routine.night;
 
   // Find the time block that matches current hour
-  const currentBlock = schedule.find(block => 
+  const currentBlock = schedule.find(block =>
     currentHour >= block.startHour && currentHour < block.endHour
   );
 

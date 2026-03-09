@@ -12,6 +12,7 @@
 import { storage } from '../../db/storage';
 import type { Character, Business } from '@shared/schema';
 import { getRelationshipDetails } from './social-dynamics-system.js';
+import { prologCanAfford, prologIsWealthy, prologAssertFact, prologTaxOwed } from './prolog-queries.js';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -212,6 +213,37 @@ export function classifyWealth(money: number): EconomicClass {
   if (money < CONFIG.middleClassThreshold) return 'middle_class';
   if (money < CONFIG.wealthyThreshold) return 'wealthy';
   return 'rich';
+}
+
+/**
+ * Prolog-augmented affordability check. Falls back to in-memory wealth.
+ */
+export async function canAffordAsync(
+  characterId: string,
+  amount: number,
+  worldId?: string
+): Promise<boolean> {
+  if (worldId) {
+    const prologResult = await prologCanAfford(worldId, characterId, amount);
+    if (prologResult !== null) return prologResult;
+  }
+  const wealth = await getWealth(characterId);
+  return wealth.currentMoney >= amount;
+}
+
+/**
+ * Prolog-augmented wealth classification.
+ */
+export async function isWealthyAsync(
+  characterId: string,
+  worldId?: string
+): Promise<boolean> {
+  if (worldId) {
+    const prologResult = await prologIsWealthy(worldId, characterId);
+    if (prologResult !== null) return prologResult;
+  }
+  const wealth = await getWealth(characterId);
+  return wealth.economicClass === 'wealthy' || wealth.economicClass === 'rich';
 }
 
 export async function addMoney(
@@ -445,6 +477,36 @@ export async function paySalaries(worldId: string, currentTimestep: number): Pro
   }
   
   return totalPaid;
+}
+
+/**
+ * Collect taxes from a character based on Prolog governance rules.
+ * Queries tax_owed/2 to determine the amount, then deducts it.
+ * Returns the tax amount collected, or 0 if no tax is owed / Prolog unavailable.
+ */
+export async function collectTax(
+  characterId: string,
+  worldId: string,
+  currentTimestep: number
+): Promise<number> {
+  // Query Prolog for tax owed — gracefully returns 0 if unavailable
+  const taxAmount = await prologTaxOwed(worldId, characterId);
+  if (taxAmount == null || taxAmount <= 0) return 0;
+
+  const wealth = await getWealth(characterId);
+  if (wealth.currentMoney < taxAmount) return 0; // can't pay
+
+  try {
+    await subtractMoney(characterId, taxAmount, 'Tax payment', currentTimestep);
+
+    // Record the tax in Prolog
+    const id = characterId.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    await prologAssertFact(worldId, `paid_tax(${id}, ${taxAmount})`);
+
+    return taxAmount;
+  } catch {
+    return 0;
+  }
 }
 
 export function calculateSalary(

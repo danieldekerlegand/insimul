@@ -9,6 +9,7 @@ import { WorldManagementTab } from '@/components/WorldManagementTab';
 import { TruthTab } from '@/components/TruthTab';
 import { QuestsHub } from '@/components/quests/QuestsHub';
 import { PrologKnowledgeBase } from '@/components/PrologKnowledgeBase';
+import { PrologSimulationPanel } from '@/components/prolog/PrologSimulationPanel';
 import { GrammarsHub } from '@/components/grammars/GrammarsHub';
 import { LanguagesHub } from '@/components/languages/LanguagesHub';
 import { ExportDialog } from '@/components/ExportDialog';
@@ -226,7 +227,12 @@ export default function Home() {
 
         {/* Prolog Knowledge Base Tab */}
         {activeTab === 'prolog' && selectedWorld && (
-          <PrologKnowledgeBase worldId={selectedWorld} />
+          <div className="space-y-6">
+            <PrologKnowledgeBase worldId={selectedWorld} />
+            <div className="px-6">
+              <PrologSimulationPanel worldId={selectedWorld} />
+            </div>
+          </div>
         )}
 
         {/* Quests Tab */}

@@ -150,6 +150,7 @@ const RuleSchema = new Schema({
   worldId: { type: String, required: false, default: null }, // Optional - null for base rules
   isBase: { type: Boolean, default: false }, // true for global rules, false for world-specific
   content: { type: String, required: true },
+  prologContent: { type: String, default: null },
   name: { type: String, required: true },
   sourceFormat: { type: String, required: true },
   ruleType: { type: String, required: true },
@@ -358,6 +359,7 @@ const ActionSchema = new Schema({
   targetType: { type: String, default: null },
   prerequisites: { type: Schema.Types.Mixed, default: [] },
   effects: { type: Schema.Types.Mixed, default: [] },
+  prologContent: { type: String, default: null },
   tags: { type: [String], default: [] },
   customData: { type: Schema.Types.Mixed, default: null },
   isActive: { type: Boolean, default: true },
@@ -413,6 +415,7 @@ const QuestSchema = new Schema({
   expiresAt: { type: Date, default: null },
   conversationContext: { type: String, default: null },
   tags: { type: Schema.Types.Mixed, default: null },
+  prologContent: { type: String, default: null },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
@@ -1338,15 +1341,15 @@ export class MongoStorage implements IStorage {
     const startTime = Date.now();
     
     // Build projection based on whether we need content
-    const projection: Record<string, 1 | 0> = includeContent 
-      ? { _id: 1, worldId: 1, isBase: 1, content: 1, name: 1, sourceFormat: 1, 
-          ruleType: 1, category: 1, priority: 1, likelihood: 1, 
-          conditions: 1, effects: 1, tags: 1, dependencies: 1, 
-          isActive: 1, description: 1, isCompiled: 1, compiledOutput: 1, 
+    const projection: Record<string, 1 | 0> = includeContent
+      ? { _id: 1, worldId: 1, isBase: 1, content: 1, prologContent: 1, name: 1, sourceFormat: 1,
+          ruleType: 1, category: 1, priority: 1, likelihood: 1,
+          conditions: 1, effects: 1, tags: 1, dependencies: 1,
+          isActive: 1, description: 1, isCompiled: 1, compiledOutput: 1,
           createdAt: 1, updatedAt: 1 }
-      : { _id: 1, worldId: 1, isBase: 1, name: 1, sourceFormat: 1, 
-          ruleType: 1, category: 1, priority: 1, likelihood: 1, 
-          tags: 1, dependencies: 1, isActive: 1, description: 1, 
+      : { _id: 1, worldId: 1, isBase: 1, name: 1, sourceFormat: 1,
+          ruleType: 1, category: 1, priority: 1, likelihood: 1,
+          tags: 1, dependencies: 1, isActive: 1, description: 1,
           isCompiled: 1, createdAt: 1, updatedAt: 1 };
     
     console.log(`[MongoStorage] Using projection:`, projection);

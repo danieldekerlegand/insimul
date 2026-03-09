@@ -10,6 +10,7 @@
 
 import { storage } from '../../db/storage';
 import type { Character } from '@shared/schema';
+import { prologShouldSocialize } from './prolog-queries.js';
 
 // ============================================================================
 // PERSONALITY TYPES & CONSTANTS
@@ -237,15 +238,25 @@ export function getWorkEthic(personality: BigFivePersonality): number {
  * Should character attend a social event?
  * Based on TotT's event attendance patterns
  */
-export function shouldAttendSocialEvent(
+export async function shouldAttendSocialEvent(
   personality: BigFivePersonality,
   eventSize: number,
-  isRequired: boolean
-): { shouldAttend: boolean; probability: number } {
+  isRequired: boolean,
+  worldId?: string,
+  characterId?: string
+): Promise<{ shouldAttend: boolean; probability: number }> {
   if (isRequired) return { shouldAttend: true, probability: 1.0 };
-  
+
+  // Check Prolog for socialization gating
+  if (worldId && characterId) {
+    const prologResult = await prologShouldSocialize(worldId, characterId);
+    if (prologResult !== null && !prologResult) {
+      return { shouldAttend: false, probability: 0.05 };
+    }
+  }
+
   const groupPref = getPreferredGroupSize(personality);
-  
+
   // Base probability from extroversion
   let probability = personality.extroversion * 0.6 + 0.2; // 0.2 to 0.8
   

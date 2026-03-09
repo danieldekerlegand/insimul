@@ -14,6 +14,7 @@
 
 import { storage } from '../../db/storage';
 import type { Character } from '@shared/schema';
+import { prologHasAttraction } from './prolog-queries.js';
 
 // ============================================================================
 // TYPES & CONSTANTS
@@ -178,14 +179,27 @@ export function generateSexualityData(
 /**
  * Check romantic compatibility based on orientation
  */
-export function checkRomanticCompatibility(
+export async function checkRomanticCompatibility(
   character1: Character,
-  character2: Character
-): {
+  character2: Character,
+  worldId?: string
+): Promise<{
   compatible: boolean;
   compatibilityScore: number; // 0-1
   reason?: string;
-} {
+}> {
+  // Check Prolog for attraction data first
+  if (worldId) {
+    const prologAttraction = await prologHasAttraction(worldId, character1.id, character2.id);
+    if (prologAttraction !== null) {
+      return {
+        compatible: prologAttraction,
+        compatibilityScore: prologAttraction ? 0.8 : 0.05,
+        reason: prologAttraction ? 'Prolog: mutual attraction' : 'Prolog: no attraction'
+      };
+    }
+  }
+
   const data1 = getSexualityData(character1);
   const data2 = getSexualityData(character2);
   

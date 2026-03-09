@@ -13,6 +13,7 @@ import { storage } from '../../db/storage';
 import type { Character } from '@shared/schema';
 import { getRelationshipDetails, updateRelationship } from './social-dynamics-system.js';
 import { initializeMentalModel } from './knowledge-system.js';
+import { prologCanMarry, prologCanConceive, prologDeathRisk, prologAssertFact } from './prolog-queries.js';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -277,37 +278,46 @@ export async function goOnDate(
 export async function proposeMarriage(
   proposerId: string,
   proposedToId: string,
-  currentTimestep: number
+  currentTimestep: number,
+  worldId?: string
 ): Promise<{ accepted: boolean; reason?: string }> {
+  // Check Prolog eligibility first
+  if (worldId) {
+    const prologResult = await prologCanMarry(worldId, proposerId, proposedToId);
+    if (prologResult === false) {
+      return { accepted: false, reason: 'Prolog rules forbid this marriage (age, kinship, or marital status)' };
+    }
+  }
+
   const key = [proposerId, proposedToId].sort().join('_');
   const relationship = romanticRelationships.get(key);
-  
+
   if (!relationship || relationship.status !== 'dating') {
     return { accepted: false, reason: 'Not dating' };
   }
-  
+
   const relationshipDetails = await getRelationshipDetails(proposerId, proposedToId, 1900);
-  
+
   // Check criteria
   if (relationshipDetails.charge < CONFIG.minChargeForMarriage) {
     return { accepted: false, reason: 'Insufficient relationship charge' };
   }
-  
+
   if (relationshipDetails.trust < CONFIG.minTrustForMarriage) {
     return { accepted: false, reason: 'Insufficient trust' };
   }
-  
+
   const datingDuration = currentTimestep - (relationship.startedDating || 0);
   if (datingDuration < CONFIG.minDatingPeriodForProposal) {
     return { accepted: false, reason: 'Haven not dated long enough' };
   }
-  
+
   // Accepted!
   relationship.status = 'engaged';
   relationship.engagementDate = currentTimestep;
-  
+
   romanticRelationships.set(key, relationship);
-  
+
   return { accepted: true };
 }
 
@@ -346,7 +356,16 @@ export async function marry(
   
   // Significant relationship boost
   await updateRelationship(char1Id, char2Id, 10, 1900);
-  
+
+  // Sync marriage to Prolog
+  const worldId = (char1 as any)?.worldId;
+  if (worldId) {
+    const id1 = char1Id.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    const id2 = char2Id.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    await prologAssertFact(worldId, `married_to(${id1}, ${id2})`);
+    await prologAssertFact(worldId, `married_to(${id2}, ${id1})`);
+  }
+
   romanticRelationships.set(key, relationship);
   return relationship;
 }
@@ -388,21 +407,27 @@ export async function divorce(
 // REPRODUCTION
 // ============================================================================
 
-export async function checkPregnancyEligibility(characterId: string): Promise<boolean> {
+export async function checkPregnancyEligibility(characterId: string, worldId?: string): Promise<boolean> {
+  // Check Prolog first
+  if (worldId) {
+    const prologResult = await prologCanConceive(worldId, characterId);
+    if (prologResult !== null) return prologResult;
+  }
+
   const character = await storage.getCharacter(characterId);
   if (!character) return false;
-  
+
   const age = character.age || 0;
   if (age < CONFIG.minAgeForPregnancy || age > CONFIG.maxAgeForPregnancy) {
     return false;
   }
-  
+
   // Must be married
   if (!character.spouseId) return false;
-  
+
   // Not already pregnant
   if (activePregnancies.has(characterId)) return false;
-  
+
   return true;
 }
 
@@ -634,6 +659,30 @@ export function calculateDeathProbability(age: number): number {
   return CONFIG.deathProbabilities.age90;
 }
 
+/**
+ * Enhanced death probability check using Prolog risk levels.
+ * Falls back to age-based calculation if Prolog unavailable.
+ */
+export async function calculateDeathProbabilityAsync(
+  characterId: string,
+  age: number,
+  worldId?: string
+): Promise<number> {
+  if (worldId) {
+    const risk = await prologDeathRisk(worldId, characterId);
+    if (risk) {
+      switch (risk) {
+        case 'low': return 0.001;
+        case 'medium': return 0.005;
+        case 'high': return 0.02;
+        case 'very_high': return 0.05;
+        case 'critical': return 0.1;
+      }
+    }
+  }
+  return calculateDeathProbability(age);
+}
+
 export async function die(
   characterId: string,
   cause: DeathCause,
@@ -662,7 +711,14 @@ export async function die(
     isAlive: false,
     deathYear: timestepToYear(currentTimestep)
   });
-  
+
+  // Sync death to Prolog
+  const worldId = (character as any).worldId;
+  if (worldId) {
+    const id = characterId.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    await prologAssertFact(worldId, `dead(${id})`);
+  }
+
   return death;
 }
 

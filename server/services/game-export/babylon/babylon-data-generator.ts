@@ -151,5 +151,13 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     });
   }
 
+  // Prolog knowledge base
+  if (ir.systems.knowledgeBase) {
+    files.push({
+      path: 'public/data/knowledge-base.pl',
+      content: ir.systems.knowledgeBase,
+    });
+  }
+
   return files;
 }
