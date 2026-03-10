@@ -6,8 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import {
-  Zap, Plus, ChevronRight, ChevronDown, Edit, Globe, Trash2,
-  Target, Clock, Battery, TrendingUp, Tag, RefreshCw,
+  Zap, Plus, ChevronRight, ChevronDown, Edit, Globe, Trash2, RefreshCw,
 } from 'lucide-react';
 import { ActionCreateDialog } from '../ActionCreateDialog';
 import { ActionEditDialog } from '../ActionEditDialog';
@@ -33,20 +32,16 @@ interface Action {
   duration: number | null;
   difficulty: number | null;
   energyCost: number | null;
-  prerequisites: any[];
-  effects: any[];
-  sideEffects: any[];
   targetType: string | null;
   requiresTarget: boolean | null;
   range: number | null;
   isAvailable: boolean | null;
   cooldown: number | null;
-  triggerConditions: any[];
   verbPast: string | null;
   verbPresent: string | null;
   narrativeTemplates: string[];
   sourceFormat: string | null;
-  prologContent: string | null;
+  content: string | null;
   customData: Record<string, any>;
   tags: string[];
   createdAt: Date | null;
@@ -85,9 +80,6 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
 
   // Selection
   const [selectedAction, setSelectedAction] = useState<Action | null>(null);
-
-  // Code view toggle
-  const [codeView, setCodeView] = useState<'source' | 'prolog'>('source');
 
   // Right panel tab
   const [rightTab, setRightTab] = useState<'details' | 'predicates' | 'query'>('details');
@@ -231,7 +223,7 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
 
   const selectAction = async (action: Action) => {
     setSelectedAction(action);
-    // Fetch full details including prologContent
+    // Fetch full details including content
     try {
       const res = await fetch(`/api/actions/${action.id}`);
       if (res.ok) {
@@ -404,139 +396,47 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
               </div>
             </div>
 
-            {/* Properties Grid */}
-            <ScrollArea className="flex-1">
-              <div className="p-4 space-y-4">
-                {/* Core Properties */}
-                <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Properties</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="p-2 bg-muted/30 rounded-lg">
-                      <div className="flex items-center gap-1.5 text-muted-foreground mb-0.5">
-                        <Tag className="h-3 w-3" />
-                        <span className="text-[10px] uppercase tracking-wider">Category</span>
-                      </div>
-                      <p className="text-sm font-medium">{selectedAction.category || 'None'}</p>
-                    </div>
-                    <div className="p-2 bg-muted/30 rounded-lg">
-                      <div className="flex items-center gap-1.5 text-muted-foreground mb-0.5">
-                        <Clock className="h-3 w-3" />
-                        <span className="text-[10px] uppercase tracking-wider">Duration</span>
-                      </div>
-                      <p className="text-sm font-medium">{selectedAction.duration || 0} steps</p>
-                    </div>
-                    <div className="p-2 bg-muted/30 rounded-lg">
-                      <div className="flex items-center gap-1.5 text-muted-foreground mb-0.5">
-                        <Battery className="h-3 w-3" />
-                        <span className="text-[10px] uppercase tracking-wider">Energy</span>
-                      </div>
-                      <p className="text-sm font-medium">{selectedAction.energyCost || 0}</p>
-                    </div>
-                    <div className="p-2 bg-muted/30 rounded-lg">
-                      <div className="flex items-center gap-1.5 text-muted-foreground mb-0.5">
-                        <TrendingUp className="h-3 w-3" />
-                        <span className="text-[10px] uppercase tracking-wider">Difficulty</span>
-                      </div>
-                      <p className="text-sm font-medium">{Math.round((selectedAction.difficulty || 0) * 100)}%</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Targeting */}
-                <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Targeting & Scope</h3>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="p-2 bg-muted/30 rounded-lg">
-                      <div className="flex items-center gap-1.5 text-muted-foreground mb-0.5">
-                        <Target className="h-3 w-3" />
-                        <span className="text-[10px] uppercase tracking-wider">Target</span>
-                      </div>
-                      <p className="text-sm font-medium capitalize">{selectedAction.targetType || 'None'}</p>
-                    </div>
-                    <div className="p-2 bg-muted/30 rounded-lg">
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Requires Target</span>
-                      <p className="text-sm font-medium">{selectedAction.requiresTarget ? 'Yes' : 'No'}</p>
-                    </div>
-                    <div className="p-2 bg-muted/30 rounded-lg">
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Range</span>
-                      <p className="text-sm font-medium">{selectedAction.range === 0 ? 'Same location' : `${selectedAction.range} units`}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Narrative */}
-                {(selectedAction.verbPresent || selectedAction.verbPast) && (
-                  <div>
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Narrative</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      {selectedAction.verbPresent && (
-                        <div className="p-2 bg-muted/30 rounded-lg">
-                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Present Tense</span>
-                          <p className="text-sm font-medium">{selectedAction.verbPresent}</p>
-                        </div>
-                      )}
-                      {selectedAction.verbPast && (
-                        <div className="p-2 bg-muted/30 rounded-lg">
-                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Past Tense</span>
-                          <p className="text-sm font-medium">{selectedAction.verbPast}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Narrative Templates */}
-                {selectedAction.narrativeTemplates && selectedAction.narrativeTemplates.length > 0 && (
-                  <div>
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                      Narrative Templates ({selectedAction.narrativeTemplates.length})
-                    </h3>
-                    <div className="space-y-1.5">
-                      {selectedAction.narrativeTemplates.map((template, i) => (
-                        <div key={i} className="p-2 bg-muted/30 rounded-lg text-sm font-mono">
-                          {template}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Additional Info */}
-                <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Additional</h3>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="p-2 bg-muted/30 rounded-lg">
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Cooldown</span>
-                      <p className="text-sm font-medium">{selectedAction.cooldown || 0} steps</p>
-                    </div>
-                    <div className="p-2 bg-muted/30 rounded-lg">
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Available</span>
-                      <p className="text-sm font-medium">{selectedAction.isAvailable !== false ? 'Yes' : 'No'}</p>
-                    </div>
-                    {selectedAction.sourceFormat && (
-                      <div className="p-2 bg-muted/30 rounded-lg">
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">System</span>
-                        <p className="text-sm font-medium">{selectedAction.sourceFormat}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Tags */}
-                {selectedAction.tags && selectedAction.tags.length > 0 && (
-                  <div>
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tags</h3>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedAction.tags.map((tag, i) => (
-                        <Badge key={i} variant="secondary" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
+            {/* Prolog Code View */}
+            <div className="flex-1 min-h-0 flex flex-col">
+              <div className="px-4 py-2 shrink-0 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <Zap className="w-3.5 h-3.5" />
+                <span>Prolog</span>
               </div>
-            </ScrollArea>
+              <ScrollArea className="flex-1 mx-4 mb-4">
+                <div className="bg-purple-500/5 p-4 rounded-lg overflow-x-auto border border-purple-500/10">
+                  {selectedAction.content ? (
+                    <PrologSyntaxHighlight code={selectedAction.content} />
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground italic">No Prolog content available.</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-7"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`/api/actions/${selectedAction.id}`, {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ name: selectedAction.name }),
+                            });
+                            if (res.ok) {
+                              const updated = await res.json();
+                              setSelectedAction(updated);
+                              toast({ title: 'Prolog Generated' });
+                            }
+                          } catch (e) {
+                            toast({ title: 'Error', description: 'Failed to generate Prolog', variant: 'destructive' });
+                          }
+                        }}
+                      >
+                        <RefreshCw className="w-3 h-3 mr-1" /> Generate Prolog
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -583,148 +483,117 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
         {rightTab === 'details' && (
         <ScrollArea className="flex-1">
           {selectedAction ? (
-            <div className="p-3 space-y-4">
-              {/* Source / Prolog Toggle */}
-              <div className="flex gap-1 p-0.5 bg-muted/50 rounded-md">
-                <button
-                  className={`flex-1 px-2 py-1 text-[10px] font-medium rounded transition-colors ${
-                    codeView === 'source'
-                      ? 'bg-background shadow-sm text-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                  onClick={() => setCodeView('source')}
-                >
-                  Source
-                </button>
-                <button
-                  className={`flex-1 px-2 py-1 text-[10px] font-medium rounded transition-colors ${
-                    codeView === 'prolog'
-                      ? 'bg-purple-500/20 shadow-sm text-purple-600 dark:text-purple-400'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                  onClick={() => setCodeView('prolog')}
-                >
-                  Prolog
-                </button>
-              </div>
-
-              {codeView === 'prolog' ? (
-                <div className="p-2 bg-purple-500/5 border border-purple-500/10 rounded-lg">
-                  {selectedAction.prologContent ? (
-                    <PrologSyntaxHighlight code={selectedAction.prologContent} className="text-[11px]" />
-                  ) : (
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground italic">No Prolog content generated yet</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-[10px] h-6"
-                        onClick={async () => {
-                          try {
-                            const res = await fetch(`/api/actions/${selectedAction.id}`, {
-                              method: 'PUT',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ name: selectedAction.name }),
-                            });
-                            if (res.ok) {
-                              const updated = await res.json();
-                              setSelectedAction(updated);
-                              toast({ title: 'Prolog Generated' });
-                            }
-                          } catch (e) {
-                            toast({ title: 'Error', description: 'Failed to generate Prolog', variant: 'destructive' });
-                          }
-                        }}
-                      >
-                        <RefreshCw className="w-3 h-3 mr-1" /> Generate Prolog
-                      </Button>
-                    </div>
-                  )}
+            <div className="p-3 space-y-3">
+              {/* Core Properties */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Category</span>
+                  <span className="font-mono text-xs">{selectedAction.category || 'none'}</span>
                 </div>
-              ) : (
-              <>
-
-              {/* Prerequisites */}
-              <div>
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  Prerequisites ({selectedAction.prerequisites?.length || 0})
-                </h4>
-                {selectedAction.prerequisites && selectedAction.prerequisites.length > 0 ? (
-                  <div className="space-y-1.5">
-                    {selectedAction.prerequisites.map((prereq: any, i: number) => (
-                      <div key={i} className="p-2 bg-muted/30 rounded-lg">
-                        <pre className="text-[11px] whitespace-pre-wrap break-all font-mono">
-                          {typeof prereq === 'string' ? prereq : JSON.stringify(prereq, null, 2)}
-                        </pre>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground italic">No prerequisites</p>
-                )}
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Action Type</span>
+                  <span className="font-mono text-xs">{selectedAction.actionType || 'none'}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Duration</span>
+                  <span className="font-mono text-xs">{selectedAction.duration || 0} steps</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Energy Cost</span>
+                  <span className="font-mono text-xs">{selectedAction.energyCost || 0}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Difficulty</span>
+                  <span className="font-mono text-xs">{Math.round((selectedAction.difficulty || 0) * 100)}%</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Cooldown</span>
+                  <span className="font-mono text-xs">{selectedAction.cooldown || 0} steps</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Available</span>
+                  <Badge variant={selectedAction.isAvailable !== false ? 'default' : 'secondary'} className="text-xs">
+                    {selectedAction.isAvailable !== false ? 'Yes' : 'No'}
+                  </Badge>
+                </div>
               </div>
 
-              {/* Effects */}
-              <div>
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  Effects ({selectedAction.effects?.length || 0})
-                </h4>
-                {selectedAction.effects && selectedAction.effects.length > 0 ? (
-                  <div className="space-y-1.5">
-                    {selectedAction.effects.map((effect: any, i: number) => (
-                      <div key={i} className="p-2 bg-muted/30 rounded-lg">
-                        <pre className="text-[11px] whitespace-pre-wrap break-all font-mono">
-                          {typeof effect === 'string' ? effect : JSON.stringify(effect, null, 2)}
-                        </pre>
-                      </div>
-                    ))}
+              {/* Targeting */}
+              <div className="space-y-1">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Targeting</span>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Target Type</span>
+                    <span className="font-mono text-xs capitalize">{selectedAction.targetType || 'none'}</span>
                   </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground italic">No effects</p>
-                )}
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Requires Target</span>
+                    <span className="font-mono text-xs">{selectedAction.requiresTarget ? 'Yes' : 'No'}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Range</span>
+                    <span className="font-mono text-xs">{selectedAction.range === 0 ? 'Same location' : `${selectedAction.range ?? 0} units`}</span>
+                  </div>
+                </div>
               </div>
 
-              {/* Side Effects */}
-              <div>
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  Side Effects ({selectedAction.sideEffects?.length || 0})
-                </h4>
-                {selectedAction.sideEffects && selectedAction.sideEffects.length > 0 ? (
-                  <div className="space-y-1.5">
-                    {selectedAction.sideEffects.map((se: any, i: number) => (
-                      <div key={i} className="p-2 bg-muted/30 rounded-lg">
-                        <pre className="text-[11px] whitespace-pre-wrap break-all font-mono">
-                          {typeof se === 'string' ? se : JSON.stringify(se, null, 2)}
-                        </pre>
+              {/* Narrative */}
+              {(selectedAction.verbPresent || selectedAction.verbPast) && (
+                <div className="space-y-1">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Narrative</span>
+                  <div className="space-y-2">
+                    {selectedAction.verbPresent && (
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">Present</span>
+                        <span className="font-mono text-xs">{selectedAction.verbPresent}</span>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground italic">No side effects</p>
-                )}
-              </div>
-
-              {/* Trigger Conditions */}
-              <div>
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  Trigger Conditions ({selectedAction.triggerConditions?.length || 0})
-                </h4>
-                {selectedAction.triggerConditions && selectedAction.triggerConditions.length > 0 ? (
-                  <div className="space-y-1.5">
-                    {selectedAction.triggerConditions.map((tc: any, i: number) => (
-                      <div key={i} className="p-2 bg-muted/30 rounded-lg">
-                        <pre className="text-[11px] whitespace-pre-wrap break-all font-mono">
-                          {typeof tc === 'string' ? tc : JSON.stringify(tc, null, 2)}
-                        </pre>
+                    )}
+                    {selectedAction.verbPast && (
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">Past</span>
+                        <span className="font-mono text-xs">{selectedAction.verbPast}</span>
                       </div>
-                    ))}
+                    )}
                   </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground italic">No trigger conditions</p>
-                )}
-              </div>
-              </>
+                </div>
               )}
+
+              {/* Narrative Templates */}
+              {selectedAction.narrativeTemplates && selectedAction.narrativeTemplates.length > 0 && (
+                <div className="space-y-1">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Templates ({selectedAction.narrativeTemplates.length})
+                  </span>
+                  <div className="space-y-1">
+                    {selectedAction.narrativeTemplates.map((template, i) => (
+                      <div key={i} className="px-2 py-1 text-xs font-mono rounded bg-muted/30 break-words">
+                        {template}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedAction.description && (
+                <div className="space-y-1">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Description</span>
+                  <p className="text-sm">{selectedAction.description}</p>
+                </div>
+              )}
+
+              {/* Tags */}
+              <div className="space-y-1">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tags</span>
+                {selectedAction.tags?.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {selectedAction.tags.map((tag, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs">{tag}</Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">No tags</p>
+                )}
+              </div>
             </div>
           ) : (
             <div className="p-3 text-xs text-muted-foreground italic">

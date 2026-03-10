@@ -34,7 +34,35 @@ export interface WorldLanguageContext {
   targetLanguage: string;
   worldLanguages: WorldLanguage[];
   primaryLanguage: WorldLanguage | null;
+  learningTargetLanguage: WorldLanguage | null;
   gameType?: string;
+}
+
+/**
+ * Find the WorldLanguage marked as the learning target.
+ */
+export function getLearningTargetLanguage(worldLanguages: WorldLanguage[]): WorldLanguage | null {
+  return worldLanguages.find(l => l.isLearningTarget) || null;
+}
+
+/**
+ * Build a WorldLanguageContext from WorldLanguage records and an optional
+ * deprecated targetLanguage string (for backward compatibility).
+ */
+export function buildWorldLanguageContext(
+  worldLanguages: WorldLanguage[],
+  gameType?: string,
+  deprecatedTargetLanguage?: string | null,
+): WorldLanguageContext {
+  const learningTarget = getLearningTargetLanguage(worldLanguages);
+  const primary = worldLanguages.find(l => l.isPrimary) || null;
+  return {
+    targetLanguage: learningTarget?.name || deprecatedTargetLanguage || 'English',
+    worldLanguages,
+    primaryLanguage: primary,
+    learningTargetLanguage: learningTarget,
+    gameType,
+  };
 }
 
 export interface CharacterInfo {

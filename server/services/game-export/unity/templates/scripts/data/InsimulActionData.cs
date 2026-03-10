@@ -3,21 +3,12 @@ using System;
 namespace Insimul.Data
 {
     [Serializable]
-    public class InsimulActionEffectData
-    {
-        public string category;
-        public string type;
-        public string operatorStr;
-        public float value;
-        public string first;
-    }
-
-    [Serializable]
     public class InsimulActionData
     {
         public string id;
         public string name;
         public string description;
+        public string content; // Prolog content — single source of truth
         public string actionType;
         public string category;
         public float duration = 1f;
@@ -28,6 +19,12 @@ namespace Insimul.Data
         public float cooldown;
         public bool isActive = true;
         public string[] tags;
-        public InsimulActionEffectData[] effects;
+        public string verbPast;
+        public string verbPresent;
+        public string[] narrativeTemplates;
+        public string targetType;
+        public bool isBase;
+        public string sourceFormat;
+        public string customData; // JSON string
     }
 }

@@ -2,9 +2,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from './db/storage';
 import { prologAutoSync } from './engines/prolog/prolog-auto-sync';
-import { convertRuleToProlog } from '../shared/prolog/rule-converter';
 import { convertActionToProlog } from '../shared/prolog/action-converter';
 import { convertQuestToProlog } from '../shared/prolog/quest-converter';
+import { extractAllMetadata, extractActionMetadata } from '../shared/prolog/prolog-metadata-extractor';
 import { nameGenerator } from './generators/name-generator.js';
 import { isGeminiConfigured, getModel, GEMINI_MODELS } from './config/gemini.js';
 import {
@@ -385,7 +385,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Batch convert world rules to Prolog
+  // Batch convert world rules to Prolog — rules' content IS Prolog now, so this
+  // just extracts metadata from content and updates DB columns.
   app.post("/api/worlds/:worldId/rules/convert-all", async (req, res) => {
     try {
       const rules = await storage.getRulesByWorld(req.params.worldId);
@@ -394,18 +395,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const errors: string[] = [];
 
       for (const rule of rules) {
-        if (rule.prologContent) {
+        if (!rule.content) {
           skipped++;
           continue;
         }
         try {
-          const result = convertRuleToProlog(rule as any);
-          if (result.prologContent) {
-            await storage.updateRule(rule.id, { prologContent: result.prologContent });
-            converted++;
-          } else {
-            skipped++;
-          }
+          const meta = extractAllMetadata(rule.content);
+          await storage.updateRule(rule.id, {
+            ...(meta.priority != null ? { priority: meta.priority } : {}),
+            ...(meta.likelihood != null ? { likelihood: meta.likelihood } : {}),
+            ...(meta.ruleType ? { ruleType: meta.ruleType } : {}),
+            ...(meta.category ? { category: meta.category } : {}),
+          });
+          converted++;
         } catch (err: any) {
           errors.push(`Rule "${rule.name}" (${rule.id}): ${err.message || String(err)}`);
         }
@@ -490,7 +492,7 @@ app.get("/api/rules/base", async (req, res) => {
   }
 });
 
-// Batch convert base rules to Prolog
+// Batch convert base rules — content IS Prolog now, extract metadata only.
 app.post("/api/rules/base/convert-all", async (req, res) => {
   try {
     const rules = await storage.getBaseRules({ includeContent: true, limit: 1000 });
@@ -499,13 +501,18 @@ app.post("/api/rules/base/convert-all", async (req, res) => {
     const errors: string[] = [];
 
     for (const rule of rules) {
-      if (!rule.content || rule.prologContent) {
+      if (!rule.content) {
         skipped++;
         continue;
       }
       try {
-        const result = convertRuleToProlog(rule as any);
-        await storage.updateRule(rule.id, { prologContent: result.prologContent });
+        const meta = extractAllMetadata(rule.content);
+        await storage.updateRule(rule.id, {
+          ...(meta.priority != null ? { priority: meta.priority } : {}),
+          ...(meta.likelihood != null ? { likelihood: meta.likelihood } : {}),
+          ...(meta.ruleType ? { ruleType: meta.ruleType } : {}),
+          ...(meta.category ? { category: meta.category } : {}),
+        });
         converted++;
       } catch (err: any) {
         errors.push(`Rule "${rule.name}" (${rule.id}): ${err.message || String(err)}`);
@@ -682,10 +689,8 @@ app.get("/api/rules", async (req, res) => {
         worldId: data.worldId,
         sourceFormat: data.sourceFormat,
         hasContent: !!data.content,
-        hasConditions: !!data.conditions,
-        hasEffects: !!data.effects
       });
-      
+
       const validatedData = insertRuleSchema.parse(data);
       console.log('After validation:', {
         name: validatedData.name,
@@ -694,15 +699,16 @@ app.get("/api/rules", async (req, res) => {
         worldIdType: typeof validatedData.worldId
       });
 
-      // Auto-generate Prolog content if not already provided
-      if (!validatedData.prologContent) {
+      // Extract metadata from Prolog content to populate DB columns
+      if (validatedData.content) {
         try {
-          const conversion = convertRuleToProlog(validatedData as any);
-          if (conversion.prologContent) {
-            (validatedData as any).prologContent = conversion.prologContent;
-          }
+          const meta = extractAllMetadata(validatedData.content);
+          if (meta.priority != null) (validatedData as any).priority = meta.priority;
+          if (meta.likelihood != null) (validatedData as any).likelihood = meta.likelihood;
+          if (meta.ruleType) (validatedData as any).ruleType = meta.ruleType;
+          if (meta.category) (validatedData as any).category = meta.category;
         } catch (e) {
-          console.warn('[PrologConvert] Failed to convert rule:', e);
+          console.warn('[PrologMetadata] Failed to extract metadata from rule content:', e);
         }
       }
 
@@ -749,19 +755,16 @@ app.get("/api/rules", async (req, res) => {
     try {
       const validatedData = insertRuleSchema.partial().parse(req.body);
 
-      // Re-generate Prolog content when rule content/conditions/effects change
-      if (validatedData.content || validatedData.conditions || validatedData.effects) {
+      // Extract metadata from Prolog content when content changes
+      if (validatedData.content) {
         try {
-          const existing = await storage.getRuleWithContent(req.params.id);
-          if (existing) {
-            const merged = { ...existing, ...validatedData };
-            const conversion = convertRuleToProlog(merged as any);
-            if (conversion.prologContent) {
-              (validatedData as any).prologContent = conversion.prologContent;
-            }
-          }
+          const meta = extractAllMetadata(validatedData.content);
+          if (meta.priority != null) (validatedData as any).priority = meta.priority;
+          if (meta.likelihood != null) (validatedData as any).likelihood = meta.likelihood;
+          if (meta.ruleType) (validatedData as any).ruleType = meta.ruleType;
+          if (meta.category) (validatedData as any).category = meta.category;
         } catch (e) {
-          console.warn('[PrologConvert] Failed to convert rule on update:', e);
+          console.warn('[PrologMetadata] Failed to extract metadata from rule content:', e);
         }
       }
 
@@ -1162,13 +1165,8 @@ app.get("/api/rules", async (req, res) => {
         ruleType: 'trigger',
         priority: 5,
         likelihood: 1.0,
-        conditions: [],
-        effects: [],
         tags: [],
-        dependencies: [],
         isActive: true,
-        isCompiled: false,
-        compiledOutput: {},
       });
 
       res.status(201).json({
@@ -1455,7 +1453,6 @@ app.get("/api/rules", async (req, res) => {
         characterId: req.params.id,
         action: selectedRule.name,
         ruleId: selectedRule.id,
-        effects: selectedRule.effects
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to select action" });
@@ -3841,18 +3838,18 @@ app.get("/api/rules", async (req, res) => {
             ]);
             let prologConverted = 0;
             for (const rule of worldRules) {
-              if (!rule.prologContent && rule.content) {
-                try { const r = convertRuleToProlog(rule as any); if (r.prologContent) { await storage.updateRule(rule.id, { prologContent: r.prologContent }); prologConverted++; } } catch {}
+              if (rule.content) {
+                try { const meta = extractAllMetadata(rule.content); await storage.updateRule(rule.id, { ...(meta.priority != null ? { priority: meta.priority } : {}), ...(meta.ruleType ? { ruleType: meta.ruleType } : {}) }); prologConverted++; } catch {}
               }
             }
             for (const action of worldActions) {
-              if (!action.prologContent) {
-                try { const r = convertActionToProlog(action as any); if (r.prologContent) { await storage.updateAction(action.id, { prologContent: r.prologContent }); prologConverted++; } } catch {}
+              if (!action.content) {
+                try { const r = convertActionToProlog(action as any); if (r.prologContent) { await storage.updateAction(action.id, { content: r.prologContent }); prologConverted++; } } catch {}
               }
             }
             for (const quest of worldQuests) {
-              if (!quest.prologContent) {
-                try { const r = convertQuestToProlog(quest as any); if (r.prologContent) { await storage.updateQuest(quest.id, { prologContent: r.prologContent }); prologConverted++; } } catch {}
+              if (!quest.content) {
+                try { const r = convertQuestToProlog(quest as any); if (r.prologContent) { await storage.updateQuest(quest.id, { content: r.prologContent }); prologConverted++; } } catch {}
               }
             }
             if (prologConverted > 0) console.log(`🔮 Auto-generated Prolog content for ${prologConverted} entities`);
@@ -4022,18 +4019,18 @@ app.get("/api/rules", async (req, res) => {
         ]);
         let prologConverted = 0;
         for (const rule of worldRules) {
-          if (!rule.prologContent && rule.content) {
-            try { const r = convertRuleToProlog(rule as any); if (r.prologContent) { await storage.updateRule(rule.id, { prologContent: r.prologContent }); prologConverted++; } } catch {}
+          if (rule.content) {
+            try { const meta = extractAllMetadata(rule.content); await storage.updateRule(rule.id, { ...(meta.priority != null ? { priority: meta.priority } : {}), ...(meta.ruleType ? { ruleType: meta.ruleType } : {}) }); prologConverted++; } catch {}
           }
         }
         for (const action of worldActions) {
-          if (!action.prologContent) {
-            try { const r = convertActionToProlog(action as any); if (r.prologContent) { await storage.updateAction(action.id, { prologContent: r.prologContent }); prologConverted++; } } catch {}
+          if (!action.content) {
+            try { const r = convertActionToProlog(action as any); if (r.prologContent) { await storage.updateAction(action.id, { content: r.prologContent }); prologConverted++; } } catch {}
           }
         }
         for (const quest of worldQuests) {
-          if (!quest.prologContent) {
-            try { const r = convertQuestToProlog(quest as any); if (r.prologContent) { await storage.updateQuest(quest.id, { prologContent: r.prologContent }); prologConverted++; } } catch {}
+          if (!quest.content) {
+            try { const r = convertQuestToProlog(quest as any); if (r.prologContent) { await storage.updateQuest(quest.id, { content: r.prologContent }); prologConverted++; } } catch {}
           }
         }
         if (prologConverted > 0) console.log(`🔮 Auto-generated Prolog content for ${prologConverted} entities`);
@@ -4206,7 +4203,7 @@ app.get("/api/rules", async (req, res) => {
   // Complete world generation (societies + rules + actions + quests)
   app.post("/api/generate/complete-world", async (req, res) => {
     try {
-      const { worldId, worldType, customPrompt, customLabel, gameType, worldName, worldDescription } = req.body;
+      const { worldId, worldType, customPrompt, customLabel, gameType, worldName, worldDescription, worldLanguages: requestedWorldLanguages } = req.body;
       const { progressTracker } = await import("./utils/progress-tracker.js");
       const taskId = `world-gen-${worldId}-${Date.now()}`;
       
@@ -4301,73 +4298,145 @@ app.get("/api/rules", async (req, res) => {
             progressTracker.updateProgress(taskId, 'geography-complete', `Created ${numSettlements} settlements with ${totalPopulation} characters`, 40);
       }
 
-      // Step 1b: Generate default world language for language-learning worlds
-      if (gameType === 'language-learning') {
+      // Step 1b: Create world language records
+      // For language-learning worlds: create a "real" WorldLanguage for the target
+      // language (isLearningTarget=true) and optionally a constructed conlang.
+      if (gameType === 'language-learning' && worldTargetLanguage) {
         try {
-          if (worldTargetLanguage) {
-            console.log(`🗣️ Generating default language for target "${worldTargetLanguage}"...`);
+          console.log(`🗣️ Creating world language records for target "${worldTargetLanguage}"...`);
 
-            const baseMap: Record<string, string[]> = {
-              "Spanish": ["spanish"],
-              "French": ["spanish"],
-              "German": ["english"],
-              "Italian": ["spanish"],
-              "Portuguese": ["spanish"],
-              "Dutch": ["english"],
-              "Russian": ["english"],
-              "Polish": ["english"],
-              "Chinese (Mandarin)": ["mandarin"],
-              "Japanese": ["japanese"],
-              "Korean": ["japanese"],
-              "Arabic": ["english"],
-              "Hebrew": ["english"],
-              "Hindi": ["english"],
-              "Bengali": ["english"],
-              "Turkish": ["english"],
-              "Greek": ["english"],
-              "Swedish": ["english"],
-              "Norwegian": ["english"],
-              "Danish": ["english"],
-              "Finnish": ["english"],
-              "Czech": ["english"],
-              "Hungarian": ["english"],
-              "Romanian": ["spanish"],
-              "Thai": ["mandarin"],
-              "Vietnamese": ["mandarin"],
-              "Indonesian": ["english"],
-              "Swahili": ["english"],
-            };
+          // 1) Create a "real" WorldLanguage record for the actual target language
+          const { getLanguageBCP47 } = await import("@shared/language-utils");
+          await storage.createWorldLanguage({
+            worldId,
+            scopeType: "world",
+            scopeId: worldId,
+            name: worldTargetLanguage,
+            description: `The ${worldTargetLanguage} language — the player's learning target.`,
+            kind: "real",
+            realCode: getLanguageBCP47(worldTargetLanguage),
+            isPrimary: true,
+            isLearningTarget: true,
+            influenceLanguageIds: [],
+            realInfluenceCodes: [],
+            config: null,
+            features: null,
+            phonemes: null,
+            grammar: null,
+            writingSystem: null,
+            culturalContext: null,
+            phoneticInventory: null,
+            sampleWords: null,
+            sampleTexts: null,
+            etymology: null,
+            dialectVariations: null,
+            learningModules: null,
+          });
+          console.log(`🗣️ Real language record created for ${worldTargetLanguage}.`);
 
-            const selectedBases = baseMap[worldTargetLanguage] ?? ["english"];
+          // 2) Generate a constructed conlang inspired by the target language
+          const baseMap: Record<string, string[]> = {
+            "Spanish": ["spanish"],
+            "French": ["spanish"],
+            "German": ["english"],
+            "Italian": ["spanish"],
+            "Portuguese": ["spanish"],
+            "Dutch": ["english"],
+            "Russian": ["english"],
+            "Polish": ["english"],
+            "Chinese (Mandarin)": ["mandarin"],
+            "Japanese": ["japanese"],
+            "Korean": ["japanese"],
+            "Arabic": ["english"],
+            "Hebrew": ["english"],
+            "Hindi": ["english"],
+            "Bengali": ["english"],
+            "Turkish": ["english"],
+            "Greek": ["english"],
+            "Swedish": ["english"],
+            "Norwegian": ["english"],
+            "Danish": ["english"],
+            "Finnish": ["english"],
+            "Czech": ["english"],
+            "Hungarian": ["english"],
+            "Romanian": ["spanish"],
+            "Thai": ["mandarin"],
+            "Vietnamese": ["mandarin"],
+            "Indonesian": ["english"],
+            "Swahili": ["english"],
+          };
 
-            await generateLanguage({
+          const selectedBases = baseMap[worldTargetLanguage] ?? ["english"];
+
+          await generateLanguage({
+            worldId,
+            scopeType: "world",
+            scopeId: worldId,
+            config: {
+              selectedLanguages: selectedBases,
+              name: `${worldTargetLanguage} World Conlang`,
+              emphasis: {
+                phonology: 0.4,
+                grammar: 0.3,
+                vocabulary: 0.3,
+              },
+              complexity: "moderate",
+              purpose: "auxiliary",
+              includeWritingSystem: true,
+              includeCulturalContext: true,
+              includeAdvancedPhonetics: false,
+              generateSampleTexts: true,
+            },
+            description: `Constructed language for ${worldName}, inspired by ${worldTargetLanguage}`,
+            makePrimary: false,
+            mode: "offline",
+          });
+
+          console.log("🗣️ World conlang generated.");
+        } catch (error) {
+          console.warn('⚠️ Language generation skipped:', (error as Error).message);
+        }
+      }
+
+      // Step 1c: Create WorldLanguage records for explicitly requested world languages
+      if (Array.isArray(requestedWorldLanguages) && requestedWorldLanguages.length > 0) {
+        try {
+          const { getLanguageBCP47: getBCP47 } = await import("@shared/language-utils");
+          // Check which languages already have records (e.g., the learning target created in step 1b)
+          const existingLangs = await storage.getWorldLanguagesByWorld(worldId);
+          const existingNames = new Set(existingLangs.map(l => l.name));
+
+          for (const langName of requestedWorldLanguages) {
+            if (existingNames.has(langName)) continue;
+            await storage.createWorldLanguage({
               worldId,
               scopeType: "world",
               scopeId: worldId,
-              config: {
-                selectedLanguages: selectedBases,
-                name: `${worldTargetLanguage} World Language`,
-                emphasis: {
-                  phonology: 0.4,
-                  grammar: 0.3,
-                  vocabulary: 0.3,
-                },
-                complexity: "moderate",
-                purpose: "auxiliary",
-                includeWritingSystem: true,
-                includeCulturalContext: true,
-                includeAdvancedPhonetics: false,
-                generateSampleTexts: true,
-              },
-              description: `Default language for ${worldName}, targeting ${worldTargetLanguage}`,
-              makePrimary: true,
-              mode: "offline",
+              name: langName,
+              description: `The ${langName} language spoken in ${worldName}.`,
+              kind: "real",
+              realCode: getBCP47(langName),
+              isPrimary: existingLangs.length === 0, // primary if no others exist yet
+              isLearningTarget: false,
+              influenceLanguageIds: [],
+              realInfluenceCodes: [],
+              config: null,
+              features: null,
+              phonemes: null,
+              grammar: null,
+              writingSystem: null,
+              culturalContext: null,
+              phoneticInventory: null,
+              sampleWords: null,
+              sampleTexts: null,
+              etymology: null,
+              dialectVariations: null,
+              learningModules: null,
             });
-
-            console.log("🗣️ Default world language generated.");
+            console.log(`🗣️ World language record created: ${langName}`);
           }
         } catch (error) {
-          console.warn('⚠️ Default language generation skipped:', (error as Error).message);
+          console.warn('⚠️ World language creation skipped:', (error as Error).message);
         }
       }
 
@@ -4552,8 +4621,6 @@ Make the rule names creative and fitting for the world's theme. Example for cybe
                   ruleType: rule.ruleType || 'default',
                   priority: 5,
                   likelihood: 1.0,
-                  conditions: [],
-                  effects: [],
                   tags: ['generated', 'ai'],
                   isActive: true,
                 });
@@ -4620,9 +4687,7 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
                   name: action.name,
                   description: action.description,
                   actionType: action.actionType || 'social',
-                  sourceFormat: 'insimul',
-                  prerequisites: [],
-                  effects: [],
+                  sourceFormat: 'prolog',
                   tags: ['generated', 'ai'],
                   isActive: true,
                 });
@@ -4642,38 +4707,28 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
         console.log('🎯 Step 5: Generating quests...');
         progressTracker.updateProgress(taskId, 'quests', 'Generating quest storylines...', 92);
         try {
-          const { generateBulkRules } = await import("./services/gemini-ai.js");
-          
-          const worldContext = customPrompt || 
+          const { generateQuests } = await import("./services/gemini-ai.js");
+
+          const worldContext = customPrompt ||
             `A ${worldType || 'medieval-fantasy'} world named "${worldName}". ${worldDescription || ''}`;
-          
-          const questsPrompt = `Generate quest ideas for ${worldContext}. Include main quests, side quests, and character-driven storylines. Format each as: "questName: description"`;
-          
-          const generatedQuests = await generateBulkRules(questsPrompt, 'insimul');
-          
-          // Parse and save quests
-          if (typeof generatedQuests === 'string') {
-            const questLines = generatedQuests.split('\n').filter(line => line.trim());
-            for (const questLine of questLines.slice(0, 8)) {
-              const match = questLine.match(/^([^:]+):\s*(.+)$/);
-              if (match) {
-                const [, title, description] = match;
-                await storage.createQuest({
-                  worldId,
-                  title: title.trim(),
-                  description: description.trim(),
-                  questType: 'main',
-                  difficulty: 'intermediate',
-                  targetLanguage: worldTargetLanguage || 'English',
-                  assignedTo: 'Player',
-                  status: 'active',
-                  objectives: [],
-                  rewards: {},
-                  tags: ['generated', 'ai'],
-                });
-                numQuests++;
-              }
-            }
+
+          const generatedQuests = await generateQuests(worldContext, 8);
+
+          for (const quest of generatedQuests) {
+            await storage.createQuest({
+              worldId,
+              title: quest.title,
+              description: quest.description,
+              questType: quest.questType,
+              difficulty: quest.difficulty,
+              targetLanguage: worldTargetLanguage || 'English',
+              assignedTo: 'Player',
+              status: 'active',
+              objectives: quest.objectives,
+              rewards: quest.rewards || {},
+              tags: ['generated', 'ai'],
+            });
+            numQuests++;
           }
           console.log(`✅ Generated ${numQuests} quests`);
           progressTracker.updateProgress(taskId, 'quests-complete', `Generated ${numQuests} quests`, 95);
@@ -4753,8 +4808,42 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
         progressTracker.updateProgress(taskId, 'grammars', 'Using default grammars', 99);
       }
       
+      // Step 7: Auto-generate Prolog content for actions/quests that lack it
+      try {
+        const [worldActions, worldQuests] = await Promise.all([
+          storage.getActionsByWorld(worldId),
+          storage.getQuestsByWorld(worldId),
+        ]);
+        let prologConverted = 0;
+        for (const action of worldActions) {
+          if (!action.content) {
+            try {
+              const r = convertActionToProlog(action as any);
+              if (r.prologContent) {
+                await storage.updateAction(action.id, { content: r.prologContent });
+                prologConverted++;
+              }
+            } catch {}
+          }
+        }
+        for (const quest of worldQuests) {
+          if (!quest.content) {
+            try {
+              const r = convertQuestToProlog(quest as any);
+              if (r.prologContent) {
+                await storage.updateQuest(quest.id, { content: r.prologContent });
+                prologConverted++;
+              }
+            } catch {}
+          }
+        }
+        if (prologConverted > 0) console.log(`🔮 Auto-generated Prolog content for ${prologConverted} entities`);
+      } catch (e) {
+        console.warn('[PrologAutoConvert] Failed:', e);
+      }
+
       console.log(`🎉 Complete world generation finished!`);
-          
+
           progressTracker.completeTask(taskId, `World generated! ${totalPopulation} characters, ${numRules} rules, ${numActions} actions, ${numQuests} quests, ${numGrammars} grammars`);
         } catch (error) {
           console.error("Complete world generation error:", error);
@@ -6303,28 +6392,38 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       const includeBase = req.body?.includeBase !== false; // default true
       const results: Record<string, { converted: number; skipped: number; errors: string[] }> = {};
 
-      // World rules
+      // World rules — content IS Prolog now, extract metadata only
       const worldRules = await storage.getRulesByWorld(worldId);
       results.worldRules = { converted: 0, skipped: 0, errors: [] };
       for (const rule of worldRules) {
-        if (rule.prologContent) { results.worldRules.skipped++; continue; }
+        if (!rule.content) { results.worldRules.skipped++; continue; }
         try {
-          const r = convertRuleToProlog(rule as any);
-          if (r.prologContent) { await storage.updateRule(rule.id, { prologContent: r.prologContent }); results.worldRules.converted++; }
-          else results.worldRules.skipped++;
+          const meta = extractAllMetadata(rule.content);
+          await storage.updateRule(rule.id, {
+            ...(meta.priority != null ? { priority: meta.priority } : {}),
+            ...(meta.likelihood != null ? { likelihood: meta.likelihood } : {}),
+            ...(meta.ruleType ? { ruleType: meta.ruleType } : {}),
+            ...(meta.category ? { category: meta.category } : {}),
+          });
+          results.worldRules.converted++;
         } catch (err: any) { results.worldRules.errors.push(`Rule "${rule.name}": ${err.message || String(err)}`); }
       }
 
-      // Base rules (optional)
+      // Base rules (optional) — content IS Prolog now, extract metadata only
       if (includeBase) {
         const baseRules = await storage.getBaseRules({ includeContent: true, limit: 2000 });
         results.baseRules = { converted: 0, skipped: 0, errors: [] };
         for (const rule of baseRules) {
-          if (!rule.content || rule.prologContent) { results.baseRules.skipped++; continue; }
+          if (!rule.content) { results.baseRules.skipped++; continue; }
           try {
-            const r = convertRuleToProlog(rule as any);
-            if (r.prologContent) { await storage.updateRule(rule.id, { prologContent: r.prologContent }); results.baseRules.converted++; }
-            else results.baseRules.skipped++;
+            const meta = extractAllMetadata(rule.content);
+            await storage.updateRule(rule.id, {
+              ...(meta.priority != null ? { priority: meta.priority } : {}),
+              ...(meta.likelihood != null ? { likelihood: meta.likelihood } : {}),
+              ...(meta.ruleType ? { ruleType: meta.ruleType } : {}),
+              ...(meta.category ? { category: meta.category } : {}),
+            });
+            results.baseRules.converted++;
           } catch (err: any) { results.baseRules.errors.push(`Rule "${rule.name}": ${err.message || String(err)}`); }
         }
       }
@@ -6333,10 +6432,10 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       const actions = await storage.getActionsByWorld(worldId);
       results.worldActions = { converted: 0, skipped: 0, errors: [] };
       for (const action of actions) {
-        if (action.prologContent) { results.worldActions.skipped++; continue; }
+        if (action.content) { results.worldActions.skipped++; continue; }
         try {
           const r = convertActionToProlog(action as any);
-          if (r.prologContent) { await storage.updateAction(action.id, { prologContent: r.prologContent }); results.worldActions.converted++; }
+          if (r.prologContent) { await storage.updateAction(action.id, { content: r.prologContent }); results.worldActions.converted++; }
           else results.worldActions.skipped++;
         } catch (err: any) { results.worldActions.errors.push(`Action "${action.name}": ${err.message || String(err)}`); }
       }
@@ -6346,10 +6445,10 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
         const baseActions = await storage.getBaseActions();
         results.baseActions = { converted: 0, skipped: 0, errors: [] };
         for (const action of baseActions) {
-          if (action.prologContent) { results.baseActions.skipped++; continue; }
+          if (action.content) { results.baseActions.skipped++; continue; }
           try {
             const r = convertActionToProlog(action as any);
-            if (r.prologContent) { await storage.updateAction(action.id, { prologContent: r.prologContent }); results.baseActions.converted++; }
+            if (r.prologContent) { await storage.updateAction(action.id, { content: r.prologContent }); results.baseActions.converted++; }
             else results.baseActions.skipped++;
           } catch (err: any) { results.baseActions.errors.push(`Action "${action.name}": ${err.message || String(err)}`); }
         }
@@ -6359,10 +6458,10 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       const quests = await storage.getQuestsByWorld(worldId);
       results.worldQuests = { converted: 0, skipped: 0, errors: [] };
       for (const quest of quests) {
-        if (quest.prologContent) { results.worldQuests.skipped++; continue; }
+        if (quest.content) { results.worldQuests.skipped++; continue; }
         try {
           const r = convertQuestToProlog(quest as any);
-          if (r.prologContent) { await storage.updateQuest(quest.id, { prologContent: r.prologContent }); results.worldQuests.converted++; }
+          if (r.prologContent) { await storage.updateQuest(quest.id, { content: r.prologContent }); results.worldQuests.converted++; }
           else results.worldQuests.skipped++;
         } catch (err: any) { results.worldQuests.errors.push(`Quest "${quest.title}": ${err.message || String(err)}`); }
       }
@@ -6412,19 +6511,19 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
 
       for (const rule of rules) {
         for (const name of predicateNames) {
-          const count = countOccurrences((rule as any).prologContent, name) + countOccurrences(rule.content, name);
+          const count = countOccurrences(rule.content, name);
           if (count > 0) { coverage[name].rules += count; coverage[name].total += count; }
         }
       }
       for (const action of actions) {
         for (const name of predicateNames) {
-          const count = countOccurrences((action as any).prologContent, name);
+          const count = countOccurrences((action as any).content, name);
           if (count > 0) { coverage[name].actions += count; coverage[name].total += count; }
         }
       }
       for (const quest of quests) {
         for (const name of predicateNames) {
-          const count = countOccurrences((quest as any).prologContent, name);
+          const count = countOccurrences((quest as any).content, name);
           if (count > 0) { coverage[name].quests += count; coverage[name].total += count; }
         }
       }
@@ -6530,14 +6629,14 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       const errors: string[] = [];
 
       for (const action of actions) {
-        if (action.prologContent) {
+        if (action.content) {
           skipped++;
           continue;
         }
         try {
           const result = convertActionToProlog(action as any);
           if (result.prologContent) {
-            await storage.updateAction(action.id, { prologContent: result.prologContent });
+            await storage.updateAction(action.id, { content: result.prologContent });
             converted++;
           } else {
             skipped++;
@@ -6563,14 +6662,14 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       const errors: string[] = [];
 
       for (const action of actions) {
-        if (action.prologContent) {
+        if (action.content) {
           skipped++;
           continue;
         }
         try {
           const result = convertActionToProlog(action as any);
           if (result.prologContent) {
-            await storage.updateAction(action.id, { prologContent: result.prologContent });
+            await storage.updateAction(action.id, { content: result.prologContent });
             converted++;
           } else {
             skipped++;
@@ -6632,12 +6731,27 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       });
 
       // Auto-generate Prolog content if not provided
-      if (!validatedData.prologContent && validatedData.name) {
+      if (!validatedData.content && validatedData.name) {
         try {
           const result = convertActionToProlog(validatedData as any);
-          (validatedData as any).prologContent = result.prologContent;
+          (validatedData as any).content = result.prologContent;
         } catch (e) {
           console.warn('[ActionProlog] Failed to convert action:', e);
+        }
+      }
+
+      // Extract denormalized metadata from Prolog content
+      if ((validatedData as any).content) {
+        try {
+          const meta = extractActionMetadata((validatedData as any).content);
+          if (meta.actionType) (validatedData as any).actionType = meta.actionType;
+          if (meta.energyCost != null) (validatedData as any).energyCost = meta.energyCost;
+          if (meta.difficulty != null) (validatedData as any).difficulty = meta.difficulty;
+          if (meta.duration != null) (validatedData as any).duration = meta.duration;
+          if (meta.targetType) (validatedData as any).targetType = meta.targetType;
+          if (meta.cooldown != null) (validatedData as any).cooldown = meta.cooldown;
+        } catch (e) {
+          console.warn('[ActionMetadata] Failed to extract metadata:', e);
         }
       }
 
@@ -6691,12 +6805,27 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       const validatedData = insertActionSchema.parse(actionData);
 
       // Auto-generate Prolog content if not provided
-      if (!validatedData.prologContent && validatedData.name) {
+      if (!validatedData.content && validatedData.name) {
         try {
           const result = convertActionToProlog(validatedData as any);
-          (validatedData as any).prologContent = result.prologContent;
+          (validatedData as any).content = result.prologContent;
         } catch (e) {
           console.warn('[ActionProlog] Failed to convert action:', e);
+        }
+      }
+
+      // Extract denormalized metadata from Prolog content
+      if ((validatedData as any).content) {
+        try {
+          const meta = extractActionMetadata((validatedData as any).content);
+          if (meta.actionType) (validatedData as any).actionType = meta.actionType;
+          if (meta.energyCost != null) (validatedData as any).energyCost = meta.energyCost;
+          if (meta.difficulty != null) (validatedData as any).difficulty = meta.difficulty;
+          if (meta.duration != null) (validatedData as any).duration = meta.duration;
+          if (meta.targetType) (validatedData as any).targetType = meta.targetType;
+          if (meta.cooldown != null) (validatedData as any).cooldown = meta.cooldown;
+        } catch (e) {
+          console.warn('[ActionMetadata] Failed to extract metadata:', e);
         }
       }
 
@@ -6732,13 +6861,28 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       const validatedData = insertActionSchema.partial().parse(req.body);
 
       // Re-generate Prolog content on update
-      if (validatedData.name || validatedData.prerequisites || validatedData.effects) {
+      if (validatedData.name || validatedData.content) {
         try {
           const merged = { ...existingAction, ...validatedData };
           const result = convertActionToProlog(merged as any);
-          (validatedData as any).prologContent = result.prologContent;
+          (validatedData as any).content = result.prologContent;
         } catch (e) {
           console.warn('[ActionProlog] Failed to convert action on update:', e);
+        }
+      }
+
+      // Extract denormalized metadata from Prolog content
+      if ((validatedData as any).content) {
+        try {
+          const meta = extractActionMetadata((validatedData as any).content);
+          if (meta.actionType) (validatedData as any).actionType = meta.actionType;
+          if (meta.energyCost != null) (validatedData as any).energyCost = meta.energyCost;
+          if (meta.difficulty != null) (validatedData as any).difficulty = meta.difficulty;
+          if (meta.duration != null) (validatedData as any).duration = meta.duration;
+          if (meta.targetType) (validatedData as any).targetType = meta.targetType;
+          if (meta.cooldown != null) (validatedData as any).cooldown = meta.cooldown;
+        } catch (e) {
+          console.warn('[ActionMetadata] Failed to extract metadata:', e);
         }
       }
 
@@ -7035,14 +7179,14 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       const errors: string[] = [];
 
       for (const quest of quests) {
-        if (quest.prologContent) {
+        if (quest.content) {
           skipped++;
           continue;
         }
         try {
           const result = convertQuestToProlog(quest as any);
           if (result.prologContent) {
-            await storage.updateQuest(quest.id, { prologContent: result.prologContent });
+            await storage.updateQuest(quest.id, { content: result.prologContent });
             converted++;
           } else {
             skipped++;
@@ -7064,10 +7208,10 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       const questData = { ...req.body, worldId: req.params.worldId };
 
       // Auto-generate Prolog content
-      if (!questData.prologContent && questData.title) {
+      if (!questData.content && questData.title) {
         try {
           const result = convertQuestToProlog(questData);
-          questData.prologContent = result.prologContent;
+          questData.content = result.prologContent;
         } catch (e) {
           console.warn('[QuestProlog] Failed to convert quest:', e);
         }
@@ -7101,7 +7245,7 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
           if (existing) {
             const merged = { ...existing, ...req.body };
             const result = convertQuestToProlog(merged as any);
-            req.body.prologContent = result.prologContent;
+            req.body.content = result.prologContent;
           }
         } catch (e) {
           console.warn('[QuestProlog] Failed to convert quest on update:', e);
@@ -7272,10 +7416,10 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       const createdQuests = [];
       for (const questData of generatedQuests) {
         // Auto-generate Prolog content for each generated quest
-        if (!questData.prologContent && questData.title) {
+        if (!questData.content && questData.title) {
           try {
             const result = convertQuestToProlog(questData as any);
-            (questData as any).prologContent = result.prologContent;
+            (questData as any).content = result.prologContent;
           } catch (e) {
             console.warn('[QuestProlog] Failed to convert generated quest:', e);
           }

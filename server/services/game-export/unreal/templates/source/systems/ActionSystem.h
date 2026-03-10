@@ -24,6 +24,20 @@ struct FInsimulActionEffect
 };
 
 /**
+ * Tracks per-action cooldown and usage state.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulActionState
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly) FString ActionId;
+    UPROPERTY(BlueprintReadOnly) float LastUsed = 0.f;
+    UPROPERTY(BlueprintReadOnly) float CooldownRemaining = 0.f;
+    UPROPERTY(BlueprintReadOnly) int32 TimesUsed = 0;
+};
+
+/**
  * Result of executing an action.
  */
 USTRUCT(BlueprintType)
@@ -35,6 +49,7 @@ struct FInsimulActionResult
     UPROPERTY(BlueprintReadOnly) FString Message;
     UPROPERTY(BlueprintReadOnly) int32 EnergyUsed = 0;
     UPROPERTY(BlueprintReadOnly) TArray<FInsimulActionEffect> Effects;
+    UPROPERTY(BlueprintReadOnly) FString NarrativeText;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGoldEffectApplied, int32, Amount);
@@ -63,6 +78,26 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Actions")
     FInsimulActionResult ExecuteAction(const FString& ActionId, AActor* Source, AActor* Target);
 
+    /** Get all actions matching a category (social, combat, mental, etc.) */
+    UFUNCTION(BlueprintCallable, Category = "Actions")
+    TArray<FString> GetActionsByCategory(const FString& Category);
+
+    /** Get actions available in the given context (checks active, cooldown, energy). */
+    UFUNCTION(BlueprintCallable, Category = "Actions")
+    TArray<FString> GetContextualActions(float PlayerEnergy, bool bHasTarget);
+
+    /** Check whether an action can be performed; returns false with Reason populated on failure. */
+    UFUNCTION(BlueprintCallable, Category = "Actions")
+    bool CanPerformAction(const FString& ActionId, float PlayerEnergy, bool bHasTarget, FString& Reason);
+
+    /** Tick cooldowns – call once per frame with delta seconds. */
+    UFUNCTION(BlueprintCallable, Category = "Actions")
+    void UpdateCooldowns(float DeltaTime);
+
+    /** Get remaining cooldown for an action (0 if ready). */
+    UFUNCTION(BlueprintCallable, Category = "Actions")
+    float GetCooldown(const FString& ActionId);
+
     /** Fired when an action produces a gold effect the game should apply. */
     UPROPERTY(BlueprintAssignable, Category = "Actions")
     FOnGoldEffectApplied OnGoldEffect;
@@ -70,4 +105,14 @@ public:
     /** Fired when an action produces an item effect the game should apply. */
     UPROPERTY(BlueprintAssignable, Category = "Actions")
     FOnItemEffectApplied OnItemEffect;
+
+private:
+    /** Per-action cooldown and usage tracking. */
+    TMap<FString, FInsimulActionState> ActionStates;
+
+    /** Parsed action definitions from IR. */
+    TArray<TSharedPtr<FJsonObject>> ParsedActions;
+
+    /** Generate narrative text from an action's narrativeTemplates array. */
+    FString GenerateNarrativeText(const TSharedPtr<FJsonObject>& ActionObj, const FString& ActorName, const FString& TargetName);
 };

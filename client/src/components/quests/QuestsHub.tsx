@@ -35,7 +35,7 @@ interface Quest {
   expiresAt: Date | null;
   conversationContext: string | null;
   tags: string[] | null;
-  prologContent: string | null;
+  content: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -70,7 +70,6 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
   const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['active']));
-  const [codeView, setCodeView] = useState<'source' | 'prolog'>('source');
   const [rightTab, setRightTab] = useState<'details' | 'predicates' | 'query'>('details');
   const queryClient = useQueryClient();
 
@@ -215,98 +214,40 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
               </div>
             </div>
 
-            {/* Detail Content */}
+            {/* Prolog Content */}
             <ScrollArea className="flex-1">
-              <div className="p-4 space-y-4">
-                {/* Properties */}
-                <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Properties</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <div className="p-2 bg-muted/30 rounded-lg">
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Type</span>
-                      <p className="text-sm font-medium capitalize">{selectedQuest.questType}</p>
-                    </div>
-                    <div className="p-2 bg-muted/30 rounded-lg">
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Language</span>
-                      <p className="text-sm font-medium">{selectedQuest.targetLanguage}</p>
-                    </div>
-                    <div className="p-2 bg-muted/30 rounded-lg">
-                      <div className="flex items-center gap-1">
-                        <Trophy className="h-3 w-3 text-amber-500" />
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Reward</span>
-                      </div>
-                      <p className="text-sm font-medium text-amber-600">{selectedQuest.experienceReward} XP</p>
-                    </div>
-                    {selectedQuest.assignedBy && (
-                      <div className="p-2 bg-muted/30 rounded-lg">
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Assigned By</span>
-                        <p className="text-sm font-medium">{selectedQuest.assignedBy}</p>
-                      </div>
-                    )}
-                    <div className="p-2 bg-muted/30 rounded-lg">
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Assigned</span>
-                      <p className="text-sm font-medium">{new Date(selectedQuest.assignedAt).toLocaleDateString()}</p>
-                    </div>
-                    {selectedQuest.completedAt && (
-                      <div className="p-2 bg-muted/30 rounded-lg">
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Completed</span>
-                        <p className="text-sm font-medium">{new Date(selectedQuest.completedAt).toLocaleDateString()}</p>
-                      </div>
-                    )}
-                    {selectedQuest.expiresAt && (
-                      <div className="p-2 bg-muted/30 rounded-lg">
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Expires</span>
-                        <p className="text-sm font-medium">{new Date(selectedQuest.expiresAt).toLocaleDateString()}</p>
-                      </div>
-                    )}
+              <div className="p-4">
+                {selectedQuest.content ? (
+                  <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-lg">
+                    <PrologSyntaxHighlight code={selectedQuest.content} className="text-[11px]" />
                   </div>
-                </div>
-
-                {/* Objectives */}
-                {selectedQuest.objectives && selectedQuest.objectives.length > 0 && (
-                  <div>
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                      Objectives ({selectedQuest.objectives.length})
-                    </h3>
-                    <div className="space-y-1.5">
-                      {selectedQuest.objectives.map((obj: any, i: number) => (
-                        <div key={i} className="p-2 bg-muted/30 rounded-lg">
-                          <pre className="text-[11px] whitespace-pre-wrap break-all font-mono">
-                            {typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2)}
-                          </pre>
-                        </div>
-                      ))}
-                    </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 space-y-3">
+                    <p className="text-xs text-muted-foreground italic">No Prolog content generated yet</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs"
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`/api/quests/${selectedQuest.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ title: selectedQuest.title }),
+                          });
+                          if (res.ok) {
+                            const updated = await res.json();
+                            setSelectedQuest(updated);
+                            toast({ title: 'Prolog Generated' });
+                          }
+                        } catch (e) {
+                          toast({ title: 'Error', description: 'Failed to generate Prolog', variant: 'destructive' });
+                        }
+                      }}
+                    >
+                      <RefreshCw className="w-3 h-3 mr-1" /> Generate Prolog
+                    </Button>
                   </div>
-                )}
-
-                {/* Conversation Context */}
-                {selectedQuest.conversationContext && (
-                  <div>
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Context</h3>
-                    <div className="p-3 bg-muted/30 rounded-lg">
-                      <p className="text-xs text-muted-foreground">{selectedQuest.conversationContext}</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Tags */}
-                {selectedQuest.tags && selectedQuest.tags.length > 0 && (
-                  <div>
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tags</h3>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedQuest.tags.map((tag, i) => (
-                        <Badge key={i} variant="secondary" className="text-xs">{tag}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Continue Quest Button */}
-                {selectedQuest.status === 'active' && (
-                  <Button className="w-full" variant="default">
-                    Continue Quest
-                  </Button>
                 )}
               </div>
             </ScrollArea>
@@ -329,7 +270,7 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
             className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'details' ? 'bg-background border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
             onClick={() => setRightTab('details')}
           >
-            Progress
+            Details
           </button>
           <button
             className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'predicates' ? 'bg-background border-b-2 border-purple-500 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
@@ -357,158 +298,150 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
         <ScrollArea className="flex-1">
           {selectedQuest ? (
             <div className="p-3 space-y-4">
-              {/* Source / Prolog Toggle */}
-              <div className="flex gap-1 p-0.5 bg-muted/50 rounded-md">
-                <button
-                  className={`flex-1 px-2 py-1 text-[10px] font-medium rounded transition-colors ${
-                    codeView === 'source'
-                      ? 'bg-background shadow-sm text-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                  onClick={() => setCodeView('source')}
-                >
-                  Source
-                </button>
-                <button
-                  className={`flex-1 px-2 py-1 text-[10px] font-medium rounded transition-colors ${
-                    codeView === 'prolog'
-                      ? 'bg-purple-500/20 shadow-sm text-purple-600 dark:text-purple-400'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                  onClick={() => setCodeView('prolog')}
-                >
-                  Prolog
-                </button>
-              </div>
-
-              {codeView === 'prolog' ? (
-                <div className="p-2 bg-purple-500/5 border border-purple-500/10 rounded-lg">
-                  {selectedQuest.prologContent ? (
-                    <PrologSyntaxHighlight code={selectedQuest.prologContent} className="text-[11px]" />
-                  ) : (
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground italic">No Prolog content generated yet</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-[10px] h-6"
-                        onClick={async () => {
-                          try {
-                            const res = await fetch(`/api/quests/${selectedQuest.id}`, {
-                              method: 'PUT',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ title: selectedQuest.title }),
-                            });
-                            if (res.ok) {
-                              const updated = await res.json();
-                              setSelectedQuest(updated);
-                              toast({ title: 'Prolog Generated' });
-                            }
-                          } catch (e) {
-                            toast({ title: 'Error', description: 'Failed to generate Prolog', variant: 'destructive' });
-                          }
-                        }}
-                      >
-                        <RefreshCw className="w-3 h-3 mr-1" /> Generate Prolog
-                      </Button>
+              {/* Properties */}
+              <div>
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Properties</h4>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center p-1.5 bg-muted/30 rounded">
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Type</span>
+                    <span className="text-xs font-medium capitalize">{selectedQuest.questType}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-1.5 bg-muted/30 rounded">
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Language</span>
+                    <span className="text-xs font-medium">{selectedQuest.targetLanguage}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-1.5 bg-muted/30 rounded">
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Difficulty</span>
+                    <Badge className={`text-[10px] border ${getDifficultyColor(selectedQuest.difficulty)}`}>
+                      {selectedQuest.difficulty}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center p-1.5 bg-muted/30 rounded">
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Reward</span>
+                    <span className="text-xs font-medium text-amber-600 flex items-center gap-1">
+                      <Trophy className="h-3 w-3 text-amber-500" />
+                      {selectedQuest.experienceReward} XP
+                    </span>
+                  </div>
+                  {selectedQuest.assignedBy && (
+                    <div className="flex justify-between items-center p-1.5 bg-muted/30 rounded">
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Assigned By</span>
+                      <span className="text-xs font-medium">{selectedQuest.assignedBy}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center p-1.5 bg-muted/30 rounded">
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Assigned</span>
+                    <span className="text-xs font-medium">{new Date(selectedQuest.assignedAt).toLocaleDateString()}</span>
+                  </div>
+                  {selectedQuest.completedAt && (
+                    <div className="flex justify-between items-center p-1.5 bg-muted/30 rounded">
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Completed</span>
+                      <span className="text-xs font-medium">{new Date(selectedQuest.completedAt).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                  {selectedQuest.expiresAt && (
+                    <div className="flex justify-between items-center p-1.5 bg-muted/30 rounded">
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Expires</span>
+                      <span className="text-xs font-medium">{new Date(selectedQuest.expiresAt).toLocaleDateString()}</span>
                     </div>
                   )}
                 </div>
-              ) : (
-              <>
+              </div>
 
-              {/* Completion Criteria */}
+              {/* Objectives */}
+              {selectedQuest.objectives && selectedQuest.objectives.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    Objectives ({selectedQuest.objectives.length})
+                  </h4>
+                  <div className="space-y-1.5">
+                    {selectedQuest.objectives.map((obj: any, i: number) => (
+                      <div key={i} className="p-2 bg-muted/30 rounded-lg">
+                        <pre className="text-[10px] whitespace-pre-wrap break-all font-mono">
+                          {typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2)}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Completion Criteria & Progress */}
               {selectedQuest.completionCriteria && (
                 <div>
                   <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Completion Criteria</h4>
                   {selectedQuest.completionCriteria.description && (
-                    <p className="text-xs text-muted-foreground mb-2">{selectedQuest.completionCriteria.description}</p>
+                    <p className="text-[10px] text-muted-foreground mb-2">{selectedQuest.completionCriteria.description}</p>
                   )}
 
                   {selectedQuest.progress && (
-                    <div className="space-y-3">
-                      {/* Vocabulary Usage */}
+                    <div className="space-y-2">
                       {selectedQuest.completionCriteria.type === 'vocabulary_usage' && (
                         <div className="p-2 bg-muted/30 rounded-lg">
-                          <div className="flex justify-between text-xs mb-0.5">
+                          <div className="flex justify-between text-[10px] mb-0.5">
                             <span>Words Used</span>
                             <span className="font-semibold">
                               {selectedQuest.progress.currentCount || 0} / {selectedQuest.completionCriteria.requiredCount}
                             </span>
                           </div>
-                          {renderProgressBar(
-                            selectedQuest.progress.currentCount || 0,
-                            selectedQuest.completionCriteria.requiredCount
-                          )}
+                          {renderProgressBar(selectedQuest.progress.currentCount || 0, selectedQuest.completionCriteria.requiredCount)}
                           {selectedQuest.progress.wordsUsed?.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-1">
+                            <div className="mt-1.5 flex flex-wrap gap-1">
                               {selectedQuest.progress.wordsUsed.map((word: string) => (
-                                <Badge key={word} variant="secondary" className="text-[10px]">{word}</Badge>
+                                <Badge key={word} variant="secondary" className="text-[9px]">{word}</Badge>
                               ))}
                             </div>
                           )}
                         </div>
                       )}
 
-                      {/* Conversation Turns */}
                       {selectedQuest.completionCriteria.type === 'conversation_turns' && (
                         <div className="p-2 bg-muted/30 rounded-lg">
-                          <div className="flex justify-between text-xs mb-0.5">
+                          <div className="flex justify-between text-[10px] mb-0.5">
                             <span>Turns</span>
                             <span className="font-semibold">
                               {selectedQuest.progress.turnsCompleted || 0} / {selectedQuest.completionCriteria.requiredTurns}
                             </span>
                           </div>
-                          {renderProgressBar(
-                            selectedQuest.progress.turnsCompleted || 0,
-                            selectedQuest.completionCriteria.requiredTurns
-                          )}
+                          {renderProgressBar(selectedQuest.progress.turnsCompleted || 0, selectedQuest.completionCriteria.requiredTurns)}
                           {selectedQuest.progress.keywordsUsed?.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-1">
+                            <div className="mt-1.5 flex flex-wrap gap-1">
                               {selectedQuest.progress.keywordsUsed.map((kw: string) => (
-                                <Badge key={kw} variant="secondary" className="text-[10px]">{kw}</Badge>
+                                <Badge key={kw} variant="secondary" className="text-[9px]">{kw}</Badge>
                               ))}
                             </div>
                           )}
                         </div>
                       )}
 
-                      {/* Grammar Pattern */}
                       {selectedQuest.completionCriteria.type === 'grammar_pattern' && (
                         <div className="p-2 bg-muted/30 rounded-lg">
-                          <div className="flex justify-between text-xs mb-0.5">
+                          <div className="flex justify-between text-[10px] mb-0.5">
                             <span>Patterns</span>
                             <span className="font-semibold">
                               {selectedQuest.progress.currentCount || 0} / {selectedQuest.completionCriteria.requiredCount}
                             </span>
                           </div>
-                          {renderProgressBar(
-                            selectedQuest.progress.currentCount || 0,
-                            selectedQuest.completionCriteria.requiredCount
-                          )}
+                          {renderProgressBar(selectedQuest.progress.currentCount || 0, selectedQuest.completionCriteria.requiredCount)}
                           {selectedQuest.progress.patternsUsed?.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-1">
+                            <div className="mt-1.5 flex flex-wrap gap-1">
                               {selectedQuest.progress.patternsUsed.map((p: string) => (
-                                <Badge key={p} variant="secondary" className="text-[10px]">{p}</Badge>
+                                <Badge key={p} variant="secondary" className="text-[9px]">{p}</Badge>
                               ))}
                             </div>
                           )}
                         </div>
                       )}
 
-                      {/* Conversation Engagement */}
                       {selectedQuest.completionCriteria.type === 'conversation_engagement' && (
                         <div className="p-2 bg-muted/30 rounded-lg">
-                          <div className="flex justify-between text-xs mb-0.5">
+                          <div className="flex justify-between text-[10px] mb-0.5">
                             <span>Messages</span>
                             <span className="font-semibold">
                               {selectedQuest.progress.messagesCount || 0} / {selectedQuest.completionCriteria.requiredMessages}
                             </span>
                           </div>
-                          {renderProgressBar(
-                            selectedQuest.progress.messagesCount || 0,
-                            selectedQuest.completionCriteria.requiredMessages
-                          )}
+                          {renderProgressBar(selectedQuest.progress.messagesCount || 0, selectedQuest.completionCriteria.requiredMessages)}
                         </div>
                       )}
                     </div>
@@ -521,24 +454,51 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Rewards</h4>
                 <div className="p-2 bg-muted/30 rounded-lg">
                   <div className="flex items-center gap-1.5">
-                    <Trophy className="h-4 w-4 text-amber-500" />
-                    <span className="text-sm font-medium text-amber-600">{selectedQuest.experienceReward} XP</span>
+                    <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                    <span className="text-xs font-medium text-amber-600">{selectedQuest.experienceReward} XP</span>
                   </div>
                   {selectedQuest.rewards && Object.keys(selectedQuest.rewards).length > 0 && (
-                    <div className="mt-2">
-                      <pre className="text-[11px] whitespace-pre-wrap break-all font-mono">
+                    <div className="mt-1.5">
+                      <pre className="text-[10px] whitespace-pre-wrap break-all font-mono">
                         {JSON.stringify(selectedQuest.rewards, null, 2)}
                       </pre>
                     </div>
                   )}
                 </div>
               </div>
-              </>
+
+              {/* Context */}
+              {selectedQuest.conversationContext && (
+                <div>
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Context</h4>
+                  <div className="p-2 bg-muted/30 rounded-lg">
+                    <p className="text-[10px] text-muted-foreground">{selectedQuest.conversationContext}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Tags */}
+              {selectedQuest.tags && selectedQuest.tags.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tags</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedQuest.tags.map((tag, i) => (
+                      <Badge key={i} variant="secondary" className="text-[9px]">{tag}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Continue Quest Button */}
+              {selectedQuest.status === 'active' && (
+                <Button className="w-full" variant="default" size="sm">
+                  Continue Quest
+                </Button>
               )}
             </div>
           ) : (
             <div className="p-3 text-xs text-muted-foreground italic">
-              Select a quest to see progress
+              Select a quest to see details
             </div>
           )}
         </ScrollArea>

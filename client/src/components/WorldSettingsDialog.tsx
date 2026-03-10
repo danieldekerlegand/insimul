@@ -15,9 +15,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { useQuery } from '@tanstack/react-query';
 import { Loader2, X, Plus } from 'lucide-react';
-import type { AssetCollection } from '@shared/schema';
 
 interface World {
   id: string;
@@ -26,8 +24,6 @@ interface World {
   visibility?: string;
   requiresAuth?: boolean;
   allowedUserIds?: string[];
-  selectedAssetCollectionId?: string;
-  cameraPerspective?: string;
 }
 
 interface WorldSettingsDialogProps {
@@ -50,20 +46,8 @@ export function WorldSettingsDialog({
   const [requiresAuth, setRequiresAuth] = useState(false);
   const [allowedUserIds, setAllowedUserIds] = useState<string[]>([]);
   const [newUserId, setNewUserId] = useState('');
-  const [selectedCollectionId, setSelectedCollectionId] = useState<string>('');
-  const [cameraPerspective, setCameraPerspective] = useState<string>('third_person');
   const { token, user } = useAuth();
   const { toast } = useToast();
-
-  // Fetch available asset collections
-  const { data: availableCollections = [] } = useQuery<AssetCollection[]>({
-    queryKey: ['/api/asset-collections'],
-    queryFn: async () => {
-      const response = await fetch('/api/asset-collections');
-      if (!response.ok) throw new Error('Failed to fetch collections');
-      return response.json();
-    },
-  });
 
   useEffect(() => {
     if (open) {
@@ -85,8 +69,6 @@ export function WorldSettingsDialog({
         setVisibility(worldData.visibility || 'private');
         setRequiresAuth(worldData.requiresAuth || false);
         setAllowedUserIds(worldData.allowedUserIds || []);
-        setSelectedCollectionId(worldData.selectedAssetCollectionId || '');
-        setCameraPerspective(worldData.cameraPerspective || 'third_person');
       } else {
         toast({
           title: 'Error',
@@ -128,8 +110,6 @@ export function WorldSettingsDialog({
           visibility,
           requiresAuth,
           allowedUserIds,
-          selectedAssetCollectionId: selectedCollectionId && selectedCollectionId !== 'none' ? selectedCollectionId : null,
-          cameraPerspective: cameraPerspective || 'third_person',
         }),
       });
 
@@ -235,49 +215,6 @@ export function WorldSettingsDialog({
                   </SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-
-            {/* Asset Collection */}
-            <div className="space-y-2">
-              <Label htmlFor="asset-collection">Asset Collection</Label>
-              <Select value={selectedCollectionId || 'none'} onValueChange={setSelectedCollectionId}>
-                <SelectTrigger id="asset-collection">
-                  <SelectValue placeholder="Select an asset collection (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {availableCollections.map((collection) => (
-                    <SelectItem key={collection.id} value={collection.id}>
-                      {collection.name}
-                      {collection.isPublic && ' (Global)'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="text-xs text-muted-foreground">
-                Themed visual assets for your world
-              </div>
-            </div>
-
-            {/* Camera Perspective */}
-            <div className="space-y-2">
-              <Label htmlFor="camera-perspective">Camera Perspective</Label>
-              <Select value={cameraPerspective} onValueChange={setCameraPerspective}>
-                <SelectTrigger id="camera-perspective">
-                  <SelectValue placeholder="Select camera perspective" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="third_person">Third Person</SelectItem>
-                  <SelectItem value="first_person">First Person</SelectItem>
-                  <SelectItem value="isometric">Isometric</SelectItem>
-                  <SelectItem value="side_scroll">Side-Scroll</SelectItem>
-                  <SelectItem value="top_down">Top-Down</SelectItem>
-                  <SelectItem value="fighting">Fighting</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="text-xs text-muted-foreground">
-                Camera mode used when playing this world
-              </div>
             </div>
 
             {/* Requires Auth */}

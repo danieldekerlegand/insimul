@@ -52,10 +52,6 @@ export function ActionCreateDialog({ open, onOpenChange, onSubmit, onGenerateWit
     const actionData = {
       ...formData,
       tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean),
-      prerequisites: [],
-      effects: [],
-      sideEffects: [],
-      triggerConditions: [],
       narrativeTemplates: [],
     };
 

@@ -8,92 +8,59 @@
 
 import { getQuestTypeForWorld, type World } from '../../shared/quest-types/index.js';
 import type { InsertQuest } from '../../shared/schema.js';
+import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from '../config/gemini.js';
 
 /**
- * Call LLM for quest generation
- * (Placeholder - will be replaced with actual LLM call)
+ * Call LLM for quest generation using Gemini API.
+ * Returns a JSON string representing a single quest object.
  */
 async function callLLM(prompt: string): Promise<string> {
-  // TODO: Replace with actual LLM API call (Claude API, OpenAI, etc.)
-  // For now, return a mock response for testing
-  console.log('[QuestGenerator] LLM prompt:', prompt.substring(0, 200) + '...');
-
-  // Mock response based on prompt content
-  if (prompt.includes('combat')) {
+  if (!isGeminiConfigured()) {
+    console.warn('[QuestGenerator] Gemini not configured, using fallback quest');
     return JSON.stringify({
-      title: 'Clear the Bandit Camp',
-      description: 'A group of bandits has been terrorizing travelers on the north road. Defeat them and restore safety to the area.',
-      category: 'combat',
-      difficulty: 'normal',
+      title: 'Explore the World',
+      description: 'Discover new locations and meet interesting characters.',
+      category: 'exploration',
+      difficulty: 'easy',
       objectives: [
-        {
-          type: 'defeat_enemies',
-          description: 'Defeat 5 bandits',
-          target: 'bandit',
-          required: 5
-        },
-        {
-          type: 'collect_items',
-          description: 'Collect stolen goods',
-          target: 'stolen_goods',
-          required: 3,
-          position: { x: 100, y: 0, z: 50 }
-        }
+        { type: 'reach_location', description: 'Visit the town square', target: 'town_square' }
       ],
-      rewards: {
-        experience: 100,
-        gold: 250,
-        items: [
-          { itemId: 'iron_sword', quantity: 1, name: 'Iron Sword' }
-        ]
-      }
-    });
-  } else if (prompt.includes('vocabulary')) {
-    return JSON.stringify({
-      title: 'Market Day Vocabulary',
-      description: 'Visit the market and practice food-related vocabulary with the merchants.',
-      category: 'vocabulary',
-      difficulty: 'beginner',
-      objectives: [
-        {
-          type: 'use_vocabulary',
-          description: 'Use 5 food-related words in conversation',
-          target: 'food_vocabulary',
-          required: 5,
-          vocabularyWords: ['bread', 'water', 'apple', 'cheese', 'wine']
-        },
-        {
-          type: 'talk_to_npc',
-          description: 'Talk to the merchant',
-          target: 'merchant_npc'
-        }
-      ],
-      rewards: {
-        experience: 25,
-        fluency: 5
-      }
+      rewards: { experience: 50, gold: 100 }
     });
   }
 
-  // Default response
-  return JSON.stringify({
-    title: 'Explore the World',
-    description: 'Discover new locations and meet interesting characters.',
-    category: 'exploration',
-    difficulty: 'easy',
-    objectives: [
-      {
-        type: 'reach_location',
-        description: 'Visit the town square',
-        target: 'town_square',
-        position: { x: 0, y: 0, z: 0 }
-      }
-    ],
-    rewards: {
-      experience: 50,
-      gold: 100
-    }
+  const ai = getGenAI();
+
+  const systemPrompt = `You are a quest designer. Generate a single quest as a JSON object with these fields:
+{
+  "title": "Short quest title",
+  "description": "Quest story and goals",
+  "category": "combat" | "exploration" | "social" | "crafting" | "vocabulary" | "grammar" | "conversation",
+  "difficulty": "beginner" | "easy" | "normal" | "hard" | "expert",
+  "objectives": [{ "type": "string", "description": "string", "target": "string", "required": number }],
+  "rewards": { "experience": number, "gold": number, "items": [{ "name": "string", "quantity": number }] }
+}
+
+Return ONLY valid JSON. No markdown, no code fences, no explanation.`;
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODELS.PRO,
+    config: { systemInstruction: systemPrompt },
+    contents: prompt,
   });
+
+  if (!response.text) {
+    throw new Error('AI service returned empty response');
+  }
+
+  let text = response.text.trim();
+  if (text.startsWith('```')) {
+    text = text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+  }
+
+  // Validate it parses as JSON
+  JSON.parse(text);
+  return text;
 }
 
 /**

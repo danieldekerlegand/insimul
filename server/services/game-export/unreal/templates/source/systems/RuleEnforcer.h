@@ -56,6 +56,34 @@ struct FInsimulRuleEffect
 };
 
 /**
+ * A rule violation record.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulRuleViolation
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString RuleId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString RuleName;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Timestamp = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Severity;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Message;
+};
+
+/**
+ * A registered settlement zone for spatial checks.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulSettlementZone
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString SettlementId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector Position = FVector::ZeroVector;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Radius = 0.f;
+};
+
+/**
  * A game rule with conditions and effects.
  */
 USTRUCT(BlueprintType)
@@ -93,6 +121,12 @@ struct FInsimulGameContext
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulInventoryItem> PlayerInventory;
 };
 
+/** Delegate fired when a rule violation is recorded */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRuleViolation, const FInsimulRuleViolation&, Violation);
+
+/** Delegate fired when a restriction is applied */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnRuleRestriction, const FString&, RuleName, const FString&, Message);
+
 /**
  * Evaluates and enforces game rules with item condition support.
  * Ported from Insimul's Babylon.js RuleEnforcer to Unreal subsystem.
@@ -128,9 +162,49 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Rules")
     void SetPrologKnowledgeBase(const FString& PrologContent);
 
+    // --- Settlement zone registration ---
+
+    /** Register a settlement zone for spatial in-settlement checks */
+    UFUNCTION(BlueprintCallable, Category = "Rules")
+    void RegisterSettlementZone(const FString& SettlementId, FVector Position, float Radius);
+
+    /** Check if a position is within any registered settlement zone */
+    UFUNCTION(BlueprintCallable, Category = "Rules")
+    bool IsInSettlement(FVector Position, FString& OutSettlementId) const;
+
+    // --- Violation tracking ---
+
+    /** Record a rule violation */
+    UFUNCTION(BlueprintCallable, Category = "Rules")
+    void RecordViolation(const FString& RuleId, const FString& RuleName, const FString& Severity, const FString& Message);
+
+    /** Get recent violations (up to Limit) */
+    UFUNCTION(BlueprintCallable, Category = "Rules")
+    TArray<FInsimulRuleViolation> GetViolations(int32 Limit = 10) const;
+
+    /** Clear all recorded violations */
+    UFUNCTION(BlueprintCallable, Category = "Rules")
+    void ClearViolations();
+
+    // --- Violation / restriction delegates ---
+
+    /** Broadcast when a violation is recorded */
+    UPROPERTY(BlueprintAssignable, Category = "Rules")
+    FOnRuleViolation OnViolation;
+
+    /** Broadcast when a restriction is applied */
+    UPROPERTY(BlueprintAssignable, Category = "Rules")
+    FOnRuleRestriction OnRestriction;
+
 private:
     UPROPERTY()
     TArray<FInsimulRule> Rules;
+
+    UPROPERTY()
+    TArray<FInsimulSettlementZone> SettlementZones;
+
+    UPROPERTY()
+    TArray<FInsimulRuleViolation> Violations;
 
     bool CheckRuleConditions(const FInsimulRule& Rule, const FInsimulGameContext& Context) const;
     bool EvaluateCondition(const FInsimulRuleCondition& Condition, const FInsimulGameContext& Context) const;

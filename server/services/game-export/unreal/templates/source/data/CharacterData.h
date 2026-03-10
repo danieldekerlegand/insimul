@@ -11,7 +11,9 @@ struct INSIMULEXPORT_API FInsimulCharacterData : public FTableRowBase
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString CharacterId;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString FirstName;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString MiddleName;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString LastName;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Suffix;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Gender;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bIsAlive = true;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Occupation;

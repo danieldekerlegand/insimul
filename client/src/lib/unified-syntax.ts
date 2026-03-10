@@ -7,6 +7,13 @@
 // Base types for the insimul syntax
 export type SourceFormat = 'ensemble' | 'kismet' | 'tott' | 'insimul';
 
+/**
+ * Internal compiler representation of a rule.
+ * Note: In the DB, rules no longer have conditions, effects, dependencies,
+ * isCompiled, compiledOutput, or prologContent fields — their `content` field
+ * IS Prolog. The conditions/effects/dependencies here are parsed from Prolog
+ * content for export/conversion purposes only, not read from the database.
+ */
 export interface InsimulRule {
   id: string;
   name: string;
@@ -14,10 +21,10 @@ export interface InsimulRule {
   ruleType: 'trigger' | 'volition' | 'trait' | 'default' | 'pattern' | 'genealogy';
   priority: number;
   likelihood?: number;
-  conditions: Condition[];
-  effects: Effect[];
+  conditions: Condition[];  // Parsed from Prolog content, not stored in DB
+  effects: Effect[];        // Parsed from Prolog content, not stored in DB
   tags: string[];
-  dependencies: string[];
+  dependencies: string[];   // Parsed from Prolog content, not stored in DB
   isActive: boolean;
 }
 

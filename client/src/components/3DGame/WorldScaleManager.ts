@@ -209,14 +209,33 @@ export class WorldScaleManager {
       const population = settlement.population || 100;
       const radius = WorldScaleManager.getSettlementRadius(population);
 
+      // Estimate the building grid half-size so we can inset the settlement
+      // center far enough from the terrain edge to keep most buildings on land.
+      const estBuildingCount = Math.max(
+        WorldScaleManager.getBuildingCount(population),
+        (settlement.businesses?.length || 0) + (settlement.residences?.length || 0),
+        5
+      );
+      const cols = Math.ceil(Math.sqrt(estBuildingCount));
+      const rows = Math.ceil(estBuildingCount / cols);
+      const lotSpacing = 20;
+      const gridHalfW = ((cols - 1) * lotSpacing) / 2;
+      const gridHalfH = ((rows - 1) * lotSpacing) / 2;
+      const inset = Math.max(radius, gridHalfW, gridHalfH) + 10;
+
+      const safeMinX = territory.bounds.minX + inset;
+      const safeMaxX = territory.bounds.maxX - inset;
+      const safeMinZ = territory.bounds.minZ + inset;
+      const safeMaxZ = territory.bounds.maxZ - inset;
+
       // Position settlements avoiding overlap
       let position: Vector3;
       let attempts = 0;
       const maxAttempts = 50;
 
       do {
-        const x = territory.bounds.minX + rand() * (territory.bounds.maxX - territory.bounds.minX);
-        const z = territory.bounds.minZ + rand() * (territory.bounds.maxZ - territory.bounds.minZ);
+        const x = safeMinX + rand() * (Math.max(safeMaxX - safeMinX, 1));
+        const z = safeMinZ + rand() * (Math.max(safeMaxZ - safeMinZ, 1));
         position = new Vector3(x, 0, z);
 
         // Check if too close to other settlements
@@ -269,6 +288,8 @@ export class WorldScaleManager {
   ): Vector3[] {
     const positions: Vector3[] = [];
     const rand = this.createSeededRandom(`${this.seed}_${settlement.id}_lots`);
+    const half = this.worldSize / 2;
+    const terrainMargin = 5; // Keep lots slightly inside terrain edge
 
     // Arrange in a grid with some randomization
     const cols = Math.ceil(Math.sqrt(lotCount));
@@ -308,6 +329,10 @@ export class WorldScaleManager {
         lotZ = settlement.position.z + Math.sin(angle) * SPAWN_CLEAR_RADIUS;
       }
 
+      // Clamp to terrain bounds so buildings don't end up in the water
+      lotX = Math.max(-half + terrainMargin, Math.min(half - terrainMargin, lotX));
+      lotZ = Math.max(-half + terrainMargin, Math.min(half - terrainMargin, lotZ));
+
       positions.push(new Vector3(lotX, 0, lotZ));
     }
 
@@ -326,7 +351,7 @@ export class WorldScaleManager {
 
     return () => {
       hash = (hash * 9301 + 49297) % 233280;
-      return hash / 233280;
+      return Math.abs(hash) / 233280;
     };
   }
 

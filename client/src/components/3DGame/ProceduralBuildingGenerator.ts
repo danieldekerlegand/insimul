@@ -363,8 +363,8 @@ export class ProceduralBuildingGenerator {
     parent.position = spec.position.clone();
     parent.rotation.y = spec.rotation;
 
-    // LOD: hide building entirely at 150+ units from camera
-    parent.addLODLevel(150, null);
+    // LOD: hide building entirely at 500+ units from camera
+    parent.addLODLevel(500, null);
 
     // Prefer world-level overrides by logical role, then fall back to
     // style-based assetSet models, and finally to primitive geometry.

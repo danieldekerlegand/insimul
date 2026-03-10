@@ -43,6 +43,24 @@ namespace Insimul.Systems
         public string prologContent;
     }
 
+    [System.Serializable]
+    public class RuleViolation
+    {
+        public string ruleId;
+        public string ruleName;
+        public float timestamp;
+        public string severity;
+        public string message;
+    }
+
+    [System.Serializable]
+    public class SettlementZone
+    {
+        public string settlementId;
+        public Vector3 position;
+        public float radius;
+    }
+
     public class InsimulGameContext
     {
         public string playerId;
@@ -59,6 +77,14 @@ namespace Insimul.Systems
     public class RuleEnforcer : MonoBehaviour
     {
         private List<InsimulRule> _rules = new();
+        private List<SettlementZone> _settlementZones = new();
+        private List<RuleViolation> _violations = new();
+
+        /// <summary>Fired when a rule violation is recorded.</summary>
+        public event Action<RuleViolation> OnViolation;
+
+        /// <summary>Fired when a restriction is applied.</summary>
+        public event Action<string, string> OnRestriction;
 
         public int RuleCount => _rules.Count;
 
@@ -125,6 +151,70 @@ namespace Insimul.Systems
             _prologContent = prologContent;
             HasPrologKB = !string.IsNullOrEmpty(prologContent);
             Debug.Log($"[Insimul] Prolog KB {(HasPrologKB ? "attached" : "cleared")} ({(prologContent?.Length ?? 0)} chars)");
+        }
+
+        // --- Settlement zone registration ---
+
+        /// <summary>Register a settlement zone for spatial in-settlement checks.</summary>
+        public void RegisterSettlementZone(string settlementId, Vector3 position, float radius)
+        {
+            _settlementZones.Add(new SettlementZone
+            {
+                settlementId = settlementId,
+                position = position,
+                radius = radius
+            });
+            Debug.Log($"[Insimul] Registered settlement zone '{settlementId}' at {position} radius {radius}");
+        }
+
+        /// <summary>Check if a position is within any registered settlement zone.</summary>
+        public bool IsInSettlement(Vector3 position, out string settlementId)
+        {
+            foreach (var zone in _settlementZones)
+            {
+                float distance = Vector3.Distance(position, zone.position);
+                if (distance <= zone.radius)
+                {
+                    settlementId = zone.settlementId;
+                    return true;
+                }
+            }
+            settlementId = null;
+            return false;
+        }
+
+        // --- Violation tracking ---
+
+        /// <summary>Record a rule violation.</summary>
+        public void RecordViolation(string ruleId, string ruleName, string severity, string message)
+        {
+            var violation = new RuleViolation
+            {
+                ruleId = ruleId,
+                ruleName = ruleName,
+                timestamp = Time.time,
+                severity = severity,
+                message = message
+            };
+            _violations.Add(violation);
+            Debug.Log($"[Insimul] Violation recorded: {ruleName} — {message}");
+            OnViolation?.Invoke(violation);
+        }
+
+        /// <summary>Get recent violations (up to limit).</summary>
+        public List<RuleViolation> GetViolations(int limit = 10)
+        {
+            if (limit <= 0 || limit >= _violations.Count)
+                return new List<RuleViolation>(_violations);
+
+            return _violations.GetRange(_violations.Count - limit, limit);
+        }
+
+        /// <summary>Clear all recorded violations.</summary>
+        public void ClearViolations()
+        {
+            _violations.Clear();
+            Debug.Log("[Insimul] Violations cleared");
         }
 
         // --- Condition evaluation ---

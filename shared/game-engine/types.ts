@@ -164,20 +164,17 @@ export interface Action {
   worldId: string | null;
   name: string;
   description: string | null;
+  content?: string | null;
   actionType: 'social' | 'mental' | 'combat' | 'movement' | 'economic';
   category: string | null;
   duration: number | null;
   difficulty: number | null;
   energyCost: number | null;
-  prerequisites: any[];
-  effects: any[];
-  sideEffects: any[];
   targetType: string | null;
   requiresTarget: boolean | null;
   range: number | null;
   isAvailable: boolean | null;
   cooldown: number | null;
-  triggerConditions: any[];
   verbPast: string | null;
   verbPresent: string | null;
   narrativeTemplates: string[];
@@ -275,12 +272,13 @@ export interface Rule {
   id: string;
   name: string;
   description?: string;
+  content?: string;  // Prolog source — the canonical rule definition
   ruleType: 'trigger' | 'volition' | 'trait' | 'default' | 'pattern';
   category?: string;
   priority?: number;
   likelihood?: number;
-  conditions?: RuleCondition[];
-  effects?: RuleEffect[];
+  conditions?: RuleCondition[];  // JS fallback; not stored in DB for rules
+  effects?: RuleEffect[];        // JS fallback; not stored in DB for rules
   isActive?: boolean;
   tags?: string[];
 }

@@ -12,6 +12,8 @@ void URuleEnforcer::Initialize(FSubsystemCollectionBase& Collection)
 void URuleEnforcer::Deinitialize()
 {
     Rules.Empty();
+    SettlementZones.Empty();
+    Violations.Empty();
     Super::Deinitialize();
 }
 
@@ -83,6 +85,73 @@ void URuleEnforcer::SetPrologKnowledgeBase(const FString& PrologContent)
     bHasPrologKB = !PrologContent.IsEmpty();
     UE_LOG(LogTemp, Log, TEXT("[Insimul] Prolog KB %s (%d chars)"),
         bHasPrologKB ? TEXT("attached") : TEXT("cleared"), PrologContent.Len());
+}
+
+// --- Settlement zone registration ---
+
+void URuleEnforcer::RegisterSettlementZone(const FString& SettlementId, FVector Position, float Radius)
+{
+    FInsimulSettlementZone Zone;
+    Zone.SettlementId = SettlementId;
+    Zone.Position = Position;
+    Zone.Radius = Radius;
+    SettlementZones.Add(Zone);
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Registered settlement zone '%s' at (%.1f, %.1f, %.1f) radius %.1f"),
+        *SettlementId, Position.X, Position.Y, Position.Z, Radius);
+}
+
+bool URuleEnforcer::IsInSettlement(FVector Position, FString& OutSettlementId) const
+{
+    for (const FInsimulSettlementZone& Zone : SettlementZones)
+    {
+        float Distance = FVector::Dist(Position, Zone.Position);
+        if (Distance <= Zone.Radius)
+        {
+            OutSettlementId = Zone.SettlementId;
+            return true;
+        }
+    }
+    OutSettlementId = FString();
+    return false;
+}
+
+// --- Violation tracking ---
+
+void URuleEnforcer::RecordViolation(const FString& RuleId, const FString& RuleName, const FString& Severity, const FString& Message)
+{
+    FInsimulRuleViolation V;
+    V.RuleId = RuleId;
+    V.RuleName = RuleName;
+    V.Timestamp = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+    V.Severity = Severity;
+    V.Message = Message;
+    Violations.Add(V);
+
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Violation recorded: %s — %s"), *RuleName, *Message);
+
+    OnViolation.Broadcast(V);
+}
+
+TArray<FInsimulRuleViolation> URuleEnforcer::GetViolations(int32 Limit) const
+{
+    if (Limit <= 0 || Limit >= Violations.Num())
+    {
+        return Violations;
+    }
+
+    TArray<FInsimulRuleViolation> Recent;
+    int32 Start = Violations.Num() - Limit;
+    for (int32 i = Start; i < Violations.Num(); ++i)
+    {
+        Recent.Add(Violations[i]);
+    }
+    return Recent;
+}
+
+void URuleEnforcer::ClearViolations()
+{
+    Violations.Empty();
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Violations cleared"));
 }
 
 // --- Condition evaluation ---

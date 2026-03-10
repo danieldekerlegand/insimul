@@ -155,22 +155,16 @@ interface LanguageChatMessageDoc extends Omit<LanguageChatMessage, 'id'>, Docume
 const RuleSchema = new Schema({
   worldId: { type: String, required: false, default: null }, // Optional - null for base rules
   isBase: { type: Boolean, default: false }, // true for global rules, false for world-specific
-  content: { type: String, required: true },
-  prologContent: { type: String, default: null },
+  content: { type: String, required: true }, // Prolog content — single source of truth
   name: { type: String, required: true },
-  sourceFormat: { type: String, required: true },
-  ruleType: { type: String, required: true },
-  category: { type: String, default: null },
-  priority: { type: Number, required: true },
-  likelihood: { type: Number, required: true },
-  conditions: { type: Schema.Types.Mixed, default: [] },
-  effects: { type: Schema.Types.Mixed, default: [] },
-  tags: { type: [String], default: [] },
-  dependencies: { type: [String], default: [] },
-  isActive: { type: Boolean, default: true },
   description: { type: String, default: null },
-  isCompiled: { type: Boolean, default: false },
-  compiledOutput: { type: Schema.Types.Mixed, default: {} },
+  sourceFormat: { type: String, default: 'prolog' }, // original import format for backward translation
+  ruleType: { type: String, default: 'trigger' }, // denormalized from Prolog for queries
+  category: { type: String, default: null },
+  priority: { type: Number, default: 5 }, // denormalized from Prolog for sorting
+  likelihood: { type: Number, default: 1.0 }, // denormalized from Prolog
+  tags: { type: [String], default: [] },
+  isActive: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
@@ -214,6 +208,7 @@ const CharacterSchema = new Schema({
   generationMethod: { type: String, default: null },
   generationConfig: { type: Schema.Types.Mixed, default: null },
   currentLocation: { type: String, default: null },
+  currentResidenceId: { type: String, default: null },
   occupation: { type: String, default: null },
   status: { type: String, default: null },
   createdAt: { type: Date, default: Date.now },
@@ -224,6 +219,8 @@ const WorldSchema = new Schema({
   name: { type: String, required: true },
   description: { type: String, default: null },
   targetLanguage: { type: String, default: null },
+  worldType: { type: String, default: null },
+  gameType: { type: String, default: null },
 
   // Ownership and permissions
   ownerId: { type: String, default: null },
@@ -357,15 +354,21 @@ const ActionSchema = new Schema({
   isBase: { type: Boolean, default: false }, // true for global actions, false for world-specific
   name: { type: String, required: true },
   description: { type: String, default: null },
-  actionType: { type: String, required: true },
+  content: { type: String, default: null }, // Prolog content — single source of truth
+  actionType: { type: String, default: 'social' },
   category: { type: String, default: null },
-  sourceFormat: { type: String, default: 'insimul' },
+  sourceFormat: { type: String, default: 'prolog' },
   energyCost: { type: Number, default: null },
   cooldown: { type: Number, default: null },
   targetType: { type: String, default: null },
-  prerequisites: { type: Schema.Types.Mixed, default: [] },
-  effects: { type: Schema.Types.Mixed, default: [] },
-  prologContent: { type: String, default: null },
+  duration: { type: Number, default: 1 },
+  difficulty: { type: Number, default: 0.5 },
+  requiresTarget: { type: Boolean, default: false },
+  range: { type: Number, default: 0 },
+  isAvailable: { type: Boolean, default: true },
+  verbPast: { type: String, default: null },
+  verbPresent: { type: String, default: null },
+  narrativeTemplates: { type: Schema.Types.Mixed, default: [] },
   tags: { type: [String], default: [] },
   customData: { type: Schema.Types.Mixed, default: null },
   isActive: { type: Boolean, default: true },
@@ -435,7 +438,7 @@ const QuestSchema = new Schema({
   expiresAt: { type: Date, default: null },
   conversationContext: { type: String, default: null },
   tags: { type: Schema.Types.Mixed, default: [] },
-  prologContent: { type: String, default: null },
+  content: { type: String, default: null }, // Prolog content — single source of truth
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
@@ -678,6 +681,7 @@ const WorldLanguageSchema = new Schema({
   realCode: { type: String, default: null },
 
   isPrimary: { type: Boolean, default: false },
+  isLearningTarget: { type: Boolean, default: false },
 
   parentLanguageId: { type: String, default: null },
   influenceLanguageIds: { type: [String], default: [] },
@@ -912,24 +916,21 @@ export class MongoStorage implements IStorage {
   // getOccupationsByBusiness, getCurrentOccupation, getBaseRulesByCategory, getActionsByType, getBaseActions
   
   private static connectionPromise: Promise<void> | null = null;
-  private static isInitializing = false; // Track if we're in initialization to avoid deadlock (static to share across proxy)
-  private connected = false;
+  private static connected = false;
 
   constructor(private mongoUrl: string = process.env.MONGO_URL || "mongodb://localhost:27017/insimul") {
     console.log(`MongoStorage initialized with URL: ${this.mongoUrl}`);
   }
 
   async connect(): Promise<void> {
-    // If already connected, return immediately
-    if (this.connected && mongoose.connection.readyState === 1) {
+    // If already connected and mongoose confirms it, return immediately
+    if (MongoStorage.connected && mongoose.connection.readyState === 1) {
       return;
     }
 
     // If a connection is in progress, wait for it
     if (MongoStorage.connectionPromise) {
-      console.log(`[MongoStorage] Connection already in progress, waiting...`);
       await MongoStorage.connectionPromise;
-      this.connected = true;
       return;
     }
 
@@ -937,57 +938,51 @@ export class MongoStorage implements IStorage {
     console.log(`[MongoStorage] Initiating new connection...`);
     MongoStorage.connectionPromise = (async () => {
       try {
-        // Disconnect if there's a stale connection
-        if (mongoose.connection.readyState !== 0) {
+        // Only disconnect if there's a non-connected, non-disconnected state (connecting/disconnecting)
+        if (mongoose.connection.readyState !== 0 && mongoose.connection.readyState !== 1) {
           console.log(`[MongoStorage] Disconnecting stale connection (state: ${mongoose.connection.readyState})`);
           await mongoose.disconnect();
         }
 
-        console.log(`[MongoStorage] Connecting to MongoDB at: ${this.mongoUrl}`);
+        // If mongoose is already connected, just mark and return
+        if (mongoose.connection.readyState === 1) {
+          console.log(`[MongoStorage] Mongoose already connected, reusing connection`);
+          MongoStorage.connected = true;
+          return;
+        }
+
+        console.log(`[MongoStorage] Connecting to MongoDB...`);
         const connectStart = Date.now();
         await mongoose.connect(this.mongoUrl, {
-          serverSelectionTimeoutMS: 60000, // Increase to 60 seconds
-          socketTimeoutMS: 120000, // Increase to 2 minutes
-          connectTimeoutMS: 60000, // Increase to 60 seconds
-          maxPoolSize: 10, // Maintain up to 10 socket connections
+          serverSelectionTimeoutMS: 60000,
+          socketTimeoutMS: 120000,
+          connectTimeoutMS: 60000,
+          maxPoolSize: 10,
           retryWrites: true,
           w: 'majority'
         });
         const connectElapsed = Date.now() - connectStart;
         console.log(`[MongoStorage] MongoDB connected successfully in ${connectElapsed}ms`);
-        
-        // Mark as connected BEFORE initializing sample data to avoid deadlock
-        this.connected = true;
 
-        // Initialize with sample data if empty
-        const worldCount = await WorldModel.countDocuments();
-        if (worldCount === 0) {
-          console.log("No worlds found, initializing sample data...");
-          MongoStorage.isInitializing = true; // Set flag to skip connect() calls during init
-          try {
-            await this.initializeSampleData();
-            console.log("Sample data initialized successfully");
-          } catch (error) {
-            console.error("Failed to initialize sample data:", error);
-          } finally {
-            MongoStorage.isInitializing = false;
-          }
-        }
+        // Mark as connected BEFORE initializing sample data to avoid deadlock
+        MongoStorage.connected = true;
+
       } catch (error) {
         console.error("MongoDB connection failed:", error);
-        MongoStorage.connectionPromise = null;
+        MongoStorage.connected = false;
         throw error;
+      } finally {
+        MongoStorage.connectionPromise = null;
       }
     })();
 
     await MongoStorage.connectionPromise;
-    // this.connected is already set to true inside the promise
   }
 
   async disconnect(): Promise<void> {
-    if (!this.connected) return;
+    if (!MongoStorage.connected) return;
     await mongoose.disconnect();
-    this.connected = false;
+    MongoStorage.connected = false;
   }
 
   // World operations
@@ -1004,10 +999,7 @@ export class MongoStorage implements IStorage {
   }
 
   async createWorld(insertWorld: InsertWorld): Promise<World> {
-    // Skip connect if we're in initialization (already connected)
-    if (!MongoStorage.isInitializing) {
-      await this.connect();
-    }
+    await this.connect();
     console.log("Creating world with data:", JSON.stringify(insertWorld, null, 2));
     
     try {
@@ -1548,15 +1540,12 @@ export class MongoStorage implements IStorage {
     
     // Build projection based on whether we need content
     const projection: Record<string, 1 | 0> = includeContent
-      ? { _id: 1, worldId: 1, isBase: 1, content: 1, prologContent: 1, name: 1, sourceFormat: 1,
-          ruleType: 1, category: 1, priority: 1, likelihood: 1,
-          conditions: 1, effects: 1, tags: 1, dependencies: 1,
-          isActive: 1, description: 1, isCompiled: 1, compiledOutput: 1,
-          createdAt: 1, updatedAt: 1 }
-      : { _id: 1, worldId: 1, isBase: 1, name: 1, sourceFormat: 1,
-          ruleType: 1, category: 1, priority: 1, likelihood: 1,
-          tags: 1, dependencies: 1, isActive: 1, description: 1,
-          isCompiled: 1, createdAt: 1, updatedAt: 1 };
+      ? { _id: 1, worldId: 1, isBase: 1, content: 1, name: 1, description: 1,
+          sourceFormat: 1, ruleType: 1, category: 1, priority: 1, likelihood: 1,
+          tags: 1, isActive: 1, createdAt: 1, updatedAt: 1 }
+      : { _id: 1, worldId: 1, isBase: 1, name: 1, description: 1,
+          sourceFormat: 1, ruleType: 1, category: 1, priority: 1, likelihood: 1,
+          tags: 1, isActive: 1, createdAt: 1, updatedAt: 1 };
     
     console.log(`[MongoStorage] Using projection:`, projection);
     
@@ -2425,82 +2414,4 @@ export class MongoStorage implements IStorage {
     return !!result;
   }
 
-  // Initialize sample data with new geographical hierarchy
-  private async initializeSampleData() {
-    console.log("Starting sample data creation...");
-    
-    try {
-      console.log("Creating sample world...");
-      const world = await this.createWorld({
-        name: "Medieval Kingdom",
-        description: "A comprehensive medieval world combining all three simulation systems",
-        config: {
-          enableTracery: true,
-          enableGenealogy: true
-        },
-        generationConfig: {
-          marriage_age_min: 16,
-          marriage_age_max: 45,
-          fertility_rate: 0.35,
-          mortality_rate: 0.1,
-          enable_prophecies: true
-        }
-      });
-      
-      console.log("Sample world created with ID:", world.id);
-      
-      // Create sample country
-      console.log("Creating sample country...");
-      const country = await this.createCountry({
-        worldId: world.id,
-        name: "Kingdom of Valoria",
-        description: "A feudal kingdom with a rich history",
-        governmentType: "monarchy",
-        economicSystem: "feudal",
-        foundedYear: 1150,
-        culture: {
-          nobility: ["Duke", "Earl", "Baron", "Knight"],
-          clergy: ["Archbishop", "Bishop", "Priest"],
-          commoners: ["Merchant", "Artisan", "Farmer", "Serf"]
-        }
-      });
-      
-      console.log("Sample country created with ID:", country.id);
-      
-      // Create sample settlements
-      console.log("Creating sample settlements...");
-      await this.createSettlement({
-        worldId: world.id,
-        countryId: country.id,
-        name: "Ravenshollow",
-        description: "A small village surrounded by forests",
-        settlementType: "village",
-        terrain: "forest",
-        population: 1200,
-        foundedYear: 1150,
-        socialStructure: {
-          classes: ["Nobility", "Clergy", "Commoners"]
-        }
-      });
-      
-      await this.createSettlement({
-        worldId: world.id,
-        countryId: country.id,
-        name: "Goldspire",
-        description: "A prosperous trading city",
-        settlementType: "city",
-        terrain: "plains",
-        population: 25000,
-        foundedYear: 1160,
-        socialStructure: {
-          classes: ["Nobility", "Merchants", "Artisans", "Commoners"]
-        }
-      });
-      
-      console.log("Sample data initialized in MongoDB");
-    } catch (error) {
-      console.error("Error during sample data creation:", error);
-      throw error;
-    }
-  }
 }

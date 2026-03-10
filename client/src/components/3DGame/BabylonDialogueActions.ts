@@ -205,7 +205,7 @@ export class BabylonDialogueActions {
     }
 
     // Relationship indicator
-    if (action.effects && action.effects.length > 0) {
+    if ((action as any).effects && (action as any).effects.length > 0) {
       const relationshipIcon = new GUI.TextBlock('relationshipIcon', '❤️');
       relationshipIcon.fontSize = 14;
       relationshipIcon.width = '20px';

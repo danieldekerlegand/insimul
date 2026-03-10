@@ -53,6 +53,11 @@ export interface ActionFeedbackData {
   timestamp: number;
 }
 
+export interface MinimapBuilding {
+  position: { x: number; z: number };
+  type: 'business' | 'residence' | 'other';
+}
+
 export interface MinimapData {
   settlements: Array<{
     id: string;
@@ -62,10 +67,16 @@ export interface MinimapData {
     zoneType: string; // safe, neutral, caution
     buildingCount?: number;
   }>;
+  buildings?: MinimapBuilding[];
   questMarkers?: Array<{
     id: string;
     title: string;
     position: { x: number; z: number };
+  }>;
+  npcPositions?: Array<{
+    id: string;
+    position: { x: number; z: number };
+    role?: string;
   }>;
   playerPosition: { x: number; z: number };
   worldSize: number; // Terrain size for scaling
@@ -110,6 +121,8 @@ export class BabylonGUIManager {
   private fullscreenButton: Button | null = null;
   private menuPanel: Rectangle | null = null;
   private minimapPanel: Container | null = null;
+  private minimapStaticRendered: boolean = false;
+  private minimapStaticImage: Image | null = null;
   private reputationPanel: Container | null = null;
   private settlementDetailsPanel: Container | null = null;
   private helpPanel: Container | null = null;
@@ -642,13 +655,15 @@ export class BabylonGUIManager {
   }
 
   private createMinimapPanel() {
+    const MAP_SIZE = 200;
+
     const panel = new Rectangle("minimapPanel");
-    panel.width = "200px";
-    panel.height = "200px";
-    panel.background = "rgba(0, 0, 0, 0.7)";
-    panel.color = "white";
+    panel.width = `${MAP_SIZE + 20}px`;
+    panel.height = `${MAP_SIZE + 40}px`;
+    panel.background = "rgba(0, 0, 0, 0.75)";
+    panel.color = "rgba(255,255,255,0.5)";
     panel.thickness = 2;
-    panel.cornerRadius = 5;
+    panel.cornerRadius = 8;
     panel.top = "10px";
     panel.left = "-10px";
     panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
@@ -656,42 +671,42 @@ export class BabylonGUIManager {
 
     // Title
     const title = new TextBlock();
-    title.text = "Minimap";
+    title.text = "Map";
     title.color = "white";
-    title.fontSize = 14;
-    title.height = "20px";
+    title.fontSize = 13;
+    title.height = "22px";
     title.fontWeight = "bold";
-    title.top = "-85px";
-    title.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    title.top = "4px";
+    title.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     panel.addControl(title);
 
-    // Minimap background (world view)
+    // Map background (terrain color)
     const mapBackground = new Rectangle("minimapBackground");
-    mapBackground.width = "180px";
-    mapBackground.height = "160px";
-    mapBackground.background = "rgba(30, 30, 30, 0.9)";
-    mapBackground.cornerRadius = 3;
-    mapBackground.top = "5px";
-    mapBackground.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    mapBackground.width = `${MAP_SIZE}px`;
+    mapBackground.height = `${MAP_SIZE}px`;
+    mapBackground.background = "#1a3a1a"; // Dark green terrain
+    mapBackground.cornerRadius = 4;
+    mapBackground.top = "28px";
+    mapBackground.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     panel.addControl(mapBackground);
 
-    // Container for map elements (settlements, zones, player)
-    const mapContainer = new Container("minimapContainer");
-    mapContainer.width = "180px";
-    mapContainer.height = "160px";
-    mapContainer.top = "5px";
-    mapContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-    panel.addControl(mapContainer);
+    // Static map image (rendered once with buildings/terrain)
+    const staticImage = new Image("minimapStaticImage");
+    staticImage.width = `${MAP_SIZE}px`;
+    staticImage.height = `${MAP_SIZE}px`;
+    staticImage.top = "28px";
+    staticImage.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    staticImage.isVisible = false;
+    panel.addControl(staticImage);
+    this.minimapStaticImage = staticImage;
 
-    // Legend
-    const legend = new TextBlock();
-    legend.text = "Green: Safe | Blue: Neutral | Amber: Caution";
-    legend.color = "#888";
-    legend.fontSize = 9;
-    legend.height = "15px";
-    legend.top = "85px";
-    legend.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-    panel.addControl(legend);
+    // Container for dynamic elements (player, NPCs, quests)
+    const mapContainer = new Container("minimapContainer");
+    mapContainer.width = `${MAP_SIZE}px`;
+    mapContainer.height = `${MAP_SIZE}px`;
+    mapContainer.top = "28px";
+    mapContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    panel.addControl(mapContainer);
 
     this.minimapPanel = panel;
     this.advancedTexture.addControl(panel);
@@ -1101,8 +1116,112 @@ export class BabylonGUIManager {
     }
   }
 
+  /**
+   * Render the static minimap layer (terrain + buildings) once to a canvas texture.
+   * Called on first updateMinimap when building data is available.
+   */
+  private renderMinimapStaticLayer(data: MinimapData): void {
+    if (!this.scene || this.scene.isDisposed) return;
+
+    const TEX_SIZE = 512; // High-res texture for crisp rendering
+    const half = data.worldSize / 2;
+
+    // Create an offscreen canvas
+    const canvas = document.createElement('canvas');
+    canvas.width = TEX_SIZE;
+    canvas.height = TEX_SIZE;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // World coord → pixel
+    const toPixel = (wx: number, wz: number): [number, number] => {
+      const px = ((wx + half) / data.worldSize) * TEX_SIZE;
+      const py = ((-wz + half) / data.worldSize) * TEX_SIZE; // invert Z for top-down
+      return [px, py];
+    };
+
+    // Background: ocean/water
+    ctx.fillStyle = '#2a4a6b';
+    ctx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
+
+    // Terrain: green land mass with slight padding
+    const margin = 4;
+    const landSize = TEX_SIZE - margin * 2;
+    ctx.fillStyle = '#3a5a2a';
+    ctx.fillRect(margin, margin, landSize, landSize);
+
+    // Subtle terrain grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.lineWidth = 0.5;
+    const gridStep = TEX_SIZE / 8;
+    for (let i = 1; i < 8; i++) {
+      const pos = margin + (landSize / 8) * i;
+      ctx.beginPath();
+      ctx.moveTo(pos, margin);
+      ctx.lineTo(pos, TEX_SIZE - margin);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(margin, pos);
+      ctx.lineTo(TEX_SIZE - margin, pos);
+      ctx.stroke();
+    }
+
+    // Draw buildings as footprints
+    if (data.buildings) {
+      for (const bld of data.buildings) {
+        const [px, py] = toPixel(bld.position.x, bld.position.z);
+        const size = bld.type === 'business' ? 5 : 4;
+
+        if (bld.type === 'business') {
+          ctx.fillStyle = '#8B6914'; // Warm brown
+        } else if (bld.type === 'residence') {
+          ctx.fillStyle = '#5A6A80'; // Blue-gray
+        } else {
+          ctx.fillStyle = '#6B6B5A'; // Muted olive
+        }
+
+        ctx.fillRect(px - size / 2, py - size / 2, size, size);
+
+        // Tiny roof highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(px - size / 2, py - size / 2, size, 1);
+      }
+    }
+
+    // Draw settlement name labels
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    for (const settlement of data.settlements) {
+      const [sx, sy] = toPixel(settlement.position.x, settlement.position.z);
+
+      // Label background
+      ctx.font = 'bold 11px sans-serif';
+      const textWidth = ctx.measureText(settlement.name).width;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(sx - textWidth / 2 - 3, sy - 16, textWidth + 6, 14);
+
+      // Label text
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillText(settlement.name, sx, sy - 4);
+    }
+
+    // Convert canvas to data URL and set as minimap background
+    const dataUrl = canvas.toDataURL('image/png');
+    if (this.minimapStaticImage) {
+      this.minimapStaticImage.source = dataUrl;
+      this.minimapStaticImage.isVisible = true;
+    }
+
+    this.minimapStaticRendered = true;
+  }
+
   public updateMinimap(data: MinimapData) {
     if (!this.minimapPanel) return;
+
+    // Render static layer once (buildings + terrain)
+    if (!this.minimapStaticRendered && data.buildings && data.buildings.length > 0) {
+      this.renderMinimapStaticLayer(data);
+    }
 
     const mapContainer = this.minimapPanel.getDescendants().find(
       (c) => c.name === "minimapContainer"
@@ -1110,89 +1229,78 @@ export class BabylonGUIManager {
 
     if (!mapContainer) return;
 
-    // Clear existing map elements
+    // Clear dynamic elements
     mapContainer.children.slice().forEach((child) => {
       mapContainer.removeControl(child);
       child.dispose();
     });
 
-    const mapWidth = 180;
-    const mapHeight = 160;
-    const scale = Math.min(mapWidth, mapHeight) / data.worldSize;
+    const MAP_SIZE = 200;
+    const scale = MAP_SIZE / data.worldSize;
 
-    // Draw settlements and zones
-    data.settlements.forEach((settlement) => {
-      const x = (settlement.position.x * scale);
-      const z = (settlement.position.z * scale);
+    // Draw NPC markers (small dots)
+    if (data.npcPositions) {
+      for (const npc of data.npcPositions) {
+        const nx = npc.position.x * scale;
+        const nz = npc.position.z * scale;
 
-      // Determine zone color
-      let zoneColor = "#4CAF50"; // Green (safe)
-      if (settlement.zoneType === "neutral") {
-        zoneColor = "#2196F3"; // Blue
-      } else if (settlement.zoneType === "caution") {
-        zoneColor = "#FF9800"; // Amber
+        const dot = new Ellipse(`npc-${npc.id}`);
+        dot.width = "4px";
+        dot.height = "4px";
+        dot.thickness = 0;
+
+        // Color by role
+        if (npc.role === 'guard') dot.background = '#F44336';
+        else if (npc.role === 'merchant') dot.background = '#4CAF50';
+        else if (npc.role === 'questgiver') dot.background = '#FFC107';
+        else dot.background = 'rgba(200,200,200,0.6)';
+
+        dot.left = `${nx}px`;
+        dot.top = `${-nz}px`;
+        mapContainer.addControl(dot);
       }
+    }
 
-      // Draw zone circle - base size from type, scaled slightly by building density
-      const baseRadius = settlement.type === "city" ? 15 : settlement.type === "village" ? 8 : 12;
-      const densityFactor = settlement.buildingCount && settlement.buildingCount > 0
-        ? Math.min(1.5, 0.7 + Math.sqrt(settlement.buildingCount) / 12)
-        : 1;
-      const zoneRadius = baseRadius * densityFactor;
-      const zoneCircle = new Ellipse(`zone-${settlement.id}`);
-      zoneCircle.width = `${zoneRadius * 2}px`;
-      zoneCircle.height = `${zoneRadius * 2}px`;
-      zoneCircle.color = zoneColor;
-      zoneCircle.thickness = 2;
-      zoneCircle.background = `${zoneColor}33`; // Semi-transparent
-      zoneCircle.left = `${x}px`;
-      zoneCircle.top = `${-z}px`; // Invert Z for top-down view
-      mapContainer.addControl(zoneCircle);
-
-      // Draw settlement marker
-      const marker = new Ellipse(`settlement-${settlement.id}`);
-      marker.width = "8px";
-      marker.height = "8px";
-      marker.color = "white";
-      marker.background = zoneColor;
-      marker.thickness = 1;
-      marker.left = `${x}px`;
-      marker.top = `${-z}px`;
-      mapContainer.addControl(marker);
-    });
-
-    // Draw quest location markers
+    // Draw quest markers (diamond shape)
     if (data.questMarkers) {
-      data.questMarkers.forEach((quest) => {
+      for (const quest of data.questMarkers) {
         const qx = quest.position.x * scale;
         const qz = quest.position.z * scale;
 
-        // Diamond-shaped quest marker (rotated rectangle)
         const questMarker = new Rectangle(`quest-${quest.id}`);
         questMarker.width = "10px";
         questMarker.height = "10px";
-        questMarker.background = "#E040FB"; // Magenta/purple
+        questMarker.background = "#E040FB";
         questMarker.color = "#FFFFFF";
         questMarker.thickness = 1;
         questMarker.cornerRadius = 2;
-        questMarker.rotation = Math.PI / 4; // 45° rotation for diamond shape
+        questMarker.rotation = Math.PI / 4;
         questMarker.left = `${qx}px`;
         questMarker.top = `${-qz}px`;
         mapContainer.addControl(questMarker);
-      });
+      }
     }
 
-    // Draw player marker
+    // Draw player marker (bright, with border)
     const playerX = data.playerPosition.x * scale;
     const playerZ = data.playerPosition.z * scale;
 
-    const playerMarker = new Rectangle("player-marker");
+    const playerOuter = new Ellipse("player-marker-outer");
+    playerOuter.width = "12px";
+    playerOuter.height = "12px";
+    playerOuter.background = "rgba(0,0,0,0.4)";
+    playerOuter.color = "transparent";
+    playerOuter.thickness = 0;
+    playerOuter.left = `${playerX}px`;
+    playerOuter.top = `${-playerZ}px`;
+    mapContainer.addControl(playerOuter);
+
+    const playerMarker = new Ellipse("player-marker");
     playerMarker.width = "8px";
     playerMarker.height = "8px";
-    playerMarker.background = "#FFC107"; // Yellow
+    playerMarker.background = "#FFC107";
     playerMarker.color = "white";
     playerMarker.thickness = 2;
-    playerMarker.cornerRadius = 4;
     playerMarker.left = `${playerX}px`;
     playerMarker.top = `${-playerZ}px`;
     mapContainer.addControl(playerMarker);

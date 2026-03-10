@@ -30,10 +30,18 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
   const { token } = useAuth();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const gameRef = useRef<BabylonGame | null>(null);
+  // Store onBack in a ref so it doesn't trigger useEffect re-runs.
+  // Inline arrow functions (e.g. onBack={() => setActiveTab(...)}) create a
+  // new reference every render; including them in the dep array would dispose
+  // and re-create the entire game engine on each parent re-render.
+  const onBackRef = useRef(onBack);
+  onBackRef.current = onBack;
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !token) return;
+
+    console.log('[BabylonWorld] useEffect: creating game instance');
 
     // Create and initialize the game
     const game = new BabylonGame(canvas, {
@@ -41,7 +49,7 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
       worldName,
       worldType,
       authToken: token,
-      onBack
+      onBack: () => onBackRef.current()
     });
 
     gameRef.current = game;
@@ -53,10 +61,11 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
 
     // Cleanup on unmount
     return () => {
+      console.log('[BabylonWorld] useEffect cleanup: disposing game');
       game.dispose();
       gameRef.current = null;
     };
-  }, [worldId, worldName, worldType, token, onBack]);
+  }, [worldId, worldName, worldType, token]);
 
   return (
     <div style={{ width: '100%', height: '100vh', margin: 0, padding: 0, overflow: 'hidden' }}>

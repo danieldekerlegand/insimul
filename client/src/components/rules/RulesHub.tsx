@@ -63,7 +63,6 @@ export function RulesHub({ worldId }: RulesHubProps) {
   // Editing
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
-  const [codeView, setCodeView] = useState<'source' | 'prolog'>('source');
 
   // Right panel tab
   const [rightTab, setRightTab] = useState<'details' | 'predicates' | 'query'>('details');
@@ -176,9 +175,8 @@ export function RulesHub({ worldId }: RulesHubProps) {
     setShowDetail(true);
     setIsEditing(false);
     setEditedContent('');
-    setCodeView('source');
 
-    // Fetch full rule content (including prologContent) if not already loaded
+    // Fetch full rule content if not already loaded
     if (!rule.content && rule.id) {
       try {
         const res = await fetch(`/api/rules/${rule.id}`);
@@ -442,8 +440,8 @@ export function RulesHub({ worldId }: RulesHubProps) {
         <div className="px-4 py-3 border-b shrink-0">
           <div className="flex items-center gap-2 mb-1">
             <h2 className="text-lg font-bold break-words">{selectedRule.name}</h2>
-            <Badge variant="outline" className={SYNTAX_COLORS[selectedRule.syntax] || SYNTAX_COLORS[selectedRule.sourceFormat] || ''}>
-              {selectedRule.syntax || selectedRule.sourceFormat || 'unknown'}
+            <Badge variant="outline" className={SYNTAX_COLORS[selectedRule.syntax] || ''}>
+              {selectedRule.ruleType || 'rule'}
             </Badge>
             {isBase && (
               <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20">
@@ -529,22 +527,7 @@ export function RulesHub({ worldId }: RulesHubProps) {
         <div className="flex-1 min-h-0 flex flex-col">
           <div className="px-4 py-2 shrink-0 flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <Code className="w-3.5 h-3.5" />
-            {!isEditing && (
-              <div className="flex gap-1 bg-muted/50 rounded-md p-0.5">
-                <button
-                  className={`px-2 py-0.5 rounded text-xs transition-colors ${codeView === 'source' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => setCodeView('source')}
-                >
-                  Source
-                </button>
-                <button
-                  className={`px-2 py-0.5 rounded text-xs transition-colors ${codeView === 'prolog' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => setCodeView('prolog')}
-                >
-                  Prolog
-                </button>
-              </div>
-            )}
+            <span>Prolog</span>
             {isEditing && <span className="text-primary">(Editing)</span>}
           </div>
           {isEditing ? (
@@ -554,47 +537,15 @@ export function RulesHub({ worldId }: RulesHubProps) {
               className="flex-1 mx-4 mb-4 font-mono text-sm resize-none rounded-lg"
               placeholder="Enter rule code..."
             />
-          ) : codeView === 'prolog' ? (
-            <ScrollArea className="flex-1 mx-4 mb-4">
-              <div className="bg-purple-500/5 p-4 rounded-lg overflow-x-auto border border-purple-500/10">
-                {selectedRule.prologContent ? (
-                  <PrologSyntaxHighlight code={selectedRule.prologContent} />
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground italic">No Prolog content generated yet.</p>
-                    {canEdit && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            const res = await fetch(`/api/rules/${selectedRule.id}`, {
-                              method: 'PUT',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ content: selectedRule.content }),
-                            });
-                            if (res.ok) {
-                              const updated = await res.json();
-                              setSelectedRule(updated);
-                              toast({ title: 'Prolog Generated' });
-                            }
-                          } catch (e) {
-                            toast({ title: 'Error', description: 'Failed to generate Prolog', variant: 'destructive' });
-                          }
-                        }}
-                      >
-                        <RefreshCw className="w-3 h-3 mr-1.5" /> Generate Prolog
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
           ) : (
             <ScrollArea className="flex-1 mx-4 mb-4">
-              <pre className="bg-muted/50 p-4 rounded-lg text-sm font-mono overflow-x-auto whitespace-pre-wrap">
-                <code>{selectedRule.content || selectedRule.code || 'No code available'}</code>
-              </pre>
+              <div className="bg-purple-500/5 p-4 rounded-lg overflow-x-auto border border-purple-500/10">
+                {selectedRule.content ? (
+                  <PrologSyntaxHighlight code={selectedRule.content} />
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No Prolog content available.</p>
+                )}
+              </div>
             </ScrollArea>
           )}
         </div>
@@ -654,92 +605,71 @@ export function RulesHub({ worldId }: RulesHubProps) {
               <div className="flex-1 flex items-center justify-center p-4 text-center text-sm text-muted-foreground">
                 Select a rule to view details
               </div>
-            ) : (() => {
-              const hasTriggers = selectedRule.triggers?.length > 0;
-              const hasConditions = selectedRule.conditions?.length > 0;
-              const hasEffects = selectedRule.effects?.length > 0;
-              const hasDeps = selectedRule.dependencies?.length > 0;
-
-              if (!hasTriggers && !hasConditions && !hasEffects && !hasDeps) {
-                return (
-                  <div className="flex-1 flex items-center justify-center p-4 text-center text-sm text-muted-foreground">
-                    No triggers, conditions, or effects
+            ) : (
+              <ScrollArea className="flex-1">
+                <div className="p-3 space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Source Format</span>
+                      <span className="font-mono text-xs">{selectedRule.sourceFormat || 'prolog'}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Rule Type</span>
+                      <span className="font-mono text-xs">{selectedRule.ruleType || 'none'}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Category</span>
+                      <span className="font-mono text-xs">{selectedRule.category || 'none'}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Priority</span>
+                      <span className="font-mono text-xs">{selectedRule.priority ?? 'none'}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Likelihood</span>
+                      <span className="font-mono text-xs">{selectedRule.likelihood ?? 'none'}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Active</span>
+                      <Badge variant={selectedRule.isActive !== false ? 'default' : 'secondary'} className="text-xs">
+                        {selectedRule.isActive !== false ? 'Yes' : 'No'}
+                      </Badge>
+                    </div>
                   </div>
-                );
-              }
 
-              return (
-                <>
-                  {hasTriggers && (
-                    <div className="flex flex-col min-h-0 max-h-[30%]">
-                      <div className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 shrink-0">
-                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Triggers</span>
-                        <span className="ml-auto text-xs text-muted-foreground">{selectedRule.triggers.length}</span>
-                      </div>
-                      <ScrollArea className="flex-1">
-                        <div className="p-2 space-y-1">
-                          {selectedRule.triggers.map((t: string, i: number) => (
-                            <div key={i} className="px-2 py-1 text-sm rounded bg-muted/30">{t}</div>
-                          ))}
-                        </div>
-                      </ScrollArea>
+                  {selectedRule.description && (
+                    <div className="space-y-1">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Description</span>
+                      <p className="text-sm">{selectedRule.description}</p>
                     </div>
                   )}
 
-                  {hasConditions && (
-                    <div className="flex flex-col min-h-0 max-h-[35%] border-t">
-                      <div className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 shrink-0">
-                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Conditions</span>
-                        <span className="ml-auto text-xs text-muted-foreground">{selectedRule.conditions.length}</span>
+                  <div className="space-y-1">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tags</span>
+                    {selectedRule.tags?.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {selectedRule.tags.map((tag: string, i: number) => (
+                          <Badge key={i} variant="secondary" className="text-xs">{tag}</Badge>
+                        ))}
                       </div>
-                      <ScrollArea className="flex-1">
-                        <div className="p-2 space-y-1">
-                          {selectedRule.conditions.map((c: any, i: number) => (
-                            <div key={i} className="px-2 py-1 text-xs font-mono rounded bg-muted/30 break-all">
-                              {typeof c === 'string' ? c : JSON.stringify(c)}
-                            </div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </div>
-                  )}
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">No tags</p>
+                    )}
+                  </div>
 
-                  {hasEffects && (
-                    <div className="flex flex-col min-h-0 flex-1 border-t">
-                      <div className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 shrink-0">
-                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Effects</span>
-                        <span className="ml-auto text-xs text-muted-foreground">{selectedRule.effects.length}</span>
+                  {selectedRule.triggers?.length > 0 && (
+                    <div className="space-y-1">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Triggers</span>
+                      <div className="space-y-1">
+                        {selectedRule.triggers.map((t: string, i: number) => (
+                          <div key={i} className="px-2 py-1 text-sm rounded bg-muted/30">{t}</div>
+                        ))}
                       </div>
-                      <ScrollArea className="flex-1">
-                        <div className="p-2 space-y-1">
-                          {selectedRule.effects.map((e: any, i: number) => (
-                            <div key={i} className="px-2 py-1 text-xs font-mono rounded bg-muted/30 break-all">
-                              {typeof e === 'string' ? e : JSON.stringify(e)}
-                            </div>
-                          ))}
-                        </div>
-                      </ScrollArea>
                     </div>
                   )}
-
-                  {hasDeps && (
-                    <div className="flex flex-col min-h-0 max-h-[25%] border-t">
-                      <div className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 shrink-0">
-                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Dependencies</span>
-                        <span className="ml-auto text-xs text-muted-foreground">{selectedRule.dependencies.length}</span>
-                      </div>
-                      <ScrollArea className="flex-1">
-                        <div className="p-2 space-y-1">
-                          {selectedRule.dependencies.map((d: string, i: number) => (
-                            <div key={i} className="px-2 py-1 text-sm rounded bg-muted/30">{d}</div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </div>
-                  )}
-                </>
-              );
-            })()}
+                </div>
+              </ScrollArea>
+            )}
           </>
         )}
       </div>

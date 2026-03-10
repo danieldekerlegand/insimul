@@ -7,6 +7,7 @@ import { Mic, MicOff, Send, Volume2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { buildGreeting, buildLanguageAwareSystemPrompt, extractLanguageFluencies, getLanguageBCP47 } from '@shared/language-utils';
 import type { WorldLanguageContext } from '@shared/language-utils';
+import { buildWorldLanguageContext } from '@shared/language-utils';
 import { parseGrammarFeedbackBlock } from '@shared/language-progress';
 
 export interface Character {
@@ -67,13 +68,11 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
           fetch(`/api/worlds/${character.worldId}`).then(r => r.ok ? r.json() : null),
           fetch(`/api/worlds/${character.worldId}/languages`).then(r => r.ok ? r.json() : []),
         ]).then(([world, languages]) => {
-          const primary = languages.find((l: any) => l.isPrimary) || null;
-          setWorldLangContext({
-            targetLanguage: world?.targetLanguage || 'English',
-            worldLanguages: languages,
-            primaryLanguage: primary,
-            gameType: world?.gameType || world?.worldType,
-          });
+          setWorldLangContext(buildWorldLanguageContext(
+            languages,
+            world?.gameType || world?.worldType,
+            world?.targetLanguage,
+          ));
         }).catch(err => console.error('Failed to fetch world language context:', err));
       }
 
@@ -425,7 +424,7 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
           description: description,
           questType: questType,
           difficulty: 'beginner',
-          targetLanguage: 'French',
+          targetLanguage: worldLangContext?.targetLanguage || 'English',
           conversationContext: `User: ${userMessage}\n${character.firstName}: ${characterResponse}`,
           status: 'active',
           experienceReward: 10,

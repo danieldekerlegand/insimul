@@ -442,18 +442,15 @@ export interface RuleIR {
   category: string | null;
   priority: number;
   likelihood: number;
-  conditions: any[];
-  effects: any[];
   tags: string[];
-  dependencies: string[];
   isActive: boolean;
-  prologContent: string | null;
 }
 
 export interface ActionIR {
   id: string;
   name: string;
   description: string | null;
+  content: string | null;
   isBase: boolean;
   sourceFormat: string;
   actionType: string;
@@ -461,22 +458,17 @@ export interface ActionIR {
   duration: number;
   difficulty: number;
   energyCost: number;
-  prerequisites: any[];
-  effects: any[];
-  sideEffects: any[];
   targetType: string | null;
   requiresTarget: boolean;
   range: number;
   isAvailable: boolean;
   cooldown: number;
-  triggerConditions: any[];
   verbPast: string | null;
   verbPresent: string | null;
   narrativeTemplates: string[];
   customData: Record<string, any>;
   tags: string[];
   isActive: boolean;
-  prologContent: string | null;
 }
 
 export interface QuestIR {
@@ -511,7 +503,7 @@ export interface QuestIR {
   locationPosition: { x: number; y: number; z: number } | null;
   tags: string[];
   status: string;
-  prologContent: string | null;
+  content: string | null;
 }
 
 export interface TruthIR {

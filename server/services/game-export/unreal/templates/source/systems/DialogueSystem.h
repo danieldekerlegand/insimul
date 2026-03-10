@@ -7,6 +7,7 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDialogueStarted, const FString&, NPCId);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDialogueEnded);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionSelected, const FString&, ActionId);
 
 /**
  * NPC dialogue and conversation management with AI-powered chat.
@@ -46,7 +47,32 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Dialogue")
     FOnDialogueEnded OnDialogueEnded;
 
+    UPROPERTY(BlueprintAssignable, Category = "Dialogue")
+    FOnActionSelected OnActionSelected;
+
+    /** Current player energy for action affordability checks */
+    UPROPERTY(BlueprintReadWrite, Category = "Dialogue")
+    float PlayerEnergy = 100.0f;
+
+    /** Set the current player energy level */
+    UFUNCTION(BlueprintCallable, Category = "Dialogue")
+    void SetPlayerEnergy(float Energy);
+
+    /** Get available social actions filtered by energy affordability */
+    UFUNCTION(BlueprintCallable, Category = "Dialogue")
+    TArray<FString> GetAvailableActions();
+
+    /** Select an action during dialogue, broadcasts OnActionSelected */
+    UFUNCTION(BlueprintCallable, Category = "Dialogue")
+    void SelectAction(const FString& ActionId);
+
 private:
     FInsimulAIConfig AIConfig;
     TArray<FInsimulDialogueContext> DialogueContexts;
+
+    /** Cached social actions loaded from data */
+    TArray<TSharedPtr<FJsonObject>> SocialActions;
+
+    /** Load social actions from JSON data */
+    void LoadSocialActions();
 };

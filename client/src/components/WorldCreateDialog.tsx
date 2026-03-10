@@ -24,7 +24,7 @@ const createWorldFormSchema = insertWorldSchema.extend({
 
 type CreateWorldForm = z.infer<typeof createWorldFormSchema>;
 
-const WORLD_TYPES = [
+export const WORLD_TYPES = [
   { value: 'medieval-fantasy', label: 'Medieval Fantasy', description: 'Knights, castles, magic, and dragons' },
   { value: 'high-fantasy', label: 'High Fantasy', description: 'Epic quests, multiple races, powerful magic' },
   { value: 'low-fantasy', label: 'Low Fantasy', description: 'Realistic with subtle magical elements' },
@@ -47,7 +47,7 @@ const WORLD_TYPES = [
   { value: 'solarpunk', label: 'Solarpunk', description: 'Optimistic future with sustainable technology' },
 ];
 
-const GAME_TYPES = [
+export const GAME_TYPES = [
   { value: 'rpg', label: 'RPG', description: 'Character progression, quests, and story-driven gameplay' },
   { value: 'action', label: 'Action', description: 'Fast-paced combat and reflexes' },
   { value: 'fighting', label: 'Fighting', description: 'One-on-one combat with various characters' },
@@ -65,7 +65,7 @@ const GAME_TYPES = [
   { value: 'roguelike', label: 'Roguelike', description: 'Procedural generation with permadeath' },
 ];
 
-const LANGUAGES = [
+export const LANGUAGES = [
   'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Dutch', 'Russian', 'Polish',
   'Chinese (Mandarin)', 'Japanese', 'Korean', 'Arabic', 'Hebrew', 'Hindi', 'Bengali',
   'Turkish', 'Greek', 'Swedish', 'Norwegian', 'Danish', 'Finnish', 'Czech', 'Hungarian',
@@ -382,6 +382,7 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
   const [selectedWorldType, setSelectedWorldType] = useState(WORLD_TYPES[0].value);
   const [selectedGameType, setSelectedGameType] = useState<string | undefined>(undefined);
   const [targetLanguage, setTargetLanguage] = useState<string | undefined>(undefined);
+  const [worldLanguages, setWorldLanguages] = useState<string[]>([]);
   const [customPrompt, setCustomPrompt] = useState('');
   const [customLabel, setCustomLabel] = useState('');
 
@@ -442,7 +443,7 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
       data.description = customPrompt;
     }
 
-    // Add target language for language-learning worlds
+    // Add target language for language-learning worlds (deprecated field, kept for backward compat)
     if (selectedGameType === 'language-learning' && targetLanguage) {
       data.targetLanguage = targetLanguage;
     }
@@ -455,6 +456,8 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
         generateWorldMap,
         gameType: selectedGameType,
         countries: countryConfigs,
+        // World languages to create as WorldLanguage records
+        worldLanguages: worldLanguages.length > 0 ? worldLanguages : undefined,
       };
     }
 
@@ -467,6 +470,7 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
     setSelectedWorldType(WORLD_TYPES[0].value);
     setSelectedGameType(undefined);
     setTargetLanguage(undefined);
+    setWorldLanguages([]);
     setCustomPrompt('');
     setCustomLabel('');
     setGenerateGeography(true);
@@ -672,6 +676,70 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
                     </div>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* World Languages (optional, all game types) */}
+          {creationMode === 'procedural' && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Globe className="w-4 h-4" />
+                  World Languages
+                </CardTitle>
+                <CardDescription>
+                  Languages spoken in this world. NPCs will use these in dialogue.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <Select
+                      value=""
+                      onValueChange={(lang) => {
+                        if (lang && !worldLanguages.includes(lang)) {
+                          setWorldLanguages([...worldLanguages, lang]);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Add a language..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px]">
+                        {LANGUAGES.filter(l => !worldLanguages.includes(l)).map((lang) => (
+                          <SelectItem key={lang} value={lang}>
+                            {lang}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {worldLanguages.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {worldLanguages.map((lang) => (
+                        <span
+                          key={lang}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-sm"
+                        >
+                          {lang}
+                          <button
+                            type="button"
+                            className="ml-1 text-muted-foreground hover:text-foreground"
+                            onClick={() => setWorldLanguages(worldLanguages.filter(l => l !== lang))}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {worldLanguages.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      No world languages selected. NPCs will speak English by default.
+                    </p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           )}

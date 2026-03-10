@@ -201,6 +201,88 @@ Generate multiple complete, syntactically correct rules that work together to im
   return response.text;
 }
 
+export interface GeneratedQuest {
+  title: string;
+  description: string;
+  questType: 'main' | 'side' | 'character';
+  difficulty: 'beginner' | 'intermediate' | 'advanced' | 'expert';
+  objectives: Array<{
+    type: string;
+    description: string;
+    target?: string;
+    required?: number;
+  }>;
+  rewards?: {
+    experience?: number;
+    gold?: number;
+    items?: Array<{ name: string; quantity: number }>;
+  };
+}
+
+export async function generateQuests(worldContext: string, count: number = 5): Promise<GeneratedQuest[]> {
+  if (!isGeminiConfigured()) {
+    throw new Error("Gemini API key is not configured");
+  }
+
+  const ai = getGenAI();
+
+  const systemPrompt = `You are a quest designer for narrative RPG worlds. Generate quests as a JSON array.
+
+Each quest must have this exact structure:
+{
+  "title": "Short quest title",
+  "description": "A paragraph describing the quest story and goals.",
+  "questType": "main" | "side" | "character",
+  "difficulty": "beginner" | "intermediate" | "advanced" | "expert",
+  "objectives": [
+    { "type": "reach_location" | "talk_to_npc" | "collect_items" | "defeat_enemies" | "escort" | "investigate", "description": "What to do", "target": "target_id", "required": 1 }
+  ],
+  "rewards": { "experience": 100, "gold": 50 }
+}
+
+Return ONLY a valid JSON array of quest objects. No markdown, no code fences, no explanation.`;
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODELS.PRO,
+    config: {
+      systemInstruction: systemPrompt,
+    },
+    contents: `Generate ${count} quests for this world: ${worldContext}. Include a mix of main quests, side quests, and character-driven storylines.`,
+  });
+
+  if (!response.text) {
+    throw new Error("AI service returned empty response");
+  }
+
+  // Strip markdown fences if present
+  let text = response.text.trim();
+  if (text.startsWith('```')) {
+    text = text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+  }
+
+  const parsed = JSON.parse(text);
+  const quests: GeneratedQuest[] = Array.isArray(parsed) ? parsed : [parsed];
+
+  // Validate and sanitize each quest
+  return quests.map(q => ({
+    title: String(q.title || 'Untitled Quest').slice(0, 200),
+    description: String(q.description || '').slice(0, 2000),
+    questType: ['main', 'side', 'character'].includes(q.questType) ? q.questType : 'side',
+    difficulty: ['beginner', 'intermediate', 'advanced', 'expert'].includes(q.difficulty) ? q.difficulty : 'intermediate',
+    objectives: Array.isArray(q.objectives) ? q.objectives.map((o: any) => ({
+      type: String(o.type || 'investigate'),
+      description: String(o.description || ''),
+      target: o.target ? String(o.target) : undefined,
+      required: typeof o.required === 'number' ? o.required : undefined,
+    })) : [],
+    rewards: q.rewards ? {
+      experience: typeof q.rewards.experience === 'number' ? q.rewards.experience : undefined,
+      gold: typeof q.rewards.gold === 'number' ? q.rewards.gold : undefined,
+      items: Array.isArray(q.rewards.items) ? q.rewards.items : undefined,
+    } : undefined,
+  }));
+}
+
 export async function editRuleWithAI(currentContent: string, editInstructions: string, sourceFormat: string): Promise<string> {
   if (!isGeminiConfigured()) {
     throw new Error("Gemini API key is not configured");

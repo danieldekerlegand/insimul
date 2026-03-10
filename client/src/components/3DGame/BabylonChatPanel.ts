@@ -14,7 +14,7 @@ import { Scene, Mesh } from "@babylonjs/core";
 import { BabylonDialogueActions } from "./BabylonDialogueActions.ts";
 import { Action } from "./types/actions";
 import { NPCTalkingIndicator } from "./NPCTalkingIndicator";
-import { buildGreeting, buildLanguageAwareSystemPrompt, extractLanguageFluencies, getLanguageBCP47 } from "@shared/language-utils";
+import { buildGreeting, buildLanguageAwareSystemPrompt, buildWorldLanguageContext, extractLanguageFluencies, getLanguageBCP47 } from "@shared/language-utils";
 import type { WorldLanguageContext } from "@shared/language-utils";
 import { LanguageProgressTracker } from "./LanguageProgressTracker";
 
@@ -65,8 +65,7 @@ export class BabylonChatPanel {
   private _advancedTexture: AdvancedDynamicTexture;
   private scene: Scene;
   private chatContainer: Rectangle | null = null;
-  private messagesPanel: StackPanel | null = null;
-  private messagesDisplayArea: Rectangle | null = null;
+  private messagesArea: Rectangle | null = null;
   private inputText: InputText | null = null;
   private inputContainer: Container | null = null;
   private micButton: Button | null = null; // Store reference to mic button
@@ -114,6 +113,7 @@ export class BabylonChatPanel {
   private onConversationTurn: ((keywords: string[]) => void) | null = null;
   private onNPCConversationStarted: ((npcId: string) => void) | null = null;
   private onQuestTurnedIn: ((questId: string, rewards: any) => void) | null = null;
+  private onNPCSpeechUpdate: ((text: string) => void) | null = null;
   private pendingTurnInQuests: any[] = [];
 
   // Expose advancedTexture for debugging
@@ -195,13 +195,11 @@ export class BabylonChatPanel {
 
       if (langRes.ok) {
         const languages = await langRes.json();
-        const primary = languages.find((l: any) => l.isPrimary) || null;
-        this.worldLanguageContext = {
-          targetLanguage: this.world?.targetLanguage || 'English',
-          worldLanguages: languages,
-          primaryLanguage: primary,
-          gameType: this.world?.gameType || this.world?.worldType,
-        };
+        this.worldLanguageContext = buildWorldLanguageContext(
+          languages,
+          this.world?.gameType || this.world?.worldType,
+          this.world?.targetLanguage,
+        );
       }
     } catch (error) {
       console.error('Failed to fetch world data:', error);
@@ -318,11 +316,11 @@ export class BabylonChatPanel {
 
   private createChatUI() {
     console.log('[ChatPanel] Creating chat UI...');
-    
-    // Main container - make it smaller and position at bottom right
+
+    // Main container - positioned at bottom right
     this.chatContainer = new Rectangle("chatContainer");
     this.chatContainer.width = "400px";
-    this.chatContainer.height = "450px"; // Increased height to fit all elements
+    this.chatContainer.height = "450px";
     this.chatContainer.background = "rgba(0, 0, 0, 0.95)";
     this.chatContainer.color = "white";
     this.chatContainer.thickness = 2;
@@ -332,13 +330,11 @@ export class BabylonChatPanel {
     this.chatContainer.zIndex = 10000;
     this.chatContainer.isVisible = true;
     this.chatContainer.alpha = 1;
-    console.log('[ChatPanel] Chat container created with isVisible:', this.chatContainer.isVisible);
 
-    // Add to texture FIRST
+    // Add to texture
     this._advancedTexture.addControl(this.chatContainer);
-    console.log('[ChatPanel] Chat container added to texture');
-    
-    // Header with character name - positioned at top
+
+    // Header with character name
     const header = new Rectangle("chatHeader");
     header.width = "100%";
     header.height = "40px";
@@ -349,9 +345,7 @@ export class BabylonChatPanel {
     header.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     header.top = "0px";
     this.chatContainer.addControl(header);
-    console.log('[ChatPanel] Header added');
-    
-    // Character name text
+
     this.titleText = new TextBlock();
     this.titleText.text = this.character ? `${this.character.firstName} ${this.character.lastName}` : "Chat";
     this.titleText.color = "white";
@@ -359,12 +353,11 @@ export class BabylonChatPanel {
     this.titleText.fontWeight = "bold";
     this.titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     this.titleText.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-    this.titleText.name = "chatTitle"; // Give it a name to find it later
+    this.titleText.name = "chatTitle";
     header.addControl(this.titleText);
-    console.log('[ChatPanel] Character name added');
-    
+
     // Close button
-    const closeBtn = Button.CreateSimpleButton("closeChat", "✕");
+    const closeBtn = Button.CreateSimpleButton("closeChat", "X");
     closeBtn.width = "30px";
     closeBtn.height = "30px";
     closeBtn.color = "white";
@@ -376,16 +369,14 @@ export class BabylonChatPanel {
     closeBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     closeBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     closeBtn.onPointerClickObservable.add(() => {
-      console.log('[ChatPanel] Close button clicked');
       this.hide(true);
     });
     header.addControl(closeBtn);
-    console.log('[ChatPanel] Close button added');
-    
-    // Messages area - simple rectangle for now
+
+    // Messages area
     const messagesArea = new Rectangle("messagesArea");
     messagesArea.width = "90%";
-    messagesArea.height = "200px";
+    messagesArea.height = "310px";
     messagesArea.background = "rgba(20, 20, 20, 0.5)";
     messagesArea.thickness = 1;
     messagesArea.color = "rgba(255, 255, 255, 0.3)";
@@ -393,29 +384,22 @@ export class BabylonChatPanel {
     messagesArea.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     messagesArea.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     this.chatContainer.addControl(messagesArea);
-    console.log('[ChatPanel] Messages area added');
-    
-    // Store reference for updating messages
-    this.messagesDisplayArea = messagesArea;
-    
-    // Try to display messages directly
-    this.displayMessagesInArea(messagesArea);
-    
+    this.messagesArea = messagesArea;
+
     // Input area at the bottom
     const inputArea = new Rectangle("inputArea");
     inputArea.width = "90%";
     inputArea.height = "40px";
     inputArea.background = "rgba(30, 30, 30, 0.9)";
     inputArea.thickness = 0;
-    inputArea.top = "250px"; // Position it below the messages area
+    inputArea.top = "360px";
     inputArea.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    inputArea.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP; // Use TOP instead of BOTTOM
+    inputArea.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     this.chatContainer.addControl(inputArea);
-    console.log('[ChatPanel] Input area added');
-    
+
     // Input text field
     this.inputText = new InputText("chatInput");
-    this.inputText.width = "60%"; // Further reduced to make room for both buttons
+    this.inputText.width = "60%";
     this.inputText.height = "30px";
     this.inputText.color = "white";
     this.inputText.background = "rgba(60, 60, 60, 0.8)";
@@ -425,33 +409,32 @@ export class BabylonChatPanel {
     this.inputText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     this.inputText.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
     this.inputText.paddingLeft = "10px";
-    
-    // Clear default text on focus
+
     this.inputText.onFocusObservable.add(() => {
       if (this.inputText && this.inputText.text === "Type your message...") {
         this.inputText.text = "";
       }
       this._inputFocused = true;
     });
-    
+
     this.inputText.onBlurObservable.add(() => {
       if (this.inputText && this.inputText.text === "") {
         this.inputText.text = "Type your message...";
       }
       this._inputFocused = false;
     });
-    
+
     inputArea.addControl(this.inputText);
-    
+
     // Microphone button
-    this.micButton = Button.CreateSimpleButton("micBtn", "🎤");
+    this.micButton = Button.CreateSimpleButton("micBtn", "Mic");
     this.micButton.width = "30px";
     this.micButton.height = "30px";
     this.micButton.color = "white";
     this.micButton.background = this.isRecording ? "rgba(255, 50, 50, 0.8)" : "rgba(60, 60, 60, 0.8)";
     this.micButton.cornerRadius = 5;
-    this.micButton.fontSize = 16;
-    this.micButton.left = "61%"; // Position right after the input field
+    this.micButton.fontSize = 10;
+    this.micButton.left = "61%";
     this.micButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     this.micButton.onPointerClickObservable.add(() => {
       if (this.isRecording) {
@@ -461,61 +444,83 @@ export class BabylonChatPanel {
       }
     });
     inputArea.addControl(this.micButton);
-    console.log('[ChatPanel] Microphone button added');
-    
+
     // Send button
     const sendBtn = Button.CreateSimpleButton("sendBtn", "Send");
-    sendBtn.width = "30%"; // Increased to fill remaining space
+    sendBtn.width = "30%";
     sendBtn.height = "30px";
     sendBtn.color = "white";
     sendBtn.background = "rgba(30, 150, 255, 0.8)";
     sendBtn.cornerRadius = 5;
     sendBtn.fontSize = 14;
-    sendBtn.left = "-5px"; // Use negative left for right alignment
+    sendBtn.left = "-5px";
     sendBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     sendBtn.onPointerClickObservable.add(() => {
       this.sendMessage();
     });
     inputArea.addControl(sendBtn);
-    console.log('[ChatPanel] Send button added');
-    
-    // Add a simple Enter key handler
+
+    // Enter key handler
     const handleEnter = (e: KeyboardEvent) => {
-      // Check if input is focused and Enter is pressed
       if (e.key === "Enter" && this._inputFocused) {
         this.sendMessage();
       }
     };
-    
-    // Store reference to remove later
     this._enterKeyHandler = handleEnter;
     window.addEventListener("keydown", handleEnter);
-    
-    // Create loading indicator (initially hidden)
+
+    // Loading indicator (initially hidden)
     this.loadingIndicator = new TextBlock("loadingIndicator");
     this.loadingIndicator.text = "NPC is thinking...";
     this.loadingIndicator.color = "#888";
     this.loadingIndicator.fontSize = 12;
     this.loadingIndicator.isVisible = false;
-    this.messagesDisplayArea.addControl(this.loadingIndicator);
+    this.messagesArea.addControl(this.loadingIndicator);
+
+    console.log('[ChatPanel] Chat UI created');
   }
   
-  private displayMessagesInArea(messagesArea: Rectangle) {
-    // Clear existing messages
-    messagesArea.children.forEach(child => {
-      if (child.name && child.name.startsWith('msg-')) {
-        messagesArea.removeControl(child);
-      }
-    });
+  /**
+   * Estimate pixel height for a message based on text length and available
+   * width (~320px after padding). Each line of ~42 chars at fontSize 14
+   * is roughly 20px tall.
+   */
+  private estimateMessageHeight(text: string): number {
+    const charsPerLine = 42;
+    const lineHeight = 20;
+    const lines = Math.max(1, Math.ceil((text || ' ').length / charsPerLine));
+    return lines * lineHeight + 6;
+  }
 
-    // Display last few messages to avoid overflow
-    const recentMessages = this.messages.slice(-5);
+  private displayMessages() {
+    if (!this.messagesArea) return;
+
+    // Clear existing message controls
+    const toRemove = this.messagesArea.children.filter(
+      c => c.name && c.name.startsWith('msg-')
+    );
+    toRemove.forEach(c => this.messagesArea!.removeControl(c));
+
+    // Calculate how many messages fit. Work backwards from most recent.
+    const areaHeight = 300; // usable px inside messagesArea
+    let usedHeight = 0;
+    let startIdx = this.messages.length - 1;
+    while (startIdx >= 0) {
+      const h = this.estimateMessageHeight(this.messages[startIdx].content);
+      if (usedHeight + h > areaHeight) break;
+      usedHeight += h;
+      startIdx--;
+    }
+    startIdx = Math.max(0, startIdx + 1);
+
     let yOffset = 10;
+    for (let i = startIdx; i < this.messages.length; i++) {
+      const msg = this.messages[i];
+      const isUser = msg.role === 'user';
 
-    recentMessages.forEach((message, index) => {
-      const messageText = new TextBlock(`msg-${index}`);
-      messageText.text = message.content;
-      messageText.color = message.role === 'user' ? "#87CEEB" : "white";
+      const messageText = new TextBlock(`msg-${i}`);
+      messageText.text = msg.content || ' ';
+      messageText.color = isUser ? "#87CEEB" : "white";
       messageText.fontSize = 14;
       messageText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       messageText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
@@ -523,26 +528,40 @@ export class BabylonChatPanel {
       messageText.top = yOffset + "px";
       messageText.left = "10px";
       messageText.width = "90%";
-      messagesArea.addControl(messageText);
-      
-      // Estimate height and update offset
-      yOffset += 25; // Approximate height per message
-    });
-    
+      this.messagesArea.addControl(messageText);
+
+      yOffset += this.estimateMessageHeight(msg.content);
+    }
+
     // Position loading indicator at the bottom
     if (this.loadingIndicator) {
       this.loadingIndicator.top = yOffset + "px";
       this.loadingIndicator.left = "10px";
     }
-    
-    console.log('[ChatPanel] Displayed', this.messages.length, 'messages');
+  }
+
+  /**
+   * Update the text of the last message control in-place (for streaming).
+   * Falls back to a full rebuild if the control isn't found.
+   */
+  private updateLastMessageText(text: string) {
+    if (!this.messagesArea) return;
+
+    const lastIdx = this.messages.length - 1;
+    const existing = this.messagesArea.children.find(
+      c => c.name === `msg-${lastIdx}`
+    );
+    if (existing && existing instanceof TextBlock) {
+      existing.text = text || ' ';
+      this._advancedTexture.markAsDirty();
+      return;
+    }
+    // Fallback to full rebuild
+    this.displayMessages();
   }
 
   private updateMessagesDisplay() {
-    // Use our simplified display method
-    if (this.messagesDisplayArea) {
-      this.displayMessagesInArea(this.messagesDisplayArea);
-    }
+    this.displayMessages();
   }
 
   private async sendMessage() {
@@ -579,20 +598,9 @@ export class BabylonChatPanel {
 
       // Stream response from Gemini
       const aiResponse = await this.sendToGeminiStreaming(userMessage, (partialText: string) => {
-        // Update placeholder message content as chunks arrive
         placeholderMsg.content = partialText;
-        // Directly update the last TextBlock for performance (avoid full rebuild)
-        if (this.messagesDisplayArea) {
-          const recentCount = Math.min(this.messages.length, 5);
-          const lastIdx = recentCount - 1;
-          const existing = this.messagesDisplayArea.children.find(
-            c => c.name === `msg-${lastIdx}`
-          );
-          if (existing && existing instanceof TextBlock) {
-            existing.text = partialText;
-            this._advancedTexture.markAsDirty();
-          }
-        }
+        this.updateLastMessageText(partialText);
+        this.onNPCSpeechUpdate?.(partialText);
       });
 
       // Hide loading indicator
@@ -1152,7 +1160,9 @@ export class BabylonChatPanel {
             timestamp: new Date()
           });
           this.updateMessagesDisplay();
-          
+          // Notify speech bubble overlay of NPC's words
+          this.onNPCSpeechUpdate?.(response.text);
+
           // Play audio if available
           if (response.audio) {
             const audioBytes = Uint8Array.from(atob(response.audio), c => c.charCodeAt(0));
@@ -1300,6 +1310,10 @@ export class BabylonChatPanel {
 
   public setOnNPCConversationStarted(callback: (npcId: string) => void) {
     this.onNPCConversationStarted = callback;
+  }
+
+  public setOnNPCSpeechUpdate(callback: (text: string) => void) {
+    this.onNPCSpeechUpdate = callback;
   }
 
   public setPlayerInventoryContext(items: Array<{ name: string; type: string; quantity: number }>, gold: number) {

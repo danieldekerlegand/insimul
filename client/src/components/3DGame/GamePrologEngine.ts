@@ -214,13 +214,13 @@ export class GamePrologEngine {
     actions: any[];
     quests: any[];
     truths: any[];
-    prologContent?: string; // Pre-generated .pl content from server
+    content?: string; // Pre-generated .pl content from server
   }): Promise<void> {
     this.engine.clear();
 
     // If server provided pre-generated Prolog content, load it
-    if (data.prologContent) {
-      await this.engine.consult(data.prologContent);
+    if (data.content) {
+      await this.engine.consult(data.content);
     }
 
     // Assert character facts
@@ -242,20 +242,20 @@ export class GamePrologEngine {
       if (settlement.type) await this.engine.assertFact(`settlement_type(${sId}, ${this.sanitize(settlement.type)})`);
     }
 
-    // Load prologContent from rules, actions, quests
+    // Load Prolog content from rules (content IS Prolog), actions, quests
     for (const rule of data.rules) {
-      if (rule.prologContent) {
-        try { await this.engine.consult(rule.prologContent); } catch { /* skip invalid */ }
+      if (rule.content) {
+        try { await this.engine.consult(rule.content); } catch { /* skip invalid */ }
       }
     }
     for (const action of data.actions) {
-      if (action.prologContent) {
-        try { await this.engine.consult(action.prologContent); } catch { /* skip invalid */ }
+      if (action.content) {
+        try { await this.engine.consult(action.content); } catch { /* skip invalid */ }
       }
     }
     for (const quest of data.quests) {
-      if (quest.prologContent) {
-        try { await this.engine.consult(quest.prologContent); } catch { /* skip invalid */ }
+      if (quest.content) {
+        try { await this.engine.consult(quest.content); } catch { /* skip invalid */ }
       }
     }
 

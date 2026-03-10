@@ -9,7 +9,9 @@ namespace Insimul.Data
     {
         public string id;
         public string firstName;
+        public string middleName;
         public string lastName;
+        public string suffix;
         public string gender;
         public bool isAlive = true;
         public string occupation;

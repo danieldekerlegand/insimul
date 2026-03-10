@@ -74,9 +74,14 @@ export async function selectVolition(
  * Evaluate rule conditions
  */
 async function evaluateConditions(rule: Rule, characterId: string): Promise<boolean> {
-  if (!rule.conditions || rule.conditions.length === 0) return true;
-  
-  for (const condition of rule.conditions) {
+  // Conditions are now embedded in Prolog content (rule.content).
+  // The JS evaluation path only runs for legacy rules that still carry
+  // a conditions array; for pure-Prolog rules we treat conditions as met
+  // and let the Prolog engine handle evaluation.
+  const conditions: any[] = (rule as any).conditions || [];
+  if (conditions.length === 0) return true;
+
+  for (const condition of conditions) {
     let met = false;
     
     // Handle different condition types

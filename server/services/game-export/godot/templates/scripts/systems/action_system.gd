@@ -6,6 +6,8 @@ signal gold_effect(amount: int)
 signal item_effect(item_id: String, quantity: int)
 
 var actions: Array[Dictionary] = []
+## Per-action cooldown and usage tracking: { action_id: { last_used, cooldown_remaining, times_used } }
+var _action_states: Dictionary = {}
 
 func load_from_data(world_data: Dictionary) -> void:
 	var systems: Dictionary = world_data.get("systems", {})
@@ -19,12 +21,67 @@ func get_action(action_id: String) -> Dictionary:
 			return a
 	return {}
 
+## Get all action IDs matching a category (social, combat, mental, etc.).
+func get_actions_by_category(category: String) -> Array[String]:
+	var result: Array[String] = []
+	for a in actions:
+		if a.get("actionType", "") == category:
+			result.append(a.get("id", ""))
+	return result
+
+## Check whether an action can be performed given current context.
+## Returns { can_perform: bool, reason: String }.
+func can_perform_action(action_id: String, context: Dictionary = {}) -> Dictionary:
+	var action := get_action(action_id)
+	if action.is_empty():
+		return {"can_perform": false, "reason": "Action not found"}
+
+	if not action.get("isActive", true):
+		return {"can_perform": false, "reason": "Action not available"}
+
+	# Check cooldown
+	if _action_states.has(action_id):
+		var state: Dictionary = _action_states[action_id]
+		if state.get("cooldown_remaining", 0.0) > 0:
+			return {"can_perform": false, "reason": "On cooldown (%.1fs remaining)" % state["cooldown_remaining"]}
+
+	# Check energy
+	var energy_cost: float = action.get("energyCost", 0)
+	var player_energy: float = context.get("player_energy", 100.0)
+	if energy_cost > 0 and energy_cost > player_energy:
+		return {"can_perform": false, "reason": "Not enough energy (need %d)" % int(energy_cost)}
+
+	# Check target requirement
+	if action.get("requiresTarget", false) and not context.has("target"):
+		return {"can_perform": false, "reason": "Requires a target"}
+
+	return {"can_perform": true, "reason": ""}
+
+## Tick cooldowns -- call once per frame with delta seconds.
+func update_cooldowns(delta: float) -> void:
+	for action_id in _action_states:
+		var state: Dictionary = _action_states[action_id]
+		if state.get("cooldown_remaining", 0.0) > 0:
+			state["cooldown_remaining"] = maxf(0.0, state["cooldown_remaining"] - delta)
+
+## Get remaining cooldown for an action (0 if ready).
+func get_cooldown(action_id: String) -> float:
+	if _action_states.has(action_id):
+		return _action_states[action_id].get("cooldown_remaining", 0.0)
+	return 0.0
+
 ## Execute an action and return a result dictionary.
-## Result: {success: bool, message: String, energy_used: int, effects: Array[Dictionary]}
+## Result: {success: bool, message: String, energy_used: int, effects: Array[Dictionary], narrative_text: String}
 func execute_action(action_id: String, source: Node, target: Node = null) -> Dictionary:
 	var action := get_action(action_id)
-	if action.is_empty() or not action.get("isActive", true):
-		return {"success": false, "message": "Action unavailable", "energy_used": 0, "effects": []}
+
+	# Validate via can_perform_action
+	var context := {}
+	if target:
+		context["target"] = target
+	var check := can_perform_action(action_id, context)
+	if not check["can_perform"]:
+		return {"success": false, "message": check["reason"], "energy_used": 0, "effects": [], "narrative_text": ""}
 
 	var effects: Array[Dictionary] = []
 
@@ -47,5 +104,30 @@ func execute_action(action_id: String, source: Node, target: Node = null) -> Dic
 
 		effects.append(effect_data)
 
-	print("[Insimul] Executing action: %s (%d effects)" % [action.get("name", action_id), effects.size()])
-	return {"success": true, "message": "Executed: %s" % action.get("name", action_id), "energy_used": action.get("energyCost", 0), "effects": effects}
+	# Generate narrative text
+	var target_name: String = target.name if target else "someone"
+	var narrative_text: String = _generate_narrative_text(action, "You", target_name)
+
+	# Update action state and start cooldown
+	if not _action_states.has(action_id):
+		_action_states[action_id] = {"action_id": action_id, "last_used": 0.0, "cooldown_remaining": 0.0, "times_used": 0}
+	var state: Dictionary = _action_states[action_id]
+	state["last_used"] = Time.get_ticks_msec() / 1000.0
+	state["times_used"] = state.get("times_used", 0) + 1
+	var cooldown: float = action.get("cooldown", 0)
+	if cooldown > 0:
+		state["cooldown_remaining"] = cooldown
+
+	var action_name: String = action.get("name", action_id)
+	print("[Insimul] Executing action: %s (%d effects)" % [action_name, effects.size()])
+	return {"success": true, "message": "%s performed successfully" % action_name, "energy_used": action.get("energyCost", 0), "effects": effects, "narrative_text": narrative_text}
+
+## Generate narrative text from an action's narrativeTemplates array.
+func _generate_narrative_text(action: Dictionary, actor_name: String, target_name: String) -> String:
+	var templates: Array = action.get("narrativeTemplates", [])
+	if templates.size() > 0:
+		var template: String = templates[randi() % templates.size()]
+		return template.replace("{actor}", actor_name).replace("{target}", target_name)
+	# Fallback
+	var verb: String = action.get("verbPast", action.get("name", "acted").to_lower())
+	return "You %s." % verb

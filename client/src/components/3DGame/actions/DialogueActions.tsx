@@ -56,7 +56,7 @@ export function DialogueActions({ actions, onActionSelect, playerEnergy }: Dialo
                         ⚡{action.energyCost}
                       </Badge>
                     )}
-                    {action.effects && action.effects.length > 0 && (
+                    {(action as any).effects && (action as any).effects.length > 0 && (
                       <span className="text-xs" title="Affects relationship">
                         ❤️
                       </span>

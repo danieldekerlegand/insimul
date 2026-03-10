@@ -595,7 +595,8 @@ export class BabylonGame {
       this.startGameLoop();
       this.hideLoadingScreen();
 
-      console.log('[BabylonGame] Init complete!');
+      console.log('[BabylonGame] Init complete! Scene meshes:', this.scene?.meshes.length,
+        'Active meshes:', this.scene?.getActiveMeshes().length);
     } catch (error) {
       console.error('[BabylonGame] Failed to initialize game:', error);
       this.hideLoadingScreen();
@@ -611,6 +612,7 @@ export class BabylonGame {
    * Dispose of all game resources
    */
   public dispose(): void {
+    console.warn('[BabylonGame] dispose() called — destroying game instance');
     this.disposeKeyboardHandlers();
     this.disposePointerHandlers();
     this.disposeUpdateLoop();
@@ -1129,6 +1131,12 @@ export class BabylonGame {
         this.eventBus.emit({ type: 'conversation_turn', npcId: this.conversationNPCId, keywords });
       }
     });
+    this.chatPanel.setOnNPCSpeechUpdate((text: string) => {
+      // Update the speech bubble above the NPC with the latest response text
+      if (this.conversationNPCId && this.npcTalkingIndicator) {
+        this.npcTalkingIndicator.updateText(this.conversationNPCId, text);
+      }
+    });
 
     // Initialize quest tracker
     this.questTracker = new BabylonQuestTracker(this.guiManager.advancedTexture, scene);
@@ -1236,8 +1244,11 @@ export class BabylonGame {
       this.onVRSessionEnded();
     });
 
-    // Initialize NPC talking indicator
+    // Initialize NPC talking indicator and wire up shared GUI texture
     this.npcTalkingIndicator = new NPCTalkingIndicator(scene);
+    if (this.guiManager?.advancedTexture) {
+      this.npcTalkingIndicator.setGUI(this.guiManager.advancedTexture);
+    }
 
     // Initialize ambient conversation manager
     this.ambientConversationManager = new NPCAmbientConversationManager(
@@ -1343,7 +1354,7 @@ export class BabylonGame {
             actions: [...(actions || []), ...(baseActions || [])],
             quests: quests || [],
             truths: truths || [],
-            prologContent: prologContent || undefined,
+            content: prologContent || undefined,
           });
           console.log('[BabylonGame] Prolog engine initialized:', this.prologEngine.getStats());
 
@@ -1829,7 +1840,7 @@ export class BabylonGame {
           if (buildingIndex >= lotPositions.length) break;
 
           // Determine residence type based on occupancy/size
-          const occupants = residence.occupants || [];
+          const occupants = residence.residentIds || residence.occupants || [];
           const residenceType = occupants.length > 8
             ? 'residence_large'
             : occupants.length > 4
@@ -1863,7 +1874,7 @@ export class BabylonGame {
             buildingType: 'residence',
             residenceId: residence.id,
             settlementId: settlement.id,
-            occupants: residence.occupants
+            occupants: residence.residentIds || residence.occupants
           };
           building.isPickable = true;
 
@@ -2350,6 +2361,22 @@ export class BabylonGame {
 
     console.log('Procedural world generation complete!');
 
+    // Diagnostic: scene state after generation
+    const groundMesh = scene.getMeshByName('ground');
+    console.log('[BabylonGame] Post-generation diagnostics:', {
+      totalMeshes: scene.meshes.length,
+      groundExists: !!groundMesh,
+      groundEnabled: groundMesh?.isEnabled(),
+      groundVisible: groundMesh?.isVisible,
+      groundPosition: groundMesh ? `(${groundMesh.position.x}, ${groundMesh.position.y}, ${groundMesh.position.z})` : 'N/A',
+      buildingCount: this.buildingData.size,
+      settlementMeshCount: this.settlementMeshes.size,
+      worldPropCount: this.worldPropMeshes.length,
+      firstSettlementSpawn: this.firstSettlementSpawnPosition
+        ? `(${this.firstSettlementSpawnPosition.x.toFixed(1)}, ${this.firstSettlementSpawnPosition.y.toFixed(1)}, ${this.firstSettlementSpawnPosition.z.toFixed(1)})`
+        : 'none',
+    });
+
     // Re-enable material dirty mechanism after bulk generation
     scene.blockMaterialDirtyMechanism = false;
 
@@ -2409,7 +2436,8 @@ export class BabylonGame {
     this.chunkManager = new ChunkManager({
       worldSize: terrainSize,
       chunkSize: 64,
-      renderRadius: 2,
+      renderRadius: 3,
+      disposeRadius: 0, // Disable permanent disposal — deactivation is sufficient
     });
 
     const skipNames = new Set(['ground', 'sky-dome']);
@@ -2469,22 +2497,32 @@ export class BabylonGame {
       }
     }
 
-    // Freeze all materials — prevents per-frame dirty checks on material properties
+    // Defer material freezing — textures loaded via CreateGroundFromHeightMap or
+    // async asset pipelines may not be ready yet. Freezing too early locks the
+    // material before the GPU uploads the texture, resulting in invisible geometry.
     let frozenMaterials = 0;
-    for (const material of this.scene.materials) {
-      if (material instanceof StandardMaterial) {
-        material.freeze();
-        frozenMaterials++;
+    setTimeout(() => {
+      if (!this.scene || this.scene.isDisposed) return;
+      for (const material of this.scene.materials) {
+        if (material instanceof StandardMaterial) {
+          material.freeze();
+          frozenMaterials++;
+        }
       }
-    }
+      console.log(`[Perf] Deferred freeze: ${frozenMaterials} materials frozen`);
+    }, 3000);
 
     // Note: Octree spatial partitioning is NOT used because it indexes meshes
     // at creation time. Meshes added later (player, NPCs) are excluded from
     // frustum checks and become invisible. The ChunkManager already provides
     // effective spatial culling for static geometry.
 
+    // Activate all chunks initially so everything is visible until the
+    // render loop starts calling update() with the player position.
+    this.chunkManager.activateAll();
+
     const stats = this.chunkManager.getStats();
-    console.log(`[Perf] Optimized: ${frozenCount} meshes frozen, ${nonPickableCount} non-pickable, ${chunkedCount} chunked (${stats.totalChunks} chunks), ${frozenMaterials} materials frozen`);
+    console.log(`[Perf] Optimized: ${frozenCount} meshes frozen, ${nonPickableCount} non-pickable, ${chunkedCount} chunked (${stats.totalChunks} chunks, all activated)`);
 
     // Phase 8: Initialize settlement scene isolation
     this.initSettlementSceneManager();
@@ -3756,7 +3794,10 @@ export class BabylonGame {
         
         // Disable keyboard control - NPCs are controlled programmatically
         controller.enableKeyBoard(false);
-        
+
+        // Slow NPC walk speed to a natural stroll (default is 3, player speed)
+        controller.setWalkSpeed(1.2);
+
         // Start the controller
         controller.start();
         
@@ -4420,6 +4461,16 @@ export class BabylonGame {
     this.renderObserver = this.scene.onBeforeRenderObservable.add(() => {
       const dt = this.scene?.getEngine().getDeltaTime() || 16;
 
+      // Clamp player to terrain bounds so they can't walk off the edge
+      if (this.playerMesh && !this.isInsideBuilding) {
+        const half = (this.terrainSize || 512) / 2 - 2; // 2-unit margin from edge
+        const pos = this.playerMesh.position;
+        if (pos.x < -half) pos.x = -half;
+        if (pos.x > half) pos.x = half;
+        if (pos.z < -half) pos.z = -half;
+        if (pos.z > half) pos.z = half;
+      }
+
       // Update chunk visibility based on player position (cheap: just compares chunk coords)
       // Phase 8: Skip chunk updates during settlement isolation (settlement manager handles visibility)
       if (this.chunkManager && this.playerMesh && !this.settlementSceneManager?.isIsolated) {
@@ -4721,10 +4772,10 @@ export class BabylonGame {
       return;
     }
 
-    // Wandering AI
+    // Wandering AI — NPCs mill about near their home/workplace
     const homePos = instance.homePosition || instance.mesh.position;
     const currentPos = instance.mesh.position;
-    const wanderRadius = 15;
+    const wanderRadius = 8;
 
     // If waiting, check if wait is over
     if (instance.wanderWaitUntil && now < instance.wanderWaitUntil) {
@@ -4740,7 +4791,8 @@ export class BabylonGame {
       instance.controller.turnLeft(false);
       instance.controller.turnRight(false);
 
-      instance.wanderWaitUntil = now + 2000 + Math.random() * 3000;
+      // Longer idle pauses for a more natural look (4-10 seconds)
+      instance.wanderWaitUntil = now + 4000 + Math.random() * 6000;
 
       // Phase 7: Cap wander target raycasts per tick
       if (this._wanderRaycastsThisTick < MAX_WANDER_RAYCASTS_PER_TICK) {
@@ -4806,6 +4858,9 @@ export class BabylonGame {
     }
   }
 
+  private _minimapBuildingsCollected = false;
+  private _minimapBuildings: Array<{ position: { x: number; z: number }; type: 'business' | 'residence' | 'other' }> = [];
+
   private updateMinimapOverlay(): void {
     if (!this.guiManager || !this.worldData || !this.playerMesh) return;
 
@@ -4828,6 +4883,21 @@ export class BabylonGame {
 
     if (settlementsData.length === 0) return;
 
+    // Collect building positions once for the static minimap layer
+    if (!this._minimapBuildingsCollected && this.buildingData.size > 0) {
+      this._minimapBuildings = [];
+      this.buildingData.forEach((data) => {
+        const bType = data.metadata?.buildingType === 'business' ? 'business' as const
+          : data.metadata?.buildingType === 'residence' ? 'residence' as const
+          : 'other' as const;
+        this._minimapBuildings.push({
+          position: { x: data.position.x, z: data.position.z },
+          type: bType
+        });
+      });
+      this._minimapBuildingsCollected = true;
+    }
+
     // Collect quest markers from active quests that have a location
     const questMarkers: Array<{ id: string; title: string; position: { x: number; z: number } }> = [];
     for (const quest of this.quests) {
@@ -4841,9 +4911,22 @@ export class BabylonGame {
       }
     }
 
+    // Collect NPC positions
+    const npcPositions: Array<{ id: string; position: { x: number; z: number }; role?: string }> = [];
+    this.npcMeshes.forEach((instance, npcId) => {
+      if (!instance?.mesh || !instance.mesh.isEnabled()) return;
+      npcPositions.push({
+        id: npcId,
+        position: { x: instance.mesh.position.x, z: instance.mesh.position.z },
+        role: instance.role
+      });
+    });
+
     this.guiManager.updateMinimap({
       settlements: settlementsData,
+      buildings: this._minimapBuildings,
       questMarkers,
+      npcPositions,
       playerPosition: {
         x: this.playerMesh.position.x,
         z: this.playerMesh.position.z
@@ -5065,6 +5148,11 @@ export class BabylonGame {
             npcInstance.controller.walk(false);
             npcInstance.controller.turnLeft(false);
             npcInstance.controller.turnRight(false);
+          }
+
+          // Show conversation indicator (speech bubble + body sway)
+          if (this.npcTalkingIndicator) {
+            this.npcTalkingIndicator.show(npcId, npcMesh);
           }
         }
       }
@@ -5373,11 +5461,14 @@ export class BabylonGame {
   }
 
   private handleConversationEnd(): void {
-    // Release NPC from conversation
+    // Release NPC from conversation and hide talking indicator
     if (this.conversationNPCId) {
       const npcInstance = this.npcMeshes.get(this.conversationNPCId);
       if (npcInstance) {
         npcInstance.isInConversation = false;
+      }
+      if (this.npcTalkingIndicator) {
+        this.npcTalkingIndicator.hide(this.conversationNPCId);
       }
       this.conversationNPCId = null;
     }

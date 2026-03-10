@@ -12,14 +12,19 @@ namespace Insimul.Systems
 
         public System.Action<string> OnDialogueStarted;
         public System.Action OnDialogueEnded;
+        public System.Action<string> OnActionSelected;
+
+        public float PlayerEnergy { get; private set; } = 100f;
 
         private ChatPanel _chatPanel;
         private InsimulAIConfig _aiConfig;
         private InsimulDialogueContext[] _contexts;
+        private SocialActionData[] _socialActions = new SocialActionData[0];
 
         private void Start()
         {
             LoadDialogueData();
+            LoadSocialActions();
 
             _chatPanel = FindObjectOfType<ChatPanel>();
             if (_chatPanel == null)
@@ -90,6 +95,91 @@ namespace Insimul.Systems
 
             _chatPanel?.Close();
             Debug.Log($"[Insimul] Dialogue ended with NPC: {npcId}");
+        }
+
+        public void SetPlayerEnergy(float energy)
+        {
+            PlayerEnergy = Mathf.Max(0f, energy);
+        }
+
+        /// <summary>
+        /// Get available social actions filtered by player energy affordability.
+        /// Returns action IDs that the player can currently afford.
+        /// </summary>
+        public string[] GetAvailableActions()
+        {
+            if (!IsInDialogue) return new string[0];
+
+            var available = new System.Collections.Generic.List<string>();
+            foreach (var action in _socialActions)
+            {
+                if (action.energyCost <= 0f || action.energyCost <= PlayerEnergy)
+                {
+                    available.Add(action.id);
+                }
+            }
+            return available.ToArray();
+        }
+
+        /// <summary>
+        /// Select an action during dialogue. Checks affordability and broadcasts OnActionSelected.
+        /// </summary>
+        public void SelectAction(string actionId)
+        {
+            if (!IsInDialogue)
+            {
+                Debug.LogWarning("[Insimul] Cannot select action - not in dialogue");
+                return;
+            }
+
+            foreach (var action in _socialActions)
+            {
+                if (action.id == actionId)
+                {
+                    if (action.energyCost > 0f && action.energyCost > PlayerEnergy)
+                    {
+                        Debug.LogWarning($"[Insimul] Not enough energy for action: {actionId} (cost={action.energyCost}, energy={PlayerEnergy})");
+                        return;
+                    }
+
+                    OnActionSelected?.Invoke(actionId);
+                    Debug.Log($"[Insimul] Action selected: {actionId}");
+                    return;
+                }
+            }
+
+            Debug.LogWarning($"[Insimul] Action not found: {actionId}");
+        }
+
+        private void LoadSocialActions()
+        {
+            var actionsAsset = Resources.Load<TextAsset>("Data/SocialActions");
+            if (actionsAsset != null)
+            {
+                string wrappedJson = "{\"items\":" + actionsAsset.text + "}";
+                var list = JsonUtility.FromJson<SocialActionDataList>(wrappedJson);
+                _socialActions = list?.items ?? new SocialActionData[0];
+                Debug.Log($"[Insimul] Loaded {_socialActions.Length} social actions");
+            }
+            else
+            {
+                Debug.LogWarning("[Insimul] SocialActions.json not found");
+            }
+        }
+
+        [System.Serializable]
+        private class SocialActionData
+        {
+            public string id;
+            public string name;
+            public string description;
+            public float energyCost;
+        }
+
+        [System.Serializable]
+        private class SocialActionDataList
+        {
+            public SocialActionData[] items;
         }
     }
 }

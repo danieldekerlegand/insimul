@@ -13,6 +13,7 @@ namespace Insimul.Data
         public float disposition = 50f;
         public string settlementId;
         public string[] questIds;
+        public string greeting;
     }
 
     [Serializable]

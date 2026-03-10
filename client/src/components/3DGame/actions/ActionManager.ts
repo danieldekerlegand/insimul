@@ -45,12 +45,7 @@ export class ActionManager {
         // For now, assume close enough if target exists
       }
 
-      // Check prerequisites
-      if (action.prerequisites && action.prerequisites.length > 0) {
-        // Would need to evaluate prerequisites against world state
-        // For now, assume prerequisites are met
-      }
-
+      // Prerequisites are now checked via Prolog (GamePrologEngine.canPerformAction)
       return true;
     });
   }
@@ -162,8 +157,9 @@ export class ActionManager {
   private applyActionEffects(action: Action, context: ActionContext): ActionEffect[] {
     const effects: ActionEffect[] = [];
 
-    // Process each effect from action definition
-    for (const effect of action.effects) {
+    // Effects are now in Prolog content; gracefully handle if absent
+    const actionEffects = (action as any).effects || [];
+    for (const effect of actionEffects) {
       // Effect structure from schema:
       // { category: 'relationship', first: 'initiator', second: 'responder', type: 'friendship', value: 10 }
       

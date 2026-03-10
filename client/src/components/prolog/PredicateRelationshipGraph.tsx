@@ -73,11 +73,11 @@ export function PredicateRelationshipGraph({ worldId }: PredicateRelationshipGra
         })
       );
 
-      // Find co-occurrences in prologContent
+      // Find co-occurrences in content
       const allContent = [
-        ...rules.map((r: any) => r.prologContent || ''),
-        ...actions.map((a: any) => a.prologContent || ''),
-        ...quests.map((q: any) => q.prologContent || ''),
+        ...rules.map((r: any) => r.content || ''),
+        ...actions.map((a: any) => a.content || ''),
+        ...quests.map((q: any) => q.content || ''),
       ].filter(Boolean);
 
       const edgeSet = new Map<string, number>();

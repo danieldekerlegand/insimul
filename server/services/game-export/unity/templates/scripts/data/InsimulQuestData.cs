@@ -19,6 +19,14 @@ namespace Insimul.Data
         public string[] tags;
         public string[] prerequisiteQuestIds;
         public InsimulQuestObjective[] objectives;
+        public string content; // Prolog content
+        public string gameType;
+        public string questChainId;
+        public int questChainOrder;
+        public string[] itemRewards;
+        public string[] skillRewards;
+        public string[] unlocks;
+        public string[] failureConditions;
     }
 
     [Serializable]

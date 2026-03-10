@@ -42,6 +42,7 @@ export interface WorldGenerationConfig {
   // TotT integration options
   generateBusinesses?: boolean;
   assignEmployment?: boolean;
+  assignHousing?: boolean;
   generateRoutines?: boolean;
   simulateHistory?: boolean;
   historyFidelity?: 'low' | 'medium' | 'high';
@@ -230,6 +231,16 @@ export class WorldGenerator {
       }
     }
     
+    // TotT Integration: Housing Assignment
+    if (config.assignHousing !== false && config.generateGeography && population > 0) {
+      console.log('\n🏠 Assigning housing...');
+      await this.assignHousing({
+        worldId: world.id,
+        settlementId: settlement.id,
+        currentYear: config.currentYear
+      });
+    }
+
     // TotT Integration: Routine Generation
     if (config.generateRoutines && population > 0) {
       console.log('\n⏰ Generating daily routines...');
@@ -663,6 +674,98 @@ export class WorldGenerator {
     
     console.log(`   ✓ Assigned ${employedCount} jobs`);
     return employedCount;
+  }
+
+  /**
+   * Assign living characters to residences, grouping families together.
+   * Follows TotT's pattern where each person has a home (DwellingPlace).
+   */
+  private async assignHousing(config: {
+    worldId: string;
+    settlementId: string;
+    currentYear: number;
+  }): Promise<void> {
+    const characters = await storage.getCharactersByWorld(config.worldId);
+    const residences = await storage.getResidencesBySettlement(config.settlementId);
+
+    if (residences.length === 0) {
+      console.log('   ⚠ No residences available for housing assignment');
+      return;
+    }
+
+    const livingCharacters = characters.filter(c => c.isAlive);
+
+    // Group characters by family (last name) to keep families together
+    const families = new Map<string, typeof livingCharacters>();
+    for (const char of livingCharacters) {
+      const key = char.lastName || char.id;
+      if (!families.has(key)) families.set(key, []);
+      families.get(key)!.push(char);
+    }
+
+    // Capacity per residence type
+    const capacities: Record<string, number> = {
+      mansion: 12, house: 6, cottage: 4, apartment: 2
+    };
+
+    // Track remaining capacity per residence
+    const residenceCapacity = residences.map(r => ({
+      id: r.id,
+      remaining: capacities[r.residenceType] || 4,
+      residentIds: [] as string[]
+    }));
+
+    let residenceIdx = 0;
+    let assignedCount = 0;
+
+    // Assign each family to a residence
+    for (const [, members] of families) {
+      if (residenceIdx >= residenceCapacity.length) {
+        // Wrap around if more families than residences
+        residenceIdx = 0;
+      }
+
+      let placed = false;
+      // Try to find a residence with enough capacity for the family
+      for (let attempts = 0; attempts < residenceCapacity.length; attempts++) {
+        const idx = (residenceIdx + attempts) % residenceCapacity.length;
+        const res = residenceCapacity[idx];
+        if (res.remaining >= members.length) {
+          for (const member of members) {
+            res.residentIds.push(member.id);
+            res.remaining--;
+            assignedCount++;
+          }
+          residenceIdx = idx + 1;
+          placed = true;
+          break;
+        }
+      }
+
+      // Fallback: split the family across residences if no single one fits
+      if (!placed) {
+        for (const member of members) {
+          const res = residenceCapacity[residenceIdx % residenceCapacity.length];
+          res.residentIds.push(member.id);
+          res.remaining = Math.max(0, res.remaining - 1);
+          assignedCount++;
+          if (res.remaining <= 0) residenceIdx++;
+        }
+      }
+    }
+
+    // Batch update all residences and characters
+    for (const res of residenceCapacity) {
+      if (res.residentIds.length > 0) {
+        await storage.updateResidence(res.id, { residentIds: res.residentIds });
+        // Set currentResidenceId on each character
+        for (const charId of res.residentIds) {
+          await storage.updateCharacter(charId, { currentResidenceId: res.id });
+        }
+      }
+    }
+
+    console.log(`   ✓ Assigned ${assignedCount} characters to ${residenceCapacity.filter(r => r.residentIds.length > 0).length} residences`);
   }
 
   /**

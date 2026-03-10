@@ -52,18 +52,19 @@ export class RuleEnforcer {
 
   /**
    * Attach a Prolog engine for enhanced rule evaluation.
-   * Rules with prologContent will be evaluated via Prolog queries.
+   * Rules with Prolog content will be evaluated via Prolog queries.
    */
   public setPrologEngine(engine: GamePrologEngine): void {
     this.prologEngine = engine;
   }
 
   /**
-   * Evaluate a rule's conditions via Prolog if prologContent is available.
+   * Evaluate a rule's conditions via Prolog if content is available.
+   * Rule content IS Prolog now (no separate prologContent field).
    * Returns null if no Prolog evaluation is possible (falls through to JS).
    */
   private async evaluateRuleViaProlog(rule: Rule, context: GameContext): Promise<boolean | null> {
-    if (!this.prologEngine || !(rule as any).prologContent) return null;
+    if (!this.prologEngine || !rule.content) return null;
 
     try {
       const actorId = context.playerId || 'player';
@@ -78,7 +79,7 @@ export class RuleEnforcer {
 
   /**
    * Check action permission with optional Prolog evaluation.
-   * Tries Prolog first for rules with prologContent, falls back to JS.
+   * Tries Prolog first for rules with Prolog content, falls back to JS.
    */
   public async canPerformActionAsync(actionId: string, actionType: string, context: GameContext): Promise<{
     allowed: boolean;

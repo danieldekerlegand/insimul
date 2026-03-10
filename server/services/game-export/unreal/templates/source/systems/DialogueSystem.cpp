@@ -11,6 +11,7 @@ void UDialogueSystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
     LoadDialogueData();
+    LoadSocialActions();
     UE_LOG(LogTemp, Log, TEXT("[Insimul] DialogueSystem initialized"));
 }
 
@@ -126,4 +127,108 @@ void UDialogueSystem::EndDialogue()
     CurrentNPCId = TEXT("");
     OnDialogueEnded.Broadcast();
     UE_LOG(LogTemp, Log, TEXT("[Insimul] EndDialogue with NPC: %s"), *PrevNPCId);
+}
+
+void UDialogueSystem::SetPlayerEnergy(float Energy)
+{
+    PlayerEnergy = FMath::Max(0.0f, Energy);
+}
+
+TArray<FString> UDialogueSystem::GetAvailableActions()
+{
+    TArray<FString> AvailableActions;
+
+    if (!bIsInDialogue)
+    {
+        return AvailableActions;
+    }
+
+    for (const auto& ActionObj : SocialActions)
+    {
+        if (!ActionObj.IsValid()) continue;
+
+        float EnergyCost = 0.0f;
+        if (ActionObj->HasField(TEXT("energyCost")))
+        {
+            EnergyCost = ActionObj->GetNumberField(TEXT("energyCost"));
+        }
+
+        // Filter by affordability — include actions with no cost or affordable cost
+        if (EnergyCost <= 0.0f || EnergyCost <= PlayerEnergy)
+        {
+            FString ActionId = ActionObj->GetStringField(TEXT("id"));
+            FString ActionName = ActionObj->GetStringField(TEXT("name"));
+            FString EnergyCostStr = FString::Printf(TEXT("%.0f"), EnergyCost);
+
+            // Return as "id|name|energyCost" for easy parsing in UI
+            AvailableActions.Add(FString::Printf(TEXT("%s|%s|%s"), *ActionId, *ActionName, *EnergyCostStr));
+        }
+    }
+
+    return AvailableActions;
+}
+
+void UDialogueSystem::SelectAction(const FString& ActionId)
+{
+    if (!bIsInDialogue)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Insimul] Cannot select action — not in dialogue"));
+        return;
+    }
+
+    // Verify action exists and is affordable
+    for (const auto& ActionObj : SocialActions)
+    {
+        if (!ActionObj.IsValid()) continue;
+
+        FString Id = ActionObj->GetStringField(TEXT("id"));
+        if (Id == ActionId)
+        {
+            float EnergyCost = 0.0f;
+            if (ActionObj->HasField(TEXT("energyCost")))
+            {
+                EnergyCost = ActionObj->GetNumberField(TEXT("energyCost"));
+            }
+
+            if (EnergyCost > 0.0f && EnergyCost > PlayerEnergy)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("[Insimul] Not enough energy for action: %s (cost=%.0f, energy=%.0f)"), *ActionId, EnergyCost, PlayerEnergy);
+                return;
+            }
+
+            OnActionSelected.Broadcast(ActionId);
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Action selected: %s"), *ActionId);
+            return;
+        }
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[Insimul] Action not found: %s"), *ActionId);
+}
+
+void UDialogueSystem::LoadSocialActions()
+{
+    FString ActionsPath = FPaths::ProjectContentDir() / TEXT("Data/SocialActions.json");
+    FString ActionsJson;
+    if (FFileHelper::LoadFileToString(ActionsJson, *ActionsPath))
+    {
+        TArray<TSharedPtr<FJsonValue>> ActionsArray;
+        TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(ActionsJson);
+        if (FJsonSerializer::Deserialize(Reader, ActionsArray))
+        {
+            SocialActions.Empty();
+            for (const auto& Val : ActionsArray)
+            {
+                TSharedPtr<FJsonObject> ActionObj = Val->AsObject();
+                if (ActionObj.IsValid())
+                {
+                    SocialActions.Add(ActionObj);
+                }
+            }
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Loaded %d social actions"), SocialActions.Num());
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Insimul] SocialActions.json not found"));
+    }
 }

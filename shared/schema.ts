@@ -138,26 +138,21 @@ export const rules = pgTable("rules", {
   worldId: varchar("world_id"), // Nullable for base rules
   name: text("name").notNull(),
   description: text("description"),
-  content: text("content").notNull(), // Always stored in Insimul format for execution
-  prologContent: text("prolog_content"), // Auto-generated Prolog representation of the rule
+  content: text("content").notNull(), // Prolog content — single source of truth
 
   // Base rule indicator
   isBase: boolean("is_base").default(false), // true for global rules, false for world-specific
 
-  // Authoring format (for display/editing only, not execution)
-  sourceFormat: text("source_format").notNull().default("insimul"), // ensemble, kismet, tott, insimul
-  
+  // Original import format (for backward translation to Ensemble/Kismet/TotT)
+  sourceFormat: text("source_format").notNull().default("prolog"),
+
+  // Denormalized from Prolog content for query performance
   ruleType: text("rule_type").notNull(), // trigger, volition, trait, default, pattern
   category: text("category"), // psychological, physical, social, economic, etc.
   priority: integer("priority").default(5),
   likelihood: real("likelihood").default(1.0),
-  conditions: jsonb("conditions").$type<any[]>().default([]),
-  effects: jsonb("effects").$type<any[]>().default([]),
   tags: jsonb("tags").$type<string[]>().default([]),
-  dependencies: jsonb("dependencies").$type<string[]>().default([]),
   isActive: boolean("is_active").default(true),
-  isCompiled: boolean("is_compiled").default(false),
-  compiledOutput: jsonb("compiled_output").$type<Record<string, any>>().default({}),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -249,7 +244,9 @@ export const worlds = pgTable("worlds", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   description: text("description"),
-  targetLanguage: text("target_language"), // For language-learning game type
+  targetLanguage: text("target_language"), // @deprecated — use WorldLanguage.isLearningTarget instead
+  worldType: text("world_type"), // medieval-fantasy, cyberpunk, sci-fi-space, etc.
+  gameType: text("game_type"), // rpg, action, language-learning, simulation, etc.
 
   // Ownership and permissions
   ownerId: varchar("owner_id"), // User who owns/created this world (nullable for legacy/system worlds)
@@ -427,43 +424,33 @@ export const simulations = pgTable("simulations", {
 });
 
 // Actions table - stores discrete actions (can be base actions or world-specific)
-// All actions are stored in Insimul format internally for execution
+// Action logic is stored as Prolog content; denormalized columns kept for queries
 export const actions = pgTable("actions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   worldId: varchar("world_id"), // Nullable for base actions
   name: text("name").notNull(),
   description: text("description"),
 
+  // Prolog content — single source of truth for action logic
+  content: text("content"),
+
   // Base action indicator
   isBase: boolean("is_base").default(false), // true for global actions, false for world-specific
 
   // Authoring format (for display/editing only, not execution)
-  sourceFormat: text("source_format").notNull().default("insimul"), // ensemble, kismet, tott, insimul
+  sourceFormat: text("source_format").notNull().default("prolog"),
 
-  // Action categorization
+  // Denormalized columns (derived from Prolog content, kept for DB queries)
   actionType: text("action_type").notNull(), // social, physical, mental, economic, etc.
   category: text("category"), // conversation, combat, trade, etc.
-
-  // Action properties
   duration: integer("duration").default(1), // time steps to complete
   difficulty: real("difficulty").default(0.5), // 0.0 to 1.0
   energyCost: integer("energy_cost").default(1),
-
-  // Prerequisites and effects
-  prerequisites: jsonb("prerequisites").$type<any[]>().default([]),
-  effects: jsonb("effects").$type<any[]>().default([]),
-  sideEffects: jsonb("side_effects").$type<any[]>().default([]),
-  prologContent: text("prolog_content"), // Auto-generated Prolog representation
-
-  // Targeting and scope
   targetType: text("target_type"), // self, other, location, object, none
   requiresTarget: boolean("requires_target").default(false),
   range: integer("range").default(0), // 0 for same location
-
-  // Availability and triggers
   isAvailable: boolean("is_available").default(true),
   cooldown: integer("cooldown").default(0), // time steps before can use again
-  triggerConditions: jsonb("trigger_conditions").$type<any[]>().default([]),
 
   // Narrative and presentation
   verbPast: text("verb_past"), // e.g., "talked", "fought"
@@ -587,8 +574,8 @@ export const quests = pgTable("quests", {
   conversationContext: text("conversation_context"), // Context from the conversation that triggered the quest
   tags: jsonb("tags").$type<string[]>().default([]),
 
-  // Prolog
-  prologContent: text("prolog_content"),
+  // Prolog content — single source of truth for quest logic
+  content: text("quest_content"),
 
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -770,20 +757,14 @@ export const insertRuleSchema = createInsertSchema(rules).pick({
   name: true,
   description: true,
   content: true,
-  prologContent: true,
   isBase: true,
   sourceFormat: true,
   ruleType: true,
   category: true,
   priority: true,
   likelihood: true,
-  conditions: true,
-  effects: true,
   tags: true,
-  dependencies: true,
   isActive: true,
-  isCompiled: true,
-  compiledOutput: true,
 });
 
 export const insertGrammarSchema = createInsertSchema(grammars).pick({
@@ -848,6 +829,7 @@ export const insertActionSchema = createInsertSchema(actions).pick({
   worldId: true,
   name: true,
   description: true,
+  content: true,
   isBase: true,
   sourceFormat: true,
   actionType: true,
@@ -855,16 +837,11 @@ export const insertActionSchema = createInsertSchema(actions).pick({
   duration: true,
   difficulty: true,
   energyCost: true,
-  prerequisites: true,
-  effects: true,
-  sideEffects: true,
-  prologContent: true,
   targetType: true,
   requiresTarget: true,
   range: true,
   isAvailable: true,
   cooldown: true,
-  triggerConditions: true,
   verbPast: true,
   verbPresent: true,
   narrativeTemplates: true,
@@ -913,7 +890,7 @@ export const insertQuestSchema = createInsertSchema(quests).pick({
   expiresAt: true,
   conversationContext: true,
   tags: true,
-  prologContent: true,
+  content: true,
 });
 
 export const insertItemSchema = createInsertSchema(items).pick({

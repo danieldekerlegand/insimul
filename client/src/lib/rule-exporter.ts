@@ -117,8 +117,8 @@ export class RuleExporter {
         duration: action.duration,
         difficulty: action.difficulty,
         targetType: action.targetType,
-        effects: action.effects || [],
-        prerequisites: action.prerequisites || [],
+        effects: (action as any).effects || [],
+        prerequisites: (action as any).prerequisites || [],
         verb: action.verbPresent,
       }));
     }
@@ -143,11 +143,11 @@ export class RuleExporter {
         }
         output += `    duration = ${action.duration || 1},\n`;
         output += `    difficulty = ${action.difficulty || 0.5}`;
-        if (action.prerequisites && action.prerequisites.length > 0) {
-          output += `,\n    requires ${action.prerequisites.map((p: any) => p.condition || 'true').join(', ')}`;
+        if ((action as any).prerequisites && (action as any).prerequisites.length > 0) {
+          output += `,\n    requires ${(action as any).prerequisites.map((p: any) => p.condition || 'true').join(', ')}`;
         }
-        if (action.effects && action.effects.length > 0) {
-          output += `,\n    effect ${action.effects.map((e: any) => e.action || 'none').join(', ')}`;
+        if ((action as any).effects && (action as any).effects.length > 0) {
+          output += `,\n    effect ${(action as any).effects.map((e: any) => e.action || 'none').join(', ')}`;
         }
         output += '.\n\n';
       });
@@ -392,8 +392,8 @@ export class RuleExporter {
         duration: action.duration,
         difficulty_level: action.difficulty,
         target_type: action.targetType,
-        skill_requirements: action.prerequisites || {},
-        effects: action.effects || [],
+        skill_requirements: (action as any).prerequisites || {},
+        effects: (action as any).effects || [],
       }));
     }
 
@@ -440,17 +440,17 @@ export class RuleExporter {
         if (action.difficulty !== null) output += `  difficulty: ${action.difficulty}\n`;
         if (action.targetType) output += `  target: ${action.targetType}\n`;
 
-        if (action.prerequisites && action.prerequisites.length > 0) {
+        if ((action as any).prerequisites && (action as any).prerequisites.length > 0) {
           output += `  \n  prerequisites {\n`;
-          action.prerequisites.forEach((prereq: any) => {
+          (action as any).prerequisites.forEach((prereq: any) => {
             output += `    ${JSON.stringify(prereq)}\n`;
           });
           output += `  }\n`;
         }
 
-        if (action.effects && action.effects.length > 0) {
+        if ((action as any).effects && (action as any).effects.length > 0) {
           output += `  \n  effects {\n`;
-          action.effects.forEach((effect: any) => {
+          (action as any).effects.forEach((effect: any) => {
             output += `    ${JSON.stringify(effect)}\n`;
           });
           output += `  }\n`;

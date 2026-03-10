@@ -70,7 +70,7 @@ import type {
   CombatStyle,
 } from '@shared/game-engine/types';
 import type { World, Country, State, Settlement, Character, Quest } from '@shared/schema';
-import { buildLanguageAwareSystemPrompt } from '@shared/language-utils';
+import { buildLanguageAwareSystemPrompt, buildWorldLanguageContext } from '@shared/language-utils';
 import type { CharacterInfo, Truth, WorldLanguageContext } from '@shared/language-utils';
 import type { WorldLanguage } from '@shared/language';
 
@@ -913,10 +913,8 @@ export async function generateWorldIR(
     content: r.content, isBase: r.isBase ?? false, sourceFormat: r.sourceFormat,
     ruleType: r.ruleType, category: r.category || null,
     priority: r.priority ?? 5, likelihood: r.likelihood ?? 1.0,
-    conditions: (r.conditions as any[]) || [], effects: (r.effects as any[]) || [],
-    tags: (r.tags as string[]) || [], dependencies: (r.dependencies as string[]) || [],
+    tags: (r.tags as string[]) || [],
     isActive: r.isActive ?? true,
-    prologContent: (r as any).prologContent || null,
   }));
 
   const baseRuleIRs: RuleIR[] = []; // Skip base rules for now due to performance issues
@@ -925,8 +923,7 @@ export async function generateWorldIR(
   //   content: r.content, isBase: true, sourceFormat: r.sourceFormat,
   //   ruleType: r.ruleType, category: r.category || null,
   //   priority: r.priority ?? 5, likelihood: r.likelihood ?? 1.0,
-  //   conditions: (r.conditions as any[]) || [], effects: (r.effects as any[]) || [],
-  //   tags: (r.tags as string[]) || [], dependencies: (r.dependencies as string[]) || [],
+  //   tags: (r.tags as string[]) || [],
   //   isActive: r.isActive ?? true,
   // }));
 
@@ -936,22 +933,18 @@ export async function generateWorldIR(
     actionType: a.actionType, category: a.category || null,
     duration: a.duration ?? 1, difficulty: a.difficulty ?? 0.5,
     energyCost: a.energyCost ?? 1,
-    prerequisites: (a.prerequisites as any[]) || [],
-    effects: (a.effects as any[]) || [],
-    sideEffects: (a.sideEffects as any[]) || [],
+    content: (a as any).content || (a as any).prologContent || null,
     targetType: a.targetType || null,
     requiresTarget: a.requiresTarget ?? false,
     range: a.range ?? 0,
     isAvailable: a.isAvailable ?? true,
     cooldown: a.cooldown ?? 0,
-    triggerConditions: (a.triggerConditions as any[]) || [],
     verbPast: a.verbPast || null,
     verbPresent: a.verbPresent || null,
     narrativeTemplates: (a.narrativeTemplates as string[]) || [],
     customData: (a.customData as Record<string, any>) || {},
     tags: (a.tags as string[]) || [],
     isActive: a.isActive ?? true,
-    prologContent: (a as any).prologContent || null,
   }));
 
   const baseActionIRs: ActionIR[] = []; // Skip base actions for now due to performance issues
@@ -961,9 +954,7 @@ export async function generateWorldIR(
   //   actionType: a.actionType, category: a.category || null,
   //   duration: a.duration ?? 1, difficulty: a.difficulty ?? 0.5,
   //   energyCost: a.energyCost ?? 1,
-  //   prerequisites: (a.prerequisites as any[]) || [],
-  //   effects: (a.effects as any[]) || [],
-  //   sideEffects: (a.sideEffects as any[]) || [],
+  //   content: (a as any).content || (a as any).prologContent || null,
   //   targetType: a.targetType || null,
   //   requiresTarget: a.requiresTarget ?? false,
   //   range: a.range || null,
@@ -997,7 +988,7 @@ export async function generateWorldIR(
     locationPosition: (q as any).locationPosition || null,
     tags: (q.tags as string[]) || [],
     status: q.status || 'active',
-    prologContent: (q as any).prologContent || null,
+    content: (q as any).content || (q as any).prologContent || null,
   }));
 
   const truthIRs: TruthIR[] = truths.map(t => ({
@@ -1048,12 +1039,10 @@ export async function generateWorldIR(
 
   // ── 6b. Dialogue contexts (pre-built system prompts for NPC chat) ──
   const primaryLanguage = languageIRs.find(l => l.isPrimary) || null;
-  const worldLanguageContext: WorldLanguageContext | undefined = primaryLanguage ? {
-    targetLanguage: primaryLanguage.realCode ? primaryLanguage.name : 'English',
-    worldLanguages: languageIRs as unknown as WorldLanguage[],
-    primaryLanguage: primaryLanguage as unknown as WorldLanguage,
+  const worldLanguageContext: WorldLanguageContext | undefined = primaryLanguage ? buildWorldLanguageContext(
+    languageIRs as unknown as WorldLanguage[],
     gameType,
-  } : undefined;
+  ) : undefined;
 
   const dialogueContexts: NPCDialogueContext[] = npcIRs.map(npc => {
     const char = characters.find(c => c.id === npc.characterId);
@@ -1201,7 +1190,17 @@ export async function generateWorldIR(
       })),
       lootTables: buildLootTables(worldItems || []),
       dialogueContexts,
-      knowledgeBase: await buildKnowledgeBase(ruleIRs, actionIRs, questIRs, characters),
+      knowledgeBase: await buildKnowledgeBase(ruleIRs, actionIRs, questIRs, characters, {
+        world,
+        countries,
+        states,
+        settlements,
+        businesses: allBusinesses,
+        lotsBySettlement,
+        truths,
+        worldItems: worldItems || [],
+        languages: languages || [],
+      }),
     },
 
     theme: {
@@ -1300,6 +1299,17 @@ async function buildKnowledgeBase(
   actions: ActionIR[],
   quests: QuestIR[],
   characters: any[],
+  worldData?: {
+    world?: any;
+    countries?: any[];
+    states?: any[];
+    settlements?: any[];
+    businesses?: any[];
+    lotsBySettlement?: Map<string, any[]>;
+    truths?: any[];
+    worldItems?: any[];
+    languages?: any[];
+  },
 ): Promise<string | null> {
   const parts: string[] = [];
 
@@ -1322,20 +1332,185 @@ async function buildKnowledgeBase(
   parts.push(getAdvancedPredicates());
   parts.push('');
 
-  // Character facts
+  // ── World facts ──
+  if (worldData?.world) {
+    const w = worldData.world;
+    const wId = sanitizeAtom(w.id || w._id?.toString() || 'world');
+    parts.push('% === World Facts ===');
+    parts.push(`world(${wId}).`);
+    if (w.name) parts.push(`world_name(${wId}, '${escapeAtom(w.name)}').`);
+    if (w.description) parts.push(`world_description(${wId}, '${escapeAtom(w.description.slice(0, 200))}').`);
+    parts.push('');
+  }
+
+  // ── Country facts ──
+  const countries = worldData?.countries || [];
+  if (countries.length > 0) {
+    parts.push('% === Country Facts ===');
+    for (const c of countries) {
+      const cId = sanitizeAtom(c.id || c._id?.toString());
+      parts.push(`country(${cId}).`);
+      if (c.name) parts.push(`country_name(${cId}, '${escapeAtom(c.name)}').`);
+      if (c.governmentType) parts.push(`government_type(${cId}, ${sanitizeAtom(c.governmentType)}).`);
+      if (c.economicSystem) parts.push(`economic_system(${cId}, ${sanitizeAtom(c.economicSystem)}).`);
+      if (c.foundedYear) parts.push(`country_founded(${cId}, ${c.foundedYear}).`);
+    }
+    parts.push('');
+  }
+
+  // ── State facts ──
+  const states = worldData?.states || [];
+  if (states.length > 0) {
+    parts.push('% === State Facts ===');
+    for (const s of states) {
+      const sId = sanitizeAtom(s.id || s._id?.toString());
+      parts.push(`state(${sId}).`);
+      if (s.name) parts.push(`state_name(${sId}, '${escapeAtom(s.name)}').`);
+      if (s.countryId) parts.push(`state_of_country(${sId}, ${sanitizeAtom(s.countryId)}).`);
+      if (s.stateType) parts.push(`state_type(${sId}, ${sanitizeAtom(s.stateType)}).`);
+      if (s.terrain) parts.push(`state_terrain(${sId}, ${sanitizeAtom(s.terrain)}).`);
+    }
+    parts.push('');
+  }
+
+  // ── Settlement facts ──
+  const settlements = worldData?.settlements || [];
+  if (settlements.length > 0) {
+    parts.push('% === Settlement Facts ===');
+    for (const s of settlements) {
+      const sId = sanitizeAtom(s.id || s._id?.toString());
+      parts.push(`settlement(${sId}).`);
+      if (s.name) parts.push(`settlement_name(${sId}, '${escapeAtom(s.name)}').`);
+      if (s.countryId) parts.push(`settlement_of_country(${sId}, ${sanitizeAtom(s.countryId)}).`);
+      if (s.stateId) parts.push(`settlement_of_state(${sId}, ${sanitizeAtom(s.stateId)}).`);
+      if (s.settlementType) parts.push(`settlement_type(${sId}, ${sanitizeAtom(s.settlementType)}).`);
+      if (s.terrain) parts.push(`settlement_terrain(${sId}, ${sanitizeAtom(s.terrain)}).`);
+      if (s.population) parts.push(`settlement_population(${sId}, ${s.population}).`);
+    }
+    parts.push('');
+  }
+
+  // ── Business facts ──
+  const businesses = worldData?.businesses || [];
+  if (businesses.length > 0) {
+    parts.push('% === Business Facts ===');
+    for (const b of businesses) {
+      const bId = sanitizeAtom(b.id || b._id?.toString());
+      parts.push(`business(${bId}).`);
+      if (b.name) parts.push(`business_name(${bId}, '${escapeAtom(b.name)}').`);
+      if (b.businessType) parts.push(`business_type(${bId}, ${sanitizeAtom(b.businessType)}).`);
+      if (b.settlementId) parts.push(`business_of_settlement(${bId}, ${sanitizeAtom(b.settlementId)}).`);
+      if (b.ownerId) parts.push(`business_owner(${bId}, ${sanitizeAtom(b.ownerId)}).`);
+      if (b.isOutOfBusiness) parts.push(`business_out_of_business(${bId}).`);
+    }
+    parts.push('');
+  }
+
+  // ── Lot facts ──
+  const lotsBySettlement = worldData?.lotsBySettlement;
+  if (lotsBySettlement && lotsBySettlement.size > 0) {
+    parts.push('% === Lot Facts ===');
+    lotsBySettlement.forEach((lots) => {
+      for (const lot of lots) {
+        const lId = sanitizeAtom(lot.id || lot._id?.toString());
+        parts.push(`lot(${lId}).`);
+        if (lot.settlementId) parts.push(`lot_of_settlement(${lId}, ${sanitizeAtom(lot.settlementId)}).`);
+        if (lot.address) parts.push(`lot_address(${lId}, '${escapeAtom(lot.address)}').`);
+        if (lot.buildingType) parts.push(`lot_building_type(${lId}, ${sanitizeAtom(lot.buildingType)}).`);
+      }
+    });
+    parts.push('');
+  }
+
+  // ── Character facts (expanded) ──
   parts.push('% === Character Facts ===');
   for (const char of characters) {
     const id = sanitizeAtom(`${char.firstName}_${char.lastName}_${char.id}`);
     parts.push(`person(${id}).`);
+    if (char.firstName) parts.push(`first_name(${id}, '${escapeAtom(char.firstName)}').`);
+    if (char.lastName) parts.push(`last_name(${id}, '${escapeAtom(char.lastName)}').`);
     if (char.age) parts.push(`age(${id}, ${char.age}).`);
     if (char.gender) parts.push(`gender(${id}, ${sanitizeAtom(char.gender)}).`);
     if (char.occupation) parts.push(`occupation(${id}, ${sanitizeAtom(char.occupation)}).`);
+    if (char.isAlive !== false) parts.push(`alive(${id}).`);
+    else parts.push(`dead(${id}).`);
+    // Personality traits (Big Five)
+    if (char.personality && typeof char.personality === 'object') {
+      for (const [trait, value] of Object.entries(char.personality)) {
+        if (typeof value === 'number') {
+          parts.push(`personality(${id}, ${sanitizeAtom(trait)}, ${value}).`);
+        }
+      }
+    }
+    // Skills
+    if (char.skills && typeof char.skills === 'object') {
+      for (const [skill, level] of Object.entries(char.skills)) {
+        if (typeof level === 'number') {
+          parts.push(`skill(${id}, ${sanitizeAtom(skill)}, ${level}).`);
+        }
+      }
+    }
+    // Family relationships
+    if (char.spouseId) parts.push(`married_to(${id}, ${sanitizeAtom(char.spouseId)}).`);
+    if (Array.isArray(char.parentIds)) {
+      for (const pid of char.parentIds) parts.push(`child_of(${id}, ${sanitizeAtom(pid)}).`);
+    }
+    if (Array.isArray(char.childIds)) {
+      for (const cid of char.childIds) parts.push(`parent_of(${id}, ${sanitizeAtom(cid)}).`);
+    }
   }
   parts.push('');
 
+  // ── Item facts ──
+  const items = worldData?.worldItems || [];
+  if (items.length > 0) {
+    parts.push('% === Item Facts ===');
+    for (const item of items) {
+      const iId = sanitizeAtom(item.id || item._id?.toString());
+      parts.push(`item(${iId}).`);
+      if (item.name) parts.push(`item_name(${iId}, '${escapeAtom(item.name)}').`);
+      if (item.itemType) parts.push(`item_type(${iId}, ${sanitizeAtom(item.itemType)}).`);
+      if (item.value) parts.push(`item_value(${iId}, ${item.value}).`);
+      if (item.weight) parts.push(`item_weight(${iId}, ${item.weight}).`);
+      if (item.tradeable !== undefined) parts.push(`item_tradeable(${iId}, ${item.tradeable}).`);
+    }
+    parts.push('');
+  }
+
+  // ── Truth facts ──
+  const truths = worldData?.truths || [];
+  if (truths.length > 0) {
+    parts.push('% === Truth Facts ===');
+    for (const truth of truths) {
+      const tId = sanitizeAtom(truth.id || truth._id?.toString());
+      parts.push(`truth(${tId}).`);
+      if (truth.title) parts.push(`truth_title(${tId}, '${escapeAtom(truth.title)}').`);
+      if (truth.entryType) parts.push(`truth_type(${tId}, ${sanitizeAtom(truth.entryType)}).`);
+      if (truth.characterId) parts.push(`truth_about(${tId}, ${sanitizeAtom(truth.characterId)}).`);
+      if (truth.timestep != null) parts.push(`truth_timestep(${tId}, ${truth.timestep}).`);
+      if (truth.importance) parts.push(`truth_importance(${tId}, ${truth.importance}).`);
+      if (truth.isPublic !== undefined) parts.push(`truth_public(${tId}, ${truth.isPublic}).`);
+    }
+    parts.push('');
+  }
+
+  // ── Language facts ──
+  const languages = worldData?.languages || [];
+  if (languages.length > 0) {
+    parts.push('% === Language Facts ===');
+    for (const lang of languages) {
+      const lId = sanitizeAtom(lang.id || lang._id?.toString());
+      parts.push(`language(${lId}).`);
+      if (lang.name) parts.push(`language_name(${lId}, '${escapeAtom(lang.name)}').`);
+      if (lang.nativeName) parts.push(`language_native_name(${lId}, '${escapeAtom(lang.nativeName)}').`);
+      if (lang.script) parts.push(`language_script(${lId}, ${sanitizeAtom(lang.script)}).`);
+    }
+    parts.push('');
+  }
+
   // Prolog content from rules
   let hasContent = false;
-  const ruleContents = rules.filter(r => r.prologContent).map(r => r.prologContent!);
+  const ruleContents = rules.filter(r => r.content).map(r => r.content);
   if (ruleContents.length > 0) {
     parts.push('% === Rules ===');
     parts.push(ruleContents.join('\n\n'));
@@ -1344,7 +1519,7 @@ async function buildKnowledgeBase(
   }
 
   // Prolog content from actions
-  const actionContents = actions.filter(a => a.prologContent).map(a => a.prologContent!);
+  const actionContents = actions.filter(a => a.content).map(a => a.content!);
   if (actionContents.length > 0) {
     parts.push('% === Actions ===');
     parts.push(actionContents.join('\n\n'));
@@ -1353,7 +1528,7 @@ async function buildKnowledgeBase(
   }
 
   // Prolog content from quests
-  const questContents = quests.filter(q => q.prologContent).map(q => q.prologContent!);
+  const questContents = quests.filter(q => q.content).map(q => q.content!);
   if (questContents.length > 0) {
     parts.push('% === Quests ===');
     parts.push(questContents.join('\n\n'));
@@ -1396,4 +1571,8 @@ function sanitizeAtom(str: string): string {
     .replace(/^([0-9])/, '_$1')
     .replace(/_+/g, '_')
     .replace(/_$/, '');
+}
+
+function escapeAtom(str: string): string {
+  return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }

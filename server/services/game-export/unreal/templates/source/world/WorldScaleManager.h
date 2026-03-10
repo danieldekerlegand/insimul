@@ -24,6 +24,17 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "World")
     FLinearColor RoadColor = FLinearColor({{ROAD_COLOR_R}}, {{ROAD_COLOR_G}}, {{ROAD_COLOR_B}});
 
+    static constexpr float SPAWN_CLEAR_RADIUS = 15.f;
+
     UFUNCTION(BlueprintCallable, Category = "World")
     float GetSettlementRadius(int32 Population);
+
+    UFUNCTION(BlueprintCallable, Category = "World")
+    static FString GetSettlementTier(int32 Population);
+
+    UFUNCTION(BlueprintCallable, Category = "World")
+    static TArray<FVector> GenerateLotPositions(FVector SettlementPosition, float SettlementRadius, int32 LotCount);
+
+    UFUNCTION(BlueprintCallable, Category = "World")
+    static int32 CalculateOptimalWorldSize(int32 CountryCount, int32 StateCount, int32 SettlementCount);
 };

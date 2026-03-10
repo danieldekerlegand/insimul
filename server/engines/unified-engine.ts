@@ -278,12 +278,11 @@ export class InsimulSimulationEngine {
       for (const [ruleId, rule] of this.rules) {
         await this.startRuleExecution(ruleId, rule);
         
-        // Try to execute rule effects
+        // Try to execute rule effects from parsedContent (legacy) or let Prolog handle them
         const parsedContent = (rule as any).parsedContent;
-        if (parsedContent && parsedContent.effects && Array.isArray(parsedContent.effects)) {
-          for (const effect of parsedContent.effects) {
-            await this.executeEffect(effect, rule.name);
-          }
+        const effects: Effect[] = (parsedContent && Array.isArray(parsedContent.effects)) ? parsedContent.effects : [];
+        for (const effect of effects) {
+          await this.executeEffect(effect, rule.name);
         }
         
         await this.finishRuleExecution();
@@ -652,7 +651,7 @@ export class InsimulSimulationEngine {
       ruleId,
       ruleName: rule.name,
       ruleType: rule.ruleType || 'unknown',
-      conditions: parsedContent?.conditions || [],
+      conditions: (parsedContent?.conditions as any[]) || [],
       effectsExecuted: [],
       charactersAffected: [],
       narrativeGenerated: null,

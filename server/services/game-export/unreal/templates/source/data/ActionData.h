@@ -22,4 +22,14 @@ struct INSIMULEXPORT_API FInsimulActionData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float Cooldown = 0.f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bIsActive = true;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> Tags;
+
+    // Prolog content — single source of truth
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Content;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString VerbPast;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString VerbPresent;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> NarrativeTemplates;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString TargetType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bIsBase = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString SourceFormat;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString CustomData; // JSON string
 };

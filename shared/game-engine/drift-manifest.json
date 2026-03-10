@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-10T02:26:47.558Z",
+  "lastUpdated": "2026-03-10T09:38:35.006Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -56,7 +56,7 @@
     {
       "path": "client/src/components/3DGame/RuleEnforcer.ts",
       "description": "Rule enforcement: condition evaluation, violation callbacks. Changes require updating rule enforcer templates.",
-      "hash": "39f107cd5cfb99cf4ad8ec03fea27381475d19efecf23e014743ba4595109be1",
+      "hash": "f11e7c6c2f3cc6df52b3575c3531965157d420aadbfb2aef6f3e2d6777477061",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -148,7 +148,7 @@
     {
       "path": "client/src/components/3DGame/BabylonDialogueActions.ts",
       "description": "Dialogue tree traversal, choice selection, NPC conversation flow.",
-      "hash": "2de63523cb04fc56f8805626b87dc562b6c8cf551ed94481741e3f1feca6f772",
+      "hash": "511df10b545455060cc1af8fa15719cee01ee0ae281b4d018a9bddfa6c5de28b",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -171,7 +171,7 @@
     {
       "path": "client/src/components/3DGame/actions/ActionManager.ts",
       "description": "Action execution pipeline: availability checks, cooldowns, energy costs, effects.",
-      "hash": "8fe4c765f1036367bccf4f89f90fda698ec417b4bc08a53aae6005e811f71284",
+      "hash": "dc198bb5034260a3ebc75f1465fdc743dc2d004cef2debca4d4433ca9ad9a417",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -194,7 +194,7 @@
     {
       "path": "client/src/components/3DGame/ProceduralBuildingGenerator.ts",
       "description": "Procedural building placement and geometry. Changes affect world-generator templates.",
-      "hash": "bcf6aaf8cdbb2aeaef1d11d782c8d20449110300983290cfe88cafd015f5b678",
+      "hash": "e59abb851f4de11bb90b6d790c84f1c41294f8e2db98670b816e72119728658e",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -217,7 +217,7 @@
     {
       "path": "client/src/components/3DGame/WorldScaleManager.ts",
       "description": "World-to-scene coordinate scaling, biome setup, terrain parameters.",
-      "hash": "494e5991d98064d1341ced95a1677c06a9a4446631869418be1d8879a57099d6",
+      "hash": "7123ecd290e767d7b4db2535347513776bbfef11eeef06e1ff010a794082959b",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -289,7 +289,7 @@
     {
       "path": "client/src/components/3DGame/GamePrologEngine.ts",
       "description": "Client-side Prolog runtime: KB initialization, event-to-fact pipeline, quest/action queries. Exported engines need equivalent Prolog query logic.",
-      "hash": "a0ea312a1c80ad28819347e86446c3c28a07f527e3389831d1d37731c3e8bc4b",
+      "hash": "96c366ce363f506b80b42b59ddb7c62e648a9ee8bb4384c282622f7ca94acbcd",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -316,7 +316,7 @@
     {
       "path": "client/src/components/3DGame/DataSource.ts",
       "description": "Data loading abstraction: ApiDataSource (in-app) and FileDataSource (exports). FileDataSource defines the contract for how exported games load JSON/Prolog data.",
-      "hash": "b39317903cf0cf5ff8368ec892c82a71595af36ab3d356acb2e17fb57f6563e4",
+      "hash": "cb646bcf983d0044619fef960e7dffaf7b986c4e298e8773defef042df978409",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -343,7 +343,7 @@
     {
       "path": "shared/game-engine/ir-types.ts",
       "description": "WorldIR intermediate representation: the single source of truth consumed by all 4 engine generators. New IR fields not reflected in generators cause silent data loss.",
-      "hash": "6a0b6595460d025b29ae51d63911098bc8027e5c6af2eeb2b1edcb30a214b15e",
+      "hash": "aad728fa9744a8ffb1b4f842fbe5858ada6a3b812ad85632d75205e8847125b4",
       "engineMappings": [
         {
           "engine": "babylon",
@@ -370,7 +370,7 @@
     {
       "path": "shared/game-engine/types.ts",
       "description": "Engine-agnostic type primitives (InventoryItem, LootTableEntry, Action, Rule, etc.) shared across in-app and export systems.",
-      "hash": "a449e5d38af935dd2c3cd30ca4e3b74245d3b56be2c1e6c077fa44e848d44be1",
+      "hash": "a7b1039cd579ee093c50090610e0f0c7617ce01777d66e1335d7ae5a4c921715",
       "engineMappings": [
         {
           "engine": "unreal",

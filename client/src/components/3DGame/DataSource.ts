@@ -120,7 +120,7 @@ export class ApiDataSource implements DataSource {
   }
 
   async loadTruths(worldId: string): Promise<any[]> {
-    const res = await fetch(`/api/truths?worldId=${worldId}`, { headers: this.getHeaders() });
+    const res = await fetch(`/api/worlds/${worldId}/truth`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 

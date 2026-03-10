@@ -47,7 +47,7 @@ export function PredicateUsageAnalytics({ worldId, compact = false }: PredicateU
       const actions = actionsRes.ok ? await actionsRes.json() : [];
       const quests = questsRes.ok ? await questsRes.json() : [];
 
-      // Count predicate usage in prologContent
+      // Count predicate usage in content
       const predicateNames = Object.entries(predicatesData.predicates || {}).map(
         ([name, info]: [string, any]) => ({
           name,
@@ -70,14 +70,13 @@ export function PredicateUsageAnalytics({ worldId, compact = false }: PredicateU
         let usedInQuests = 0;
 
         for (const rule of rules) {
-          usedInRules += countInContent(rule.prologContent, pred.name);
           usedInRules += countInContent(rule.content, pred.name);
         }
         for (const action of actions) {
-          usedInActions += countInContent(action.prologContent, pred.name);
+          usedInActions += countInContent(action.content, pred.name);
         }
         for (const quest of quests) {
-          usedInQuests += countInContent(quest.prologContent, pred.name);
+          usedInQuests += countInContent(quest.content, pred.name);
         }
 
         return {

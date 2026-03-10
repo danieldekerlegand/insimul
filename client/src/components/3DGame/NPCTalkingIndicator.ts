@@ -1,129 +1,292 @@
 /**
  * NPC Talking Indicator
  *
- * Visual indicator that shows when an NPC is talking/in conversation
- * Displays an animated speech bubble above the NPC's head
+ * Visual indicators for NPC conversations:
+ * - Speech bubble with animated ellipsis or text snippets above the NPC's head
+ * - Procedural "talking" body sway animation (subtle torso bob)
+ * - Works for both player-NPC and NPC-NPC conversations
  */
 
-import { Scene, Mesh, MeshBuilder, StandardMaterial, Color3, Vector3, Animation } from '@babylonjs/core';
+import {
+  Scene, Mesh, MeshBuilder, StandardMaterial, Color3, Color4,
+  Vector3, Animation, TransformNode,
+} from '@babylonjs/core';
+import * as GUI from '@babylonjs/gui';
+
+interface IndicatorState {
+  /** The 3D anchor mesh parented to the NPC (for GUI linking) */
+  anchor: Mesh;
+  /** GUI container linked to the anchor */
+  container: GUI.Rectangle;
+  /** The text block inside the bubble */
+  textBlock: GUI.TextBlock;
+  /** Tail triangle below the bubble */
+  tail: GUI.Image | null;
+  /** Body sway animation handle */
+  swayAnimatable: any | null;
+  /** Ellipsis animation interval */
+  ellipsisTimer: number | null;
+  /** The NPC mesh this indicator is attached to */
+  npcMesh: Mesh;
+}
 
 export class NPCTalkingIndicator {
   private scene: Scene;
-  private indicators: Map<string, Mesh> = new Map();
-  private animations: Map<string, Animation> = new Map();
+  private advancedTexture: GUI.AdvancedDynamicTexture | null = null;
+  private indicators: Map<string, IndicatorState> = new Map();
 
   constructor(scene: Scene) {
     this.scene = scene;
   }
 
   /**
-   * Show talking indicator above an NPC
-   * @param npcId The NPC's ID
-   * @param npcMesh The NPC's mesh to attach the indicator to
+   * Set the shared GUI texture (call once after BabylonGUIManager creates it).
+   * If not set, a fullscreen UI will be created on demand.
    */
-  public show(npcId: string, npcMesh: Mesh) {
-    // Don't create duplicate indicators
+  public setGUI(gui: GUI.AdvancedDynamicTexture): void {
+    this.advancedTexture = gui;
+  }
+
+  private getGUI(): GUI.AdvancedDynamicTexture {
+    if (!this.advancedTexture) {
+      this.advancedTexture = GUI.AdvancedDynamicTexture.CreateFullscreenUI(
+        'npcTalkUI', true, this.scene,
+      );
+    }
+    return this.advancedTexture;
+  }
+
+  // ── Show / hide ────────────────────────────────────────────────────────────
+
+  /**
+   * Show a conversation indicator above an NPC.
+   * @param npcId   Unique NPC identifier
+   * @param npcMesh The NPC's root mesh
+   * @param text    Optional initial text to display (defaults to animated "...")
+   */
+  public show(npcId: string, npcMesh: Mesh, text?: string): void {
     if (this.indicators.has(npcId)) {
+      // Already showing — just update text if provided
+      if (text) this.updateText(npcId, text);
       return;
     }
 
-    // Create speech bubble indicator
-    const bubble = MeshBuilder.CreateSphere(
-      `talkIndicator_${npcId}`,
-      { diameter: 0.3, segments: 8 },
-      this.scene
-    );
+    const gui = this.getGUI();
 
-    // Position above NPC head
-    bubble.parent = npcMesh;
-    bubble.position = new Vector3(0.5, 2.5, 0);
+    // 3D anchor above NPC head
+    const anchor = MeshBuilder.CreateBox(`talkAnchor_${npcId}`, { size: 0.01 }, this.scene);
+    anchor.parent = npcMesh;
+    anchor.position = new Vector3(0, 2.6, 0);
+    anchor.isVisible = false;
+    anchor.isPickable = false;
 
-    // Create material with soft color
-    const material = new StandardMaterial(`talkIndicatorMat_${npcId}`, this.scene);
-    material.diffuseColor = new Color3(1, 1, 1);
-    material.emissiveColor = new Color3(0.3, 0.6, 1);
-    material.alpha = 0.9;
-    bubble.material = material;
+    // ── GUI speech bubble ───────────────────────────────────────────────────
 
-    // Create floating animation
-    const floatAnim = new Animation(
-      `talkFloat_${npcId}`,
-      'position.y',
-      30,
-      Animation.ANIMATIONTYPE_FLOAT,
-      Animation.ANIMATIONLOOPMODE_CYCLE
-    );
+    // Outer container (holds bubble + tail)
+    const container = new GUI.Rectangle(`talkBubble_${npcId}`);
+    container.width = '140px';
+    container.height = '44px';
+    container.cornerRadius = 12;
+    container.thickness = 0;
+    container.background = 'rgba(255, 255, 255, 0.92)';
+    container.shadowColor = 'rgba(0,0,0,0.35)';
+    container.shadowBlur = 6;
+    container.shadowOffsetY = 2;
+    container.isPointerBlocker = false;
 
-    const keys = [
-      { frame: 0, value: 2.5 },
-      { frame: 30, value: 2.7 },
-      { frame: 60, value: 2.5 }
-    ];
+    // Text
+    const textBlock = new GUI.TextBlock(`talkText_${npcId}`);
+    textBlock.text = text || '...';
+    textBlock.color = '#1a1a2e';
+    textBlock.fontSize = 13;
+    textBlock.fontFamily = 'system-ui, -apple-system, sans-serif';
+    textBlock.textWrapping = GUI.TextWrapping.Ellipsis;
+    textBlock.resizeToFit = false;
+    textBlock.paddingLeft = '10px';
+    textBlock.paddingRight = '10px';
+    container.addControl(textBlock);
 
-    floatAnim.setKeys(keys);
-    bubble.animations.push(floatAnim);
+    gui.addControl(container);
+    container.linkWithMesh(anchor);
+    container.linkOffsetY = -30;
 
-    // Create scale pulse animation
-    const pulseAnim = new Animation(
-      `talkPulse_${npcId}`,
-      'scaling',
-      30,
-      Animation.ANIMATIONTYPE_VECTOR3,
-      Animation.ANIMATIONLOOPMODE_CYCLE
-    );
+    // ── Tail triangle (drawn via a small stacked container) ─────────────────
+    const tail = new GUI.Rectangle(`talkTail_${npcId}`);
+    tail.width = '12px';
+    tail.height = '8px';
+    tail.thickness = 0;
+    tail.background = 'rgba(255, 255, 255, 0.92)';
+    tail.rotation = Math.PI / 4;
+    tail.isPointerBlocker = false;
+    gui.addControl(tail);
+    tail.linkWithMesh(anchor);
+    tail.linkOffsetY = -10;
 
-    const scaleKeys = [
-      { frame: 0, value: new Vector3(1, 1, 1) },
-      { frame: 15, value: new Vector3(1.2, 1.2, 1.2) },
-      { frame: 30, value: new Vector3(1, 1, 1) }
-    ];
-
-    pulseAnim.setKeys(scaleKeys);
-    bubble.animations.push(pulseAnim);
-
-    // Start animations
-    this.scene.beginAnimation(bubble, 0, 60, true);
-
-    // Store reference
-    this.indicators.set(npcId, bubble);
-  }
-
-  /**
-   * Hide talking indicator for an NPC
-   * @param npcId The NPC's ID
-   */
-  public hide(npcId: string) {
-    const bubble = this.indicators.get(npcId);
-    if (bubble) {
-      this.scene.stopAnimation(bubble);
-      bubble.dispose();
-      this.indicators.delete(npcId);
+    // ── Animated ellipsis (when no specific text provided) ──────────────────
+    let ellipsisTimer: number | null = null;
+    if (!text) {
+      let dots = 0;
+      ellipsisTimer = window.setInterval(() => {
+        dots = (dots + 1) % 4;
+        const dotStr = '.'.repeat(dots || 1);
+        textBlock.text = dotStr;
+      }, 400);
     }
+
+    // ── Procedural body sway animation ──────────────────────────────────────
+    const swayAnimatable = this.startBodySway(npcId, npcMesh);
+
+    const state: IndicatorState = {
+      anchor,
+      container,
+      textBlock,
+      tail: tail as any,
+      swayAnimatable,
+      ellipsisTimer,
+      npcMesh,
+    };
+
+    this.indicators.set(npcId, state);
   }
 
   /**
-   * Check if an NPC has a talking indicator showing
-   * @param npcId The NPC's ID
+   * Update the displayed text in an existing speech bubble.
+   * Useful for showing snippets of what the NPC is saying.
+   */
+  public updateText(npcId: string, text: string): void {
+    const state = this.indicators.get(npcId);
+    if (!state) return;
+
+    // Stop ellipsis animation when real text arrives
+    if (state.ellipsisTimer !== null) {
+      window.clearInterval(state.ellipsisTimer);
+      state.ellipsisTimer = null;
+    }
+
+    // Truncate long text for the bubble
+    const maxLen = 60;
+    state.textBlock.text = text.length > maxLen ? text.slice(0, maxLen - 1) + '\u2026' : text;
+
+    // Auto-size bubble width based on text
+    const estimatedWidth = Math.min(Math.max(text.length * 7 + 24, 80), 220);
+    state.container.width = `${estimatedWidth}px`;
+  }
+
+  /**
+   * Hide talking indicator for an NPC.
+   */
+  public hide(npcId: string): void {
+    const state = this.indicators.get(npcId);
+    if (!state) return;
+
+    // Clean up ellipsis timer
+    if (state.ellipsisTimer !== null) {
+      window.clearInterval(state.ellipsisTimer);
+    }
+
+    // Stop body sway
+    if (state.swayAnimatable) {
+      state.swayAnimatable.stop();
+    }
+
+    // Remove GUI elements
+    const gui = this.getGUI();
+    gui.removeControl(state.container);
+    state.container.dispose();
+    if (state.tail) {
+      gui.removeControl(state.tail as any);
+      (state.tail as any).dispose();
+    }
+
+    // Remove 3D anchor
+    state.anchor.dispose();
+
+    this.indicators.delete(npcId);
+  }
+
+  /**
+   * Check if an NPC has a talking indicator showing.
    */
   public isShowing(npcId: string): boolean {
     return this.indicators.has(npcId);
   }
 
   /**
-   * Hide all talking indicators
+   * Hide all talking indicators.
    */
-  public hideAll() {
-    this.indicators.forEach((bubble, npcId) => {
-      this.scene.stopAnimation(bubble);
-      bubble.dispose();
-    });
-    this.indicators.clear();
+  public hideAll(): void {
+    for (const npcId of Array.from(this.indicators.keys())) {
+      this.hide(npcId);
+    }
   }
 
   /**
-   * Clean up all resources
+   * Clean up all resources.
    */
-  public dispose() {
+  public dispose(): void {
     this.hideAll();
+  }
+
+  // ── Body sway animation ─────────────────────────────────────────────────
+
+  /**
+   * Apply a subtle procedural body sway to simulate talking gestures.
+   * Since the NPC models don't have a dedicated "talk" animation, we layer
+   * a gentle torso rotation oscillation on top of whatever the
+   * CharacterController is playing.
+   */
+  private startBodySway(npcId: string, npcMesh: Mesh): any {
+    // Find the first child transform that looks like a torso/spine bone.
+    // If none found, apply directly to the mesh (less ideal but still looks okay).
+    let target: TransformNode = npcMesh;
+    const children = npcMesh.getChildTransformNodes(false);
+    for (const child of children) {
+      const lower = child.name.toLowerCase();
+      if (lower.includes('spine') || lower.includes('torso') || lower.includes('chest')) {
+        target = child;
+        break;
+      }
+    }
+
+    // Create a subtle Z-axis rotation oscillation (side-to-side sway)
+    const swayAnim = new Animation(
+      `talkSway_${npcId}`,
+      'rotation.z',
+      30,
+      Animation.ANIMATIONTYPE_FLOAT,
+      Animation.ANIMATIONLOOPMODE_CYCLE,
+    );
+
+    const amplitude = 0.04; // ~2.3 degrees — very subtle
+    swayAnim.setKeys([
+      { frame: 0, value: 0 },
+      { frame: 20, value: amplitude },
+      { frame: 40, value: 0 },
+      { frame: 60, value: -amplitude },
+      { frame: 80, value: 0 },
+    ]);
+
+    // Also add a tiny Y-axis head bob
+    const bobAnim = new Animation(
+      `talkBob_${npcId}`,
+      'rotation.x',
+      30,
+      Animation.ANIMATIONTYPE_FLOAT,
+      Animation.ANIMATIONLOOPMODE_CYCLE,
+    );
+
+    const bobAmplitude = 0.03;
+    bobAnim.setKeys([
+      { frame: 0, value: 0 },
+      { frame: 15, value: bobAmplitude },
+      { frame: 30, value: 0 },
+      { frame: 45, value: -bobAmplitude },
+      { frame: 60, value: 0 },
+    ]);
+
+    target.animations = target.animations || [];
+    target.animations.push(swayAnim, bobAnim);
+
+    return this.scene.beginAnimation(target, 0, 80, true, 0.8);
   }
 }

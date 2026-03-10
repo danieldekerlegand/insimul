@@ -51,6 +51,14 @@ namespace Insimul.Data
         public InsimulActionData[] actions;
         public InsimulActionData[] baseActions;
         public InsimulQuestData[] quests;
+        public InsimulItemData[] items;
+        public InsimulLootTableData[] lootTables;
+        public InsimulTruthData[] truths;
+        public InsimulGrammarData[] grammars;
+        public InsimulDialogueContextData[] dialogueContexts;
+        public InsimulLanguageData[] languages;
+        public string knowledgeBase;
+        public InsimulAIConfigData aiConfig;
     }
 
     [Serializable] public class ColorData { public float r, g, b; }
@@ -134,5 +142,71 @@ namespace Insimul.Data
         public float maxStack;
         public float gatherTime;
         public float respawnTime;
+    }
+
+    [Serializable] public class InsimulItemData
+    {
+        public string id;
+        public string name;
+        public string description;
+        public string itemType;
+        public string rarity;
+        public int stackSize = 1;
+        public float weight;
+        public int value;
+        public string[] tags;
+    }
+
+    [Serializable] public class InsimulLootTableData
+    {
+        public string id;
+        public string name;
+        public InsimulLootEntryData[] entries;
+    }
+
+    [Serializable] public class InsimulLootEntryData
+    {
+        public string itemId;
+        public float weight = 1f;
+        public int minQuantity = 1;
+        public int maxQuantity = 1;
+    }
+
+    [Serializable] public class InsimulTruthData
+    {
+        public string id;
+        public string name;
+        public string content;
+        public string category;
+    }
+
+    [Serializable] public class InsimulGrammarData
+    {
+        public string id;
+        public string name;
+        public string content;
+    }
+
+    [Serializable] public class InsimulDialogueContextData
+    {
+        public string id;
+        public string name;
+        public string content;
+    }
+
+    [Serializable] public class InsimulLanguageData
+    {
+        public string id;
+        public string name;
+        public string content;
+    }
+
+    [Serializable] public class InsimulAIConfigData
+    {
+        public string provider;
+        public string model;
+        public float temperature;
+        public int maxTokens;
+        public string systemPrompt;
     }
 }

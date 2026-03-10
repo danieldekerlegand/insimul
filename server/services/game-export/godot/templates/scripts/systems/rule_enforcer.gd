@@ -2,9 +2,14 @@ extends Node
 ## Rule Enforcer — autoloaded singleton.
 ## Evaluates and enforces game rules with item condition support.
 
+signal violation_recorded(violation: Dictionary)
+signal restriction_applied(rule_name: String, message: String)
+
 var rules: Array[Dictionary] = []
 var _prolog_content: String = ""
 var has_prolog_kb: bool = false
+var _settlement_zones: Array[Dictionary] = []
+var _violations: Array[Dictionary] = []
 
 func load_from_data(world_data: Dictionary) -> void:
 	var systems: Dictionary = world_data.get("systems", {})
@@ -45,6 +50,52 @@ func set_prolog_knowledge_base(prolog_content: String) -> void:
 	_prolog_content = prolog_content
 	has_prolog_kb = not prolog_content.is_empty()
 	print("[Insimul] Prolog KB %s (%d chars)" % ["attached" if has_prolog_kb else "cleared", prolog_content.length()])
+
+# --- Settlement zone registration ---
+
+## Register a settlement zone for spatial in-settlement checks.
+func register_settlement_zone(settlement_id: String, position: Vector3, radius: float) -> void:
+	_settlement_zones.append({
+		"settlement_id": settlement_id,
+		"position": position,
+		"radius": radius
+	})
+	print("[Insimul] Registered settlement zone '%s' at %s radius %.1f" % [settlement_id, str(position), radius])
+
+## Check if a position is within any registered settlement zone.
+## Returns { "in_settlement": bool, "settlement_id": String }
+func is_in_settlement(position: Vector3) -> Dictionary:
+	for zone in _settlement_zones:
+		var distance: float = position.distance_to(zone["position"])
+		if distance <= zone["radius"]:
+			return { "in_settlement": true, "settlement_id": zone["settlement_id"] }
+	return { "in_settlement": false, "settlement_id": "" }
+
+# --- Violation tracking ---
+
+## Record a rule violation.
+func record_violation(rule_id: String, rule_name: String, severity: String, message: String) -> void:
+	var violation := {
+		"rule_id": rule_id,
+		"rule_name": rule_name,
+		"timestamp": Time.get_ticks_msec() / 1000.0,
+		"severity": severity,
+		"message": message
+	}
+	_violations.append(violation)
+	print("[Insimul] Violation recorded: %s — %s" % [rule_name, message])
+	violation_recorded.emit(violation)
+
+## Get recent violations (up to limit).
+func get_violations(limit: int = 10) -> Array[Dictionary]:
+	if limit <= 0 or limit >= _violations.size():
+		return _violations.duplicate()
+	return _violations.slice(_violations.size() - limit)
+
+## Clear all recorded violations.
+func clear_violations() -> void:
+	_violations.clear()
+	print("[Insimul] Violations cleared")
 
 # --- Condition evaluation ---
 

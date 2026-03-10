@@ -66,6 +66,10 @@ export function WorldSelectionScreen({ onWorldSelected, onOpenAuth, onOpenAdminP
     try {
       setIsCreatingWorld(true);
 
+      // Store world type and game type as top-level fields
+      if (worldType) (data as any).worldType = worldType;
+      if (gameType) (data as any).gameType = gameType;
+
       // Enrich world config with high-level metadata so other views (e.g. 3D world) can style by theme
       const enrichedConfig = {
         ...(data.config || {}),
@@ -97,6 +101,8 @@ export function WorldSelectionScreen({ onWorldSelected, onOpenAuth, onOpenAdminP
           generateGenealogy: genConfig.generateGenealogy,
           // Per-country configs (new format)
           countries: genConfig.countries,
+          // World languages to create as WorldLanguage records
+          worldLanguages: genConfig.worldLanguages,
         });
         
         const genResult = await genResponse.json();
@@ -232,21 +238,6 @@ export function WorldSelectionScreen({ onWorldSelected, onOpenAuth, onOpenAdminP
       />
       <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-primary/10 flex items-center justify-center p-6">
       <div className="w-full max-w-6xl">
-        {/* Header - only show for new users with no worlds */}
-        {!loading && worlds.length === 0 && (
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary to-primary/60 rounded-2xl mb-6 shadow-lg shadow-primary/20">
-              <Globe className="w-10 h-10 text-white" />
-            </div>
-            <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
-              Welcome to Insimul
-            </h1>
-            <p className="text-xl text-muted-foreground">
-              Select a world to begin, or create a new one
-            </p>
-          </div>
-        )}
-
         {/* Worlds Grid */}
         <ScrollArea className="h-[500px] mb-8">
           {/* Your Worlds Section */}

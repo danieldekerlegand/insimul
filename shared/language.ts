@@ -163,6 +163,7 @@ export interface WorldLanguage {
   realCode?: string | null;
 
   isPrimary: boolean;
+  isLearningTarget?: boolean;
 
   parentLanguageId?: string | null;
   influenceLanguageIds?: string[];

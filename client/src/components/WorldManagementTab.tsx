@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Users, Save, X,
   Scroll, Zap, Target, FileText, Sparkles,
@@ -14,9 +15,11 @@ import {
   Upload, Download, ChevronRight, Package,
 } from 'lucide-react';
 import { WorldSettingsDialog } from './WorldSettingsDialog';
+import { WORLD_TYPES, GAME_TYPES, LANGUAGES } from './WorldCreateDialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
+import type { AssetCollection } from '@shared/schema';
 
 interface WorldManagementTabProps {
   worldId: string;
@@ -39,8 +42,49 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
   const [isSaving, setIsSaving] = useState(false);
   const [editName, setEditName] = useState(worldName || '');
   const [editDescription, setEditDescription] = useState(worldDescription || '');
+  const [editWorldType, setEditWorldType] = useState<string>('');
+  const [editGameType, setEditGameType] = useState<string>('');
+  const [editTargetLanguage, setEditTargetLanguage] = useState<string>('');
+  const [editAssetCollectionId, setEditAssetCollectionId] = useState<string>('');
+  const [editCameraPerspective, setEditCameraPerspective] = useState<string>('third_person');
   const { toast } = useToast();
   const { token } = useAuth();
+
+  // Fetch available asset collections for edit dialog
+  const { data: availableCollections = [] } = useQuery<AssetCollection[]>({
+    queryKey: ['/api/asset-collections'],
+    queryFn: async () => {
+      const response = await fetch('/api/asset-collections');
+      if (!response.ok) throw new Error('Failed to fetch collections');
+      return response.json();
+    },
+  });
+
+  // Load full world data when edit dialog opens
+  useEffect(() => {
+    if (showEditDialog && worldId) {
+      const loadWorld = async () => {
+        try {
+          const headers: Record<string, string> = {};
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+          const response = await fetch(`/api/worlds/${worldId}`, { headers });
+          if (response.ok) {
+            const world = await response.json();
+            setEditName(world.name || '');
+            setEditDescription(world.description || '');
+            setEditWorldType(world.worldType || world.config?.worldType || '');
+            setEditGameType(world.gameType || world.config?.gameType || '');
+            setEditTargetLanguage(world.targetLanguage || '');
+            setEditAssetCollectionId(world.selectedAssetCollectionId || '');
+            setEditCameraPerspective(world.cameraPerspective || 'third_person');
+          }
+        } catch (error) {
+          console.error('Failed to load world data:', error);
+        }
+      };
+      loadWorld();
+    }
+  }, [showEditDialog, worldId, token]);
 
   // Fetch world entities for quick-link previews
   const { data: characters = [] } = useQuery<any[]>({
@@ -185,7 +229,15 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
       const response = await fetch(`/api/worlds/${worldId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name: editName, description: editDescription || null }),
+        body: JSON.stringify({
+          name: editName,
+          description: editDescription || null,
+          worldType: editWorldType || null,
+          gameType: editGameType || null,
+          targetLanguage: editTargetLanguage || null,
+          selectedAssetCollectionId: editAssetCollectionId && editAssetCollectionId !== 'none' ? editAssetCollectionId : null,
+          cameraPerspective: editCameraPerspective || 'third_person',
+        }),
       });
       if (!response.ok) throw new Error('Failed to update world');
       toast({ title: 'World Updated', description: 'World information has been saved successfully' });
@@ -201,6 +253,11 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
   const handleEditCancel = () => {
     setEditName(worldName || '');
     setEditDescription(worldDescription || '');
+    setEditWorldType('');
+    setEditGameType('');
+    setEditTargetLanguage('');
+    setEditAssetCollectionId('');
+    setEditCameraPerspective('third_person');
     onEditDialogChange?.(false);
   };
 
@@ -398,10 +455,10 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
 
       {/* Edit World Dialog */}
       <Dialog open={showEditDialog} onOpenChange={(open) => { if (!open) handleEditCancel(); else onEditDialogChange?.(open); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit World</DialogTitle>
-            <DialogDescription>Update your world's name and description</DialogDescription>
+            <DialogDescription>Update your world's properties and configuration</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -422,6 +479,99 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
                 placeholder="Describe your world..."
                 rows={3}
               />
+            </div>
+
+            {/* World Type */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-world-type">World Type</Label>
+              <Select value={editWorldType || 'none'} onValueChange={(v) => setEditWorldType(v === 'none' ? '' : v)}>
+                <SelectTrigger id="edit-world-type">
+                  <SelectValue placeholder="Select world type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {WORLD_TYPES.map((wt) => (
+                    <SelectItem key={wt.value} value={wt.value}>{wt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Game Type */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-game-type">Game Type</Label>
+              <Select value={editGameType || 'none'} onValueChange={(v) => setEditGameType(v === 'none' ? '' : v)}>
+                <SelectTrigger id="edit-game-type">
+                  <SelectValue placeholder="Select game type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {GAME_TYPES.map((gt) => (
+                    <SelectItem key={gt.value} value={gt.value}>{gt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Target Language (shown when game type is language-learning) */}
+            {editGameType === 'language-learning' && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-target-language">Target Language</Label>
+                <Select value={editTargetLanguage || 'none'} onValueChange={(v) => setEditTargetLanguage(v === 'none' ? '' : v)}>
+                  <SelectTrigger id="edit-target-language">
+                    <SelectValue placeholder="Select language" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {LANGUAGES.map((lang) => (
+                      <SelectItem key={lang} value={lang}>{lang}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Asset Collection */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-asset-collection">Asset Collection</Label>
+              <Select value={editAssetCollectionId || 'none'} onValueChange={setEditAssetCollectionId}>
+                <SelectTrigger id="edit-asset-collection">
+                  <SelectValue placeholder="Select an asset collection" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {availableCollections.map((collection) => (
+                    <SelectItem key={collection.id} value={collection.id}>
+                      {collection.name}
+                      {collection.isPublic && ' (Global)'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="text-xs text-muted-foreground">
+                Themed visual assets for your world
+              </div>
+            </div>
+
+            {/* Camera Perspective */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-camera-perspective">Camera Perspective</Label>
+              <Select value={editCameraPerspective} onValueChange={setEditCameraPerspective}>
+                <SelectTrigger id="edit-camera-perspective">
+                  <SelectValue placeholder="Select camera perspective" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="third_person">Third Person</SelectItem>
+                  <SelectItem value="first_person">First Person</SelectItem>
+                  <SelectItem value="isometric">Isometric</SelectItem>
+                  <SelectItem value="side_scroll">Side-Scroll</SelectItem>
+                  <SelectItem value="top_down">Top-Down</SelectItem>
+                  <SelectItem value="fighting">Fighting</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="text-xs text-muted-foreground">
+                Camera mode used when playing this world
+              </div>
             </div>
           </div>
           <DialogFooter>

@@ -29,6 +29,8 @@ function generateCharacters(ir: WorldIR): object[] {
     coworkerIds: c.coworkerIds,
     friendIds: c.friendIds,
     spouseId: c.spouseId || '',
+    middleName: c.middleName || '',
+    suffix: c.suffix || '',
   }));
 }
 
@@ -41,6 +43,7 @@ function generateNPCs(ir: WorldIR): object[] {
     disposition: n.disposition,
     settlementId: n.settlementId || '',
     questIds: n.questIds,
+    greeting: n.greeting || '',
   }));
 }
 
@@ -59,6 +62,14 @@ function generateActions(ir: WorldIR): object[] {
     cooldown: a.cooldown,
     isActive: a.isActive,
     tags: a.tags,
+    content: a.content || '',
+    verbPast: a.verbPast || '',
+    verbPresent: a.verbPresent || '',
+    narrativeTemplates: a.narrativeTemplates || [],
+    customData: a.customData || {},
+    targetType: a.targetType || '',
+    isBase: a.isBase,
+    sourceFormat: a.sourceFormat || '',
   }));
 }
 
@@ -95,6 +106,15 @@ function generateQuests(ir: WorldIR): object[] {
     prerequisiteQuestIds: q.prerequisiteQuestIds || [],
     objectives: q.objectives,
     itemRewards: q.itemRewards || [],
+    content: q.content || '',
+    gameType: q.gameType || '',
+    questChainId: q.questChainId || '',
+    questChainOrder: q.questChainOrder || 0,
+    skillRewards: q.skillRewards || [],
+    unlocks: q.unlocks || [],
+    failureConditions: q.failureConditions || [],
+    completionCriteria: q.completionCriteria || {},
+    rewards: q.rewards || {},
   }));
 }
 
@@ -129,6 +149,7 @@ function generateBuildings(ir: WorldIR): object[] {
     },
     modelAssetKey: b.modelAssetKey || '',
     businessId: b.businessId || '',
+    occupantIds: b.occupantIds || [],
   }));
 }
 

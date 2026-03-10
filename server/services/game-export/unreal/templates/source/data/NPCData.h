@@ -16,4 +16,5 @@ struct INSIMULEXPORT_API FInsimulNPCData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float Disposition = 50.f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString SettlementId;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> QuestIds;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Greeting;
 };

@@ -257,6 +257,9 @@ export class NPCAmbientConversationManager {
       const npc2 = this.npcMeshes.get(npc2Id);
       if (!npc1 || !npc2) return;
 
+      // Make the two NPCs face each other
+      this.faceEachOther(npc1.mesh, npc2.mesh);
+
       // Get a location for the conversation (midpoint between NPCs)
       const midpoint = Vector3.Center(npc1.mesh.position, npc2.mesh.position);
       const location = `location_${Math.floor(midpoint.x)}_${Math.floor(midpoint.z)}`;
@@ -357,8 +360,8 @@ export class NPCAmbientConversationManager {
 
       this.currentlySpeaking.add(utterance.speaker);
 
-      // Show talking indicator
-      this.talkingIndicator.show(utterance.speaker, speakerNPC.mesh);
+      // Show talking indicator with the utterance text
+      this.talkingIndicator.show(utterance.speaker, speakerNPC.mesh, utterance.text);
 
       // Get character gender for voice selection
       const characterRes = await fetch(`/api/characters/${utterance.speaker}`);
@@ -510,6 +513,17 @@ export class NPCAmbientConversationManager {
         this.conversationCheckInterval = settings.conversationCheckInterval;
       }
     }
+  }
+
+  /**
+   * Rotate two NPC meshes to face each other.
+   */
+  private faceEachOther(mesh1: Mesh, mesh2: Mesh): void {
+    const dir1to2 = mesh2.position.subtract(mesh1.position).normalize();
+    const dir2to1 = mesh1.position.subtract(mesh2.position).normalize();
+
+    mesh1.rotation.y = Math.atan2(dir1to2.x, dir1to2.z) + Math.PI;
+    mesh2.rotation.y = Math.atan2(dir2to1.x, dir2to1.z) + Math.PI;
   }
 
   /**

@@ -1,6 +1,7 @@
 #include "ProceduralBuildingGenerator.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/Texture2D.h"
 #include "Materials/MaterialInstanceDynamic.h"
 
 AProceduralBuildingGenerator::AProceduralBuildingGenerator()
@@ -21,14 +22,165 @@ UMaterialInstanceDynamic* AProceduralBuildingGenerator::GetSharedMaterial(
     return Mat;
 }
 
+void AProceduralBuildingGenerator::RegisterRoleModel(const FString& Role, UStaticMesh* Mesh)
+{
+    if (Role.IsEmpty() || !Mesh) return;
+    RoleModelPrototypes.Add(Role, Mesh);
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Registered role model: %s"), *Role);
+}
+
+void AProceduralBuildingGenerator::SetWallTexture(UTexture2D* Texture)
+{
+    WallTextureOverride = Texture;
+}
+
+void AProceduralBuildingGenerator::SetRoofTexture(UTexture2D* Texture)
+{
+    RoofTextureOverride = Texture;
+}
+
+const TMap<FString, FBuildingStylePreset>& AProceduralBuildingGenerator::GetStylePresets()
+{
+    static TMap<FString, FBuildingStylePreset> Presets;
+    if (Presets.Num() == 0)
+    {
+        Presets.Add(TEXT("medieval_wood"), {
+            TEXT("Medieval Wood"),
+            FLinearColor(0.55f, 0.35f, 0.2f),
+            FLinearColor(0.3f, 0.2f, 0.15f),
+            FLinearColor(0.9f, 0.9f, 0.7f),
+            FLinearColor(0.4f, 0.25f, 0.15f),
+            TEXT("wood"), TEXT("medieval")
+        });
+        Presets.Add(TEXT("medieval_stone"), {
+            TEXT("Medieval Stone"),
+            FLinearColor(0.6f, 0.6f, 0.55f),
+            FLinearColor(0.35f, 0.2f, 0.15f),
+            FLinearColor(0.7f, 0.8f, 0.9f),
+            FLinearColor(0.3f, 0.2f, 0.1f),
+            TEXT("stone"), TEXT("medieval")
+        });
+        Presets.Add(TEXT("modern_concrete"), {
+            TEXT("Modern Concrete"),
+            FLinearColor(0.7f, 0.7f, 0.7f),
+            FLinearColor(0.3f, 0.3f, 0.3f),
+            FLinearColor(0.6f, 0.7f, 0.8f),
+            FLinearColor(0.5f, 0.5f, 0.5f),
+            TEXT("brick"), TEXT("modern")
+        });
+        Presets.Add(TEXT("futuristic_metal"), {
+            TEXT("Futuristic Metal"),
+            FLinearColor(0.6f, 0.65f, 0.7f),
+            FLinearColor(0.2f, 0.25f, 0.3f),
+            FLinearColor(0.5f, 0.7f, 0.9f),
+            FLinearColor(0.3f, 0.4f, 0.5f),
+            TEXT("metal"), TEXT("futuristic")
+        });
+        Presets.Add(TEXT("rustic_cottage"), {
+            TEXT("Rustic Cottage"),
+            FLinearColor(0.7f, 0.5f, 0.3f),
+            FLinearColor(0.5f, 0.35f, 0.2f),
+            FLinearColor(0.8f, 0.85f, 0.7f),
+            FLinearColor(0.5f, 0.3f, 0.2f),
+            TEXT("wood"), TEXT("rustic")
+        });
+    }
+    return Presets;
+}
+
+const TMap<FString, FBuildingTypeDefaults>& AProceduralBuildingGenerator::GetBuildingTypes()
+{
+    static TMap<FString, FBuildingTypeDefaults> Types;
+    if (Types.Num() == 0)
+    {
+        // Businesses
+        Types.Add(TEXT("Bakery"),            { 2, 12, 10, true,  false });
+        Types.Add(TEXT("Restaurant"),        { 2, 15, 12, false, false });
+        Types.Add(TEXT("Tavern"),            { 2, 14, 14, false, true  });
+        Types.Add(TEXT("Inn"),               { 3, 16, 14, false, true  });
+        Types.Add(TEXT("Market"),            { 1, 20, 15, false, false });
+        Types.Add(TEXT("Shop"),              { 2, 10, 8,  false, false });
+        Types.Add(TEXT("Blacksmith"),        { 1, 12, 10, true,  false });
+        Types.Add(TEXT("LawFirm"),           { 3, 12, 10, false, false });
+        Types.Add(TEXT("Bank"),              { 2, 14, 12, false, false });
+        Types.Add(TEXT("Hospital"),          { 3, 20, 18, false, false });
+        Types.Add(TEXT("School"),            { 2, 18, 16, false, false });
+        Types.Add(TEXT("Church"),            { 1, 16, 24, false, false });
+        Types.Add(TEXT("Theater"),           { 2, 18, 20, false, false });
+        Types.Add(TEXT("Library"),           { 3, 16, 14, false, false });
+        Types.Add(TEXT("ApartmentComplex"),  { 5, 18, 16, false, true  });
+        Types.Add(TEXT("Windmill"),          { 3, 10, 10, false, false });
+        Types.Add(TEXT("Watermill"),         { 2, 14, 12, false, false });
+        Types.Add(TEXT("Lumbermill"),        { 1, 16, 12, true,  false });
+        Types.Add(TEXT("Barracks"),          { 2, 18, 14, false, false });
+        Types.Add(TEXT("Mine"),              { 1, 12, 10, false, false });
+        // Residences
+        Types.Add(TEXT("residence_small"),   { 1, 8,  8,  false, false });
+        Types.Add(TEXT("residence_medium"),  { 2, 10, 10, true,  false });
+        Types.Add(TEXT("residence_large"),   { 2, 14, 12, true,  true  });
+        Types.Add(TEXT("residence_mansion"), { 3, 20, 18, true,  true  });
+    }
+    return Types;
+}
+
+FBuildingStylePreset AProceduralBuildingGenerator::GetStyleForWorld(
+    const FString& WorldType, const FString& Terrain)
+{
+    const auto& Presets = GetStylePresets();
+    FString Type = WorldType.ToLower();
+    FString Terr = Terrain.ToLower();
+
+    if (Type.Contains(TEXT("medieval")) || Type.Contains(TEXT("fantasy")))
+    {
+        if (Terr.Contains(TEXT("forest")) || Terr.Contains(TEXT("rural")))
+        {
+            return Presets[TEXT("medieval_wood")];
+        }
+        return Presets[TEXT("medieval_stone")];
+    }
+    if (Type.Contains(TEXT("cyberpunk")) || Type.Contains(TEXT("sci-fi")) || Type.Contains(TEXT("futuristic")))
+    {
+        return Presets[TEXT("futuristic_metal")];
+    }
+    if (Type.Contains(TEXT("modern")))
+    {
+        return Presets[TEXT("modern_concrete")];
+    }
+    if (Terr.Contains(TEXT("rural")) || Terr.Contains(TEXT("village")))
+    {
+        return Presets[TEXT("rustic_cottage")];
+    }
+    // Default
+    return Presets[TEXT("medieval_wood")];
+}
+
 void AProceduralBuildingGenerator::GenerateBuilding(FVector Position, float Rotation,
     int32 Floors, float Width, float Depth, const FString& BuildingRole)
 {
-    // TODO: Generate procedural building mesh using ProceduralMeshComponent
-    // For now, spawn a cube placeholder scaled to building dimensions
     UE_LOG(LogTemp, Log, TEXT("[Insimul] Generate building %s at %s (%dx%.0fx%.0f)"),
         *BuildingRole, *Position.ToString(), Floors, Width, Depth);
 
+    // Check for a registered role model first
+    if (auto* ModelPtr = RoleModelPrototypes.Find(BuildingRole))
+    {
+        UStaticMesh* Model = *ModelPtr;
+        if (Model)
+        {
+            auto* MeshComp = NewObject<UStaticMeshComponent>(this);
+            MeshComp->SetStaticMesh(Model);
+            MeshComp->SetWorldLocation(Position);
+            MeshComp->SetWorldRotation(FRotator(0, FMath::RadiansToDegrees(Rotation), 0));
+            MeshComp->SetMobility(EComponentMobility::Static);
+            MeshComp->SetCullDistance(LODCullDistance);
+            MeshComp->RegisterComponent();
+            MeshComp->AttachToComponent(GetRootComponent(),
+                FAttachmentTransformRules::KeepWorldTransform);
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Placed role model for %s"), *BuildingRole);
+            return;
+        }
+    }
+
+    // Procedural fallback — spawn a cube placeholder scaled to building dimensions
     // Performance: mark as static for Unreal's static mesh batching
     SetMobility(EComponentMobility::Static);
 

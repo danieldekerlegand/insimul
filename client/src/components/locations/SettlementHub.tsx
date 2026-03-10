@@ -427,6 +427,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
         businesses={businesses}
         residences={residences}
         selectedCountryId={selectedCountry?.id}
+        worldId={worldId}
         onSettlementClick={selectSettlement}
         onCountryClick={selectCountry}
         className="flex-1 min-h-0"

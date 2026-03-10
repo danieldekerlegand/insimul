@@ -4,16 +4,20 @@ extends Node
 
 signal dialogue_started(npc_id: String)
 signal dialogue_ended
+signal action_selected(action_id: String)
 
 var is_in_dialogue := false
 var current_npc_id := ""
+var player_energy: float = 100.0
 
 var _chat_panel = null
 var _ai_config: Dictionary = {}
 var _dialogue_contexts: Array = []
+var _social_actions: Array = []
 
 func _ready() -> void:
 	_load_dialogue_data()
+	_load_social_actions()
 	call_deferred("_setup_ai_service")
 	call_deferred("_setup_chat_panel")
 
@@ -89,3 +93,50 @@ func end_dialogue() -> void:
 func _on_chat_closed() -> void:
 	if is_in_dialogue:
 		end_dialogue()
+
+func set_player_energy(energy: float) -> void:
+	player_energy = maxf(0.0, energy)
+
+## Returns an array of action dictionaries that the player can currently afford.
+func get_available_actions() -> Array:
+	if not is_in_dialogue:
+		return []
+
+	var available: Array = []
+	for action in _social_actions:
+		if not action is Dictionary:
+			continue
+		var energy_cost: float = action.get("energyCost", 0.0)
+		if energy_cost <= 0.0 or energy_cost <= player_energy:
+			available.append(action)
+	return available
+
+## Select an action during dialogue. Checks affordability and emits action_selected.
+func select_action(action_id: String) -> void:
+	if not is_in_dialogue:
+		print("[Insimul] Cannot select action - not in dialogue")
+		return
+
+	for action in _social_actions:
+		if not action is Dictionary:
+			continue
+		if action.get("id", "") == action_id:
+			var energy_cost: float = action.get("energyCost", 0.0)
+			if energy_cost > 0.0 and energy_cost > player_energy:
+				print("[Insimul] Not enough energy for action: %s (cost=%.0f, energy=%.0f)" % [action_id, energy_cost, player_energy])
+				return
+			action_selected.emit(action_id)
+			print("[Insimul] Action selected: %s" % action_id)
+			return
+
+	print("[Insimul] Action not found: %s" % action_id)
+
+func _load_social_actions() -> void:
+	var actions_file = FileAccess.open("res://data/social_actions.json", FileAccess.READ)
+	if actions_file:
+		var parsed = JSON.parse_string(actions_file.get_as_text())
+		if parsed is Array:
+			_social_actions = parsed
+			print("[Insimul] Loaded %d social actions" % _social_actions.size())
+	else:
+		print("[Insimul] social_actions.json not found")
