@@ -385,6 +385,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Batch convert world rules to Prolog
+  app.post("/api/worlds/:worldId/rules/convert-all", async (req, res) => {
+    try {
+      const rules = await storage.getRulesByWorld(req.params.worldId);
+      let converted = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+
+      for (const rule of rules) {
+        if (rule.prologContent) {
+          skipped++;
+          continue;
+        }
+        try {
+          const result = convertRuleToProlog(rule as any);
+          if (result.prologContent) {
+            await storage.updateRule(rule.id, { prologContent: result.prologContent });
+            converted++;
+          } else {
+            skipped++;
+          }
+        } catch (err: any) {
+          errors.push(`Rule "${rule.name}" (${rule.id}): ${err.message || String(err)}`);
+        }
+      }
+
+      res.json({ converted, skipped, errors });
+    } catch (error: any) {
+      console.error('Error batch converting world rules:', error);
+      res.status(500).json({ error: error.message || 'Failed to batch convert rules' });
+    }
+  });
+
   // Cache for rules by world to avoid repeated database calls
 const rulesCache = new Map<string, { rules: Rule[]; timestamp: number }>();
 const RULES_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
@@ -3575,41 +3608,80 @@ app.get("/api/rules", async (req, res) => {
       const config = req.body;
       const { worldType, customPrompt, customLabel, gameType } = config;
       let totalPopulation = 0;
-      let numCountries = 0;
+      let numCountriesCreated = 0;
       let numStates = 0;
       let numSettlements = 0;
 
-      // Single-shot mode: Generate ALL names in one API call (experimental, much faster)
-      const useSingleShot = config.useSingleShot !== false; // Enabled by default
+      // Resolve per-country configs: new format (countries array) or flat legacy fields
+      const countryConfigs: Array<{
+        terrain: string;
+        foundedYear: number;
+        generateStates: boolean;
+        numStatesPerCountry: number;
+        numCitiesPerState: number;
+        numTownsPerState: number;
+        numVillagesPerState: number;
+        numFoundingFamilies: number;
+        generations: number;
+        marriageRate: number;
+        fertilityRate: number;
+        deathRate: number;
+      }> = config.countries && Array.isArray(config.countries) && config.countries.length > 0
+        ? config.countries
+        : Array(config.numCountries || 1).fill(null).map(() => ({
+            terrain: config.terrain || 'plains',
+            foundedYear: config.foundedYear || 1850,
+            generateStates: config.generateStates !== false,
+            numStatesPerCountry: config.numStatesPerCountry || 1,
+            numCitiesPerState: config.numCitiesPerState ?? 0,
+            numTownsPerState: config.numTownsPerState ?? 1,
+            numVillagesPerState: config.numVillagesPerState ?? 0,
+            numFoundingFamilies: config.numFoundingFamilies || 10,
+            generations: config.generations || 4,
+            marriageRate: config.marriageRate || 0.7,
+            fertilityRate: config.fertilityRate || 0.6,
+            deathRate: config.deathRate || 0.3,
+          }));
+
+      const numCountriesTotal = countryConfigs.length;
+
+      // Single-shot mode: Generate ALL names in one API call (much faster)
+      const useSingleShot = config.useSingleShot !== false;
 
       if (useSingleShot && nameGenerator.isEnabled() && config.generateGenealogy) {
         console.log('🚀 Using SINGLE-SHOT generation mode for maximum efficiency...');
 
         const world = await storage.getWorld(config.worldId);
 
-        // Build settlement plan
-        const settlementPlan = [];
-        const numStatesForCountry = config.generateStates ? (config.numStatesPerCountry || 3) : 1;
-        const numCities = config.numCitiesPerState || 0;
-        const numTowns = config.numTownsPerState || 0;
-        const numVillages = config.numVillagesPerState || 0;
+        // Build settlement plan across ALL countries
+        const settlementPlan: Array<{ type: 'city' | 'town' | 'village'; numFamilies: number; childrenPerFamily: number }> = [];
+        // Track which settlements belong to which country (for later assignment)
+        const countrySettlementRanges: Array<{ start: number; end: number; statesCount: number }> = [];
 
-        for (let j = 0; j < numStatesForCountry; j++) {
-          for (let k = 0; k < numCities; k++) {
-            settlementPlan.push({ type: 'city' as const, numFamilies: config.numFoundingFamilies || 10, childrenPerFamily: 2 });
+        for (const cc of countryConfigs) {
+          const statesCount = cc.generateStates ? (cc.numStatesPerCountry || 1) : 1;
+          const startIdx = settlementPlan.length;
+          for (let j = 0; j < statesCount; j++) {
+            for (let k = 0; k < (cc.numCitiesPerState || 0); k++) {
+              settlementPlan.push({ type: 'city', numFamilies: cc.numFoundingFamilies || 10, childrenPerFamily: 2 });
+            }
+            for (let k = 0; k < (cc.numTownsPerState || 0); k++) {
+              settlementPlan.push({ type: 'town', numFamilies: cc.numFoundingFamilies || 10, childrenPerFamily: 2 });
+            }
+            for (let k = 0; k < (cc.numVillagesPerState || 0); k++) {
+              settlementPlan.push({ type: 'village', numFamilies: cc.numFoundingFamilies || 10, childrenPerFamily: 2 });
+            }
           }
-          for (let k = 0; k < numTowns; k++) {
-            settlementPlan.push({ type: 'town' as const, numFamilies: config.numFoundingFamilies || 10, childrenPerFamily: 2 });
-          }
-          for (let k = 0; k < numVillages; k++) {
-            settlementPlan.push({ type: 'village' as const, numFamilies: config.numFoundingFamilies || 10, childrenPerFamily: 2 });
-          }
+          countrySettlementRanges.push({ start: startIdx, end: settlementPlan.length, statesCount });
         }
 
         if (settlementPlan.length === 0) {
           console.log('⚠️ No settlements to generate, skipping single-shot mode');
           // Fall through to traditional generation
         } else {
+          // Compute total states for name generation
+          const totalStatesForNames = countryConfigs.reduce((sum, cc) => sum + (cc.generateStates ? (cc.numStatesPerCountry || 1) : 0), 0);
+
           // Generate ALL names in ONE API call
           const allNames = await nameGenerator.generateCompleteWorldNames({
             worldId: config.worldId,
@@ -3619,102 +3691,105 @@ app.get("/api/rules", async (req, res) => {
             customPrompt,
             customLabel,
             gameType,
-            numCountries: 1,
-            numStatesPerCountry: config.generateStates ? numStatesForCountry : 0,
+            numCountries: numCountriesTotal,
+            numStatesPerCountry: totalStatesForNames > 0 ? Math.ceil(totalStatesForNames / numCountriesTotal) : 0,
             governmentType: config.governmentType || 'monarchy',
             settlements: settlementPlan
           });
-          
+
           console.log(`✅ Generated names complete!`);
-          
-          // Now create everything using the pre-generated names
-          const countryData = allNames.countries[0] || { 
-            name: config.countryName || 'Kingdom', 
-            description: `A ${config.governmentType || 'monarchial'} realm` 
-          };
-          
-          const country = await storage.createCountry({
-            worldId: config.worldId,
-            name: countryData.name,
-            description: countryData.description,
-            governmentType: config.governmentType || 'monarchy',
-            economicSystem: config.economicSystem || 'agricultural',
-            foundedYear: config.foundedYear
-          });
-          numCountries++;
-          
-          let settlementIdx = 0;
-          let familyIdx = 0;
-          
-          for (let j = 0; j < numStatesForCountry; j++) {
-            let stateId = null;
-            
-            if (config.generateStates) {
-              const stateName = allNames.states[j]?.name || `${config.stateType || 'Province'} ${j + 1}`;
-              const state = await storage.createState({
-                worldId: config.worldId,
-                countryId: country.id,
-                name: stateName,
-                stateType: config.stateType || 'province',
-                terrain: config.terrain || 'plains'
-              });
-              stateId = state.id;
-              numStates++;
-            }
-            
-            // Create all settlements for this state
-            for (const settlementType of ['city', 'town', 'village'] as const) {
-              const count = settlementType === 'city' ? numCities : 
-                           settlementType === 'town' ? numTowns : numVillages;
-              
-              for (let k = 0; k < count; k++) {
-                const settlementName = allNames.settlements[settlementIdx]?.name || `${settlementType} ${settlementIdx}`;
-                
+
+          let stateNameIdx = 0;
+
+          // Create countries using per-country configs
+          for (let ci = 0; ci < numCountriesTotal; ci++) {
+            const cc = countryConfigs[ci];
+            const countryNameData = allNames.countries[ci] || {
+              name: `Kingdom ${ci + 1}`,
+              description: `A ${config.governmentType || 'monarchial'} realm`
+            };
+
+            const country = await storage.createCountry({
+              worldId: config.worldId,
+              name: countryNameData.name,
+              description: countryNameData.description,
+              governmentType: config.governmentType || 'monarchy',
+              economicSystem: config.economicSystem || 'agricultural',
+              foundedYear: cc.foundedYear
+            });
+            numCountriesCreated++;
+
+            const range = countrySettlementRanges[ci];
+            const statesCount = range.statesCount;
+            let settlementIdx = range.start;
+
+            const settlementsPerState = statesCount > 0 ? Math.ceil((range.end - range.start) / statesCount) : (range.end - range.start);
+
+            for (let j = 0; j < statesCount; j++) {
+              let stateId = null;
+
+              if (cc.generateStates) {
+                const stateName = allNames.states[stateNameIdx]?.name || `Province ${stateNameIdx + 1}`;
+                const state = await storage.createState({
+                  worldId: config.worldId,
+                  countryId: country.id,
+                  name: stateName,
+                  stateType: 'province',
+                  terrain: cc.terrain || 'plains'
+                });
+                stateId = state.id;
+                numStates++;
+                stateNameIdx++;
+              }
+
+              // Create settlements for this state
+              const stateSettlementEnd = Math.min(settlementIdx + settlementsPerState, range.end);
+              while (settlementIdx < stateSettlementEnd) {
+                const plan = settlementPlan[settlementIdx];
+                const settlementName = allNames.settlements[settlementIdx]?.name || `${plan.type} ${settlementIdx}`;
+
                 const settlement = await storage.createSettlement({
                   worldId: config.worldId,
                   countryId: country.id,
                   stateId: stateId,
                   name: settlementName,
-                  settlementType: settlementType,
-                  terrain: config.terrain || 'plains',
+                  settlementType: plan.type,
+                  terrain: cc.terrain || 'plains',
                   population: 0,
-                  foundedYear: config.foundedYear
+                  foundedYear: cc.foundedYear
                 });
                 numSettlements++;
-                
-                // Create families for this settlement using pre-generated names
+
+                // Create families using pre-generated names
                 const familiesForSettlement = allNames.families.filter((f: any) => f.settlementIndex === settlementIdx);
-                
+
                 for (const familyData of familiesForSettlement) {
-                  // Create father
                   const father = await storage.createCharacter({
                     worldId: config.worldId,
                     firstName: familyData.fatherFirstName,
                     lastName: familyData.surname,
                     gender: 'male',
-                    birthYear: config.foundedYear - 25,
+                    birthYear: cc.foundedYear - 25,
                     isAlive: true,
                     currentLocation: settlement.id,
                     socialAttributes: { generation: 0, founderFamily: true }
                   });
-                  
-                  // Create mother
+
                   const mother = await storage.createCharacter({
                     worldId: config.worldId,
                     firstName: familyData.motherFirstName,
                     lastName: familyData.surname,
                     maidenName: familyData.motherMaidenName,
                     gender: 'female',
-                    birthYear: config.foundedYear - 23,
+                    birthYear: cc.foundedYear - 23,
                     isAlive: true,
                     spouseId: father.id,
                     currentLocation: settlement.id,
                     socialAttributes: { generation: 0, founderFamily: true }
                   });
-                  
+
                   await storage.updateCharacter(father.id, { spouseId: mother.id });
-                  
-                  // Create children
+
                   const childIds = [];
                   for (const childData of familyData.children || []) {
                     const child = await storage.createCharacter({
@@ -3722,7 +3797,7 @@ app.get("/api/rules", async (req, res) => {
                       firstName: childData.firstName,
                       lastName: familyData.surname,
                       gender: childData.gender,
-                      birthYear: config.foundedYear + 1,
+                      birthYear: cc.foundedYear + 1,
                       isAlive: true,
                       parentIds: [father.id, mother.id],
                       currentLocation: settlement.id,
@@ -3731,24 +3806,63 @@ app.get("/api/rules", async (req, res) => {
                     childIds.push(child.id);
                     totalPopulation++;
                   }
-                  
+
                   await storage.updateCharacter(father.id, { childIds });
                   await storage.updateCharacter(mother.id, { childIds });
-                  
-                  totalPopulation += 2; // Father + mother
-                  familyIdx++;
+                  totalPopulation += 2;
                 }
-                
+
                 settlementIdx++;
               }
             }
           }
-          
+
+          // Generate geography for all settlements
+          if (config.generateGeography) {
+            const allSettlements = await storage.getSettlementsByWorld(config.worldId);
+            const generator = new WorldGenerator();
+            for (const settlement of allSettlements) {
+              const cc = countryConfigs[0]; // Use first country's foundedYear as fallback
+              await generator.generateGeography(settlement.id, {
+                foundedYear: settlement.foundedYear || cc.foundedYear
+              });
+            }
+            console.log(`🗺️  Generated geography for ${allSettlements.length} settlements`);
+          }
+
           console.log(`🎉 Single-shot generation complete: ${numSettlements} settlements, ${totalPopulation} characters`);
-          
+
+          // Auto-generate Prolog content
+          try {
+            const [worldRules, worldActions, worldQuests] = await Promise.all([
+              storage.getRulesByWorld(config.worldId),
+              storage.getActionsByWorld(config.worldId),
+              storage.getQuestsByWorld(config.worldId),
+            ]);
+            let prologConverted = 0;
+            for (const rule of worldRules) {
+              if (!rule.prologContent && rule.content) {
+                try { const r = convertRuleToProlog(rule as any); if (r.prologContent) { await storage.updateRule(rule.id, { prologContent: r.prologContent }); prologConverted++; } } catch {}
+              }
+            }
+            for (const action of worldActions) {
+              if (!action.prologContent) {
+                try { const r = convertActionToProlog(action as any); if (r.prologContent) { await storage.updateAction(action.id, { prologContent: r.prologContent }); prologConverted++; } } catch {}
+              }
+            }
+            for (const quest of worldQuests) {
+              if (!quest.prologContent) {
+                try { const r = convertQuestToProlog(quest as any); if (r.prologContent) { await storage.updateQuest(quest.id, { prologContent: r.prologContent }); prologConverted++; } } catch {}
+              }
+            }
+            if (prologConverted > 0) console.log(`🔮 Auto-generated Prolog content for ${prologConverted} entities`);
+          } catch (e) {
+            console.warn('[PrologAutoConvert] Failed during world generation:', e);
+          }
+
           return res.json({
             success: true,
-            numCountries,
+            numCountries: numCountriesCreated,
             numStates,
             numSettlements,
             totalPopulation,
@@ -3757,32 +3871,28 @@ app.get("/api/rules", async (req, res) => {
         }
       }
 
-      // Generate countries
-      for (let i = 0; i < (config.numCountries || 1); i++) {
-        // Try to generate a contextual country name using LLM
-        let countryName = config.numCountries > 1
-          ? `${config.countryPrefix || 'Kingdom'} ${i + 1}`
-          : (config.countryName || 'Kingdom');
+      // Traditional (fallback) generation — iterate per-country configs
+      for (let ci = 0; ci < numCountriesTotal; ci++) {
+        const cc = countryConfigs[ci];
 
-        // Generate country description based on world context
+        // Generate country name
         const world = await storage.getWorld(config.worldId);
+        let countryName = numCountriesTotal > 1
+          ? `Kingdom ${ci + 1}`
+          : 'Kingdom';
         let countryDescription = `A ${config.governmentType || 'monarchial'} realm`;
 
         if (nameGenerator.isEnabled() && world) {
           try {
-            // Use settlement name generator as a proxy for country names
-            // (we can enhance this later with a dedicated country name generator)
             const generatedName = await nameGenerator.generateSettlementName({
               worldName: world.name || 'Unknown World',
               worldDescription: world.description || undefined,
-              settlementType: 'city', // Use city as proxy for country-level naming
-              terrain: config.terrain || 'plains'
+              settlementType: 'city',
+              terrain: cc.terrain || 'plains'
             });
             if (generatedName && generatedName.length > 0) {
               countryName = generatedName;
             }
-
-            // Enhance description with world context
             if (world.description) {
               countryDescription = `A ${config.governmentType || 'monarchial'} realm in ${world.description}`;
             }
@@ -3791,53 +3901,45 @@ app.get("/api/rules", async (req, res) => {
           }
         }
 
-        const countryData = {
+        const country = await storage.createCountry({
           worldId: config.worldId,
           name: countryName,
           description: countryDescription,
           governmentType: config.governmentType || 'monarchy',
           economicSystem: config.economicSystem || 'agricultural',
-          foundedYear: config.foundedYear
-        };
-        
-        const country = await storage.createCountry(countryData);
-        numCountries++;
-        
-        // Generate states if enabled
-        const numStatesForCountry = config.generateStates ? (config.numStatesPerCountry || 3) : 1;
-        
+          foundedYear: cc.foundedYear
+        });
+        numCountriesCreated++;
+
+        const numStatesForCountry = cc.generateStates ? (cc.numStatesPerCountry || 1) : 1;
+
         for (let j = 0; j < numStatesForCountry; j++) {
           let stateId = null;
-          
-          if (config.generateStates) {
-            const stateName = `${config.stateType || 'Province'} ${j + 1}`;
-            const stateData = {
+
+          if (cc.generateStates) {
+            const stateName = `Province ${j + 1}`;
+            const state = await storage.createState({
               worldId: config.worldId,
               countryId: country.id,
               name: stateName,
-              stateType: config.stateType || 'province',
-              terrain: config.terrain || 'plains'
-            };
-            
-            const state = await storage.createState(stateData);
+              stateType: 'province',
+              terrain: cc.terrain || 'plains'
+            });
             stateId = state.id;
             numStates++;
           }
-          
-          // Generate settlements for this state/country
-          const numCities = config.numCitiesPerState || 0;
-          const numTowns = config.numTownsPerState || 0;
-          const numVillages = config.numVillagesPerState || 0;
-          
-          // Helper function to create settlements with batch name generation
+
+          const numCities = cc.numCitiesPerState || 0;
+          const numTowns = cc.numTownsPerState || 0;
+          const numVillages = cc.numVillagesPerState || 0;
+
+          // Helper to create settlements with batch name generation
           const createSettlements = async (type: 'city' | 'town' | 'village', count: number) => {
             if (count === 0) return;
-            
-            // Batch generate all settlement names at once
+
             let settlementNames: string[];
             if (nameGenerator.isEnabled()) {
               try {
-                const world = await storage.getWorld(config.worldId);
                 const contexts = Array(count).fill(null).map(() => ({
                   worldName: world?.name || 'Unknown World',
                   worldDescription: world?.description || undefined,
@@ -3846,79 +3948,102 @@ app.get("/api/rules", async (req, res) => {
                   countryGovernment: country.governmentType || undefined,
                   countryEconomy: country.economicSystem || undefined,
                   settlementType: type,
-                  terrain: config.terrain || 'plains'
+                  terrain: cc.terrain || 'plains'
                 }));
                 settlementNames = await nameGenerator.generateSettlementNamesBatch(contexts);
                 console.log(`   🏙️  Generated ${settlementNames.length} ${type} names in batch`);
               } catch (error) {
                 console.warn(`Failed to batch generate settlement names, using fallbacks: ${error}`);
-                settlementNames = Array(count).fill(null).map((_, k) => 
+                settlementNames = Array(count).fill(null).map((_, k) =>
                   `${type.charAt(0).toUpperCase() + type.slice(1)} ${k + 1}`
                 );
               }
             } else {
-              settlementNames = Array(count).fill(null).map((_, k) => 
+              settlementNames = Array(count).fill(null).map((_, k) =>
                 `${type.charAt(0).toUpperCase() + type.slice(1)} ${k + 1}`
               );
             }
 
-            // Create all settlements with generated names
             for (let k = 0; k < count; k++) {
-              const settlementData = {
+              const settlement = await storage.createSettlement({
                 worldId: config.worldId,
                 countryId: country.id,
                 stateId: stateId,
                 name: settlementNames[k],
                 settlementType: type,
-                terrain: config.terrain || 'plains',
+                terrain: cc.terrain || 'plains',
                 population: 0,
-                foundedYear: config.foundedYear,
+                foundedYear: cc.foundedYear,
                 generationConfig: {
-                  numFoundingFamilies: config.numFoundingFamilies || 10,
-                  generations: config.generations || 4,
-                  marriageRate: config.marriageRate || 0.7,
-                  fertilityRate: config.fertilityRate || 0.6,
-                  deathRate: config.deathRate || 0.3
+                  numFoundingFamilies: cc.numFoundingFamilies || 10,
+                  generations: cc.generations || 4,
+                  marriageRate: cc.marriageRate || 0.7,
+                  fertilityRate: cc.fertilityRate || 0.6,
+                  deathRate: cc.deathRate || 0.3
                 }
-              };
-              
-              const settlement = await storage.createSettlement(settlementData);
+              });
               numSettlements++;
-              
-              // Generate genealogy if enabled
+
               if (config.generateGenealogy) {
                 const generator = new WorldGenerator();
                 const genealogyResult = await generator.generateGenealogy(config.worldId, {
                   settlementId: settlement.id,
-                  numFoundingFamilies: config.numFoundingFamilies || 10,
-                  generations: config.generations || 4,
-                  marriageRate: config.marriageRate || 0.7,
-                  fertilityRate: config.fertilityRate || 0.6,
-                  deathRate: config.deathRate || 0.3,
-                  startYear: config.foundedYear || config.currentYear || 1900
+                  numFoundingFamilies: cc.numFoundingFamilies || 10,
+                  generations: cc.generations || 4,
+                  marriageRate: cc.marriageRate || 0.7,
+                  fertilityRate: cc.fertilityRate || 0.6,
+                  deathRate: cc.deathRate || 0.3,
+                  startYear: cc.foundedYear || 1900
                 });
                 totalPopulation += genealogyResult.totalCharacters;
               }
-              
-              // Generate geography if enabled
+
               if (config.generateGeography) {
                 const generator = new WorldGenerator();
                 await generator.generateGeography(settlement.id, {
-                  foundedYear: config.foundedYear
+                  foundedYear: cc.foundedYear
                 });
               }
             }
           };
-          
+
           await createSettlements('city', numCities);
           await createSettlements('town', numTowns);
           await createSettlements('village', numVillages);
         }
       }
-      
+
+      // Auto-generate Prolog content
+      try {
+        const [worldRules, worldActions, worldQuests] = await Promise.all([
+          storage.getRulesByWorld(config.worldId),
+          storage.getActionsByWorld(config.worldId),
+          storage.getQuestsByWorld(config.worldId),
+        ]);
+        let prologConverted = 0;
+        for (const rule of worldRules) {
+          if (!rule.prologContent && rule.content) {
+            try { const r = convertRuleToProlog(rule as any); if (r.prologContent) { await storage.updateRule(rule.id, { prologContent: r.prologContent }); prologConverted++; } } catch {}
+          }
+        }
+        for (const action of worldActions) {
+          if (!action.prologContent) {
+            try { const r = convertActionToProlog(action as any); if (r.prologContent) { await storage.updateAction(action.id, { prologContent: r.prologContent }); prologConverted++; } } catch {}
+          }
+        }
+        for (const quest of worldQuests) {
+          if (!quest.prologContent) {
+            try { const r = convertQuestToProlog(quest as any); if (r.prologContent) { await storage.updateQuest(quest.id, { prologContent: r.prologContent }); prologConverted++; } } catch {}
+          }
+        }
+        if (prologConverted > 0) console.log(`🔮 Auto-generated Prolog content for ${prologConverted} entities`);
+      } catch (e) {
+        console.warn('[PrologAutoConvert] Failed during world generation:', e);
+      }
+
       res.json({
         success: true,
-        numCountries,
+        numCountries: numCountriesCreated,
         numStates,
         numSettlements,
         totalPopulation
@@ -4158,19 +4283,12 @@ app.get("/api/rules", async (req, res) => {
           customLabel,
           gameType,
           worldDescription: enrichedDescription,
-          numCountries: 1,
-          generateStates: true,
-          numStatesPerCountry: 2,
-          numCitiesPerState: 1,
-          numTownsPerState: 1,
-          numVillagesPerState: 2,
-          generateGenealogy: true,
-          generateGeography: true,
-          numFoundingFamilies: 8,
-          generations: 3,
+          generateGenealogy: req.body.generateGenealogy !== false,
+          generateGeography: req.body.generateGeography !== false,
           governmentType: 'monarchy',
           economicSystem: 'feudal',
-          terrain: 'plains',
+          // Per-country configs (new format) — falls back to flat defaults in hierarchical endpoint
+          countries: req.body.countries,
         })
       });
       
@@ -5918,7 +6036,9 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     try {
       const { worldId } = req.params;
       const program = prologAutoSync.exportWorld(worldId);
-      res.type('text/plain').send(program);
+      // Return as JSON so both ApiDataSource (expects {content: string}) and
+      // direct consumers can parse it consistently
+      res.json({ content: program });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to export" });
     }
@@ -6176,6 +6296,89 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     }
   });
 
+  // Batch convert ALL rules, actions, and quests for a world to Prolog
+  app.post("/api/worlds/:worldId/prolog/convert-all", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const includeBase = req.body?.includeBase !== false; // default true
+      const results: Record<string, { converted: number; skipped: number; errors: string[] }> = {};
+
+      // World rules
+      const worldRules = await storage.getRulesByWorld(worldId);
+      results.worldRules = { converted: 0, skipped: 0, errors: [] };
+      for (const rule of worldRules) {
+        if (rule.prologContent) { results.worldRules.skipped++; continue; }
+        try {
+          const r = convertRuleToProlog(rule as any);
+          if (r.prologContent) { await storage.updateRule(rule.id, { prologContent: r.prologContent }); results.worldRules.converted++; }
+          else results.worldRules.skipped++;
+        } catch (err: any) { results.worldRules.errors.push(`Rule "${rule.name}": ${err.message || String(err)}`); }
+      }
+
+      // Base rules (optional)
+      if (includeBase) {
+        const baseRules = await storage.getBaseRules({ includeContent: true, limit: 2000 });
+        results.baseRules = { converted: 0, skipped: 0, errors: [] };
+        for (const rule of baseRules) {
+          if (!rule.content || rule.prologContent) { results.baseRules.skipped++; continue; }
+          try {
+            const r = convertRuleToProlog(rule as any);
+            if (r.prologContent) { await storage.updateRule(rule.id, { prologContent: r.prologContent }); results.baseRules.converted++; }
+            else results.baseRules.skipped++;
+          } catch (err: any) { results.baseRules.errors.push(`Rule "${rule.name}": ${err.message || String(err)}`); }
+        }
+      }
+
+      // World actions
+      const actions = await storage.getActionsByWorld(worldId);
+      results.worldActions = { converted: 0, skipped: 0, errors: [] };
+      for (const action of actions) {
+        if (action.prologContent) { results.worldActions.skipped++; continue; }
+        try {
+          const r = convertActionToProlog(action as any);
+          if (r.prologContent) { await storage.updateAction(action.id, { prologContent: r.prologContent }); results.worldActions.converted++; }
+          else results.worldActions.skipped++;
+        } catch (err: any) { results.worldActions.errors.push(`Action "${action.name}": ${err.message || String(err)}`); }
+      }
+
+      // Base actions
+      if (includeBase) {
+        const baseActions = await storage.getBaseActions();
+        results.baseActions = { converted: 0, skipped: 0, errors: [] };
+        for (const action of baseActions) {
+          if (action.prologContent) { results.baseActions.skipped++; continue; }
+          try {
+            const r = convertActionToProlog(action as any);
+            if (r.prologContent) { await storage.updateAction(action.id, { prologContent: r.prologContent }); results.baseActions.converted++; }
+            else results.baseActions.skipped++;
+          } catch (err: any) { results.baseActions.errors.push(`Action "${action.name}": ${err.message || String(err)}`); }
+        }
+      }
+
+      // World quests
+      const quests = await storage.getQuestsByWorld(worldId);
+      results.worldQuests = { converted: 0, skipped: 0, errors: [] };
+      for (const quest of quests) {
+        if (quest.prologContent) { results.worldQuests.skipped++; continue; }
+        try {
+          const r = convertQuestToProlog(quest as any);
+          if (r.prologContent) { await storage.updateQuest(quest.id, { prologContent: r.prologContent }); results.worldQuests.converted++; }
+          else results.worldQuests.skipped++;
+        } catch (err: any) { results.worldQuests.errors.push(`Quest "${quest.title}": ${err.message || String(err)}`); }
+      }
+
+      // Invalidate caches
+      baseRulesCache = null;
+      baseRulesCacheTime = 0;
+      rulesCache.clear();
+
+      res.json(results);
+    } catch (error: any) {
+      console.error('Error batch converting world to Prolog:', error);
+      res.status(500).json({ error: error.message || 'Failed to batch convert' });
+    }
+  });
+
   // Coverage report: which predicates are referenced by rules/actions/quests
   app.get("/api/prolog/tau/coverage/:worldId", async (req, res) => {
     try {
@@ -6315,6 +6518,72 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
     } catch (error) {
       console.error('Error fetching base actions:', error);
       res.status(500).json({ error: "Failed to fetch base actions" });
+    }
+  });
+
+  // Batch convert base actions to Prolog
+  app.post("/api/actions/base/convert-all", async (req, res) => {
+    try {
+      const actions = await storage.getBaseActions();
+      let converted = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+
+      for (const action of actions) {
+        if (action.prologContent) {
+          skipped++;
+          continue;
+        }
+        try {
+          const result = convertActionToProlog(action as any);
+          if (result.prologContent) {
+            await storage.updateAction(action.id, { prologContent: result.prologContent });
+            converted++;
+          } else {
+            skipped++;
+          }
+        } catch (err: any) {
+          errors.push(`Action "${action.name}" (${action.id}): ${err.message || String(err)}`);
+        }
+      }
+
+      res.json({ converted, skipped, errors });
+    } catch (error: any) {
+      console.error('Error batch converting base actions:', error);
+      res.status(500).json({ error: error.message || 'Failed to batch convert actions' });
+    }
+  });
+
+  // Batch convert world actions to Prolog
+  app.post("/api/worlds/:worldId/actions/convert-all", async (req, res) => {
+    try {
+      const actions = await storage.getActionsByWorld(req.params.worldId);
+      let converted = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+
+      for (const action of actions) {
+        if (action.prologContent) {
+          skipped++;
+          continue;
+        }
+        try {
+          const result = convertActionToProlog(action as any);
+          if (result.prologContent) {
+            await storage.updateAction(action.id, { prologContent: result.prologContent });
+            converted++;
+          } else {
+            skipped++;
+          }
+        } catch (err: any) {
+          errors.push(`Action "${action.name}" (${action.id}): ${err.message || String(err)}`);
+        }
+      }
+
+      res.json({ converted, skipped, errors });
+    } catch (error: any) {
+      console.error('Error batch converting world actions:', error);
+      res.status(500).json({ error: error.message || 'Failed to batch convert actions' });
     }
   });
 
@@ -6754,6 +7023,39 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
       res.json(quests);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch character quests" });
+    }
+  });
+
+  // Batch convert world quests to Prolog
+  app.post("/api/worlds/:worldId/quests/convert-all", async (req, res) => {
+    try {
+      const quests = await storage.getQuestsByWorld(req.params.worldId);
+      let converted = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+
+      for (const quest of quests) {
+        if (quest.prologContent) {
+          skipped++;
+          continue;
+        }
+        try {
+          const result = convertQuestToProlog(quest as any);
+          if (result.prologContent) {
+            await storage.updateQuest(quest.id, { prologContent: result.prologContent });
+            converted++;
+          } else {
+            skipped++;
+          }
+        } catch (err: any) {
+          errors.push(`Quest "${quest.title}" (${quest.id}): ${err.message || String(err)}`);
+        }
+      }
+
+      res.json({ converted, skipped, errors });
+    } catch (error: any) {
+      console.error('Error batch converting world quests:', error);
+      res.status(500).json({ error: error.message || 'Failed to batch convert quests' });
     }
   });
 

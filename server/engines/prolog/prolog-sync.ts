@@ -32,6 +32,14 @@ export class PrologSyncService {
       await this.syncBusinessesToProlog(worldId);
       await this.syncKnowledgeToProlog(worldId);  // Phase 6: Knowledge & Beliefs
       await this.syncOwnershipToProlog(worldId);  // Item ownership
+      await this.syncCountriesToProlog(worldId);
+      await this.syncStatesToProlog(worldId);
+      await this.syncLotsToProlog(worldId);
+      await this.syncResidencesToProlog(worldId);
+      await this.syncItemsToProlog(worldId);
+      await this.syncTruthsToProlog(worldId);
+      await this.syncAchievementsToProlog(worldId);
+      await this.syncLanguagesToProlog(worldId);
       await this.addHelperRules();
       
       console.log(`✅ World ${worldId} synced to Prolog`);
@@ -330,7 +338,8 @@ export class PrologSyncService {
       const ownershipTruths = truths.filter((t: any) => t.entryType === 'ownership');
 
       for (const truth of ownershipTruths) {
-        const data = typeof truth.customData === 'object' ? truth.customData as any : {};
+        const truthAny = truth as any;
+        const data = typeof truthAny.customData === 'object' ? truthAny.customData : {};
         if (!truth.characterId || !data.itemId) continue;
 
         // Find the character to build proper Prolog ID
@@ -360,6 +369,346 @@ export class PrologSyncService {
       console.log(`    ✅ Synced ${ownershipTruths.length} ownership facts`);
     } catch (error) {
       console.warn('  ⚠️  Failed to sync ownership:', error);
+    }
+  }
+
+  /**
+   * Sync countries to Prolog facts
+   */
+  private async syncCountriesToProlog(worldId: string): Promise<void> {
+    console.log(`  🏴 Syncing countries...`);
+    try {
+      const countries = await this.storage.getCountriesByWorld(worldId);
+      for (const country of countries) {
+        const countryId = this.sanitizeAtom(country.name || country.id);
+        await this.prologManager.addFact(`country(${countryId})`);
+        await this.prologManager.addFact(`country_name(${countryId}, '${this.escapeString(country.name)}')`);
+
+        const worldName = this.sanitizeAtom(worldId);
+        await this.prologManager.addFact(`country_of_world(${countryId}, ${worldName})`);
+
+        if (country.governmentType) {
+          await this.prologManager.addFact(`government_type(${countryId}, ${this.sanitizeAtom(country.governmentType)})`);
+        }
+        if (country.economicSystem) {
+          await this.prologManager.addFact(`economic_system(${countryId}, ${this.sanitizeAtom(country.economicSystem)})`);
+        }
+        if (country.foundedYear != null) {
+          await this.prologManager.addFact(`country_founded(${countryId}, ${country.foundedYear})`);
+        }
+        // Array fields
+        const alliances = country.alliances as any;
+        if (Array.isArray(alliances)) {
+          for (const ally of alliances) {
+            const allyId = this.sanitizeAtom(typeof ally === 'string' ? ally : ally.name || ally.id);
+            await this.prologManager.addFact(`country_alliance(${countryId}, ${allyId})`);
+          }
+        }
+        const enemies = country.enemies as any;
+        if (Array.isArray(enemies)) {
+          for (const enemy of enemies) {
+            const enemyId = this.sanitizeAtom(typeof enemy === 'string' ? enemy : enemy.name || enemy.id);
+            await this.prologManager.addFact(`country_enemy(${countryId}, ${enemyId})`);
+          }
+        }
+      }
+      console.log(`    ✅ Synced ${countries.length} countries`);
+    } catch (error) {
+      console.warn('  ⚠️  Failed to sync countries:', error);
+    }
+  }
+
+  /**
+   * Sync states/provinces to Prolog facts
+   */
+  private async syncStatesToProlog(worldId: string): Promise<void> {
+    console.log(`  🗾 Syncing states...`);
+    try {
+      const states = await this.storage.getStatesByWorld(worldId);
+      for (const state of states) {
+        const stateId = this.sanitizeAtom(state.name || state.id);
+        await this.prologManager.addFact(`state(${stateId})`);
+        await this.prologManager.addFact(`state_name(${stateId}, '${this.escapeString(state.name)}')`);
+
+        if (state.countryId) {
+          await this.prologManager.addFact(`state_of_country(${stateId}, ${this.sanitizeAtom(state.countryId)})`);
+        }
+        if (state.stateType) {
+          await this.prologManager.addFact(`state_type(${stateId}, ${this.sanitizeAtom(state.stateType)})`);
+        }
+        if (state.terrain) {
+          await this.prologManager.addFact(`state_terrain(${stateId}, ${this.sanitizeAtom(state.terrain)})`);
+        }
+        if (state.governorId) {
+          await this.prologManager.addFact(`state_governor(${stateId}, ${this.sanitizeAtom(state.governorId)})`);
+        }
+      }
+      console.log(`    ✅ Synced ${states.length} states`);
+    } catch (error) {
+      console.warn('  ⚠️  Failed to sync states:', error);
+    }
+  }
+
+  /**
+   * Sync lots to Prolog facts
+   */
+  private async syncLotsToProlog(worldId: string): Promise<void> {
+    console.log(`  🏗️  Syncing lots...`);
+    try {
+      const settlements = await this.storage.getSettlementsByWorld(worldId);
+      let totalLots = 0;
+      for (const settlement of settlements) {
+        const lots = await this.storage.getLotsBySettlement(settlement.id);
+        for (const lot of lots) {
+          const lotId = this.sanitizeAtom(lot.id);
+          await this.prologManager.addFact(`lot(${lotId})`);
+          await this.prologManager.addFact(`lot_of_settlement(${lotId}, ${this.sanitizeAtom(settlement.name)})`);
+
+          if (lot.address) {
+            await this.prologManager.addFact(`lot_address(${lotId}, '${this.escapeString(lot.address)}')`);
+          }
+          if (lot.streetName) {
+            await this.prologManager.addFact(`lot_street(${lotId}, '${this.escapeString(lot.streetName)}')`);
+          }
+          if (lot.districtName) {
+            await this.prologManager.addFact(`lot_district(${lotId}, '${this.escapeString(lot.districtName)}')`);
+          }
+          if (lot.buildingId) {
+            await this.prologManager.addFact(`lot_building(${lotId}, ${this.sanitizeAtom(lot.buildingId)})`);
+          }
+          if (lot.buildingType) {
+            await this.prologManager.addFact(`lot_building_type(${lotId}, ${this.sanitizeAtom(lot.buildingType)})`);
+          }
+          if (Array.isArray(lot.formerBuildingIds)) {
+            for (const fmrId of lot.formerBuildingIds) {
+              await this.prologManager.addFact(`lot_former_building(${lotId}, ${this.sanitizeAtom(fmrId)})`);
+            }
+          }
+          totalLots++;
+        }
+      }
+      console.log(`    ✅ Synced ${totalLots} lots`);
+    } catch (error) {
+      console.warn('  ⚠️  Failed to sync lots:', error);
+    }
+  }
+
+  /**
+   * Sync residences to Prolog facts
+   */
+  private async syncResidencesToProlog(worldId: string): Promise<void> {
+    console.log(`  🏠 Syncing residences...`);
+    try {
+      const settlements = await this.storage.getSettlementsByWorld(worldId);
+      let totalResidences = 0;
+      for (const settlement of settlements) {
+        const residences = await this.storage.getResidencesBySettlement(settlement.id);
+        for (const residence of residences) {
+          const resId = this.sanitizeAtom(residence.id);
+          await this.prologManager.addFact(`residence(${resId})`);
+
+          if (residence.lotId) {
+            await this.prologManager.addFact(`residence_of_lot(${resId}, ${this.sanitizeAtom(residence.lotId)})`);
+          }
+          await this.prologManager.addFact(`residence_of_settlement(${resId}, ${this.sanitizeAtom(settlement.name)})`);
+
+          if (residence.residenceType) {
+            await this.prologManager.addFact(`residence_type(${resId}, ${this.sanitizeAtom(residence.residenceType)})`);
+          }
+          if (residence.address) {
+            await this.prologManager.addFact(`residence_address(${resId}, '${this.escapeString(residence.address)}')`);
+          }
+          if (Array.isArray(residence.ownerIds)) {
+            for (const ownerId of residence.ownerIds) {
+              await this.prologManager.addFact(`residence_owner(${resId}, ${this.sanitizeAtom(ownerId)})`);
+            }
+          }
+          if (Array.isArray(residence.residentIds)) {
+            for (const residentId of residence.residentIds) {
+              await this.prologManager.addFact(`residence_resident(${resId}, ${this.sanitizeAtom(residentId)})`);
+            }
+          }
+          totalResidences++;
+        }
+      }
+      console.log(`    ✅ Synced ${totalResidences} residences`);
+    } catch (error) {
+      console.warn('  ⚠️  Failed to sync residences:', error);
+    }
+  }
+
+  /**
+   * Sync item definitions to Prolog facts
+   */
+  private async syncItemsToProlog(worldId: string): Promise<void> {
+    console.log(`  🎒 Syncing items...`);
+    try {
+      const items = await this.storage.getItemsByWorld(worldId);
+      for (const item of items) {
+        const itemId = this.sanitizeAtom(item.name || item.id);
+        await this.prologManager.addFact(`item(${itemId})`);
+        await this.prologManager.addFact(`item_name(${itemId}, '${this.escapeString(item.name)}')`);
+
+        if (item.itemType) {
+          await this.prologManager.addFact(`item_type(${itemId}, ${this.sanitizeAtom(item.itemType)})`);
+        }
+        if (item.value != null) {
+          await this.prologManager.addFact(`item_value(${itemId}, ${item.value})`);
+        }
+        if (item.sellValue != null) {
+          await this.prologManager.addFact(`item_sell_value(${itemId}, ${item.sellValue})`);
+        }
+        if (item.weight != null) {
+          await this.prologManager.addFact(`item_weight(${itemId}, ${item.weight})`);
+        }
+        if (item.tradeable) {
+          await this.prologManager.addFact(`item_tradeable(${itemId})`);
+        }
+        if (item.stackable) {
+          await this.prologManager.addFact(`item_stackable(${itemId})`);
+        }
+        if (item.maxStack != null) {
+          await this.prologManager.addFact(`item_max_stack(${itemId}, ${item.maxStack})`);
+        }
+        if (Array.isArray(item.tags)) {
+          for (const tag of item.tags) {
+            if (typeof tag === 'string') {
+              await this.prologManager.addFact(`item_tag(${itemId}, ${this.sanitizeAtom(tag)})`);
+            }
+          }
+        }
+      }
+      console.log(`    ✅ Synced ${items.length} items`);
+    } catch (error) {
+      console.warn('  ⚠️  Failed to sync items:', error);
+    }
+  }
+
+  /**
+   * Sync truths (world facts/events/lore) to Prolog facts
+   */
+  private async syncTruthsToProlog(worldId: string): Promise<void> {
+    console.log(`  📜 Syncing truths...`);
+    try {
+      const truths = await this.storage.getTruthsByWorld(worldId);
+      // Skip ownership truths — those are handled by syncOwnershipToProlog
+      const nonOwnershipTruths = truths.filter((t: any) => t.entryType !== 'ownership');
+
+      for (const truth of nonOwnershipTruths) {
+        const truthId = this.sanitizeAtom(truth.id);
+        const title = this.escapeString(truth.title || '');
+        const content = this.escapeString((truth.content || '').substring(0, 500));
+        await this.prologManager.addFact(`truth(${truthId}, '${title}', '${content}')`);
+
+        if (truth.entryType) {
+          await this.prologManager.addFact(`truth_type(${truthId}, ${this.sanitizeAtom(truth.entryType)})`);
+        }
+        if (truth.timestep != null) {
+          await this.prologManager.addFact(`truth_timestep(${truthId}, ${truth.timestep})`);
+        }
+        if (truth.timeYear != null) {
+          await this.prologManager.addFact(`truth_year(${truthId}, ${truth.timeYear})`);
+        }
+        if (truth.characterId) {
+          await this.prologManager.addFact(`truth_character(${truthId}, ${this.sanitizeAtom(truth.characterId)})`);
+        }
+        if (Array.isArray(truth.relatedLocationIds)) {
+          for (const locId of truth.relatedLocationIds) {
+            await this.prologManager.addFact(`truth_location(${truthId}, ${this.sanitizeAtom(locId)})`);
+          }
+        }
+        if (truth.importance != null) {
+          await this.prologManager.addFact(`truth_importance(${truthId}, ${truth.importance})`);
+        }
+        if (truth.isPublic) {
+          await this.prologManager.addFact(`truth_public(${truthId})`);
+        }
+        if (Array.isArray(truth.tags)) {
+          for (const tag of truth.tags) {
+            if (typeof tag === 'string') {
+              await this.prologManager.addFact(`truth_tag(${truthId}, ${this.sanitizeAtom(tag)})`);
+            }
+          }
+        }
+      }
+      console.log(`    ✅ Synced ${nonOwnershipTruths.length} truths`);
+    } catch (error) {
+      console.warn('  ⚠️  Failed to sync truths:', error);
+    }
+  }
+
+  /**
+   * Sync achievements to Prolog facts
+   */
+  private async syncAchievementsToProlog(worldId: string): Promise<void> {
+    console.log(`  🏆 Syncing achievements...`);
+    try {
+      const achievements = await this.storage.getAchievementsByWorld(worldId);
+      for (const achievement of achievements) {
+        const achId = this.sanitizeAtom(achievement.name || achievement.id);
+        await this.prologManager.addFact(`achievement(${achId})`);
+        await this.prologManager.addFact(`achievement_name(${achId}, '${this.escapeString(achievement.name)}')`);
+
+        if (achievement.achievementType) {
+          await this.prologManager.addFact(`achievement_type(${achId}, ${this.sanitizeAtom(achievement.achievementType)})`);
+        }
+        if (achievement.rarity) {
+          await this.prologManager.addFact(`achievement_rarity(${achId}, ${this.sanitizeAtom(achievement.rarity)})`);
+        }
+        if (achievement.isHidden) {
+          await this.prologManager.addFact(`achievement_hidden(${achId})`);
+        }
+        // Rewards — expand object keys
+        if (achievement.rewards && typeof achievement.rewards === 'object') {
+          const rewards = achievement.rewards as Record<string, any>;
+          for (const [rewardType, rewardValue] of Object.entries(rewards)) {
+            const typeAtom = this.sanitizeAtom(rewardType);
+            const valueStr = typeof rewardValue === 'string'
+              ? `'${this.escapeString(rewardValue)}'`
+              : String(rewardValue);
+            await this.prologManager.addFact(`achievement_reward(${achId}, ${typeAtom}, ${valueStr})`);
+          }
+        }
+      }
+      console.log(`    ✅ Synced ${achievements.length} achievements`);
+    } catch (error) {
+      console.warn('  ⚠️  Failed to sync achievements:', error);
+    }
+  }
+
+  /**
+   * Sync world languages to Prolog facts
+   */
+  private async syncLanguagesToProlog(worldId: string): Promise<void> {
+    console.log(`  🗣️  Syncing languages...`);
+    try {
+      const languages = await this.storage.getWorldLanguagesByWorld(worldId);
+      for (const lang of languages) {
+        const langId = this.sanitizeAtom(lang.name || lang.id);
+        await this.prologManager.addFact(`language(${langId})`);
+        await this.prologManager.addFact(`language_name(${langId}, '${this.escapeString(lang.name)}')`);
+
+        if (lang.kind) {
+          await this.prologManager.addFact(`language_kind(${langId}, ${this.sanitizeAtom(lang.kind)})`);
+        }
+        if (lang.scopeType && lang.scopeId) {
+          await this.prologManager.addFact(
+            `language_scope(${langId}, ${this.sanitizeAtom(lang.scopeType)}, ${this.sanitizeAtom(lang.scopeId)})`
+          );
+        }
+        if (lang.isPrimary) {
+          await this.prologManager.addFact(`language_primary(${langId})`);
+        }
+        if (lang.parentLanguageId) {
+          await this.prologManager.addFact(`language_parent(${langId}, ${this.sanitizeAtom(lang.parentLanguageId)})`);
+        }
+        if (lang.realCode) {
+          await this.prologManager.addFact(`language_real_code(${langId}, '${this.escapeString(lang.realCode)}')`);
+        }
+      }
+      console.log(`    ✅ Synced ${languages.length} languages`);
+    } catch (error) {
+      console.warn('  ⚠️  Failed to sync languages:', error);
     }
   }
 

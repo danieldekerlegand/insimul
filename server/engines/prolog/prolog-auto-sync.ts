@@ -55,7 +55,88 @@ interface TruthData {
   worldId: string;
   characterId?: string | null;
   entryType?: string;
+  title?: string;
+  content?: string;
+  timestep?: number | null;
+  timeYear?: number | null;
+  relatedLocationIds?: string[] | null;
+  importance?: number | null;
+  isPublic?: boolean | null;
+  tags?: string[] | null;
   customData?: any;
+}
+
+interface CountryData {
+  id: string;
+  name: string;
+  governmentType?: string | null;
+  economicSystem?: string | null;
+  foundedYear?: number | null;
+  alliances?: any[] | null;
+  enemies?: any[] | null;
+}
+
+interface StateData {
+  id: string;
+  name: string;
+  countryId?: string | null;
+  stateType?: string | null;
+  terrain?: string | null;
+  governorId?: string | null;
+}
+
+interface LotData {
+  id: string;
+  settlementId: string;
+  address?: string;
+  streetName?: string;
+  districtName?: string | null;
+  buildingId?: string | null;
+  buildingType?: string | null;
+  formerBuildingIds?: string[];
+}
+
+interface ResidenceData {
+  id: string;
+  lotId: string;
+  settlementId: string;
+  residenceType?: string | null;
+  address?: string;
+  ownerIds?: string[];
+  residentIds?: string[];
+}
+
+interface ItemData {
+  id: string;
+  name: string;
+  itemType: string;
+  value?: number | null;
+  sellValue?: number | null;
+  weight?: number | null;
+  tradeable?: boolean;
+  stackable?: boolean;
+  maxStack?: number | null;
+  tags?: any[];
+}
+
+interface AchievementData {
+  id: string;
+  name: string;
+  achievementType: string;
+  rarity?: string | null;
+  isHidden?: boolean;
+  rewards?: any;
+}
+
+interface LanguageData {
+  id: string;
+  name: string;
+  kind?: string;
+  scopeType?: string;
+  scopeId?: string;
+  isPrimary?: boolean;
+  parentLanguageId?: string | null;
+  realCode?: string | null;
 }
 
 // ── Helper rules (loaded once per engine) ───────────────────────────────────
@@ -465,6 +546,276 @@ export class PrologAutoSync {
     }
   }
 
+  // ── Country sync ─────────────────────────────────────────────────────
+
+  async onCountryChanged(worldId: string, country: CountryData): Promise<void> {
+    const engine = await this.ensureInitialized(worldId);
+    const countryId = sanitizeAtom(country.name || country.id);
+    await this.removeEntityFacts(engine, countryId, ['country', 'country_name', 'country_of_world', 'government_type', 'economic_system', 'country_founded', 'country_alliance', 'country_enemy']);
+
+    const facts: string[] = [];
+    facts.push(`country(${countryId})`);
+    facts.push(`country_name(${countryId}, '${escapeString(country.name)}')`);
+    facts.push(`country_of_world(${countryId}, ${sanitizeAtom(worldId)})`);
+
+    if (country.governmentType) facts.push(`government_type(${countryId}, ${sanitizeAtom(country.governmentType)})`);
+    if (country.economicSystem) facts.push(`economic_system(${countryId}, ${sanitizeAtom(country.economicSystem)})`);
+    if (country.foundedYear != null) facts.push(`country_founded(${countryId}, ${country.foundedYear})`);
+
+    if (Array.isArray(country.alliances)) {
+      for (const ally of country.alliances) {
+        const allyId = sanitizeAtom(typeof ally === 'string' ? ally : ally.name || ally.id);
+        facts.push(`country_alliance(${countryId}, ${allyId})`);
+      }
+    }
+    if (Array.isArray(country.enemies)) {
+      for (const enemy of country.enemies) {
+        const enemyId = sanitizeAtom(typeof enemy === 'string' ? enemy : enemy.name || enemy.id);
+        facts.push(`country_enemy(${countryId}, ${enemyId})`);
+      }
+    }
+    await engine.assertFacts(facts);
+  }
+
+  async onCountryDeleted(worldId: string, countryName: string): Promise<void> {
+    const engine = await this.ensureInitialized(worldId);
+    await this.removeEntityFacts(engine, sanitizeAtom(countryName), ['country', 'country_name', 'country_of_world', 'government_type', 'economic_system', 'country_founded', 'country_alliance', 'country_enemy']);
+  }
+
+  // ── State sync ──────────────────────────────────────────────────────
+
+  async onStateChanged(worldId: string, state: StateData): Promise<void> {
+    const engine = await this.ensureInitialized(worldId);
+    const stateId = sanitizeAtom(state.name || state.id);
+    await this.removeEntityFacts(engine, stateId, ['state', 'state_name', 'state_of_country', 'state_type', 'state_terrain', 'state_governor']);
+
+    const facts: string[] = [];
+    facts.push(`state(${stateId})`);
+    facts.push(`state_name(${stateId}, '${escapeString(state.name)}')`);
+
+    if (state.countryId) facts.push(`state_of_country(${stateId}, ${sanitizeAtom(state.countryId)})`);
+    if (state.stateType) facts.push(`state_type(${stateId}, ${sanitizeAtom(state.stateType)})`);
+    if (state.terrain) facts.push(`state_terrain(${stateId}, ${sanitizeAtom(state.terrain)})`);
+    if (state.governorId) facts.push(`state_governor(${stateId}, ${sanitizeAtom(state.governorId)})`);
+
+    await engine.assertFacts(facts);
+  }
+
+  async onStateDeleted(worldId: string, stateName: string): Promise<void> {
+    const engine = await this.ensureInitialized(worldId);
+    await this.removeEntityFacts(engine, sanitizeAtom(stateName), ['state', 'state_name', 'state_of_country', 'state_type', 'state_terrain', 'state_governor']);
+  }
+
+  // ── Lot sync ────────────────────────────────────────────────────────
+
+  async onLotChanged(worldId: string, lot: LotData, settlementName?: string): Promise<void> {
+    const engine = await this.ensureInitialized(worldId);
+    const lotId = sanitizeAtom(lot.id);
+    await this.removeEntityFacts(engine, lotId, ['lot', 'lot_of_settlement', 'lot_address', 'lot_street', 'lot_district', 'lot_building', 'lot_building_type', 'lot_former_building']);
+
+    const facts: string[] = [];
+    facts.push(`lot(${lotId})`);
+
+    if (settlementName) facts.push(`lot_of_settlement(${lotId}, ${sanitizeAtom(settlementName)})`);
+    if (lot.address) facts.push(`lot_address(${lotId}, '${escapeString(lot.address)}')`);
+    if (lot.streetName) facts.push(`lot_street(${lotId}, '${escapeString(lot.streetName)}')`);
+    if (lot.districtName) facts.push(`lot_district(${lotId}, '${escapeString(lot.districtName)}')`);
+    if (lot.buildingId) facts.push(`lot_building(${lotId}, ${sanitizeAtom(lot.buildingId)})`);
+    if (lot.buildingType) facts.push(`lot_building_type(${lotId}, ${sanitizeAtom(lot.buildingType)})`);
+
+    if (Array.isArray(lot.formerBuildingIds)) {
+      for (const fmrId of lot.formerBuildingIds) {
+        facts.push(`lot_former_building(${lotId}, ${sanitizeAtom(fmrId)})`);
+      }
+    }
+    await engine.assertFacts(facts);
+  }
+
+  async onLotDeleted(worldId: string, lotId: string): Promise<void> {
+    const engine = await this.ensureInitialized(worldId);
+    await this.removeEntityFacts(engine, sanitizeAtom(lotId), ['lot', 'lot_of_settlement', 'lot_address', 'lot_street', 'lot_district', 'lot_building', 'lot_building_type', 'lot_former_building']);
+  }
+
+  // ── Residence sync ──────────────────────────────────────────────────
+
+  async onResidenceChanged(worldId: string, residence: ResidenceData, settlementName?: string): Promise<void> {
+    const engine = await this.ensureInitialized(worldId);
+    const resId = sanitizeAtom(residence.id);
+    await this.removeEntityFacts(engine, resId, ['residence', 'residence_of_lot', 'residence_of_settlement', 'residence_type', 'residence_address', 'residence_owner', 'residence_resident']);
+
+    const facts: string[] = [];
+    facts.push(`residence(${resId})`);
+
+    if (residence.lotId) facts.push(`residence_of_lot(${resId}, ${sanitizeAtom(residence.lotId)})`);
+    if (settlementName) facts.push(`residence_of_settlement(${resId}, ${sanitizeAtom(settlementName)})`);
+    if (residence.residenceType) facts.push(`residence_type(${resId}, ${sanitizeAtom(residence.residenceType)})`);
+    if (residence.address) facts.push(`residence_address(${resId}, '${escapeString(residence.address)}')`);
+
+    if (Array.isArray(residence.ownerIds)) {
+      for (const ownerId of residence.ownerIds) {
+        facts.push(`residence_owner(${resId}, ${sanitizeAtom(ownerId)})`);
+      }
+    }
+    if (Array.isArray(residence.residentIds)) {
+      for (const residentId of residence.residentIds) {
+        facts.push(`residence_resident(${resId}, ${sanitizeAtom(residentId)})`);
+      }
+    }
+    await engine.assertFacts(facts);
+  }
+
+  async onResidenceDeleted(worldId: string, residenceId: string): Promise<void> {
+    const engine = await this.ensureInitialized(worldId);
+    await this.removeEntityFacts(engine, sanitizeAtom(residenceId), ['residence', 'residence_of_lot', 'residence_of_settlement', 'residence_type', 'residence_address', 'residence_owner', 'residence_resident']);
+  }
+
+  // ── Item definition sync ────────────────────────────────────────────
+
+  async onItemChanged(worldId: string, item: ItemData): Promise<void> {
+    const engine = await this.ensureInitialized(worldId);
+    const itemId = sanitizeAtom(item.name || item.id);
+    await this.removeEntityFacts(engine, itemId, ['item', 'item_name', 'item_type', 'item_value', 'item_sell_value', 'item_weight', 'item_tradeable', 'item_stackable', 'item_max_stack', 'item_tag']);
+
+    const facts: string[] = [];
+    facts.push(`item(${itemId})`);
+    facts.push(`item_name(${itemId}, '${escapeString(item.name)}')`);
+    facts.push(`item_type(${itemId}, ${sanitizeAtom(item.itemType)})`);
+
+    if (item.value != null) facts.push(`item_value(${itemId}, ${item.value})`);
+    if (item.sellValue != null) facts.push(`item_sell_value(${itemId}, ${item.sellValue})`);
+    if (item.weight != null) facts.push(`item_weight(${itemId}, ${item.weight})`);
+    if (item.tradeable) facts.push(`item_tradeable(${itemId})`);
+    if (item.stackable) facts.push(`item_stackable(${itemId})`);
+    if (item.maxStack != null) facts.push(`item_max_stack(${itemId}, ${item.maxStack})`);
+
+    if (Array.isArray(item.tags)) {
+      for (const tag of item.tags) {
+        if (typeof tag === 'string') {
+          facts.push(`item_tag(${itemId}, ${sanitizeAtom(tag)})`);
+        }
+      }
+    }
+    await engine.assertFacts(facts);
+  }
+
+  async onItemDeleted(worldId: string, itemName: string): Promise<void> {
+    const engine = await this.ensureInitialized(worldId);
+    await this.removeEntityFacts(engine, sanitizeAtom(itemName), ['item', 'item_name', 'item_type', 'item_value', 'item_sell_value', 'item_weight', 'item_tradeable', 'item_stackable', 'item_max_stack', 'item_tag']);
+  }
+
+  // ── Truth sync (non-ownership) ──────────────────────────────────────
+
+  async onTruthChangedFull(worldId: string, truth: TruthData): Promise<void> {
+    // Ownership truths are handled by onTruthChanged
+    if (truth.entryType === 'ownership') return;
+
+    const engine = await this.ensureInitialized(worldId);
+    const truthId = sanitizeAtom(truth.id);
+    await this.removeEntityFacts(engine, truthId, ['truth', 'truth_type', 'truth_timestep', 'truth_year', 'truth_character', 'truth_location', 'truth_importance', 'truth_public', 'truth_tag']);
+
+    const facts: string[] = [];
+    const title = escapeString(truth.title || '');
+    const content = escapeString((truth.content || '').substring(0, 500));
+    facts.push(`truth(${truthId}, '${title}', '${content}')`);
+
+    if (truth.entryType) facts.push(`truth_type(${truthId}, ${sanitizeAtom(truth.entryType)})`);
+    if (truth.timestep != null) facts.push(`truth_timestep(${truthId}, ${truth.timestep})`);
+    if (truth.timeYear != null) facts.push(`truth_year(${truthId}, ${truth.timeYear})`);
+    if (truth.characterId) facts.push(`truth_character(${truthId}, ${sanitizeAtom(truth.characterId)})`);
+
+    if (Array.isArray(truth.relatedLocationIds)) {
+      for (const locId of truth.relatedLocationIds) {
+        facts.push(`truth_location(${truthId}, ${sanitizeAtom(locId)})`);
+      }
+    }
+    if (truth.importance != null) facts.push(`truth_importance(${truthId}, ${truth.importance})`);
+    if (truth.isPublic) facts.push(`truth_public(${truthId})`);
+
+    if (Array.isArray(truth.tags)) {
+      for (const tag of truth.tags) {
+        if (typeof tag === 'string') facts.push(`truth_tag(${truthId}, ${sanitizeAtom(tag)})`);
+      }
+    }
+    await engine.assertFacts(facts);
+  }
+
+  async onTruthDeletedFull(worldId: string, truthId: string): Promise<void> {
+    const engine = await this.ensureInitialized(worldId);
+    await this.removeEntityFacts(engine, sanitizeAtom(truthId), ['truth', 'truth_type', 'truth_timestep', 'truth_year', 'truth_character', 'truth_location', 'truth_importance', 'truth_public', 'truth_tag']);
+  }
+
+  // ── Achievement sync ────────────────────────────────────────────────
+
+  async onAchievementChanged(worldId: string, achievement: AchievementData): Promise<void> {
+    const engine = await this.ensureInitialized(worldId);
+    const achId = sanitizeAtom(achievement.name || achievement.id);
+    await this.removeEntityFacts(engine, achId, ['achievement', 'achievement_name', 'achievement_type', 'achievement_rarity', 'achievement_hidden', 'achievement_reward']);
+
+    const facts: string[] = [];
+    facts.push(`achievement(${achId})`);
+    facts.push(`achievement_name(${achId}, '${escapeString(achievement.name)}')`);
+
+    if (achievement.achievementType) facts.push(`achievement_type(${achId}, ${sanitizeAtom(achievement.achievementType)})`);
+    if (achievement.rarity) facts.push(`achievement_rarity(${achId}, ${sanitizeAtom(achievement.rarity)})`);
+    if (achievement.isHidden) facts.push(`achievement_hidden(${achId})`);
+
+    if (achievement.rewards && typeof achievement.rewards === 'object') {
+      const rewards = achievement.rewards as Record<string, any>;
+      for (const [rewardType, rewardValue] of Object.entries(rewards)) {
+        const typeAtom = sanitizeAtom(rewardType);
+        const valueStr = typeof rewardValue === 'string' ? `'${escapeString(rewardValue)}'` : String(rewardValue);
+        facts.push(`achievement_reward(${achId}, ${typeAtom}, ${valueStr})`);
+      }
+    }
+    await engine.assertFacts(facts);
+  }
+
+  async onAchievementDeleted(worldId: string, achievementName: string): Promise<void> {
+    const engine = await this.ensureInitialized(worldId);
+    await this.removeEntityFacts(engine, sanitizeAtom(achievementName), ['achievement', 'achievement_name', 'achievement_type', 'achievement_rarity', 'achievement_hidden', 'achievement_reward']);
+  }
+
+  // ── Language sync ───────────────────────────────────────────────────
+
+  async onLanguageChanged(worldId: string, lang: LanguageData): Promise<void> {
+    const engine = await this.ensureInitialized(worldId);
+    const langId = sanitizeAtom(lang.name || lang.id);
+    await this.removeEntityFacts(engine, langId, ['language', 'language_name', 'language_kind', 'language_scope', 'language_primary', 'language_parent', 'language_real_code']);
+
+    const facts: string[] = [];
+    facts.push(`language(${langId})`);
+    facts.push(`language_name(${langId}, '${escapeString(lang.name)}')`);
+
+    if (lang.kind) facts.push(`language_kind(${langId}, ${sanitizeAtom(lang.kind)})`);
+    if (lang.scopeType && lang.scopeId) {
+      facts.push(`language_scope(${langId}, ${sanitizeAtom(lang.scopeType)}, ${sanitizeAtom(lang.scopeId)})`);
+    }
+    if (lang.isPrimary) facts.push(`language_primary(${langId})`);
+    if (lang.parentLanguageId) facts.push(`language_parent(${langId}, ${sanitizeAtom(lang.parentLanguageId)})`);
+    if (lang.realCode) facts.push(`language_real_code(${langId}, '${escapeString(lang.realCode)}')`);
+
+    await engine.assertFacts(facts);
+  }
+
+  async onLanguageDeleted(worldId: string, languageName: string): Promise<void> {
+    const engine = await this.ensureInitialized(worldId);
+    await this.removeEntityFacts(engine, sanitizeAtom(languageName), ['language', 'language_name', 'language_kind', 'language_scope', 'language_primary', 'language_parent', 'language_real_code']);
+  }
+
+  // ── Generic entity fact removal helper ──────────────────────────────
+
+  private async removeEntityFacts(engine: TauPrologEngine, entityId: string, predicates: string[]): Promise<void> {
+    const allFacts = engine.getAllFacts();
+    for (const fact of allFacts) {
+      for (const pred of predicates) {
+        if (fact.startsWith(`${pred}(${entityId})`) || fact.startsWith(`${pred}(${entityId},`)) {
+          await engine.retractFact(fact.replace(/\.\s*$/, ''));
+          break;
+        }
+      }
+    }
+  }
+
   // ── Knowledge sync ────────────────────────────────────────────────────
 
   /**
@@ -551,6 +902,13 @@ export class PrologAutoSync {
     settlements: SettlementData[];
     businesses: BusinessData[];
     truths?: TruthData[];
+    countries?: CountryData[];
+    states?: StateData[];
+    lots?: LotData[];
+    residences?: (ResidenceData & { settlementName?: string })[];
+    items?: ItemData[];
+    achievements?: AchievementData[];
+    languages?: LanguageData[];
   }): Promise<{ factCount: number; ruleCount: number }> {
     // Reset engine for this world
     this.removeWorld(worldId);
@@ -579,13 +937,67 @@ export class PrologAutoSync {
       await this.onBusinessChanged(worldId, business, owner);
     }
 
-    // Truths (item ownership)
+    // Truths (item ownership + general truths)
     if (data.truths) {
       for (const truth of data.truths) {
         if (truth.entryType === 'ownership' && truth.characterId) {
           const owner = data.characters.find(c => c.id === truth.characterId);
           await this.onTruthChanged(worldId, truth, owner);
+        } else {
+          await this.onTruthChangedFull(worldId, truth);
         }
+      }
+    }
+
+    // Countries
+    if (data.countries) {
+      for (const country of data.countries) {
+        await this.onCountryChanged(worldId, country);
+      }
+    }
+
+    // States
+    if (data.states) {
+      for (const state of data.states) {
+        await this.onStateChanged(worldId, state);
+      }
+    }
+
+    // Lots
+    if (data.lots) {
+      for (const lot of data.lots) {
+        const settlement = data.settlements.find(s => s.id === lot.settlementId);
+        await this.onLotChanged(worldId, lot, settlement?.name);
+      }
+    }
+
+    // Residences
+    if (data.residences) {
+      for (const residence of data.residences) {
+        const settlementName = residence.settlementName ||
+          data.settlements.find(s => s.id === residence.settlementId)?.name;
+        await this.onResidenceChanged(worldId, residence, settlementName);
+      }
+    }
+
+    // Items
+    if (data.items) {
+      for (const item of data.items) {
+        await this.onItemChanged(worldId, item);
+      }
+    }
+
+    // Achievements
+    if (data.achievements) {
+      for (const achievement of data.achievements) {
+        await this.onAchievementChanged(worldId, achievement);
+      }
+    }
+
+    // Languages
+    if (data.languages) {
+      for (const lang of data.languages) {
+        await this.onLanguageChanged(worldId, lang);
       }
     }
 

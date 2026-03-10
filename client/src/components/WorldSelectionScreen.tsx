@@ -84,6 +84,7 @@ export function WorldSelectionScreen({ onWorldSelected, onOpenAuth, onOpenAdminP
 
       // If procedural generation is requested, trigger it with progress tracking
       if (generateContent) {
+        const genConfig = data.generationConfig || {};
         const genResponse = await apiRequest('POST', '/api/generate/complete-world', {
           worldId: newWorld.id,
           worldType,
@@ -92,6 +93,10 @@ export function WorldSelectionScreen({ onWorldSelected, onOpenAuth, onOpenAdminP
           gameType,
           worldName: data.name,
           worldDescription: data.description,
+          generateGeography: genConfig.generateGeography,
+          generateGenealogy: genConfig.generateGenealogy,
+          // Per-country configs (new format)
+          countries: genConfig.countries,
         });
         
         const genResult = await genResponse.json();

@@ -3,8 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useToast } from '@/hooks/use-toast';
 import {
-  CheckCircle2, Clock, XCircle, Trophy, Target, Plus, ChevronRight, ChevronDown,
+  CheckCircle2, Clock, XCircle, Trophy, Target, Plus, ChevronRight, ChevronDown, RefreshCw,
 } from 'lucide-react';
 import { QuestCreateDialog } from '../QuestCreateDialog';
 import { PredicatePalette } from '../prolog/PredicatePalette';
@@ -65,6 +66,7 @@ const TYPE_ICONS: Record<string, string> = {
 };
 
 export function QuestsHub({ worldId }: QuestsHubProps) {
+  const { toast } = useToast();
   const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['active']));
@@ -384,7 +386,32 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
                   {selectedQuest.prologContent ? (
                     <PrologSyntaxHighlight code={selectedQuest.prologContent} className="text-[11px]" />
                   ) : (
-                    <p className="text-xs text-muted-foreground italic">No Prolog content generated yet</p>
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground italic">No Prolog content generated yet</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-[10px] h-6"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`/api/quests/${selectedQuest.id}`, {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ title: selectedQuest.title }),
+                            });
+                            if (res.ok) {
+                              const updated = await res.json();
+                              setSelectedQuest(updated);
+                              toast({ title: 'Prolog Generated' });
+                            }
+                          } catch (e) {
+                            toast({ title: 'Error', description: 'Failed to generate Prolog', variant: 'destructive' });
+                          }
+                        }}
+                      >
+                        <RefreshCw className="w-3 h-3 mr-1" /> Generate Prolog
+                      </Button>
+                    </div>
                   )}
                 </div>
               ) : (

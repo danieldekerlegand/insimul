@@ -51,24 +51,163 @@ export class GeographyGenerator {
     streets: Location[];
     buildings: Location[];
     landmarks: Location[];
+    lotIds: string[];
   }> {
     console.log(`🗺️  Generating geography for ${config.settlementName} (${config.settlementType}, pop: ${config.population})...`);
-    
+
     const districts = this.generateDistricts(config);
     const streets = this.generateStreets(config, districts);
     const landmarks = this.generateLandmarks(config, districts);
     const buildings = this.generateBuildings(config, districts, streets);
-    
-    // Update settlement with geography
+
+    // Update settlement with geography metadata
     await storage.updateSettlement(config.settlementId, {
       districts,
       streets,
       landmarks,
     });
-    
-    console.log(`✅ Generated ${districts.length} districts, ${streets.length} streets, ${buildings.length} buildings`);
-    
-    return { districts, streets, buildings, landmarks };
+
+    // Persist lots, residences, and businesses as proper database records
+    const lotIds = await this.persistLotsAndBuildings(config, districts, streets, buildings);
+
+    console.log(`✅ Generated ${districts.length} districts, ${streets.length} streets, ${buildings.length} buildings (${lotIds.length} lots persisted)`);
+
+    return { districts, streets, buildings, landmarks, lotIds };
+  }
+
+  /**
+   * Create Lot, Residence, and Business records from generated building data.
+   * Inspired by Talk of the Town's lot-based town model where each lot tracks
+   * its building history over time.
+   */
+  private async persistLotsAndBuildings(
+    config: GeographyConfig,
+    districts: Location[],
+    streets: Location[],
+    buildings: Location[]
+  ): Promise<string[]> {
+    // Build lookup maps for parent references
+    const districtById = new Map(districts.map(d => [d.id, d]));
+    const streetById = new Map(streets.map(s => [s.id, s]));
+
+    // Prepare bulk-insert arrays
+    const lotDocs: any[] = [];
+    const residenceDocs: any[] = [];
+    const businessDocs: any[] = [];
+
+    for (const building of buildings) {
+      const street = building.parentId ? streetById.get(building.parentId) : undefined;
+      const district = street?.parentId ? districtById.get(street.parentId) : undefined;
+      const streetName = street?.name || 'Unknown St';
+      const districtName = district?.name || 'Unknown District';
+      const houseNumber = (building.properties?.houseNumber as number) ||
+        Math.floor(Math.random() * 200) + 1;
+      const address = `${houseNumber} ${streetName}`;
+      const isResidence = building.properties?.buildingType === 'residence';
+
+      lotDocs.push({
+        worldId: config.worldId,
+        settlementId: config.settlementId,
+        address,
+        houseNumber,
+        streetName,
+        districtName,
+        buildingType: isResidence ? 'residence' : 'business',
+        formerBuildingIds: [],
+        // Placeholder — buildingId will be set after residence/business creation
+        _buildingIndex: lotDocs.length,
+        _isResidence: isResidence,
+        _buildingName: building.name,
+        _floors: building.properties?.floors || 1,
+        _built: building.properties?.built || config.foundedYear,
+      });
+    }
+
+    // Bulk-insert lots
+    const createdLots = await (storage as any).createLotsInBulk(
+      lotDocs.map(({ _buildingIndex, _isResidence, _buildingName, _floors, _built, ...lot }) => lot)
+    );
+
+    // Now create residences and businesses referencing the lot IDs
+    for (let i = 0; i < createdLots.length; i++) {
+      const lot = createdLots[i];
+      const meta = lotDocs[i];
+
+      if (meta._isResidence) {
+        const floors = meta._floors;
+        const residenceType = floors >= 3 ? 'mansion' : floors === 2 ? 'house' : 'cottage';
+        residenceDocs.push({
+          worldId: config.worldId,
+          settlementId: config.settlementId,
+          lotId: lot.id,
+          address: lot.address,
+          residenceType,
+          ownerIds: [],
+          residentIds: [],
+        });
+      } else {
+        businessDocs.push({
+          worldId: config.worldId,
+          settlementId: config.settlementId,
+          lotId: lot.id,
+          name: meta._buildingName,
+          businessType: this.inferBusinessType(meta._buildingName),
+          ownerId: null,
+          founderId: null,
+          foundedYear: meta._built,
+          address: lot.address,
+        });
+      }
+    }
+
+    // Bulk-insert residences and businesses
+    if (residenceDocs.length > 0) {
+      const createdResidences = await (storage as any).createResidencesInBulk(residenceDocs);
+      // Update lot records with building IDs
+      let resIdx = 0;
+      for (let i = 0; i < createdLots.length; i++) {
+        if (lotDocs[i]._isResidence) {
+          await storage.updateLot(createdLots[i].id, { buildingId: createdResidences[resIdx].id });
+          resIdx++;
+        }
+      }
+    }
+
+    if (businessDocs.length > 0) {
+      const createdBusinesses = await (storage as any).createBusinessesInBulk(businessDocs);
+      let bizIdx = 0;
+      for (let i = 0; i < createdLots.length; i++) {
+        if (!lotDocs[i]._isResidence) {
+          await storage.updateLot(createdLots[i].id, { buildingId: createdBusinesses[bizIdx].id });
+          bizIdx++;
+        }
+      }
+    }
+
+    return createdLots.map((l: any) => l.id);
+  }
+
+  /**
+   * Infer a BusinessType from the business name string
+   */
+  private inferBusinessType(name: string): string {
+    const lower = name.toLowerCase();
+    if (lower.includes('bakery')) return 'Bakery';
+    if (lower.includes('restaurant') || lower.includes('diner')) return 'Restaurant';
+    if (lower.includes('café') || lower.includes('cafe')) return 'Restaurant';
+    if (lower.includes('bank')) return 'Bank';
+    if (lower.includes('hotel') || lower.includes('inn')) return 'Hotel';
+    if (lower.includes('theater') || lower.includes('theatre')) return 'Theater';
+    if (lower.includes('pharmacy')) return 'Pharmacy';
+    if (lower.includes('barber') || lower.includes('salon')) return 'BarberShop';
+    if (lower.includes('bookstore') || lower.includes('library')) return 'Bookstore';
+    if (lower.includes('tailor')) return 'TailorShop';
+    if (lower.includes('hardware')) return 'HardwareStore';
+    if (lower.includes('grocery') || lower.includes('general store')) return 'GroceryStore';
+    if (lower.includes('shoe')) return 'ShoeStore';
+    if (lower.includes('auto') || lower.includes('gas station')) return 'AutoRepair';
+    if (lower.includes('shop') || lower.includes('store') || lower.includes('market')) return 'Shop';
+    return 'Shop';
   }
 
   /**

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import {
   Zap, Plus, ChevronRight, ChevronDown, Edit, Globe, Trash2,
-  Target, Clock, Battery, TrendingUp, Tag,
+  Target, Clock, Battery, TrendingUp, Tag, RefreshCw,
 } from 'lucide-react';
 import { ActionCreateDialog } from '../ActionCreateDialog';
 import { ActionEditDialog } from '../ActionEditDialog';
@@ -613,7 +613,32 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
                   {selectedAction.prologContent ? (
                     <PrologSyntaxHighlight code={selectedAction.prologContent} className="text-[11px]" />
                   ) : (
-                    <p className="text-xs text-muted-foreground italic">No Prolog content generated yet</p>
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground italic">No Prolog content generated yet</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-[10px] h-6"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`/api/actions/${selectedAction.id}`, {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ name: selectedAction.name }),
+                            });
+                            if (res.ok) {
+                              const updated = await res.json();
+                              setSelectedAction(updated);
+                              toast({ title: 'Prolog Generated' });
+                            }
+                          } catch (e) {
+                            toast({ title: 'Error', description: 'Failed to generate Prolog', variant: 'destructive' });
+                          }
+                        }}
+                      >
+                        <RefreshCw className="w-3 h-3 mr-1" /> Generate Prolog
+                      </Button>
+                    </div>
                   )}
                 </div>
               ) : (

@@ -5,3 +5,6 @@ editor-repo/
 
 # Generated PDFs
 *.pdf
+
+*.DS_Store
+*/.DS_Store

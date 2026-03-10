@@ -410,17 +410,31 @@ const QuestSchema = new Schema({
   questType: { type: String, required: true },
   difficulty: { type: String, required: true },
   targetLanguage: { type: String, required: true },
-  objectives: { type: Schema.Types.Mixed, default: null },
-  progress: { type: Schema.Types.Mixed, default: null },
+  gameType: { type: String, default: 'language-learning' },
+  questChainId: { type: String, default: null },
+  questChainOrder: { type: Number, default: null },
+  prerequisiteQuestIds: { type: [String], default: null },
+  objectives: { type: Schema.Types.Mixed, default: [] },
+  progress: { type: Schema.Types.Mixed, default: {} },
   status: { type: String, default: 'active' },
-  completionCriteria: { type: Schema.Types.Mixed, default: null },
+  completionCriteria: { type: Schema.Types.Mixed, default: {} },
   experienceReward: { type: Number, default: 0 },
-  rewards: { type: Schema.Types.Mixed, default: null },
+  rewards: { type: Schema.Types.Mixed, default: {} },
+  itemRewards: { type: Schema.Types.Mixed, default: null },
+  skillRewards: { type: Schema.Types.Mixed, default: null },
+  unlocks: { type: Schema.Types.Mixed, default: null },
+  stages: { type: Schema.Types.Mixed, default: null },
+  currentStageId: { type: String, default: null },
+  parentQuestId: { type: String, default: null },
+  failureConditions: { type: Schema.Types.Mixed, default: null },
+  locationId: { type: String, default: null },
+  locationName: { type: String, default: null },
+  locationPosition: { type: Schema.Types.Mixed, default: null },
   assignedAt: { type: Date, default: Date.now },
   completedAt: { type: Date, default: null },
   expiresAt: { type: Date, default: null },
   conversationContext: { type: String, default: null },
-  tags: { type: Schema.Types.Mixed, default: null },
+  tags: { type: Schema.Types.Mixed, default: [] },
   prologContent: { type: String, default: null },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
@@ -687,6 +701,53 @@ const WorldLanguageSchema = new Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
+const LotSchema = new Schema({
+  worldId: { type: String, required: true },
+  settlementId: { type: String, required: true },
+  address: { type: String, required: true },
+  houseNumber: { type: Number, required: true },
+  streetName: { type: String, required: true },
+  block: { type: String, default: null },
+  districtName: { type: String, default: null },
+  buildingId: { type: String, default: null },
+  buildingType: { type: String, default: 'vacant' },
+  neighboringLotIds: { type: [String], default: [] },
+  distanceFromDowntown: { type: Number, default: null },
+  formerBuildingIds: { type: [String], default: [] },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+const ResidenceSchema = new Schema({
+  worldId: { type: String, required: true },
+  settlementId: { type: String, required: true },
+  lotId: { type: String, required: true },
+  ownerIds: { type: [String], default: [] },
+  residentIds: { type: [String], default: [] },
+  address: { type: String, required: true },
+  residenceType: { type: String, default: 'house' },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+const BusinessMongoSchema = new Schema({
+  worldId: { type: String, required: true },
+  settlementId: { type: String, required: true },
+  name: { type: String, required: true },
+  businessType: { type: String, required: true },
+  ownerId: { type: String, default: null },
+  founderId: { type: String, default: null },
+  isOutOfBusiness: { type: Boolean, default: false },
+  foundedYear: { type: Number, default: null },
+  closedYear: { type: Number, default: null },
+  lotId: { type: String, default: null },
+  address: { type: String, default: null },
+  vacancies: { type: Schema.Types.Mixed, default: [] },
+  businessData: { type: Schema.Types.Mixed, default: {} },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
 const LanguageChatMessageSchema = new Schema({
   languageId: { type: String, required: true },
   worldId: { type: String, required: true },
@@ -723,6 +784,9 @@ const PlaythroughModel = mongoose.model<PlaythroughDoc>('Playthrough', Playthrou
 const PlaythroughDeltaModel = mongoose.model<PlaythroughDeltaDoc>('PlaythroughDelta', PlaythroughDeltaSchema);
 const PlayTraceModel = mongoose.model<PlayTraceDoc>('PlayTrace', PlayTraceSchema);
 const WorldLanguageModel = mongoose.model<WorldLanguageDoc>('WorldLanguage', WorldLanguageSchema);
+const LotModel = mongoose.model('Lot', LotSchema);
+const ResidenceModel = mongoose.model('Residence', ResidenceSchema);
+const BusinessMongoModel = mongoose.model('Business', BusinessMongoSchema);
 const LanguageChatMessageModel = mongoose.model<LanguageChatMessageDoc>('LanguageChatMessage', LanguageChatMessageSchema);
 
 // Helper to convert Mongoose doc to our type
@@ -1053,7 +1117,79 @@ export class MongoStorage implements IStorage {
       await this.deleteCountry(country._id.toString());
     }
     
-    // 11. Finally, delete the world itself
+    // 11. Delete items
+    const items = await ItemModel.deleteMany({ worldId: id });
+    if (items.deletedCount && items.deletedCount > 0) {
+      console.log(`   ✓ Deleted ${items.deletedCount} items`);
+    }
+
+    // 12. Delete visual assets
+    const visualAssets = await VisualAssetModel.deleteMany({ worldId: id });
+    if (visualAssets.deletedCount && visualAssets.deletedCount > 0) {
+      console.log(`   ✓ Deleted ${visualAssets.deletedCount} visual assets`);
+    }
+
+    // 13. Delete asset collections
+    const assetCollections = await AssetCollectionModel.deleteMany({ worldId: id });
+    if (assetCollections.deletedCount && assetCollections.deletedCount > 0) {
+      console.log(`   ✓ Deleted ${assetCollections.deletedCount} asset collections`);
+    }
+
+    // 14. Delete generation jobs
+    const genJobs = await GenerationJobModel.deleteMany({ worldId: id });
+    if (genJobs.deletedCount && genJobs.deletedCount > 0) {
+      console.log(`   ✓ Deleted ${genJobs.deletedCount} generation jobs`);
+    }
+
+    // 15. Delete player progress
+    const playerProgress = await PlayerProgressModel.deleteMany({ worldId: id });
+    if (playerProgress.deletedCount && playerProgress.deletedCount > 0) {
+      console.log(`   ✓ Deleted ${playerProgress.deletedCount} player progress records`);
+    }
+
+    // 16. Delete player sessions
+    const playerSessions = await PlayerSessionModel.deleteMany({ worldId: id });
+    if (playerSessions.deletedCount && playerSessions.deletedCount > 0) {
+      console.log(`   ✓ Deleted ${playerSessions.deletedCount} player sessions`);
+    }
+
+    // 17. Delete achievements
+    const achievements = await AchievementModel.deleteMany({ worldId: id });
+    if (achievements.deletedCount && achievements.deletedCount > 0) {
+      console.log(`   ✓ Deleted ${achievements.deletedCount} achievements`);
+    }
+
+    // 18. Delete playthroughs and their deltas
+    const playthroughs = await PlaythroughModel.find({ worldId: id });
+    if (playthroughs.length > 0) {
+      const playthroughIds = playthroughs.map(p => p._id.toString());
+      const deltas = await PlaythroughDeltaModel.deleteMany({ playthroughId: { $in: playthroughIds } });
+      if (deltas.deletedCount && deltas.deletedCount > 0) {
+        console.log(`   ✓ Deleted ${deltas.deletedCount} playthrough deltas`);
+      }
+      const ptResult = await PlaythroughModel.deleteMany({ worldId: id });
+      console.log(`   ✓ Deleted ${ptResult.deletedCount} playthroughs`);
+    }
+
+    // 19. Delete play traces
+    const playTraces = await PlayTraceModel.deleteMany({ worldId: id });
+    if (playTraces.deletedCount && playTraces.deletedCount > 0) {
+      console.log(`   ✓ Deleted ${playTraces.deletedCount} play traces`);
+    }
+
+    // 20. Delete world languages
+    const worldLanguages = await WorldLanguageModel.deleteMany({ worldId: id });
+    if (worldLanguages.deletedCount && worldLanguages.deletedCount > 0) {
+      console.log(`   ✓ Deleted ${worldLanguages.deletedCount} world languages`);
+    }
+
+    // 21. Delete language chat messages
+    const langMessages = await LanguageChatMessageModel.deleteMany({ worldId: id });
+    if (langMessages.deletedCount && langMessages.deletedCount > 0) {
+      console.log(`   ✓ Deleted ${langMessages.deletedCount} language chat messages`);
+    }
+
+    // 22. Finally, delete the world itself
     const result = await WorldModel.findByIdAndDelete(id);
     
     if (result) {
@@ -1265,82 +1401,115 @@ export class MongoStorage implements IStorage {
     return !!result;
   }
 
-  // Lot operations (stub implementations - no MongoDB schema yet)
+  // Lot operations
   async getLot(id: string): Promise<any | undefined> {
-    // TODO: Implement when lot schema is added to MongoDB
-    return undefined;
+    await this.connect();
+    const doc = await LotModel.findById(id);
+    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
   }
 
   async getLotsBySettlement(settlementId: string): Promise<any[]> {
-    // TODO: Implement when lot schema is added to MongoDB
-    return [];
+    await this.connect();
+    const docs = await LotModel.find({ settlementId });
+    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
   }
 
   async createLot(lot: any): Promise<any> {
-    // TODO: Implement when lot schema is added to MongoDB
-    return { ...lot, id: new Types.ObjectId().toString() };
+    await this.connect();
+    const doc = await new LotModel(lot).save();
+    return { ...doc.toObject(), id: doc._id.toString() };
   }
 
   async updateLot(id: string, lot: any): Promise<any | undefined> {
-    // TODO: Implement when lot schema is added to MongoDB
-    return undefined;
+    await this.connect();
+    const doc = await LotModel.findByIdAndUpdate(id, { ...lot, updatedAt: new Date() }, { new: true });
+    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
   }
 
   async deleteLot(id: string): Promise<boolean> {
-    // TODO: Implement when lot schema is added to MongoDB
-    return false;
+    await this.connect();
+    const result = await LotModel.findByIdAndDelete(id);
+    return !!result;
   }
 
-  // Business operations (stub implementations - no MongoDB schema yet)
+  async createLotsInBulk(lots: any[]): Promise<any[]> {
+    await this.connect();
+    const docs = await LotModel.insertMany(lots);
+    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+  }
+
+  // Business operations
   async getBusiness(id: string): Promise<any | undefined> {
-    // TODO: Implement when business schema is added to MongoDB
-    return undefined;
+    await this.connect();
+    const doc = await BusinessMongoModel.findById(id);
+    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
   }
 
   async getBusinessesBySettlement(settlementId: string): Promise<any[]> {
-    // TODO: Implement when business schema is added to MongoDB
-    return [];
+    await this.connect();
+    const docs = await BusinessMongoModel.find({ settlementId });
+    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
   }
 
   async createBusiness(business: any): Promise<any> {
-    // TODO: Implement when business schema is added to MongoDB
-    return { ...business, id: new Types.ObjectId().toString() };
+    await this.connect();
+    const doc = await new BusinessMongoModel(business).save();
+    return { ...doc.toObject(), id: doc._id.toString() };
   }
 
   async updateBusiness(id: string, business: any): Promise<any | undefined> {
-    // TODO: Implement when business schema is added to MongoDB
-    return undefined;
+    await this.connect();
+    const doc = await BusinessMongoModel.findByIdAndUpdate(id, { ...business, updatedAt: new Date() }, { new: true });
+    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
   }
 
   async deleteBusiness(id: string): Promise<boolean> {
-    // TODO: Implement when business schema is added to MongoDB
-    return false;
+    await this.connect();
+    const result = await BusinessMongoModel.findByIdAndDelete(id);
+    return !!result;
   }
 
-  // Residence operations (stub implementations - no MongoDB schema yet)
+  async createBusinessesInBulk(businesses: any[]): Promise<any[]> {
+    await this.connect();
+    const docs = await BusinessMongoModel.insertMany(businesses);
+    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+  }
+
+  // Residence operations
   async getResidence(id: string): Promise<any | undefined> {
-    // TODO: Implement when residence schema is added to MongoDB
-    return undefined;
+    await this.connect();
+    const doc = await ResidenceModel.findById(id);
+    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
   }
 
   async getResidencesBySettlement(settlementId: string): Promise<any[]> {
-    // TODO: Implement when residence schema is added to MongoDB
-    return [];
+    await this.connect();
+    const docs = await ResidenceModel.find({ settlementId });
+    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
   }
 
   async createResidence(residence: any): Promise<any> {
-    // TODO: Implement when residence schema is added to MongoDB
-    return { ...residence, id: new Types.ObjectId().toString() };
+    await this.connect();
+    const doc = await new ResidenceModel(residence).save();
+    return { ...doc.toObject(), id: doc._id.toString() };
   }
 
   async updateResidence(id: string, residence: any): Promise<any | undefined> {
-    // TODO: Implement when residence schema is added to MongoDB
-    return undefined;
+    await this.connect();
+    const doc = await ResidenceModel.findByIdAndUpdate(id, { ...residence, updatedAt: new Date() }, { new: true });
+    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
   }
 
   async deleteResidence(id: string): Promise<boolean> {
-    // TODO: Implement when residence schema is added to MongoDB
-    return false;
+    await this.connect();
+    const result = await ResidenceModel.findByIdAndDelete(id);
+    return !!result;
+  }
+
+  async createResidencesInBulk(residences: any[]): Promise<any[]> {
+    await this.connect();
+    const docs = await ResidenceModel.insertMany(residences);
+    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
   }
 
   // Rule operations

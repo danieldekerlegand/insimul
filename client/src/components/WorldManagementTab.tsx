@@ -156,7 +156,10 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
   const handleDeleteWorld = async () => {
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/worlds/${worldId}`, { method: 'DELETE' });
+      const response = await fetch(`/api/worlds/${worldId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!response.ok) throw new Error('Failed to delete world');
       toast({
         title: 'World deleted',

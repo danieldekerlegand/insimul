@@ -572,7 +572,12 @@ export const quests = pgTable("quests", {
 
   // Failure conditions
   failureConditions: jsonb("failure_conditions").$type<Record<string, any>>(),
-  
+
+  // Location binding — ties the quest to a specific place in the world
+  locationId: varchar("location_id"), // Settlement or lot ID
+  locationName: text("location_name"), // Human-readable place name
+  locationPosition: jsonb("location_position").$type<{ x: number; y: number; z: number }>(), // World-space coordinates
+
   // Timing
   assignedAt: timestamp("assigned_at").defaultNow(),
   completedAt: timestamp("completed_at"),

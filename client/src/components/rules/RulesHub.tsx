@@ -560,7 +560,33 @@ export function RulesHub({ worldId }: RulesHubProps) {
                 {selectedRule.prologContent ? (
                   <PrologSyntaxHighlight code={selectedRule.prologContent} />
                 ) : (
-                  <p className="text-sm text-muted-foreground italic">No Prolog content generated yet. Save the rule to auto-generate.</p>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground italic">No Prolog content generated yet.</p>
+                    {canEdit && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`/api/rules/${selectedRule.id}`, {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ content: selectedRule.content }),
+                            });
+                            if (res.ok) {
+                              const updated = await res.json();
+                              setSelectedRule(updated);
+                              toast({ title: 'Prolog Generated' });
+                            }
+                          } catch (e) {
+                            toast({ title: 'Error', description: 'Failed to generate Prolog', variant: 'destructive' });
+                          }
+                        }}
+                      >
+                        <RefreshCw className="w-3 h-3 mr-1.5" /> Generate Prolog
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
             </ScrollArea>

@@ -503,6 +503,12 @@ export interface QuestIR {
   assignedBy: string | null;
   /** NPC character ID who assigned this quest */
   assignedByCharacterId: string | null;
+  /** Settlement or lot ID this quest is bound to */
+  locationId: string | null;
+  /** Human-readable place name */
+  locationName: string | null;
+  /** World-space coordinates for the quest location */
+  locationPosition: { x: number; y: number; z: number } | null;
   tags: string[];
   status: string;
   prologContent: string | null;

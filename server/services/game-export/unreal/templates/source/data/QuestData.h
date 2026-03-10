@@ -29,6 +29,11 @@ struct INSIMULEXPORT_API FInsimulQuestData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Difficulty;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ExperienceReward = 0;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AssignedByCharacterId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString LocationId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString LocationName;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float LocationX = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float LocationY = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float LocationZ = 0.f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Status;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> Tags;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> PrerequisiteQuestIds;

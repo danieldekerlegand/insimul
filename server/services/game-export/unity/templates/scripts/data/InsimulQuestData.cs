@@ -12,6 +12,9 @@ namespace Insimul.Data
         public string difficulty;
         public int experienceReward;
         public string assignedByCharacterId;
+        public string locationId;
+        public string locationName;
+        public Vec3Data locationPosition;
         public string status;
         public string[] tags;
         public string[] prerequisiteQuestIds;
