@@ -1,0 +1,127 @@
+{
+	"cast": {
+		"player": {
+			"name": "You",
+			"profession":"none",
+			"graphics": {
+			},
+			"specialWords": {
+				"nice":"whoa!"
+			},
+            "preferredGender": "non-binary"
+		},
+		"Cogsworth": {
+			"name": "Cogsworth",
+			"profession": "Robot",
+			"graphics": {
+				"icon": "cog"
+			},
+			"specialWords": {
+				"nice":"!?!?!?!"
+			},
+            "preferredGender": "non-binary"
+		},
+		"Clayton": {
+			"name": "Clayton",
+			"profession": "Farmer",
+			"graphics": {
+				"icon": "farmer",
+				"body": "f",
+				"head": "o",
+				"hair": "b",
+				"nose": "c",
+				"eyes": "a",
+				"mouth": "d"
+			},
+			"specialWords": {
+				"nice":"awesome"
+			},
+            "preferredGender": "male"
+		},
+		"Brim": {
+			"name": "Brim",
+			"profession": "Nanosmith",
+			"graphics": {
+				"icon": "female3",
+				"body": "c",
+				"head": "e",
+				"hair": "k",
+				"nose": "a",
+				"eyes": "b",
+				"mouth": "c"
+			},
+			"specialWords": {
+				"nice":"Gro0o0o0ovy"
+			},
+            "preferredGender": "female"
+		},
+		"Emma": {
+			"name": "Emma",
+            "profession": "Sheriff",
+			"graphics": {
+				"icon": "female1",
+				"body": "b",
+				"head": "g",
+				"hair": "n",
+				"nose": "c",
+				"eyes": "d",
+				"mouth": "a"
+			},
+			"specialWords": {
+				"nice":"brotastic"
+			},
+            "preferredGender": "female"
+		},
+		"Mick": {
+			"name": "Mick",
+		  "profession": "Pilot",
+			"graphics": {
+				"icon": "male1",
+				"body": "d",
+				"head": "l",
+				"hair": "d",
+				"nose": "a",
+				"eyes": "c",
+				"mouth": "e"
+			},
+			"specialWords": {
+				"nice":"space suitastic"
+			},
+            "preferredGender": "non-binary"
+		},
+		"Belle": {
+			"name": "Belle",
+		  "profession": "Mayor",
+			"graphics": {
+				"icon": "female2",
+				"body": "a",
+				"head": "b",
+				"hair": "j",
+				"nose": "b",
+				"eyes": "b",
+				"mouth": "a"
+			},
+			"specialWords": {
+				"nice":"NLG rox"
+			},
+            "preferredGender": "female"
+		},
+        "Gus": {
+            "name": "Gus",
+          "profession": "Gestation Tube Operations Manager",
+          "graphics": {
+              "icon": "male1",
+              "body": "d",
+              "head": "l",
+              "hair": "d",
+              "nose": "a",
+              "eyes": "c",
+              "mouth": "e"
+          },
+            "specialWords": {
+                "nice":"totes zygotic"
+            },
+            "preferredGender": "male"
+        }
+	}
+}

@@ -1,0 +1,87 @@
+{
+	"fileName": "actions.json",
+	"actions": [
+		{
+			"name": "affinity-up",
+			"intent": {
+				"category": "network",
+				"type": "affinity",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": true
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": [
+				"compliment a person you like"
+			]
+		},
+		{
+			"name": "affinity-down",
+			"intent": {
+				"category": "network",
+				"type": "affinity",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": false
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": [
+				"insult someone you don't like"
+			]
+		},
+		{
+			"name": "compliment a person you like",
+			"displayName": "compliment a person you like",
+			"influenceRules": [],
+			"isAccept": true,
+			"conditions": [
+				{
+					"category": "network",
+					"type": "affinity",
+					"first": "initiator",
+					"second": "responder",
+					"value": 50,
+					"operator": ">="
+				}
+			],
+			"effects": [
+				{
+					"category": "network",
+					"type": "affinity",
+					"first": "responder",
+					"second": "initiator",
+					"value": 25,
+					"operator": "+"
+				}
+			]
+		},
+		{
+			"name": "insult someone you don't like",
+			"displayName": "insult someone you don't like",
+			"influenceRules": [],
+			"isAccept": true,
+			"conditions": [
+				{
+					"category": "network",
+					"type": "affinity",
+					"first": "initiator",
+					"second": "responder",
+					"value": 50,
+					"operator": "<"
+				}
+			],
+			"effects": [
+				{
+					"category": "network",
+					"type": "affinity",
+					"first": "responder",
+					"second": "initiator",
+					"value": 50,
+					"operator": "<"
+				}
+			]
+		}
+	]
+}

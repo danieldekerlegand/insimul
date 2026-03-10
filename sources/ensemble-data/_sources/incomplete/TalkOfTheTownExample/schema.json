@@ -1,0 +1,248 @@
+{
+    "schema": [
+        {
+            "actionable": false,
+            "category": "trait",
+            "defaultValue": false,
+            "directionType": "undirected",
+            "isBoolean": true,
+            "types": [
+                "attracted to men",
+                "attracted to women",
+                "college graduate",
+                "male",
+                "female"
+            ]
+        },
+        {
+            "actionable": false,
+            "category": "physical trait",
+            "directionType": "undirected",
+            "isBoolean": false,
+            "types": [
+                "skin color",
+                "nose shape",
+                "nose size",
+                "mouth size",
+                "head shape",
+                "head size",
+                "hair color",
+                "hair length",
+                "freckles",
+                "eye color",
+                "eye horizontal settedness",
+                "eye shape",
+                "eye size",
+                "eye vertical settedness",
+                "eyebrow color",
+                "eyebrow size",
+                "facial hair style",
+                "ear angle",
+                "ear size",
+                "glasses",
+                "scar",
+                "tattoo",
+                "sunglasses",
+                "birthmark"
+            ]
+        },
+        {
+            "actionable": true,
+            "category": "attribute",
+            "defaultValue": 0,
+            "directionType": "undirected",
+            "isBoolean": false,
+            "maxValue": 100,
+            "minValue": 0,
+            "types": [
+                "openness",
+                "neuroticism",
+                "agreeableness",
+                "conscientiousness",
+                "extroversion"
+            ]
+        },
+        {
+            "actionable": false,
+            "category": "status",
+            "defaultValue": false,
+            "directionType": "undirected",
+            "isBoolean": true,
+            "types": [
+                "alive",
+                "grieving",
+                "infertile",
+                "widowed",
+                "pregnant",
+                "retired",
+                "currently working"
+            ]
+        },
+        {
+            "actionable": false,
+            "category": "mood",
+            "defaultValue": false,
+            "directionType": "undirected",
+            "duration": 10,
+            "isBoolean": true,
+            "types": []
+        },
+        {
+            "actionable": false,
+            "category": "directed status",
+            "defaultValue": false,
+            "directionType": "directed",
+            "isBoolean": true,
+            "types": [
+                "salience",
+                "spark",
+                "compatibility",
+                "charge"
+            ]
+        },
+        {
+            "actionable": true,
+            "category": "relationship",
+            "defaultValue": false,
+            "directionType": "reciprocal",
+            "isBoolean": true,
+            "types": [
+                "significant other",
+                "siblings",
+                "sexual partners",
+                "sisters",
+                "spouse",
+                "sons",
+                "strongest love interest",
+                "uncles",
+                "worst enemy",
+                "nieces",
+                "next of kin",
+                "nephews",
+                "neighbors",
+                "mother",
+                "half brothers",
+                "half siblings",
+                "half sisters",
+                "grandparents",
+                "grandsons",
+                "granddaughters",
+                "greatgrandchildren",
+                "greatgranddaughters",
+                "greatgrandparents",
+                "greatgrandsons",
+                "cousins",
+                "coworkers",
+                "brothers",
+                "birth nurses",
+                "aunts",
+                "best friend",
+                "ancestors",
+                "acquaintances",
+                "daughters",
+                "descendants",
+                "enemies",
+                "extended family",
+                "former coworkers",
+                "former neighbors",
+                "friends",
+                "full brothers",
+                "full siblings",
+                "full sisters",
+                "grandchildren",
+                "immediate family",
+                "impregnated by",
+                "kids",
+                "father",
+                "ex-wife",
+                "acquaintance",
+                "son's friend",
+                "neighbor",
+                "friend",
+                "daughter",
+                "worst enemy",
+                "best friend",
+                "daughter in law",
+                "son"
+            ]
+        },
+        {
+            "actionable": true,
+            "category": "bond",
+            "defaultValue": 0,
+            "directionType": "reciprocal",
+            "isBoolean": false,
+            "maxValue": 10,
+            "minValue": 0,
+            "types": []
+        },
+        {
+            "actionable": true,
+            "category": "network",
+            "defaultValue": 50,
+            "directionType": "directed",
+            "isBoolean": false,
+            "maxValue": 100,
+            "minValue": 0,
+            "types": []
+        },
+        {
+            "actionable": false,
+            "category": "event",
+            "defaultValue": false,
+            "directionType": "directed",
+            "isBoolean": true,
+            "types": [
+                "total interactions",
+                "when they last met",
+                "when they met",
+                "where they last met",
+                "where they met"
+            ]
+        },
+        {
+            "actionable": false,
+            "category": "event undirected",
+            "defaultValue": false,
+            "directionType": "undirected",
+            "isBoolean": true,
+            "types": [
+                "marriage",
+                "birth",
+                "construction",
+                "purchase",
+                "move",
+                "divorce",
+                "retirement",
+                "death",
+                "burial"
+            ]
+        },
+        {
+            "actionable": true,
+            "category": "intent",
+            "defaultValue": 0,
+            "directionType": "directed",
+            "isBoolean": false,
+            "types": []
+        },
+        {
+            "actionable": true,
+            "category": "occupation",
+            "defaultValue": 0,
+            "directionType": "undirected",
+            "isBoolean": false,
+            "types": [
+                "company",
+                "end date",
+                "hired as favor",
+                "job level",
+                "position preceded by",
+                "position succeeded by",
+                "shift",
+                "start date",
+                "vocation"
+            ]
+        }
+    ]
+}

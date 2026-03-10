@@ -1,0 +1,79 @@
+﻿{
+    "PromWeek": {
+        "Story": {
+            "Description": "Make Zack ask out Chloe",
+            "QuickPlayDescription": {
+                "cdata": "Have Zack ###ZACK### ask out ###DATING### Chloe ###CHLOE###"
+            },
+            "QuickPlayEndingDescription": {
+                "cdata": "Every action has social consequences."
+            },
+            "ForcedSGs": {
+                "ForcedSG": {
+                    "initiator": "Zack",
+                    "responder": "Chloe",
+                    "gameName": "ask out",
+                    "turnsIn": "0",
+                    "instantiationID": "5"
+                }
+            },
+            "ToDoList": {
+                "ToDoItem": {
+                    "Condition": {
+                        "Rule": {
+                            "Predicate": {
+                                "type": "relationship",
+                                "first": "Zack",
+                                "second": "Chloe",
+                                "relationship": "dating",
+                                "negated": "false",
+                                "intent": "false",
+                                "isSFDB": "false",
+                                "window": "0",
+                                "numTimesUniquelyTrueFlag": "false",
+                                "numTimesUniquelyTrue": "0",
+                                "numTimesRoleSlot": ""
+                            }
+                        },
+                        "taskNaturalLanguage": {
+                            "words": "Get ###ZACK### and ###CHLOE### to date!"
+                        }
+                    },
+                    "name": "Make Zack ask out Chloe."
+                }
+            },
+            "Levels": {
+                "Level": {
+                    "Description": "Make Zack ask out Chloe.",
+                    "Setting": "lockers",
+                    "Cast": {
+                        "CharacterName": [
+                            "Zack",
+                            "Chloe"
+                        ]
+                    },
+                    "GoalRules": "",
+                    "title": "LEVEL 1",
+                    "timeLimit": "1",
+                    "cameraZoom": "1",
+                    "useDefinedCameraPosition": "false",
+                    "cameraX": "800",
+                    "cameraY": "1400",
+                    "endable": "false",
+                    "isTutorial": "false",
+                    "tutorialScript": ""
+                }
+            },
+            "Endings": "",
+            "title": "QP1",
+            "storyLeadCharacter": "Zack",
+            "locked": "false",
+            "toUnlock": "0",
+            "isTutorial": "false",
+            "isQuickPlay": "true",
+            "numberOfQuickPlaySGAvailable": "1",
+            "startState": "quickPlayStartState1",
+            "nextChallengeName": "QP2"
+        }
+    }
+}

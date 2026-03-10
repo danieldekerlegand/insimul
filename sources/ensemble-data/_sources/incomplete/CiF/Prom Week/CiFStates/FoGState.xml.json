@@ -1,0 +1,2119 @@
+﻿{
+    "CiFState": {
+        "Cast": {
+            "Character": [
+                {
+                    "Trait": [
+                        {
+                            "type": "doug"
+                        },
+                        {
+                            "type": "male"
+                        },
+                        {
+                            "type": "shy"
+                        },
+                        {
+                            "type": "oblivious"
+                        },
+                        {
+                            "type": "pacifist"
+                        },
+                        {
+                            "type": "defensive"
+                        }
+                    ],
+                    "Locution": [
+                        {
+                            "type": "greeting",
+                            "text": "sup"
+                        },
+                        {
+                            "type": "shocked",
+                            "text": "woah"
+                        },
+                        {
+                            "type": "positiveadj",
+                            "text": "groovy"
+                        },
+                        {
+                            "type": "pejorative",
+                            "text": "poser"
+                        },
+                        {
+                            "type": "sweetie",
+                            "text": "babe"
+                        },
+                        {
+                            "type": "buddymale",
+                            "text": "bro"
+                        },
+                        {
+                            "type": "buddyfemale",
+                            "text": "chica"
+                        }
+                    ],
+                    "name": "Doug",
+                    "networkID": "0"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "simon"
+                        },
+                        {
+                            "type": "male"
+                        },
+                        {
+                            "type": "brainy"
+                        },
+                        {
+                            "type": "loyal"
+                        },
+                        {
+                            "type": "irritable"
+                        },
+                        {
+                            "type": "afraid of commitment"
+                        }
+                    ],
+                    "Locution": [
+                        {
+                            "type": "greeting",
+                            "text": "hi"
+                        },
+                        {
+                            "type": "shocked",
+                            "text": "impossible"
+                        },
+                        {
+                            "type": "positiveadj",
+                            "text": "perfect"
+                        },
+                        {
+                            "type": "pejorative",
+                            "text": "idiot"
+                        },
+                        {
+                            "type": "sweetie",
+                            "text": "lady love"
+                        },
+                        {
+                            "type": "buddymale",
+                            "text": "brosef"
+                        },
+                        {
+                            "type": "buddyfemale",
+                            "text": "girlfriend"
+                        }
+                    ],
+                    "Status": [
+                        {
+                            "type": "has a crush on",
+                            "from": "Simon",
+                            "to": "Monica"
+                        },
+                        {
+                            "type": "envies",
+                            "from": "Simon",
+                            "to": "Zack"
+                        },
+                        {
+                            "type": "lonely",
+                            "from": "Simon"
+                        }
+                    ],
+                    "name": "Simon",
+                    "networkID": "8"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "monica"
+                        },
+                        {
+                            "type": "female"
+                        },
+                        {
+                            "type": "loyal"
+                        },
+                        {
+                            "type": "attention hog"
+                        },
+                        {
+                            "type": "sex magnet"
+                        },
+                        {
+                            "type": "vengeful"
+                        }
+                    ],
+                    "Locution": [
+                        {
+                            "type": "greeting",
+                            "text": "oh"
+                        },
+                        {
+                            "type": "shocked",
+                            "text": "shut up"
+                        },
+                        {
+                            "type": "positiveadj",
+                            "text": "super-cute"
+                        },
+                        {
+                            "type": "pejorative",
+                            "text": "nobody"
+                        },
+                        {
+                            "type": "sweetie",
+                            "text": "love-monkey"
+                        },
+                        {
+                            "type": "buddymale",
+                            "text": "boy"
+                        },
+                        {
+                            "type": "buddyfemale",
+                            "text": "girl"
+                        }
+                    ],
+                    "Status": [
+                        {
+                            "type": "envies",
+                            "from": "Monica",
+                            "to": "Naomi"
+                        },
+                        {
+                            "type": "popular",
+                            "from": "Monica"
+                        }
+                    ],
+                    "name": "Monica",
+                    "networkID": "9"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "oswald"
+                        },
+                        {
+                            "type": "male"
+                        }
+                    ],
+                    "name": "Oswald",
+                    "networkID": "10"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "zack"
+                        },
+                        {
+                            "type": "male"
+                        },
+                        {
+                            "type": "arrogant"
+                        },
+                        {
+                            "type": "stubborn"
+                        },
+                        {
+                            "type": "outgoing"
+                        },
+                        {
+                            "type": "honest"
+                        }
+                    ],
+                    "Locution": [
+                        {
+                            "type": "greeting",
+                            "text": "oh hai"
+                        },
+                        {
+                            "type": "shocked",
+                            "text": "what teh f"
+                        },
+                        {
+                            "type": "positiveadj",
+                            "text": "roxor"
+                        },
+                        {
+                            "type": "pejorative",
+                            "text": "n00b"
+                        },
+                        {
+                            "type": "sweetie",
+                            "text": "gigababe"
+                        },
+                        {
+                            "type": "buddymale",
+                            "text": "guildie"
+                        },
+                        {
+                            "type": "buddyfemale",
+                            "text": "guildie"
+                        }
+                    ],
+                    "name": "Zack",
+                    "networkID": "6"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "nicholas"
+                        },
+                        {
+                            "type": "male"
+                        },
+                        {
+                            "type": "arrogant"
+                        },
+                        {
+                            "type": "swinger"
+                        },
+                        {
+                            "type": "vengeful"
+                        },
+                        {
+                            "type": "witty"
+                        }
+                    ],
+                    "Locution": [
+                        {
+                            "type": "greeting",
+                            "text": "greetings"
+                        },
+                        {
+                            "type": "shocked",
+                            "text": "my oh my"
+                        },
+                        {
+                            "type": "positiveadj",
+                            "text": "lovely"
+                        },
+                        {
+                            "type": "pejorative",
+                            "text": "simpering moron"
+                        },
+                        {
+                            "type": "sweetie",
+                            "text": "snookie-wookums"
+                        },
+                        {
+                            "type": "buddymale",
+                            "text": "my man"
+                        },
+                        {
+                            "type": "buddyfemale",
+                            "text": "dahhrling"
+                        }
+                    ],
+                    "Status": {
+                        "type": "cheater",
+                        "from": "Nicholas",
+                        "to": ""
+                    },
+                    "name": "Nicholas",
+                    "networkID": "5"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "lil"
+                        },
+                        {
+                            "type": "female"
+                        },
+                        {
+                            "type": "dishonest"
+                        },
+                        {
+                            "type": "clumsy"
+                        },
+                        {
+                            "type": "takes things slowly"
+                        },
+                        {
+                            "type": "mopey"
+                        }
+                    ],
+                    "Locution": [
+                        {
+                            "type": "greeting",
+                            "text": "hello"
+                        },
+                        {
+                            "type": "shocked",
+                            "text": "oh"
+                        },
+                        {
+                            "type": "positiveadj",
+                            "text": "neat"
+                        },
+                        {
+                            "type": "pejorative",
+                            "text": "freakshow"
+                        },
+                        {
+                            "type": "sweetie",
+                            "text": "love"
+                        },
+                        {
+                            "type": "buddymale",
+                            "text": "man"
+                        },
+                        {
+                            "type": "buddyfemale",
+                            "text": "man"
+                        }
+                    ],
+                    "name": "Lil",
+                    "networkID": "4"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "naomi"
+                        },
+                        {
+                            "type": "female"
+                        },
+                        {
+                            "type": "sympathetic"
+                        },
+                        {
+                            "type": "jealous"
+                        },
+                        {
+                            "type": "self destructive"
+                        },
+                        {
+                            "type": "brainy"
+                        }
+                    ],
+                    "Locution": [
+                        {
+                            "type": "greeting",
+                            "text": "hey hey"
+                        },
+                        {
+                            "type": "shocked",
+                            "text": "my word"
+                        },
+                        {
+                            "type": "positiveadj",
+                            "text": "amazing"
+                        },
+                        {
+                            "type": "pejorative",
+                            "text": "waste of space"
+                        },
+                        {
+                            "type": "sweetie",
+                            "text": "sugar"
+                        },
+                        {
+                            "type": "buddymale",
+                            "text": "my man"
+                        },
+                        {
+                            "type": "buddyfemale",
+                            "text": "sweetness"
+                        }
+                    ],
+                    "name": "Naomi",
+                    "networkID": "3"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "buzz"
+                        },
+                        {
+                            "type": "male"
+                        },
+                        {
+                            "type": "mean"
+                        },
+                        {
+                            "type": "inarticulate"
+                        },
+                        {
+                            "type": "ripped"
+                        },
+                        {
+                            "type": "emotional"
+                        }
+                    ],
+                    "Locution": [
+                        {
+                            "type": "greeting",
+                            "text": "uhhhh"
+                        },
+                        {
+                            "type": "shocked",
+                            "text": "the f?"
+                        },
+                        {
+                            "type": "positiveadj",
+                            "text": "tight"
+                        },
+                        {
+                            "type": "pejorative",
+                            "text": "crapface"
+                        },
+                        {
+                            "type": "sweetie",
+                            "text": "babe"
+                        },
+                        {
+                            "type": "buddymale",
+                            "text": "dude"
+                        },
+                        {
+                            "type": "buddyfemale",
+                            "text": "girl dude"
+                        }
+                    ],
+                    "name": "Buzz",
+                    "networkID": "2"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "jordan"
+                        },
+                        {
+                            "type": "female"
+                        },
+                        {
+                            "type": "loyal"
+                        },
+                        {
+                            "type": "confident"
+                        },
+                        {
+                            "type": "competitive"
+                        },
+                        {
+                            "type": "impulsive"
+                        }
+                    ],
+                    "Locution": [
+                        {
+                            "type": "greeting",
+                            "text": "hey"
+                        },
+                        {
+                            "type": "shocked",
+                            "text": "no way"
+                        },
+                        {
+                            "type": "positiveadj",
+                            "text": "nice"
+                        },
+                        {
+                            "type": "pejorative",
+                            "text": "dork"
+                        },
+                        {
+                            "type": "sweetie",
+                            "text": "cutie"
+                        },
+                        {
+                            "type": "buddymale",
+                            "text": "man"
+                        },
+                        {
+                            "type": "buddyfemale",
+                            "text": "man"
+                        }
+                    ],
+                    "name": "Jordan",
+                    "networkID": "1"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "chloe"
+                        },
+                        {
+                            "type": "female"
+                        },
+                        {
+                            "type": "outgoing"
+                        },
+                        {
+                            "type": "kind"
+                        },
+                        {
+                            "type": "smooth talker"
+                        },
+                        {
+                            "type": "insecure"
+                        },
+                        {
+                            "type": "jealous"
+                        }
+                    ],
+                    "Status": {
+                        "type": "wants to pick on",
+                        "from": "Chloe",
+                        "to": "Simon"
+                    },
+                    "Locution": [
+                        {
+                            "type": "greeting",
+                            "text": "what's the latest"
+                        },
+                        {
+                            "type": "shocked",
+                            "text": "wait, what?"
+                        },
+                        {
+                            "type": "positiveadj",
+                            "text": "wicked"
+                        },
+                        {
+                            "type": "pejorative",
+                            "text": "zombie"
+                        },
+                        {
+                            "type": "buddymale",
+                            "text": "punk"
+                        },
+                        {
+                            "type": "buddyfemale",
+                            "text": "punk"
+                        },
+                        {
+                            "type": "sweetie",
+                            "text": "hot stuff"
+                        }
+                    ],
+                    "name": "Chloe",
+                    "networkID": "7"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "cassandra"
+                        },
+                        {
+                            "type": "female"
+                        }
+                    ],
+                    "name": "Cassandra",
+                    "networkID": "15"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "lucas"
+                        },
+                        {
+                            "type": "male"
+                        }
+                    ],
+                    "name": "Lucas",
+                    "networkID": "11"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "edward"
+                        },
+                        {
+                            "type": "male"
+                        }
+                    ],
+                    "name": "Edward",
+                    "networkID": "12"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "mave"
+                        },
+                        {
+                            "type": "female"
+                        }
+                    ],
+                    "name": "Mave",
+                    "networkID": "13"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "gunter"
+                        },
+                        {
+                            "type": "male"
+                        }
+                    ],
+                    "name": "Gunter",
+                    "networkID": "14"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "kate"
+                        },
+                        {
+                            "type": "female"
+                        }
+                    ],
+                    "name": "Kate",
+                    "networkID": "16"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "phoebe"
+                        },
+                        {
+                            "type": "female"
+                        }
+                    ],
+                    "name": "Phoebe",
+                    "networkID": "17"
+                }
+            ]
+        },
+        "SFDB": {
+            "BackstoryContext": [
+                {
+                    "time": "-6",
+                    "initiator": "Zack",
+                    "responder": "Chloe",
+                    "other": "",
+                    "SFDBLabel": "lame",
+                    "PerformanceRealizationString": "%i% thought %r% said no when %i% asked %pron(r,him/her)% out because %i% beat her at life"
+                },
+                {
+                    "time": "-3",
+                    "initiator": "Nicholas",
+                    "responder": "Monica",
+                    "other": "",
+                    "SFDBLabel": "mean",
+                    "PerformanceRealizationString": "%i% cheated off of %rp% homework"
+                },
+                {
+                    "time": "-2",
+                    "initiator": "Lil",
+                    "responder": "Zack",
+                    "other": "",
+                    "SFDBLabel": "mean",
+                    "PerformanceRealizationString": "%i% gave %r% a high five so hard that it hurt %pron(r,his/her)% hand"
+                },
+                {
+                    "time": "-1",
+                    "initiator": "Zack",
+                    "responder": "Lil",
+                    "other": "",
+                    "SFDBLabel": "romantic",
+                    "PerformanceRealizationString": "%i% smooched %r% on the cheak"
+                },
+                {
+                    "time": "-4",
+                    "initiator": "Monica",
+                    "responder": "Nicholas",
+                    "other": "",
+                    "SFDBLabel": "nice",
+                    "PerformanceRealizationString": "%i% offered to let %r% cheat off %pron(i,his/her)% homework"
+                },
+                {
+                    "time": "-35",
+                    "initiator": "Jordan",
+                    "responder": "Doug",
+                    "other": "",
+                    "SFDBLabel": "nice",
+                    "PerformanceRealizationString": "%i% helped %r% out with %pron(r,his/her)% homework"
+                },
+                {
+                    "time": "-20",
+                    "initiator": "Jordan",
+                    "responder": "Doug",
+                    "other": "",
+                    "SFDBLabel": "funny",
+                    "PerformanceRealizationString": "%i% told %r% that awesome joke about koalas"
+                },
+                {
+                    "time": "-10",
+                    "initiator": "Jordan",
+                    "responder": "Doug",
+                    "other": "",
+                    "SFDBLabel": "cool",
+                    "PerformanceRealizationString": "%i% showed %r% how to do that awesome skate trick"
+                },
+                {
+                    "time": "-15",
+                    "initiator": "Jordan",
+                    "responder": "Doug",
+                    "other": "",
+                    "SFDBLabel": "nice",
+                    "PerformanceRealizationString": "%i% helped %r% out with %pron(r,his/her)% homework"
+                },
+                {
+                    "time": "-25",
+                    "initiator": "Doug",
+                    "responder": "Jordan",
+                    "other": "",
+                    "SFDBLabel": "cool",
+                    "PerformanceRealizationString": "%i% fixed %rp% bike"
+                },
+                {
+                    "time": "-15",
+                    "initiator": "Doug",
+                    "responder": "Jordan",
+                    "other": "",
+                    "SFDBLabel": "funny",
+                    "PerformanceRealizationString": "%i% did that sweet impression of the assistant principal"
+                },
+                {
+                    "time": "-5",
+                    "initiator": "Doug",
+                    "responder": "Jordan",
+                    "other": "",
+                    "SFDBLabel": "nice",
+                    "PerformanceRealizationString": "%i% walked %r% home from school after %pron(r,he/she)% failed that test"
+                },
+                {
+                    "time": "-301",
+                    "initiator": "Naomi",
+                    "responder": "Jordan",
+                    "other": "",
+                    "SFDBLabel": "nice",
+                    "PerformanceRealizationString": "%i% became friends with %r%"
+                },
+                {
+                    "time": "-200",
+                    "initiator": "Jordan",
+                    "responder": "Naomi",
+                    "other": "",
+                    "SFDBLabel": "nice",
+                    "PerformanceRealizationString": "%i% and %r% stopped being friends because %r% was getting too popular or something"
+                },
+                {
+                    "time": "-200",
+                    "initiator": "Buzz",
+                    "responder": "Cassandra",
+                    "other": "",
+                    "SFDBLabel": "romantic",
+                    "PerformanceRealizationString": "%i% asked %r% out during halftime of the football game"
+                },
+                {
+                    "time": "-199",
+                    "initiator": "Buzz",
+                    "responder": "Cassandra",
+                    "other": "",
+                    "SFDBLabel": "mean",
+                    "PerformanceRealizationString": "%i% dumped %r% right after the football game"
+                },
+                {
+                    "time": "-100",
+                    "initiator": "Buzz",
+                    "responder": "Monica",
+                    "other": "",
+                    "SFDBLabel": "bad ass",
+                    "PerformanceRealizationString": "%i% asked %r% out in the middle of the homecoming assembly"
+                },
+                {
+                    "time": "-99",
+                    "initiator": "Buzz",
+                    "responder": "Monica",
+                    "other": "",
+                    "SFDBLabel": "cheating",
+                    "PerformanceRealizationString": "%i% cheated on %r% with that sophomore chick"
+                },
+                {
+                    "time": "-80",
+                    "initiator": "Buzz",
+                    "responder": "Doug",
+                    "other": "",
+                    "SFDBLabel": "mean",
+                    "PerformanceRealizationString": "%i% broke %rp% skateboard in half"
+                },
+                {
+                    "time": "-66",
+                    "initiator": "Buzz",
+                    "responder": "Lil",
+                    "other": "",
+                    "SFDBLabel": "mean",
+                    "PerformanceRealizationString": "%i% made fun of %rp% hair over the PA system"
+                },
+                {
+                    "time": "-40",
+                    "initiator": "Buzz",
+                    "responder": "Zack",
+                    "other": "",
+                    "SFDBLabel": "mean",
+                    "PerformanceRealizationString": "%i% flushed %rp% homework down the toilet"
+                },
+                {
+                    "time": "-30",
+                    "initiator": "Buzz",
+                    "responder": "Simon",
+                    "other": "",
+                    "SFDBLabel": "mean",
+                    "PerformanceRealizationString": "%i% gave %r% a wedgie in gym class"
+                },
+                {
+                    "time": "-35",
+                    "initiator": "Buzz",
+                    "responder": "Nicholas",
+                    "other": "",
+                    "SFDBLabel": "mean",
+                    "PerformanceRealizationString": "%i% called %r% a momma's boy"
+                },
+                {
+                    "time": "-2",
+                    "initiator": "Naomi",
+                    "responder": "Lil",
+                    "other": "",
+                    "SFDBLabel": "nice",
+                    "PerformanceRealizationString": "%i% decided to make %r% %pron(i,his/her)% project"
+                },
+                {
+                    "time": "-12",
+                    "initiator": "Nicholas",
+                    "responder": "Lil",
+                    "other": "",
+                    "SFDBLabel": "rude",
+                    "PerformanceRealizationString": "%i% told %r% %pron(r,he/she)% dressed like a depressed clown"
+                },
+                {
+                    "time": "-1500",
+                    "initiator": "Zack",
+                    "responder": "Simon",
+                    "other": "",
+                    "SFDBLabel": "nice",
+                    "PerformanceRealizationString": "%i% and %r% became best friends in like third grade"
+                },
+                {
+                    "time": "-800",
+                    "initiator": "Zack",
+                    "responder": "Simon",
+                    "other": "",
+                    "SFDBLabel": "funny",
+                    "PerformanceRealizationString": "%i% and %r% hacked the school's network together in eighth grade"
+                },
+                {
+                    "time": "-31",
+                    "initiator": "Simon",
+                    "responder": "Zack",
+                    "other": "",
+                    "SFDBLabel": "cool",
+                    "PerformanceRealizationString": "%i% lets %r% cheat off %pron(i,his/her)% homework"
+                },
+                {
+                    "time": "-50",
+                    "initiator": "Zack",
+                    "responder": "Lil",
+                    "other": "",
+                    "SFDBLabel": "romantic",
+                    "PerformanceRealizationString": "%i% wrote that perl script to ask %r% out"
+                },
+                {
+                    "time": "-75",
+                    "initiator": "Zack",
+                    "responder": "Buzz",
+                    "other": "",
+                    "SFDBLabel": "rude",
+                    "PerformanceRealizationString": "%i% posted that embarassing picture of %r% to SkimddIt"
+                },
+                {
+                    "time": "-60",
+                    "initiator": "Zack",
+                    "responder": "Nicholas",
+                    "other": "",
+                    "SFDBLabel": "rude",
+                    "PerformanceRealizationString": "%i% totally stomped on %rp% paper in English class"
+                },
+                {
+                    "time": "-50",
+                    "initiator": "Zack",
+                    "responder": "Doug",
+                    "other": "",
+                    "SFDBLabel": "rude",
+                    "PerformanceRealizationString": "%i% told %r% that %pron(r,his/her)% clothes were so 2000s"
+                },
+                {
+                    "time": "-39",
+                    "initiator": "Zack",
+                    "responder": "Jordan",
+                    "other": "",
+                    "SFDBLabel": "rude",
+                    "PerformanceRealizationString": "%i% unfriended %r% with extreme prejudice"
+                },
+                {
+                    "time": "-32",
+                    "initiator": "Zack",
+                    "responder": "Naomi",
+                    "other": "",
+                    "SFDBLabel": "embarrassing",
+                    "PerformanceRealizationString": "%i% thought %r% said to no when %pron(i,he/she)% asked %pron(r,him/her)% out because he beat her at chess"
+                },
+                {
+                    "time": "-80",
+                    "initiator": "Nicholas",
+                    "responder": "Zack",
+                    "other": "",
+                    "SFDBLabel": "mean",
+                    "PerformanceRealizationString": "%i% broke %rp% glasses in gym class"
+                },
+                {
+                    "time": "-300",
+                    "initiator": "Simon",
+                    "responder": "Naomi",
+                    "other": "",
+                    "SFDBLabel": "lame",
+                    "PerformanceRealizationString": "%i% invited %r% to chess club by filling %pron(r,his/her)% backpack with pawns"
+                },
+                {
+                    "time": "-100",
+                    "initiator": "Monica",
+                    "responder": "Jordan",
+                    "other": "",
+                    "SFDBLabel": "rude",
+                    "PerformanceRealizationString": "%i% pretended not to notice %r% at the mall"
+                },
+                {
+                    "time": "-80",
+                    "initiator": "Monica",
+                    "responder": "Simon",
+                    "other": "",
+                    "SFDBLabel": "rude",
+                    "PerformanceRealizationString": "%i% texted that mortifying video from %rp% blog to everyone"
+                },
+                {
+                    "time": "-60",
+                    "initiator": "Monica",
+                    "responder": "Lil",
+                    "other": "",
+                    "SFDBLabel": "rude",
+                    "PerformanceRealizationString": "%i% spilled soda all over %r% and pretended it was %pron(r,his/her)% fault"
+                },
+                {
+                    "time": "-40",
+                    "initiator": "Monica",
+                    "responder": "Naomi",
+                    "other": "",
+                    "SFDBLabel": "rude",
+                    "PerformanceRealizationString": "%i% told everyone %r% was the one who farted"
+                },
+                {
+                    "time": "-100",
+                    "initiator": "Monica",
+                    "responder": "Lil",
+                    "other": "",
+                    "SFDBLabel": "mean",
+                    "PerformanceRealizationString": "%i% made that fake dating profile for %r% and posted the link all over"
+                }
+            ]
+        },
+        "Triggers": {
+            "Trigger": [
+                {
+                    "PerformanceRealization": "",
+                    "ConditionRule": {
+                        "Rule": {
+                            "Predicate": [
+                                {
+                                    "type": "relationship",
+                                    "first": "initiator",
+                                    "second": "responder",
+                                    "relationship": "dating",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0"
+                                },
+                                {
+                                    "type": "relationship",
+                                    "first": "initiator",
+                                    "second": "other",
+                                    "relationship": "dating",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0"
+                                },
+                                {
+                                    "type": "SFDB label",
+                                    "first": "initiator",
+                                    "second": "responder",
+                                    "label": "",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "true",
+                                    "window": "1",
+                                    "numTimesUniquelyTrueFlag": "false",
+                                    "numTimesUniquelyTrue": "0",
+                                    "numTimesRoleSlot": ""
+                                },
+                                {
+                                    "type": "status",
+                                    "status": "cheating on",
+                                    "first": "initiator",
+                                    "second": "other",
+                                    "negated": "true",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0"
+                                }
+                            ],
+                            "name": "Anonymous Rule",
+                            "id": "-1"
+                        }
+                    },
+                    "ChangeRule": {
+                        "Rule": {
+                            "Predicate": [
+                                {
+                                    "type": "status",
+                                    "status": "cheater",
+                                    "first": "initiator",
+                                    "second": "",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0"
+                                },
+                                {
+                                    "type": "status",
+                                    "status": "cheating on",
+                                    "first": "initiator",
+                                    "second": "other",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0"
+                                }
+                            ],
+                            "name": "Anonymous Rule",
+                            "id": "-1"
+                        }
+                    },
+                    "id": "0"
+                },
+                {
+                    "PerformanceRealization": "",
+                    "ConditionRule": {
+                        "Rule": {
+                            "Predicate": [
+                                {
+                                    "type": "relationship",
+                                    "first": "initiator",
+                                    "second": "responder",
+                                    "relationship": "dating",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0"
+                                },
+                                {
+                                    "type": "relationship",
+                                    "first": "initiator",
+                                    "second": "other",
+                                    "relationship": "dating",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0"
+                                },
+                                {
+                                    "type": "SFDB label",
+                                    "first": "initiator",
+                                    "second": "responder",
+                                    "label": "",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "true",
+                                    "window": "1",
+                                    "numTimesUniquelyTrueFlag": "false",
+                                    "numTimesUniquelyTrue": "0",
+                                    "numTimesRoleSlot": "bad ass"
+                                },
+                                {
+                                    "type": "status",
+                                    "status": "cheating on",
+                                    "first": "initiator",
+                                    "second": "other",
+                                    "negated": "true",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0"
+                                }
+                            ],
+                            "name": "Anonymous Rule",
+                            "id": "-1"
+                        }
+                    },
+                    "ChangeRule": {
+                        "Rule": {
+                            "Predicate": [
+                                {
+                                    "type": "status",
+                                    "status": "cheater",
+                                    "first": "initiator",
+                                    "second": "",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0"
+                                },
+                                {
+                                    "type": "status",
+                                    "status": "cheating on",
+                                    "first": "initiator",
+                                    "second": "other",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0"
+                                },
+                                {
+                                    "type": "status",
+                                    "status": "cheated on by",
+                                    "first": "other",
+                                    "second": "initiator",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0"
+                                }
+                            ],
+                            "name": "Anonymous Rule",
+                            "id": "-1"
+                        }
+                    },
+                    "id": "0"
+                },
+                {
+                    "PerformanceRealization": "",
+                    "ConditionRule": {
+                        "Rule": {
+                            "Predicate": [
+                                {
+                                    "type": "relationship",
+                                    "first": "initiator",
+                                    "second": "responder",
+                                    "relationship": "dating",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0"
+                                },
+                                {
+                                    "type": "relationship",
+                                    "first": "initiator",
+                                    "second": "other",
+                                    "relationship": "dating",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0"
+                                },
+                                {
+                                    "type": "SFDB label",
+                                    "first": "responder",
+                                    "second": "initiator",
+                                    "label": "",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "true",
+                                    "window": "1",
+                                    "numTimesUniquelyTrueFlag": "false",
+                                    "numTimesUniquelyTrue": "0",
+                                    "numTimesRoleSlot": "bad ass"
+                                },
+                                {
+                                    "type": "status",
+                                    "status": "cheating on",
+                                    "first": "initiator",
+                                    "second": "other",
+                                    "negated": "true",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0"
+                                }
+                            ],
+                            "name": "Anonymous Rule",
+                            "id": "-1"
+                        }
+                    },
+                    "ChangeRule": {
+                        "Rule": {
+                            "Predicate": [
+                                {
+                                    "type": "status",
+                                    "status": "cheater",
+                                    "first": "initiator",
+                                    "second": "",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0"
+                                },
+                                {
+                                    "type": "status",
+                                    "status": "cheating on",
+                                    "first": "initiator",
+                                    "second": "other",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0"
+                                },
+                                {
+                                    "type": "status",
+                                    "status": "cheated on by",
+                                    "first": "other",
+                                    "second": "initiator",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0"
+                                }
+                            ],
+                            "name": "Anonymous Rule",
+                            "id": "-1"
+                        }
+                    },
+                    "id": "1"
+                }
+            ]
+        },
+        "Network": [
+            {
+                "edge": [
+                    {
+                        "from": "9",
+                        "to": "8",
+                        "value": "10"
+                    },
+                    {
+                        "from": "9",
+                        "to": "2",
+                        "value": "20"
+                    },
+                    {
+                        "from": "9",
+                        "to": "7",
+                        "value": "10"
+                    },
+                    {
+                        "from": "9",
+                        "to": "6",
+                        "value": "10"
+                    },
+                    {
+                        "from": "8",
+                        "to": "9",
+                        "value": "50"
+                    },
+                    {
+                        "from": "8",
+                        "to": "2",
+                        "value": "10"
+                    },
+                    {
+                        "from": "8",
+                        "to": "7",
+                        "value": "65"
+                    },
+                    {
+                        "from": "8",
+                        "to": "6",
+                        "value": "40"
+                    },
+                    {
+                        "from": "8",
+                        "to": "9",
+                        "value": "100"
+                    },
+                    {
+                        "from": "8",
+                        "to": "2",
+                        "value": "100"
+                    },
+                    {
+                        "from": "8",
+                        "to": "7",
+                        "value": "10"
+                    },
+                    {
+                        "from": "8",
+                        "to": "6",
+                        "value": "100"
+                    },
+                    {
+                        "from": "2",
+                        "to": "9",
+                        "value": "60"
+                    },
+                    {
+                        "from": "2",
+                        "to": "8",
+                        "value": "5"
+                    },
+                    {
+                        "from": "2",
+                        "to": "7",
+                        "value": "30"
+                    },
+                    {
+                        "from": "2",
+                        "to": "6",
+                        "value": "70"
+                    },
+                    {
+                        "from": "7",
+                        "to": "9",
+                        "value": "25"
+                    },
+                    {
+                        "from": "7",
+                        "to": "8",
+                        "value": "15"
+                    },
+                    {
+                        "from": "7",
+                        "to": "2",
+                        "value": "25"
+                    },
+                    {
+                        "from": "7",
+                        "to": "6",
+                        "value": "75"
+                    },
+                    {
+                        "from": "6",
+                        "to": "9",
+                        "value": "25"
+                    },
+                    {
+                        "from": "6",
+                        "to": "8",
+                        "value": "60"
+                    },
+                    {
+                        "from": "6",
+                        "to": "2",
+                        "value": "30"
+                    },
+                    {
+                        "from": "6",
+                        "to": "7",
+                        "value": "80"
+                    }
+                ],
+                "type": "buddy",
+                "numChars": "18"
+            },
+            {
+                "edge": [
+                    {
+                        "from": "9",
+                        "to": "8",
+                        "value": "40"
+                    },
+                    {
+                        "from": "9",
+                        "to": "2",
+                        "value": "25"
+                    },
+                    {
+                        "from": "9",
+                        "to": "7",
+                        "value": "0"
+                    },
+                    {
+                        "from": "9",
+                        "to": "6",
+                        "value": "25"
+                    },
+                    {
+                        "from": "8",
+                        "to": "9",
+                        "value": "88"
+                    },
+                    {
+                        "from": "8",
+                        "to": "2",
+                        "value": "0"
+                    },
+                    {
+                        "from": "8",
+                        "to": "7",
+                        "value": "15"
+                    },
+                    {
+                        "from": "8",
+                        "to": "6",
+                        "value": "0"
+                    },
+                    {
+                        "from": "2",
+                        "to": "9",
+                        "value": "60"
+                    },
+                    {
+                        "from": "2",
+                        "to": "8",
+                        "value": "5"
+                    },
+                    {
+                        "from": "2",
+                        "to": "7",
+                        "value": "80"
+                    },
+                    {
+                        "from": "2",
+                        "to": "6",
+                        "value": "5"
+                    },
+                    {
+                        "from": "7",
+                        "to": "9",
+                        "value": "5"
+                    },
+                    {
+                        "from": "7",
+                        "to": "8",
+                        "value": "35"
+                    },
+                    {
+                        "from": "7",
+                        "to": "2",
+                        "value": "10"
+                    },
+                    {
+                        "from": "7",
+                        "to": "6",
+                        "value": "50"
+                    },
+                    {
+                        "from": "6",
+                        "to": "9",
+                        "value": "90"
+                    },
+                    {
+                        "from": "6",
+                        "to": "8",
+                        "value": "5"
+                    },
+                    {
+                        "from": "6",
+                        "to": "2",
+                        "value": "5"
+                    },
+                    {
+                        "from": "6",
+                        "to": "7",
+                        "value": "74"
+                    }
+                ],
+                "type": "romance",
+                "numChars": "18"
+            },
+            {
+                "edge": [
+                    {
+                        "from": "9",
+                        "to": "8",
+                        "value": "10"
+                    },
+                    {
+                        "from": "9",
+                        "to": "2",
+                        "value": "75"
+                    },
+                    {
+                        "from": "9",
+                        "to": "7",
+                        "value": "20"
+                    },
+                    {
+                        "from": "9",
+                        "to": "6",
+                        "value": "10"
+                    },
+                    {
+                        "from": "8",
+                        "to": "9",
+                        "value": "80"
+                    },
+                    {
+                        "from": "8",
+                        "to": "2",
+                        "value": "25"
+                    },
+                    {
+                        "from": "8",
+                        "to": "7",
+                        "value": "60"
+                    },
+                    {
+                        "from": "8",
+                        "to": "6",
+                        "value": "90"
+                    },
+                    {
+                        "from": "2",
+                        "to": "9",
+                        "value": "50"
+                    },
+                    {
+                        "from": "2",
+                        "to": "8",
+                        "value": "5"
+                    },
+                    {
+                        "from": "2",
+                        "to": "7",
+                        "value": "40"
+                    },
+                    {
+                        "from": "2",
+                        "to": "6",
+                        "value": "40"
+                    },
+                    {
+                        "from": "7",
+                        "to": "9",
+                        "value": "10"
+                    },
+                    {
+                        "from": "7",
+                        "to": "8",
+                        "value": "20"
+                    },
+                    {
+                        "from": "7",
+                        "to": "2",
+                        "value": "60"
+                    },
+                    {
+                        "from": "7",
+                        "to": "6",
+                        "value": "60"
+                    },
+                    {
+                        "from": "6",
+                        "to": "9",
+                        "value": "90"
+                    },
+                    {
+                        "from": "6",
+                        "to": "8",
+                        "value": "50"
+                    },
+                    {
+                        "from": "6",
+                        "to": "2",
+                        "value": "10"
+                    },
+                    {
+                        "from": "6",
+                        "to": "7",
+                        "value": "20"
+                    }
+                ],
+                "type": "cool",
+                "numChars": "18"
+            }
+        ],
+        "Relationships": {
+            "Relationship": [
+                {
+                    "type": "dating",
+                    "from": "Zack",
+                    "to": "Chloe"
+                },
+                {
+                    "type": "friends",
+                    "from": "Zack",
+                    "to": "Simon"
+                },
+                {
+                    "type": "enemies",
+                    "from": "Buzz",
+                    "to": "Simon"
+                },
+                {
+                    "type": "enemies",
+                    "from": "Zack",
+                    "to": "Simon"
+                },
+                {
+                    "type": "enemies",
+                    "from": "Chloe",
+                    "to": "Simon"
+                }
+            ]
+        },
+        "CulturalKB": {
+            "Proposition": [
+                {
+                    "type": "truth",
+                    "head": "skateboard",
+                    "connection": "are",
+                    "tail": "cool"
+                },
+                {
+                    "type": "truth",
+                    "head": "differential calculus book",
+                    "connection": "are",
+                    "tail": "lame"
+                },
+                {
+                    "type": "truth",
+                    "head": "retro phone",
+                    "connection": "are",
+                    "tail": "lame"
+                },
+                {
+                    "type": "truth",
+                    "head": "diamond",
+                    "connection": "are",
+                    "tail": "romantic"
+                },
+                {
+                    "type": "truth",
+                    "head": "banana slug",
+                    "connection": "are",
+                    "tail": "gross"
+                },
+                {
+                    "type": "truth",
+                    "head": "bobblehead",
+                    "connection": "are",
+                    "tail": "funny"
+                },
+                {
+                    "type": "truth",
+                    "head": "Japanese sword",
+                    "connection": "are",
+                    "tail": "bad ass"
+                },
+                {
+                    "type": "truth",
+                    "head": "fart machine",
+                    "connection": "are",
+                    "tail": "mean"
+                },
+                {
+                    "type": "truth",
+                    "head": "dead bug",
+                    "connection": "are",
+                    "tail": "taboo"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Doug",
+                    "connection": "likes",
+                    "tail": "skateboard"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Doug",
+                    "connection": "has",
+                    "tail": "skateboard"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Doug",
+                    "connection": "likes",
+                    "tail": "skateboard"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Doug",
+                    "connection": "likes",
+                    "tail": "retro phone"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Doug",
+                    "connection": "wants",
+                    "tail": "retro phone"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Doug",
+                    "connection": "wants",
+                    "tail": "bobblehead"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Doug",
+                    "connection": "dislikes",
+                    "tail": "fart machine"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Doug",
+                    "connection": "dislikes",
+                    "tail": "banana slug"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Jordan",
+                    "connection": "likes",
+                    "tail": "skateboard"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Jordan",
+                    "connection": "wants",
+                    "tail": "skateboard"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Jordan",
+                    "connection": "dislikes",
+                    "tail": "Japanese sword"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Jordan",
+                    "connection": "has",
+                    "tail": "bobblehead"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Jordan",
+                    "connection": "has",
+                    "tail": "differential calculus book"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Jordan",
+                    "connection": "dislikes",
+                    "tail": "differential calculus book"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Buzz",
+                    "connection": "likes",
+                    "tail": "Japanese sword"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Buzz",
+                    "connection": "has",
+                    "tail": "Japanese sword"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Buzz",
+                    "connection": "likes",
+                    "tail": "fart machine"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Buzz",
+                    "connection": "wants",
+                    "tail": "fart machine"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Buzz",
+                    "connection": "has",
+                    "tail": "banana slug"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Buzz",
+                    "connection": "dislikes",
+                    "tail": "skateboard"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Buzz",
+                    "connection": "dislikes",
+                    "tail": "differential calculus book"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Buzz",
+                    "connection": "wants",
+                    "tail": "dead bug"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Naomi",
+                    "connection": "likes",
+                    "tail": "diamond"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Naomi",
+                    "connection": "wants",
+                    "tail": "diamond"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Naomi",
+                    "connection": "dislikes",
+                    "tail": "Japanese sword"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Naomi",
+                    "connection": "dislikes",
+                    "tail": "dead bug"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Naomi",
+                    "connection": "dislikes",
+                    "tail": "banana slug"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Naomi",
+                    "connection": "has",
+                    "tail": "differential calculus book"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Lil",
+                    "connection": "likes",
+                    "tail": "retro phone"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Lil",
+                    "connection": "has",
+                    "tail": "retro phone"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Lil",
+                    "connection": "dislikes",
+                    "tail": "skateboard"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Lil",
+                    "connection": "dislikes",
+                    "tail": "diamond"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Lil",
+                    "connection": "dislikes",
+                    "tail": "differential calculus book"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Lil",
+                    "connection": "dislikes",
+                    "tail": "bobblehead"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Lil",
+                    "connection": "dislikes",
+                    "tail": "fart machine"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Lil",
+                    "connection": "dislikes",
+                    "tail": "Japanese sword"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Lil",
+                    "connection": "dislikes",
+                    "tail": "banana slug"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Lil",
+                    "connection": "has",
+                    "tail": "dead bug"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Nicholas",
+                    "connection": "has",
+                    "tail": "diamond"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Nicholas",
+                    "connection": "has",
+                    "tail": "skateboard"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Nicholas",
+                    "connection": "has",
+                    "tail": "bobblehead"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Nicholas",
+                    "connection": "has",
+                    "tail": "fart machine"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Nicholas",
+                    "connection": "has",
+                    "tail": "Japanese sword"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Nicholas",
+                    "connection": "dislikes",
+                    "tail": "diamond"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Nicholas",
+                    "connection": "dislikes",
+                    "tail": "skateboard"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Nicholas",
+                    "connection": "dislikes",
+                    "tail": "bobblehead"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Nicholas",
+                    "connection": "dislikes",
+                    "tail": "fart machine"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Nicholas",
+                    "connection": "dislikes",
+                    "tail": "Japanese sword"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Zack",
+                    "connection": "likes",
+                    "tail": "retro phone"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Zack",
+                    "connection": "has",
+                    "tail": "retro phone"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Zack",
+                    "connection": "likes",
+                    "tail": "banana slug"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Zack",
+                    "connection": "wants",
+                    "tail": "banana slug"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Zack",
+                    "connection": "has",
+                    "tail": "differential calculus book"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Zack",
+                    "connection": "has",
+                    "tail": "bobblehead"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Zack",
+                    "connection": "dislikes",
+                    "tail": "skateboard"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Chloe",
+                    "connection": "likes",
+                    "tail": "skateboard"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Chloe",
+                    "connection": "has",
+                    "tail": "retro phone"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Chloe",
+                    "connection": "likes",
+                    "tail": "banana slug"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Chloe",
+                    "connection": "dislikes",
+                    "tail": "diamond"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Chloe",
+                    "connection": "wants",
+                    "tail": "differential calculus book"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Simon",
+                    "connection": "likes",
+                    "tail": "differential calculus book"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Simon",
+                    "connection": "has",
+                    "tail": "differential calculus book"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Simon",
+                    "connection": "has",
+                    "tail": "retro phone"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Simon",
+                    "connection": "likes",
+                    "tail": "retro phone"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Simon",
+                    "connection": "dislikes",
+                    "tail": "skateboard"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Simon",
+                    "connection": "dislikes",
+                    "tail": "Japanese sword"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Simon",
+                    "connection": "dislikes",
+                    "tail": "dead bug"
+                }
+            ]
+        },
+        "time": "0"
+    }
+}

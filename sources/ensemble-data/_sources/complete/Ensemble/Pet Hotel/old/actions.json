@@ -1,0 +1,325 @@
+{
+	"fileName": "actions.json",
+	"actions": [
+		{
+			"name": "play with-up",
+			"intent": {
+				"category": "intents",
+				"type": "play with",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": true
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": []
+		},
+		{
+			"name": "play with-down",
+			"intent": {
+				"category": "intents",
+				"type": "play with",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": false
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": []
+		},
+		{
+			"name": "beg-up",
+			"intent": {
+				"category": "intents",
+				"type": "beg",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": true
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": []
+		},
+		{
+			"name": "beg-down",
+			"intent": {
+				"category": "intents",
+				"type": "beg",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": false
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": []
+		},
+		{
+			"name": "express affection-up",
+			"intent": {
+				"category": "intents",
+				"type": "express affection",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": true
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": []
+		},
+		{
+			"name": "express affection-down",
+			"intent": {
+				"category": "intents",
+				"type": "express affection",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": false
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": []
+		},
+		{
+			"name": "rest-up",
+			"intent": {
+				"category": "intents",
+				"type": "rest",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": true
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": []
+		},
+		{
+			"name": "rest-down",
+			"intent": {
+				"category": "intents",
+				"type": "rest",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": false
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": []
+		},
+		{
+			"name": "get exercise-up",
+			"intent": {
+				"category": "intents",
+				"type": "get exercise",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": true
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": []
+		},
+		{
+			"name": "get exercise-down",
+			"intent": {
+				"category": "intents",
+				"type": "get exercise",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": false
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": []
+		},
+		{
+			"name": "express anxiety-up",
+			"intent": {
+				"category": "intents",
+				"type": "express anxiety",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": true
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": []
+		},
+		{
+			"name": "express anxiety-down",
+			"intent": {
+				"category": "intents",
+				"type": "express anxiety",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": false
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": []
+		},
+		{
+			"name": "bite",
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": [
+				"bitten",
+				"bite back"
+			]
+		},
+		{
+			"name": "bitten",
+			"displayName": "bitten",
+			"influenceRules": [],
+			"isAccept": true,
+			"conditions": [],
+			"effects": [
+				{
+					"category": "social network",
+					"type": "fear",
+					"first": "responder",
+					"value": 4,
+					"operator": "+",
+					"second": "initiator"
+				}
+			]
+		},
+		{
+			"name": "bite back",
+			"displayName": "bite back",
+			"influenceRules": [],
+			"isAccept": false,
+			"conditions": [
+				{
+					"category": "social network",
+					"type": "fear",
+					"first": "responder",
+					"second": "initiator",
+					"value": 3,
+					"operator": "<"
+				}
+			],
+			"effects": [
+				{
+					"category": "social network",
+					"type": "fear",
+					"first": "responder",
+					"second": "initiator",
+					"value": 1,
+					"operator": "-"
+				}
+			]
+		},
+		{
+			"name": "yell at",
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": [
+				"bark",
+				"hiss"
+			]
+		},
+		{
+			"name": "bark",
+			"displayName": "bark",
+			"influenceRules": [],
+			"isAccept": true,
+			"conditions": [
+				{
+					"category": "trait",
+					"type": "dog",
+					"first": "initiator",
+					"value": true
+				}
+			],
+			"effects": [
+				{
+					"category": "social network",
+					"type": "fear",
+					"first": "responder",
+					"second": "initiator",
+					"value": 1,
+					"operator": "+"
+				}
+			]
+		},
+		{
+			"name": "hiss",
+			"displayName": "hiss",
+			"influenceRules": [],
+			"isAccept": true,
+			"conditions": [
+				{
+					"category": "trait",
+					"type": "cat",
+					"first": "initiator",
+					"value": true
+				}
+			],
+			"effects": [
+				{
+					"category": "social network",
+					"type": "fear",
+					"first": "responder",
+					"second": "initiator",
+					"value": 1,
+					"operator": "+"
+				}
+			]
+		},
+		{
+			"name": "fight-up",
+			"intent": {
+				"category": "intents",
+				"type": "fight",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": true
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": [
+				"bite",
+				"yell at"
+			]
+		},
+		{
+			"name": "fight-down",
+			"intent": {
+				"category": "intents",
+				"type": "fight",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": false
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": []
+		},
+		{
+			"name": "be romantic-up",
+			"intent": {
+				"category": "intents",
+				"type": "be romantic",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": true
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": []
+		},
+		{
+			"name": "be romantic-down",
+			"intent": {
+				"category": "intents",
+				"type": "be romantic",
+				"first": "initiator",
+				"second": "responder",
+				"intentType": false
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": []
+		}
+	]
+}

@@ -1,0 +1,142 @@
+﻿{
+    "PromWeek": {
+        "Story": {
+            "Description": "Introduce more than 2 characters, free will.",
+            "QuickPlayDescription": {
+                "cdata": "Start a new friendship."
+            },
+            "QuickPlayEndingDescription": {
+                "cdata": "You can direct any character."
+            },
+            "ForcedSGs": {
+                "ForcedSG": [
+                    {
+                        "initiator": "Kate",
+                        "responder": "Edward",
+                        "gameName": "Make Plans",
+                        "turnsIn": "0",
+                        "instantiationID": "-1"
+                    },
+                    {
+                        "initiator": "Lil",
+                        "responder": "Edward",
+                        "gameName": "Make Plans",
+                        "turnsIn": "0",
+                        "instantiationID": "-1"
+                    },
+                    {
+                        "initiator": "Edward",
+                        "responder": "Lil",
+                        "gameName": "Make Plans",
+                        "turnsIn": "0",
+                        "instantiationID": "-1"
+                    },
+                    {
+                        "initiator": "Kate",
+                        "responder": "Edward",
+                        "gameName": "Make Plans",
+                        "turnsIn": "1",
+                        "instantiationID": "-1"
+                    },
+                    {
+                        "initiator": "Lil",
+                        "responder": "Edward",
+                        "gameName": "Make Plans",
+                        "turnsIn": "1",
+                        "instantiationID": "-1"
+                    },
+                    {
+                        "initiator": "Edward",
+                        "responder": "Lil",
+                        "gameName": "Make Plans",
+                        "turnsIn": "1",
+                        "instantiationID": "-1"
+                    }
+                ]
+            },
+            "ToDoList": {
+                "ToDoItem": [
+                    {
+                        "Condition": {
+                            "Rule": {
+                                "Predicate": {
+                                    "type": "relationship",
+                                    "first": "Kate",
+                                    "second": "Edward",
+                                    "relationship": "friends",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0",
+                                    "numTimesUniquelyTrueFlag": "false",
+                                    "numTimesUniquelyTrue": "0",
+                                    "numTimesRoleSlot": ""
+                                }
+                            },
+                            "taskNaturalLanguage": {
+                                "words": "Start a new friendship."
+                            }
+                        },
+                        "name": "Start a new friendship."
+                    },
+                    {
+                        "Condition": {
+                            "Rule": {
+                                "Predicate": {
+                                    "type": "relationship",
+                                    "first": "Lil",
+                                    "second": "Edward",
+                                    "relationship": "friends",
+                                    "negated": "false",
+                                    "intent": "false",
+                                    "isSFDB": "false",
+                                    "window": "0",
+                                    "numTimesUniquelyTrueFlag": "false",
+                                    "numTimesUniquelyTrue": "0",
+                                    "numTimesRoleSlot": ""
+                                }
+                            },
+                            "taskNaturalLanguage": {
+                                "words": "Start a new friendship."
+                            }
+                        },
+                        "name": "Start a new friendship."
+                    }
+                ]
+            },
+            "Levels": {
+                "Level": {
+                    "Description": "Start a new friendship.",
+                    "Setting": "parkinglot",
+                    "Cast": {
+                        "CharacterName": [
+                            "Lil",
+                            "Kate",
+                            "Edward"
+                        ]
+                    },
+                    "GoalRules": "",
+                    "title": "LEVEL 4",
+                    "timeLimit": "2",
+                    "cameraZoom": "1",
+                    "useDefinedCameraPosition": "false",
+                    "cameraX": "800",
+                    "cameraY": "1400",
+                    "endable": "false",
+                    "isTutorial": "false",
+                    "tutorialScript": ""
+                }
+            },
+            "Endings": "",
+            "title": "QP4",
+            "storyLeadCharacter": "Lil",
+            "locked": "false",
+            "toUnlock": "0",
+            "isTutorial": "false",
+            "isQuickPlay": "true",
+            "numberOfQuickPlaySGAvailable": "3",
+            "startState": "quickPlayStartState4",
+            "nextChallengeName": "QP5"
+        }
+    }
+}

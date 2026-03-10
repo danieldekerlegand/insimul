@@ -1,0 +1,135 @@
+{
+	"history": [
+		{
+			"pos": 0,
+			"data": [
+				{
+					"category": "trait",
+					"type": "dog",
+					"value": true,
+					"first": "Mr. Woof"
+				},
+				{
+					"category": "status",
+					"type": "hungry",
+					"value": true,
+					"first": "Mr. Woof"
+				},
+				{
+					"category": "relationship",
+					"type": "playmates",
+					"value": true,
+					"first": "Mr. Woof",
+					"second": "Chaplin"
+				},
+				{
+					"category": "trait",
+					"type": "dog",
+					"value": true,
+					"first": "Chaplin"
+				},
+				{
+					"category": "trait",
+					"type": "social",
+					"value": true,
+					"first": "Chaplin"
+				},
+				{
+					"category": "relationship",
+					"type": "playmates",
+					"value": true,
+					"first": "Chaplin",
+					"second": "Mr. Woof"
+				},
+				{
+					"category": "trait",
+					"type": "dog",
+					"value": true,
+					"first": "Fritze"
+				},
+				{
+					"category": "trait",
+					"type": "grumpy",
+					"value": true,
+					"first": "Fritze"
+				},
+				{
+					"category": "trait",
+					"type": "cat",
+					"value": true,
+					"first": "Sasha"
+				},
+				{
+					"category": "status",
+					"type": "sleeping",
+					"value": true,
+					"first": "Sasha"
+				},
+				{
+					"category": "status",
+					"type": "hungry",
+					"value": true,
+					"first": "Sasha"
+				},
+				{
+					"category": "trait",
+					"type": "cat",
+					"value": true,
+					"first": "Madame Meow"
+				},
+				{
+					"category": "status",
+					"type": "tired",
+					"value": true,
+					"first": "Madame Meow"
+				},
+				{
+					"category": "directedStatus",
+					"type": "annoyed at",
+					"value": true,
+					"first": "Madame Meow",
+					"second": "Sasha"
+				},
+				{
+					"category": "directedStatus",
+					"type": "annoyed at",
+					"value": true,
+					"first": "Madame Meow",
+					"second": "Kitty"
+				},
+				{
+					"category": "trait",
+					"type": "cat",
+					"value": true,
+					"first": "Kitty"
+				},
+				{
+					"category": "trait",
+					"type": "social",
+					"value": true,
+					"first": "Kitty"
+				},
+				{
+					"category": "directedStatus",
+					"type": "playful towards",
+					"value": true,
+					"first": "Kitty",
+					"second": "Madame Meow"
+				},
+				{
+					"category": "directedStatus",
+					"type": "playful towards",
+					"value": true,
+					"first": "Kitty",
+					"second": "Chaplin"
+				},
+				{
+					"category": "trait",
+					"type": "human",
+					"value": true,
+					"first": "Nanny"
+				}
+			]
+		}
+	]
+}

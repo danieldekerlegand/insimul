@@ -1,0 +1,194 @@
+{
+	"history": [
+		{
+			"pos": 0,
+			"data": [
+				{
+					"category": "trait", 
+					"type": "Lowlander", 
+					"first": "TownConstable", 
+					"value": true
+				},
+				{
+					"category": "trait", 
+					"type": "town constable", 
+					"first": "TownConstable", 
+					"value": true
+				},
+				{
+					"category": "network", 
+					"type": "affinity", 
+					"first": "TownConstable",
+					"second": "BorderGuardOfficer",
+					"value": 20
+				},
+				{
+					"category": "network", 
+					"type": "affinity", 
+					"first": "TownConstable",
+					"second": "TavernOwner",
+					"value": 70
+				},
+				{
+					"category": "network", 
+					"type": "affinity", 
+					"first": "TownConstable",
+					"second": "TecomarianTraveler",
+					"value": 70
+				},
+				{
+					"category": "network", 
+					"type": "affinity", 
+					"first": "TownConstable",
+					"second": "BorderGuardOfficer",
+					"value": 20
+				},
+				{
+					"category": "directedstatus", 
+					"type": "intimidated by", 
+					"first": "TownConstable",
+					"second": "BorderGuardOfficer",
+					"value": true
+				},
+				
+				{
+					"category": "trait", 
+					"type": "Highlander", 
+					"first": "BorderGuardOfficer", 
+					"value": true
+				},
+				{
+					"category": "trait", 
+					"type": "aristocrat", 
+					"first": "BorderGuardOfficer", 
+					"value": true
+				},
+				{
+					"category": "trait", 
+					"type": "border guard officer", 
+					"first": "BorderGuardOfficer", 
+					"value": true
+				},
+				{
+					"category": "directedstatus", 
+					"type": "intimidated by", 
+					"first": "TownConstable",
+					"second": "BorderGuardOfficer",
+					"value": true
+				},
+
+				{
+					"category": "trait", 
+					"type": "Lowlander", 
+					"first": "TavernOwner", 
+					"value": true
+				},
+				{
+					"category": "trait", 
+					"type": "local", 
+					"first": "TavernOwner", 
+					"value": true
+				},
+				{
+					"category": "trait", 
+					"type": "Artemisian", 
+					"first": "TavernOwner", 
+					"value": true
+				},
+				{
+					"category": "trait", 
+					"type": "female", 
+					"first": "TavernOwner", 
+					"value": true
+				},
+				{
+					"category": "trait", 
+					"type": "Lowlander", 
+					"first": "TavernOwner", 
+					"value": true
+				},
+				{
+					"category": "attribute", 
+					"type": "diplomacy", 
+					"first": "TavernOwner", 
+					"value": 90
+				},
+
+				{
+					"category": "trait",
+					"type": "Tecomarian",
+					"first": "TecomarianTraveler",
+					"value": true
+				},
+				{
+					"category": "trait",
+					"type": "traveler",
+					"first": "TecomarianTraveler",
+					"value": true
+				},
+				{
+					"category": "network", 
+					"type": "affinity", 
+					"first": "TecomarianTraveler",
+					"second": "BorderGuardOfficer",
+					"value": 20
+				},
+				{
+					"category": "network", 
+					"type": "credibility", 
+					"first": "TecomarianTraveler",
+					"second": "TownConstable",
+					"value": 20
+				},
+				{
+					"category": "network", 
+					"type": "affinity", 
+					"first": "TecomarianTraveler",
+					"second": "TavernOwner",
+					"value": 70
+				},
+				{
+					"category": "network", 
+					"type": "affinity", 
+					"first": "TecomarianTraveler",
+					"second": "Sellsword",
+					"value": 70
+				},
+
+				{
+					"category": "trait",
+					"type": "Grisel Highlander",
+					"first": "Sellsword",
+					"value": true
+				},
+				{
+					"category": "trait",
+					"type": "sellsword",
+					"first": "Sellsword",
+					"value": true
+				},
+				{
+					"category": "network", 
+					"type": "affinity", 
+					"first": "Sellsword",
+					"second": "BorderGuardOfficer",
+					"value": 10
+				},
+				{
+					"category": "network", 
+					"type": "affinity", 
+					"first": "Sellsword",
+					"second": "TavernOwner",
+					"value": 40
+				},
+				{
+					"category": "network", 
+					"type": "affinity", 
+					"first": "Sellsword",
+					"second": "TecomarianTraveler",
+					"value": 80
+				}
+			]
+		}
+	]
+}

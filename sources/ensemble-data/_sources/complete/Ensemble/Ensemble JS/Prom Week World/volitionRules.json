@@ -1,0 +1,104 @@
+{
+	"fileName": "volitionRules",
+	"type": "volition",
+	"rules": [
+		{
+			"name": "Proud guys don't like increasing respect towards others",
+			"conditions": [
+				{
+					"category": "trait",
+					"type": "proud",
+					"first": "someone",
+					"value": true
+				}
+			],
+			"effects": [
+				{
+					"category": "networks",
+					"type": "respect",
+					"first": "someone",
+					"second": "other",
+					"weight": -5,
+					"intentType": true,
+					"value": true
+				}
+			],
+			"origin": "volitionRules",
+			"id": "volitionRules_1"
+		},
+		{
+			"name": "Humble guys like increasing respect for others",
+			"conditions": [
+				{
+					"category": "trait",
+					"type": "humble",
+					"first": "someone",
+					"value": true
+				}
+			],
+			"effects": [
+				{
+					"category": "networks",
+					"type": "respect",
+					"first": "someone",
+					"second": "other",
+					"weight": 5,
+					"intentType": true,
+					"value": true
+				}
+			],
+			"origin": "volitionRules",
+			"id": "volitionRules_2"
+		},
+		{
+			"name": "People Want to Date Their Crush",
+			"conditions": [
+				{
+					"category": "directedStatus",
+					"type": "crushing on",
+					"first": "someone",
+					"value": true,
+					"second": "other"
+				}
+			],
+			"effects": [
+				{
+					"category": "relationship",
+					"type": "dating",
+					"first": "someone",
+					"second": "other",
+					"weight": 5,
+					"intentType": true,
+					"value": true
+				}
+			],
+			"origin": "volitionRules",
+			"id": "volitionRules_3"
+		},
+		{
+			"name": "Being friends can lead to the friend zone",
+			"conditions": [
+				{
+					"category": "relationship",
+					"type": "friends with",
+					"first": "someone",
+					"value": true,
+					"second": "other"
+				}
+			],
+			"effects": [
+				{
+					"category": "relationship",
+					"type": "dating",
+					"first": "someone",
+					"second": "other",
+					"weight": -5,
+					"intentType": true,
+					"value": true
+				}
+			],
+			"origin": "volitionRules",
+			"id": "volitionRules_4"
+		}
+	]
+}

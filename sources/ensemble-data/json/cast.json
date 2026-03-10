@@ -1,0 +1,253 @@
+{
+	"cast": {
+		"Mitch": {
+			"name": "Mitch"
+		},
+		"Jeremy": {
+			"name": "Jeremy"
+		},
+		"George": {
+			"name": "George"
+		},
+		"Danika": {
+			"name": "Danika"
+		},
+		"Chris": {
+			"name": "Chris"
+		},
+		"Doug": {
+			"name": "Doug"
+		},
+		"Chloe": {
+			"name": "Chloe"
+		},
+		"Brax": {
+			"name": "Braz"
+		},
+		"Grunt": {
+			"name": "Grunt"
+		},
+		"Taelor": {
+			"name": "Taelor"
+		},
+		"Al": {
+			"name": "Al"
+		},
+		"Bob": {
+			"name": "Bob"
+		},
+		"Carla": {
+			"name": "Carla"
+		},
+		"Diane": {
+			"name": "Diane"
+		},
+		"Mr. Woof": {
+			"name": "Mr. Woof"
+		},
+		"Chaplin": {
+			"name": "Chaplin"
+		},
+		"Fritze": {
+			"name": "Fritze"
+		},
+		"Sasha": {
+			"name": "Sasha"
+		},
+		"Madame Meow": {
+			"name": "Madame Meow"
+		},
+		"Kitty": {
+			"name": "Kitty"
+		},
+		"Nanny": {
+			"name": "Nanny"
+		},
+		"Jacob Chauvin": {
+			"name": "Jacob Chauvin"
+		},
+		"Alphonse Martin": {
+			"name": "Alphonse Martin"
+		},
+		"Grace Huval": {
+			"name": "Grace Huval"
+		},
+		"Ralph Aucoin": {
+			"name": "Ralph Aucoin"
+		},
+		"Cora DeCuir": {
+			"name": "Cora DeCuir"
+		},
+		"Francois LeBlanc": {
+			"name": "Francois LeBlanc"
+		},
+		"Jean Billeaud": {
+			"name": "Jean Billeaud"
+		},
+		"Christophe Bertrand": {
+			"name": "Christophe Bertrand"
+		},
+		"Elizabeth Landry": {
+			"name": "Elizabeth Landry"
+		},
+		"Renee Hebert": {
+			"name": "Renee Hebert"
+		},
+		"Victoria Guidry": {
+			"name": "Victoria Guidry"
+		},
+		"Adrianne Billedeaux": {
+			"name": "Adrianne Billedeaux"
+		},
+		"Jeanne Comeaux": {
+			"name": "Jeanne Comeaux"
+		},
+		"Dustin Gaspard": {
+			"name": "Dustin Gaspard"
+		},
+		"Mary Delahoussaye": {
+			"name": "Mary Delahoussaye"
+		},
+		"Théo Arnaud": {
+			"name": "Théo Arnaud"
+		},
+		"Celila Broussard": {
+			"name": "Celila Broussard"
+		},
+		"Amy Robichaux": {
+			"name": "Amy Robichaux"
+		},
+		"Charles Devillier": {
+			"name": "Charles Devillier"
+		},
+		"Elie Charpentier": {
+			"name": "Elie Charpentier"
+		},
+		"Claude Gaudet": {
+			"name": "Claude Gaudet"
+		},
+		"Ralph Langlois": {
+			"name": "Ralph Langlois"
+		},
+		"Jeanne Moutard": {
+			"name": "Jeanne Moutard"
+		},
+		"Alexandre Nezat": {
+			"name": "Alexandre Nezat"
+		},
+		"Lucien Noel": {
+			"name": "Lucien Noel"
+		},
+		"Joseph Roy": {
+			"name": "Joseph Roy"
+		},
+		"Marie-Claire Savoie": {
+			"name": "Marie-Claire Savoie"
+		},
+		"Claude Robin": {
+			"name": "Claude Robin"
+		},
+		"Nicolas Bordelon": {
+			"name": "Nicolas Bordelon"
+		},
+		"Alexis Autin": {
+			"name": "Alexis Autin"
+		},
+		"Judith Arceneaux": {
+			"name": "Judith Arceneaux"
+		},
+		"Marie Guidroz": {
+			"name": "Marie Guidroz"
+		},
+		"Elizabeth Huff": {
+			"name": "Elizabeth Huff"
+		},
+		"Marie Lavergne": {
+			"name": "Marie Lavergne"
+		},
+		"Pierre Melancon": {
+			"name": "Pierre Melancon"
+		},
+		"Catherine Poirier": {
+			"name": "Catherine Poirier"
+		},
+		"Marie-Louise Sorbier": {
+			"name": "Marie-Louise Sorbier"
+		},
+		"Anne Drouillon": {
+			"name": "Anne Drouillon"
+		},
+		"Marcel Patin": {
+			"name": "Marcel Patin"
+		},
+		"Cogsworth": {
+			"name": "Cogsworth"
+		},
+		"Clayton": {
+			"name": "Clayton"
+		},
+		"Brim": {
+			"name": "Brim"
+		},
+		"Emma": {
+			"name": "Emma"
+		},
+		"Mick": {
+			"name": "Mick"
+		},
+		"Stan": {
+			"name": "Stan"
+		},
+		"Belle": {
+			"name": "Belle"
+		},
+		"Gus": {
+			"name": "Gus"
+		},
+		"Keith": {
+			"name": "Keith"
+		},
+		"Claire": {
+			"name": "Claire"
+		},
+		"Olivia": {
+			"name": "Olivia"
+		},
+		"Leo": {
+			"name": "Leo"
+		},
+		"Steven": {
+			"name": "Steven"
+		},
+		"Rachel": {
+			"name": "Rachel"
+		},
+		"Luke": {
+			"name": "Luke"
+		},
+		"Tara": {
+			"name": "Tara"
+		},
+		"Edward": {
+			"name": "Edward"
+		},
+		"Simon": {
+			"name": "Simon"
+		},
+		"TownConstable": {
+			"name": "TownConstable"
+		},
+		"BorderGuardOfficer": {
+			"name": "BorderGuardOfficer"
+		},
+		"TavernOwner": {
+			"name": "TavernOwner"
+		},
+		"TecomarianTraveler": {
+			"name": "TecomarianTraveler"
+		},
+		"Sellsword": {
+			"name": "Sellsword"
+		}
+	}
+}

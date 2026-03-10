@@ -1,0 +1,6220 @@
+{
+    "lots": [
+        {
+            "sidesOfStreet": [
+                "E",
+                "N",
+                "W",
+                "S",
+                "E",
+                "N",
+                "W",
+                "S",
+                "E",
+                "N",
+                "W",
+                "S"
+            ],
+            "address": "185 Andreassen Avenue",
+            "houseNumber": 185,
+            "id": 0,
+            "building": 20,
+            "formerBuildings": [],
+            "neighboringLots": [
+                6,
+                8,
+                10,
+                33,
+                29,
+                15,
+                11,
+                46,
+                24,
+                30,
+                1,
+                7,
+                12,
+                22,
+                2,
+                31,
+                13,
+                4,
+                9,
+                45,
+                5,
+                47,
+                21,
+                35,
+                14,
+                36,
+                3
+            ],
+            "adjoiningStreets": [
+                "Cleasby Avenue",
+                "Stroud Street",
+                "Andreassen Avenue",
+                "3rd Street",
+                "Cleasby Avenue",
+                "Stroud Street",
+                "Andreassen Avenue",
+                "3rd Street",
+                "Cleasby Avenue",
+                "Stroud Street",
+                "Andreassen Avenue",
+                "3rd Street"
+            ],
+            "isTract": true,
+            "coordinates": [
+                2.75,
+                1.25
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "112 Stroud Street",
+            "houseNumber": 112,
+            "id": 1,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                1,
+                6
+            ],
+            "adjoiningStreets": [
+                "Stroud Street",
+                "Cleasby Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.25,
+                1.25
+            ],
+            "streetAddressIsOn": "Stroud Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "111 Andreassen Avenue",
+            "houseNumber": 111,
+            "id": 2,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                2,
+                7,
+                31,
+                0
+            ],
+            "adjoiningStreets": [
+                "Stroud Street",
+                "Andreassen Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.75,
+                1.25
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "246 Cleasby Avenue",
+            "houseNumber": 246,
+            "id": 3,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                9,
+                3
+            ],
+            "adjoiningStreets": [
+                "3rd Street",
+                "Cleasby Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.25,
+                2.75
+            ],
+            "streetAddressIsOn": "Cleasby Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "235 3rd Street",
+            "houseNumber": 235,
+            "id": 4,
+            "building": 22,
+            "formerBuildings": [],
+            "neighboringLots": [
+                22,
+                4,
+                12
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue",
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.75,
+                2.75
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E"
+            ],
+            "address": "154 Cleasby Avenue",
+            "houseNumber": 154,
+            "id": 5,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                5
+            ],
+            "adjoiningStreets": [
+                "Cleasby Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.25,
+                1.75
+            ],
+            "streetAddressIsOn": "Cleasby Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N"
+            ],
+            "address": "134 Stroud Street",
+            "houseNumber": 134,
+            "id": 6,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                1,
+                6
+            ],
+            "adjoiningStreets": [
+                "Stroud Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.75,
+                1.25
+            ],
+            "streetAddressIsOn": "Stroud Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W"
+            ],
+            "address": "143 Andreassen Avenue",
+            "houseNumber": 143,
+            "id": 7,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                2,
+                7,
+                31,
+                0
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.75,
+                1.75
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "137 3rd Street",
+            "houseNumber": 137,
+            "id": 8,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                8,
+                14,
+                13
+            ],
+            "adjoiningStreets": [
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.75,
+                2.75
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E"
+            ],
+            "address": "222 Cleasby Avenue",
+            "houseNumber": 222,
+            "id": 9,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                9,
+                3
+            ],
+            "adjoiningStreets": [
+                "Cleasby Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.25,
+                2.25
+            ],
+            "streetAddressIsOn": "Cleasby Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N"
+            ],
+            "address": "202 Stroud Street",
+            "houseNumber": 202,
+            "id": 10,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                10
+            ],
+            "adjoiningStreets": [
+                "Stroud Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.25,
+                1.25
+            ],
+            "streetAddressIsOn": "Stroud Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W"
+            ],
+            "address": "217 Andreassen Avenue",
+            "houseNumber": 217,
+            "id": 11,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                33,
+                35,
+                11
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.75,
+                2.25
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "209 3rd Street",
+            "houseNumber": 209,
+            "id": 12,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                22,
+                4,
+                12
+            ],
+            "adjoiningStreets": [
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.25,
+                2.75
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "132 3rd Street",
+            "houseNumber": 132,
+            "id": 13,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                8,
+                14,
+                13
+            ],
+            "adjoiningStreets": [
+                "Cleasby Avenue",
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.25,
+                3.25
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "134 3rd Street",
+            "houseNumber": 134,
+            "id": 14,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                8,
+                14,
+                13
+            ],
+            "adjoiningStreets": [
+                "3rd Street",
+                "Montague Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.75,
+                3.25
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "113 Condran Street",
+            "houseNumber": 113,
+            "id": 15,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                15,
+                18,
+                17
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Cleasby Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.25,
+                3.75
+            ],
+            "streetAddressIsOn": "Condran Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "361 Montague Avenue",
+            "houseNumber": 361,
+            "id": 16,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                21,
+                23,
+                16
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Montague Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.75,
+                3.75
+            ],
+            "streetAddressIsOn": "Montague Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "124 Condran Street",
+            "houseNumber": 124,
+            "id": 17,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                15,
+                18,
+                17
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Cleasby Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.25,
+                4.25
+            ],
+            "streetAddressIsOn": "Condran Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "152 Condran Street",
+            "houseNumber": 152,
+            "id": 18,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                15,
+                18,
+                17
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Montague Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.75,
+                4.25
+            ],
+            "streetAddressIsOn": "Condran Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "454 Cleasby Avenue",
+            "houseNumber": 454,
+            "id": 19,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                19
+            ],
+            "adjoiningStreets": [
+                "Spoor Street",
+                "Cleasby Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.25,
+                4.75
+            ],
+            "streetAddressIsOn": "Cleasby Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "147 Spoor Street",
+            "houseNumber": 147,
+            "id": 20,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                61,
+                20
+            ],
+            "adjoiningStreets": [
+                "Spoor Street",
+                "Montague Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.75,
+                4.75
+            ],
+            "streetAddressIsOn": "Spoor Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "308 Montague Avenue",
+            "houseNumber": 308,
+            "id": 21,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                21,
+                23,
+                16
+            ],
+            "adjoiningStreets": [
+                "Montague Avenue",
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.25,
+                3.25
+            ],
+            "streetAddressIsOn": "Montague Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "N"
+            ],
+            "address": "244 3rd Street",
+            "houseNumber": 244,
+            "id": 22,
+            "building": 103,
+            "formerBuildings": [],
+            "neighboringLots": [
+                22,
+                4,
+                12
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue",
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.75,
+                3.25
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "S"
+            ],
+            "address": "358 Montague Avenue",
+            "houseNumber": 358,
+            "id": 23,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                21,
+                23,
+                16
+            ],
+            "adjoiningStreets": [
+                "Montague Avenue",
+                "Condran Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.25,
+                3.75
+            ],
+            "streetAddressIsOn": "Montague Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "233 Condran Street",
+            "houseNumber": 233,
+            "id": 24,
+            "building": 149,
+            "formerBuildings": [],
+            "neighboringLots": [
+                25,
+                24
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue",
+                "Condran Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.75,
+                3.75
+            ],
+            "streetAddressIsOn": "Condran Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "224 Condran Street",
+            "houseNumber": 224,
+            "id": 25,
+            "building": 151,
+            "formerBuildings": [],
+            "neighboringLots": [
+                25,
+                24
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Montague Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.25,
+                4.25
+            ],
+            "streetAddressIsOn": "Condran Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "419 Andreassen Avenue",
+            "houseNumber": 419,
+            "id": 26,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                51,
+                26,
+                28
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Andreassen Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.75,
+                4.25
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "207 Spoor Street",
+            "houseNumber": 207,
+            "id": 27,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                70,
+                27
+            ],
+            "adjoiningStreets": [
+                "Spoor Street",
+                "Montague Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.25,
+                4.75
+            ],
+            "streetAddressIsOn": "Spoor Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "453 Andreassen Avenue",
+            "houseNumber": 453,
+            "id": 28,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                51,
+                26,
+                28
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue",
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.75,
+                4.75
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "301 Stroud Street",
+            "houseNumber": 301,
+            "id": 29,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                29
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue",
+                "Stroud Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.25,
+                1.25
+            ],
+            "streetAddressIsOn": "Stroud Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "N"
+            ],
+            "address": "129 Powell's Crossroads Avenue",
+            "houseNumber": 129,
+            "id": 30,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                39,
+                30
+            ],
+            "adjoiningStreets": [
+                "Powell's Crossroads Avenue",
+                "Stroud Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.75,
+                1.25
+            ],
+            "streetAddressIsOn": "Powell's Crossroads Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "S"
+            ],
+            "address": "156 Andreassen Avenue",
+            "houseNumber": 156,
+            "id": 31,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                2,
+                7,
+                31,
+                0
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue",
+                "2nd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.25,
+                1.75
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "333 2nd Street",
+            "houseNumber": 333,
+            "id": 32,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                34,
+                32
+            ],
+            "adjoiningStreets": [
+                "Powell's Crossroads Avenue",
+                "2nd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.75,
+                1.75
+            ],
+            "streetAddressIsOn": "2nd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "222 Andreassen Avenue",
+            "houseNumber": 222,
+            "id": 33,
+            "building": 105,
+            "formerBuildings": [],
+            "neighboringLots": [
+                33,
+                35,
+                11
+            ],
+            "adjoiningStreets": [
+                "2nd Street",
+                "Andreassen Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.25,
+                2.25
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "350 2nd Street",
+            "houseNumber": 350,
+            "id": 34,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                34,
+                32
+            ],
+            "adjoiningStreets": [
+                "2nd Street",
+                "Powell's Crossroads Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.75,
+                2.25
+            ],
+            "streetAddressIsOn": "2nd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "S"
+            ],
+            "address": "248 Andreassen Avenue",
+            "houseNumber": 248,
+            "id": 35,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                33,
+                35,
+                11
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue",
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.25,
+                2.75
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "335 3rd Street",
+            "houseNumber": 335,
+            "id": 36,
+            "building": 126,
+            "formerBuildings": [],
+            "neighboringLots": [
+                36
+            ],
+            "adjoiningStreets": [
+                "Powell's Crossroads Avenue",
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.75,
+                2.75
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "418 Stroud Street",
+            "houseNumber": 418,
+            "id": 37,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                38,
+                37
+            ],
+            "adjoiningStreets": [
+                "Stroud Street",
+                "Powell's Crossroads Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.25,
+                1.25
+            ],
+            "streetAddressIsOn": "Stroud Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "440 Stroud Street",
+            "houseNumber": 440,
+            "id": 38,
+            "building": null,
+            "formerBuildings": [
+                167
+            ],
+            "neighboringLots": [
+                38,
+                37
+            ],
+            "adjoiningStreets": [
+                "Stroud Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.75,
+                1.25
+            ],
+            "streetAddressIsOn": "Stroud Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "148 Powell's Crossroads Avenue",
+            "houseNumber": 148,
+            "id": 39,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                39,
+                30
+            ],
+            "adjoiningStreets": [
+                "2nd Street",
+                "Powell's Crossroads Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.25,
+                1.75
+            ],
+            "streetAddressIsOn": "Powell's Crossroads Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "445 2nd Street",
+            "houseNumber": 445,
+            "id": 40,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                40,
+                42,
+                41
+            ],
+            "adjoiningStreets": [
+                "2nd Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.75,
+                1.75
+            ],
+            "streetAddressIsOn": "2nd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "430 2nd Street",
+            "houseNumber": 430,
+            "id": 41,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                40,
+                42,
+                41
+            ],
+            "adjoiningStreets": [
+                "Powell's Crossroads Avenue",
+                "2nd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.25,
+                2.25
+            ],
+            "streetAddressIsOn": "2nd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "N"
+            ],
+            "address": "454 2nd Street",
+            "houseNumber": 454,
+            "id": 42,
+            "building": 188,
+            "formerBuildings": [
+                82,
+                173
+            ],
+            "neighboringLots": [
+                40,
+                42,
+                41
+            ],
+            "adjoiningStreets": [
+                "Wachter Avenue",
+                "2nd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.75,
+                2.25
+            ],
+            "streetAddressIsOn": "2nd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "S"
+            ],
+            "address": "246 Powell's Crossroads Avenue",
+            "houseNumber": 246,
+            "id": 43,
+            "building": 107,
+            "formerBuildings": [],
+            "neighboringLots": [
+                43
+            ],
+            "adjoiningStreets": [
+                "Powell's Crossroads Avenue",
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.25,
+                2.75
+            ],
+            "streetAddressIsOn": "Powell's Crossroads Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "259 Wachter Avenue",
+            "houseNumber": 259,
+            "id": 44,
+            "building": 174,
+            "formerBuildings": [
+                125,
+                170
+            ],
+            "neighboringLots": [
+                125,
+                44,
+                131
+            ],
+            "adjoiningStreets": [
+                "Wachter Avenue",
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.75,
+                2.75
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "328 Andreassen Avenue",
+            "houseNumber": 328,
+            "id": 45,
+            "building": 102,
+            "formerBuildings": [],
+            "neighboringLots": [
+                45,
+                47
+            ],
+            "adjoiningStreets": [
+                "3rd Street",
+                "Andreassen Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.25,
+                3.25
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "302 Powell's Crossroads Avenue",
+            "houseNumber": 302,
+            "id": 46,
+            "building": 21,
+            "formerBuildings": [],
+            "neighboringLots": [
+                46,
+                48
+            ],
+            "adjoiningStreets": [
+                "3rd Street",
+                "Powell's Crossroads Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.75,
+                3.25
+            ],
+            "streetAddressIsOn": "Powell's Crossroads Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "332 Andreassen Avenue",
+            "houseNumber": 332,
+            "id": 47,
+            "building": 171,
+            "formerBuildings": [
+                101
+            ],
+            "neighboringLots": [
+                45,
+                47
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Andreassen Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.25,
+                3.75
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "333 Powell's Crossroads Avenue",
+            "houseNumber": 333,
+            "id": 48,
+            "building": 93,
+            "formerBuildings": [],
+            "neighboringLots": [
+                46,
+                48
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Powell's Crossroads Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.75,
+                3.75
+            ],
+            "streetAddressIsOn": "Powell's Crossroads Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "330 Condran Street",
+            "houseNumber": 330,
+            "id": 49,
+            "building": 168,
+            "formerBuildings": [
+                81
+            ],
+            "neighboringLots": [
+                50,
+                49
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Andreassen Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.25,
+                4.25
+            ],
+            "streetAddressIsOn": "Condran Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "N"
+            ],
+            "address": "356 Condran Street",
+            "houseNumber": 356,
+            "id": 50,
+            "building": 60,
+            "formerBuildings": [],
+            "neighboringLots": [
+                50,
+                49
+            ],
+            "adjoiningStreets": [
+                "Powell's Crossroads Avenue",
+                "Condran Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.75,
+                4.25
+            ],
+            "streetAddressIsOn": "Condran Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "434 Andreassen Avenue",
+            "houseNumber": 434,
+            "id": 51,
+            "building": 123,
+            "formerBuildings": [],
+            "neighboringLots": [
+                51,
+                26,
+                28
+            ],
+            "adjoiningStreets": [
+                "Spoor Street",
+                "Andreassen Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.25,
+                4.75
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "447 Powell's Crossroads Avenue",
+            "houseNumber": 447,
+            "id": 52,
+            "building": 59,
+            "formerBuildings": [],
+            "neighboringLots": [
+                59,
+                52
+            ],
+            "adjoiningStreets": [
+                "Powell's Crossroads Avenue",
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.75,
+                4.75
+            ],
+            "streetAddressIsOn": "Powell's Crossroads Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "420 3rd Street",
+            "houseNumber": 420,
+            "id": 53,
+            "building": 78,
+            "formerBuildings": [],
+            "neighboringLots": [
+                53
+            ],
+            "adjoiningStreets": [
+                "3rd Street",
+                "Powell's Crossroads Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.25,
+                3.25
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "303 Wachter Avenue",
+            "houseNumber": 303,
+            "id": 54,
+            "building": 42,
+            "formerBuildings": [],
+            "neighboringLots": [
+                56,
+                54
+            ],
+            "adjoiningStreets": [
+                "3rd Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.75,
+                3.25
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "403 Condran Street",
+            "houseNumber": 403,
+            "id": 55,
+            "building": 169,
+            "formerBuildings": [
+                77,
+                111,
+                159
+            ],
+            "neighboringLots": [
+                57,
+                55
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Powell's Crossroads Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.25,
+                3.75
+            ],
+            "streetAddressIsOn": "Condran Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "333 Wachter Avenue",
+            "houseNumber": 333,
+            "id": 56,
+            "building": 43,
+            "formerBuildings": [],
+            "neighboringLots": [
+                56,
+                54
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.75,
+                3.75
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "422 Condran Street",
+            "houseNumber": 422,
+            "id": 57,
+            "building": 113,
+            "formerBuildings": [
+                58,
+                96
+            ],
+            "neighboringLots": [
+                57,
+                55
+            ],
+            "adjoiningStreets": [
+                "Powell's Crossroads Avenue",
+                "Condran Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.25,
+                4.25
+            ],
+            "streetAddressIsOn": "Condran Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "N"
+            ],
+            "address": "431 Wachter Avenue",
+            "houseNumber": 431,
+            "id": 58,
+            "building": 160,
+            "formerBuildings": [
+                44,
+                156
+            ],
+            "neighboringLots": [
+                139,
+                58,
+                141
+            ],
+            "adjoiningStreets": [
+                "Wachter Avenue",
+                "Condran Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.75,
+                4.25
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "S"
+            ],
+            "address": "450 Powell's Crossroads Avenue",
+            "houseNumber": 450,
+            "id": 59,
+            "building": 147,
+            "formerBuildings": [
+                120
+            ],
+            "neighboringLots": [
+                59,
+                52
+            ],
+            "adjoiningStreets": [
+                "Powell's Crossroads Avenue",
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.25,
+                4.75
+            ],
+            "streetAddressIsOn": "Powell's Crossroads Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "461 Spoor Street",
+            "houseNumber": 461,
+            "id": 60,
+            "building": 46,
+            "formerBuildings": [],
+            "neighboringLots": [
+                60,
+                98
+            ],
+            "adjoiningStreets": [
+                "Wachter Avenue",
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.75,
+                4.75
+            ],
+            "streetAddressIsOn": "Spoor Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "132 Spoor Street",
+            "houseNumber": 132,
+            "id": 61,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                61,
+                20
+            ],
+            "adjoiningStreets": [
+                "Cleasby Avenue",
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.25,
+                5.25
+            ],
+            "streetAddressIsOn": "Spoor Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "N"
+            ],
+            "address": "513 Montague Avenue",
+            "houseNumber": 513,
+            "id": 62,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                69,
+                64,
+                62
+            ],
+            "adjoiningStreets": [
+                "Montague Avenue",
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.75,
+                5.25
+            ],
+            "streetAddressIsOn": "Montague Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "S"
+            ],
+            "address": "550 Cleasby Avenue",
+            "houseNumber": 550,
+            "id": 63,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                63
+            ],
+            "adjoiningStreets": [
+                "Cleasby Avenue",
+                "6th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.25,
+                5.75
+            ],
+            "streetAddressIsOn": "Cleasby Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "561 Montague Avenue",
+            "houseNumber": 561,
+            "id": 64,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                69,
+                64,
+                62
+            ],
+            "adjoiningStreets": [
+                "Montague Avenue",
+                "6th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.75,
+                5.75
+            ],
+            "streetAddressIsOn": "Montague Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "122 6th Street",
+            "houseNumber": 122,
+            "id": 65,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                66,
+                65
+            ],
+            "adjoiningStreets": [
+                "6th Street",
+                "Cleasby Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.25,
+                6.25
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "156 6th Street",
+            "houseNumber": 156,
+            "id": 66,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                66,
+                65
+            ],
+            "adjoiningStreets": [
+                "6th Street",
+                "Montague Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.75,
+                6.25
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "105 McGiboney Street",
+            "houseNumber": 105,
+            "id": 67,
+            "building": 16,
+            "formerBuildings": [],
+            "neighboringLots": [
+                67,
+                83
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street",
+                "Cleasby Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.25,
+                6.75
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "657 Montague Avenue",
+            "houseNumber": 657,
+            "id": 68,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                68
+            ],
+            "adjoiningStreets": [
+                "Montague Avenue",
+                "McGiboney Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.75,
+                6.75
+            ],
+            "streetAddressIsOn": "Montague Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "512 Montague Avenue",
+            "houseNumber": 512,
+            "id": 69,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                69,
+                64,
+                62
+            ],
+            "adjoiningStreets": [
+                "Spoor Street",
+                "Montague Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.25,
+                5.25
+            ],
+            "streetAddressIsOn": "Montague Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "N"
+            ],
+            "address": "260 Spoor Street",
+            "houseNumber": 260,
+            "id": 70,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                70,
+                27
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue",
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.75,
+                5.25
+            ],
+            "streetAddressIsOn": "Spoor Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "231 6th Street",
+            "houseNumber": 231,
+            "id": 71,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                73,
+                72,
+                71
+            ],
+            "adjoiningStreets": [
+                "6th Street",
+                "Montague Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.25,
+                5.75
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "233 6th Street",
+            "houseNumber": 233,
+            "id": 72,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                73,
+                72,
+                71
+            ],
+            "adjoiningStreets": [
+                "6th Street",
+                "Andreassen Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.75,
+                5.75
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "206 6th Street",
+            "houseNumber": 206,
+            "id": 73,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                73,
+                72,
+                71
+            ],
+            "adjoiningStreets": [
+                "Montague Avenue",
+                "6th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.25,
+                6.25
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "N"
+            ],
+            "address": "627 Andreassen Avenue",
+            "houseNumber": 627,
+            "id": 74,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                74,
+                96
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue",
+                "6th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.75,
+                6.25
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "231 McGiboney Street",
+            "houseNumber": 231,
+            "id": 75,
+            "building": 15,
+            "formerBuildings": [],
+            "neighboringLots": [
+                75,
+                76,
+                77,
+                87
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street",
+                "Montague Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.25,
+                6.75
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "263 McGiboney Street",
+            "houseNumber": 263,
+            "id": 76,
+            "building": 17,
+            "formerBuildings": [],
+            "neighboringLots": [
+                75,
+                76,
+                77,
+                87
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street",
+                "Andreassen Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.75,
+                6.75
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N",
+                "W",
+                "E",
+                "N",
+                "W",
+                "E",
+                "N",
+                "W"
+            ],
+            "address": "278 McGiboney Street",
+            "houseNumber": 278,
+            "id": 77,
+            "building": 97,
+            "formerBuildings": [
+                12
+            ],
+            "neighboringLots": [
+                78,
+                67,
+                82,
+                96,
+                68,
+                107,
+                76,
+                97,
+                88,
+                84,
+                83,
+                108,
+                75,
+                86,
+                106,
+                81,
+                79,
+                87,
+                110
+            ],
+            "adjoiningStreets": [
+                "Cleasby Avenue",
+                "McGiboney Street",
+                "Andreassen Avenue",
+                "Cleasby Avenue",
+                "McGiboney Street",
+                "Andreassen Avenue",
+                "Cleasby Avenue",
+                "McGiboney Street",
+                "Andreassen Avenue"
+            ],
+            "isTract": true,
+            "coordinates": [
+                2.25,
+                7.25
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "730 Cleasby Avenue",
+            "houseNumber": 730,
+            "id": 78,
+            "building": 98,
+            "formerBuildings": [],
+            "neighboringLots": [
+                78,
+                82
+            ],
+            "adjoiningStreets": [
+                "Cleasby Avenue",
+                "McGiboney Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.25,
+                7.25
+            ],
+            "streetAddressIsOn": "Cleasby Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "715 Andreassen Avenue",
+            "houseNumber": 715,
+            "id": 79,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                79,
+                84
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street",
+                "Andreassen Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.75,
+                7.25
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "125 9th Street",
+            "houseNumber": 125,
+            "id": 80,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                85,
+                80
+            ],
+            "adjoiningStreets": [
+                "9th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.25,
+                8.75
+            ],
+            "streetAddressIsOn": "9th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "239 9th Street",
+            "houseNumber": 239,
+            "id": 81,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                89,
+                81
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue",
+                "9th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.75,
+                8.75
+            ],
+            "streetAddressIsOn": "9th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E"
+            ],
+            "address": "750 Cleasby Avenue",
+            "houseNumber": 750,
+            "id": 82,
+            "building": 36,
+            "formerBuildings": [],
+            "neighboringLots": [
+                78,
+                82
+            ],
+            "adjoiningStreets": [
+                "Cleasby Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.25,
+                7.75
+            ],
+            "streetAddressIsOn": "Cleasby Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N"
+            ],
+            "address": "150 McGiboney Street",
+            "houseNumber": 150,
+            "id": 83,
+            "building": 54,
+            "formerBuildings": [],
+            "neighboringLots": [
+                67,
+                83
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.75,
+                7.25
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W"
+            ],
+            "address": "761 Andreassen Avenue",
+            "houseNumber": 761,
+            "id": 84,
+            "building": 76,
+            "formerBuildings": [],
+            "neighboringLots": [
+                79,
+                84
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.75,
+                7.75
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "155 9th Street",
+            "houseNumber": 155,
+            "id": 85,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                85,
+                80
+            ],
+            "adjoiningStreets": [
+                "9th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.75,
+                8.75
+            ],
+            "streetAddressIsOn": "9th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E"
+            ],
+            "address": "818 Cleasby Avenue",
+            "houseNumber": 818,
+            "id": 86,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                86
+            ],
+            "adjoiningStreets": [
+                "Cleasby Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                1.25,
+                8.25
+            ],
+            "streetAddressIsOn": "Cleasby Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N"
+            ],
+            "address": "204 McGiboney Street",
+            "houseNumber": 204,
+            "id": 87,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                75,
+                76,
+                77,
+                87
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.25,
+                7.25
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W"
+            ],
+            "address": "821 Andreassen Avenue",
+            "houseNumber": 821,
+            "id": 88,
+            "building": 28,
+            "formerBuildings": [],
+            "neighboringLots": [
+                88
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.75,
+                8.25
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "207 9th Street",
+            "houseNumber": 207,
+            "id": 89,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                89,
+                81
+            ],
+            "adjoiningStreets": [
+                "9th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                2.25,
+                8.75
+            ],
+            "streetAddressIsOn": "9th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "504 Andreassen Avenue",
+            "houseNumber": 504,
+            "id": 90,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                90,
+                92
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue",
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.25,
+                5.25
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "517 Powell's Crossroads Avenue",
+            "houseNumber": 517,
+            "id": 91,
+            "building": 131,
+            "formerBuildings": [],
+            "neighboringLots": [
+                91
+            ],
+            "adjoiningStreets": [
+                "Spoor Street",
+                "Powell's Crossroads Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.75,
+                5.25
+            ],
+            "streetAddressIsOn": "Powell's Crossroads Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "S"
+            ],
+            "address": "532 Andreassen Avenue",
+            "houseNumber": 532,
+            "id": 92,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                90,
+                92
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue",
+                "6th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.25,
+                5.75
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "351 6th Street",
+            "houseNumber": 351,
+            "id": 93,
+            "building": 122,
+            "formerBuildings": [],
+            "neighboringLots": [
+                94,
+                95,
+                93
+            ],
+            "adjoiningStreets": [
+                "6th Street",
+                "Powell's Crossroads Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.75,
+                5.75
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "318 6th Street",
+            "houseNumber": 318,
+            "id": 94,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                94,
+                95,
+                93
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue",
+                "6th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.25,
+                6.25
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "N"
+            ],
+            "address": "360 6th Street",
+            "houseNumber": 360,
+            "id": 95,
+            "building": 128,
+            "formerBuildings": [],
+            "neighboringLots": [
+                94,
+                95,
+                93
+            ],
+            "adjoiningStreets": [
+                "Powell's Crossroads Avenue",
+                "6th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.75,
+                6.25
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "S"
+            ],
+            "address": "660 Andreassen Avenue",
+            "houseNumber": 660,
+            "id": 96,
+            "building": 37,
+            "formerBuildings": [],
+            "neighboringLots": [
+                74,
+                96
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue",
+                "McGiboney Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.25,
+                6.75
+            ],
+            "streetAddressIsOn": "Andreassen Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "633 Powell's Crossroads Avenue",
+            "houseNumber": 633,
+            "id": 97,
+            "building": 19,
+            "formerBuildings": [],
+            "neighboringLots": [
+                102,
+                97
+            ],
+            "adjoiningStreets": [
+                "Powell's Crossroads Avenue",
+                "McGiboney Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.75,
+                6.75
+            ],
+            "streetAddressIsOn": "Powell's Crossroads Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "414 Spoor Street",
+            "houseNumber": 414,
+            "id": 98,
+            "building": null,
+            "formerBuildings": [
+                121,
+                161
+            ],
+            "neighboringLots": [
+                60,
+                98
+            ],
+            "adjoiningStreets": [
+                "Powell's Crossroads Avenue",
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.25,
+                5.25
+            ],
+            "streetAddressIsOn": "Spoor Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "N"
+            ],
+            "address": "529 Wachter Avenue",
+            "houseNumber": 529,
+            "id": 99,
+            "building": 57,
+            "formerBuildings": [],
+            "neighboringLots": [
+                177,
+                179,
+                99
+            ],
+            "adjoiningStreets": [
+                "Wachter Avenue",
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.75,
+                5.25
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "409 6th Street",
+            "houseNumber": 409,
+            "id": 100,
+            "building": 87,
+            "formerBuildings": [],
+            "neighboringLots": [
+                101,
+                100
+            ],
+            "adjoiningStreets": [
+                "6th Street",
+                "Powell's Crossroads Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.25,
+                5.75
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "451 6th Street",
+            "houseNumber": 451,
+            "id": 101,
+            "building": 179,
+            "formerBuildings": [
+                119
+            ],
+            "neighboringLots": [
+                101,
+                100
+            ],
+            "adjoiningStreets": [
+                "6th Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.75,
+                5.75
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "632 Powell's Crossroads Avenue",
+            "houseNumber": 632,
+            "id": 102,
+            "building": 100,
+            "formerBuildings": [],
+            "neighboringLots": [
+                102,
+                97
+            ],
+            "adjoiningStreets": [
+                "6th Street",
+                "Powell's Crossroads Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.25,
+                6.25
+            ],
+            "streetAddressIsOn": "Powell's Crossroads Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "N"
+            ],
+            "address": "607 Wachter Avenue",
+            "houseNumber": 607,
+            "id": 103,
+            "building": 109,
+            "formerBuildings": [],
+            "neighboringLots": [
+                183,
+                103
+            ],
+            "adjoiningStreets": [
+                "Wachter Avenue",
+                "6th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.75,
+                6.25
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "S"
+            ],
+            "address": "425 McGiboney Street",
+            "houseNumber": 425,
+            "id": 104,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                104,
+                105
+            ],
+            "adjoiningStreets": [
+                "Powell's Crossroads Avenue",
+                "McGiboney Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.25,
+                6.75
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "443 McGiboney Street",
+            "houseNumber": 443,
+            "id": 105,
+            "building": 110,
+            "formerBuildings": [],
+            "neighboringLots": [
+                104,
+                105
+            ],
+            "adjoiningStreets": [
+                "Wachter Avenue",
+                "McGiboney Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.75,
+                6.75
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "302 McGiboney Street",
+            "houseNumber": 302,
+            "id": 106,
+            "building": 18,
+            "formerBuildings": [],
+            "neighboringLots": [
+                107,
+                106
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street",
+                "Andreassen Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.25,
+                7.25
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "338 McGiboney Street",
+            "houseNumber": 338,
+            "id": 107,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                107,
+                106
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street",
+                "Powell's Crossroads Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.75,
+                7.25
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "329 8th Street",
+            "houseNumber": 329,
+            "id": 108,
+            "building": 13,
+            "formerBuildings": [],
+            "neighboringLots": [
+                108,
+                109,
+                110
+            ],
+            "adjoiningStreets": [
+                "8th Street",
+                "Andreassen Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.25,
+                7.75
+            ],
+            "streetAddressIsOn": "8th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "333 8th Street",
+            "houseNumber": 333,
+            "id": 109,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                108,
+                109,
+                110
+            ],
+            "adjoiningStreets": [
+                "8th Street",
+                "Powell's Crossroads Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.75,
+                7.75
+            ],
+            "streetAddressIsOn": "8th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "330 8th Street",
+            "houseNumber": 330,
+            "id": 110,
+            "building": 14,
+            "formerBuildings": [],
+            "neighboringLots": [
+                108,
+                109,
+                110
+            ],
+            "adjoiningStreets": [
+                "Andreassen Avenue",
+                "8th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.25,
+                8.25
+            ],
+            "streetAddressIsOn": "8th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "N"
+            ],
+            "address": "803 Powell's Crossroads Avenue",
+            "houseNumber": 803,
+            "id": 111,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                111
+            ],
+            "adjoiningStreets": [
+                "Powell's Crossroads Avenue",
+                "8th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.75,
+                8.25
+            ],
+            "streetAddressIsOn": "Powell's Crossroads Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "323 9th Street",
+            "houseNumber": 323,
+            "id": 112,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                113,
+                112
+            ],
+            "adjoiningStreets": [
+                "9th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.25,
+                8.75
+            ],
+            "streetAddressIsOn": "9th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "337 9th Street",
+            "houseNumber": 337,
+            "id": 113,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                113,
+                112
+            ],
+            "adjoiningStreets": [
+                "Powell's Crossroads Avenue",
+                "9th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                3.75,
+                8.75
+            ],
+            "streetAddressIsOn": "9th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "724 Powell's Crossroads Avenue",
+            "houseNumber": 724,
+            "id": 114,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                114,
+                116
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street",
+                "Powell's Crossroads Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.25,
+                7.25
+            ],
+            "streetAddressIsOn": "Powell's Crossroads Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "715 Wachter Avenue",
+            "houseNumber": 715,
+            "id": 115,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                193,
+                115,
+                195
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.75,
+                7.25
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "736 Powell's Crossroads Avenue",
+            "houseNumber": 736,
+            "id": 116,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                114,
+                116
+            ],
+            "adjoiningStreets": [
+                "8th Street",
+                "Powell's Crossroads Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.25,
+                7.75
+            ],
+            "streetAddressIsOn": "Powell's Crossroads Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "461 8th Street",
+            "houseNumber": 461,
+            "id": 117,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                117,
+                118
+            ],
+            "adjoiningStreets": [
+                "8th Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.75,
+                7.75
+            ],
+            "streetAddressIsOn": "8th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "428 8th Street",
+            "houseNumber": 428,
+            "id": 118,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                117,
+                118
+            ],
+            "adjoiningStreets": [
+                "Powell's Crossroads Avenue",
+                "8th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.25,
+                8.25
+            ],
+            "streetAddressIsOn": "8th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "N"
+            ],
+            "address": "823 Wachter Avenue",
+            "houseNumber": 823,
+            "id": 119,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                119
+            ],
+            "adjoiningStreets": [
+                "Wachter Avenue",
+                "8th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.75,
+                8.25
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "411 9th Street",
+            "houseNumber": 411,
+            "id": 120,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                120,
+                121
+            ],
+            "adjoiningStreets": [
+                "9th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.25,
+                8.75
+            ],
+            "streetAddressIsOn": "9th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "461 9th Street",
+            "houseNumber": 461,
+            "id": 121,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                120,
+                121
+            ],
+            "adjoiningStreets": [
+                "Wachter Avenue",
+                "9th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                4.75,
+                8.75
+            ],
+            "streetAddressIsOn": "9th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N",
+                "W",
+                "S",
+                "E",
+                "N",
+                "W",
+                "S",
+                "E",
+                "N",
+                "W",
+                "S"
+            ],
+            "address": "373 Chace Avenue",
+            "houseNumber": 373,
+            "id": 122,
+            "building": 186,
+            "formerBuildings": [
+                0
+            ],
+            "neighboringLots": [
+                38,
+                135,
+                169,
+                126,
+                156,
+                170,
+                130,
+                134,
+                44,
+                136,
+                128,
+                146,
+                124,
+                160,
+                165,
+                131,
+                127,
+                56,
+                152,
+                54,
+                40,
+                42,
+                125,
+                154,
+                132,
+                137,
+                159,
+                129,
+                157,
+                123,
+                143,
+                144,
+                133
+            ],
+            "adjoiningStreets": [
+                "Wachter Avenue",
+                "Stroud Street",
+                "Chace Avenue",
+                "3rd Street",
+                "Wachter Avenue",
+                "Stroud Street",
+                "Chace Avenue",
+                "3rd Street",
+                "Wachter Avenue",
+                "Stroud Street",
+                "Chace Avenue",
+                "3rd Street"
+            ],
+            "isTract": true,
+            "coordinates": [
+                6.75,
+                3.25
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "504 Stroud Street",
+            "houseNumber": 504,
+            "id": 123,
+            "building": 127,
+            "formerBuildings": [],
+            "neighboringLots": [
+                128,
+                123
+            ],
+            "adjoiningStreets": [
+                "Stroud Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.25,
+                1.25
+            ],
+            "streetAddressIsOn": "Stroud Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "103 Chace Avenue",
+            "houseNumber": 103,
+            "id": 124,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                156,
+                124,
+                129
+            ],
+            "adjoiningStreets": [
+                "Stroud Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.75,
+                1.25
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "S"
+            ],
+            "address": "248 Wachter Avenue",
+            "houseNumber": 248,
+            "id": 125,
+            "building": 50,
+            "formerBuildings": [],
+            "neighboringLots": [
+                125,
+                44,
+                131
+            ],
+            "adjoiningStreets": [
+                "Wachter Avenue",
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.25,
+                2.75
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "265 Chace Avenue",
+            "houseNumber": 265,
+            "id": 126,
+            "building": 2,
+            "formerBuildings": [],
+            "neighboringLots": [
+                160,
+                126,
+                133
+            ],
+            "adjoiningStreets": [
+                "3rd Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.75,
+                2.75
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E"
+            ],
+            "address": "142 Wachter Avenue",
+            "houseNumber": 142,
+            "id": 127,
+            "building": null,
+            "formerBuildings": [
+                150
+            ],
+            "neighboringLots": [
+                127
+            ],
+            "adjoiningStreets": [
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.25,
+                1.75
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N"
+            ],
+            "address": "560 Stroud Street",
+            "houseNumber": 560,
+            "id": 128,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                128,
+                123
+            ],
+            "adjoiningStreets": [
+                "Stroud Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.75,
+                1.25
+            ],
+            "streetAddressIsOn": "Stroud Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W"
+            ],
+            "address": "145 Chace Avenue",
+            "houseNumber": 145,
+            "id": 129,
+            "building": 85,
+            "formerBuildings": [],
+            "neighboringLots": [
+                156,
+                124,
+                129
+            ],
+            "adjoiningStreets": [
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.75,
+                1.75
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "557 3rd Street",
+            "houseNumber": 557,
+            "id": 130,
+            "building": 104,
+            "formerBuildings": [],
+            "neighboringLots": [
+                135,
+                136,
+                130
+            ],
+            "adjoiningStreets": [
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.75,
+                2.75
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E"
+            ],
+            "address": "228 Wachter Avenue",
+            "houseNumber": 228,
+            "id": 131,
+            "building": 83,
+            "formerBuildings": [],
+            "neighboringLots": [
+                125,
+                44,
+                131
+            ],
+            "adjoiningStreets": [
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.25,
+                2.25
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N"
+            ],
+            "address": "624 Stroud Street",
+            "houseNumber": 624,
+            "id": 132,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                132
+            ],
+            "adjoiningStreets": [
+                "Stroud Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.25,
+                1.25
+            ],
+            "streetAddressIsOn": "Stroud Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W"
+            ],
+            "address": "225 Chace Avenue",
+            "houseNumber": 225,
+            "id": 133,
+            "building": 89,
+            "formerBuildings": [],
+            "neighboringLots": [
+                160,
+                126,
+                133
+            ],
+            "adjoiningStreets": [
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.75,
+                2.25
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "615 3rd Street",
+            "houseNumber": 615,
+            "id": 134,
+            "building": 23,
+            "formerBuildings": [],
+            "neighboringLots": [
+                143,
+                134,
+                144
+            ],
+            "adjoiningStreets": [
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.25,
+                2.75
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "528 3rd Street",
+            "houseNumber": 528,
+            "id": 135,
+            "building": 51,
+            "formerBuildings": [],
+            "neighboringLots": [
+                135,
+                136,
+                130
+            ],
+            "adjoiningStreets": [
+                "3rd Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.25,
+                3.25
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "540 3rd Street",
+            "houseNumber": 540,
+            "id": 136,
+            "building": 175,
+            "formerBuildings": [
+                49
+            ],
+            "neighboringLots": [
+                135,
+                136,
+                130
+            ],
+            "adjoiningStreets": [
+                "3rd Street",
+                "Warn Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.75,
+                3.25
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "507 Condran Street",
+            "houseNumber": 507,
+            "id": 137,
+            "building": 41,
+            "formerBuildings": [],
+            "neighboringLots": [
+                137
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.25,
+                3.75
+            ],
+            "streetAddressIsOn": "Condran Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "361 Warn Avenue",
+            "houseNumber": 361,
+            "id": 138,
+            "building": 182,
+            "formerBuildings": [
+                47,
+                148,
+                158
+            ],
+            "neighboringLots": [
+                138
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Warn Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.75,
+                3.75
+            ],
+            "streetAddressIsOn": "Warn Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "426 Wachter Avenue",
+            "houseNumber": 426,
+            "id": 139,
+            "building": 24,
+            "formerBuildings": [],
+            "neighboringLots": [
+                139,
+                58,
+                141
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.25,
+                4.25
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "407 Warn Avenue",
+            "houseNumber": 407,
+            "id": 140,
+            "building": 25,
+            "formerBuildings": [],
+            "neighboringLots": [
+                147,
+                140
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Warn Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.75,
+                4.25
+            ],
+            "streetAddressIsOn": "Warn Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "444 Wachter Avenue",
+            "houseNumber": 444,
+            "id": 141,
+            "building": 45,
+            "formerBuildings": [],
+            "neighboringLots": [
+                139,
+                58,
+                141
+            ],
+            "adjoiningStreets": [
+                "Spoor Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.25,
+                4.75
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "557 Spoor Street",
+            "houseNumber": 557,
+            "id": 142,
+            "building": 183,
+            "formerBuildings": [
+                38,
+                112,
+                155,
+                172
+            ],
+            "neighboringLots": [
+                142
+            ],
+            "adjoiningStreets": [
+                "Spoor Street",
+                "Warn Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.75,
+                4.75
+            ],
+            "streetAddressIsOn": "Spoor Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "614 3rd Street",
+            "houseNumber": 614,
+            "id": 143,
+            "building": 48,
+            "formerBuildings": [],
+            "neighboringLots": [
+                143,
+                134,
+                144
+            ],
+            "adjoiningStreets": [
+                "3rd Street",
+                "Warn Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.25,
+                3.25
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "654 3rd Street",
+            "houseNumber": 654,
+            "id": 144,
+            "building": 1,
+            "formerBuildings": [],
+            "neighboringLots": [
+                143,
+                134,
+                144
+            ],
+            "adjoiningStreets": [
+                "3rd Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.75,
+                3.25
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "603 Condran Street",
+            "houseNumber": 603,
+            "id": 145,
+            "building": 27,
+            "formerBuildings": [],
+            "neighboringLots": [
+                146,
+                145
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Warn Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.25,
+                3.75
+            ],
+            "streetAddressIsOn": "Condran Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "643 Condran Street",
+            "houseNumber": 643,
+            "id": 146,
+            "building": 114,
+            "formerBuildings": [
+                70
+            ],
+            "neighboringLots": [
+                146,
+                145
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.75,
+                3.75
+            ],
+            "streetAddressIsOn": "Condran Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "422 Warn Avenue",
+            "houseNumber": 422,
+            "id": 147,
+            "building": 26,
+            "formerBuildings": [],
+            "neighboringLots": [
+                147,
+                140
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Warn Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.25,
+                4.25
+            ],
+            "streetAddressIsOn": "Warn Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "405 Chace Avenue",
+            "houseNumber": 405,
+            "id": 148,
+            "building": 181,
+            "formerBuildings": [
+                52,
+                165
+            ],
+            "neighboringLots": [
+                148,
+                173,
+                150,
+                167,
+                164
+            ],
+            "adjoiningStreets": [
+                "Condran Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.75,
+                4.25
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "S"
+            ],
+            "address": "607 Spoor Street",
+            "houseNumber": 607,
+            "id": 149,
+            "building": 180,
+            "formerBuildings": [
+                39,
+                166
+            ],
+            "neighboringLots": [
+                149,
+                185
+            ],
+            "adjoiningStreets": [
+                "Warn Avenue",
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.25,
+                4.75
+            ],
+            "streetAddressIsOn": "Spoor Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "433 Chace Avenue",
+            "houseNumber": 433,
+            "id": 150,
+            "building": 34,
+            "formerBuildings": [],
+            "neighboringLots": [
+                148,
+                173,
+                150,
+                167,
+                164
+            ],
+            "adjoiningStreets": [
+                "Spoor Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.75,
+                4.75
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N",
+                "S",
+                "E",
+                "N",
+                "S",
+                "E",
+                "N",
+                "S"
+            ],
+            "address": "780 Stroud Street",
+            "houseNumber": 780,
+            "id": 151,
+            "building": 154,
+            "formerBuildings": [
+                3,
+                84
+            ],
+            "neighboringLots": [
+                159,
+                160,
+                161,
+                154,
+                133,
+                126,
+                169,
+                152,
+                156,
+                146,
+                124,
+                174,
+                155,
+                157,
+                165,
+                170,
+                144,
+                129,
+                163
+            ],
+            "adjoiningStreets": [
+                "Chace Avenue",
+                "Stroud Street",
+                "3rd Street",
+                "Chace Avenue",
+                "Stroud Street",
+                "3rd Street",
+                "Chace Avenue",
+                "Stroud Street",
+                "3rd Street"
+            ],
+            "isTract": true,
+            "coordinates": [
+                7.25,
+                1.25
+            ],
+            "streetAddressIsOn": "Stroud Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "712 Stroud Street",
+            "houseNumber": 712,
+            "id": 152,
+            "building": 86,
+            "formerBuildings": [],
+            "neighboringLots": [
+                152,
+                157,
+                151
+            ],
+            "adjoiningStreets": [
+                "Chace Avenue",
+                "Stroud Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.25,
+                1.25
+            ],
+            "streetAddressIsOn": "Stroud Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W"
+            ],
+            "address": "115 Tallon Avenue",
+            "houseNumber": 115,
+            "id": 153,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                153,
+                158
+            ],
+            "adjoiningStreets": [
+                "Tallon Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.75,
+                1.25
+            ],
+            "streetAddressIsOn": "Tallon Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "S"
+            ],
+            "address": "731 3rd Street",
+            "houseNumber": 731,
+            "id": 154,
+            "building": 72,
+            "formerBuildings": [],
+            "neighboringLots": [
+                170,
+                154,
+                159,
+                165
+            ],
+            "adjoiningStreets": [
+                "Chace Avenue",
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.25,
+                2.75
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "833 3rd Street",
+            "houseNumber": 833,
+            "id": 155,
+            "building": 90,
+            "formerBuildings": [],
+            "neighboringLots": [
+                174,
+                155,
+                163
+            ],
+            "adjoiningStreets": [
+                "Tallon Avenue",
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.75,
+                2.75
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E"
+            ],
+            "address": "144 Chace Avenue",
+            "houseNumber": 144,
+            "id": 156,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                156,
+                124,
+                129
+            ],
+            "adjoiningStreets": [
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.25,
+                1.75
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N"
+            ],
+            "address": "756 Stroud Street",
+            "houseNumber": 756,
+            "id": 157,
+            "building": 88,
+            "formerBuildings": [],
+            "neighboringLots": [
+                152,
+                157,
+                151
+            ],
+            "adjoiningStreets": [
+                "Stroud Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.75,
+                1.25
+            ],
+            "streetAddressIsOn": "Stroud Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W"
+            ],
+            "address": "157 Tallon Avenue",
+            "houseNumber": 157,
+            "id": 158,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                153,
+                158
+            ],
+            "adjoiningStreets": [
+                "Tallon Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.75,
+                1.75
+            ],
+            "streetAddressIsOn": "Tallon Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "763 3rd Street",
+            "houseNumber": 763,
+            "id": 159,
+            "building": 5,
+            "formerBuildings": [],
+            "neighboringLots": [
+                170,
+                154,
+                159,
+                165
+            ],
+            "adjoiningStreets": [
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.75,
+                2.75
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E"
+            ],
+            "address": "220 Chace Avenue",
+            "houseNumber": 220,
+            "id": 160,
+            "building": 73,
+            "formerBuildings": [],
+            "neighboringLots": [
+                160,
+                126,
+                133
+            ],
+            "adjoiningStreets": [
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.25,
+                2.25
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N"
+            ],
+            "address": "814 Stroud Street",
+            "houseNumber": 814,
+            "id": 161,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                161
+            ],
+            "adjoiningStreets": [
+                "Stroud Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.25,
+                1.25
+            ],
+            "streetAddressIsOn": "Stroud Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W"
+            ],
+            "address": "203 Tallon Avenue",
+            "houseNumber": 203,
+            "id": 162,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                162
+            ],
+            "adjoiningStreets": [
+                "Tallon Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.75,
+                2.25
+            ],
+            "streetAddressIsOn": "Tallon Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "823 3rd Street",
+            "houseNumber": 823,
+            "id": 163,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                174,
+                155,
+                163
+            ],
+            "adjoiningStreets": [
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.25,
+                2.75
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N",
+                "S",
+                "E",
+                "N",
+                "S",
+                "E",
+                "N",
+                "S"
+            ],
+            "address": "474 Chace Avenue",
+            "houseNumber": 474,
+            "id": 164,
+            "building": 32,
+            "formerBuildings": [
+                6
+            ],
+            "neighboringLots": [
+                168,
+                217,
+                170,
+                172,
+                176,
+                146,
+                148,
+                165,
+                173,
+                210,
+                186,
+                188,
+                155,
+                167,
+                174,
+                154,
+                209,
+                211,
+                159,
+                169,
+                163,
+                150,
+                144
+            ],
+            "adjoiningStreets": [
+                "Chace Avenue",
+                "3rd Street",
+                "Spoor Street",
+                "Chace Avenue",
+                "3rd Street",
+                "Spoor Street",
+                "Chace Avenue",
+                "3rd Street",
+                "Spoor Street"
+            ],
+            "isTract": true,
+            "coordinates": [
+                7.25,
+                4.25
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "706 3rd Street",
+            "houseNumber": 706,
+            "id": 165,
+            "building": 62,
+            "formerBuildings": [],
+            "neighboringLots": [
+                170,
+                154,
+                159,
+                165
+            ],
+            "adjoiningStreets": [
+                "3rd Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.25,
+                3.25
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W"
+            ],
+            "address": "319 Tallon Avenue",
+            "houseNumber": 319,
+            "id": 166,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                166,
+                171
+            ],
+            "adjoiningStreets": [
+                "Tallon Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.75,
+                3.25
+            ],
+            "streetAddressIsOn": "Tallon Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "S"
+            ],
+            "address": "456 Chace Avenue",
+            "houseNumber": 456,
+            "id": 167,
+            "building": 130,
+            "formerBuildings": [],
+            "neighboringLots": [
+                148,
+                173,
+                150,
+                167,
+                164
+            ],
+            "adjoiningStreets": [
+                "Chace Avenue",
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.25,
+                4.75
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "849 Spoor Street",
+            "houseNumber": 849,
+            "id": 168,
+            "building": 8,
+            "formerBuildings": [],
+            "neighboringLots": [
+                176,
+                168,
+                217
+            ],
+            "adjoiningStreets": [
+                "Tallon Avenue",
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.75,
+                4.75
+            ],
+            "streetAddressIsOn": "Spoor Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E"
+            ],
+            "address": "340 Chace Avenue",
+            "houseNumber": 340,
+            "id": 169,
+            "building": 71,
+            "formerBuildings": [],
+            "neighboringLots": [
+                122,
+                169
+            ],
+            "adjoiningStreets": [
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.25,
+                3.75
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N"
+            ],
+            "address": "738 3rd Street",
+            "houseNumber": 738,
+            "id": 170,
+            "building": 4,
+            "formerBuildings": [],
+            "neighboringLots": [
+                170,
+                154,
+                159,
+                165
+            ],
+            "adjoiningStreets": [
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.75,
+                3.25
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W"
+            ],
+            "address": "359 Tallon Avenue",
+            "houseNumber": 359,
+            "id": 171,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                166,
+                171
+            ],
+            "adjoiningStreets": [
+                "Tallon Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.75,
+                3.75
+            ],
+            "streetAddressIsOn": "Tallon Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "757 Spoor Street",
+            "houseNumber": 757,
+            "id": 172,
+            "building": null,
+            "formerBuildings": [
+                129,
+                164
+            ],
+            "neighboringLots": [
+                209,
+                172,
+                210
+            ],
+            "adjoiningStreets": [
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.75,
+                4.75
+            ],
+            "streetAddressIsOn": "Spoor Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E"
+            ],
+            "address": "410 Chace Avenue",
+            "houseNumber": 410,
+            "id": 173,
+            "building": 53,
+            "formerBuildings": [],
+            "neighboringLots": [
+                148,
+                173,
+                150,
+                167,
+                164
+            ],
+            "adjoiningStreets": [
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.25,
+                4.25
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N"
+            ],
+            "address": "814 3rd Street",
+            "houseNumber": 814,
+            "id": 174,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                174,
+                155,
+                163
+            ],
+            "adjoiningStreets": [
+                "3rd Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.25,
+                3.25
+            ],
+            "streetAddressIsOn": "3rd Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W"
+            ],
+            "address": "431 Tallon Avenue",
+            "houseNumber": 431,
+            "id": 175,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                175
+            ],
+            "adjoiningStreets": [
+                "Tallon Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.75,
+                4.25
+            ],
+            "streetAddressIsOn": "Tallon Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "803 Spoor Street",
+            "houseNumber": 803,
+            "id": 176,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                176,
+                168,
+                217
+            ],
+            "adjoiningStreets": [
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.25,
+                4.75
+            ],
+            "streetAddressIsOn": "Spoor Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "522 Wachter Avenue",
+            "houseNumber": 522,
+            "id": 177,
+            "building": 95,
+            "formerBuildings": [
+                56
+            ],
+            "neighboringLots": [
+                177,
+                179,
+                99
+            ],
+            "adjoiningStreets": [
+                "Spoor Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.25,
+                5.25
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "N"
+            ],
+            "address": "507 Warn Avenue",
+            "houseNumber": 507,
+            "id": 178,
+            "building": 69,
+            "formerBuildings": [],
+            "neighboringLots": [
+                178
+            ],
+            "adjoiningStreets": [
+                "Warn Avenue",
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.75,
+                5.25
+            ],
+            "streetAddressIsOn": "Warn Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "540 Wachter Avenue",
+            "houseNumber": 540,
+            "id": 179,
+            "building": 68,
+            "formerBuildings": [],
+            "neighboringLots": [
+                177,
+                179,
+                99
+            ],
+            "adjoiningStreets": [
+                "6th Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.25,
+                5.75
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "565 6th Street",
+            "houseNumber": 565,
+            "id": 180,
+            "building": 187,
+            "formerBuildings": [
+                61,
+                65,
+                176
+            ],
+            "neighboringLots": [
+                182,
+                180,
+                181
+            ],
+            "adjoiningStreets": [
+                "Warn Avenue",
+                "6th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.75,
+                5.75
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "501 6th Street",
+            "houseNumber": 501,
+            "id": 181,
+            "building": 66,
+            "formerBuildings": [],
+            "neighboringLots": [
+                182,
+                180,
+                181
+            ],
+            "adjoiningStreets": [
+                "6th Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.25,
+                6.25
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "534 6th Street",
+            "houseNumber": 534,
+            "id": 182,
+            "building": 67,
+            "formerBuildings": [],
+            "neighboringLots": [
+                182,
+                180,
+                181
+            ],
+            "adjoiningStreets": [
+                "6th Street",
+                "Warn Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.75,
+                6.25
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "644 Wachter Avenue",
+            "houseNumber": 644,
+            "id": 183,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                183,
+                103
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.25,
+                6.75
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "535 McGiboney Street",
+            "houseNumber": 535,
+            "id": 184,
+            "building": 108,
+            "formerBuildings": [],
+            "neighboringLots": [
+                184
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street",
+                "Warn Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.75,
+                6.75
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "604 Spoor Street",
+            "houseNumber": 604,
+            "id": 185,
+            "building": 74,
+            "formerBuildings": [],
+            "neighboringLots": [
+                149,
+                185
+            ],
+            "adjoiningStreets": [
+                "Warn Avenue",
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.25,
+                5.25
+            ],
+            "streetAddressIsOn": "Spoor Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "515 Chace Avenue",
+            "houseNumber": 515,
+            "id": 186,
+            "building": 7,
+            "formerBuildings": [],
+            "neighboringLots": [
+                186
+            ],
+            "adjoiningStreets": [
+                "Spoor Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.75,
+                5.25
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "S"
+            ],
+            "address": "617 6th Street",
+            "houseNumber": 617,
+            "id": 187,
+            "building": 40,
+            "formerBuildings": [],
+            "neighboringLots": [
+                190,
+                188,
+                187
+            ],
+            "adjoiningStreets": [
+                "Warn Avenue",
+                "6th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.25,
+                5.75
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "643 6th Street",
+            "houseNumber": 643,
+            "id": 188,
+            "building": 35,
+            "formerBuildings": [],
+            "neighboringLots": [
+                190,
+                188,
+                187
+            ],
+            "adjoiningStreets": [
+                "6th Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.75,
+                5.75
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "601 Warn Avenue",
+            "houseNumber": 601,
+            "id": 189,
+            "building": 80,
+            "formerBuildings": [],
+            "neighboringLots": [
+                189
+            ],
+            "adjoiningStreets": [
+                "Warn Avenue",
+                "6th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.25,
+                6.25
+            ],
+            "streetAddressIsOn": "Warn Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "658 6th Street",
+            "houseNumber": 658,
+            "id": 190,
+            "building": 75,
+            "formerBuildings": [],
+            "neighboringLots": [
+                190,
+                188,
+                187
+            ],
+            "adjoiningStreets": [
+                "6th Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.75,
+                6.25
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "S"
+            ],
+            "address": "607 McGiboney Street",
+            "houseNumber": 607,
+            "id": 191,
+            "building": 185,
+            "formerBuildings": [
+                79,
+                106,
+                184
+            ],
+            "neighboringLots": [
+                191,
+                201,
+                192,
+                202
+            ],
+            "adjoiningStreets": [
+                "Warn Avenue",
+                "McGiboney Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.25,
+                6.75
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "645 McGiboney Street",
+            "houseNumber": 645,
+            "id": 192,
+            "building": 63,
+            "formerBuildings": [],
+            "neighboringLots": [
+                191,
+                201,
+                192,
+                202
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.75,
+                6.75
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "718 Wachter Avenue",
+            "houseNumber": 718,
+            "id": 193,
+            "building": 162,
+            "formerBuildings": [],
+            "neighboringLots": [
+                193,
+                115,
+                195
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.25,
+                7.25
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "N"
+            ],
+            "address": "721 Warn Avenue",
+            "houseNumber": 721,
+            "id": 194,
+            "building": 153,
+            "formerBuildings": [],
+            "neighboringLots": [
+                194,
+                203
+            ],
+            "adjoiningStreets": [
+                "Warn Avenue",
+                "McGiboney Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.75,
+                7.25
+            ],
+            "streetAddressIsOn": "Warn Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "758 Wachter Avenue",
+            "houseNumber": 758,
+            "id": 195,
+            "building": 133,
+            "formerBuildings": [],
+            "neighboringLots": [
+                193,
+                115,
+                195
+            ],
+            "adjoiningStreets": [
+                "8th Street",
+                "Wachter Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.25,
+                7.75
+            ],
+            "streetAddressIsOn": "Wachter Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "535 8th Street",
+            "houseNumber": 535,
+            "id": 196,
+            "building": 132,
+            "formerBuildings": [],
+            "neighboringLots": [
+                197,
+                198,
+                196
+            ],
+            "adjoiningStreets": [
+                "Warn Avenue",
+                "8th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.75,
+                7.75
+            ],
+            "streetAddressIsOn": "8th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "514 8th Street",
+            "houseNumber": 514,
+            "id": 197,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                197,
+                198,
+                196
+            ],
+            "adjoiningStreets": [
+                "Wachter Avenue",
+                "8th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.25,
+                8.25
+            ],
+            "streetAddressIsOn": "8th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "N"
+            ],
+            "address": "550 8th Street",
+            "houseNumber": 550,
+            "id": 198,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                197,
+                198,
+                196
+            ],
+            "adjoiningStreets": [
+                "Warn Avenue",
+                "8th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.75,
+                8.25
+            ],
+            "streetAddressIsOn": "8th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "525 9th Street",
+            "houseNumber": 525,
+            "id": 199,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                199
+            ],
+            "adjoiningStreets": [
+                "9th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.25,
+                8.75
+            ],
+            "streetAddressIsOn": "9th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "833 Warn Avenue",
+            "houseNumber": 833,
+            "id": 200,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                200,
+                205
+            ],
+            "adjoiningStreets": [
+                "Warn Avenue",
+                "9th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                5.75,
+                8.75
+            ],
+            "streetAddressIsOn": "Warn Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "610 McGiboney Street",
+            "houseNumber": 610,
+            "id": 201,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                191,
+                201,
+                192,
+                202
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street",
+                "Warn Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.25,
+                7.25
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "664 McGiboney Street",
+            "houseNumber": 664,
+            "id": 202,
+            "building": 11,
+            "formerBuildings": [],
+            "neighboringLots": [
+                191,
+                201,
+                192,
+                202
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.75,
+                7.25
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "762 Warn Avenue",
+            "houseNumber": 762,
+            "id": 203,
+            "building": null,
+            "formerBuildings": [
+                152
+            ],
+            "neighboringLots": [
+                194,
+                203
+            ],
+            "adjoiningStreets": [
+                "8th Street",
+                "Warn Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.25,
+                7.75
+            ],
+            "streetAddressIsOn": "Warn Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "639 8th Street",
+            "houseNumber": 639,
+            "id": 204,
+            "building": 10,
+            "formerBuildings": [],
+            "neighboringLots": [
+                206,
+                204
+            ],
+            "adjoiningStreets": [
+                "Chace Avenue",
+                "8th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.75,
+                7.75
+            ],
+            "streetAddressIsOn": "8th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "801 Warn Avenue",
+            "houseNumber": 801,
+            "id": 205,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                200,
+                205
+            ],
+            "adjoiningStreets": [
+                "8th Street",
+                "Warn Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.25,
+                8.25
+            ],
+            "streetAddressIsOn": "Warn Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "658 8th Street",
+            "houseNumber": 658,
+            "id": 206,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                206,
+                204
+            ],
+            "adjoiningStreets": [
+                "8th Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.75,
+                8.25
+            ],
+            "streetAddressIsOn": "8th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "605 9th Street",
+            "houseNumber": 605,
+            "id": 207,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                207,
+                208
+            ],
+            "adjoiningStreets": [
+                "9th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.25,
+                8.75
+            ],
+            "streetAddressIsOn": "9th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "653 9th Street",
+            "houseNumber": 653,
+            "id": 208,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                207,
+                208
+            ],
+            "adjoiningStreets": [
+                "9th Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                6.75,
+                8.75
+            ],
+            "streetAddressIsOn": "9th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "728 Spoor Street",
+            "houseNumber": 728,
+            "id": 209,
+            "building": 124,
+            "formerBuildings": [],
+            "neighboringLots": [
+                209,
+                172,
+                210
+            ],
+            "adjoiningStreets": [
+                "Spoor Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.25,
+                5.25
+            ],
+            "streetAddressIsOn": "Spoor Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "N"
+            ],
+            "address": "764 Spoor Street",
+            "houseNumber": 764,
+            "id": 210,
+            "building": 33,
+            "formerBuildings": [],
+            "neighboringLots": [
+                209,
+                172,
+                210
+            ],
+            "adjoiningStreets": [
+                "Weyman Avenue",
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.75,
+                5.25
+            ],
+            "streetAddressIsOn": "Spoor Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "727 6th Street",
+            "houseNumber": 727,
+            "id": 211,
+            "building": null,
+            "formerBuildings": [
+                91,
+                177
+            ],
+            "neighboringLots": [
+                212,
+                211
+            ],
+            "adjoiningStreets": [
+                "6th Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.25,
+                5.75
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "737 6th Street",
+            "houseNumber": 737,
+            "id": 212,
+            "building": null,
+            "formerBuildings": [
+                157
+            ],
+            "neighboringLots": [
+                212,
+                211
+            ],
+            "adjoiningStreets": [
+                "Weyman Avenue",
+                "6th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.75,
+                5.75
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "E"
+            ],
+            "address": "602 Chace Avenue",
+            "houseNumber": 602,
+            "id": 213,
+            "building": 92,
+            "formerBuildings": [],
+            "neighboringLots": [
+                213
+            ],
+            "adjoiningStreets": [
+                "6th Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.25,
+                6.25
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N",
+                "W"
+            ],
+            "address": "615 Weyman Avenue",
+            "houseNumber": 615,
+            "id": 214,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                214,
+                223,
+                216
+            ],
+            "adjoiningStreets": [
+                "6th Street",
+                "Weyman Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.75,
+                6.25
+            ],
+            "streetAddressIsOn": "Weyman Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "729 McGiboney Street",
+            "houseNumber": 729,
+            "id": 215,
+            "building": 64,
+            "formerBuildings": [],
+            "neighboringLots": [
+                215,
+                231
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street",
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.25,
+                6.75
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "W"
+            ],
+            "address": "663 Weyman Avenue",
+            "houseNumber": 663,
+            "id": 216,
+            "building": 94,
+            "formerBuildings": [],
+            "neighboringLots": [
+                214,
+                223,
+                216
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street",
+                "Weyman Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.75,
+                6.75
+            ],
+            "streetAddressIsOn": "Weyman Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "828 Spoor Street",
+            "houseNumber": 828,
+            "id": 217,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                176,
+                168,
+                217
+            ],
+            "adjoiningStreets": [
+                "Weyman Avenue",
+                "Spoor Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.25,
+                5.25
+            ],
+            "streetAddressIsOn": "Spoor Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W"
+            ],
+            "address": "505 Tallon Avenue",
+            "houseNumber": 505,
+            "id": 218,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                220,
+                218
+            ],
+            "adjoiningStreets": [
+                "Tallon Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.75,
+                5.25
+            ],
+            "streetAddressIsOn": "Tallon Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "S"
+            ],
+            "address": "542 Weyman Avenue",
+            "houseNumber": 542,
+            "id": 219,
+            "building": 178,
+            "formerBuildings": [
+                146
+            ],
+            "neighboringLots": [
+                219
+            ],
+            "adjoiningStreets": [
+                "Weyman Avenue",
+                "6th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.25,
+                5.75
+            ],
+            "streetAddressIsOn": "Weyman Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "537 Tallon Avenue",
+            "houseNumber": 537,
+            "id": 220,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                220,
+                218
+            ],
+            "adjoiningStreets": [
+                "Tallon Avenue",
+                "6th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.75,
+                5.75
+            ],
+            "streetAddressIsOn": "Tallon Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "801 6th Street",
+            "houseNumber": 801,
+            "id": 221,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                221
+            ],
+            "adjoiningStreets": [
+                "Weyman Avenue",
+                "6th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.25,
+                6.25
+            ],
+            "streetAddressIsOn": "6th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W"
+            ],
+            "address": "619 Tallon Avenue",
+            "houseNumber": 619,
+            "id": 222,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                224,
+                222
+            ],
+            "adjoiningStreets": [
+                "Tallon Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.75,
+                6.25
+            ],
+            "streetAddressIsOn": "Tallon Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S",
+                "E"
+            ],
+            "address": "660 Weyman Avenue",
+            "houseNumber": 660,
+            "id": 223,
+            "building": 99,
+            "formerBuildings": [],
+            "neighboringLots": [
+                214,
+                223,
+                216
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street",
+                "Weyman Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.25,
+                6.75
+            ],
+            "streetAddressIsOn": "Weyman Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "647 Tallon Avenue",
+            "houseNumber": 647,
+            "id": 224,
+            "building": 30,
+            "formerBuildings": [],
+            "neighboringLots": [
+                224,
+                222
+            ],
+            "adjoiningStreets": [
+                "Tallon Avenue",
+                "McGiboney Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.75,
+                6.75
+            ],
+            "streetAddressIsOn": "Tallon Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N",
+                "E",
+                "N",
+                "E",
+                "N"
+            ],
+            "address": "880 Chace Avenue",
+            "houseNumber": 880,
+            "id": 225,
+            "building": 163,
+            "formerBuildings": [
+                9,
+                29
+            ],
+            "neighboringLots": [
+                216,
+                234,
+                202,
+                230,
+                235,
+                231,
+                206,
+                226,
+                224,
+                215,
+                204,
+                208,
+                223
+            ],
+            "adjoiningStreets": [
+                "Chace Avenue",
+                "McGiboney Street",
+                "Chace Avenue",
+                "McGiboney Street",
+                "Chace Avenue",
+                "McGiboney Street"
+            ],
+            "isTract": true,
+            "coordinates": [
+                7.25,
+                8.25
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E",
+                "N"
+            ],
+            "address": "708 Chace Avenue",
+            "houseNumber": 708,
+            "id": 226,
+            "building": 55,
+            "formerBuildings": [],
+            "neighboringLots": [
+                230,
+                226
+            ],
+            "adjoiningStreets": [
+                "Chace Avenue",
+                "McGiboney Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.25,
+                7.25
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "W"
+            ],
+            "address": "711 Tallon Avenue",
+            "houseNumber": 711,
+            "id": 227,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                227,
+                232
+            ],
+            "adjoiningStreets": [
+                "Tallon Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.75,
+                7.25
+            ],
+            "streetAddressIsOn": "Tallon Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "725 9th Street",
+            "houseNumber": 725,
+            "id": 228,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                233,
+                228
+            ],
+            "adjoiningStreets": [
+                "9th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.25,
+                8.75
+            ],
+            "streetAddressIsOn": "9th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W",
+                "S"
+            ],
+            "address": "863 Tallon Avenue",
+            "houseNumber": 863,
+            "id": 229,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                229,
+                236
+            ],
+            "adjoiningStreets": [
+                "Tallon Avenue",
+                "9th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.75,
+                8.75
+            ],
+            "streetAddressIsOn": "Tallon Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "E"
+            ],
+            "address": "752 Chace Avenue",
+            "houseNumber": 752,
+            "id": 230,
+            "building": 31,
+            "formerBuildings": [],
+            "neighboringLots": [
+                230,
+                226
+            ],
+            "adjoiningStreets": [
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.25,
+                7.75
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N"
+            ],
+            "address": "756 McGiboney Street",
+            "houseNumber": 756,
+            "id": 231,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                215,
+                231
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.75,
+                7.25
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W"
+            ],
+            "address": "733 Tallon Avenue",
+            "houseNumber": 733,
+            "id": 232,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                227,
+                232
+            ],
+            "adjoiningStreets": [
+                "Tallon Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.75,
+                7.75
+            ],
+            "streetAddressIsOn": "Tallon Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "741 9th Street",
+            "houseNumber": 741,
+            "id": 233,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                233,
+                228
+            ],
+            "adjoiningStreets": [
+                "9th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.75,
+                8.75
+            ],
+            "streetAddressIsOn": "9th Street"
+        },
+        {
+            "sidesOfStreet": [
+                "E"
+            ],
+            "address": "814 Chace Avenue",
+            "houseNumber": 814,
+            "id": 234,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                234,
+                225
+            ],
+            "adjoiningStreets": [
+                "Chace Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                7.25,
+                8.25
+            ],
+            "streetAddressIsOn": "Chace Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "N"
+            ],
+            "address": "832 McGiboney Street",
+            "houseNumber": 832,
+            "id": 235,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                235
+            ],
+            "adjoiningStreets": [
+                "McGiboney Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.25,
+                7.25
+            ],
+            "streetAddressIsOn": "McGiboney Street"
+        },
+        {
+            "sidesOfStreet": [
+                "W"
+            ],
+            "address": "803 Tallon Avenue",
+            "houseNumber": 803,
+            "id": 236,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                229,
+                236
+            ],
+            "adjoiningStreets": [
+                "Tallon Avenue"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.75,
+                8.25
+            ],
+            "streetAddressIsOn": "Tallon Avenue"
+        },
+        {
+            "sidesOfStreet": [
+                "S"
+            ],
+            "address": "825 9th Street",
+            "houseNumber": 825,
+            "id": 237,
+            "building": null,
+            "formerBuildings": [],
+            "neighboringLots": [
+                237
+            ],
+            "adjoiningStreets": [
+                "9th Street"
+            ],
+            "isTract": false,
+            "coordinates": [
+                8.25,
+                8.75
+            ],
+            "streetAddressIsOn": "9th Street"
+        }
+    ]
+}

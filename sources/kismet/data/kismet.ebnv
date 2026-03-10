@@ -1,0 +1,263 @@
+grammar kismet;
+
+world:
+ (location|role|action|trait|pattern|time|event|death_trait)+ EOF
+ ;
+
+OPEN: '[';
+CLOSE: ']';
+
+time:
+    'time'  time_statement+ '.';
+ 
+num_range:
+	'[' num ']' | 
+	'[' num ':' num ']' ( pdf )? ;
+    
+
+
+time_statement:
+    name ':' time_start_modifier? time_type time_iteration_modifier?;
+
+time_start_modifier: '?';
+
+time_iteration_modifier:    '+' |
+                            '*' |
+                            '?' |
+                            '+' num |
+                            '+' num_range |
+                            '*' num |
+                            '*' num_range;
+                            
+                            
+    
+
+list_range: '[' (name|var) ('|' (name|var))*  ']';
+
+time_type:
+    num_range |
+    list_range;
+
+pattern:
+    'pattern'  name '(' arg? (',' arg)* ')' random_text? ':' comparison '.';
+
+
+opposition:
+	('opposes' name ('/' name)*);
+
+death_trait: 'removal_status' name '.';
+
+trait: default? trait_type is_num? name ('/' name)* '(' arg (',' arg)* ')' opposition? ':'
+       propensity? (',' propensity)* '.';
+default: 'default';
+
+trait_type:
+	'trait' |
+	'status';
+
+is_num:
+	'scalar';
+
+propensity: tag_agnostic_modifier | modifier | goto;
+
+propensity_name: 'visibility' | name;
+
+modifier: valence '('propensity_name  (',' propensity_name)* comparison? ')';
+
+tag_agnostic_modifier: valence '('comparison')';
+  
+goto:  valence '@' name (',' name)* comparison? '@'|
+       valence '@' comparison  '@';
+
+valence
+  : '+'+
+  | '-'+
+  ;
+
+
+
+action: (response)? 'action' name '(' arg (',' arg)* ')' cost? extension? random_text? ':'
+	(action_item)? (';' (action_item))* '.'
+	;
+
+randomized: 'random' | 'stochastic' | 'randomized';
+    
+event: (randomized)? 'event' name '(' arg (',' arg)* ')'  extension? random_text? ':'
+	(action_item)? (';' (action_item))* '.'
+	;
+    
+cost: 'costs'  num;
+
+response: 'response';
+
+add:
+	'result' ':' change (',' change)*;
+
+change: condition;
+
+
+visibility:
+	'visibility' valence;
+
+action_location:
+	'location:' loc+;
+
+
+loc:
+	var '(' arg (',' arg)*  ')' |
+	name '(' arg (',' arg)*   ')'|
+	locWildCard '(' arg (',' arg)*  ')' |
+	'(' arg (',' arg)*   ')' ;
+locWildCard: '?';
+
+action_item:
+	tags|comparison|action_location|add|visibility;
+
+role:
+	'role' name '(' arg (',' arg)* ')' extension? ':'
+	       (tags|comparison) (';' (tags|comparison))* '.';
+
+extension:
+	'extends' (cast_name | name)  '(' arg (',' arg)* ')';
+
+cast_name:
+	'cast' name;
+
+arg: arg_type? var |
+     arg_type? (var sub name) |
+     arg_type? (var sub var) ;
+
+sub: '.' | ':';
+
+/**
+ * > -- subject
+ * ^ -- indirect object
+ * < -- direct object
+ * e.g. Adam talked to Ben about Charlie
+ * >Adam, <Ben, ^Charlie
+ */
+arg_type: ('<' | '^' | '*' | '>' | '@');
+
+tags: 'tags' ':' name (',' name)*;
+comparison: 'if' condition (',' condition)*;
+
+
+
+knowledge:
+	'does not know' |
+	'doesnt know' |
+	'doesn\'t know' |
+	'did' 'not' 'hear'|
+	'didnt' 'hear'|
+	'didn\'t' 'hear'|
+	'did' 'not' 'see'|
+	'didnt' 'see'|
+	'didn\'t' 'see'|
+	'did' 'not' 'do'|
+	'didnt' 'do'|
+	'didn\'t' 'do'|
+	'did' 'not' 'receive'	|
+	'didnt' 'receive'	|
+	'didn\'t' 'receive'	|
+	'forgets'	|
+	'forgot' 	|
+	'forget' |
+	'knows'		|
+	'hears'		|
+	'heard'		|
+	'saw'		|
+	'did'		|
+	'received'	;
+
+condition: cond10  | cond6| cond9 | cond8 | cond3 | cond1 | cond4 | cond5 | cond7 |  condpattern | condTimeHistory | condTimePersonal | condTimePersonalAssignment | condTimePersonalRelativeAssignment | condTime | condTimeComparator;
+
+cond8: arg ('\'s'|'s') name operator num;
+cond3: arg knowledge arg;
+cond1: arg tag_compare name;
+cond6: arg ('\'s'|'s')? inversion? ('have'|'has'|'is')? name ('of'|'to'|'with' | 'at')? arg (operator num)?;
+cond4: arg ('\'s'|'s') name comparator num;
+cond9: arg ('\'s'|'s') name comparator arg ('\'s'|'s') name;
+cond10: arg name arg comparator arg name arg;
+inversion: 'is not' | 'isn\'t' | 'do not' | 'dont' | 'don\'t' |  'does not' | 'doesn\'t' | 'doesnt' ;
+cond5: arg 'and' arg inversion? name ('each' 'other' | 'eachother') (operator num)?;
+
+cond7: arg  ('\'s'|'s'|'is'|'has'|'have')? name ('of'|'to'|'with' | 'at')? arg comparator num;
+condpattern: has_not? 'pattern' '(' name  (',' arg)* ')';
+condTime: ('now'|'now\'s'|'current') name 'is' (num|name);
+condTimeComparator: ('now'|'now\'s'|'current') name comparator num;
+condTimeHistory: 'now' ('is'|'has'|'have')? comparator num name 'since' arg;
+condTimePersonal: 'now' ('is'|'has'|'have')? comparator num name 'since' arg '\'s' name;
+condTimePersonalAssignment: 'now' 'is' arg '\'s' name |
+                            arg '\'s' name 'is' 'now';
+condTimePersonalRelativeAssignment: arg '\'s' name name operator num;
+
+tag_compare: 'is missing' | 'is not' | 'is' | 'has'|'have' | 'hasn\'t' | 'haven\'t' | 'isn\'t' | 'isnt' | 'aint' | 'missing' | 'a'?;
+
+operator: (MINUS|PLUS|EQUALS);
+
+has_not: 'not';
+
+MINUS: ('-=');
+PLUS: ('+=');
+EQUALS: ('=');
+
+location:
+	'location' name ':'
+        ((supports|each_turn|tags) (';' (supports|each_turn|tags))*)? '.';
+
+each_turn:
+	'each_turn' ':' cast;
+
+cast:
+	'cast' name (',' name)*;
+	
+random_text: RANDOM_TEXT;
+
+RANDOM_TEXT:'"' .*? '"'  ;
+
+
+WS : [ \t\r\n]+ -> skip ;
+
+LINE_COMMENT
+    : '//' ~[\r\n]* -> skip
+;
+
+
+
+supports:
+	'supports' ':' num_choice (',' num_choice)*;
+num: NUMBER;
+
+NUMBER : NEG? POSITIVE_NUMBER ;
+
+pos_num: POSITIVE_NUMBER;
+
+POSITIVE_NUMBER: [0-9]+('.' [0-9]+)?;
+NEG: '-';
+  
+
+name : NAME;
+NAME   : [a-z][a-zA-Z_0-9]* ;
+var : VAR;
+VAR : [A-Z][a-zA-Z_!0-9]*;
+
+comparator: COMPARATOR;
+
+COMPARATOR:
+        '=' |
+	    '==' |
+	    '<' |
+	    '>' |
+	    '<='|
+	    '>='|
+	    '!=';
+
+
+num_choice
+	:  '[' num ']' name
+	|   '[' num ':' num ']' ( pdf )? name ;
+pdf :  ('^'|'-'|'.'|'_')+ ;
+
+BlockComment 
+    : '/*' .*? '*/' -> skip
+    ;

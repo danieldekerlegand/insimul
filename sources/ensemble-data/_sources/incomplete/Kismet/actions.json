@@ -1,0 +1,20 @@
+{
+	"fileName": "actions.json",
+	"actions": [
+		{
+			"name": "deny-up",
+			"intent": {
+				"category": "intent",
+				"type": "deny",
+				"intentType": true,
+				"first": "initiator",
+				"second": "responder"
+			},
+			"conditions": [],
+			"influenceRules": [],
+			"leadsTo": [
+				"DENY"
+			]
+		}
+	]
+}

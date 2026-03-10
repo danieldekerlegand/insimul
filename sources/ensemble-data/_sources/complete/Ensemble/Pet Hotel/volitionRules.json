@@ -1,0 +1,99 @@
+{
+	"fileName": "volitionRules",
+	"type": "volition",
+	"rules": [
+		{
+			"name": "You don't fight with your friends",
+			"conditions": [
+				{
+					"category": "relationship",
+					"type": "playmates",
+					"first": "someone",
+					"second": "other",
+					"value": true
+				}
+			],
+			"effects": [
+				{
+					"category": "intents",
+					"type": "fight",
+					"first": "someone",
+					"second": "other",
+					"weight": -5,
+					"intentType": true
+				}
+			],
+			"origin": "volitionRules",
+			"id": "volitionRules_cyTBSwmfJe2fPKevK"
+		},
+		{
+			"name": "Hangry",
+			"conditions": [
+				{
+					"category": "status",
+					"type": "hungry",
+					"first": "someone",
+					"value": true
+				}
+			],
+			"effects": [
+				{
+					"category": "intents",
+					"type": "fight",
+					"first": "someone",
+					"second": "other",
+					"weight": 2,
+					"intentType": true
+				}
+			],
+			"origin": "volitionRules",
+			"id": "volitionRules_aRRK5HNgTXTKb4y2Q"
+		},
+		{
+			"name": "Animals beg to humans",
+			"conditions": [
+				{
+					"category": "trait",
+					"type": "human",
+					"first": "other",
+					"value": true
+				}
+			],
+			"effects": [
+				{
+					"category": "intents",
+					"type": "beg",
+					"first": "someone",
+					"second": "other",
+					"weight": 5,
+					"intentType": true
+				}
+			],
+			"origin": "volitionRules",
+			"id": "volitionRules_DcC4yG56jvfypgpnY"
+		},
+		{
+			"name": "Beg when you are hungry",
+			"conditions": [
+				{
+					"category": "status",
+					"type": "hungry",
+					"first": "someone",
+					"value": true
+				}
+			],
+			"effects": [
+				{
+					"category": "intents",
+					"type": "beg",
+					"first": "someone",
+					"second": "other",
+					"weight": 3,
+					"intentType": true
+				}
+			],
+			"origin": "volitionRules",
+			"id": "volitionRules_RZbTJfnKh4diKDhBM"
+		}
+	]
+}

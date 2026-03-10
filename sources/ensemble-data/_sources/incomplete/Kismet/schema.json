@@ -1,0 +1,36 @@
+{
+	"schema": [
+		{
+			"category": "trait",
+			"isBoolean": true,
+			"directionType": "undirected",
+			"types": [],
+			"actionable": false,
+			"defaultValue": false
+		},
+        {
+			"category": "status",
+			"isBoolean": true,
+			"directionType": "undirected",
+			"types": [],
+			"defaultValue": false,
+			"actionable": false
+		},
+		{
+			"category": "role",
+			"isBoolean": true,
+			"directionType": "undirected",
+			"types": [],
+			"defaultValue": false,
+			"actionable": false
+		},
+		{
+			"category": "relationship",
+			"isBoolean": true,
+			"directionType": "reciprocal",
+			"types": [],
+			"defaultValue": false,
+			"actionable": true
+		}
+    ]
+}

@@ -1,0 +1,30 @@
+{
+	"fileName": "triggerRules",
+	"type": "trigger",
+	"rules": [
+		{ 
+			"name": "Highlanders follow Highlander culture", 
+			"conditions": [
+				{"category": "culture", "type": "highlander", "first": "someone", "value": true}
+			], 
+			"effects": [
+				{ "category": "trait", "type": "proud", "first": "someone", "value": true },
+				{ "category": "trait", "type": "nepotistic", "first": "someone", "value": true },
+				{ "category": "trait", "type": "militaristic", "first": "someone", "value": true },
+				{ "category": "trait", "type": "wealthy", "first": "someone", "value": true },
+				{ "category": "trait", "type": "haughty", "first": "someone", "value": true },
+				{ "category": "trait", "type": "cultured", "first": "someone", "value": true },
+				{ "category": "trait", "type": "influential", "first": "someone", "value": true },
+				{ "category": "trait", "type": "traditional", "first": "someone", "value": true },
+				{ "category": "trait", "type": "scientific", "first": "someone", "value": true },
+				{ "category": "trait", "type": "charitable", "first": "someone", "value": true },
+				{ "category": "trait", "type": "religious", "first": "someone", "value": true },
+				{ "category": "trait", "type": "technological", "first": "someone", "value": true },
+				{ "category": "trait", "type": "artistic", "first": "someone", "value": true },
+				{ "category": "trait", "type": "academic", "first": "someone", "value": true },
+				{ "category": "trait", "type": "athletic", "first": "someone", "value": true },
+				{ "category": "trait", "type": "fashionable", "first": "someone", "value": true }
+			] 
+		}
+	]
+}

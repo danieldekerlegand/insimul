@@ -1,0 +1,355 @@
+﻿{
+    "CiFState": {
+        "Cast": {
+            "Character": [
+                {
+                    "Trait": [
+                        {
+                            "type": "male"
+                        },
+                        {
+                            "type": "afraid of commitment"
+                        },
+                        {
+                            "type": "shallow"
+                        },
+                        {
+                            "type": "arrogant"
+                        },
+                        {
+                            "type": "defensive"
+                        }
+                    ],
+                    "Locution": [
+                        {
+                            "type": "greeting",
+                            "text": "Hey"
+                        },
+                        {
+                            "type": "shocked",
+                            "text": "Oh, how European"
+                        },
+                        {
+                            "type": "positiveadj",
+                            "text": "really, uh... pretty great"
+                        },
+                        {
+                            "type": "pejorative",
+                            "text": "jerk"
+                        },
+                        {
+                            "type": "sweetie",
+                            "text": "honey"
+                        },
+                        {
+                            "type": "buddymale",
+                            "text": "buddy"
+                        },
+                        {
+                            "type": "buddyfemale",
+                            "text": "buddy"
+                        }
+                    ],
+                    "name": "Trip",
+                    "networkID": "0"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "female"
+                        },
+                        {
+                            "type": "deep"
+                        },
+                        {
+                            "type": "self destructive"
+                        },
+                        {
+                            "type": "hothead"
+                        },
+                        {
+                            "type": "insecure"
+                        }
+                    ],
+                    "Locution": [
+                        {
+                            "type": "greeting",
+                            "text": "Oh, hello"
+                        },
+                        {
+                            "type": "shocked",
+                            "text": "*nervous coughing*"
+                        },
+                        {
+                            "type": "positiveadj",
+                            "text": "really great"
+                        },
+                        {
+                            "type": "pejorative",
+                            "text": "child"
+                        },
+                        {
+                            "type": "sweetie",
+                            "text": "dear"
+                        },
+                        {
+                            "type": "buddymale",
+                            "text": "sweetheart"
+                        },
+                        {
+                            "type": "buddyfemale",
+                            "text": "sweetheart"
+                        }
+                    ],
+                    "name": "Grace",
+                    "networkID": "1"
+                },
+                {
+                    "Trait": [
+                        {
+                            "type": "male"
+                        },
+                        {
+                            "type": "arrogant"
+                        },
+                        {
+                            "type": "swinger"
+                        },
+                        {
+                            "type": "vengeful"
+                        },
+                        {
+                            "type": "witty"
+                        },
+                        {
+                            "type": "cares about fashion"
+                        },
+                        {
+                            "type": "nicholas"
+                        },
+                        {
+                            "type": "anyone"
+                        }
+                    ],
+                    "Locution": [
+                        {
+                            "type": "greeting",
+                            "text": "greetings"
+                        },
+                        {
+                            "type": "shocked",
+                            "text": "my oh my"
+                        },
+                        {
+                            "type": "positiveadj",
+                            "text": "lovely"
+                        },
+                        {
+                            "type": "pejorative",
+                            "text": "simpering moron"
+                        },
+                        {
+                            "type": "sweetie",
+                            "text": "snookie-wookums"
+                        },
+                        {
+                            "type": "buddymale",
+                            "text": "my man"
+                        },
+                        {
+                            "type": "buddyfemale",
+                            "text": "dahhrling"
+                        }
+                    ],
+                    "name": "Nicholas",
+                    "networkID": "2"
+                }
+            ]
+        },
+        "SFDB": {
+            "BackstoryContext": [
+                {
+                    "time": "-250",
+                    "initiator": "Trip",
+                    "responder": "Grace",
+                    "other": "",
+                    "SFDBLabel": "lame",
+                    "PerformanceRealizationString": "%i% took %r% on that vacation to Italy"
+                },
+                {
+                    "time": "-251",
+                    "initiator": "Grace",
+                    "responder": "Trip",
+                    "other": "",
+                    "SFDBLabel": "cool",
+                    "PerformanceRealizationString": "%i% redecorated the apartment"
+                }
+            ]
+        },
+        "Network": [
+            {
+                "edge": [
+                    {
+                        "from": "0",
+                        "to": "1",
+                        "value": "50"
+                    },
+                    {
+                        "from": "1",
+                        "to": "0",
+                        "value": "20"
+                    }
+                ],
+                "type": "buddy",
+                "numChars": "3"
+            },
+            {
+                "edge": [
+                    {
+                        "from": "0",
+                        "to": "1",
+                        "value": "50"
+                    },
+                    {
+                        "from": "1",
+                        "to": "0",
+                        "value": "30"
+                    }
+                ],
+                "type": "romance",
+                "numChars": "3"
+            },
+            {
+                "edge": [
+                    {
+                        "from": "0",
+                        "to": "1",
+                        "value": "40"
+                    },
+                    {
+                        "from": "1",
+                        "to": "0",
+                        "value": "10"
+                    }
+                ],
+                "type": "cool",
+                "numChars": "3"
+            }
+        ],
+        "Relationships": {
+            "Relationship": [
+                {
+                    "type": "dating",
+                    "from": "Trip",
+                    "to": "Grace"
+                },
+                {
+                    "type": "friends",
+                    "from": "Trip",
+                    "to": "Grace"
+                }
+            ]
+        },
+        "CulturalKB": {
+            "Proposition": [
+                {
+                    "type": "truth",
+                    "head": "martini",
+                    "connection": "are",
+                    "tail": "cool"
+                },
+                {
+                    "type": "truth",
+                    "head": "magic eight-ball",
+                    "connection": "are",
+                    "tail": "funny"
+                },
+                {
+                    "type": "truth",
+                    "head": "Italy picture",
+                    "connection": "are",
+                    "tail": "lame"
+                },
+                {
+                    "type": "truth",
+                    "head": "brass bull",
+                    "connection": "are",
+                    "tail": "taboo"
+                },
+                {
+                    "type": "truth",
+                    "head": "experimental interactive drama",
+                    "connection": "are",
+                    "tail": "bad ass"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Trip",
+                    "connection": "likes",
+                    "tail": "martini"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Trip",
+                    "connection": "has",
+                    "tail": "martini"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Trip",
+                    "connection": "has",
+                    "tail": "magic eight-ball"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Grace",
+                    "connection": "dislikes",
+                    "tail": "martini"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Grace",
+                    "connection": "dislikes",
+                    "tail": "magic eight-ball"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Trip",
+                    "connection": "has",
+                    "tail": "Italy picture"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Grace",
+                    "connection": "dislikes",
+                    "tail": "Italy picture"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Trip",
+                    "connection": "has",
+                    "tail": "brass bull"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Grace",
+                    "connection": "dislikes",
+                    "tail": "brass bull"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Trip",
+                    "connection": "likes",
+                    "tail": "experimental interactive drama"
+                },
+                {
+                    "type": "subjective",
+                    "head": "Grace",
+                    "connection": "likes",
+                    "tail": "experimental interactive drama"
+                }
+            ]
+        },
+        "time": "0"
+    }
+}

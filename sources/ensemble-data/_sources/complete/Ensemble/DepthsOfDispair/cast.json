@@ -1,0 +1,19 @@
+{
+	"cast": {
+		"TownConstable": {
+			"name": "TownConstable"
+		},
+		"BorderGuardOfficer": {
+			"name": "BorderGuardOfficer"
+		},
+		"TavernOwner": {
+			"name": "TavernOwner"
+		},
+		"TecomarianTraveler": {
+			"name": "TecomarianTraveler"
+		},
+		"Sellsword": {
+			"name": "Sellsword"
+		}
+	}
+}

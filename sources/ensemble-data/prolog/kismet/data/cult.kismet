@@ -1,0 +1,3 @@
+//randomly start somewhere in spring 1900-1910
+//time year: ?[1900:1910] season: [spring|summer|fall|winter]*.1910
+time year: ?[1900:1910] month: [jan|feb|march|apr|may|jun|jul|aug|sep|oct|nov|dec]* day: [1:30]*[5:10].

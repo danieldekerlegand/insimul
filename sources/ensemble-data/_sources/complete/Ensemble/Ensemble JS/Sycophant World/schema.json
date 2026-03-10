@@ -1,0 +1,21 @@
+{
+	"schema": [
+		{
+			"category": "trait",
+			"isBoolean": true,
+			"directionType": "undirected",
+			"types": ["humble", "proud"],
+			"defaultValue": false,
+			"actionable": false
+		},
+		{
+			"category": "networks",
+			"isBoolean": false,
+			"directionType": "directed",
+			"types": ["respect"],
+			"defaultValue": 0,
+			"actionable": true
+		}
+	]
+}
+

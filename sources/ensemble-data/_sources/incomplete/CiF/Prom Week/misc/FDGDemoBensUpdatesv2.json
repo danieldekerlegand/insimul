@@ -1,0 +1,4867 @@
+{
+	"CiFState": {
+		"Cast": {
+			"Character": [
+				{
+					"Trait": [
+						{
+							"type": "clumsy"
+						},
+						{
+							"type": "sex magnet"
+						},
+						{
+							"type": "confidence"
+						}
+					],
+					"name": "Robert",
+					"networkID": "0"
+				},
+				{
+					"Trait": [
+						{
+							"type": "forgiving"
+						},
+						{
+							"type": "confidence"
+						},
+						{
+							"type": "monogamous"
+						}
+					],
+					"name": "Debbie",
+					"networkID": "1"
+				},
+				{
+					"Trait": [
+						{
+							"type": "domineering"
+						},
+						{
+							"type": "afraid of commitment"
+						}
+					],
+					"name": "Jordan",
+					"networkID": "2"
+				},
+				{
+					"Trait": [
+						{
+							"type": "pacifist"
+						},
+						{
+							"type": "trait not declared"
+						}
+					],
+					"name": "Edward",
+					"networkID": "3"
+				}
+			]
+		},
+		"SFDB": {
+			"StatusContext": {
+				"Predicate": {
+					"type": "status",
+					"status": "has crush",
+					"first": "Debbie",
+					"second": "Edward",
+					"negated": "false",
+					"isSFDB": "true",
+					"window": "0"
+				},
+				"time": "0"
+			},
+			"SocialGameContext": [
+				{
+					"gameName": "Simple Date",
+					"initiator": "Debbie",
+					"responder": "Edward",
+					"other": "",
+					"initiatorScore": "80",
+					"responderScore": "40",
+					"time": "0",
+					"effectIndex": "0",
+					"chosenItemCKB": "",
+					"socialGameContextReference": "0"
+				},
+				{
+					"gameName": "Brag",
+					"initiator": "Edward",
+					"responder": "Robert",
+					"other": "",
+					"initiatorScore": "80",
+					"responderScore": "40",
+					"time": "1",
+					"effectIndex": "0",
+					"chosenItemCKB": "",
+					"socialGameContextReference": "0"
+				},
+				{
+					"gameName": "Verbally Abuse",
+					"initiator": "Robert",
+					"responder": "Jordan",
+					"other": "",
+					"initiatorScore": "80",
+					"responderScore": "40",
+					"time": "2",
+					"effectIndex": "0",
+					"chosenItemCKB": "",
+					"socialGameContextReference": "0"
+				},
+				{
+					"gameName": "Simple Date",
+					"initiator": "Jordan",
+					"responder": "Edward",
+					"other": "",
+					"initiatorScore": "80",
+					"responderScore": "40",
+					"time": "3",
+					"effectIndex": "0",
+					"chosenItemCKB": "",
+					"socialGameContextReference": "0"
+				}
+			]
+		},
+		"Network": [
+			{
+				"edge": [
+					{
+						"from": "0",
+						"to": "1",
+						"value": "10"
+					},
+					{
+						"from": "0",
+						"to": "2",
+						"value": "20"
+					},
+					{
+						"from": "0",
+						"to": "3",
+						"value": "20"
+					},
+					{
+						"from": "1",
+						"to": "0",
+						"value": "30"
+					},
+					{
+						"from": "1",
+						"to": "2",
+						"value": "40"
+					},
+					{
+						"from": "1",
+						"to": "3",
+						"value": "40"
+					},
+					{
+						"from": "2",
+						"to": "0",
+						"value": "50"
+					},
+					{
+						"from": "2",
+						"to": "1",
+						"value": "60"
+					},
+					{
+						"from": "2",
+						"to": "3",
+						"value": "60"
+					},
+					{
+						"from": "3",
+						"to": "0",
+						"value": "60"
+					},
+					{
+						"from": "3",
+						"to": "1",
+						"value": "60"
+					},
+					{
+						"from": "3",
+						"to": "2",
+						"value": "60"
+					}
+				],
+				"type": "buddy",
+				"numChars": "4"
+			},
+			{
+				"edge": [
+					{
+						"from": "0",
+						"to": "1",
+						"value": "10"
+					},
+					{
+						"from": "0",
+						"to": "2",
+						"value": "20"
+					},
+					{
+						"from": "0",
+						"to": "3",
+						"value": "20"
+					},
+					{
+						"from": "1",
+						"to": "0",
+						"value": "30"
+					},
+					{
+						"from": "1",
+						"to": "2",
+						"value": "40"
+					},
+					{
+						"from": "1",
+						"to": "3",
+						"value": "40"
+					},
+					{
+						"from": "2",
+						"to": "0",
+						"value": "50"
+					},
+					{
+						"from": "2",
+						"to": "1",
+						"value": "60"
+					},
+					{
+						"from": "2",
+						"to": "3",
+						"value": "60"
+					},
+					{
+						"from": "3",
+						"to": "0",
+						"value": "60"
+					},
+					{
+						"from": "3",
+						"to": "1",
+						"value": "60"
+					},
+					{
+						"from": "3",
+						"to": "2",
+						"value": "60"
+					}
+				],
+				"type": "cool",
+				"numChars": "4"
+			},
+			{
+				"edge": [
+					{
+						"from": "0",
+						"to": "1",
+						"value": "10"
+					},
+					{
+						"from": "0",
+						"to": "2",
+						"value": "20"
+					},
+					{
+						"from": "0",
+						"to": "3",
+						"value": "75"
+					},
+					{
+						"from": "1",
+						"to": "0",
+						"value": "10"
+					},
+					{
+						"from": "1",
+						"to": "2",
+						"value": "40"
+					},
+					{
+						"from": "1",
+						"to": "3",
+						"value": "75"
+					},
+					{
+						"from": "2",
+						"to": "0",
+						"value": "20"
+					},
+					{
+						"from": "2",
+						"to": "1",
+						"value": "40"
+					},
+					{
+						"from": "2",
+						"to": "3",
+						"value": "80"
+					},
+					{
+						"from": "3",
+						"to": "0",
+						"value": "75"
+					},
+					{
+						"from": "3",
+						"to": "1",
+						"value": "75"
+					},
+					{
+						"from": "3",
+						"to": "2",
+						"value": "75"
+					}
+				],
+				"type": "romance",
+				"numChars": "4"
+			}
+		],
+		"Statuses": {
+			"Status": [
+				{
+					"type": "has crush",
+					"from": "Robert",
+					"to": "Edward"
+				},
+				{
+					"type": "has crush",
+					"from": "Jordan",
+					"to": "Edward"
+				},
+				{
+					"type": "jealous",
+					"from": "Jordan",
+					"to": "Robert"
+				}
+			]
+		},
+		"Relationships": {
+			"Relationship": [
+				{
+					"type": "friends",
+					"from": "Robert",
+					"to": "Edward"
+				},
+				{
+					"type": "friends",
+					"from": "Debbie",
+					"to": "Jordan"
+				},
+				{
+					"type": "dating",
+					"from": "Debbie",
+					"to": "Edward"
+				},
+				{
+					"type": "dating",
+					"from": "Jordan",
+					"to": "Edward"
+				}
+			]
+		},
+		"SocialGameLibrary": {
+			"SocialGame": [
+				{
+					"Preconditions": {
+						"Rule": {
+							"Predicate": {
+								"type": "SFDB label",
+								"first": "initiator",
+								"second": "initiator",
+								"label": "cool",
+								"negated": "false",
+								"isSFDB": "true",
+								"window": "0"
+							},
+							"name": "Inititator must have done some cool action in the past"
+						}
+					},
+					"InitiatorInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "confidence",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "15",
+								"name": "Initiator is Confident"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "attention hog",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Initiator is an Attention Hog"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "buddy",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "greaterthan",
+									"value": "39",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Initiator and Responder are decently buddies"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "buddy",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "lessthan",
+									"value": "41",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-20",
+								"name": "Initiator and Responder are not very good buddies."
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "humble",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-30",
+								"name": "Initiator is Humble"
+							}
+						]
+					},
+					"ResponderInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "buddy",
+									"first": "responder",
+									"second": "initiator",
+									"comparator": "greaterthan",
+									"value": "39",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "humble",
+									"first": "responder",
+									"negated": "true",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-30",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "jealous",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-20",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "witty",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "SFDB label",
+									"first": "initiator",
+									"second": "responder",
+									"label": "cool",
+									"negated": "false",
+									"isSFDB": "true",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Responder was a part of a cool act that Initiator Did"
+							}
+						]
+					},
+					"Effects": {
+						"Effect": [
+							{
+								"PerformanceRealization": "%i% bragged about %SFDB_cool(i, r)% to %r%, reinforcing %ip% coolness in %rp% mind",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "SFDB label",
+										"first": "initiator",
+										"second": "responder",
+										"label": "cool",
+										"negated": "false",
+										"isSFDB": "true",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "+",
+											"value": "20",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "buddy",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "+",
+											"value": "20",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% bragged about the time %SFDB_cool(i)%, and %r% was impressed.",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "cool",
+										"first": "responder",
+										"second": "initiator",
+										"comparator": "+",
+										"value": "20",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% tried to brag about when %SFDB_cool(i)%, but %r% was not impressed.",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "cool",
+										"first": "responder",
+										"second": "initiator",
+										"comparator": "-",
+										"value": "20",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "%i% wanted to brag about %SFDB_cool(i)% to %r%, but since %r% values humility %r% was put off.",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "trait",
+										"trait": "humble",
+										"first": "responder",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "20",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "buddy",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "20",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "%i% wanted to brag about %SFDB_cool(i)% to %r%, but it only poured salt on the wound of %rp% jealousy towards %i%",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "status",
+										"status": "jealous",
+										"first": "responder",
+										"second": "initiator",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "20",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "status",
+											"status": "emnity",
+											"first": "responder",
+											"second": "initiator",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							}
+						]
+					},
+					"Instantiations": {
+						"Instantiation": {
+							"LineOfDialogue": {
+								"lineNumber": "1",
+								"initiatorLine": "initiator's line",
+								"responderLine": "responder's line",
+								"otherLine": "other's line",
+								"primarySpeaker": "initiator",
+								"initiatorBodyAnimation": "accuse",
+								"initiatorFaceAnimation": "happy",
+								"responderBodyAnimation": "accuse",
+								"responderFaceAnimation": "happy",
+								"otherBodyAnimation": "accuse",
+								"otherFaceAnimation": "happy",
+								"time": "5"
+							},
+							"id": "1"
+						}
+					},
+					"name": "Brag"
+				},
+				{
+					"Preconditions": {
+						"Rule": {
+							"Predicate": [
+								{
+									"type": "relationship",
+									"first": "initiator",
+									"second": "responder",
+									"relationship": "fighting",
+									"negated": "true",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								{
+									"type": "status",
+									"status": "",
+									"first": "initiator",
+									"second": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								}
+							],
+							"name": ""
+						}
+					},
+					"InitiatorInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "aggressive",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": ""
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "",
+									"first": "initiator",
+									"second": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": ""
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "pacifist",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-20",
+								"name": ""
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "buddy",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "greaterthan",
+									"value": "40",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-10",
+								"name": ""
+							}
+						]
+					},
+					"ResponderInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "aggressive",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "pacifist",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-20",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "buddy",
+									"first": "responder",
+									"second": "initiator",
+									"comparator": "greaterthan",
+									"value": "40",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-10",
+								"name": "Anonymous Rule"
+							}
+						]
+					},
+					"Effects": {
+						"Effect": [
+							{
+								"PerformanceRealization": "",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "relationship",
+										"first": "initiator",
+										"second": "responder",
+										"relationship": "fighting",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "buddy",
+										"first": "responder",
+										"second": "initiator",
+										"comparator": "-",
+										"value": "20",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "trait",
+										"trait": "pacifist",
+										"first": "responder",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "cool",
+										"first": "initiator",
+										"second": "responder",
+										"comparator": "+",
+										"value": "20",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							}
+						]
+					},
+					"Instantiations": "",
+					"name": "Rough Up"
+				},
+				{
+					"Preconditions": {
+						"Rule": {
+							"Predicate": {
+								"type": "relationship",
+								"first": "initiator",
+								"second": "responder",
+								"relationship": "fighting",
+								"negated": "true",
+								"isSFDB": "false",
+								"window": "0"
+							},
+							"name": "not fighting"
+						}
+					},
+					"InitiatorInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": ""
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "aggressive",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": ""
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "humble",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-10",
+								"name": ""
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "pacifist",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-10",
+								"name": ""
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "buddy",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "greaterthan",
+									"value": "70",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-10",
+								"name": ""
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "cool",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "greaterthan",
+									"value": "70",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-10",
+								"name": ""
+							}
+						]
+					},
+					"ResponderInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "aggressive",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-10",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "defensive",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-10",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "humble",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "pacifist",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "buddy",
+									"first": "responder",
+									"second": "initiator",
+									"comparator": "greaterthan",
+									"value": "70",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-10",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "cool",
+									"first": "responder",
+									"second": "initiator",
+									"comparator": "greaterthan",
+									"value": "70",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-10",
+								"name": "Anonymous Rule"
+							}
+						]
+					},
+					"Effects": {
+						"Effect": [
+							{
+								"PerformanceRealization": "when %i% slammed %r%",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "relationship",
+										"first": "initiator",
+										"second": "responder",
+										"relationship": "fighting",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "when %i% slammed %r%  and %r% was like Ghandi",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "trait",
+										"trait": "pacifist",
+										"first": "responder",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "relationship",
+											"first": "initiator",
+											"second": "responder",
+											"relationship": "fighting",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "status",
+											"status": "",
+											"first": "responder",
+											"second": "initiator",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "when %i% tried to make fun of %r% and completely failed",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "cool",
+										"first": "initiator",
+										"second": "responder",
+										"comparator": "-",
+										"value": "20",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "when %i% incompetently raged at %r%",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "trait",
+										"trait": "pacifist",
+										"first": "responder",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "relationship",
+											"first": "initiator",
+											"second": "responder",
+											"relationship": "fighting",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "status",
+											"status": "",
+											"first": "responder",
+											"second": "initiator",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "true"
+							}
+						]
+					},
+					"Instantiations": "",
+					"name": "Verbally Abuse"
+				},
+				{
+					"Preconditions": {
+						"Rule": {
+							"Predicate": {
+								"type": "relationship",
+								"first": "initiator",
+								"second": "responder",
+								"relationship": "dating",
+								"negated": "true",
+								"isSFDB": "false",
+								"window": "0"
+							},
+							"name": "not dating"
+						}
+					},
+					"InitiatorInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "romance",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "greaterthan",
+									"value": "39",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Romantic interest"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "romance",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "greaterthan",
+									"value": "69",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "more romantic interest"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "sex magnet",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "sexy responder"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "inarticulate",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-10",
+								"name": "inarticulate"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "cool",
+									"first": "responder",
+									"second": "initiator",
+									"comparator": "lessthan",
+									"value": "41",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-10",
+								"name": "not cool responder"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "initiator",
+									"second": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "initiator's crush"
+							}
+						]
+					},
+					"ResponderInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "romance",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "greaterthan",
+									"value": "39",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "romance",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "greaterthan",
+									"value": "69",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "sex magnet",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "cool",
+									"first": "responder",
+									"second": "initiator",
+									"comparator": "lessthan",
+									"value": "41",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-10",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": [
+									{
+										"type": "trait",
+										"trait": "monogamous",
+										"first": "responder",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									},
+									{
+										"type": "relationship",
+										"first": "responder",
+										"second": "other",
+										"relationship": "dating",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								],
+								"weight": "-20",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Anonymous Rule"
+							}
+						]
+					},
+					"Effects": {
+						"Effect": [
+							{
+								"PerformanceRealization": "when %i% asked %r% out on a date",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "relationship",
+										"first": "initiator",
+										"second": "responder",
+										"relationship": "friends",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "when %r% said not to going out with %i%",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "status",
+										"status": "shaken",
+										"first": "responder",
+										"second": "initiator",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "when %rp% serial monogamy got in the way when %i% asked %r% to date",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "trait",
+										"trait": "monogamous",
+										"first": "responder",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "cool",
+										"first": "initiator",
+										"second": "responder",
+										"comparator": "-",
+										"value": "20",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							}
+						]
+					},
+					"Instantiations": "",
+					"name": "Simple Date"
+				},
+				{
+					"Preconditions": {
+						"Rule": {
+							"Predicate": {
+								"type": "relationship",
+								"first": "initiator",
+								"second": "responder",
+								"relationship": "dating",
+								"negated": "true",
+								"isSFDB": "false",
+								"window": "0"
+							},
+							"name": "Initiator and Responder are not dating"
+						}
+					},
+					"InitiatorInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "confidence",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "15",
+								"name": "Initiator is Confident"
+							},
+							{
+								"Predicate": [
+									{
+										"type": "trait",
+										"trait": "confidence",
+										"first": "initiator",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									},
+									{
+										"type": "network",
+										"networkType": "romance",
+										"first": "initiator",
+										"second": "responder",
+										"comparator": "greaterthan",
+										"value": "39",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								],
+								"weight": "40",
+								"name": "Initiator is Confident and is attracted to responder"
+							}
+						]
+					},
+					"ResponderInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "afraid of commitment",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-10",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "confidence",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "30",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": [
+									{
+										"type": "trait",
+										"trait": "sex magnet",
+										"first": "initiator",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									},
+									{
+										"type": "trait",
+										"trait": "shallow",
+										"first": "responder",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								],
+								"weight": "20",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "true",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-20",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "desperate",
+									"first": "responder",
+									"second": "responder",
+									"negated": "true",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-10",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "confidence",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "CKBEntry",
+									"first": "initiator",
+									"second": "responder",
+									"firstSubjective": "likes",
+									"secondSubjective": "likes",
+									"label": "lame",
+									"negated": "true",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Anonymous Rule"
+							}
+						]
+					},
+					"Effects": {
+						"Effect": [
+							{
+								"PerformanceRealization": "%i% asked if %rp% butt hurt in an attempt to ask %r% out.  It did not go over well.",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "buddy",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "20",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "romance",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "20",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "20",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "%i% tried to smooth talk %r% into dating by saying that %r% was a dream come true, but was shot down.",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "trait",
+										"trait": "witty",
+										"first": "initiator",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "buddy",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "20",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "romance",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "20",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "status",
+											"status": "shaken",
+											"first": "initiator",
+											"second": "initiator",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "%i% asked for %rp% phone number... and then asked %r% out on a date! %r% said yes!",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "relationship",
+										"first": "initiator",
+										"second": "responder",
+										"relationship": "dating",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% Said that %r% lit of %ip% life, and asked %r% out to prom, who agreed!",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "trait",
+										"trait": "sex magnet",
+										"first": "responder",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "relationship",
+											"first": "initiator",
+											"second": "responder",
+											"relationship": "dating",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "trait",
+											"trait": "confidence",
+											"first": "initiator",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "true"
+							}
+						]
+					},
+					"Instantiations": "",
+					"name": "Pick Up Line"
+				},
+				{
+					"Preconditions": {
+						"Rule": [
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "initiator",
+									"second": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"name": "Initiator must have a crush on responder"
+							},
+							{
+								"Predicate": {
+									"type": "relationship",
+									"first": "initiator",
+									"second": "responder",
+									"relationship": "dating",
+									"negated": "true",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"name": "Initiator and responder must not be dating"
+							}
+						]
+					},
+					"InitiatorInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "romance",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "greaterthan",
+									"value": "89",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "40",
+								"name": "Initiator REALLY likes Responder"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "confidence",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Initiator is Confident"
+							}
+						]
+					},
+					"ResponderInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "confidence",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "romance",
+									"first": "responder",
+									"second": "initiator",
+									"comparator": "greaterthan",
+									"value": "89",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": [
+									{
+										"type": "relationship",
+										"first": "responder",
+										"second": "other",
+										"relationship": "dating",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									},
+									{
+										"type": "trait",
+										"trait": "monogamous",
+										"first": "responder",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								],
+								"weight": "-30",
+								"name": "Anonymous Rule"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "takes things slowly",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-20",
+								"name": "Anonymous Rule"
+							}
+						]
+					},
+					"Effects": {
+						"Effect": [
+							{
+								"PerformanceRealization": "%i% kissed %r% and professed %ip% love, and then they started dating.",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "relationship",
+										"first": "initiator",
+										"second": "responder",
+										"relationship": "dating",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% just went up and kissed the very attractive %r%, as a prelude to dating.",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "trait",
+										"trait": "sex magnet",
+										"first": "responder",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "relationship",
+											"first": "initiator",
+											"second": "responder",
+											"relationship": "dating",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "trait",
+											"trait": "confidence",
+											"first": "initiator",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% tried to sweep %r% off  %rp% feet by kissing, but it wasn't well received.",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "romance",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "15",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "buddy",
+											"first": "initiator",
+											"second": "responder",
+											"comparator": "-",
+											"value": "15",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "status",
+											"status": "shaken",
+											"first": "initiator",
+											"second": "initiator",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "%iip% and %rp% friendship was ruined by %i% kissing %r%",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "relationship",
+										"first": "initiator",
+										"second": "responder",
+										"relationship": "friends",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "relationship",
+											"first": "initiator",
+											"second": "responder",
+											"relationship": "friends",
+											"negated": "true",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "romance",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "15",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "%i% kissed %r% even though %r% is dating %o%, which made %r% question %rp% feelings for %o%",
+								"ConditionRule": {
+									"Predicate": [
+										{
+											"type": "status",
+											"status": "has crush",
+											"first": "responder",
+											"second": "initiator",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "relationship",
+											"first": "responder",
+											"second": "other",
+											"relationship": "dating",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"ChangeRule": {
+									"Predicate": {
+										"type": "status",
+										"status": "doubting",
+										"first": "responder",
+										"second": "other",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							}
+						]
+					},
+					"Instantiations": "",
+					"name": "True Love's Kiss"
+				},
+				{
+					"Preconditions": {
+						"Rule": {
+							"Predicate": {
+								"type": "relationship",
+								"first": "initiator",
+								"second": "responder",
+								"relationship": "dating",
+								"negated": "false",
+								"isSFDB": "false",
+								"window": "0"
+							},
+							"name": "Initiator and Responder Must Be Dating"
+						}
+					},
+					"InitiatorInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "buddy",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "greaterthan",
+									"value": "69",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "15",
+								"name": "Initiator is fairly good buddies with responder"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "buddy",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "lessthan",
+									"value": "61",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "40",
+								"name": "Initiator is not amazingly romanticaly interested in responder"
+							}
+						]
+					},
+					"ResponderInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "buddy",
+									"first": "responder",
+									"second": "initiator",
+									"comparator": "greaterthan",
+									"value": "69",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Responder is relatively high buddies with Initiator"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "responder",
+									"second": "other",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Responder has a crush on some other person"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "romance",
+									"first": "responder",
+									"second": "initiator",
+									"comparator": "greaterthan",
+									"value": "59",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-20",
+								"name": "Responder is relatively high romance with Initiator"
+							},
+							{
+								"Predicate": [
+									{
+										"type": "trait",
+										"trait": "domineering",
+										"first": "responder",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									},
+									{
+										"type": "network",
+										"networkType": "romance",
+										"first": "responder",
+										"second": "initiator",
+										"comparator": "greaterthan",
+										"value": "59",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								],
+								"weight": "-20",
+								"name": "Responder is relatively high romance with Initiator"
+							}
+						]
+					},
+					"Effects": {
+						"Effect": [
+							{
+								"PerformanceRealization": "%i% broke up with %r% but both %r% and %i% wanted to still be friends.",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "relationship",
+											"first": "initiator",
+											"second": "responder",
+											"relationship": "dating",
+											"negated": "true",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "relationship",
+											"first": "initiator",
+											"second": "responder",
+											"relationship": "friends",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% broke up with %r% and %r% was happy since %r% had a crush on %o%",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "status",
+										"status": "has crush",
+										"first": "responder",
+										"second": "other",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "status",
+											"status": "shaken",
+											"first": "initiator",
+											"second": "initiator",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "relationship",
+											"first": "initiator",
+											"second": "responder",
+											"relationship": "dating",
+											"negated": "true",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "relationship",
+											"first": "initiator",
+											"second": "responder",
+											"relationship": "friends",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "status",
+											"status": "emnity",
+											"first": "initiator",
+											"second": "other",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% broke up with %r% and wanted to remain friends, but %r% said it would be too painful and left %i% completely",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "relationship",
+										"first": "initiator",
+										"second": "responder",
+										"relationship": "dating",
+										"negated": "true",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "%i% tried to break up with %r%, but %r% strongarmed %i% into remaining in the relationship.",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "trait",
+										"trait": "domineering",
+										"first": "responder",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": {
+										"type": "status",
+										"status": "shaken",
+										"first": "initiator",
+										"second": "initiator",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							}
+						]
+					},
+					"Instantiations": {
+						"Instantiation": {
+							"LineOfDialogue": {
+								"lineNumber": "1",
+								"initiatorLine": "initiator's line",
+								"responderLine": "responder's line",
+								"otherLine": "other's line",
+								"primarySpeaker": "initiator",
+								"initiatorBodyAnimation": "accuse",
+								"initiatorFaceAnimation": "happy",
+								"responderBodyAnimation": "accuse",
+								"responderFaceAnimation": "happy",
+								"otherBodyAnimation": "accuse",
+								"otherFaceAnimation": "happy",
+								"time": "5"
+							},
+							"id": "1"
+						}
+					},
+					"name": "Just Want to be Friends"
+				},
+				{
+					"Preconditions": {
+						"Rule": {
+							"Predicate": {
+								"type": "relationship",
+								"first": "initiator",
+								"second": "responder",
+								"relationship": "dating",
+								"negated": "false",
+								"isSFDB": "false",
+								"window": "0"
+							},
+							"name": "Initiator and Responder Must Be Dating"
+						}
+					},
+					"InitiatorInfluenceRuleSet": {
+						"InfluenceRule": {
+							"Predicate": {
+								"type": "status",
+								"status": "desperate",
+								"first": "initiator",
+								"second": "responder",
+								"negated": "false",
+								"isSFDB": "false",
+								"window": "0"
+							},
+							"weight": "50",
+							"name": "Responder is CHEATING on the Initiator (DESPERATE IS A PLACEHOLDER)"
+						}
+					},
+					"ResponderInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "romance",
+									"first": "responder",
+									"second": "initiator",
+									"comparator": "greaterthan",
+									"value": "79",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "40",
+								"name": "Responder is romantically interested in Initiator"
+							},
+							{
+								"Predicate": [
+									{
+										"type": "CKBEntry",
+										"first": "initiator",
+										"second": "responder",
+										"firstSubjective": "likes",
+										"secondSubjective": "likes",
+										"label": "cool",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									},
+									{
+										"type": "CKBEntry",
+										"first": "initiator",
+										"second": "responder",
+										"firstSubjective": "dislikes",
+										"secondSubjective": "dislikes",
+										"label": "lame",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								],
+								"weight": "10",
+								"name": "Responder and initiator have similar opinions on objects"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "desperate",
+									"first": "initiator",
+									"second": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Responder is Shaken"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "heartless",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-30",
+								"name": "Responder is Heartless"
+							}
+						]
+					},
+					"Effects": {
+						"Effect": [
+							{
+								"PerformanceRealization": "%i% publicly dumped %r%, even though %r% was still madly in love with %i%",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "buddy",
+										"first": "initiator",
+										"second": "responder",
+										"comparator": "lessthan",
+										"value": "0",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "relationship",
+											"first": "initiator",
+											"second": "responder",
+											"relationship": "dating",
+											"negated": "true",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "status",
+											"status": "shaken",
+											"first": "initiator",
+											"second": "initiator",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "status",
+											"status": "desperate",
+											"first": "initiator",
+											"second": "responder",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% publicly dumped %r%, even though %r% was still madly in love with %i%",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "buddy",
+										"first": "initiator",
+										"second": "responder",
+										"comparator": "lessthan",
+										"value": "0",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "relationship",
+											"first": "initiator",
+											"second": "responder",
+											"relationship": "dating",
+											"negated": "true",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "status",
+											"status": "shaken",
+											"first": "initiator",
+											"second": "initiator",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "status",
+											"status": "desperate",
+											"first": "initiator",
+											"second": "responder",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% broke up with %r%, but %r% was unphased and glad to be rid of %i%",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "relationship",
+											"first": "initiator",
+											"second": "responder",
+											"relationship": "dating",
+											"negated": "true",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "status",
+											"status": "emnity",
+											"first": "initiator",
+											"second": "responder",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							}
+						]
+					},
+					"Instantiations": {
+						"Instantiation": {
+							"LineOfDialogue": {
+								"lineNumber": "1",
+								"initiatorLine": "initiator's line",
+								"responderLine": "responder's line",
+								"otherLine": "other's line",
+								"primarySpeaker": "initiator",
+								"initiatorBodyAnimation": "accuse",
+								"initiatorFaceAnimation": "happy",
+								"responderBodyAnimation": "accuse",
+								"responderFaceAnimation": "happy",
+								"otherBodyAnimation": "accuse",
+								"otherFaceAnimation": "happy",
+								"time": "5"
+							},
+							"id": "1"
+						}
+					},
+					"name": "Tell Off"
+				},
+				{
+					"Preconditions": "",
+					"InitiatorInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "romance",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "greaterthan",
+									"value": "39",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "15",
+								"name": "Initiator is decently romantically attracted to responder"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "confidence",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Initiator has confidence"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "sex magnet",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "5",
+								"name": "Initiator is very attractive"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "initiator",
+									"second": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "25",
+								"name": "Initiator has a crush on the responder"
+							}
+						]
+					},
+					"ResponderInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "confidence",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Responder is confident"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "sex magnet",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "30",
+								"name": "Responder likes it if Initiator is Sexy"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "40",
+								"name": "Responder has a crush on Initiator"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "romance",
+									"first": "responder",
+									"second": "initiator",
+									"comparator": "greaterthan",
+									"value": "69",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Responder is romantically interested in Initiator"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "cool",
+									"first": "responder",
+									"second": "initiator",
+									"comparator": "lessthan",
+									"value": "31",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-20",
+								"name": "Responder thinks that initiator isn't very cool"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "doesn't know exists",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-50",
+								"name": "Responder doesn't know Initiator exists"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "clumsy",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-30",
+								"name": "Initiator is Clumsy (ORIGINALLY MEANT TO BE INITIATOR IS GROSS)"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "shaken",
+									"first": "initiator",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-20",
+								"name": "Initiator is Shaken"
+							}
+						]
+					},
+					"Effects": {
+						"Effect": [
+							{
+								"PerformanceRealization": "%i% did %CKB_((i, likes),(r, likes),cool)% to successfully impress %r%",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "romance",
+										"first": "responder",
+										"second": "initiator",
+										"comparator": "+",
+										"value": "10",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%r% was really impressed when %i% did %CKB_((i, likes),(r, likes),cool)% especially since %r% had a crush on %i%",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "status",
+										"status": "has crush",
+										"first": "responder",
+										"second": "initiator",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "romance",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "+",
+											"value": "15",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "romance",
+											"first": "initiator",
+											"second": "responder",
+											"comparator": "+",
+											"value": "10",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%r% dismissed %ip% attempt to flirt.",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "status",
+										"status": "shaken",
+										"first": "initiator",
+										"second": "initiator",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "%i% did not impress %r% with %CKB_((i, likes), (r, dislikes), lame), but %i% liked the attention anyway.",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "trait",
+										"trait": "sex magnet",
+										"first": "responder",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "status",
+											"status": "shaken",
+											"first": "initiator",
+											"second": "initiator",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "romance",
+											"first": "initiator",
+											"second": "responder",
+											"comparator": "+",
+											"value": "10",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "%i% tried flirting with %r% but %r% barely acknowledged %ip% existance and did not care.",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "status",
+										"status": "doesn't know exists",
+										"first": "responder",
+										"second": "initiator",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "status",
+											"status": "shaken",
+											"first": "initiator",
+											"second": "initiator",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "20",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "%i% thought less of %r% when %r% didn't appreciate %ip% CKB_((i, likes), (r, dislikes), cool)%",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "trait",
+										"trait": "confidence",
+										"first": "initiator",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "buddy",
+										"first": "initiator",
+										"second": "responder",
+										"comparator": "lessthan",
+										"value": "0",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							}
+						]
+					},
+					"Instantiations": {
+						"Instantiation": {
+							"LineOfDialogue": {
+								"lineNumber": "1",
+								"initiatorLine": "initiator's line",
+								"responderLine": "responder's line",
+								"otherLine": "other's line",
+								"primarySpeaker": "initiator",
+								"initiatorBodyAnimation": "accuse",
+								"initiatorFaceAnimation": "happy",
+								"responderBodyAnimation": "accuse",
+								"responderFaceAnimation": "happy",
+								"otherBodyAnimation": "accuse",
+								"otherFaceAnimation": "happy",
+								"time": "5"
+							},
+							"id": "1"
+						}
+					},
+					"name": "Physical Flirt"
+				},
+				{
+					"Preconditions": "",
+					"InitiatorInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "initiator",
+									"second": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "25",
+								"name": "Initiator has a crush on the responder"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "romance",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "greaterthan",
+									"value": "29",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "15",
+								"name": "Initiator is decently romantically attracted to responder"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "confidence",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Initiator has Witty"
+							},
+							{
+								"Predicate": {
+									"type": "CKBEntry",
+									"first": "initiator",
+									"second": "responder",
+									"firstSubjective": "likes",
+									"secondSubjective": "likes",
+									"label": "lame",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Initiator and Responder have similar romantic interests"
+							}
+						]
+					},
+					"ResponderInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "cool",
+									"first": "responder",
+									"second": "initiator",
+									"comparator": "lessthan",
+									"value": "31",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-20",
+								"name": "Responder thinks that initiator isn't very cool"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "doesn't know exists",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-50",
+								"name": "Responder doesn't know Initiator exists"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "shaken",
+									"first": "initiator",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-20",
+								"name": "Initiator is Shaken"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "30",
+								"name": "Responder has a crush on Initiator"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "witty",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Initiator is Witty"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "inarticulate",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-30",
+								"name": "Initiator is Inarticulate"
+							},
+							{
+								"Predicate": {
+									"type": "CKBEntry",
+									"first": "initiator",
+									"second": "responder",
+									"firstSubjective": "likes",
+									"secondSubjective": "likes",
+									"label": "romantic",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Similar Romantic Interests"
+							},
+							{
+								"Predicate": {
+									"type": "CKBEntry",
+									"first": "initiator",
+									"second": "responder",
+									"firstSubjective": "likes",
+									"secondSubjective": "dislikes",
+									"label": "romantic",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-30",
+								"name": "DisSimilar Romantic Interests"
+							}
+						]
+					},
+					"Effects": {
+						"Effect": [
+							{
+								"PerformanceRealization": "%i% paid %r% a compliment which %r% was happy to receive.",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "buddy",
+										"first": "initiator",
+										"second": "responder",
+										"comparator": "lessthan",
+										"value": "0",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% used %ip% wit to flirt with %r% in a particularly flowery fashion that was well received.",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "trait",
+										"trait": "witty",
+										"first": "initiator",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "buddy",
+										"first": "initiator",
+										"second": "responder",
+										"comparator": "lessthan",
+										"value": "0",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% and %r% bonded over a mutual appreciation for %CKB_((i, likes),(r, likes), romantic)",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "CKBEntry",
+										"first": "initiator",
+										"second": "responder",
+										"firstSubjective": "likes",
+										"secondSubjective": "likes",
+										"label": "romantic",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "romance",
+											"first": "initiator",
+											"second": "responder",
+											"comparator": "+",
+											"value": "15",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "romance",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "+",
+											"value": "15",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% attempted to flirt with %r% but never even got a chance to get started.",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "romance",
+										"first": "responder",
+										"second": "initiator",
+										"comparator": "-",
+										"value": "10",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "%i% brought up %CKB_((i, likes),(r, dislikes),romantic)% in hopes of  being romantic, but %r% does not like %CKB_((i, likes),(r, dislikes),romantic)% so %r% was thoroughly unimpressed",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "CKBEntry",
+										"first": "initiator",
+										"second": "responder",
+										"firstSubjective": "likes",
+										"secondSubjective": "dislikes",
+										"label": "romantic",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "romance",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "10",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "10",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "%i% mumbled out some flirty behavior to %r%, but was not glib enough to pull it off well.",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "trait",
+										"trait": "inarticulate",
+										"first": "initiator",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "romance",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "10",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "10",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "status",
+											"status": "shaken",
+											"first": "initiator",
+											"second": "initiator",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							}
+						]
+					},
+					"Instantiations": {
+						"Instantiation": {
+							"LineOfDialogue": {
+								"lineNumber": "1",
+								"initiatorLine": "initiator's line",
+								"responderLine": "responder's line",
+								"otherLine": "other's line",
+								"primarySpeaker": "initiator",
+								"initiatorBodyAnimation": "accuse",
+								"initiatorFaceAnimation": "happy",
+								"responderBodyAnimation": "accuse",
+								"responderFaceAnimation": "happy",
+								"otherBodyAnimation": "accuse",
+								"otherFaceAnimation": "happy",
+								"time": "5"
+							},
+							"id": "1"
+						}
+					},
+					"name": "Conversational Flirt"
+				},
+				{
+					"Preconditions": {
+						"Rule": {
+							"Predicate": {
+								"type": "relationship",
+								"first": "initiator",
+								"second": "responder",
+								"relationship": "dating",
+								"negated": "true",
+								"isSFDB": "false",
+								"window": "0"
+							},
+							"name": "Inititiator and Responder can not be dating."
+						}
+					},
+					"InitiatorInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "initiator",
+									"second": "responder",
+									"negated": "true",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "15",
+								"name": "Initiator does not have a crush on the responder"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "romance",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "lessthan",
+									"value": "61",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "15",
+								"name": "Initiator is Not decently romantically attracted to responder"
+							},
+							{
+								"Predicate": {
+									"type": "CKBEntry",
+									"first": "initiator",
+									"second": "responder",
+									"firstSubjective": "likes",
+									"secondSubjective": "dislikes",
+									"label": "cool",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Initiator and Responder have dissimilar cool interest"
+							}
+						]
+					},
+					"ResponderInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "confidence",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "30",
+								"name": "Responder is confident"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-40",
+								"name": "Responder has a crush on initiator"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "cool",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "AverageOpinion",
+									"value": "50",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Initiator is not regarded as particularly cool by the rest of the characters"
+							}
+						]
+					},
+					"Effects": {
+						"Effect": [
+							{
+								"PerformanceRealization": "%i% told %r% that %i% did not like-like %r%",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "romance",
+										"first": "responder",
+										"second": "initiator",
+										"comparator": "-",
+										"value": "20",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% thought %r% had a crush on %i% and told %r% to drop it, but %r% did not appreciate $ip% boldness",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "trait",
+										"trait": "confidence",
+										"first": "responder",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "romance",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "20",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "buddy",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "10",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "10",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% let %r% know that %i% did not want to pursue a relationship with %r% and %r% concurred.",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "romance",
+										"first": "responder",
+										"second": "initiator",
+										"comparator": "-",
+										"value": "10",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "%i%  told %r% that %i% did not have feelings for %r% even though $r% had a crush on %i%",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "status",
+										"status": "has crush",
+										"first": "responder",
+										"second": "initiator",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": {
+										"type": "status",
+										"status": "shaken",
+										"first": "responder",
+										"second": "responder",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "5%i% and %r% held differing views on %CKB_((i, likes),(r, dislikes),cool)% which just made %i% less impressed with %r%",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "CKBEntry",
+										"first": "initiator",
+										"second": "responder",
+										"firstSubjective": "likes",
+										"secondSubjective": "dislikes",
+										"label": "cool",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "romance",
+											"first": "initiator",
+											"second": "responder",
+											"comparator": "-",
+											"value": "10",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "initiator",
+											"second": "responder",
+											"comparator": "-",
+											"value": "10",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							}
+						]
+					},
+					"Instantiations": {
+						"Instantiation": {
+							"LineOfDialogue": {
+								"lineNumber": "1",
+								"initiatorLine": "initiator's line",
+								"responderLine": "responder's line",
+								"otherLine": "other's line",
+								"primarySpeaker": "initiator",
+								"initiatorBodyAnimation": "accuse",
+								"initiatorFaceAnimation": "happy",
+								"responderBodyAnimation": "accuse",
+								"responderFaceAnimation": "happy",
+								"otherBodyAnimation": "accuse",
+								"otherFaceAnimation": "happy",
+								"time": "5"
+							},
+							"id": "1"
+						}
+					},
+					"name": "I'm Just Not That Into You"
+				},
+				{
+					"Preconditions": "",
+					"InitiatorInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "romance",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "lessthan",
+									"value": "61",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "15",
+								"name": "Initiator is Not decently romantically attracted to responder"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "initiator",
+									"second": "responder",
+									"negated": "true",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "15",
+								"name": "Initiator does not have a crush on the responder"
+							},
+							{
+								"Predicate": {
+									"type": "relationship",
+									"first": "initiator",
+									"second": "responder",
+									"relationship": "dating",
+									"negated": "true",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "25",
+								"name": "Initiator and Responder are not dating"
+							}
+						]
+					},
+					"ResponderInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-40",
+								"name": "Responder has a crush on initiator"
+							},
+							{
+								"Predicate": {
+									"type": "CKBEntry",
+									"first": "initiator",
+									"second": "responder",
+									"firstSubjective": "dislikes",
+									"secondSubjective": "likes",
+									"label": "gross",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-40",
+								"name": "Responder likes a gross thing which the initiator does not like"
+							},
+							{
+								"Predicate": {
+									"type": "CKBEntry",
+									"first": "initiator",
+									"second": "responder",
+									"firstSubjective": "dislikes",
+									"secondSubjective": "dislikes",
+									"label": "gross",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "60",
+								"name": "Responder likes a gross thing which the initiator does not like"
+							}
+						]
+					},
+					"Effects": {
+						"Effect": [
+							{
+								"PerformanceRealization": "%i% picked %ip% nose in front of %r%, grossing %r% out",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "romance",
+										"first": "responder",
+										"second": "initiator",
+										"comparator": "-",
+										"value": "15",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% tried to gross out %r% by burping, but %r% was non phased, which surprised %i%",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "status",
+										"status": "shaken",
+										"first": "initiator",
+										"second": "initiator",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "%i% brought up %CKB_((i, dislikes),(r, likes), gross)% to freak %r% out, but % liked %CKB_((i, dislikes),(r, likes), gross)% and was impressed with %i% for  mentioning it.",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "CKBEntry",
+										"first": "initiator",
+										"second": "responder",
+										"firstSubjective": "dislikes",
+										"secondSubjective": "likes",
+										"label": "gross",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "buddy",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "+",
+											"value": "15",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "+",
+											"value": "15",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "%i% mentioned %CKB_((i, likes),(r, dislikes), gross)% to push %r% away.  %r% was grossed out, but still a crush on %i%",
+								"ConditionRule": {
+									"Predicate": [
+										{
+											"type": "status",
+											"status": "has crush",
+											"first": "responder",
+											"second": "initiator",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "CKBEntry",
+											"first": "initiator",
+											"second": "responder",
+											"firstSubjective": "likes",
+											"secondSubjective": "dislikes",
+											"label": "gross",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "10",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "status",
+											"status": "shaken",
+											"first": "responder",
+											"second": "responder",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							}
+						]
+					},
+					"Instantiations": {
+						"Instantiation": {
+							"LineOfDialogue": {
+								"lineNumber": "1",
+								"initiatorLine": "initiator's line",
+								"responderLine": "responder's line",
+								"otherLine": "other's line",
+								"primarySpeaker": "initiator",
+								"initiatorBodyAnimation": "accuse",
+								"initiatorFaceAnimation": "happy",
+								"responderBodyAnimation": "accuse",
+								"responderFaceAnimation": "happy",
+								"otherBodyAnimation": "accuse",
+								"otherFaceAnimation": "happy",
+								"time": "5"
+							},
+							"id": "1"
+						}
+					},
+					"name": "Gross Out"
+				},
+				{
+					"Preconditions": "",
+					"InitiatorInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "confidence",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "15",
+								"name": "Initiator is Confident"
+							},
+							{
+								"Predicate": {
+									"type": "network",
+									"networkType": "buddy",
+									"first": "initiator",
+									"second": "responder",
+									"comparator": "greaterthan",
+									"value": "49",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Initiator and Responder are decently buddies"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "clumsy",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-40",
+								"name": "Initiator is Humble"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "initiator",
+									"second": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "25",
+								"name": "Initiator is Humble"
+							}
+						]
+					},
+					"ResponderInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "confidence",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Initiator is Confident"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "clumsy",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-40",
+								"name": "Initiator is Clumsy"
+							},
+							{
+								"Predicate": {
+									"type": "CKBEntry",
+									"first": "initiator",
+									"second": "responder",
+									"firstSubjective": "likes",
+									"secondSubjective": "likes",
+									"label": "cool",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Initiator and Responder both think something is cool"
+							},
+							{
+								"Predicate": {
+									"type": "CKBEntry",
+									"first": "initiator",
+									"second": "responder",
+									"firstSubjective": "likes",
+									"secondSubjective": "dislikes",
+									"label": "cool",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-20",
+								"name": "Initiator thinks something is cool but responder does not like it."
+							}
+						]
+					},
+					"Effects": {
+						"Effect": [
+							{
+								"PerformanceRealization": "%i% impresssed %r% with a physical display",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "cool",
+										"first": "initiator",
+										"second": "responder",
+										"comparator": "+",
+										"value": "15",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i%  and %r% bonded over a shared interest in %CKB_((i, likes),(r, likes), cool)% after %i% demonstrated it",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "CKBEntry",
+										"first": "initiator",
+										"second": "responder",
+										"firstSubjective": "likes",
+										"secondSubjective": "likes",
+										"label": "cool",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "buddy",
+											"first": "initiator",
+											"second": "responder",
+											"comparator": "+",
+											"value": "15",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "buddy",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "+",
+											"value": "15",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% attempted to impress %r%, but %r% was nonplussed",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "cool",
+										"first": "responder",
+										"second": "initiator",
+										"comparator": "-",
+										"value": "15",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "%i% thought %CKB_((i, likes),(r, dislikes),cool)% was cool, while %r% preferred %CKB_((i, likes),(r, dislikes),cool)% ,and consequently thought less of %i%",
+								"ConditionRule": {
+									"Predicate": [
+										{
+											"type": "CKBEntry",
+											"first": "initiator",
+											"second": "responder",
+											"firstSubjective": "likes",
+											"secondSubjective": "dislikes",
+											"label": "cool",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "CKBEntry",
+											"first": "initiator",
+											"second": "responder",
+											"firstSubjective": "likes",
+											"secondSubjective": "likes",
+											"label": "lame",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "15",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "buddy",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "15",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							}
+						]
+					},
+					"Instantiations": {
+						"Instantiation": {
+							"LineOfDialogue": {
+								"lineNumber": "1",
+								"initiatorLine": "initiator's line",
+								"responderLine": "responder's line",
+								"otherLine": "other's line",
+								"primarySpeaker": "initiator",
+								"initiatorBodyAnimation": "accuse",
+								"initiatorFaceAnimation": "happy",
+								"responderBodyAnimation": "accuse",
+								"responderFaceAnimation": "happy",
+								"otherBodyAnimation": "accuse",
+								"otherFaceAnimation": "happy",
+								"time": "5"
+							},
+							"id": "1"
+						}
+					},
+					"name": "Cool Physical Act"
+				},
+				{
+					"Preconditions": {
+						"Rule": {
+							"Predicate": {
+								"type": "SFDB label",
+								"first": "initiator",
+								"second": "initiator",
+								"label": "cool",
+								"negated": "false",
+								"isSFDB": "true",
+								"window": "0"
+							},
+							"name": "Inititator must have done some cool action in the past"
+						}
+					},
+					"InitiatorInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "humble",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Initiator is Humble"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "attention hog",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-20",
+								"name": "Initiator is an Attention Hog"
+							}
+						]
+					},
+					"ResponderInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "domineering",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Responder is Domineering"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "shallow",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Responder is Shallow"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "jealous",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-30",
+								"name": "Responder is Jealous of Initiator"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-20",
+								"name": "Responder is Jealous of Initiator"
+							}
+						]
+					},
+					"Effects": {
+						"Effect": [
+							{
+								"PerformanceRealization": "%i%  tried to be humble about %SFDB_cool(i)%, but %r% saw this as a moment of weakness and pounced",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "trait",
+										"trait": "domineering",
+										"first": "responder",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "15",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "status",
+											"status": "superior towards",
+											"first": "responder",
+											"second": "initiator",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "In a fit of humility, %i% reminded %r% of %SFDB_cool(i)% only to downplay it's significance",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "cool",
+										"first": "responder",
+										"second": "initiator",
+										"comparator": "-",
+										"value": "10",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% tried to convince %r% that %SFDB_cool(i)% was not important, but %r% was not convinced and still thought it was cool.",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "cool",
+										"first": "responder",
+										"second": "initiator",
+										"comparator": "+",
+										"value": "15",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "Even though %i% tried to be humble about %SFDB_(i)%, %r% was so infatuated with %i% that %r% heard none of it.",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "status",
+										"status": "has crush",
+										"first": "responder",
+										"second": "initiator",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "+",
+											"value": "15",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "romance",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "+",
+											"value": "15",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							}
+						]
+					},
+					"Instantiations": {
+						"Instantiation": {
+							"LineOfDialogue": {
+								"lineNumber": "1",
+								"initiatorLine": "initiator's line",
+								"responderLine": "responder's line",
+								"otherLine": "other's line",
+								"primarySpeaker": "initiator",
+								"initiatorBodyAnimation": "accuse",
+								"initiatorFaceAnimation": "happy",
+								"responderBodyAnimation": "accuse",
+								"responderFaceAnimation": "happy",
+								"otherBodyAnimation": "accuse",
+								"otherFaceAnimation": "happy",
+								"time": "5"
+							},
+							"id": "1"
+						}
+					},
+					"name": "Humble Self"
+				},
+				{
+					"Preconditions": "",
+					"InitiatorInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "clumsy",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Initiator is Clumsy"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "inarticulate",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Initiator is Inarticulate"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "shaken",
+									"first": "initiator",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "15",
+								"name": "Initiator is Shaken"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "confidence",
+									"first": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-15",
+								"name": "Initiator is Confident"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "initiator",
+									"second": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-25",
+								"name": "Initiator is Has a crush on Responder"
+							}
+						]
+					},
+					"ResponderInfluenceRuleSet": {
+						"InfluenceRule": [
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "shallow",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Responder is Shallow"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "jealous",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-30",
+								"name": "Responder is Jealous of Initiator"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "heartless",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "10",
+								"name": "Responder is Heartless"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "superior towards",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "20",
+								"name": "Responder Feels superior towards Initiator"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "inarticulate",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-10",
+								"name": "Responder is Inarticulatae"
+							},
+							{
+								"Predicate": {
+									"type": "status",
+									"status": "has crush",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-20",
+								"name": "Responder Has a crush on Initiator"
+							},
+							{
+								"Predicate": {
+									"type": "trait",
+									"trait": "clumsy",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false",
+									"window": "0"
+								},
+								"weight": "-10",
+								"name": "Responder is Clumsy"
+							}
+						]
+					},
+					"Effects": {
+						"Effect": [
+							{
+								"PerformanceRealization": "Even though %i% tried to be humble about %SFDB_(i)%, %r% was so infatuated with %i% that %r% heard none of it.",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "status",
+										"status": "has crush",
+										"first": "responder",
+										"second": "initiator",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "+",
+											"value": "15",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "romance",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "+",
+											"value": "15",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "%i% intentionally embarrased %ip% self in front of %r% and got made fun of",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "cool",
+										"first": "responder",
+										"second": "initiator",
+										"comparator": "-",
+										"value": "15",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% uttered a verbal faux pas in front of %r% who was quick to insult someone regarded as inferior",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "status",
+										"status": "superior towards",
+										"first": "responder",
+										"second": "initiator",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "-",
+											"value": "30",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "initiator",
+											"second": "responder",
+											"comparator": "+",
+											"value": "10",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "true"
+							},
+							{
+								"PerformanceRealization": "%i% tried to engage in an embarrassing act in front of %r% but %r% was genuinely impressed with %ip% ability to behave like a fool",
+								"ConditionRule": "",
+								"ChangeRule": {
+									"Predicate": {
+										"type": "network",
+										"networkType": "cool",
+										"first": "responder",
+										"second": "initiator",
+										"comparator": "+",
+										"value": "12",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"id": "-1",
+								"accept": "false"
+							},
+							{
+								"PerformanceRealization": "Though %i% got tongue tied in front of %r%, %r% saw a kindred spirit since %r% is clumsy at times as well.",
+								"ConditionRule": {
+									"Predicate": {
+										"type": "trait",
+										"trait": "clumsy",
+										"first": "responder",
+										"negated": "false",
+										"isSFDB": "false",
+										"window": "0"
+									}
+								},
+								"ChangeRule": {
+									"Predicate": [
+										{
+											"type": "network",
+											"networkType": "cool",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "+",
+											"value": "10",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										},
+										{
+											"type": "network",
+											"networkType": "buddy",
+											"first": "responder",
+											"second": "initiator",
+											"comparator": "+",
+											"value": "10",
+											"negated": "false",
+											"isSFDB": "false",
+											"window": "0"
+										}
+									]
+								},
+								"id": "-1",
+								"accept": "false"
+							}
+						]
+					},
+					"Instantiations": {
+						"Instantiation": {
+							"LineOfDialogue": {
+								"lineNumber": "1",
+								"initiatorLine": "initiator's line",
+								"responderLine": "responder's line",
+								"otherLine": "other's line",
+								"primarySpeaker": "initiator",
+								"initiatorBodyAnimation": "accuse",
+								"initiatorFaceAnimation": "happy",
+								"responderBodyAnimation": "accuse",
+								"responderFaceAnimation": "happy",
+								"otherBodyAnimation": "accuse",
+								"otherFaceAnimation": "happy",
+								"time": "5"
+							},
+							"id": "1"
+						}
+					},
+					"name": "Embarrass Self"
+				}
+			]
+		},
+		"CulturalKB": {
+			"Proposition": [
+				{
+					"type": "subjective",
+					"head": "robert",
+					"connection": "likes",
+					"tail": "pirates"
+				},
+				{
+					"type": "subjective",
+					"head": "Debbie",
+					"connection": "dislikes",
+					"tail": "flowers"
+				},
+				{
+					"type": "subjective",
+					"head": "robert",
+					"connection": "likes",
+					"tail": "flowers"
+				},
+				{
+					"type": "truth",
+					"head": "pirates",
+					"connection": "are",
+					"tail": "mean"
+				},
+				{
+					"type": "truth",
+					"head": "flowers",
+					"connection": "are",
+					"tail": "lame"
+				}
+			]
+		}
+	}
+}

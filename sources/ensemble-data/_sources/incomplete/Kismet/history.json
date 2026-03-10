@@ -1,0 +1,15 @@
+{
+	"history": [
+		{
+			"pos": 0,
+			"data": [
+				{
+					"category": "trait",
+					"type": "hero",
+					"first": "Mike",
+					"value": true
+				}
+            ]
+        }
+	]
+}

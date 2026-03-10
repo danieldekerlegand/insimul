@@ -1,0 +1,103 @@
+{
+	"schema": [
+		{
+			"actionable": false,
+			"category": "trait",
+			"directionType": "undirected",
+			"isBoolean": true,
+			"types": [
+				"Highlander", 
+				"Lowlander", 
+				"Tecomarian",
+				"Grisel Highlander",
+				"male",
+				"female",
+				"local",
+				"Artemisian",
+				"aristocrat",
+				"middle class",
+				"peasant",
+				"diplomatic",
+				"border guard officer",
+				"town constable",
+				"tavern owner",
+				"traveler",
+				"sellsword",
+				"Black Perilla",
+				"taciturn"
+			]
+		},
+		{
+			"actionable": false,
+			"category": "attribute",
+			"defaultValue": 50,
+			"directionType": "undirected",
+			"isBoolean": false,
+			"maxValue": 100,
+			"minValue": 1,
+			"types": [
+				"diplomacy"
+			]
+		},
+		{
+			"actionable": false,
+			"category": "status",
+			"directionType": "undirected",
+			"isBoolean": true,
+			"types": []
+		},
+		{
+			"actionable": false,
+			"category": "directedstatus",
+			"directionType": "directed",
+			"isBoolean": true,
+			"types": [
+				"jealous of",
+				"esteems",
+				"trusts",
+				"intimidated by",
+				"suspicious of",
+				"resentful of",
+				"threatened by",
+				"attracted to"
+			]
+		},
+		{
+			"actionable": true,
+			"category": "network",
+			"defaultValue": 50,
+			"directionType": "directed",
+			"isBoolean": false,
+			"maxValue": 100,
+			"minValue": 1,
+			"types": [
+				"affinity",
+				"emulation",
+				"credibility",
+				"curiosity"
+			]
+		},
+		{
+			"actionable": true,
+			"category": "relationship",
+			"directionType": "reciprocal",
+			"isBoolean": true,
+			"defaultValue": false,
+			"types": [
+				"rivals",
+				"esteem",
+				"ally"
+			]
+		},
+		{
+			"actionable": false,
+			"category": "socialrecordlabel",
+			"directionType": "directed",
+			"isBoolean": true,
+			"types": [
+				"helped",
+				"harmed"
+			]
+		}
+	]
+}

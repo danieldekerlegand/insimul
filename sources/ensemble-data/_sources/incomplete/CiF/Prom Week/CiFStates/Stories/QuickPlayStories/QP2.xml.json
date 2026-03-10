@@ -1,0 +1,81 @@
+﻿{
+    "PromWeek": {
+        "Story": {
+            "Description": "Teach players about choosing actions, and that any character can take actions.",
+            "QuickPlayDescription": {
+                "cdata": "Have Chloe ###CHLOE### impress ###COOL UP### Kate ###Kate### ! "
+            },
+            "QuickPlayEndingDescription": {
+                "cdata": "Characters remember what's happened to them."
+            },
+            "ForcedSGs": {
+                "ForcedSG": {
+                    "initiator": "Chloe",
+                    "responder": "Kate",
+                    "gameName": "Brag",
+                    "turnsIn": "0",
+                    "instantiationID": "38"
+                }
+            },
+            "ToDoList": {
+                "ToDoItem": {
+                    "Condition": {
+                        "Rule": {
+                            "Predicate": {
+                                "type": "network",
+                                "networkType": "cool",
+                                "first": "Kate",
+                                "second": "Chloe",
+                                "comparator": "greaterthan",
+                                "value": "70",
+                                "negated": "false",
+                                "intent": "false",
+                                "isSFDB": "false",
+                                "window": "0",
+                                "numTimesUniquelyTrueFlag": "false",
+                                "numTimesUniquelyTrue": "0",
+                                "numTimesRoleSlot": ""
+                            }
+                        },
+                        "taskNaturalLanguage": {
+                            "words": "Get ###KATE### to think ###CHLOE### is cooler!"
+                        }
+                    },
+                    "name": "Have Chloe impress Kate"
+                }
+            },
+            "Levels": {
+                "Level": {
+                    "Description": "Have Chloe impress Kate.",
+                    "Setting": "park",
+                    "Cast": {
+                        "CharacterName": [
+                            "Chloe",
+                            "Kate"
+                        ]
+                    },
+                    "GoalRules": "",
+                    "title": "LEVEL 2",
+                    "timeLimit": "1",
+                    "cameraZoom": "1",
+                    "useDefinedCameraPosition": "false",
+                    "cameraX": "800",
+                    "cameraY": "1400",
+                    "endable": "false",
+                    "isTutorial": "false",
+                    "tutorialScript": ""
+                }
+            },
+            "Endings": "",
+            "title": "QP2",
+            "storyLeadCharacter": "Chloe",
+            "locked": "false",
+            "toUnlock": "0",
+            "isTutorial": "false",
+            "isQuickPlay": "true",
+            "numberOfQuickPlaySGAvailable": "2",
+            "startState": "quickPlayStartState2",
+            "nextChallengeName": "QP3"
+        }
+    }
+}

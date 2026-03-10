@@ -1,0 +1,88 @@
+﻿{
+    "PromWeek": {
+        "Story": {
+            "Description": "Social physics.",
+            "QuickPlayDescription": {
+                "cdata": "Force ###PHOEBE### and ###GUNTER### to start dating ###DATING###"
+            },
+            "QuickPlayEndingDescription": {
+                "cdata": "Sometimes it takes three to tango."
+            },
+            "ForcedSGs": {
+                "ForcedSG": [
+                    {
+                        "initiator": "Gunter",
+                        "responder": "Phoebe",
+                        "gameName": "Humble Self",
+                        "turnsIn": "0",
+                        "instantiationID": "-1"
+                    },
+                    {
+                        "initiator": "Gunter",
+                        "responder": "Phoebe",
+                        "gameName": "Ask Out",
+                        "turnsIn": "0",
+                        "instantiationID": "-1"
+                    }
+                ]
+            },
+            "ToDoList": {
+                "ToDoItem": {
+                    "Condition": {
+                        "Rule": {
+                            "Predicate": {
+                                "type": "relationship",
+                                "first": "Gunter",
+                                "second": "Phoebe",
+                                "relationship": "dating",
+                                "negated": "false",
+                                "intent": "false",
+                                "isSFDB": "false",
+                                "window": "0",
+                                "numTimesUniquelyTrueFlag": "false",
+                                "numTimesUniquelyTrue": "0",
+                                "numTimesRoleSlot": ""
+                            }
+                        },
+                        "taskNaturalLanguage": {
+                            "words": "Make ###GUNTER### and ###PHOEBE### to start dating ###DATING###"
+                        }
+                    },
+                    "name": "Using Social Influence Points"
+                }
+            },
+            "Levels": {
+                "Level": {
+                    "Description": "Make Gunter and Phoebe Date.",
+                    "Setting": "park",
+                    "Cast": {
+                        "CharacterName": [
+                            "Gunter",
+                            "Phoebe"
+                        ]
+                    },
+                    "GoalRules": "",
+                    "title": "LEVEL 7",
+                    "timeLimit": "1",
+                    "cameraZoom": "1",
+                    "useDefinedCameraPosition": "false",
+                    "cameraX": "800",
+                    "cameraY": "1400",
+                    "endable": "false",
+                    "isTutorial": "false",
+                    "tutorialScript": ""
+                }
+            },
+            "Endings": "",
+            "title": "QP7",
+            "storyLeadCharacter": "Gunter",
+            "locked": "false",
+            "toUnlock": "0",
+            "isTutorial": "false",
+            "isQuickPlay": "true",
+            "numberOfQuickPlaySGAvailable": "2",
+            "startState": "quickPlayStartState7",
+            "nextChallengeName": "NONE"
+        }
+    }
+}

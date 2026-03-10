@@ -1,0 +1,2008 @@
+{
+      "socialPractices": [
+            {
+                  "label": "Greeting",
+                  "entryStage": {
+                        "eventStage": false,
+                        "label": "Enter",
+                        "parentStages": [],
+                        "preconditions": [],
+                        "actions": [],
+                        "nextStages": [
+                              "Say hi"
+                        ]
+                  },
+                  "stages": [
+                        {
+                              "nextStages": [
+                                    "respond to hi"
+                              ],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [
+                                                {
+                                                      "name": "Now Rule for Polite hello",
+                                                      "conditions": [
+                                                            {
+                                                                  "class": "network",
+                                                                  "type": "friend",
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "operator": "<",
+                                                                  "value": 4
+                                                            },
+                                                            {
+                                                                  "class": "trait",
+                                                                  "type": "jerk",
+                                                                  "value": true,
+                                                                  "first": "y"
+                                                            }
+                                                      ],
+                                                      "effects": [
+                                                            {
+                                                                  "class": "intent",
+                                                                  "type": "kind",
+                                                                  "weight": -3,
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "intentDirection": true
+                                                            }
+                                                      ]
+                                                }
+                                          ],
+                                          "carryRules": [],
+                                          "label": "Polite hello",
+                                          "intent": "kind",
+                                          "defaultWeight": "0",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": "Hey %X% what you up to?"
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Rude hello",
+                                          "intent": "rude",
+                                          "defaultWeight": "0",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": "Hey! What's the deal?"
+                                    }
+                              ],
+                              "label": "Say hi"
+                        },
+                        {
+                              "nextStages": [],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Friendly response to a greeting",
+                                          "intent": "kind",
+                                          "defaultWeight": "0",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 3
+                                                }
+                                          ],
+                                          "performance": "Oh, I'm sorry. Nevermind %Y%."
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Offended response to a greeting",
+                                          "intent": "rude",
+                                          "defaultWeight": "0",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": "WTF %Y%!?!?!?!"
+                                    }
+                              ],
+                              "label": "respond to hi"
+                        }
+                  ]
+            },
+            {
+                  "label": "Discuss Pizza",
+                  "entryStage": {
+                        "eventStage": false,
+                        "label": "Enter",
+                        "parentStages": [],
+                        "preconditions": [],
+                        "actions": [],
+                        "nextStages": [
+                              "Discuss pizza with non dining partner",
+                              "Discuss pizza with dining partner"
+                        ]
+                  },
+                  "stages": [
+                        {
+                              "nextStages": [
+                                    "Initial response about pizza"
+                              ],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Talk about love of pizza",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": "Oh hey, you know what? This place has the best sauce. Knowhutimean?"
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Guilt about pizza",
+                                          "intent": "rude",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": "You know, I don't really think you should be eating so much... "
+                                    }
+                              ],
+                              "label": "Discuss pizza with non dining partner"
+                        },
+                        {
+                              "nextStages": [],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "What should we get?",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": "Hey, %y%, what toppings do you want?"
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "What should we order (with romance)",
+                                          "intent": "flirt",
+                                          "defaultWeight": "",
+                                          "preconditions": [
+                                                {
+                                                      "class": "status",
+                                                      "type": "fan_of_restaurant",
+                                                      "value": true,
+                                                      "first": "x"
+                                                }
+                                          ],
+                                          "effects": [],
+                                          "performance": "What a restauant. I'm so happy to get to spend time here with you. Did you want pepperoni?"
+                                    }
+                              ],
+                              "label": "Discuss pizza with dining partner"
+                        },
+                        {
+                              "nextStages": [],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Respond kindly about pizza",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": "Yeah, I just can't believe how good this pizza is!"
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Flirty response about pizza",
+                                          "intent": "flirt",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "attraction",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": "Oh hey there. This pizza isn't the only thing I love..."
+                                    }
+                              ],
+                              "label": "Initial response about pizza"
+                        }
+                  ]
+            },
+            {
+                  "label": "Small Talk",
+                  "entryStage": {
+                        "eventStage": false,
+                        "label": "Enter",
+                        "parentStages": [],
+                        "preconditions": [],
+                        "actions": [],
+                        "nextStages": [
+                              "%x% starts chit chatting with %y%"
+                        ]
+                  },
+                  "stages": [
+                        {
+                              "nextStages": [
+                                    "%x% likes %y%",
+                                    "%x% doesn't really like %y%",
+                                    "%x% REALLY doesn't like %y%"
+                              ],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Normal chit chat",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Show off knowledge through small talk",
+                                          "intent": "impress",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Flirty chit chat",
+                                          "intent": "flirt",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "%x% starts chit chatting with %y%"
+                        },
+                        {
+                              "nextStages": [
+                                    "Having a fine time",
+                                    "Not having a good time"
+                              ],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [
+                                                {
+                                                      "name": "Now Rule for Just a normal chat chat response to someone %x% likes",
+                                                      "conditions": [
+                                                            {
+                                                                  "class": "network",
+                                                                  "type": "friend",
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "operator": ">",
+                                                                  "value": 7
+                                                            }
+                                                      ],
+                                                      "effects": [
+                                                            {
+                                                                  "class": "intent",
+                                                                  "type": "kind",
+                                                                  "weight": 1,
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "intentDirection": true
+                                                            }
+                                                      ]
+                                                }
+                                          ],
+                                          "carryRules": [],
+                                          "label": "Just a normal chat chat response to someone %x% likes",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "%x% thinks they know what %y% knows and more!",
+                                          "intent": "impress",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "respect",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Flirty chit chat right back at %y%!",
+                                          "intent": "flirt",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "attraction",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "%x% likes %y%"
+                        },
+                        {
+                              "nextStages": [
+                                    "Having a fine time",
+                                    "Not having a good time"
+                              ],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Politely try to end the conversation",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "respect",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "-",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Ok, whatever",
+                                          "intent": "rude",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "-",
+                                                      "value": 1
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "respect",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "-",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "%x% doesn't really like %y%"
+                        },
+                        {
+                              "nextStages": [],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [
+                                                {
+                                                      "name": "Now Rule for Stop the conversation",
+                                                      "conditions": [],
+                                                      "effects": [
+                                                            {
+                                                                  "class": "intent",
+                                                                  "type": "kind",
+                                                                  "weight": -10,
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "intentDirection": true
+                                                            }
+                                                      ]
+                                                }
+                                          ],
+                                          "carryRules": [],
+                                          "label": "Stop the conversation",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "-",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Shut them down!",
+                                          "intent": "rude",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "-",
+                                                      "value": 1
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "respect",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "-",
+                                                      "value": 2
+                                                }
+                                          ],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "%x% REALLY doesn't like %y%"
+                        },
+                        {
+                              "nextStages": [],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Cool, nice chatting",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "OK, sure...",
+                                          "intent": "rude",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "Having a fine time"
+                        },
+                        {
+                              "nextStages": [
+                                    "Try to salvage a bad conversation"
+                              ],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Yeah, whatever. I gotta go.",
+                                          "intent": "rude",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "Not having a good time"
+                        },
+                        {
+                              "nextStages": [
+                                    "Response to the salvage"
+                              ],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Friendly attempt to make the conversation go well",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "I'm offended by your response!",
+                                          "intent": "rude",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "Try to salvage a bad conversation"
+                        },
+                        {
+                              "nextStages": [],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Let's agree to disagree",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Back off!",
+                                          "intent": "rude",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "Response to the salvage"
+                        }
+                  ]
+            },
+            {
+                  "label": "Joke Around",
+                  "entryStage": {
+                        "eventStage": false,
+                        "label": "Enter",
+                        "parentStages": [],
+                        "preconditions": [],
+                        "actions": [],
+                        "nextStages": [
+                              "Start joking around"
+                        ]
+                  },
+                  "stages": [
+                        {
+                              "nextStages": [
+                                    "B thought that was funny",
+                                    "B didn't really enjoy the joke",
+                                    "B definitely didn't think that was funny"
+                              ],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Tell a joke",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Tease",
+                                          "intent": "rude",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Humorous recitation",
+                                          "intent": "impress",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Make innuendo",
+                                          "intent": "flirt",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Joke around with a stranger",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [
+                                                {
+                                                      "class": "relationship",
+                                                      "type": "met",
+                                                      "value": false,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                }
+                                          ],
+                                          "effects": [],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "Start joking around"
+                        },
+                        {
+                              "nextStages": [
+                                    "A thought B's response was funny",
+                                    "A didn't think B's response was funny"
+                              ],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Laugh, and make a joke",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "respect",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Razz",
+                                          "intent": "rude",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "history",
+                                                      "type": "was_rude_to",
+                                                      "value": true,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Perform a playful recitation",
+                                          "intent": "impress",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Oooooh, la la",
+                                          "intent": "flirt",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "history",
+                                                      "type": "flirted_with",
+                                                      "value": true,
+                                                      "first": "y",
+                                                      "second": "x"
+                                                },
+                                                {
+                                                      "class": "history",
+                                                      "type": "flirted_with",
+                                                      "value": true,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                }
+                                          ],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "B thought that was funny"
+                        },
+                        {
+                              "nextStages": [],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [
+                                                {
+                                                      "name": "Now Rule for That was sort of offensive...",
+                                                      "conditions": [
+                                                            {
+                                                                  "class": "relationship",
+                                                                  "type": "met",
+                                                                  "value": false,
+                                                                  "first": "x",
+                                                                  "second": "y"
+                                                            }
+                                                      ],
+                                                      "effects": [
+                                                            {
+                                                                  "class": "intent",
+                                                                  "type": "kind",
+                                                                  "weight": 3,
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "intentDirection": true
+                                                            }
+                                                      ]
+                                                }
+                                          ],
+                                          "carryRules": [],
+                                          "label": "That was sort of offensive...",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "respect",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "-",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Don't understand, but pretend to laugh because you have the hots for them",
+                                          "intent": "flirt",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "respect",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "-",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "B didn't really enjoy the joke"
+                        },
+                        {
+                              "nextStages": [
+                                    "A tries to repair the joke not going well"
+                              ],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [
+                                                {
+                                                      "name": "Now Rule for Hey! What was that???",
+                                                      "conditions": [
+                                                            {
+                                                                  "class": "relationship",
+                                                                  "type": "met",
+                                                                  "value": false,
+                                                                  "first": "x",
+                                                                  "second": "y"
+                                                            }
+                                                      ],
+                                                      "effects": [
+                                                            {
+                                                                  "class": "intent",
+                                                                  "type": "rude",
+                                                                  "weight": 3,
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "intentDirection": true
+                                                            }
+                                                      ]
+                                                }
+                                          ],
+                                          "carryRules": [],
+                                          "label": "Hey! What was that???",
+                                          "intent": "rude",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "respect",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "-",
+                                                      "value": 1
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "-",
+                                                      "value": 1
+                                                },
+                                                {
+                                                      "class": "history",
+                                                      "type": "was_rude_to",
+                                                      "value": true,
+                                                      "first": "y",
+                                                      "second": "x"
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Don't really engage with joke, but show off",
+                                          "intent": "impress",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "respect",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "B definitely didn't think that was funny"
+                        },
+                        {
+                              "nextStages": [
+                                    "B wraps up the conversation"
+                              ],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Compliment",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Be self-congratulatory",
+                                          "intent": "impress",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Compliment appearance",
+                                          "intent": "flirt",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "history",
+                                                      "type": "flirted_with",
+                                                      "value": true,
+                                                      "first": "y",
+                                                      "second": "x"
+                                                }
+                                          ],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "A thought B's response was funny"
+                        },
+                        {
+                              "nextStages": [],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Politely excuse self",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "That wasn't very funny",
+                                          "intent": "rude",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Pretend to understand",
+                                          "intent": "impress",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "A didn't think B's response was funny"
+                        },
+                        {
+                              "nextStages": [
+                                    "B wraps up the conversation"
+                              ],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Try to make another joke",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Apologize",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Lighten up'",
+                                          "intent": "rude",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "A tries to repair the joke not going well"
+                        },
+                        {
+                              "nextStages": [],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Chuckle",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Roll eyes",
+                                          "intent": "rude",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Make suggestive eyes at",
+                                          "intent": "flirt",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "B wraps up the conversation"
+                        }
+                  ]
+            },
+            {
+                  "label": "Introduce Self",
+                  "entryStage": {
+                        "eventStage": false,
+                        "label": "Enter",
+                        "parentStages": [],
+                        "preconditions": [],
+                        "actions": [],
+                        "nextStages": [
+                              "Start Introduce Self",
+                              "Introduce self to someone you've already met"
+                        ]
+                  },
+                  "stages": [
+                        {
+                              "nextStages": [
+                                    "B Introduces Themselves Back",
+                                    "B Responds Rudely",
+                                    "B Responds Kindly"
+                              ],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Introduce Self",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [
+                                                {
+                                                      "class": "relationship",
+                                                      "type": "met",
+                                                      "value": false,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                }
+                                          ],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Introduce Self Flirty",
+                                          "intent": "flirt",
+                                          "defaultWeight": "",
+                                          "preconditions": [
+                                                {
+                                                      "class": "relationship",
+                                                      "type": "met",
+                                                      "value": false,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                }
+                                          ],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "attraction",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 3
+                                                }
+                                          ],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "Start Introduce Self"
+                        },
+                        {
+                              "nextStages": [
+                                    "Respond to reintroduction"
+                              ],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Reintroduce Self",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [
+                                                {
+                                                      "class": "relationship",
+                                                      "type": "met",
+                                                      "value": true,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                }
+                                          ],
+                                          "effects": [
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "Introduce self to someone you've already met"
+                        },
+                        {
+                              "nextStages": [],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [
+                                                {
+                                                      "name": "Now Rule for Humorous Correction",
+                                                      "conditions": [
+                                                            {
+                                                                  "class": "trait",
+                                                                  "type": "friendly",
+                                                                  "value": true,
+                                                                  "first": "x"
+                                                            }
+                                                      ],
+                                                      "effects": [
+                                                            {
+                                                                  "class": "intent",
+                                                                  "type": "kind",
+                                                                  "weight": 5,
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "intentDirection": true
+                                                            }
+                                                      ]
+                                                }
+                                          ],
+                                          "carryRules": [],
+                                          "label": "Humorous Correction",
+                                          "intent": "kind",
+                                          "defaultWeight": "0",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "relationship",
+                                                      "type": "met",
+                                                      "value": true,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [
+                                                {
+                                                      "name": "Now Rule for Appreciative Response",
+                                                      "conditions": [
+                                                            {
+                                                                  "class": "network",
+                                                                  "type": "respect",
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "operator": "+",
+                                                                  "value": 1
+                                                            }
+                                                      ],
+                                                      "effects": [
+                                                            {
+                                                                  "class": "intent",
+                                                                  "type": "kind",
+                                                                  "weight": 5,
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "intentDirection": true
+                                                            }
+                                                      ]
+                                                }
+                                          ],
+                                          "carryRules": [],
+                                          "label": "Appreciative Response",
+                                          "intent": "kind",
+                                          "defaultWeight": "0",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "relationship",
+                                                      "type": "met",
+                                                      "value": true,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [
+                                                {
+                                                      "name": "Now Rule for Annoyed Resonse",
+                                                      "conditions": [
+                                                            {
+                                                                  "class": "trait",
+                                                                  "type": "jerk",
+                                                                  "value": true,
+                                                                  "first": "x"
+                                                            }
+                                                      ],
+                                                      "effects": [
+                                                            {
+                                                                  "class": "intent",
+                                                                  "type": "rude",
+                                                                  "weight": 5,
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "intentDirection": true
+                                                            }
+                                                      ]
+                                                }
+                                          ],
+                                          "carryRules": [],
+                                          "label": "Annoyed Resonse",
+                                          "intent": "rude",
+                                          "defaultWeight": "0",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "relationship",
+                                                      "type": "met",
+                                                      "value": true,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "respect",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "-",
+                                                      "value": 3
+                                                }
+                                          ],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "Respond to reintroduction"
+                        },
+                        {
+                              "nextStages": [],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Introduce Self Back",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "relationship",
+                                                      "type": "met",
+                                                      "value": true,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [
+                                                {
+                                                      "name": "Now Rule for One up them",
+                                                      "conditions": [
+                                                            {
+                                                                  "class": "trait",
+                                                                  "type": "jerk",
+                                                                  "value": true,
+                                                                  "first": "x"
+                                                            }
+                                                      ],
+                                                      "effects": [
+                                                            {
+                                                                  "class": "intent",
+                                                                  "type": "impress",
+                                                                  "weight": 3,
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "intentDirection": true
+                                                            }
+                                                      ]
+                                                }
+                                          ],
+                                          "carryRules": [],
+                                          "label": "One up them",
+                                          "intent": "impress",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "relationship",
+                                                      "type": "met",
+                                                      "value": true,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "respect",
+                                                      "first": "y",
+                                                      "second": "x",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "B Introduces Themselves Back"
+                        },
+                        {
+                              "nextStages": [
+                                    "End Convo",
+                                    "Dig In"
+                              ],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "One up them",
+                                          "intent": "impress",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [
+                                                {
+                                                      "name": "Now Rule for Dismiss Them",
+                                                      "conditions": [
+                                                            {
+                                                                  "class": "trait",
+                                                                  "type": "jerk",
+                                                                  "value": true,
+                                                                  "first": "x"
+                                                            }
+                                                      ],
+                                                      "effects": [
+                                                            {
+                                                                  "class": "intent",
+                                                                  "type": "rude",
+                                                                  "weight": 3,
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "intentDirection": true
+                                                            }
+                                                      ]
+                                                }
+                                          ],
+                                          "carryRules": [],
+                                          "label": "Dismiss Them",
+                                          "intent": "rude",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "B Responds Rudely"
+                        },
+                        {
+                              "nextStages": [
+                                    "End Convo",
+                                    "Appreciate Response"
+                              ],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [
+                                                {
+                                                      "name": "Now Rule for Learn more about them",
+                                                      "conditions": [
+                                                            {
+                                                                  "class": "trait",
+                                                                  "type": "loyal",
+                                                                  "value": true,
+                                                                  "first": "x"
+                                                            }
+                                                      ],
+                                                      "effects": [
+                                                            {
+                                                                  "class": "intent",
+                                                                  "type": "kind",
+                                                                  "weight": 5,
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "intentDirection": true
+                                                            }
+                                                      ]
+                                                }
+                                          ],
+                                          "carryRules": [],
+                                          "label": "Learn more about them",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [
+                                                {
+                                                      "name": "Now Rule for Share something about yourself",
+                                                      "conditions": [
+                                                            {
+                                                                  "class": "trait",
+                                                                  "type": "friendly",
+                                                                  "value": true,
+                                                                  "first": "x"
+                                                            }
+                                                      ],
+                                                      "effects": [
+                                                            {
+                                                                  "class": "intent",
+                                                                  "type": "kind",
+                                                                  "weight": 3,
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "intentDirection": true
+                                                            }
+                                                      ]
+                                                }
+                                          ],
+                                          "carryRules": [],
+                                          "label": "Share something about yourself",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [
+                                                {
+                                                      "name": "Now Rule for Share something you are excited about",
+                                                      "conditions": [
+                                                            {
+                                                                  "class": "trait",
+                                                                  "type": "friendly",
+                                                                  "value": true,
+                                                                  "first": "x"
+                                                            },
+                                                            {
+                                                                  "class": "network",
+                                                                  "type": "attraction",
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "operator": ">",
+                                                                  "value": 7
+                                                            }
+                                                      ],
+                                                      "effects": [
+                                                            {
+                                                                  "class": "intent",
+                                                                  "type": "kind",
+                                                                  "weight": 3,
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "intentDirection": true
+                                                            }
+                                                      ]
+                                                }
+                                          ],
+                                          "carryRules": [],
+                                          "label": "Share something you are excited about",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [
+                                                {
+                                                      "name": "Now Rule for Brag about something you've done",
+                                                      "conditions": [
+                                                            {
+                                                                  "class": "network",
+                                                                  "type": "respect",
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "operator": ">",
+                                                                  "value": 7
+                                                            }
+                                                      ],
+                                                      "effects": [
+                                                            {
+                                                                  "class": "intent",
+                                                                  "type": "impress",
+                                                                  "weight": 5,
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "intentDirection": true
+                                                            }
+                                                      ]
+                                                }
+                                          ],
+                                          "carryRules": [],
+                                          "label": "Brag about something you've done",
+                                          "intent": "impress",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [
+                                                {
+                                                      "name": "Now Rule for Flirt with the person that approached you",
+                                                      "conditions": [
+                                                            {
+                                                                  "class": "network",
+                                                                  "type": "attraction",
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "operator": ">",
+                                                                  "value": 7
+                                                            }
+                                                      ],
+                                                      "effects": [
+                                                            {
+                                                                  "class": "intent",
+                                                                  "type": "flirt",
+                                                                  "weight": 3,
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "intentDirection": true
+                                                            }
+                                                      ]
+                                                }
+                                          ],
+                                          "carryRules": [],
+                                          "label": "Flirt with the person that approached you",
+                                          "intent": "flirt",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "B Responds Kindly"
+                        },
+                        {
+                              "nextStages": [],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Excuse Self Politely",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "relationship",
+                                                      "type": "met",
+                                                      "value": true,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "respect",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "-",
+                                                      "value": 1
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "y",
+                                                      "second": "x",
+                                                      "operator": "-",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Lash Out",
+                                          "intent": "rude",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "relationship",
+                                                      "type": "met",
+                                                      "value": true,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "respect",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "-",
+                                                      "value": 3
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "y",
+                                                      "second": "x",
+                                                      "operator": "-",
+                                                      "value": 3
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Misunderstanding",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "relationship",
+                                                      "type": "met",
+                                                      "value": true,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "End Convo"
+                        },
+                        {
+                              "nextStages": [
+                                    "Back Off"
+                              ],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Make them see how awesome you are",
+                                          "intent": "impress",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Tear them down",
+                                          "intent": "rude",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Try to repair conversation",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "Dig In"
+                        },
+                        {
+                              "nextStages": [],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Oblige them",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "relationship",
+                                                      "type": "met",
+                                                      "value": true,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [
+                                                {
+                                                      "name": "Now Rule for Looking forward to getting to know you better",
+                                                      "conditions": [
+                                                            {
+                                                                  "class": "network",
+                                                                  "type": "attraction",
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "operator": ">",
+                                                                  "value": 7
+                                                            }
+                                                      ],
+                                                      "effects": [
+                                                            {
+                                                                  "class": "intent",
+                                                                  "type": "flirt",
+                                                                  "weight": 3,
+                                                                  "first": "x",
+                                                                  "second": "y",
+                                                                  "intentDirection": true
+                                                            }
+                                                      ]
+                                                }
+                                          ],
+                                          "carryRules": [],
+                                          "label": "Looking forward to getting to know you better",
+                                          "intent": "flirt",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "relationship",
+                                                      "type": "met",
+                                                      "value": true,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "attraction",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "attraction",
+                                                      "first": "y",
+                                                      "second": "x",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "Appreciate Response"
+                        },
+                        {
+                              "nextStages": [],
+                              "parentStages": null,
+                              "actions": [
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Apologize for misunderstanding",
+                                          "intent": "kind",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "relationship",
+                                                      "type": "met",
+                                                      "value": true,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Leave while bragging about self",
+                                          "intent": "impress",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "relationship",
+                                                      "type": "met",
+                                                      "value": true,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "respect",
+                                                      "first": "y",
+                                                      "second": "x",
+                                                      "operator": "+",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    },
+                                    {
+                                          "nowRules": [],
+                                          "carryRules": [],
+                                          "label": "Leave while insulting them",
+                                          "intent": "rude",
+                                          "defaultWeight": "",
+                                          "preconditions": [],
+                                          "effects": [
+                                                {
+                                                      "class": "relationship",
+                                                      "type": "met",
+                                                      "value": true,
+                                                      "first": "x",
+                                                      "second": "y"
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "x",
+                                                      "second": "y",
+                                                      "operator": "-",
+                                                      "value": 1
+                                                },
+                                                {
+                                                      "class": "network",
+                                                      "type": "friend",
+                                                      "first": "y",
+                                                      "second": "x",
+                                                      "operator": "-",
+                                                      "value": 1
+                                                }
+                                          ],
+                                          "performance": ""
+                                    }
+                              ],
+                              "label": "Back Off"
+                        }
+                  ]
+            }
+      ]
+}

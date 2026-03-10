@@ -1,0 +1,72 @@
+#### LANGUAGE SYNTAX
+## - operator
+## ->(likes) ~ A likes B
+## <-(likes) ~ B likes A
+## <->(likes) ~ ->(likes) <-(likes) ~ A likes B and B likes A
+
+### ? operator
+## ?>(likes) ~ A likes Somebody
+## <?(likes) ~ B likes Somebody
+## <?>(likes) ~ A likes Somebody and B likes Somebody
+
+### ! negation
+## ->(!likes) ~ A does not like B
+## ?>(!likes) ~ A likes Nobody
+
+### self, other
+## self(happy) ~ A is happy
+## other(happy) ~ B is happy
+
+### LOCATION
+##  location LOCATION_NAME LOCATION_SUPPORT;
+
+### TRAITS
+## TRAIT_NAME:
+## VALENCE(MODIFIER)? VALENCE@LOCATION@?
+## ~ i.e., an increase or decrease in likelihood of performing an action that has a specific tags
+## and/or an increase or decrease in likelihood of going to a specific location
+## -- these might only take place if a specific query is found
+##
+## VALENCE = '+'+ or '-'+ ~ some number of either pluses or minuses
+##
+## MODIFIER = TAG+ (if QUERY+)? ~ i.e. at least 1 tag and some number of queries (possibly 0)
+##
+## e.g.,
+##
+## romantic:
+##    +++(romance);
+## i.e., a person with the romantic tag is more likely to take actions that are tagged as 'romance'
+##
+
+### ACTIONS
+## NAME (COUNT)? ':'
+##    (at LOCATION+)?
+##    (is TAGS+)?
+##    (if QUERY+)?
+##    (add ADD)?
+##    (del DEL)?
+##    ;
+##
+## i.e., An action with some arity (default = 2, 1 is also supported)
+## can take place at some set of LOCATION (default = all)
+## has some set of tags (that modify the likelihood of being chosen given personality traits)
+## (default = no modification to likelihood)
+## if some set of QUERYs are true (default = always true)
+## and then can ADD some set of tags (to either person in the action)
+## and/or DELete some set of tags (to either person in the action)
+##
+## e.g.,
+###  pester:
+##    is annoying talk
+##    if other(!abiding)
+##    add <-(annoyed);
+## i.e., A can pester B if B is not abiding, which results in B becoming annoyed with A
+##  -- a person who is annoying is more likely to pester (as is an extrovert)
+##
+## drink 1:
+##  is drink
+##  at bar
+##  add self(drunk);
+##
+## A can drink alone (arity 1) if they are at a bar which makes them drunk,
+## people who like to drink are more likely to drink

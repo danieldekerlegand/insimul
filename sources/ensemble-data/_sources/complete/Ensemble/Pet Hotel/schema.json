@@ -1,0 +1,93 @@
+{
+	"schema": [
+		{
+			"category": "relationship",
+			"isBoolean": true,
+			"directionType": "reciprocal",
+			"types": [
+				"playmates"
+			],
+			"defaultValue": false,
+			"actionable": false
+		},
+		{
+			"category": "status",
+			"isBoolean": true,
+			"directionType": "undirected",
+			"types": [
+				"sleeping",
+				"hungry",
+				"tired"
+			],
+			"defaultValue": false,
+			"actionable": false
+		},
+		{
+			"category": "intents",
+			"isBoolean": false,
+			"directionType": "directed",
+			"types": [
+				"play with",
+				"beg",
+				"express affection",
+				"rest",
+				"get exercise",
+				"express anxiety",
+				"fight",
+				"be romantic"
+			],
+			"defaultValue": 0,
+			"actionable": true
+		},
+		{
+			"category": "directedStatus",
+			"isBoolean": true,
+			"directionType": "directed",
+			"types": [
+				"playful towards",
+				"annoyed at"
+			],
+			"defaultValue": false,
+			"actionable": false
+		},
+		{
+			"category": "trait",
+			"isBoolean": true,
+			"directionType": "undirected",
+			"types": [
+				"cat",
+				"dog",
+				"human",
+				"scaredy pants",
+				"social",
+				"grumpy"
+			],
+			"defaultValue": false,
+			"actionable": false
+		},
+		{
+			"actionable": false,
+			"category": "network",
+			"defaultValue": 50,
+			"directionType": "directed",
+			"isBoolean": false,
+			"maxValue": 100,
+			"minValue": 1,
+			"types": [
+				"distance"
+			]
+		},
+		{
+			"actionable": false,
+			"category": "social network",
+			"defaultValue": 0,
+			"directionType": "directed",
+			"isBoolean": false,
+			"maxValue": 10,
+			"minValue": 0,
+			"types": [
+				"fear"
+			]
+		}
+	]
+}

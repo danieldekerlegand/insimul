@@ -1,0 +1,1269 @@
+{
+    "fileName": "volitionRules",
+    "type": "volition",
+    "rules": [
+        {
+            "name": "Highlanders tend to marry within their own culture",
+            "conditions": [
+                {
+                    "category": "relationships",
+                    "type": "married"
+                },
+                {
+                    "category": "culture",
+                    "type": [
+                        "highlander",
+                        "highlander"
+                    ]
+                }
+            ],
+            "effects": []
+        },
+        {
+            "name": "Highlanders respect their ancestors' traditions",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "respectful"
+                },
+                {
+                    "category": "culture",
+                    "type": "highlander",
+                    "value": true
+                }
+            ],
+            "effects": []
+        },
+        {
+            "name": "Highlanders are loyal to their own kind",
+            "conditions": [
+                {
+                    "category": "network",
+                    "type": "affinity"
+                },
+                {
+                    "category": "culture",
+                    "type": [
+                        "highlander",
+                        "highlander"
+                    ],
+                    "first": "someone",
+                    "second": "other"
+                }
+            ],
+            "effects": []
+        },
+        {
+            "name": "Highlanders are often distrustful of outsiders",
+            "conditions": [
+                {
+                    "category": "culture",
+                    "type": "highlander",
+                    "value": true
+                },
+                {
+                    "category": "trait",
+                    "type": "distrustful",
+                    "value": true
+                }
+            ],
+            "effects": []
+        },
+        {
+            "name": "Highlanders are confident in their social standing",
+            "conditions": [
+                {
+                    "category": "culture",
+                    "type": "highlander",
+                    "value": true
+                },
+                {
+                    "category": "trait",
+                    "type": "confident",
+                    "value": true
+                }
+            ],
+            "effects": []
+        },
+        {
+            "name": "Highlanders are often snobby towards Lowlanders",
+            "conditions": [
+                {
+                    "category": "network",
+                    "type": "affinity"
+                },
+                {
+                    "category": "culture",
+                    "type": [
+                        "highlander"
+                    ],
+                    "first": "someone",
+                    "second": "other"
+                }
+            ],
+            "effects": []
+        },
+        {
+            "name": "Highlanders are often snobby towards Tecomarians",
+            "conditions": [
+                {
+                    "category": "network",
+                    "type": "affinity"
+                },
+                {
+                    "category": "culture",
+                    "type": [
+                        "highlander"
+                    ],
+                    "first": "someone",
+                    "second": "other"
+                }
+            ],
+            "effects": []
+        },
+        {
+            "name": "Highlanders are ambitious in their careers and social status",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "ambitious",
+                    "value": true
+                },
+                {
+                    "category": "culture",
+                    "type": "highlander",
+                    "value": true
+                }
+            ],
+            "effects": []
+        },
+        {
+            "name": "Highlanders are loyal to their friends and family",
+            "conditions": [
+                {
+                    "category": "network",
+                    "type": "affinity"
+                },
+                {
+                    "category": "culture",
+                    "type": [
+                        "highlander"
+                    ],
+                    "first": "someone",
+                    "second": "other"
+                }
+            ],
+            "effects": []
+        },
+        {
+            "name": "Highlanders are proud of their strong work ethic",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "proud"
+                },
+                {
+                    "category": "culture",
+                    "type": "highlander",
+                    "value": true
+                }
+            ],
+            "effects": []
+        },
+        {
+            "name": "Highlanders are loyal to their business partners and colleagues",
+            "conditions": [
+                {
+                    "category": "network",
+                    "type": "affinity"
+                },
+                {
+                    "category": "culture",
+                    "type": [
+                        "highlander"
+                    ],
+                    "first": "someone",
+                    "second": "other"
+                }
+            ],
+            "effects": []
+        },
+        {
+            "name": "Highlanders are loyal to their country and its traditions",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "loyal"
+                },
+                {
+                    "category": "culture",
+                    "type": "highlander",
+                    "value": true
+                }
+            ],
+            "effects": []
+        },
+        {
+            "name": "Highlanders are loyal to their king and queen",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "loyal"
+                },
+                {
+                    "category": "culture",
+                    "type": "highlander",
+                    "value": true
+                }
+            ],
+            "effects": []
+        },
+        {
+            "name": "Tecomarians seek to maintain harmony in social situations",
+            "conditions": [
+                {
+                    "category": "culture",
+                    "type": "tecomarian",
+                    "value": true
+                }
+            ],
+            "effects": [
+                {
+                    "category": "trait",
+                    "type": [
+                        "respectful",
+                        "polite"
+                    ],
+                    "weight": 50
+                },
+                {
+                    "category": "network",
+                    "type": "affinity"
+                },
+                {
+                    "category": "status",
+                    "type": "happy",
+                    "value": true
+                }
+            ]
+        },
+        {
+            "name": "Tecomarians strive for personal growth and self-improvement",
+            "conditions": [
+                {
+                    "category": "culture",
+                    "type": "tecomarian",
+                    "value": true
+                }
+            ],
+            "effects": [
+                {
+                    "category": "trait",
+                    "type": [
+                        "ambitious",
+                        "determined"
+                    ],
+                    "weight": 50
+                },
+                {
+                    "category": "status",
+                    "type": "excited",
+                    "value": true
+                }
+            ]
+        },
+        {
+            "name": "Tecomarians value their family and close relationships above all else",
+            "conditions": [
+                {
+                    "category": "culture",
+                    "type": "tecomarian",
+                    "value": true
+                },
+                {
+                    "category": "network",
+                    "type": [
+                        "family",
+                        "close friends"
+                    ],
+                    "weight": 100
+                }
+            ],
+            "effects": [
+                {
+                    "category": "trait",
+                    "type": [
+                        "loyal",
+                        "friendly"
+                    ],
+                    "weight": 50
+                }
+            ]
+        },
+        {
+            "name": "Tecomarians prioritize their duties and responsibilities to society",
+            "conditions": [
+                {
+                    "category": "culture",
+                    "type": "tecomarian",
+                    "value": true
+                },
+                {
+                    "category": "status",
+                    "type": [
+                        "regretful",
+                        "vengeful"
+                    ],
+                    "value": false
+                }
+            ],
+            "effects": [
+                {
+                    "category": "trait",
+                    "type": [
+                        "responsible",
+                        "diligent"
+                    ],
+                    "weight": 50
+                }
+            ]
+        },
+        {
+            "name": "Tecomarians are open to new experiences and learning from others",
+            "conditions": [
+                {
+                    "category": "culture",
+                    "type": "tecomarian",
+                    "value": true
+                },
+                {
+                    "category": "status",
+                    "type": [
+                        "curious",
+                        "excited"
+                    ],
+                    "value": true
+                }
+            ],
+            "effects": [
+                {
+                    "category": "network",
+                    "type": "connection"
+                },
+                {
+                    "category": "trait",
+                    "type": [
+                        "open-minded",
+                        "adaptable"
+                    ],
+                    "weight": 50
+                }
+            ]
+        },
+        {
+            "name": "Tecomarians strive for balance in their personal and professional lives",
+            "conditions": [
+                {
+                    "category": "culture",
+                    "type": "tecomarian",
+                    "value": true
+                },
+                {
+                    "category": "status",
+                    "type": [
+                        "happy",
+                        "excited"
+                    ],
+                    "weight": 50
+                }
+            ],
+            "effects": [
+                {
+                    "category": "trait",
+                    "type": [
+                        "balanced",
+                        "focused"
+                    ],
+                    "weight": 50
+                }
+            ]
+        },
+        {
+            "name": "Tecomarians value education and intellectual growth",
+            "conditions": [
+                {
+                    "category": "culture",
+                    "type": "tecomarian",
+                    "value": true
+                },
+                {
+                    "category": "status",
+                    "type": [
+                        "excited",
+                        "curious"
+                    ],
+                    "value": true
+                }
+            ],
+            "effects": [
+                {
+                    "category": "trait",
+                    "type": [
+                        "intelligent",
+                        "inquisitive"
+                    ],
+                    "weight": 50
+                }
+            ]
+        },
+        {
+            "name": "Tecomarians prioritize their health and well-being",
+            "conditions": [
+                {
+                    "category": "culture",
+                    "type": "tecomarian",
+                    "value": true
+                },
+                {
+                    "category": "status",
+                    "type": [
+                        "healthy",
+                        "happy"
+                    ],
+                    "weight": 50
+                }
+            ],
+            "effects": [
+                {
+                    "category": "trait",
+                    "type": [
+                        "fit",
+                        "mindful"
+                    ],
+                    "weight": 50
+                }
+            ]
+        },
+        {
+            "name": "Tecomarians seek to create a better future for their people and nation",
+            "conditions": [
+                {
+                    "category": "culture",
+                    "type": "tecomarian",
+                    "value": true
+                },
+                {
+                    "category": "status",
+                    "type": [
+                        "excited",
+                        "determined"
+                    ],
+                    "weight": 50
+                }
+            ],
+            "effects": [
+                {
+                    "category": "trait",
+                    "type": [
+                        "optimistic",
+                        "ambitious"
+                    ],
+                    "weight": 50
+                }
+            ]
+        },
+        {
+            "name": "Locals are friendly with locals",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "local",
+                    "first": "x",
+                    "second": "y"
+                }
+            ],
+            "effects": [
+                {
+                    "category": "network",
+                    "type": "friendship",
+                    "weight": 5,
+                    "intentType": true,
+                    "first": "x",
+                    "second": "y"
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_LFL1234567890"
+        },
+        {
+            "name": "Lowlanders commiserate with Tecomarians",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "lowlander",
+                    "first": "x"
+                },
+                {
+                    "category": "trait",
+                    "type": "tecomarian",
+                    "second": "y"
+                }
+            ],
+            "effects": [
+                {
+                    "category": "network",
+                    "type": "empathy",
+                    "weight": 3,
+                    "intentType": true,
+                    "first": "x",
+                    "second": "y"
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_LFL1234567890"
+        },
+        {
+            "name": "Town Constables are friendly to locals",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "town constable",
+                    "first": "x"
+                },
+                {
+                    "category": "trait",
+                    "type": "local",
+                    "second": "y"
+                }
+            ],
+            "effects": [
+                {
+                    "category": "network",
+                    "type": "friendship",
+                    "weight": 5,
+                    "intentType": true,
+                    "first": "x",
+                    "second": "y"
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_LFL1234567890"
+        },
+        {
+            "name": "Lowlanders dislike Border Guard Officers",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "lowlander",
+                    "first": "x"
+                },
+                {
+                    "category": "trait",
+                    "type": "border guard officer",
+                    "second": "y"
+                }
+            ],
+            "effects": [
+                {
+                    "category": "intent",
+                    "type": "dismiss",
+                    "first": "x",
+                    "second": "y",
+                    "weight": 3,
+                    "intentDirection": true,
+                    "value": true
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_LFL1234567890"
+        },
+        {
+            "name": "Town Constables are diplomatic",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "town constable",
+                    "first": "x"
+                }
+            ],
+            "effects": [
+                {
+                    "category": "intent",
+                    "type": "diplomacy",
+                    "weight": 5,
+                    "first": "x"
+                }
+            ]
+        },
+        {
+            "name": "Tavern Owners are diplomatic",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "tavern owner",
+                    "first": "x"
+                }
+            ],
+            "effects": [
+                {
+                    "category": "intent",
+                    "type": "diplomacy",
+                    "weight": 5,
+                    "intentDirection": true,
+                    "first": "x"
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_T1234567890"
+        },
+        {
+            "name": "Tavern Owners want to prevent fights",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "tavern owner",
+                    "first": "x"
+                }
+            ],
+            "effects": [
+                {
+                    "category": "intent",
+                    "type": "peace",
+                    "weight": 5,
+                    "intentDirection": true,
+                    "first": "x"
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_T1234567890"
+        },
+        {
+            "name": "Tavern Owners want to make money",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "tavern owner",
+                    "first": "x"
+                }
+            ],
+            "effects": [
+                {
+                    "category": "intent",
+                    "type": "profit",
+                    "weight": 5,
+                    "intentDirection": true,
+                    "first": "x"
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_T1234567890"
+        },
+        {
+            "name": "Tavern Owners are middle class",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "tavern owner",
+                    "first": "x"
+                }
+            ],
+            "effects": [
+                {
+                    "category": "attribute",
+                    "type": "social standing",
+                    "value": 50,
+                    "operator": ">",
+                    "second": "y"
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_T1234567890"
+        },
+        {
+            "name": "Border Guard Officers are Highlanders",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "border guard officer",
+                    "first": "x"
+                },
+                {
+                    "category": "trait",
+                    "type": "highlander",
+                    "second": "y"
+                }
+            ],
+            "effects": [
+                {
+                    "category": "network",
+                    "type": "affinity",
+                    "weight": 3,
+                    "intentType": true,
+                    "first": "x",
+                    "second": "y"
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_B1234567890"
+        },
+        {
+            "name": "Border Guard Officers are aristocrats",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "border guard officer",
+                    "first": "x"
+                }
+            ],
+            "effects": [
+                {
+                    "category": "attribute",
+                    "type": "social standing",
+                    "value": 80,
+                    "operator": ">",
+                    "second": "y"
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_B1234567890"
+        },
+        {
+            "name": "Border Guard Officers are foppish",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "border guard officer",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "behavior",
+                            "type": "foppish",
+                            "first": "y",
+                            "second": "x"
+                        }
+                    ]
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_Xt23jnYb9Kg8Ru7hB"
+        },
+        {
+            "name": "Border Guard Officers are sons of petty nobles",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "border guard officer",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "familybackground",
+                            "type": "petty noble",
+                            "first": "y",
+                            "second": "x"
+                        }
+                    ]
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_Xt23jnYb9Kg8Ru7hB"
+        },
+        {
+            "name": "Border Guard Officers are snobby",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "border guard officer",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "behavior",
+                            "type": "snobby",
+                            "first": "y",
+                            "second": "x"
+                        }
+                    ]
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_Xt23jnYb9Kg8Ru7hB"
+        },
+        {
+            "name": "Soldiers consider Border Guard Officers as non-men",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "soldier",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "perception",
+                            "type": "border guard officer",
+                            "first": "y"
+                        }
+                    ]
+                },
+                {
+                    "category": "trait",
+                    "type": "border guard officer",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "perception",
+                            "type": "non-man",
+                            "second": "y"
+                        }
+                    ]
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_Xt23jnYb9Kg8Ru7hB"
+        },
+        {
+            "name": "Border Guard Officers have cushy jobs",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "border guard officer",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "job",
+                            "type": "cushy",
+                            "first": "y",
+                            "second": "x"
+                        }
+                    ]
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_Xt23jnYb9Kg8Ru7hB"
+        },
+        {
+            "name": "Border Guard Officers are useless",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "border guard officer",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "usefulness",
+                            "type": "useless",
+                            "first": "y",
+                            "second": "x"
+                        }
+                    ]
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_Xt23jnYb9Kg8Ru7hB"
+        },
+        {
+            "name": "Tecomarians hate Highlanders",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "tecomarian",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "perception",
+                            "type": "highlander",
+                            "first": "y",
+                            "second": "z"
+                        }
+                    ]
+                },
+                {
+                    "category": "trait",
+                    "type": "highlander",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "perception",
+                            "type": "tecomarian",
+                            "second": "z"
+                        }
+                    ]
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_Xt23jnYb9Kg8Ru7hB"
+        },
+        {
+            "name": "Tecomarians hate Border Guard Officer",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "tecomarian",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "perception",
+                            "type": "border guard officer",
+                            "first": "y",
+                            "second": "z"
+                        }
+                    ]
+                },
+                {
+                    "category": "trait",
+                    "type": "border guard officer",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "perception",
+                            "type": "tecomarian",
+                            "second": "z"
+                        }
+                    ]
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_Xt23jnYb9Kg8Ru7hB"
+        },
+        {
+            "name": "Tecomarians distrust Town Constables",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "tecomarian",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "perception",
+                            "type": "town constable",
+                            "first": "y",
+                            "second": "z"
+                        }
+                    ]
+                },
+                {
+                    "category": "trait",
+                    "type": "town constable",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "perception",
+                            "type": "tecomarian",
+                            "second": "z"
+                        }
+                    ]
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_Xt23jnYb9Kg8Ru7hB"
+        },
+        {
+            "name": "Travelers like Tavern Owners",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "traveler",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "perception",
+                            "type": "tavern owner",
+                            "first": "y",
+                            "second": "z"
+                        }
+                    ]
+                },
+                {
+                    "category": "trait",
+                    "type": "tavern owner",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "perception",
+                            "type": "traveler",
+                            "second": "z"
+                        }
+                    ]
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_Xt23jnYb9Kg8Ru7hB"
+        },
+        {
+            "name": "Travelers are neutral about Sellswords",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "traveler",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "perception",
+                            "type": "sellsword",
+                            "second": "z"
+                        }
+                    ]
+                },
+                {
+                    "category": "trait",
+                    "type": "sellsword",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "perception",
+                            "type": "traveler",
+                            "second": "z"
+                        }
+                    ]
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_Xt23jnYb9Kg8Ru7hB"
+        },
+        {
+            "name": "Black Perilla agents hate Helicon",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "black perilla agent",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "perception",
+                            "type": "helicon",
+                            "first": "y",
+                            "second": "z"
+                        }
+                    ]
+                },
+                {
+                    "category": "trait",
+                    "type": "helicon",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "perception",
+                            "type": "black perilla agent",
+                            "second": "z"
+                        }
+                    ]
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_Xt23jnYb9Kg8Ru7hB"
+        },
+        {
+            "name": "Black Perilla agents are secretive",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "black perilla agent",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "behavior",
+                            "type": "secretive",
+                            "first": "y",
+                            "second": "z"
+                        }
+                    ]
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_Xt23jnYb9Kg8Ru7hB"
+        },
+        {
+            "name": "Black Perilla agents are guerrilla fighters",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "black perilla agent",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "combatStyle",
+                            "type": "guerrilla fighting",
+                            "first": "y",
+                            "second": "z"
+                        }
+                    ]
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_Xt23jnYb9Kg8Ru7hB"
+        },
+        {
+            "name": "People distrust sellswords",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "person",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "perception",
+                            "type": "sellsword",
+                            "first": "y",
+                            "second": "z"
+                        }
+                    ]
+                },
+                {
+                    "category": "trait",
+                    "type": "sellsword",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "perception",
+                            "type": "person",
+                            "second": "z"
+                        }
+                    ]
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_Xt23jnYb9Kg8Ru7hB"
+        },
+        {
+            "name": "Sellswords are hotheaded",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "sellsword",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "behavior",
+                            "type": "hotheaded",
+                            "first": "y",
+                            "second": "z"
+                        }
+                    ]
+                },
+                {
+                    "category": "trait",
+                    "type": "hotheaded",
+                    "first": "x",
+                    "value": true,
+                    "effects": [
+                        {
+                            "category": "perception",
+                            "type": "sellsword",
+                            "second": "z"
+                        }
+                    ]
+                }
+            ],
+            "origin": "volitionRules",
+            "id": "volitionRules_Xt23jnYb9Kg8Ru7hB"
+        },
+        {
+            "name": "Sellswords are good at fighting",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "sellsword",
+                    "first": "x",
+                    "value": true
+                }
+            ],
+            "effects": [
+                {
+                    "category": "attribute",
+                    "type": "combat skill",
+                    "first": "y",
+                    "second": "z"
+                },
+                {
+                    "category": "skill level",
+                    "type": "fighting",
+                    "first": "z",
+                    "second": "high"
+                }
+            ]
+        },
+        {
+            "name": "Sellswords are taciturn",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "sellsword",
+                    "first": "x",
+                    "value": true
+                }
+            ],
+            "effects": [
+                {
+                    "category": "communication style",
+                    "type": "reserved",
+                    "first": "y"
+                }
+            ]
+        },
+        {
+            "name": "Grisel Highlanders resent Highlanders",
+            "conditions": [
+                {
+                    "category": "trait",
+                    "type": "grisel highlander",
+                    "first": "x",
+                    "value": true
+                },
+                {
+                    "category": "relationship",
+                    "type": "highlander",
+                    "first": "y"
+                }
+            ],
+            "effects": [
+                {
+                    "category": "emotion",
+                    "type": "resentment",
+                    "first": "x",
+                    "second": "y"
+                }
+            ]
+        },
+        {
+            "name": "Helicon technology is akin to Victorian-era technology",
+            "conditions": [],
+            "effects": [
+                {
+                    "category": "technology level",
+                    "type": "victorian era"
+                }
+            ]
+        },
+        {
+            "name": "Helicon society is stratified",
+            "conditions": [],
+            "effects": [
+                {
+                    "category": "society structure",
+                    "type": "stratified"
+                }
+            ]
+        }
+    ]
+}

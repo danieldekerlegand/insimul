@@ -1,0 +1,1386 @@
+{
+      "history": [
+            {
+                  "pos": 0,
+                  "data": [
+                        {
+                              "class": "directedStatus",
+                              "type": "boss_of",
+                              "value": true,
+                              "first": "Keith",
+                              "second": "Claire"
+                        },
+                        {
+                              "class": "directedStatus",
+                              "type": "boss_of",
+                              "value": true,
+                              "first": "Keith",
+                              "second": "Olivia"
+                        },
+                        {
+                              "class": "directedStatus",
+                              "type": "boss_of",
+                              "value": true,
+                              "first": "Keith",
+                              "second": "Leo"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "family",
+                              "value": true,
+                              "first": "Edward",
+                              "second": "Simon"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "coworker",
+                              "value": true,
+                              "first": "Keith",
+                              "second": "Claire"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "coworker",
+                              "value": true,
+                              "first": "Keith",
+                              "second": "Olivia"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "coworker",
+                              "value": true,
+                              "first": "Keith",
+                              "second": "Leo"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "coworker",
+                              "value": true,
+                              "first": "Claire",
+                              "second": "Olivia"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "coworker",
+                              "value": true,
+                              "first": "Claire",
+                              "second": "Leo"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "coworker",
+                              "value": true,
+                              "first": "Olivia",
+                              "second": "Leo"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "family",
+                              "value": true,
+                              "first": "Steven",
+                              "second": "Rachel"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "dating",
+                              "value": true,
+                              "first": "Luke",
+                              "second": "Claire"
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Claire",
+                              "second": "Keith",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Claire",
+                              "second": "Leo",
+                              "value": 4
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Claire",
+                              "second": "Olivia",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Claire",
+                              "second": "Tara",
+                              "value": 6
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Claire",
+                              "second": "Edward",
+                              "value": 4
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Tara",
+                              "second": "Claire",
+                              "value": 3
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Tara",
+                              "second": "Edward",
+                              "value": 7
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Tara",
+                              "second": "Simon",
+                              "value": 8
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Tara",
+                              "second": "Keith",
+                              "value": 2
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Tara",
+                              "second": "Olivia",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Tara",
+                              "second": "Claire",
+                              "value": 3
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Tara",
+                              "second": "Luke",
+                              "value": 9
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Luke",
+                              "second": "Claire",
+                              "value": 3
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Luke",
+                              "second": "Tara",
+                              "value": 8
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Luke",
+                              "second": "Olivia",
+                              "value": 2
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Luke",
+                              "second": "Keith",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Edward",
+                              "second": "Claire",
+                              "value": 6
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Edward",
+                              "second": "Tara",
+                              "value": 8
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Edward",
+                              "second": "Luke",
+                              "value": 7
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Edward",
+                              "second": "Simon",
+                              "value": 9
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Edward",
+                              "second": "Keith",
+                              "value": 2
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Edward",
+                              "second": "Olivia",
+                              "value": 3
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Simon",
+                              "second": "Claire",
+                              "value": 4
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Simon",
+                              "second": "Tara",
+                              "value": 7
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Simon",
+                              "second": "Claire",
+                              "value": 4
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Simon",
+                              "second": "Luke",
+                              "value": 7
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Simon",
+                              "second": "Edward",
+                              "value": 8
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Simon",
+                              "second": "Keith",
+                              "value": 3
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Simon",
+                              "second": "Olivia",
+                              "value": 3
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Keith",
+                              "second": "Claire",
+                              "value": 6
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Keith",
+                              "second": "Tara",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Keith",
+                              "second": "Luke",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Keith",
+                              "second": "Edward",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Keith",
+                              "second": "Edward",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Keith",
+                              "second": "Simon",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Keith",
+                              "second": "Leo",
+                              "value": 7
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Keith",
+                              "second": "Olivia",
+                              "value": 5
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Keith",
+                              "second": "Steven",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Keith",
+                              "second": "Rachel",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Olivia",
+                              "second": "Claire",
+                              "value": 6
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Olivia",
+                              "second": "Tara",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Olivia",
+                              "second": "Luke",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Olivia",
+                              "second": "Edward",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Olivia",
+                              "second": "Edward",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Olivia",
+                              "second": "Simon",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Olivia",
+                              "second": "Leo",
+                              "value": 7
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Olivia",
+                              "second": "Steven",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Olivia",
+                              "second": "Rachel",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Steven",
+                              "second": "Rachel",
+                              "value": 9
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Steven",
+                              "second": "Keith",
+                              "value": 2
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Steven",
+                              "second": "Olivia",
+                              "value": 3
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Rachel",
+                              "second": "Steven",
+                              "value": 9
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Rachel",
+                              "second": "Keith",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "friend",
+                              "first": "Rachel",
+                              "second": "Keith",
+                              "value": 3
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Claire",
+                              "second": " Tara",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Claire",
+                              "second": " Luke",
+                              "value": 6
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Claire",
+                              "second": " Edward",
+                              "value": 2
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Claire",
+                              "second": " Simon",
+                              "value": 4
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Claire",
+                              "second": " Keith",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Claire",
+                              "second": " Leo",
+                              "value": 4
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Claire",
+                              "second": " Olivia",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Claire",
+                              "second": " Steven",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Claire",
+                              "second": " Rachel",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Tara",
+                              "second": " Claire",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Tara",
+                              "second": " Luke",
+                              "value": 4
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Tara",
+                              "second": " Edward",
+                              "value": 3
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Tara",
+                              "second": " Simon",
+                              "value": 4
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Tara",
+                              "second": " Keith",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Tara",
+                              "second": " Leo",
+                              "value": 4
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Tara",
+                              "second": " Olivia",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Tara",
+                              "second": " Steven",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Tara",
+                              "second": " Rachel",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Luke",
+                              "second": " Claire",
+                              "value": 9
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Luke",
+                              "second": " Tara",
+                              "value": 4
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Luke",
+                              "second": " Edward",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Luke",
+                              "second": " Simon",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Luke",
+                              "second": " Keith",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Luke",
+                              "second": " Leo",
+                              "value": 4
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Luke",
+                              "second": " Olivia",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Luke",
+                              "second": " Steven",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Luke",
+                              "second": " Rachel",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Edward",
+                              "second": " Claire",
+                              "value": 9
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Edward",
+                              "second": " Tara",
+                              "value": 9
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Edward",
+                              "second": " Luke",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Edward",
+                              "second": " Simon",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Edward",
+                              "second": " Keith",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Edward",
+                              "second": " Leo",
+                              "value": 7
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Edward",
+                              "second": " Olivia",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Edward",
+                              "second": " Steven",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Edward",
+                              "second": " Rachel",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Simon",
+                              "second": " Claire",
+                              "value": 4
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Simon",
+                              "second": " Tara",
+                              "value": 4
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Simon",
+                              "second": " Luke",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Simon",
+                              "second": " Edward",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Simon",
+                              "second": " Keith",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Simon",
+                              "second": " Leo",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Simon",
+                              "second": " Olivia",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Simon",
+                              "second": " Steven",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Simon",
+                              "second": " Rachel",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Keith",
+                              "second": " Claire",
+                              "value": 4
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Keith",
+                              "second": " Tara",
+                              "value": 7
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Keith",
+                              "second": " Luke",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Keith",
+                              "second": " Edward",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Keith",
+                              "second": " Simon",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Keith",
+                              "second": " Leo",
+                              "value": 5
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Keith",
+                              "second": " Olivia",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Keith",
+                              "second": " Steven",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Keith",
+                              "second": " Rachel",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Olivia",
+                              "second": " Claire",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Olivia",
+                              "second": " Tara",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Olivia",
+                              "second": " Luke",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Olivia",
+                              "second": " Edward",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Olivia",
+                              "second": " Simon",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Olivia",
+                              "second": " Leo",
+                              "value": 5
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Olivia",
+                              "second": " Keith",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Olivia",
+                              "second": " Steven",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Olivia",
+                              "second": " Rachel",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Steven",
+                              "second": " Claire",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Steven",
+                              "second": " Tara",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Steven",
+                              "second": " Luke",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Steven",
+                              "second": " Edward",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Steven",
+                              "second": " Simon",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Steven",
+                              "second": " Leo",
+                              "value": 5
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Steven",
+                              "second": " Keith",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Steven",
+                              "second": " Olivia",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Steven",
+                              "second": " Rachel",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Rachel",
+                              "second": " Claire",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Rachel",
+                              "second": " Tara",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Rachel",
+                              "second": " Luke",
+                              "value": 3
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Rachel",
+                              "second": " Edward",
+                              "value": 3
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Rachel",
+                              "second": " Simon",
+                              "value": 3
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Rachel",
+                              "second": " Leo",
+                              "value": 3
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Rachel",
+                              "second": " Keith",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Rachel",
+                              "second": " Olivia",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "attraction",
+                              "first": "Rachel",
+                              "second": " Steven",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "respect",
+                              "first": "Claire",
+                              "second": " Tara",
+                              "value": 6
+                        },
+                        {
+                              "class": "network",
+                              "type": "respect",
+                              "first": "Claire",
+                              "second": " Leo",
+                              "value": 9
+                        },
+                        {
+                              "class": "network",
+                              "type": "respect",
+                              "first": "Claire",
+                              "second": " Olivia",
+                              "value": 2
+                        },
+                        {
+                              "class": "network",
+                              "type": "respect",
+                              "first": "Tara",
+                              "second": " Olivia",
+                              "value": 2
+                        },
+                        {
+                              "class": "network",
+                              "type": "respect",
+                              "first": "Luke",
+                              "second": " Leo",
+                              "value": 7
+                        },
+                        {
+                              "class": "network",
+                              "type": "respect",
+                              "first": "Luke",
+                              "second": " Olivia",
+                              "value": 2
+                        },
+                        {
+                              "class": "network",
+                              "type": "respect",
+                              "first": "Edward",
+                              "second": " Simon",
+                              "value": 8
+                        },
+                        {
+                              "class": "network",
+                              "type": "respect",
+                              "first": "Edward",
+                              "second": " Leo",
+                              "value": 6
+                        },
+                        {
+                              "class": "network",
+                              "type": "respect",
+                              "first": "Edward",
+                              "second": " Olivia",
+                              "value": 1
+                        },
+                        {
+                              "class": "network",
+                              "type": "respect",
+                              "first": "Simon",
+                              "second": " Edward",
+                              "value": 8
+                        },
+                        {
+                              "class": "network",
+                              "type": "respect",
+                              "first": "Simon",
+                              "second": " Olivia",
+                              "value": 2
+                        },
+                        {
+                              "class": "network",
+                              "type": "respect",
+                              "first": "Rachel",
+                              "second": " Steven",
+                              "value": 9
+                        },
+                        {
+                              "class": "trait",
+                              "type": "loyal",
+                              "value": true,
+                              "first": "Luke"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "loyal",
+                              "value": true,
+                              "first": "Edward"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "loyal",
+                              "value": true,
+                              "first": "Leo"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "friendly",
+                              "value": true,
+                              "first": "Edward"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "friendly",
+                              "value": true,
+                              "first": "Simon"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "friendly",
+                              "value": true,
+                              "first": "Rachel"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "friendly",
+                              "value": true,
+                              "first": "Luke"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "employee",
+                              "value": true,
+                              "first": "Keith"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "employee",
+                              "value": true,
+                              "first": "Olivia"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "employee",
+                              "value": true,
+                              "first": "Leo"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "employee",
+                              "value": true,
+                              "first": "Claire"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "shy",
+                              "value": true,
+                              "first": "Tara"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "shy",
+                              "value": true,
+                              "first": "Steven"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "jerk",
+                              "value": true,
+                              "first": "Keith"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "jerk",
+                              "value": true,
+                              "first": "Olivia"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "punctual",
+                              "value": true,
+                              "first": "Claire"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "punctual",
+                              "value": true,
+                              "first": "Leo"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "anyone",
+                              "value": true,
+                              "first": "Claire"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "anyone",
+                              "value": true,
+                              "first": "Tara"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "anyone",
+                              "value": true,
+                              "first": "Luke"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "anyone",
+                              "value": true,
+                              "first": "Edward"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "anyone",
+                              "value": true,
+                              "first": "Simon"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "anyone",
+                              "value": true,
+                              "first": "Keith"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "anyone",
+                              "value": true,
+                              "first": "Leo"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "anyone",
+                              "value": true,
+                              "first": "Olivia"
+                        },
+                        {
+                              "class": "trait",
+                              "type": "anyone",
+                              "value": true,
+                              "first": "Steven"
+                        },
+                        {
+                              "class": "status",
+                              "type": "hangry",
+                              "value": true,
+                              "first": "Rachel"
+                        },
+                        {
+                              "class": "status",
+                              "type": "fan_of_restaurant",
+                              "value": true,
+                              "first": "Leo"
+                        },
+                        {
+                              "class": "status",
+                              "type": "fan_of_restaurant",
+                              "value": true,
+                              "first": "Rachel"
+                        },
+                        {
+                              "class": "status",
+                              "type": "on_break",
+                              "value": true,
+                              "first": "Claire"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "met",
+                              "value": true,
+                              "first": "Claire",
+                              "second": "Keith"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "met",
+                              "value": true,
+                              "first": "Claire",
+                              "second": "Leo"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "met",
+                              "value": true,
+                              "first": "Claire",
+                              "second": "Olivia"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "met",
+                              "value": true,
+                              "first": "Tara",
+                              "second": "Luke"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "met",
+                              "value": true,
+                              "first": "Edward",
+                              "second": "Simon"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "met",
+                              "value": true,
+                              "first": "Keith",
+                              "second": "Leo"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "met",
+                              "value": true,
+                              "first": "Keith",
+                              "second": "Olivia"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "met",
+                              "value": true,
+                              "first": "Leo",
+                              "second": "Olivia"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "met",
+                              "value": true,
+                              "first": "Steven",
+                              "second": "Rachel"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "met",
+                              "value": true,
+                              "first": "Tara",
+                              "second": "Claire"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "met",
+                              "value": true,
+                              "first": "Tara",
+                              "second": "Edward"
+                        },
+                        {
+                              "class": "relationship",
+                              "type": "met",
+                              "value": true,
+                              "first": "Tara",
+                              "second": "Simon"
+                        }
+                  ]
+            }
+      ]
+}

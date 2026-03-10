@@ -1,0 +1,480 @@
+{
+	"CiFState": {
+		"Cast": {
+			"Character": [
+				{
+					"Trait": [
+						{
+							"type": "clumsy"
+						},
+						{
+							"type": "sex magnet"
+						},
+						{
+							"type": "confidence"
+						}
+					],
+					"name": "Robert",
+					"networkID": "0"
+				},
+				{
+					"Trait": [
+						{
+							"type": "forgiving"
+						},
+						{
+							"type": "confidence"
+						}
+					],
+					"name": "Debbie",
+					"networkID": "1"
+				},
+				{
+					"Trait": [
+						{
+							"type": "domineering"
+						},
+						{
+							"type": "afraid of commitment"
+						}
+					],
+					"name": "Edward",
+					"networkID": "2"
+				}
+			]
+		},
+		"SFDB": {
+			"StatusContext": {
+				"Predicate": {
+					"type": "status",
+					"status": "has crush",
+					"first": "Debbie",
+					"second": "robert",
+					"negated": "false",
+					"isSFDB": "true"
+				},
+				"time": "20"
+			}
+		},
+		"Network": [
+			{
+				"edge": [
+					{
+						"from": "0",
+						"to": "1",
+						"value": "10"
+					},
+					{
+						"from": "0",
+						"to": "2",
+						"value": "20"
+					},
+					{
+						"from": "1",
+						"to": "0",
+						"value": "30"
+					},
+					{
+						"from": "1",
+						"to": "2",
+						"value": "100"
+					},
+					{
+						"from": "2",
+						"to": "0",
+						"value": "50"
+					},
+					{
+						"from": "2",
+						"to": "1",
+						"value": "60"
+					}
+				],
+				"type": "buddy",
+				"numChars": "3"
+			},
+			{
+				"edge": [
+					{
+						"from": "0",
+						"to": "1",
+						"value": "10"
+					},
+					{
+						"from": "0",
+						"to": "2",
+						"value": "20"
+					},
+					{
+						"from": "1",
+						"to": "0",
+						"value": "30"
+					},
+					{
+						"from": "1",
+						"to": "2",
+						"value": "100"
+					},
+					{
+						"from": "2",
+						"to": "0",
+						"value": "50"
+					},
+					{
+						"from": "2",
+						"to": "1",
+						"value": "60"
+					}
+				],
+				"type": "cool",
+				"numChars": "3"
+			},
+			{
+				"edge": [
+					{
+						"from": "0",
+						"to": "1",
+						"value": "10"
+					},
+					{
+						"from": "0",
+						"to": "2",
+						"value": "20"
+					},
+					{
+						"from": "1",
+						"to": "0",
+						"value": "30"
+					},
+					{
+						"from": "1",
+						"to": "2",
+						"value": "40"
+					},
+					{
+						"from": "2",
+						"to": "0",
+						"value": "50"
+					},
+					{
+						"from": "2",
+						"to": "1",
+						"value": "60"
+					}
+				],
+				"type": "romance",
+				"numChars": "3"
+			}
+		],
+		"Statuses": {
+			"Status": [
+				{
+					"type": "desperate",
+					"from": "Edward",
+					"to": ""
+				},
+				{
+					"type": "has crush",
+					"from": "Debbie",
+					"to": "Edward"
+				},
+				{
+					"type": "jealous",
+					"from": "Edward",
+					"to": "Robert"
+				}
+			]
+		},
+		"Relationships": {
+			"Relationship": [
+				{
+					"type": "friends",
+					"from": "Robert",
+					"to": "Edward"
+				},
+				{
+					"type": "dating",
+					"from": "Robert",
+					"to": "Debbie"
+				},
+				{
+					"type": "enemies",
+					"from": "Debbie",
+					"to": "Edward"
+				}
+			]
+		},
+		"SocialGameLibrary": {
+			"SocialGame": {
+				"Preconditions": {
+					"Rule": [
+						{
+							"Predicate": {
+								"type": "trait",
+								"trait": "confidence",
+								"first": "initiator",
+								"negated": "false",
+								"isSFDB": "false"
+							}
+						},
+						{
+							"Predicate": {
+								"type": "trait",
+								"trait": "attention hog",
+								"first": "initiator",
+								"negated": "false",
+								"isSFDB": "false"
+							}
+						},
+						{
+							"Predicate": {
+								"type": "network",
+								"networkType": "buddy",
+								"first": "initiator",
+								"second": "responder",
+								"comparator": "greaterthan",
+								"value": "39",
+								"negated": "false",
+								"isSFDB": "false"
+							}
+						},
+						{
+							"Predicate": {
+								"type": "network",
+								"networkType": "buddy",
+								"first": "initiator",
+								"second": "responder",
+								"comparator": "lessthan",
+								"value": "40",
+								"negated": "true",
+								"isSFDB": "false"
+							}
+						},
+						{
+							"Predicate": {
+								"type": "trait",
+								"trait": "confidence",
+								"first": "initiator",
+								"negated": "false",
+								"isSFDB": "false"
+							}
+						}
+					]
+				},
+				"InitiatorInfluenceRuleSet": {
+					"InfluenceRule": {
+						"Predicate": {
+							"type": "trait",
+							"trait": "witty",
+							"first": "initiator",
+							"negated": "false",
+							"isSFDB": "false"
+						},
+						"weight": "20"
+					}
+				},
+				"ResponderInfluenceRuleSet": {
+					"InfluenceRule": [
+						{
+							"Predicate": {
+								"type": "network",
+								"networkType": "buddy",
+								"first": "responder",
+								"second": "initiator",
+								"comparator": "greaterthan",
+								"value": "39",
+								"negated": "false",
+								"isSFDB": "false"
+							},
+							"weight": "10"
+						},
+						{
+							"Predicate": {
+								"type": "trait",
+								"trait": "humble",
+								"first": "responder",
+								"negated": "true",
+								"isSFDB": "false"
+							},
+							"weight": "-30"
+						},
+						{
+							"Predicate": {
+								"type": "status",
+								"status": "jealous",
+								"first": "responder",
+								"second": "initiator",
+								"negated": "false",
+								"isSFDB": "false"
+							},
+							"weight": "-20"
+						}
+					]
+				},
+				"Effects": {
+					"Effect": [
+						{
+							"ChangeRule": {
+								"Predicate": {
+									"type": "network",
+									"networkType": "cool",
+									"first": "responder",
+									"second": "initiator",
+									"comparator": "+",
+									"value": "20",
+									"negated": "false",
+									"isSFDB": "false"
+								}
+							},
+							"id": "1",
+							"accept": "true"
+						},
+						{
+							"ChangeRule": {
+								"Predicate": {
+									"type": "network",
+									"networkType": "cool",
+									"first": "responder",
+									"second": "initiator",
+									"comparator": "-",
+									"value": "20",
+									"negated": "false",
+									"isSFDB": "false"
+								}
+							},
+							"id": "3",
+							"accept": "false"
+						},
+						{
+							"ConditionRule": {
+								"Predicate": {
+									"type": "status",
+									"status": "jealous",
+									"first": "responder",
+									"second": "initiator",
+									"negated": "false",
+									"isSFDB": "false"
+								}
+							},
+							"ChangeRule": {
+								"Predicate": [
+									{
+										"type": "network",
+										"networkType": "cool",
+										"first": "responder",
+										"second": "initiator",
+										"comparator": "-",
+										"value": "20",
+										"negated": "false",
+										"isSFDB": "false"
+									},
+									{
+										"type": "status",
+										"status": "emnity",
+										"first": "responder",
+										"second": "initiator",
+										"negated": "false",
+										"isSFDB": "false"
+									}
+								]
+							},
+							"id": "4",
+							"accept": "false"
+						},
+						{
+							"ConditionRule": {
+								"Predicate": {
+									"type": "trait",
+									"trait": "humble",
+									"first": "responder",
+									"negated": "false",
+									"isSFDB": "false"
+								}
+							},
+							"ChangeRule": {
+								"Predicate": [
+									{
+										"type": "network",
+										"networkType": "cool",
+										"first": "responder",
+										"second": "initiator",
+										"comparator": "-",
+										"value": "20",
+										"negated": "false",
+										"isSFDB": "false"
+									},
+									{
+										"type": "network",
+										"networkType": "buddy",
+										"first": "responder",
+										"second": "initiator",
+										"comparator": "-",
+										"value": "20",
+										"negated": "false",
+										"isSFDB": "false"
+									}
+								]
+							},
+							"id": "5",
+							"accept": "false"
+						}
+					]
+				},
+				"Instantiations": {
+					"Instantiation": {
+						"LineOfDialogue": {
+							"lineNumber": "1",
+							"initiatorLine": "initiator's line",
+							"responderLine": "responder's line",
+							"otherLine": "other's line",
+							"primarySpeaker": "initiator",
+							"initiatorBodyAnimation": "accuse",
+							"initiatorFaceAnimation": "happy",
+							"responderBodyAnimation": "accuse",
+							"responderFaceAnimation": "happy",
+							"otherBodyAnimation": "accuse",
+							"otherFaceAnimation": "happy",
+							"time": "5"
+						},
+						"id": "1"
+					}
+				},
+				"name": "Brag"
+			}
+		},
+		"CulturalKB": {
+			"Proposition": [
+				{
+					"type": "subjective",
+					"head": "robert",
+					"connection": "likes",
+					"tail": "pirates"
+				},
+				{
+					"type": "subjective",
+					"head": "Debbie",
+					"connection": "dislikes",
+					"tail": "flowers"
+				},
+				{
+					"type": "truth",
+					"head": "pirates",
+					"connection": "are",
+					"tail": "mean"
+				},
+				{
+					"type": "subjective",
+					"head": "robert",
+					"connection": "likes",
+					"tail": "flowers"
+				},
+				{
+					"type": "truth",
+					"head": "flowers",
+					"connection": "are",
+					"tail": "lame"
+				}
+			]
+		}
+	}
+}

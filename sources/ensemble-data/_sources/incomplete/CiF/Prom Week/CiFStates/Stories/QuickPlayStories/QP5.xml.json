@@ -1,0 +1,116 @@
+﻿{
+    "PromWeek": {
+        "Story": {
+            "Description": "Strategy.",
+            "QuickPlayDescription": {
+                "cdata": "Make ###MONICA### and ###EDWARD### enemies ###ENEMIES### in 2 moves"
+            },
+            "QuickPlayEndingDescription": {
+                "cdata": "People are complicated."
+            },
+            "ForcedSGs": {
+                "ForcedSG": [
+                    {
+                        "initiator": "Edward",
+                        "responder": "Monica",
+                        "gameName": "annoy",
+                        "turnsIn": "0",
+                        "instantiationID": "-1"
+                    },
+                    {
+                        "initiator": "Edward",
+                        "responder": "Monica",
+                        "gameName": "brag",
+                        "turnsIn": "0",
+                        "instantiationID": "-1"
+                    },
+                    {
+                        "initiator": "Edward",
+                        "responder": "Monica",
+                        "gameName": "insult",
+                        "turnsIn": "0",
+                        "instantiationID": "-1"
+                    },
+                    {
+                        "initiator": "Monica",
+                        "responder": "Edward",
+                        "gameName": "insult",
+                        "turnsIn": "0",
+                        "instantiationID": "-1"
+                    },
+                    {
+                        "initiator": "Monica",
+                        "responder": "Edward",
+                        "gameName": "bicker",
+                        "turnsIn": "0",
+                        "instantiationID": "-1"
+                    },
+                    {
+                        "initiator": "Monica",
+                        "responder": "Edward",
+                        "gameName": "brag",
+                        "turnsIn": "0",
+                        "instantiationID": "-1"
+                    }
+                ]
+            },
+            "ToDoList": {
+                "ToDoItem": {
+                    "Condition": {
+                        "Rule": {
+                            "Predicate": {
+                                "type": "relationship",
+                                "first": "Monica",
+                                "second": "Edward",
+                                "relationship": "enemies",
+                                "negated": "false",
+                                "intent": "false",
+                                "isSFDB": "false",
+                                "window": "0",
+                                "numTimesUniquelyTrueFlag": "false",
+                                "numTimesUniquelyTrue": "0",
+                                "numTimesRoleSlot": ""
+                            }
+                        },
+                        "taskNaturalLanguage": {
+                            "words": "Make ###MONICA### and ###EDWARD### enemies!"
+                        }
+                    },
+                    "name": "Make Monica and Edward enemies"
+                }
+            },
+            "Levels": {
+                "Level": {
+                    "Description": "Make Monica and Edward enemies.",
+                    "Setting": "neighborhood",
+                    "Cast": {
+                        "CharacterName": [
+                            "Monica",
+                            "Edward"
+                        ]
+                    },
+                    "GoalRules": "",
+                    "title": "LEVEL 5",
+                    "timeLimit": "2",
+                    "cameraZoom": "1",
+                    "useDefinedCameraPosition": "false",
+                    "cameraX": "800",
+                    "cameraY": "1400",
+                    "endable": "false",
+                    "isTutorial": "false",
+                    "tutorialScript": ""
+                }
+            },
+            "Endings": "",
+            "title": "QP5",
+            "storyLeadCharacter": "Monica",
+            "locked": "false",
+            "toUnlock": "0",
+            "isTutorial": "false",
+            "isQuickPlay": "true",
+            "numberOfQuickPlaySGAvailable": "3",
+            "startState": "quickPlayStartState5",
+            "nextChallengeName": "QP6"
+        }
+    }
+}

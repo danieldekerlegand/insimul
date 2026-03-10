@@ -1,0 +1,135 @@
+grammar kismet_initialization;
+
+
+init:
+ (initialization|initialize|default|filter_out)+ EOF
+ ;
+
+name : NAME;
+NAME   : [a-z][a-zA-Z_]* ;
+var : VAR;
+VAR : [A-Z][a-zA-Z_!]*;
+
+filter_out:
+    'filter' name comparator num '.'|
+    'filter' unique_count comparator num '.' |
+    'filter' name name comparator num '.';
+    
+unique_count:
+    '{' name '}';
+
+comparator:  '=' |
+	    '==' |
+	    '<' |
+	    '>' |
+	    '<='|
+	    '>='|
+	    '!=';
+
+num_range:
+	'[' num ']' | 
+	'[' num ':' num ']' ( pdf )? ;
+
+num_choice
+	:  '[' num ']' (name|var) |
+	'[' num ':' num ']' ( pdf )? (name|var) ;
+pdf :  ('^'|'-'|'.'|'_')+ ;
+
+num: NUMBER;
+
+NUMBER : NEG? POSITIVE_NUMBER ;
+
+pos_num: POSITIVE_NUMBER;
+
+POSITIVE_NUMBER: [0-9]+('.' [0-9]+)?;
+NEG: '-';
+
+WS : [ \t\r\n]+ -> skip ;
+
+LINE_COMMENT
+    : '//' ~[\r\n]* -> skip
+;
+
+
+random_text: RANDOM_TEXT;
+
+RANDOM_TEXT:'"' .*? '"'  ;
+
+initialization:
+	'initialization' name ':' let? (create|select) (';' (create|select))* '.';
+
+let:
+	'let' (assignment|deferred_assignment) (',' (assignment|deferred_assignment))* ';';
+	
+create:
+	'create' num_choice  ('as' name)? (options|':')?;
+    
+select:
+	'select' num_choice  ('as' name)? (options|':')? (conditions)?;
+	
+options:
+	':' option (',' option)*;
+
+conditions:
+	(',')? ':' 'where' option (',' option)*;
+    
+default:
+	'default' name (options|':')? '.';
+	
+	
+option:
+	assignment |
+	description |
+    optional_check|
+    required_check;
+
+optional_check:
+    name '?=' var;
+    
+required_check:
+    'has' 'a' name |
+    'has' name;
+
+assignment:
+	(name|var) '=' num_range|
+	(name|var) '=' num_choice ('+' num_choice)* |
+	(name|var) '=' var |
+	(name|var) '=' random_text |
+    (name) '=' now | 
+    (name) '=' now plus_minus num_choice;
+
+now: 'now';
+
+plus_minus: '+' | '-';
+
+deferred_assignment:
+    var '=' deferred_option? name '\'s' name |
+    var '=' deferred_option? name '.' name;
+    
+deferred_option:
+    'random' |
+    'first' |
+    'last' | 
+    'hashed' ;
+    
+negative:
+    'not' |
+    'is' 'not' |
+    'isnt' |
+    'isn\'t';
+    
+description:
+	negative name |
+	negative name ('to'|'of'|'with'|'at') (name|var) |
+	'is' name |
+	'is' name '=' num_range |
+	'is' name ('to'|'of'|'with'|'at') name |
+	name name |
+	name 'is' name |
+    'has' name 'of' name |
+    name name '=' num_range |
+	'is' name ('to'|'of'|'with') name '=' num_range;
+	
+	
+initialize:
+	'initialize' ':' create (';' create)* '.';

@@ -1,0 +1,119 @@
+﻿{
+    "PromWeek": {
+        "Story": {
+            "Description": "Social physics.",
+            "QuickPlayDescription": {
+                "cdata": "Use ###Monica### to make ###NAOMI### like ###ZACK### more"
+            },
+            "QuickPlayEndingDescription": {
+                "cdata": "Sometimes it takes three to tango."
+            },
+            "ForcedSGs": {
+                "ForcedSG": [
+                    {
+                        "initiator": "Zack",
+                        "responder": "Monica",
+                        "gameName": "Insult Friend of",
+                        "turnsIn": "0",
+                        "instantiationID": "-1"
+                    },
+                    {
+                        "initiator": "Naomi",
+                        "responder": "Zack",
+                        "gameName": "Brag",
+                        "turnsIn": "0",
+                        "instantiationID": "-1"
+                    },
+                    {
+                        "initiator": "Naomi",
+                        "responder": "Zack",
+                        "gameName": "Shoot Down",
+                        "turnsIn": "0",
+                        "instantiationID": "-1"
+                    },
+                    {
+                        "initiator": "Zack",
+                        "responder": "Naomi",
+                        "gameName": "Brag",
+                        "turnsIn": "0",
+                        "instantiationID": "-1"
+                    },
+                    {
+                        "initiator": "Zack",
+                        "responder": "Naomi",
+                        "gameName": "Woo",
+                        "turnsIn": "0",
+                        "instantiationID": "-1"
+                    },
+                    {
+                        "initiator": "Zack",
+                        "responder": "Naomi",
+                        "gameName": "Confide In",
+                        "turnsIn": "1",
+                        "instantiationID": "29"
+                    }
+                ]
+            },
+            "ToDoList": {
+                "ToDoItem": {
+                    "Condition": {
+                        "Rule": {
+                            "Predicate": {
+                                "type": "network",
+                                "networkType": "buddy",
+                                "first": "Naomi",
+                                "second": "Zack",
+                                "comparator": "greaterthan",
+                                "value": "75",
+                                "negated": "false",
+                                "intent": "false",
+                                "isSFDB": "false",
+                                "window": "0",
+                                "numTimesUniquelyTrueFlag": "false",
+                                "numTimesUniquelyTrue": "0",
+                                "numTimesRoleSlot": ""
+                            }
+                        },
+                        "taskNaturalLanguage": {
+                            "words": "Make ###NAOMI### like ###ZACK### more."
+                        }
+                    },
+                    "name": "It takes 3 to tango"
+                }
+            },
+            "Levels": {
+                "Level": {
+                    "Description": "Make Zack and Naomi friends.",
+                    "Setting": "cornerstore",
+                    "Cast": {
+                        "CharacterName": [
+                            "Zack",
+                            "Monica",
+                            "Naomi"
+                        ]
+                    },
+                    "GoalRules": "",
+                    "title": "LEVEL 6",
+                    "timeLimit": "2",
+                    "cameraZoom": "1",
+                    "useDefinedCameraPosition": "false",
+                    "cameraX": "800",
+                    "cameraY": "1400",
+                    "endable": "false",
+                    "isTutorial": "false",
+                    "tutorialScript": ""
+                }
+            },
+            "Endings": "",
+            "title": "QP6",
+            "storyLeadCharacter": "Zack",
+            "locked": "false",
+            "toUnlock": "0",
+            "isTutorial": "false",
+            "isQuickPlay": "true",
+            "numberOfQuickPlaySGAvailable": "2",
+            "startState": "quickPlayStartState6",
+            "nextChallengeName": "QP7"
+        }
+    }
+}
