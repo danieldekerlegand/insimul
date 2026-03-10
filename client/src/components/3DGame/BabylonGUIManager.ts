@@ -62,6 +62,11 @@ export interface MinimapData {
     zoneType: string; // safe, neutral, caution
     buildingCount?: number;
   }>;
+  questMarkers?: Array<{
+    id: string;
+    title: string;
+    position: { x: number; z: number };
+  }>;
   playerPosition: { x: number; z: number };
   worldSize: number; // Terrain size for scaling
 }
@@ -1155,6 +1160,27 @@ export class BabylonGUIManager {
       marker.top = `${-z}px`;
       mapContainer.addControl(marker);
     });
+
+    // Draw quest location markers
+    if (data.questMarkers) {
+      data.questMarkers.forEach((quest) => {
+        const qx = quest.position.x * scale;
+        const qz = quest.position.z * scale;
+
+        // Diamond-shaped quest marker (rotated rectangle)
+        const questMarker = new Rectangle(`quest-${quest.id}`);
+        questMarker.width = "10px";
+        questMarker.height = "10px";
+        questMarker.background = "#E040FB"; // Magenta/purple
+        questMarker.color = "#FFFFFF";
+        questMarker.thickness = 1;
+        questMarker.cornerRadius = 2;
+        questMarker.rotation = Math.PI / 4; // 45° rotation for diamond shape
+        questMarker.left = `${qx}px`;
+        questMarker.top = `${-qz}px`;
+        mapContainer.addControl(questMarker);
+      });
+    }
 
     // Draw player marker
     const playerX = data.playerPosition.x * scale;

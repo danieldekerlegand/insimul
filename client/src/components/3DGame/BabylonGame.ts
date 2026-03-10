@@ -4828,8 +4828,22 @@ export class BabylonGame {
 
     if (settlementsData.length === 0) return;
 
+    // Collect quest markers from active quests that have a location
+    const questMarkers: Array<{ id: string; title: string; position: { x: number; z: number } }> = [];
+    for (const quest of this.quests) {
+      if (quest.status !== 'active') continue;
+      if (quest.locationPosition) {
+        questMarkers.push({
+          id: quest.id,
+          title: quest.title,
+          position: { x: quest.locationPosition.x, z: quest.locationPosition.z }
+        });
+      }
+    }
+
     this.guiManager.updateMinimap({
       settlements: settlementsData,
+      questMarkers,
       playerPosition: {
         x: this.playerMesh.position.x,
         z: this.playerMesh.position.z
@@ -4989,8 +5003,8 @@ export class BabylonGame {
     if (!npcInfo) return;
 
     try {
-      // Use cached character data from worldData instead of re-fetching
-      const worldCharacter = this.worldData?.characters?.find((c) => c.id === npcId);
+      // Use cached character data — check this.characters first (primary), fallback to worldData.characters
+      const worldCharacter = (this.characters || this.worldData?.characters || []).find((c: any) => c.id === npcId);
       if (!worldCharacter) {
         throw new Error(`Character ${npcId} not found in world data`);
       }
@@ -5441,7 +5455,7 @@ export class BabylonGame {
     });
   }
 
-  private handleAttack(): void {
+  private async handleAttack(): Promise<void> {
     if (!this.combatSystem || !this.playerMesh) return;
 
     const playerEntity = this.combatSystem.getEntity('player');
@@ -5480,7 +5494,7 @@ export class BabylonGame {
         playerInventory: this.inventory?.getAllItems() || [],
       };
 
-      const combatAllowed = this.ruleEnforcer.canPerformAction('attack', 'combat', gameContext);
+      const combatAllowed = await this.ruleEnforcer.canPerformActionAsync('attack', 'combat', gameContext);
 
       if (!combatAllowed.allowed) {
         this.guiManager?.showToast({
@@ -6020,7 +6034,8 @@ export class BabylonGame {
         playerInventory: this.inventory?.getAllItems() || [],
       };
 
-      const ruleCheck = this.ruleEnforcer.canPerformAction(actionId, actionType, gameContext);
+      // Use async path that checks Prolog prerequisites first, then falls back to JS rules
+      const ruleCheck = await this.ruleEnforcer.canPerformActionAsync(actionId, actionType, gameContext);
 
       if (!ruleCheck.allowed) {
         this.guiManager?.showToast({
