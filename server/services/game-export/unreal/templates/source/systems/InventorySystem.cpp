@@ -145,6 +145,27 @@ TArray<FInsimulInventoryItem> UInventorySystem::GetAllItems() const
     return Items;
 }
 
+FInsimulInventoryItem UInventorySystem::GetItem(const FString& ItemId) const
+{
+    const FInsimulInventoryItem* Existing = FindItem(ItemId);
+    return Existing ? *Existing : FInsimulInventoryItem();
+}
+
+void UInventorySystem::ClearAll()
+{
+    Items.Empty();
+    EquippedSlots.Empty();
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Inventory cleared"));
+}
+
+void UInventorySystem::RefreshItemList()
+{
+    // In the Babylon.js source, this refreshes the UI rendering.
+    // In Unreal, UI updates are handled by UMG bindings or delegates.
+    // This is a no-op placeholder for API parity.
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] RefreshItemList called (no-op in Unreal — use delegates for UI updates)"));
+}
+
 // --- Equipment Management ---
 
 bool UInventorySystem::EquipItem(const FString& ItemId)

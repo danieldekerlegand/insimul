@@ -167,14 +167,18 @@ Return the grammar as JSON:`;
    */
   async generateCustomGrammars(
     customLabel: string,
-    customPrompt: string
+    customPrompt: string,
+    targetLanguage?: string
   ): Promise<GeneratedGrammar[]> {
     if (!this.enabled || !this.model) {
       throw new Error('Grammar generator not available. Please configure Gemini API.');
     }
 
-    console.log(`🎨 Generating custom grammars for: ${customLabel}`);
+    console.log(`🎨 Generating custom grammars for: ${customLabel}${targetLanguage ? ` (target language: ${targetLanguage})` : ''}`);
     const grammars: GeneratedGrammar[] = [];
+    const langContext = targetLanguage
+      ? ` All names MUST be culturally authentic ${targetLanguage} names — use real ${targetLanguage} first names, surnames, and naming conventions. Do NOT use generic English names.`
+      : '';
 
     // Helper function for retry with exponential backoff
     const retryWithBackoff = async <T>(
@@ -204,7 +208,7 @@ Return the grammar as JSON:`;
       console.log('  📝 Generating character names...');
       const characterGrammar = await retryWithBackoff(
         () => this.generateGrammar({
-          description: `Character names for a ${customLabel} world. ${customPrompt}`,
+          description: `Character names for a ${customLabel} world. ${customPrompt}${langContext}`,
           theme: customLabel,
           complexity: 'complex',
           symbolCount: 10,
@@ -228,7 +232,7 @@ Return the grammar as JSON:`;
       console.log('  📝 Generating settlement names...');
       const settlementGrammar = await retryWithBackoff(
         () => this.generateGrammar({
-          description: `Settlement names (cities, towns, villages) for a ${customLabel} world. ${customPrompt}`,
+          description: `Settlement names (cities, towns, villages) for a ${customLabel} world. ${customPrompt}${targetLanguage ? ` Use authentic ${targetLanguage} place naming conventions.` : ''}`,
           theme: customLabel,
           complexity: 'medium',
           symbolCount: 8,
@@ -252,7 +256,7 @@ Return the grammar as JSON:`;
       console.log('  📝 Generating business names...');
       const businessGrammar = await retryWithBackoff(
         () => this.generateGrammar({
-          description: `Business and establishment names (taverns, shops, services) for a ${customLabel} world. ${customPrompt}`,
+          description: `Business and establishment names (taverns, shops, services) for a ${customLabel} world. ${customPrompt}${targetLanguage ? ` Use authentic ${targetLanguage} business naming conventions.` : ''}`,
           theme: customLabel,
           complexity: 'medium',
           symbolCount: 8,

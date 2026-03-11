@@ -35,10 +35,6 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
   const [baseRules, setBaseRules] = useState<any[]>([]);
   const [enabledBaseRuleIds, setEnabledBaseRuleIds] = useState<string[]>([]);
   
-  // Pagination state for base rules
-  const [baseRulesPage, setBaseRulesPage] = useState(1);
-  const [baseRulesLimit] = useState(50);
-  const [baseRulesHasMore, setBaseRulesHasMore] = useState(false);
 
   // Dialog state
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -64,22 +60,13 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
         setRules(rulesData);
       }
 
-      // Fetch base rules with pagination
-      const baseRulesRes = await fetch(`/api/rules/base?page=${baseRulesPage}&limit=${baseRulesLimit}`);
+      // Fetch all base rules (no pagination)
+      const baseRulesRes = await fetch(`/api/rules/base`);
       let baseRulesData: any[] = [];
       if (baseRulesRes.ok) {
         const response = await baseRulesRes.json();
-        if (response.rules) {
-          // Paginated response
-          baseRulesData = response.rules;
-          setBaseRules(baseRulesData);
-          setBaseRulesHasMore(response.pagination?.hasMore || false);
-        } else {
-          // Non-paginated response (fallback)
-          baseRulesData = response;
-          setBaseRules(baseRulesData);
-          setBaseRulesHasMore(false);
-        }
+        baseRulesData = Array.isArray(response) ? response : (response.rules || []);
+        setBaseRules(baseRulesData);
       }
 
       // Fetch world's base resource config
@@ -283,7 +270,7 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
                 </TabsTrigger>
                 <TabsTrigger value="base">
                   <Globe className="w-4 h-4 mr-2" />
-                  Base Rules ({baseRules.filter(r => enabledBaseRuleIds.includes(r.id)).length})
+                  Base Rules ({baseRules.length})
                 </TabsTrigger>
               </TabsList>
 
@@ -353,70 +340,6 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
 
               <TabsContent value="base" className="mt-0">
                 <div className="space-y-4">
-                  {/* Pagination Controls */}
-                  {baseRules.length > 0 && (
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-muted-foreground">
-                        Showing {baseRules.length} base rules
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            if (baseRulesPage > 1) {
-                              const newPage = baseRulesPage - 1;
-                              setBaseRulesPage(newPage);
-                              // Refetch with new page
-                              fetch(`/api/rules/base?page=${newPage}&limit=${baseRulesLimit}`)
-                                .then(res => res.json())
-                                .then(response => {
-                                  if (response.rules) {
-                                    setBaseRules(response.rules);
-                                    setBaseRulesHasMore(response.pagination?.hasMore || false);
-                                  } else {
-                                    setBaseRules(response);
-                                    setBaseRulesHasMore(false);
-                                  }
-                                });
-                            }
-                          }}
-                          disabled={baseRulesPage <= 1}
-                        >
-                          Previous
-                        </Button>
-                        <span className="text-sm font-medium px-2">
-                          Page {baseRulesPage}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            if (baseRulesHasMore) {
-                              const newPage = baseRulesPage + 1;
-                              setBaseRulesPage(newPage);
-                              // Refetch with new page
-                              fetch(`/api/rules/base?page=${newPage}&limit=${baseRulesLimit}`)
-                                .then(res => res.json())
-                                .then(response => {
-                                  if (response.rules) {
-                                    setBaseRules(response.rules);
-                                    setBaseRulesHasMore(response.pagination?.hasMore || false);
-                                  } else {
-                                    setBaseRules(response);
-                                    setBaseRulesHasMore(false);
-                                  }
-                                });
-                            }
-                          }}
-                          disabled={!baseRulesHasMore}
-                        >
-                          Next
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                  
                   {/* Base Rules List */}
                   {baseRules.length > 0 ? (
                     <div className="space-y-2">
@@ -874,7 +797,7 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
         isGenerating={isGenerating}
       />
 
-      {/* Rule Convert Dialog */}
+      {/* Rule Export/Preview Dialog */}
       {selectedRule && (
         <RuleConvertDialog
           open={showConvertDialog}
@@ -884,44 +807,6 @@ export function HierarchicalRulesTab({ worldId }: HierarchicalRulesTabProps) {
             name: selectedRule.name,
             content: selectedRule.content,
             sourceFormat: selectedRule.sourceFormat || 'insimul'
-          }}
-          onConvert={async (ruleId, newContent, newSourceFormat) => {
-            try {
-              const res = await fetch(`/api/rules/${ruleId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  content: newContent,
-                  sourceFormat: newSourceFormat
-                })
-              });
-              
-              if (res.ok) {
-                toast({ 
-                  title: 'Rule Converted', 
-                  description: `Successfully converted to ${newSourceFormat} format` 
-                });
-                fetchRules();
-                // Update selected rule
-                setSelectedRule({
-                  ...selectedRule,
-                  content: newContent,
-                  sourceFormat: newSourceFormat
-                });
-              } else {
-                toast({ 
-                  title: 'Conversion Failed', 
-                  description: 'Failed to save converted rule',
-                  variant: 'destructive' 
-                });
-              }
-            } catch (error) {
-              toast({ 
-                title: 'Error', 
-                description: 'Failed to convert rule',
-                variant: 'destructive' 
-              });
-            }
           }}
         />
       )}

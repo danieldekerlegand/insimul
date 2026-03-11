@@ -1,28 +1,43 @@
 extends Node
 ## Inventory System -- autoloaded singleton.
 ## Manages player inventory with item stacks, gold, equipment slots, and mercantile support.
+## Mirrors the Babylon.js InventorySystem and DataSource item handling.
 
-signal item_added(item_id: String, count: int)
-signal item_removed(item_id: String, count: int)
+signal item_added(item: Dictionary)
+signal item_removed(item_id: String)
 signal item_dropped(item: Dictionary)
 signal item_used(item: Dictionary)
-signal item_equipped(item: Dictionary, slot: String)
-signal item_unequipped(item: Dictionary, slot: String)
+signal item_equipped(item: Dictionary)
+signal item_unequipped(item: Dictionary)
 signal gold_changed(new_gold: int)
 
 ## Item types matching Insimul's shared ItemType enum.
-enum ItemType { QUEST, COLLECTIBLE, KEY, CONSUMABLE, WEAPON, ARMOR, FOOD, DRINK, MATERIAL, TOOL }
+const ITEM_TYPES: Array[String] = [
+	"quest", "collectible", "key", "consumable", "weapon", "armor",
+	"food", "drink", "material", "tool",
+]
 
-## Equipment slot types.
-enum EquipSlot { NONE, WEAPON, ARMOR, ACCESSORY }
+## Equipment slot names.
+const EQUIP_SLOTS: Array[String] = ["weapon", "armor", "accessory"]
+
+## Filter categories for UI.
+const FILTER_CATEGORIES: Array[String] = [
+	"all", "weapons_armor", "consumables", "materials", "quest", "other",
+]
+
+## Rarity tiers.
+const RARITIES: Array[String] = ["common", "uncommon", "rare", "epic", "legendary"]
 
 var max_slots := 20
 var player_gold := 100
 
-## Each slot: {item_id, name, description, type, count, value, sell_value, weight, tradeable, quest_id, equipped, equip_slot, effects}
+## Each slot Dictionary may contain:
+##   id, name, description, type, quantity, icon, quest_id, value, sell_value,
+##   weight, tradeable, equipped, effects, equip_slot, category, material,
+##   base_type, rarity
 var _slots: Array[Dictionary] = []
 
-## Equipped items by slot name
+## Equipped items by slot name ("weapon", "armor", "accessory")
 var _equipped_slots: Dictionary = {}
 
 func initialize() -> void:
@@ -33,40 +48,55 @@ func initialize() -> void:
 
 # --- Item Management ---
 
+## Add an item to inventory. The item Dictionary should have at minimum an "id" key.
+## Supported fields: id, name, description, type, quantity, icon, quest_id, value,
+## sell_value, weight, tradeable, equipped, effects, equip_slot, category, material,
+## base_type, rarity.
 func add_item(item: Dictionary) -> bool:
-	var item_id: String = item.get("item_id", "")
-	var count: int = item.get("count", 1)
+	var item_id: String = item.get("id", item.get("item_id", ""))
+	var qty: int = item.get("quantity", item.get("count", 1))
+	# Stack onto existing slot if possible
 	for slot in _slots:
-		if slot.get("item_id", "") == item_id:
-			slot["count"] = slot.get("count", 0) + count
-			item_added.emit(item_id, count)
+		var slot_id: String = slot.get("id", slot.get("item_id", ""))
+		if slot_id == item_id:
+			slot["quantity"] = slot.get("quantity", slot.get("count", 0)) + qty
+			item_added.emit(slot.duplicate())
 			return true
 	if _slots.size() >= max_slots:
 		return false
-	_slots.append(item)
-	item_added.emit(item_id, count)
+	# Normalize to "id" and "quantity" keys
+	var normalized := item.duplicate()
+	if not normalized.has("id") and normalized.has("item_id"):
+		normalized["id"] = normalized["item_id"]
+	if not normalized.has("quantity"):
+		normalized["quantity"] = qty
+	_slots.append(normalized)
+	item_added.emit(normalized.duplicate())
 	return true
 
-func add_item_by_id(item_id: String, count: int = 1) -> bool:
-	return add_item({"item_id": item_id, "name": item_id, "count": count, "type": ItemType.COLLECTIBLE, "tradeable": true})
+func add_item_by_id(item_id: String, quantity: int = 1) -> bool:
+	return add_item({"id": item_id, "name": item_id, "quantity": quantity, "type": "collectible", "tradeable": true})
 
-func remove_item(item_id: String, count: int = 1) -> bool:
+## Remove [quantity] units of an item. Returns false if insufficient quantity.
+func remove_item(item_id: String, quantity: int = 1) -> bool:
 	for i in range(_slots.size()):
-		if _slots[i].get("item_id", "") == item_id:
-			var current: int = _slots[i].get("count", 0)
-			if current < count:
+		var slot_id: String = _slots[i].get("id", _slots[i].get("item_id", ""))
+		if slot_id == item_id:
+			var current: int = _slots[i].get("quantity", _slots[i].get("count", 0))
+			if current < quantity:
 				return false
-			_slots[i]["count"] = current - count
-			if _slots[i]["count"] <= 0:
+			_slots[i]["quantity"] = current - quantity
+			if _slots[i]["quantity"] <= 0:
 				_slots.remove_at(i)
-			item_removed.emit(item_id, count)
+			item_removed.emit(item_id)
 			return true
 	return false
 
 func drop_item(item_id: String) -> bool:
 	for slot in _slots:
-		if slot.get("item_id", "") == item_id:
-			if slot.get("type", ItemType.COLLECTIBLE) == ItemType.QUEST:
+		var slot_id: String = slot.get("id", slot.get("item_id", ""))
+		if slot_id == item_id:
+			if str(slot.get("type", "collectible")) == "quest":
 				return false  # Cannot drop quest items
 			if slot.get("equipped", false):
 				return false  # Cannot drop equipped items
@@ -78,16 +108,17 @@ func drop_item(item_id: String) -> bool:
 
 func use_item(item_id: String) -> bool:
 	for slot in _slots:
-		if slot.get("item_id", "") == item_id:
-			var item_type = slot.get("type", ItemType.COLLECTIBLE)
+		var slot_id: String = slot.get("id", slot.get("item_id", ""))
+		if slot_id == item_id:
+			var item_type: String = str(slot.get("type", "collectible"))
 
 			# Quest and key items: emit event without consuming
-			if item_type == ItemType.QUEST or item_type == ItemType.KEY:
+			if item_type == "quest" or item_type == "key":
 				item_used.emit(slot.duplicate())
 				return true
 
 			# Consumable, food, drink: apply effects and consume
-			if item_type in [ItemType.CONSUMABLE, ItemType.FOOD, ItemType.DRINK]:
+			if item_type in ["consumable", "food", "drink"]:
 				var copy := slot.duplicate()
 				remove_item(item_id, 1)
 				item_used.emit(copy)
@@ -97,31 +128,49 @@ func use_item(item_id: String) -> bool:
 
 func get_item_count(item_id: String) -> int:
 	for slot in _slots:
-		if slot.get("item_id", "") == item_id:
-			return slot.get("count", 0)
+		var slot_id: String = slot.get("id", slot.get("item_id", ""))
+		if slot_id == item_id:
+			return slot.get("quantity", slot.get("count", 0))
 	return 0
 
+## Check if the player has at least one of the given item.
 func has_item(item_id: String) -> bool:
 	return get_item_count(item_id) > 0
 
+## Return the item Dictionary for a given id, or empty dict if not found.
+func get_item(item_id: String) -> Dictionary:
+	for slot in _slots:
+		var slot_id: String = slot.get("id", slot.get("item_id", ""))
+		if slot_id == item_id:
+			return slot
+	return {}
+
+## Return a copy of all inventory items.
 func get_all_items() -> Array[Dictionary]:
 	return _slots.duplicate()
 
+## Remove all items from inventory.
+func clear_all() -> void:
+	_slots.clear()
+	_equipped_slots.clear()
+	print("[Insimul] InventorySystem cleared")
+
 # --- Equipment Management ---
 
-func _get_slot_for_type(item_type: int) -> String:
+func _get_slot_for_type(item_type: String) -> String:
 	match item_type:
-		ItemType.WEAPON: return "weapon"
-		ItemType.ARMOR: return "armor"
-		ItemType.TOOL: return "accessory"
+		"weapon": return "weapon"
+		"armor": return "armor"
+		"tool": return "accessory"
 		_: return ""
 
 func equip_item(item_id: String) -> bool:
 	for slot in _slots:
-		if slot.get("item_id", "") == item_id:
+		var slot_id: String = slot.get("id", slot.get("item_id", ""))
+		if slot_id == item_id:
 			var equip_slot: String = slot.get("equip_slot", "")
 			if equip_slot.is_empty():
-				equip_slot = _get_slot_for_type(slot.get("type", ItemType.COLLECTIBLE))
+				equip_slot = _get_slot_for_type(str(slot.get("type", "collectible")))
 			if equip_slot.is_empty():
 				return false
 
@@ -130,7 +179,7 @@ func equip_item(item_id: String) -> bool:
 
 			slot["equipped"] = true
 			_equipped_slots[equip_slot] = item_id
-			item_equipped.emit(slot.duplicate(), equip_slot)
+			item_equipped.emit(slot.duplicate())
 			print("[Insimul] Equipped: %s in slot %s" % [slot.get("name", item_id), equip_slot])
 			return true
 	return false
@@ -140,9 +189,10 @@ func unequip_slot(slot_name: String) -> bool:
 		return false
 	var item_id: String = _equipped_slots[slot_name]
 	for slot in _slots:
-		if slot.get("item_id", "") == item_id:
+		var slot_id: String = slot.get("id", slot.get("item_id", ""))
+		if slot_id == item_id:
 			slot["equipped"] = false
-			item_unequipped.emit(slot.duplicate(), slot_name)
+			item_unequipped.emit(slot.duplicate())
 			print("[Insimul] Unequipped: %s from slot %s" % [slot.get("name", item_id), slot_name])
 			break
 	_equipped_slots.erase(slot_name)
@@ -153,12 +203,24 @@ func get_equipped_item(slot_name: String) -> Dictionary:
 		return {}
 	var item_id: String = _equipped_slots[slot_name]
 	for slot in _slots:
-		if slot.get("item_id", "") == item_id:
+		var slot_id: String = slot.get("id", slot.get("item_id", ""))
+		if slot_id == item_id:
 			return slot
 	return {}
 
 func has_equipped_in_slot(slot_name: String) -> bool:
 	return _equipped_slots.has(slot_name)
+
+## Update the equipment display from a Dictionary of {slot_name: item_dict}.
+func update_equipment_display(equipped: Dictionary) -> void:
+	for slot_name in equipped:
+		var item: Dictionary = equipped[slot_name]
+		if item.is_empty():
+			unequip_slot(slot_name)
+		else:
+			var item_id: String = item.get("id", item.get("item_id", ""))
+			if not item_id.is_empty():
+				equip_item(item_id)
 
 # --- Gold Management ---
 
@@ -181,3 +243,12 @@ func remove_gold(amount: int) -> bool:
 	gold_changed.emit(player_gold)
 	print("[Insimul] RemoveGold: -%d (total: %d)" % [amount, player_gold])
 	return true
+
+# --- Cleanup ---
+
+## Clear all inventory state and reset.
+func dispose() -> void:
+	_slots.clear()
+	_equipped_slots.clear()
+	player_gold = 0
+	print("[Insimul] InventorySystem disposed")

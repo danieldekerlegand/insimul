@@ -47,10 +47,8 @@ export function RulesHub({ worldId }: RulesHubProps) {
   const [baseRules, setBaseRules] = useState<any[]>([]);
   const [enabledBaseRuleIds, setEnabledBaseRuleIds] = useState<string[]>([]);
 
-  // Pagination for base rules
-  const [baseRulesPage, setBaseRulesPage] = useState(1);
-  const [baseRulesLimit] = useState(50);
-  const [baseRulesHasMore, setBaseRulesHasMore] = useState(false);
+  // Total base rules count (before any filtering)
+  const [baseRulesTotal, setBaseRulesTotal] = useState(0);
 
   // Tree navigation
   const [activeSection, setActiveSection] = useState<TreeSection>('world');
@@ -80,7 +78,7 @@ export function RulesHub({ worldId }: RulesHubProps) {
     try {
       const [rulesRes, baseRes, configRes] = await Promise.all([
         fetch(`/api/rules?worldId=${worldId}`),
-        fetch(`/api/rules/base?page=${baseRulesPage}&limit=${baseRulesLimit}`),
+        fetch(`/api/rules/base`),
         fetch(`/api/worlds/${worldId}/base-resources/config`),
       ]);
 
@@ -89,14 +87,13 @@ export function RulesHub({ worldId }: RulesHubProps) {
       let baseData: any[] = [];
       if (baseRes.ok) {
         const response = await baseRes.json();
-        if (response.rules) {
-          baseData = response.rules;
-          setBaseRulesHasMore(response.pagination?.hasMore || false);
-        } else {
+        if (Array.isArray(response)) {
           baseData = response;
-          setBaseRulesHasMore(false);
+        } else if (response.rules) {
+          baseData = response.rules;
         }
         setBaseRules(baseData);
+        setBaseRulesTotal(baseData.length);
       }
 
       if (configRes.ok) {
@@ -114,23 +111,6 @@ export function RulesHub({ worldId }: RulesHubProps) {
     }
   };
 
-  const fetchBaseRulesPage = async (page: number) => {
-    try {
-      const res = await fetch(`/api/rules/base?page=${page}&limit=${baseRulesLimit}`);
-      if (res.ok) {
-        const response = await res.json();
-        if (response.rules) {
-          setBaseRules(response.rules);
-          setBaseRulesHasMore(response.pagination?.hasMore || false);
-        } else {
-          setBaseRules(response);
-          setBaseRulesHasMore(false);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch base rules page:', error);
-    }
-  };
 
   // Group world rules by ruleType
   const worldRuleGroups = useMemo(() => {
@@ -154,13 +134,12 @@ export function RulesHub({ worldId }: RulesHubProps) {
     return groups;
   }, [baseRules]);
 
-  // Expand all groups by default on first render
+  // Expand world rule groups by default; keep base rule categories collapsed
   useEffect(() => {
     const allKeys = new Set<string>();
     worldRuleGroups.forEach((_, k) => allKeys.add(`world:${k}`));
-    baseRuleGroups.forEach((_, k) => allKeys.add(`base:${k}`));
     setExpandedGroups(allKeys);
-  }, [worldRuleGroups, baseRuleGroups]);
+  }, [worldRuleGroups]);
 
   const toggleGroup = (key: string) => {
     setExpandedGroups(prev => {
@@ -332,7 +311,7 @@ export function RulesHub({ worldId }: RulesHubProps) {
             <Globe className="w-3.5 h-3.5 shrink-0 text-purple-500" />
             <span>Base Rules</span>
             <span className="ml-auto text-xs text-muted-foreground">
-              {baseRules.length}
+              {baseRulesTotal}
             </span>
           </button>
 
@@ -388,30 +367,6 @@ export function RulesHub({ worldId }: RulesHubProps) {
                 <p className="text-xs text-muted-foreground text-center py-4">No base rules</p>
               )}
 
-              {/* Pagination */}
-              {(baseRulesPage > 1 || baseRulesHasMore) && (
-                <div className="flex items-center justify-center gap-2 pt-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs"
-                    onClick={() => { const p = baseRulesPage - 1; setBaseRulesPage(p); fetchBaseRulesPage(p); }}
-                    disabled={baseRulesPage <= 1}
-                  >
-                    Prev
-                  </Button>
-                  <span className="text-xs text-muted-foreground">Page {baseRulesPage}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs"
-                    onClick={() => { const p = baseRulesPage + 1; setBaseRulesPage(p); fetchBaseRulesPage(p); }}
-                    disabled={!baseRulesHasMore}
-                  >
-                    Next
-                  </Button>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -785,24 +740,6 @@ export function RulesHub({ worldId }: RulesHubProps) {
             name: selectedRule.name,
             content: selectedRule.content,
             sourceFormat: selectedRule.sourceFormat || 'insimul',
-          }}
-          onConvert={async (ruleId, newContent, newSourceFormat) => {
-            try {
-              const res = await fetch(`/api/rules/${ruleId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: newContent, sourceFormat: newSourceFormat }),
-              });
-              if (res.ok) {
-                toast({ title: 'Rule Converted', description: `Converted to ${newSourceFormat}` });
-                fetchRules();
-                setSelectedRule({ ...selectedRule, content: newContent, sourceFormat: newSourceFormat });
-              } else {
-                toast({ title: 'Conversion Failed', variant: 'destructive' });
-              }
-            } catch {
-              toast({ title: 'Failed to convert rule', variant: 'destructive' });
-            }
           }}
         />
       )}

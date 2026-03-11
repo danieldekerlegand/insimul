@@ -14,7 +14,7 @@ import { TauPrologEngine } from '@shared/prolog/tau-engine';
 import { getNPCReasoningRules, getPersonalityFacts, getRelationshipFacts, getEmotionalStateFacts } from '@shared/prolog/npc-reasoning';
 import { getTotTPredicates } from '@shared/prolog/tott-predicates';
 import { getAdvancedPredicates } from '@shared/prolog/advanced-predicates';
-import type { GameEventBus, GameEvent } from './GameEventBus';
+import type { GameEventBus, GameEvent, ItemTaxonomy } from './GameEventBus';
 
 export interface GameState {
   playerCharacterId: string;
@@ -31,6 +31,8 @@ export class GamePrologEngine {
   private eventBusUnsubscribe: (() => void) | null = null;
   private activeQuestIds: string[] = [];
   private onQuestCompleted?: (questId: string) => void;
+  /** Track per-item quantities so has_item/3 stays accurate. */
+  private itemQuantities = new Map<string, number>();
 
   constructor() {
     this.engine = new TauPrologEngine();
@@ -72,14 +74,16 @@ export class GamePrologEngine {
     if (!this.initialized) return;
 
     switch (event.type) {
-      case 'item_collected':
-        await this.engine.assertFact(
-          `collected(player, ${this.sanitize(event.itemName)}, ${event.quantity})`
-        );
-        await this.engine.assertFact(
-          `has(player, ${this.sanitize(event.itemName)})`
-        );
+      case 'item_collected': {
+        const name = this.sanitize(event.itemName);
+        await this.engine.assertFact(`collected(player, ${name}, ${event.quantity})`);
+        await this.engine.assertFact(`has(player, ${name})`);
+        await this.updateItemQuantity(name, event.quantity);
+        if (event.taxonomy) {
+          await this.assertItemTaxonomy(name, event.taxonomy);
+        }
         break;
+      }
       case 'enemy_defeated':
         await this.engine.assertFact(
           `defeated(player, ${this.sanitize(event.enemyType)})`
@@ -105,14 +109,16 @@ export class GamePrologEngine {
           `vocab_used(player, ${this.sanitize(event.word)}, ${event.correct ? 1 : 0})`
         );
         break;
-      case 'item_crafted':
-        await this.engine.assertFact(
-          `crafted(player, ${this.sanitize(event.itemName)}, ${event.quantity})`
-        );
-        await this.engine.assertFact(
-          `has(player, ${this.sanitize(event.itemName)})`
-        );
+      case 'item_crafted': {
+        const name = this.sanitize(event.itemName);
+        await this.engine.assertFact(`crafted(player, ${name}, ${event.quantity})`);
+        await this.engine.assertFact(`has(player, ${name})`);
+        await this.updateItemQuantity(name, event.quantity);
+        if (event.taxonomy) {
+          await this.assertItemTaxonomy(name, event.taxonomy);
+        }
         break;
+      }
       case 'location_discovered':
         await this.engine.assertFact(
           `discovered(player, ${this.sanitize(event.locationId)})`
@@ -144,16 +150,25 @@ export class GamePrologEngine {
         );
         break;
       case 'item_removed':
-      case 'item_dropped':
-        await this.engine.retractFact(
-          `has(player, ${this.sanitize(event.itemName)})`
-        );
+      case 'item_dropped': {
+        const name = this.sanitize(event.itemName);
+        const qty = event.quantity || 1;
+        await this.updateItemQuantity(name, -qty);
+        const remaining = this.itemQuantities.get(name) || 0;
+        if (remaining <= 0) {
+          await this.engine.retractFact(`has(player, ${name})`);
+        }
         break;
-      case 'item_used':
-        await this.engine.retractFact(
-          `has(player, ${this.sanitize(event.itemName)})`
-        );
+      }
+      case 'item_used': {
+        const name = this.sanitize(event.itemName);
+        await this.updateItemQuantity(name, -1);
+        const remaining = this.itemQuantities.get(name) || 0;
+        if (remaining <= 0) {
+          await this.engine.retractFact(`has(player, ${name})`);
+        }
         break;
+      }
       case 'item_equipped':
         await this.engine.assertFact(
           `equipped(player, ${this.sanitize(event.itemName)}, ${this.sanitize(event.slot)})`
@@ -188,17 +203,31 @@ export class GamePrologEngine {
    * Initialize inventory items as Prolog facts.
    * Call after initialize() to sync existing inventory to Prolog.
    */
-  async initializeInventory(items: Array<{ id: string; name: string; type?: string; value?: number }>): Promise<void> {
+  async initializeInventory(items: Array<{
+    id: string; name: string; type?: string; value?: number; quantity?: number;
+    category?: string; material?: string; baseType?: string; rarity?: string;
+  }>): Promise<void> {
     if (!this.initialized) return;
     for (const item of items) {
       const name = this.sanitize(item.name);
+      const qty = item.quantity || 1;
       await this.engine.assertFact(`has(player, ${name})`);
+      await this.engine.assertFact(`has_item(player, ${name}, ${qty})`);
+      this.itemQuantities.set(name, (this.itemQuantities.get(name) || 0) + qty);
       if (item.type) {
         await this.engine.assertFact(`item_type(${name}, ${this.sanitize(item.type)})`);
       }
       if (item.value !== undefined && item.value > 0) {
         await this.engine.assertFact(`item_value(${name}, ${item.value})`);
       }
+      // Assert taxonomy
+      await this.assertItemTaxonomy(name, {
+        category: item.category,
+        material: item.material,
+        baseType: item.baseType,
+        rarity: item.rarity,
+        itemType: item.type,
+      });
     }
     console.log(`[GamePrologEngine] Initialized ${items.length} inventory items as Prolog facts`);
   }
@@ -217,6 +246,7 @@ export class GamePrologEngine {
     content?: string; // Pre-generated .pl content from server
   }): Promise<void> {
     this.engine.clear();
+    this.itemQuantities.clear();
 
     // If server provided pre-generated Prolog content, load it
     if (data.content) {
@@ -642,6 +672,71 @@ export class GamePrologEngine {
   }
 
   /**
+   * Initialize world item definitions into Prolog (taxonomy, IS-A chains).
+   * Call at game start with all world items so Prolog knows about every item type.
+   */
+  async initializeWorldItems(items: Array<{
+    name: string; itemType?: string; value?: number;
+    category?: string; material?: string; baseType?: string; rarity?: string;
+  }>): Promise<void> {
+    if (!this.initialized) return;
+    for (const item of items) {
+      const name = this.sanitize(item.name);
+      if (item.itemType) {
+        await this.engine.assertFact(`item_type(${name}, ${this.sanitize(item.itemType)})`);
+      }
+      if (item.value !== undefined && item.value > 0) {
+        await this.engine.assertFact(`item_value(${name}, ${item.value})`);
+      }
+      await this.assertItemTaxonomy(name, {
+        category: item.category,
+        material: item.material,
+        baseType: item.baseType,
+        rarity: item.rarity,
+        itemType: item.itemType,
+      });
+    }
+    console.log(`[GamePrologEngine] Initialized ${items.length} world item definitions as Prolog facts`);
+  }
+
+  /**
+   * Load built-in IS-A reasoning rules so Prolog can reason hierarchically about items.
+   * e.g., "does the player have a weapon?" queries item_is_a(X, weapon).
+   */
+  async loadItemReasoningRules(): Promise<void> {
+    if (!this.initialized) return;
+    const rules = `
+% IS-A reasoning: an item is-a its category
+item_is_a(Item, Category) :- item_category(Item, Category).
+% IS-A reasoning: an item is-a its base type
+item_is_a(Item, BaseType) :- item_base_type(Item, BaseType).
+% IS-A reasoning: an item is-a its item type
+item_is_a(Item, Type) :- item_type(Item, Type).
+
+% Check if player has any item of a given category/type
+has_item_of_type(Player, Type) :- has(Player, Item), item_is_a(Item, Type).
+
+% Check if player has at least N of an item
+has_at_least(Player, Item, N) :- has_item(Player, Item, Qty), Qty >= N.
+
+% Count total items of a type across all item names
+count_items_of_type(Player, Type, Total) :-
+  findall(Qty, (has_item(Player, Item, Qty), item_is_a(Item, Type)), Qtys),
+  sumlist(Qtys, Total).
+
+% Helper: sum a list
+sumlist([], 0).
+sumlist([H|T], S) :- sumlist(T, S1), S is S1 + H.
+`;
+    try {
+      await this.engine.consult(rules);
+      console.log('[GamePrologEngine] Loaded item IS-A reasoning rules');
+    } catch (e) {
+      console.warn('[GamePrologEngine] Failed to load item reasoning rules:', e);
+    }
+  }
+
+  /**
    * Export the current knowledge base as Prolog text.
    */
   exportKnowledgeBase(): string {
@@ -658,9 +753,50 @@ export class GamePrologEngine {
     }
     this.engine.clear();
     this.initialized = false;
+    this.itemQuantities.clear();
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+
+  /**
+   * Assert taxonomy facts for an item (category, material, baseType, rarity, IS-A chain).
+   * Safe to call multiple times; duplicate facts are idempotent in tau-prolog.
+   */
+  private async assertItemTaxonomy(itemName: string, taxonomy: ItemTaxonomy): Promise<void> {
+    if (taxonomy.category) {
+      await this.engine.assertFact(`item_category(${itemName}, ${this.sanitize(taxonomy.category)})`);
+      await this.engine.assertFact(`item_is_a(${itemName}, ${this.sanitize(taxonomy.category)})`);
+    }
+    if (taxonomy.material) {
+      await this.engine.assertFact(`item_material(${itemName}, ${this.sanitize(taxonomy.material)})`);
+    }
+    if (taxonomy.baseType) {
+      await this.engine.assertFact(`item_base_type(${itemName}, ${this.sanitize(taxonomy.baseType)})`);
+      await this.engine.assertFact(`item_is_a(${itemName}, ${this.sanitize(taxonomy.baseType)})`);
+    }
+    if (taxonomy.rarity) {
+      await this.engine.assertFact(`item_rarity(${itemName}, ${this.sanitize(taxonomy.rarity)})`);
+    }
+    if (taxonomy.itemType) {
+      await this.engine.assertFact(`item_is_a(${itemName}, ${this.sanitize(taxonomy.itemType)})`);
+    }
+  }
+
+  /**
+   * Update the quantity of an item in the player's inventory.
+   * Retracts old has_item/3 and asserts the new quantity.
+   */
+  private async updateItemQuantity(itemName: string, delta: number): Promise<void> {
+    const oldQty = this.itemQuantities.get(itemName) || 0;
+    const newQty = Math.max(0, oldQty + delta);
+    this.itemQuantities.set(itemName, newQty);
+    // Retract old quantity fact
+    await this.retractPattern('has_item', 'player', itemName);
+    // Assert new quantity (even if 0 — the has/2 retraction handles boolean presence)
+    if (newQty > 0) {
+      await this.engine.assertFact(`has_item(player, ${itemName}, ${newQty})`);
+    }
+  }
 
   private async retractPattern(predicate: string, firstArg: string, secondArg?: string): Promise<void> {
     const allFacts = this.engine.getAllFacts();

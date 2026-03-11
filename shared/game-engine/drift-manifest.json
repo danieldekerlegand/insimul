@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-11T02:51:22.839Z",
+  "lastUpdated": "2026-03-11T07:30:32.064Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -125,7 +125,7 @@
     {
       "path": "client/src/components/3DGame/BabylonInventory.ts",
       "description": "Inventory: stacking, weight, add/remove items.",
-      "hash": "1c03331ea11d08f559fcb053b38e12680e6bf250fe6b696f34461bb5034efdbb",
+      "hash": "61beacfafa3724ccb358817812d625545dfefab4eb600406e6452d798f177ddd",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -262,7 +262,7 @@
     {
       "path": "client/src/components/3DGame/GameEventBus.ts",
       "description": "Centralized typed event bus (20 event types). Exported engines need equivalent event routing for gameplay actions.",
-      "hash": "5002c423f166ab8b39ec0e9a76b1549169c105b8be67474df1cb9161d9f16e98",
+      "hash": "6d46545482a5e5602649c6346e1c41f5c3f2e17c5529c51c8cec5ca049220459",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -289,7 +289,7 @@
     {
       "path": "client/src/components/3DGame/GamePrologEngine.ts",
       "description": "Client-side Prolog runtime: KB initialization, event-to-fact pipeline, quest/action queries. Exported engines need equivalent Prolog query logic.",
-      "hash": "96c366ce363f506b80b42b59ddb7c62e648a9ee8bb4384c282622f7ca94acbcd",
+      "hash": "493f550d1d556af03d578c1f98f28c1c41167bc9100b47f309ac0bbf6b6db540",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -316,7 +316,7 @@
     {
       "path": "client/src/components/3DGame/DataSource.ts",
       "description": "Data loading abstraction: ApiDataSource (in-app) and FileDataSource (exports). FileDataSource defines the contract for how exported games load JSON/Prolog data.",
-      "hash": "cb646bcf983d0044619fef960e7dffaf7b986c4e298e8773defef042df978409",
+      "hash": "809286e62e9977384b3b8f4612eab9f3d9db10e725c49bcd2b0dc27260decd04",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -370,7 +370,7 @@
     {
       "path": "shared/game-engine/types.ts",
       "description": "Engine-agnostic type primitives (InventoryItem, LootTableEntry, Action, Rule, etc.) shared across in-app and export systems.",
-      "hash": "a7b1039cd579ee093c50090610e0f0c7617ce01777d66e1335d7ae5a4c921715",
+      "hash": "ccd0e27db4231f0e8640cc92a3499dbd2b01fb1ce9474f55b516e8fbd1cc1cc9",
       "engineMappings": [
         {
           "engine": "unreal",

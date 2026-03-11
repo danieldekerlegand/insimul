@@ -551,6 +551,22 @@ export class PrologSyncService {
 
         if (item.itemType) {
           await this.prologManager.addFact(`item_type(${itemId}, ${this.sanitizeAtom(item.itemType)})`);
+          // IS-A chain: item → baseType → itemType
+          await this.prologManager.addFact(`item_is_a(${itemId}, ${this.sanitizeAtom(item.itemType)})`);
+        }
+        if ((item as any).category) {
+          await this.prologManager.addFact(`item_category(${itemId}, ${this.sanitizeAtom((item as any).category)})`);
+        }
+        if ((item as any).material) {
+          await this.prologManager.addFact(`item_material(${itemId}, ${this.sanitizeAtom((item as any).material)})`);
+        }
+        if ((item as any).baseType) {
+          await this.prologManager.addFact(`item_base_type(${itemId}, ${this.sanitizeAtom((item as any).baseType)})`);
+          // IS-A chain: item → baseType (e.g., steel_sword is_a sword)
+          await this.prologManager.addFact(`item_is_a(${itemId}, ${this.sanitizeAtom((item as any).baseType)})`);
+        }
+        if ((item as any).rarity) {
+          await this.prologManager.addFact(`item_rarity(${itemId}, ${this.sanitizeAtom((item as any).rarity)})`);
         }
         if (item.value != null) {
           await this.prologManager.addFact(`item_value(${itemId}, ${item.value})`);

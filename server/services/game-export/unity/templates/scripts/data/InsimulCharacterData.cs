@@ -17,7 +17,10 @@ namespace Insimul.Data
         public string occupation;
         public string currentLocation;
         public string status;
+        public int age;
         public int birthYear;
+        public string mood;
+        public float energy;
         public PersonalityData personality;
         public string[] coworkerIds;
         public string[] friendIds;

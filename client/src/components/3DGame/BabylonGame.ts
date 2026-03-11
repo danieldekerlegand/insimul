@@ -1602,6 +1602,14 @@ export class BabylonGame {
           });
           console.log('[BabylonGame] Prolog engine initialized:', this.prologEngine.getStats());
 
+          // Load IS-A reasoning rules for item hierarchy queries
+          await this.prologEngine.loadItemReasoningRules();
+
+          // Sync world item definitions (taxonomy) to Prolog
+          if (this.worldItems.length > 0) {
+            await this.prologEngine.initializeWorldItems(this.worldItems);
+          }
+
           // Sync existing inventory items to Prolog
           if (this.inventory) {
             const existingItems = this.inventory.getAllItems();
@@ -4539,7 +4547,10 @@ export class BabylonGame {
     if (this.questObjectManager) {
       this.questObjectManager.trackCollectedItemByName(item.name);
     }
-    this.eventBus.emit({ type: 'item_collected', itemId: item.id, itemName: item.name, quantity: 1 });
+    this.eventBus.emit({
+      type: 'item_collected', itemId: item.id, itemName: item.name, quantity: 1,
+      taxonomy: { category: item.category, material: item.material, baseType: item.baseType, rarity: item.rarity, itemType: item.type },
+    });
 
     this.guiManager?.showToast({
       title: `Collected ${item.name}`,
@@ -4576,6 +4587,10 @@ export class BabylonGame {
         weight: dbItem.weight || 1,
         tradeable: dbItem.tradeable !== false,
         effects: dbItem.effects || undefined,
+        category: dbItem.category || undefined,
+        material: dbItem.material || undefined,
+        baseType: dbItem.baseType || undefined,
+        rarity: dbItem.rarity || undefined,
       };
     }
 
@@ -5668,7 +5683,10 @@ export class BabylonGame {
     this.playerGold -= transaction.totalPrice;
     this.inventory?.setGold(this.playerGold);
 
-    this.eventBus.emit({ type: 'item_collected', itemId: item.id, itemName: item.name, quantity: transaction.quantity });
+    this.eventBus.emit({
+      type: 'item_collected', itemId: item.id, itemName: item.name, quantity: transaction.quantity,
+      taxonomy: { category: item.category, material: item.material, baseType: item.baseType, rarity: item.rarity, itemType: item.type },
+    });
 
     // Record transfer via API
     this.dataSource.transferItem(this.config.worldId, {
@@ -6893,6 +6911,10 @@ export class BabylonGame {
               value: item.value || 0,
               sellValue: item.sellValue || 0,
               tradeable: item.tradeable !== false,
+              category: item.category || undefined,
+              material: item.material || undefined,
+              baseType: item.baseType || undefined,
+              rarity: item.rarity || undefined,
             });
           }
           break;
@@ -6912,7 +6934,10 @@ export class BabylonGame {
     // Add items directly to inventory and emit events
     for (const item of droppedItems) {
       this.inventory?.addItem(item);
-      this.eventBus.emit({ type: 'item_collected', itemId: item.id, itemName: item.name, quantity: 1 });
+      this.eventBus.emit({
+        type: 'item_collected', itemId: item.id, itemName: item.name, quantity: 1,
+        taxonomy: { category: item.category, material: item.material, baseType: item.baseType, rarity: item.rarity, itemType: item.type },
+      });
       this.questObjectManager?.trackCollectedItemByName(item.name);
     }
 
@@ -7223,7 +7248,10 @@ export class BabylonGame {
         });
         // Track crafting for quest objectives
         this.questObjectManager?.trackItemCrafted(item.name);
-        this.eventBus.emit({ type: 'item_crafted', itemId: item.name, itemName: item.name, quantity: item.quantity || 1 });
+        this.eventBus.emit({
+          type: 'item_crafted', itemId: item.name, itemName: item.name, quantity: item.quantity || 1,
+          taxonomy: { category: item.category, itemType: item.category },
+        });
       });
       this.craftingSystem.setOnCraftFailed((_recipeId, reason) => {
         this.guiManager?.showToast({

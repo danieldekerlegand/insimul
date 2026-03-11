@@ -604,6 +604,12 @@ export const items = pgTable("items", {
   worldType: text("world_type"), // medieval-fantasy, cyberpunk, sci-fi-space, etc.
   objectRole: text("object_role"), // maps to asset collection objectModels key
 
+  // Taxonomy
+  category: text("category"), // broad grouping: melee_weapon, ranged_weapon, light_armor, heavy_armor, potion, ingredient, building_material, etc.
+  material: text("material"), // primary material: iron, steel, wood, leather, glass, etc. (null = not material-specific)
+  baseType: text("base_type"), // generic archetype: sword, bow, shield, potion, ore, etc. (for IS-A reasoning)
+  rarity: text("rarity").default("common"), // common, uncommon, rare, epic, legendary
+
   // Gameplay
   effects: jsonb("effects").$type<Record<string, number>>(), // { health: 20, energy: 10 }
   lootWeight: integer("loot_weight").default(0), // drop probability weight, 0 = not lootable
@@ -907,6 +913,10 @@ export const insertItemSchema = createInsertSchema(items).pick({
   maxStack: true,
   worldType: true,
   objectRole: true,
+  category: true,
+  material: true,
+  baseType: true,
+  rarity: true,
   effects: true,
   lootWeight: true,
   tags: true,

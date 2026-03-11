@@ -423,21 +423,23 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete World?</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>
-                Are you sure you want to delete <strong>{worldName || 'this world'}</strong>?
-              </p>
-              <p className="text-destructive font-semibold">
-                This will permanently delete:
-              </p>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>All rules and grammars</li>
-                <li>All simulations and their results</li>
-                <li>All characters, countries, states, and settlements</li>
-                <li>All actions, truths, and quests</li>
-                <li>Everything associated with this world</li>
-              </ul>
-              <p className="font-semibold">This action cannot be undone.</p>
+            <AlertDialogDescription asChild>
+              <div className="text-sm text-muted-foreground space-y-2">
+                <p>
+                  Are you sure you want to delete <strong>{worldName || 'this world'}</strong>?
+                </p>
+                <p className="text-destructive font-semibold">
+                  This will permanently delete:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  <li>All rules and grammars</li>
+                  <li>All simulations and their results</li>
+                  <li>All characters, countries, states, and settlements</li>
+                  <li>All actions, truths, and quests</li>
+                  <li>Everything associated with this world</li>
+                </ul>
+                <p className="font-semibold">This action cannot be undone.</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

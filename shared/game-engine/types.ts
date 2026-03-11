@@ -610,6 +610,11 @@ export interface InventoryItem {
   equipped?: boolean;
   effects?: Record<string, number>;
   equipSlot?: EquipmentSlot;
+  // Taxonomy
+  category?: string;
+  material?: string;
+  baseType?: string;
+  rarity?: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 }
 
 // ─── Mercantile ─────────────────────────────────────────────────────────────

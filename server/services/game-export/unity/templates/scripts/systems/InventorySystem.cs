@@ -23,111 +23,177 @@ namespace Insimul.Systems
     }
 
     /// <summary>
-    /// A single inventory item with value/trade metadata and equipment support.
+    /// Filter categories for inventory display.
+    /// </summary>
+    public enum FilterCategory
+    {
+        All, WeaponsArmor, Consumables, Materials, Quest, Other
+    }
+
+    /// <summary>
+    /// Item rarity tiers.
+    /// </summary>
+    public enum ItemRarity
+    {
+        Common, Uncommon, Rare, Epic, Legendary
+    }
+
+    /// <summary>
+    /// A single inventory item with value/trade metadata, equipment support, and taxonomy.
+    /// Matches InventoryItem from shared/game-engine/types.ts.
     /// </summary>
     [System.Serializable]
-    public class InventorySlot
+    public class InventoryItem
     {
-        public string itemId;
+        public string id;
         public string name;
         public string description;
         public InsimulItemType type = InsimulItemType.Collectible;
-        public int count;
+        public int quantity = 1;
+        public string icon;
+        public string questId;
         public int value;
         public int sellValue;
         public float weight;
         public bool tradeable = true;
-        public string questId;
         public bool equipped;
+        public Dictionary<string, float> effects = new();
         public EquipmentSlot equipSlot = EquipmentSlot.None;
 
-        /// <summary>Effects map: keys like "attackPower", "defense", "health", "energy"</summary>
-        public Dictionary<string, float> effects = new();
+        // Taxonomy fields
+        public string category;
+        public string material;
+        public string baseType;
+        public string rarity;
     }
 
     /// <summary>
     /// Player inventory with item stacks, gold, equipment slots, and mercantile support.
-    /// Ported from Insimul's Babylon.js InventorySystem.
+    /// Ported from Insimul's Babylon.js BabylonInventory / InventorySystem.
     /// </summary>
     public class InventorySystem : MonoBehaviour
     {
         public int maxSlots = 20;
         public int playerGold = 100;
 
-        public event Action<string, int> OnItemAdded;
+        // ── Events ───────────────────────────────────────────────────────────
+        public event Action<InventoryItem> OnItemAdded;
         public event Action<string, int> OnItemRemoved;
-        public event Action<InventorySlot> OnItemDropped;
-        public event Action<InventorySlot> OnItemUsed;
-        public event Action<InventorySlot, EquipmentSlot> OnItemEquipped;
-        public event Action<InventorySlot, EquipmentSlot> OnItemUnequipped;
+        public event Action<InventoryItem> OnItemDropped;
+        public event Action<InventoryItem> OnItemUsed;
+        public event Action<InventoryItem, EquipmentSlot> OnItemEquipped;
+        public event Action<InventoryItem, EquipmentSlot> OnItemUnequipped;
         public event Action<int> OnGoldChanged;
 
-        private List<InventorySlot> _slots = new();
+        private List<InventoryItem> _items = new();
         private Dictionary<EquipmentSlot, string> _equippedSlots = new();
 
-        // --- Item Management ---
+        // ── Item Management ──────────────────────────────────────────────────
 
-        public bool AddItem(InventorySlot item)
+        /// <summary>
+        /// Add an item (or stack onto existing). Returns false if inventory full.
+        /// </summary>
+        public bool AddItem(InventoryItem item)
         {
-            var existing = _slots.Find(s => s.itemId == item.itemId);
+            var existing = _items.Find(s => s.id == item.id);
             if (existing != null)
             {
-                existing.count += item.count;
+                existing.quantity += item.quantity;
             }
             else
             {
-                if (_slots.Count >= maxSlots) return false;
-                _slots.Add(item);
+                if (_items.Count >= maxSlots) return false;
+                _items.Add(item);
             }
-            OnItemAdded?.Invoke(item.itemId, item.count);
+            OnItemAdded?.Invoke(item);
             return true;
         }
 
-        public bool AddItem(string itemId, int count = 1)
+        /// <summary>
+        /// Remove quantity of an item by ID. Returns false if insufficient.
+        /// </summary>
+        public bool RemoveItem(string itemId, int quantity = 1)
         {
-            return AddItem(new InventorySlot { itemId = itemId, name = itemId, count = count });
-        }
-
-        public bool RemoveItem(string itemId, int count = 1)
-        {
-            var slot = _slots.Find(s => s.itemId == itemId);
-            if (slot == null || slot.count < count) return false;
-            slot.count -= count;
-            if (slot.count <= 0) _slots.Remove(slot);
-            OnItemRemoved?.Invoke(itemId, count);
+            var item = _items.Find(s => s.id == itemId);
+            if (item == null || item.quantity < quantity) return false;
+            item.quantity -= quantity;
+            if (item.quantity <= 0) _items.Remove(item);
+            OnItemRemoved?.Invoke(itemId, quantity);
             return true;
         }
 
+        /// <summary>
+        /// Check if an item exists in the inventory.
+        /// </summary>
+        public bool HasItem(string itemId) => _items.Exists(s => s.id == itemId);
+
+        /// <summary>
+        /// Get an item by ID. Returns null if not found.
+        /// </summary>
+        public InventoryItem GetItem(string itemId) => _items.Find(s => s.id == itemId);
+
+        /// <summary>
+        /// Get a copy of all items.
+        /// </summary>
+        public List<InventoryItem> GetAllItems() => new(_items);
+
+        /// <summary>
+        /// Remove all items from inventory.
+        /// </summary>
+        public void ClearAll()
+        {
+            _items.Clear();
+            _equippedSlots.Clear();
+        }
+
+        /// <summary>
+        /// Get item count for a specific item.
+        /// </summary>
+        public int GetItemCount(string itemId)
+        {
+            var item = _items.Find(s => s.id == itemId);
+            return item?.quantity ?? 0;
+        }
+
+        // ── Drop / Use ───────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Drop an item (non-quest, non-equipped only).
+        /// </summary>
         public bool DropItem(string itemId)
         {
-            var slot = _slots.Find(s => s.itemId == itemId);
-            if (slot == null) return false;
-            if (slot.type == InsimulItemType.Quest) return false; // Cannot drop quest items
-            if (slot.equipped) return false; // Cannot drop equipped items
-            var copy = slot;
+            var item = _items.Find(s => s.id == itemId);
+            if (item == null) return false;
+            if (item.type == InsimulItemType.Quest) return false;
+            if (item.equipped) return false;
+            var copy = item;
             RemoveItem(itemId, 1);
             OnItemDropped?.Invoke(copy);
             return true;
         }
 
+        /// <summary>
+        /// Use an item. Quest/key items emit event without consuming.
+        /// Consumable/food/drink items are consumed.
+        /// </summary>
         public bool UseItem(string itemId)
         {
-            var slot = _slots.Find(s => s.itemId == itemId);
-            if (slot == null) return false;
+            var item = _items.Find(s => s.id == itemId);
+            if (item == null) return false;
 
             // Quest and key items: emit event without consuming
-            if (slot.type == InsimulItemType.Quest || slot.type == InsimulItemType.Key)
+            if (item.type == InsimulItemType.Quest || item.type == InsimulItemType.Key)
             {
-                OnItemUsed?.Invoke(slot);
+                OnItemUsed?.Invoke(item);
                 return true;
             }
 
             // Consumable, food, drink: apply effects and consume
-            if (slot.type == InsimulItemType.Consumable ||
-                slot.type == InsimulItemType.Food ||
-                slot.type == InsimulItemType.Drink)
+            if (item.type == InsimulItemType.Consumable ||
+                item.type == InsimulItemType.Food ||
+                item.type == InsimulItemType.Drink)
             {
-                var copy = slot;
+                var copy = item;
                 RemoveItem(itemId, 1);
                 OnItemUsed?.Invoke(copy);
                 return true;
@@ -136,21 +202,14 @@ namespace Insimul.Systems
             return false;
         }
 
-        public int GetItemCount(string itemId)
-        {
-            var slot = _slots.Find(s => s.itemId == itemId);
-            return slot?.count ?? 0;
-        }
+        // ── Equipment Management ─────────────────────────────────────────────
 
-        public bool HasItem(string itemId) => _slots.Exists(s => s.itemId == itemId);
-
-        public List<InventorySlot> GetAllItems() => new(_slots);
-
-        // --- Equipment Management ---
-
+        /// <summary>
+        /// Equip an item. Auto-unequips any existing item in that slot.
+        /// </summary>
         public bool EquipItem(string itemId)
         {
-            var item = _slots.Find(s => s.itemId == itemId);
+            var item = _items.Find(s => s.id == itemId);
             if (item == null) return false;
 
             var slot = item.equipSlot != EquipmentSlot.None
@@ -167,11 +226,14 @@ namespace Insimul.Systems
             return true;
         }
 
+        /// <summary>
+        /// Unequip whatever is in a given slot.
+        /// </summary>
         public bool UnequipSlot(EquipmentSlot slot)
         {
             if (!_equippedSlots.TryGetValue(slot, out var itemId)) return false;
 
-            var item = _slots.Find(s => s.itemId == itemId);
+            var item = _items.Find(s => s.id == itemId);
             if (item != null)
             {
                 item.equipped = false;
@@ -181,14 +243,41 @@ namespace Insimul.Systems
             return true;
         }
 
-        public InventorySlot GetEquippedItem(EquipmentSlot slot)
+        /// <summary>
+        /// Get the item equipped in a slot, or null.
+        /// </summary>
+        public InventoryItem GetEquippedItem(EquipmentSlot slot)
         {
             if (_equippedSlots.TryGetValue(slot, out var itemId))
-                return _slots.Find(s => s.itemId == itemId);
+                return _items.Find(s => s.id == itemId);
             return null;
         }
 
+        /// <summary>
+        /// Check if a slot has an equipped item.
+        /// </summary>
         public bool HasEquippedInSlot(EquipmentSlot slot) => _equippedSlots.ContainsKey(slot);
+
+        /// <summary>
+        /// Update the equipment display with current equipped items.
+        /// Called externally after equipment changes.
+        /// </summary>
+        public void UpdateEquipmentDisplay(Dictionary<EquipmentSlot, InventoryItem> equippedItems)
+        {
+            // Sync internal state with provided equipment map
+            _equippedSlots.Clear();
+            if (equippedItems == null) return;
+
+            foreach (var kvp in equippedItems)
+            {
+                if (kvp.Value != null)
+                {
+                    _equippedSlots[kvp.Key] = kvp.Value.id;
+                    var item = _items.Find(s => s.id == kvp.Value.id);
+                    if (item != null) item.equipped = true;
+                }
+            }
+        }
 
         private EquipmentSlot GetSlotForType(InsimulItemType type)
         {
@@ -201,7 +290,7 @@ namespace Insimul.Systems
             };
         }
 
-        // --- Gold Management ---
+        // ── Gold Management ──────────────────────────────────────────────────
 
         public int GetGold() => playerGold;
 
@@ -223,6 +312,23 @@ namespace Insimul.Systems
             playerGold -= amount;
             OnGoldChanged?.Invoke(playerGold);
             return true;
+        }
+
+        // ── Dispose ──────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Clear all items, equipment, and reset gold.
+        /// </summary>
+        public void Dispose()
+        {
+            _items.Clear();
+            _equippedSlots.Clear();
+            playerGold = 0;
+        }
+
+        private void OnDestroy()
+        {
+            Dispose();
         }
     }
 }

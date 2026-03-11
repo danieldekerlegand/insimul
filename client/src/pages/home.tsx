@@ -427,8 +427,9 @@ export default function Home() {
           />
         )}
 
-        {/* World Home Tab */}
-        {(activeTab === 'home' || activeTab === 'worlds') && selectedWorld && (
+        {/* World Home Tab — always mounted so Edit/Settings/Delete dialogs work from any tab */}
+        {selectedWorld && (
+          <div style={{ display: (activeTab === 'home' || activeTab === 'worlds') ? undefined : 'none' }}>
           <WorldManagementTab
             worldId={selectedWorld}
             worldName={currentWorld.name}
@@ -468,6 +469,7 @@ export default function Home() {
               setActiveTab(tab);
             }}
           />
+          </div>
         )}
       </div>
 

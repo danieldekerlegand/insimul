@@ -52,6 +52,14 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadQuests();
 
+    /** Load base actions (from world IR systems section). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadBaseActions();
+
+    /** Load base rules (from world IR systems section). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadBaseRules();
+
     // ── Geography ──────────────────────────────────────────────────────
 
     /** Load settlements.json (settlements with businesses, lots, residences). */
@@ -62,6 +70,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadBuildings();
 
+    /** Load countries.json. */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadCountries();
+
+    /** Load states.json. */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadStates();
+
+    /** Load geography.json (combined geography data). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadGeography();
+
     // ── Items & economy ────────────────────────────────────────────────
 
     /** Load items.json (item definitions). */
@@ -71,6 +91,59 @@ public:
     /** Load loot-tables.json. */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadLootTables();
+
+    /** Load world items (items.json — all item definitions). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadWorldItems();
+
+    /** Load base resources configuration. */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadBaseResources();
+
+    /** Load 3D configuration (derived from asset manifest). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadConfig3D();
+
+    /** Load theme.json. */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadTheme();
+
+    // ── Settlement sub-loaders ────────────────────────────────────────
+
+    /**
+     * Load businesses for a settlement.
+     * Reads from the settlements data and filters by SettlementId.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadSettlementBusinesses(const FString& SettlementId);
+
+    /** Load lots for a settlement. */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadSettlementLots(const FString& SettlementId);
+
+    /** Load residences for a settlement. */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadSettlementResidences(const FString& SettlementId);
+
+    // ── Inventory / Transfer ──────────────────────────────────────────
+
+    /**
+     * Get entity inventory JSON (returns empty inventory for exported games).
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString GetEntityInventory(const FString& EntityId);
+
+    /**
+     * Get merchant inventory JSON (returns empty for exported games).
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString GetMerchantInventory(const FString& MerchantId);
+
+    // ── Character lookup ──────────────────────────────────────────────
+
+    /** Load a single character by ID from characters.json. */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadCharacter(const FString& CharacterId);
 
     // ── Narrative ──────────────────────────────────────────────────────
 

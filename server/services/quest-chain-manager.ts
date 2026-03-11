@@ -8,6 +8,7 @@
 
 import { storage } from '../db/storage.js';
 import type { Quest, InsertQuest } from '../../shared/schema.js';
+import { convertQuestToProlog } from '../../shared/prolog/quest-converter.js';
 
 export interface QuestChain {
   id: string;
@@ -44,9 +45,18 @@ export class QuestChainManager {
       return questData;
     });
 
-    // Save quests to database
+    // Save quests to database (with Prolog content)
     const createdQuests: Quest[] = [];
     for (const quest of chainQuests) {
+      // Auto-generate Prolog content if not provided
+      if (!quest.content && quest.title) {
+        try {
+          const result = convertQuestToProlog(quest as any);
+          if (result.prologContent) (quest as any).content = result.prologContent;
+        } catch (e) {
+          console.warn('[QuestProlog] Failed to convert chain quest:', e);
+        }
+      }
       const created = await storage.createQuest(quest);
       createdQuests.push(created);
     }

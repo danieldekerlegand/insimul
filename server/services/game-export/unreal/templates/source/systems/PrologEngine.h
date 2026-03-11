@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
+#include "EventBus.h"
 #include "PrologEngine.generated.h"
 
 /**
@@ -23,6 +24,7 @@ struct FInsimulGameState
 
 /**
  * Inventory item for Prolog fact assertion.
+ * Includes taxonomy fields matching GamePrologEngine.initializeInventory().
  */
 USTRUCT(BlueprintType)
 struct FInsimulPrologItem
@@ -33,6 +35,73 @@ struct FInsimulPrologItem
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Name;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Type;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Value = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Quantity = 1;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Category;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Material;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString BaseType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Rarity;
+};
+
+/**
+ * World item definition for Prolog taxonomy initialization.
+ * Mirrors the parameter of GamePrologEngine.initializeWorldItems().
+ */
+USTRUCT(BlueprintType)
+struct FInsimulWorldItemDef
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Name;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ItemType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Value = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Category;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Material;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString BaseType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Rarity;
+};
+
+/**
+ * NPC personality data for Prolog fact assertion (Big Five model).
+ */
+USTRUCT(BlueprintType)
+struct FInsimulNPCPersonality
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Openness = -1.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Conscientiousness = -1.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Extroversion = -1.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Agreeableness = -1.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Neuroticism = -1.f;
+};
+
+/**
+ * NPC emotional state for Prolog fact assertion.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulNPCEmotionalState
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Mood;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float StressLevel = -1.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float SocialDesire = -1.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Energy = -1.f;
+};
+
+/**
+ * NPC relationship data for Prolog fact assertion.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulNPCRelationship
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Charge = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Trust = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 ConversationCount = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bIsFriend = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bIsEnemy = false;
 };
 
 /**
@@ -77,6 +146,14 @@ public:
     /** Initialize inventory items as Prolog facts */
     UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
     void InitializeInventory(const TArray<FInsimulPrologItem>& Items);
+
+    /** Initialize world item definitions (taxonomy, IS-A chains) */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    void InitializeWorldItems(const TArray<FInsimulWorldItemDef>& Items);
+
+    /** Load built-in IS-A reasoning rules for item hierarchy queries */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    void LoadItemReasoningRules();
 
     /** Update dynamic game state facts (call on state change) */
     UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
@@ -148,9 +225,49 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
     TArray<FString> WhoToAvoid(const FString& NPCId);
 
+    /** Get an NPC's conflict resolution style */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    FString GetConflictStyle(const FString& NPCId);
+
+    /** Check if an NPC is grieving */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    bool IsGrieving(const FString& NPCId);
+
     /** Check if an NPC is willing to share knowledge with another */
     UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
     bool IsWillingToShare(const FString& NPCId, const FString& TargetId);
+
+    // ── NPC State Updates ───────────────────────────────────────────────
+
+    /** Update NPC personality facts (Big Five) */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    void UpdateNPCPersonality(const FString& NPCId, const FInsimulNPCPersonality& Personality);
+
+    /** Update NPC emotional state facts */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    void UpdateNPCEmotionalState(const FString& NPCId, const FInsimulNPCEmotionalState& State);
+
+    /** Update NPC relationship facts between two characters */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    void UpdateNPCRelationship(const FString& NPC1Id, const FString& NPC2Id, const FInsimulNPCRelationship& Relationship);
+
+    /** Record that the player performed an action on an NPC */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    void RecordPlayerAction(const FString& PlayerId, const FString& NPCId, const FString& ActionName);
+
+    // ── Event Bus Integration ───────────────────────────────────────────
+
+    /** Subscribe to an EventBus to automatically assert Prolog facts from game events */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    void SubscribeToEventBus(class UEventBus* EventBus);
+
+    /** Register active quest IDs for re-evaluation on event receipt */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    void SetActiveQuests(const TArray<FString>& QuestIds);
+
+    /** Callback delegate fired when Prolog determines a quest is complete */
+    UPROPERTY(BlueprintAssignable, Category = "Insimul|PrologEngine")
+    FOnGameEvent OnQuestCompleted;
 
     // ── State ────────────────────────────────────────────────────────────
 
@@ -181,6 +298,28 @@ private:
 
     /** Active quest IDs for re-evaluation */
     TArray<FString> ActiveQuestIds;
+
+    /** Track per-item quantities so has_item/3 stays accurate */
+    TMap<FString, int32> ItemQuantities;
+
+    /** Event bus subscription handle for cleanup */
+    int32 EventBusSubscriptionHandle = -1;
+
+    /** Weak reference to subscribed event bus */
+    TWeakObjectPtr<UEventBus> SubscribedEventBus;
+
+    /** Handle a game event by asserting Prolog facts */
+    UFUNCTION()
+    void HandleGameEvent(const FInsimulGameEvent& Event);
+
+    /** Re-evaluate active quests after fact assertion */
+    void ReevaluateQuests();
+
+    /** Assert item taxonomy facts */
+    void AssertItemTaxonomy(const FString& ItemName, const FString& Category, const FString& Material, const FString& BaseType, const FString& Rarity, const FString& ItemType);
+
+    /** Update item quantity tracking */
+    void UpdateItemQuantity(const FString& ItemName, int32 Delta);
 
     /** Parse the knowledge base string into Facts and Rules arrays */
     void ParseKnowledgeBase();

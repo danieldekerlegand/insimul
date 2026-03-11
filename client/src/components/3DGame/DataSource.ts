@@ -42,6 +42,7 @@ export interface DataSource {
   }): Promise<any>;
   getMerchantInventory(worldId: string, merchantId: string): Promise<any>;
   loadPrologContent(worldId: string): Promise<string | null>;
+  loadWorldItems(worldId: string): Promise<any[]>;
 }
 
 /**
@@ -554,6 +555,14 @@ export class FileDataSource implements DataSource {
       return typeof content === 'string' ? content : null;
     } catch {
       return null;
+    }
+  }
+
+  async loadWorldItems(worldId: string): Promise<any[]> {
+    try {
+      return await readDataFile('data/items.json');
+    } catch {
+      return [];
     }
   }
 }

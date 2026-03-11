@@ -3,6 +3,7 @@
  *
  * Manages player inventory for quest items and collected objects,
  * with equipment slots for weapon, armor, and accessory.
+ * Supports category filtering, grouping, and rarity color coding.
  */
 
 import { Scene } from '@babylonjs/core';
@@ -20,6 +21,50 @@ const SLOT_LABELS: Record<EquipmentSlot, string> = {
   accessory: 'Accessory',
 };
 
+/** Display categories for filtering. */
+const FILTER_CATEGORIES = [
+  { key: 'all', label: 'All' },
+  { key: 'weapons_armor', label: 'Gear' },
+  { key: 'consumables', label: 'Consumables' },
+  { key: 'materials', label: 'Materials' },
+  { key: 'quest', label: 'Quest' },
+  { key: 'other', label: 'Other' },
+] as const;
+
+type FilterKey = (typeof FILTER_CATEGORIES)[number]['key'];
+
+/** Map an item to a filter category key. */
+function itemFilterCategory(item: InventoryItem): FilterKey {
+  const cat = item.category?.toLowerCase();
+  const type = item.type;
+
+  if (type === 'quest' || type === 'key') return 'quest';
+  if (type === 'weapon' || type === 'armor' || type === 'tool' || cat === 'weapons' || cat === 'armor' || cat === 'tools') return 'weapons_armor';
+  if (type === 'consumable' || type === 'food' || type === 'drink' || cat === 'consumables' || cat === 'food_drink' || cat === 'alchemy') return 'consumables';
+  if (type === 'material' || cat === 'materials' || cat === 'crafting') return 'materials';
+  return 'other';
+}
+
+/** Display group label for sorted rendering. */
+function itemGroupLabel(item: InventoryItem): string {
+  if (item.category) {
+    return item.category
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  // Fallback to type
+  return (item.type || 'Other')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const RARITY_COLORS: Record<string, string> = {
+  common: '#CCCCCC',
+  uncommon: '#1EFF00',
+  rare: '#0070DD',
+  epic: '#A335EE',
+  legendary: '#FF8000',
+};
+
 export class BabylonInventory {
   private scene: Scene;
   private advancedTexture: GUI.AdvancedDynamicTexture;
@@ -30,6 +75,14 @@ export class BabylonInventory {
   private items: Map<string, InventoryItem> = new Map();
   private playerGold: number = 100;
   private goldDisplay: GUI.TextBlock | null = null;
+  private titleText: GUI.TextBlock | null = null;
+  private countDisplay: GUI.TextBlock | null = null;
+
+  // Filter state
+  private activeFilter: FilterKey = 'all';
+  private filterButtons: Map<FilterKey, GUI.Button> = new Map();
+  // Collapsed groups
+  private collapsedGroups: Set<string> = new Set();
 
   // Equipment slot display elements
   private equipmentSlots: Map<EquipmentSlot, GUI.Rectangle> = new Map();
@@ -51,10 +104,10 @@ export class BabylonInventory {
   }
 
   private createInventoryUI(): void {
-    // Main container — taller to accommodate equipment section
+    // Main container
     this.container = new GUI.Rectangle('inventoryContainer');
-    this.container.width = '350px';
-    this.container.height = '580px';
+    this.container.width = '370px';
+    this.container.height = '640px';
     this.container.cornerRadius = 10;
     this.container.color = 'white';
     this.container.thickness = 2;
@@ -66,7 +119,7 @@ export class BabylonInventory {
 
     // Title bar
     const titleBar = new GUI.Rectangle('inventoryTitleBar');
-    titleBar.width = '350px';
+    titleBar.width = '370px';
     titleBar.height = '50px';
     titleBar.cornerRadius = 10;
     titleBar.background = 'rgba(40, 40, 40, 1)';
@@ -75,17 +128,29 @@ export class BabylonInventory {
     this.container.addControl(titleBar);
 
     // Title text
-    const titleText = new GUI.TextBlock('inventoryTitle');
-    titleText.text = 'Inventory';
-    titleText.fontSize = 20;
-    titleText.fontWeight = 'bold';
-    titleText.color = 'white';
-    titleText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    titleText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    titleText.top = '15px';
-    titleText.left = '15px';
-    titleText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    this.container.addControl(titleText);
+    this.titleText = new GUI.TextBlock('inventoryTitle');
+    this.titleText.text = 'Inventory';
+    this.titleText.fontSize = 20;
+    this.titleText.fontWeight = 'bold';
+    this.titleText.color = 'white';
+    this.titleText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+    this.titleText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.titleText.top = '15px';
+    this.titleText.left = '15px';
+    this.titleText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.container.addControl(this.titleText);
+
+    // Item count display (next to title)
+    this.countDisplay = new GUI.TextBlock('inventoryCount');
+    this.countDisplay.text = '';
+    this.countDisplay.fontSize = 13;
+    this.countDisplay.color = '#888888';
+    this.countDisplay.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+    this.countDisplay.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.countDisplay.top = '19px';
+    this.countDisplay.left = '115px';
+    this.countDisplay.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.container.addControl(this.countDisplay);
 
     // Gold display
     this.goldDisplay = new GUI.TextBlock('inventoryGold');
@@ -121,12 +186,15 @@ export class BabylonInventory {
     // ── Equipment Section ──
     this.createEquipmentSection();
 
-    // Items scroll view — shifted down to make room for equipment
+    // ── Filter Tabs ──
+    this.createFilterTabs();
+
+    // Items scroll view — shifted down for equipment + filters
     const scrollViewer = new GUI.ScrollViewer('inventoryScroll');
-    scrollViewer.width = '330px';
-    scrollViewer.height = '350px';
+    scrollViewer.width = '350px';
+    scrollViewer.height = '340px';
     scrollViewer.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    scrollViewer.top = '140px';
+    scrollViewer.top = '175px';
     scrollViewer.thickness = 0;
     scrollViewer.barColor = 'rgba(100, 100, 100, 0.8)';
     scrollViewer.barBackground = 'rgba(50, 50, 50, 0.5)';
@@ -134,8 +202,8 @@ export class BabylonInventory {
 
     // Items container (stack panel inside scroll viewer)
     this.itemsContainer = new GUI.StackPanel('inventoryItems');
-    this.itemsContainer.width = '310px';
-    this.itemsContainer.spacing = 5;
+    this.itemsContainer.width = '330px';
+    this.itemsContainer.spacing = 4;
     scrollViewer.addControl(this.itemsContainer);
 
     // Initially hidden
@@ -161,7 +229,7 @@ export class BabylonInventory {
     const slotRow = new GUI.StackPanel('equipSlotRow');
     slotRow.isVertical = false;
     slotRow.height = '65px';
-    slotRow.width = '330px';
+    slotRow.width = '350px';
     slotRow.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
     slotRow.top = '70px';
     slotRow.spacing = 8;
@@ -170,7 +238,7 @@ export class BabylonInventory {
     const slots: EquipmentSlot[] = ['weapon', 'armor', 'accessory'];
     for (const slot of slots) {
       const slotRect = new GUI.Rectangle(`equipSlot_${slot}`);
-      slotRect.width = '100px';
+      slotRect.width = '105px';
       slotRect.height = '60px';
       slotRect.cornerRadius = 5;
       slotRect.color = 'rgba(100, 100, 100, 0.6)';
@@ -214,6 +282,52 @@ export class BabylonInventory {
       this.equipmentLabels.set(slot, nameLabel);
       slotRow.addControl(slotRect);
     }
+  }
+
+  private createFilterTabs(): void {
+    if (!this.container) return;
+
+    const filterRow = new GUI.StackPanel('filterRow');
+    filterRow.isVertical = false;
+    filterRow.height = '28px';
+    filterRow.width = '350px';
+    filterRow.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+    filterRow.top = '142px';
+    filterRow.spacing = 3;
+    this.container.addControl(filterRow);
+
+    for (const cat of FILTER_CATEGORIES) {
+      const btn = GUI.Button.CreateSimpleButton(`filter_${cat.key}`, cat.label);
+      btn.width = `${Math.floor(340 / FILTER_CATEGORIES.length)}px`;
+      btn.height = '24px';
+      btn.color = 'white';
+      btn.cornerRadius = 3;
+      btn.fontSize = 10;
+      btn.fontWeight = cat.key === 'all' ? 'bold' : 'normal';
+      btn.background = cat.key === 'all' ? 'rgba(80, 120, 200, 0.9)' : 'rgba(50, 50, 50, 0.8)';
+
+      btn.onPointerUpObservable.add(() => {
+        this.setFilter(cat.key);
+      });
+
+      this.filterButtons.set(cat.key, btn);
+      filterRow.addControl(btn);
+    }
+  }
+
+  private setFilter(filter: FilterKey): void {
+    this.activeFilter = filter;
+    // Update button styles
+    for (const [key, btn] of Array.from(this.filterButtons.entries())) {
+      if (key === filter) {
+        btn.background = 'rgba(80, 120, 200, 0.9)';
+        btn.fontWeight = 'bold';
+      } else {
+        btn.background = 'rgba(50, 50, 50, 0.8)';
+        btn.fontWeight = 'normal';
+      }
+    }
+    this.refreshItemList();
   }
 
   /** Determine which equipment slot an item belongs to. */
@@ -318,8 +432,8 @@ export class BabylonInventory {
 
       if (item) {
         label.text = item.name;
-        label.color = this.getItemColor(item.type);
-        rect.color = this.getItemColor(item.type);
+        label.color = this.getItemNameColor(item);
+        rect.color = this.getItemNameColor(item);
         rect.background = 'rgba(30, 40, 30, 0.9)';
       } else {
         label.text = 'Empty';
@@ -337,9 +451,20 @@ export class BabylonInventory {
 
     this.itemsContainer.clearControls();
 
-    if (this.items.size === 0) {
+    // Get filtered items
+    const allItems = Array.from(this.items.values());
+    const filtered = this.activeFilter === 'all'
+      ? allItems
+      : allItems.filter((item) => itemFilterCategory(item) === this.activeFilter);
+
+    // Update header count
+    this.updateCountDisplay(allItems.length, filtered.length);
+
+    if (filtered.length === 0) {
       const emptyText = new GUI.TextBlock('emptyInventory');
-      emptyText.text = 'Your inventory is empty';
+      emptyText.text = this.activeFilter === 'all'
+        ? 'Your inventory is empty'
+        : 'No items in this category';
       emptyText.height = '40px';
       emptyText.fontSize = 14;
       emptyText.color = '#888888';
@@ -348,62 +473,163 @@ export class BabylonInventory {
       return;
     }
 
-    for (const item of Array.from(this.items.values())) {
-      const itemCard = this.createItemCard(item);
-      this.itemsContainer.addControl(itemCard);
+    // Group by category label
+    const groups = new Map<string, InventoryItem[]>();
+    for (const item of filtered) {
+      const group = itemGroupLabel(item);
+      if (!groups.has(group)) groups.set(group, []);
+      groups.get(group)!.push(item);
+    }
+
+    // Sort groups alphabetically, but pin "Quest" first
+    const sortedGroups = Array.from(groups.entries()).sort(([a], [b]) => {
+      if (a === 'Quest') return -1;
+      if (b === 'Quest') return 1;
+      return a.localeCompare(b);
+    });
+
+    for (const [groupName, items] of sortedGroups) {
+      // Group header (collapsible)
+      const isCollapsed = this.collapsedGroups.has(groupName);
+      const header = this.createGroupHeader(groupName, items.length, isCollapsed);
+      this.itemsContainer.addControl(header);
+
+      if (!isCollapsed) {
+        // Sort items within group: equipped first, then by rarity (legendary→common), then name
+        const rarityOrder: Record<string, number> = { legendary: 0, epic: 1, rare: 2, uncommon: 3, common: 4 };
+        items.sort((a, b) => {
+          if (a.equipped && !b.equipped) return -1;
+          if (!a.equipped && b.equipped) return 1;
+          const ra = rarityOrder[a.rarity || 'common'] ?? 4;
+          const rb = rarityOrder[b.rarity || 'common'] ?? 4;
+          if (ra !== rb) return ra - rb;
+          return a.name.localeCompare(b.name);
+        });
+
+        for (const item of items) {
+          const itemCard = this.createItemCard(item);
+          this.itemsContainer.addControl(itemCard);
+        }
+      }
+    }
+  }
+
+  private createGroupHeader(groupName: string, count: number, collapsed: boolean): GUI.Rectangle {
+    const header = new GUI.Rectangle(`group_${groupName}`);
+    header.width = '320px';
+    header.height = '26px';
+    header.cornerRadius = 3;
+    header.color = 'transparent';
+    header.thickness = 0;
+    header.background = 'rgba(60, 60, 80, 0.6)';
+
+    const label = new GUI.TextBlock(`groupLabel_${groupName}`);
+    label.text = `${collapsed ? '>' : 'v'} ${groupName} (${count})`;
+    label.fontSize = 12;
+    label.fontWeight = 'bold';
+    label.color = '#AAAACC';
+    label.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    label.paddingLeft = '10px';
+    header.addControl(label);
+
+    header.onPointerUpObservable.add(() => {
+      if (this.collapsedGroups.has(groupName)) {
+        this.collapsedGroups.delete(groupName);
+      } else {
+        this.collapsedGroups.add(groupName);
+      }
+      this.refreshItemList();
+    });
+
+    return header;
+  }
+
+  private updateCountDisplay(total: number, filtered: number): void {
+    if (!this.countDisplay) return;
+    if (this.activeFilter === 'all') {
+      this.countDisplay.text = `(${total})`;
+    } else {
+      this.countDisplay.text = `(${filtered}/${total})`;
     }
   }
 
   private createItemCard(item: InventoryItem): GUI.Rectangle {
     const card = new GUI.Rectangle(`item_${item.id}`);
-    card.width = '300px';
-    card.height = '95px';
+    card.width = '320px';
+    card.height = '90px';
     card.cornerRadius = 5;
-    card.color = 'rgba(150, 150, 150, 0.5)';
+    card.color = this.getRarityBorderColor(item.rarity);
     card.thickness = 1;
     card.background = 'rgba(30, 30, 30, 0.8)';
 
     // Item name (with [E] badge if equipped)
     const nameText = new GUI.TextBlock(`item_name_${item.id}`);
     nameText.text = item.equipped ? `[E] ${item.name}` : item.name;
-    nameText.fontSize = 16;
+    nameText.fontSize = 15;
     nameText.fontWeight = 'bold';
-    nameText.color = item.equipped ? '#90EE90' : this.getItemColor(item.type);
+    nameText.color = item.equipped ? '#90EE90' : this.getItemNameColor(item);
     nameText.height = '20px';
     nameText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
     nameText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    nameText.top = '8px';
-    nameText.left = '15px';
+    nameText.top = '6px';
+    nameText.left = '12px';
     nameText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
     card.addControl(nameText);
 
-    // Quantity and value row
+    // Quantity badge and value — top right
     const infoRow = new GUI.StackPanel(`item_info_${item.id}`);
     infoRow.isVertical = false;
     infoRow.height = '20px';
     infoRow.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
     infoRow.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    infoRow.top = '8px';
-    infoRow.left = '-10px';
+    infoRow.top = '6px';
+    infoRow.left = '-8px';
     card.addControl(infoRow);
 
     if (item.value) {
       const valueText = new GUI.TextBlock(`item_val_${item.id}`);
       valueText.text = `${item.value}g`;
-      valueText.fontSize = 12;
+      valueText.fontSize = 11;
       valueText.color = '#FFD700';
       valueText.width = '40px';
       infoRow.addControl(valueText);
     }
 
-    if (item.quantity > 1) {
-      const quantityText = new GUI.TextBlock(`item_qty_${item.id}`);
-      quantityText.text = `x${item.quantity}`;
-      quantityText.fontSize = 12;
-      quantityText.fontWeight = 'bold';
-      quantityText.color = '#8888FF';
-      quantityText.width = '35px';
-      infoRow.addControl(quantityText);
+    // Always show quantity badge
+    const quantityText = new GUI.TextBlock(`item_qty_${item.id}`);
+    quantityText.text = `x${item.quantity}`;
+    quantityText.fontSize = 11;
+    quantityText.fontWeight = 'bold';
+    quantityText.color = item.quantity > 1 ? '#8888FF' : '#666666';
+    quantityText.width = '35px';
+    infoRow.addControl(quantityText);
+
+    // Rarity + type tag line
+    const tagParts: string[] = [];
+    if (item.rarity && item.rarity !== 'common') {
+      tagParts.push(item.rarity.charAt(0).toUpperCase() + item.rarity.slice(1));
+    }
+    if (item.baseType) {
+      tagParts.push(item.baseType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
+    } else if (item.type) {
+      tagParts.push(item.type.charAt(0).toUpperCase() + item.type.slice(1));
+    }
+    if (item.material) {
+      tagParts.push(item.material.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
+    }
+
+    if (tagParts.length > 0) {
+      const tagText = new GUI.TextBlock(`item_tag_${item.id}`);
+      tagText.text = tagParts.join(' · ');
+      tagText.fontSize = 10;
+      tagText.color = '#999999';
+      tagText.height = '14px';
+      tagText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+      tagText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+      tagText.top = '24px';
+      tagText.left = '12px';
+      tagText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+      card.addControl(tagText);
     }
 
     // Description line + stat preview
@@ -411,13 +637,13 @@ export class BabylonInventory {
     if (descLine) {
       const descText = new GUI.TextBlock(`item_desc_${item.id}`);
       descText.text = descLine;
-      descText.fontSize = 11;
-      descText.color = '#CCCCCC';
-      descText.height = '30px';
+      descText.fontSize = 10;
+      descText.color = '#BBBBBB';
+      descText.height = '26px';
       descText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
       descText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-      descText.top = '30px';
-      descText.left = '15px';
+      descText.top = '38px';
+      descText.left = '12px';
       descText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
       descText.textWrapping = true;
       card.addControl(descText);
@@ -429,8 +655,8 @@ export class BabylonInventory {
     buttonsRow.height = '25px';
     buttonsRow.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
     buttonsRow.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    buttonsRow.top = '-5px';
-    buttonsRow.left = '-10px';
+    buttonsRow.top = '-4px';
+    buttonsRow.left = '-8px';
     card.addControl(buttonsRow);
 
     // Equip button — for equippable types, not already equipped
@@ -501,7 +727,23 @@ export class BabylonInventory {
     return parts.join(' — ');
   }
 
-  private getItemColor(type: string): string {
+  /** Get the display color for an item name, preferring rarity color. */
+  private getItemNameColor(item: InventoryItem): string {
+    if (item.rarity && RARITY_COLORS[item.rarity]) {
+      return RARITY_COLORS[item.rarity];
+    }
+    return this.getItemTypeColor(item.type);
+  }
+
+  /** Get a subtle border/accent color based on rarity. */
+  private getRarityBorderColor(rarity?: string): string {
+    if (rarity && RARITY_COLORS[rarity] && rarity !== 'common') {
+      return RARITY_COLORS[rarity] + '88'; // semi-transparent
+    }
+    return 'rgba(150, 150, 150, 0.5)';
+  }
+
+  private getItemTypeColor(type: string): string {
     switch (type) {
       case 'quest':
         return '#FFD700';
@@ -595,6 +837,7 @@ export class BabylonInventory {
     this.itemsContainer = null;
     this.equipmentSlots.clear();
     this.equipmentLabels.clear();
+    this.filterButtons.clear();
     this.items.clear();
   }
 }

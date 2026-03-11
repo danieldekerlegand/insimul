@@ -4270,6 +4270,7 @@ app.get("/api/rules", async (req, res) => {
       let numRules = 0;
       let numActions = 0;
       let numQuests = 0;
+      let numItems = 0;
       let numGrammars = 0;
       let numCountries = 0;
       let numSettlements = 0;
@@ -4341,65 +4342,10 @@ app.get("/api/rules", async (req, res) => {
           });
           console.log(`🗣️ Real language record created for ${worldTargetLanguage}.`);
 
-          // 2) Generate a constructed conlang inspired by the target language
-          const baseMap: Record<string, string[]> = {
-            "Spanish": ["spanish"],
-            "French": ["spanish"],
-            "German": ["english"],
-            "Italian": ["spanish"],
-            "Portuguese": ["spanish"],
-            "Dutch": ["english"],
-            "Russian": ["english"],
-            "Polish": ["english"],
-            "Chinese (Mandarin)": ["mandarin"],
-            "Japanese": ["japanese"],
-            "Korean": ["japanese"],
-            "Arabic": ["english"],
-            "Hebrew": ["english"],
-            "Hindi": ["english"],
-            "Bengali": ["english"],
-            "Turkish": ["english"],
-            "Greek": ["english"],
-            "Swedish": ["english"],
-            "Norwegian": ["english"],
-            "Danish": ["english"],
-            "Finnish": ["english"],
-            "Czech": ["english"],
-            "Hungarian": ["english"],
-            "Romanian": ["spanish"],
-            "Thai": ["mandarin"],
-            "Vietnamese": ["mandarin"],
-            "Indonesian": ["english"],
-            "Swahili": ["english"],
-          };
-
-          const selectedBases = baseMap[worldTargetLanguage] ?? ["english"];
-
-          await generateLanguage({
-            worldId,
-            scopeType: "world",
-            scopeId: worldId,
-            config: {
-              selectedLanguages: selectedBases,
-              name: `${worldTargetLanguage} World Conlang`,
-              emphasis: {
-                phonology: 0.4,
-                grammar: 0.3,
-                vocabulary: 0.3,
-              },
-              complexity: "moderate",
-              purpose: "auxiliary",
-              includeWritingSystem: true,
-              includeCulturalContext: true,
-              includeAdvancedPhonetics: false,
-              generateSampleTexts: true,
-            },
-            description: `Constructed language for ${worldName}, inspired by ${worldTargetLanguage}`,
-            makePrimary: false,
-            mode: "offline",
-          });
-
-          console.log("🗣️ World conlang generated.");
+          // Note: For language-learning worlds, we only create the real language
+          // record above. A constructed conlang would confuse learners who need
+          // accurate target-language data (phonemes, grammar, vocabulary).
+          console.log(`🗣️ Real language record created — skipping conlang generation for language-learning world.`);
         } catch (error) {
           console.warn('⚠️ Language generation skipped:', (error as Error).message);
         }
@@ -4689,7 +4635,7 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
           if (Array.isArray(generatedActions)) {
             for (const action of generatedActions.slice(0, 10)) {
               if (action.name && action.description) {
-                await storage.createAction({
+                const actionData: any = {
                   worldId,
                   name: action.name,
                   description: action.description,
@@ -4697,7 +4643,15 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
                   sourceFormat: 'prolog',
                   tags: ['generated', 'ai'],
                   isActive: true,
-                });
+                };
+                // Auto-generate Prolog content
+                try {
+                  const result = convertActionToProlog(actionData);
+                  if (result.prologContent) actionData.content = result.prologContent;
+                } catch (e) {
+                  console.warn('[ActionProlog] Failed to convert generated action:', e);
+                }
+                await storage.createAction(actionData);
                 numActions++;
               }
             }
@@ -4722,7 +4676,7 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
           const generatedQuests = await generateQuests(worldContext, 8);
 
           for (const quest of generatedQuests) {
-            await storage.createQuest({
+            const questData: any = {
               worldId,
               title: quest.title,
               description: quest.description,
@@ -4734,7 +4688,15 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
               objectives: quest.objectives,
               rewards: quest.rewards || {},
               tags: ['generated', 'ai'],
-            });
+            };
+            // Auto-generate Prolog content
+            try {
+              const result = convertQuestToProlog(questData);
+              if (result.prologContent) questData.content = result.prologContent;
+            } catch (e) {
+              console.warn('[QuestProlog] Failed to convert generated quest:', e);
+            }
+            await storage.createQuest(questData);
             numQuests++;
           }
           console.log(`✅ Generated ${numQuests} quests`);
@@ -4744,17 +4706,109 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
         }
       }
 
-      // Step 6: Setup grammars (generate for custom world types, use seeded for preset types)
+      // Step 6: Generate world-specific items
+      if (isGeminiConfigured()) {
+        console.log('🎒 Step 6: Generating world items...');
+        progressTracker.updateProgress(taskId, 'items', 'Generating world-specific items...', 96);
+        try {
+          const { GoogleGenerativeAI } = await import("@google/generative-ai");
+          const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+
+          const worldContext = customPrompt ||
+            `A ${worldType || 'medieval-fantasy'} world named "${worldName}". ${worldDescription || ''}`;
+
+          const itemsPrompt = `Generate 15-20 items unique to this game world: ${worldContext}.
+
+These should be world-specific items that would NOT exist in a generic base item list.
+Include a mix of:
+- Themed weapons or tools specific to this world's culture/technology
+- Local food, drink, or consumables with regional flavor
+- Cultural artifacts, collectibles, or quest-worthy objects
+- Crafting materials unique to this world's environment
+- Key/quest items that hint at world lore
+
+For each item, provide ALL of these fields:
+[
+  {
+    "name": "Unique item name fitting the world",
+    "description": "Flavorful 1-2 sentence description",
+    "itemType": "weapon|armor|consumable|food|drink|tool|material|collectible|key|quest",
+    "icon": "single emoji",
+    "value": 0-100,
+    "sellValue": 0-60,
+    "weight": 0.1-10,
+    "category": "melee_weapon|ranged_weapon|light_armor|heavy_armor|shield|potion|ingredient|raw_material|refined_material|ore|tool|container|light_source|food|drink|document|treasure|jewelry|explosive|medical|currency|collectible|key|ammunition|fuel|gemstone|furniture|stimulant|data|component|survival|utility",
+    "material": "iron|steel|wood|leather|stone|cloth|bone|glass|gold|silver|copper|composite|fiber|paper|clay|null",
+    "baseType": "the generic archetype this item belongs to (sword, bow, potion, herb, ore, book, etc.)",
+    "rarity": "common|uncommon|rare|epic|legendary",
+    "effects": {"health": 0, "energy": 0, "attackPower": 0} or null,
+    "lootWeight": 0-50,
+    "tags": ["tag1", "tag2"]
+  }
+]
+
+IMPORTANT: Return ONLY the JSON array, no markdown.`;
+
+          const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
+          const model = genAI.getGenerativeModel({
+            model: GEMINI_MODELS.PRO,
+            generationConfig: {
+              temperature: 0.9,
+              responseMimeType: 'application/json',
+            }
+          });
+
+          const result = await model.generateContent(itemsPrompt);
+          const text = result.response.text().trim();
+          const generatedItems = JSON.parse(text);
+
+          if (Array.isArray(generatedItems)) {
+            for (const item of generatedItems.slice(0, 20)) {
+              if (item.name && item.itemType) {
+                await storage.createItem({
+                  worldId,
+                  name: item.name,
+                  description: item.description || '',
+                  itemType: item.itemType,
+                  icon: item.icon || '',
+                  value: item.value ?? 0,
+                  sellValue: item.sellValue ?? 0,
+                  weight: item.weight ?? 1,
+                  tradeable: item.tradeable !== false,
+                  stackable: item.stackable !== false,
+                  maxStack: item.maxStack ?? (item.stackable === false ? 1 : 20),
+                  category: item.category || null,
+                  material: item.material || null,
+                  baseType: item.baseType || null,
+                  rarity: item.rarity || 'common',
+                  effects: item.effects || null,
+                  lootWeight: item.lootWeight ?? 0,
+                  tags: Array.isArray(item.tags) ? [...item.tags, 'generated', 'ai'] : ['generated', 'ai'],
+                  worldType: worldType || null,
+                });
+                numItems++;
+              }
+            }
+          }
+          console.log(`✅ Generated ${numItems} world items`);
+          progressTracker.updateProgress(taskId, 'items-complete', `Generated ${numItems} world items`, 97);
+        } catch (error) {
+          console.warn('⚠️ Item generation skipped:', (error as Error).message);
+        }
+      }
+
+      // Step 7: Setup grammars (generate for custom world types, use seeded for preset types)
       if (customLabel && customPrompt && isGeminiConfigured()) {
         // Custom world type: Generate custom grammars with LLM
-        console.log(`📝 Step 6: Generating custom grammars for "${customLabel}"...`);
-        progressTracker.updateProgress(taskId, 'grammars', 'Generating custom procedural grammars...', 97);
+        console.log(`📝 Step 7: Generating custom grammars for "${customLabel}"...`);
+        progressTracker.updateProgress(taskId, 'grammars', 'Generating custom procedural grammars...', 98);
         try {
           const { grammarGenerator } = await import("./services/grammar-generator.js");
 
           const generatedGrammars = await grammarGenerator.generateCustomGrammars(
             customLabel,
-            customPrompt
+            customPrompt,
+            worldTargetLanguage || undefined
           );
 
           // Save each grammar to the database with worldId
@@ -4778,9 +4832,9 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
           console.warn('⚠️ Custom grammar generation failed:', (error as Error).message);
         }
       } else if (worldType) {
-        // Preset world type: Seed static grammars from seed-grammars.ts (no LLM generation needed)
-        console.log(`📝 Step 6: Seeding static grammars for ${worldType}...`);
-        progressTracker.updateProgress(taskId, 'grammars', `Seeding pre-generated grammars for ${worldType}`, 97);
+        // Preset world type: Seed static grammars from seed-grammars.ts
+        console.log(`📝 Step 7: Seeding static grammars for ${worldType}...`);
+        progressTracker.updateProgress(taskId, 'grammars', `Seeding pre-generated grammars for ${worldType}`, 98);
 
         try {
           // Filter grammars by worldType
@@ -4788,10 +4842,51 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
             g.worldType === worldType || (g.tags && g.tags.includes(worldType))
           );
 
-          console.log(`  Found ${worldTypeGrammars.length} grammars for ${worldType}`);
+          // For language-learning worlds with a target language and Gemini available,
+          // generate language-appropriate name grammars instead of using generic English ones
+          const nameGrammarTags = ['names', 'character', 'settlement', 'location', 'business', 'establishment'];
+          const isNameGrammar = (g: any) => g.tags?.some((t: string) => nameGrammarTags.includes(t)) || g.name?.includes('_names');
+          let nonNameGrammars = worldTypeGrammars;
+          let generatedLangNames = false;
+
+          if (worldTargetLanguage && isGeminiConfigured()) {
+            nonNameGrammars = worldTypeGrammars.filter((g: any) => !isNameGrammar(g));
+            const nameGrammarsCount = worldTypeGrammars.length - nonNameGrammars.length;
+            if (nameGrammarsCount > 0) {
+              console.log(`  🗣️ Generating ${worldTargetLanguage}-appropriate name grammars via LLM (replacing ${nameGrammarsCount} generic ones)...`);
+              try {
+                const { grammarGenerator } = await import("./services/grammar-generator.js");
+                const langGrammars = await grammarGenerator.generateCustomGrammars(
+                  worldType,
+                  `A ${worldType} world set in a ${worldTargetLanguage}-speaking region.`,
+                  worldTargetLanguage
+                );
+                for (const grammar of langGrammars) {
+                  await storage.createGrammar({
+                    worldId,
+                    name: grammar.name,
+                    description: grammar.description,
+                    grammar: grammar.grammar,
+                    tags: grammar.tags,
+                    worldType,
+                    gameType,
+                    isActive: true,
+                  });
+                  numGrammars++;
+                }
+                generatedLangNames = true;
+                console.log(`  ✅ Generated ${langGrammars.length} ${worldTargetLanguage}-specific name grammars`);
+              } catch (error) {
+                console.warn(`  ⚠️ Language-specific name generation failed, falling back to static:`, (error as Error).message);
+                nonNameGrammars = worldTypeGrammars; // Fall back to all static grammars
+              }
+            }
+          }
+
+          console.log(`  Found ${nonNameGrammars.length} ${generatedLangNames ? 'non-name ' : ''}grammars for ${worldType}`);
 
           // Insert each grammar into the database
-          for (const grammar of worldTypeGrammars) {
+          for (const grammar of nonNameGrammars) {
             await storage.createGrammar({
               worldId,
               name: grammar.name,
@@ -4805,17 +4900,17 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
             numGrammars++;
           }
 
-          console.log(`✅ Seeded ${numGrammars} grammars for ${worldType} (no LLM calls!)`);
-          progressTracker.updateProgress(taskId, 'grammars-complete', `Seeded ${numGrammars} static grammars`, 99);
+          console.log(`✅ Seeded ${numGrammars} grammars for ${worldType}${generatedLangNames ? ` (with ${worldTargetLanguage} names)` : ''}`);
+          progressTracker.updateProgress(taskId, 'grammars-complete', `Seeded ${numGrammars} grammars`, 99);
         } catch (error) {
           console.warn('⚠️ Grammar seeding failed:', (error as Error).message);
         }
       } else {
-        console.log('📝 Step 6: No specific grammars configured');
+        console.log('📝 Step 7: No specific grammars configured');
         progressTracker.updateProgress(taskId, 'grammars', 'Using default grammars', 99);
       }
-      
-      // Step 7: Auto-generate Prolog content for actions/quests that lack it
+
+      // Step 8: Auto-generate Prolog content for actions/quests that lack it
       try {
         const [worldActions, worldQuests] = await Promise.all([
           storage.getActionsByWorld(worldId),
@@ -4851,7 +4946,7 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
 
       console.log(`🎉 Complete world generation finished!`);
 
-          progressTracker.completeTask(taskId, `World generated! ${totalPopulation} characters, ${numRules} rules, ${numActions} actions, ${numQuests} quests, ${numGrammars} grammars`);
+          progressTracker.completeTask(taskId, `World generated! ${totalPopulation} characters, ${numRules} rules, ${numActions} actions, ${numQuests} quests, ${numItems} items, ${numGrammars} grammars`);
         } catch (error) {
           console.error("Complete world generation error:", error);
           progressTracker.failTask(taskId, error instanceof Error ? error.message : 'Unknown error');
@@ -7482,6 +7577,14 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
           solution: mystery.solution,
         },
       };
+
+      // Auto-generate Prolog content for mystery quest
+      try {
+        const result = convertQuestToProlog(questData as any);
+        if (result.prologContent) (questData as any).content = result.prologContent;
+      } catch (e) {
+        console.warn('[QuestProlog] Failed to convert mystery quest:', e);
+      }
 
       let savedQuest = null;
       try {

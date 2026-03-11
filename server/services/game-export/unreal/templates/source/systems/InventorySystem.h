@@ -57,6 +57,13 @@ struct FInsimulInventoryItem
 
     /** Effects map: keys like "attackPower", "defense", "health", "energy" */
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TMap<FString, float> Effects;
+
+    // ── Taxonomy fields (matching InventoryItem from types.ts) ────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Category;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Material;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString BaseType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Rarity;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Icon;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemChanged, const FString&, ItemId, int32, Count);
@@ -111,6 +118,18 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "Inventory")
     TArray<FInsimulInventoryItem> GetAllItems() const;
+
+    /** Get an item by ID. Returns default struct if not found. */
+    UFUNCTION(BlueprintPure, Category = "Inventory")
+    FInsimulInventoryItem GetItem(const FString& ItemId) const;
+
+    /** Clear all items from inventory. */
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void ClearAll();
+
+    /** Refresh the item list (re-broadcast state — no-op in pure data layer). */
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    void RefreshItemList();
 
     // --- Equipment Management ---
 

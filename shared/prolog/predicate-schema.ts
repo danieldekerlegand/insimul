@@ -298,6 +298,11 @@ export const PREDICATE_SCHEMA = {
       'item/1',                     // item(Id).
       'item_name/2',                // item_name(Id, Name).
       'item_type/2',                // item_type(Id, Type).
+      'item_category/2',            // item_category(Id, Category).
+      'item_material/2',            // item_material(Id, Material).
+      'item_base_type/2',           // item_base_type(Id, BaseType). (sword, bow, shield, potion, etc.)
+      'item_rarity/2',              // item_rarity(Id, Rarity).
+      'item_is_a/2',                // item_is_a(Id, Archetype). (derived: steel_sword is_a sword, sword is_a weapon)
       'item_value/2',               // item_value(Id, Value).
       'item_sell_value/2',          // item_sell_value(Id, Value).
       'item_weight/2',              // item_weight(Id, Weight).
@@ -310,6 +315,11 @@ export const PREDICATE_SCHEMA = {
       'item/1':             '_id',
       'item_name/2':        ['_id', 'name'],
       'item_type/2':        ['_id', 'itemType'],
+      'item_category/2':    ['_id', 'category'],
+      'item_material/2':    ['_id', 'material'],
+      'item_base_type/2':   ['_id', 'baseType'],
+      'item_rarity/2':      ['_id', 'rarity'],
+      'item_is_a/2':        ['_id', 'baseType'],      // derived at sync time
       'item_value/2':       ['_id', 'value'],
       'item_sell_value/2':  ['_id', 'sellValue'],
       'item_weight/2':      ['_id', 'weight'],

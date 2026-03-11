@@ -9,8 +9,17 @@
 
 // ── Event Types ─────────────────────────────────────────────────────────────
 
+/** Optional taxonomy fields carried on item events for Prolog assertion. */
+export interface ItemTaxonomy {
+  category?: string;
+  material?: string;
+  baseType?: string;
+  rarity?: string;
+  itemType?: string;
+}
+
 export type GameEvent =
-  | { type: 'item_collected'; itemId: string; itemName: string; quantity: number }
+  | { type: 'item_collected'; itemId: string; itemName: string; quantity: number; taxonomy?: ItemTaxonomy }
   | { type: 'enemy_defeated'; entityId: string; enemyType: string }
   | { type: 'location_visited'; locationId: string; locationName: string }
   | { type: 'npc_talked'; npcId: string; npcName: string; turnCount: number }
@@ -21,7 +30,7 @@ export type GameEvent =
   | { type: 'quest_completed'; questId: string }
   | { type: 'combat_action'; actionType: string; targetId: string }
   | { type: 'reputation_changed'; factionId: string; delta: number }
-  | { type: 'item_crafted'; itemId: string; itemName: string; quantity: number }
+  | { type: 'item_crafted'; itemId: string; itemName: string; quantity: number; taxonomy?: ItemTaxonomy }
   | { type: 'location_discovered'; locationId: string; locationName: string }
   | { type: 'settlement_entered'; settlementId: string; settlementName: string }
   | { type: 'puzzle_solved'; puzzleId: string }

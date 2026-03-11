@@ -1,4 +1,5 @@
 #include "PrologEngine.h"
+#include "EventBus.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -11,10 +12,19 @@ void UPrologEngine::Initialize(FSubsystemCollectionBase& Collection)
 
 void UPrologEngine::Deinitialize()
 {
+    // Unsubscribe from event bus if subscribed
+    if (SubscribedEventBus.IsValid() && EventBusSubscriptionHandle >= 0)
+    {
+        SubscribedEventBus->Unsubscribe(EventBusSubscriptionHandle);
+        EventBusSubscriptionHandle = -1;
+    }
+    SubscribedEventBus = nullptr;
+
     KnowledgeBase.Empty();
     Facts.Empty();
     Rules.Empty();
     ActiveQuestIds.Empty();
+    ItemQuantities.Empty();
     bInitialized = false;
     FactCount = 0;
     RuleCount = 0;
@@ -162,7 +172,14 @@ void UPrologEngine::InitializeInventory(const TArray<FInsimulPrologItem>& Items)
     for (const FInsimulPrologItem& Item : Items)
     {
         FString Name = Sanitize(Item.Name);
+        int32 Qty = FMath::Max(1, Item.Quantity);
+
         AssertFact(FString::Printf(TEXT("has(player, %s)"), *Name));
+        AssertFact(FString::Printf(TEXT("has_item(player, %s, %d)"), *Name, Qty));
+
+        // Track quantity
+        int32& CurrentQty = ItemQuantities.FindOrAdd(Name);
+        CurrentQty += Qty;
 
         if (!Item.Type.IsEmpty())
         {
@@ -172,9 +189,55 @@ void UPrologEngine::InitializeInventory(const TArray<FInsimulPrologItem>& Items)
         {
             AssertFact(FString::Printf(TEXT("item_value(%s, %d)"), *Name, Item.Value));
         }
+
+        // Assert taxonomy
+        AssertItemTaxonomy(Name, Item.Category, Item.Material, Item.BaseType, Item.Rarity, Item.Type);
     }
 
     UE_LOG(LogTemp, Log, TEXT("[Insimul] PrologEngine initialized %d inventory items as facts"), Items.Num());
+}
+
+void UPrologEngine::InitializeWorldItems(const TArray<FInsimulWorldItemDef>& Items)
+{
+    if (!bInitialized) return;
+
+    for (const FInsimulWorldItemDef& Item : Items)
+    {
+        FString Name = Sanitize(Item.Name);
+
+        if (!Item.ItemType.IsEmpty())
+        {
+            AssertFact(FString::Printf(TEXT("item_type(%s, %s)"), *Name, *Sanitize(Item.ItemType)));
+        }
+        if (Item.Value > 0)
+        {
+            AssertFact(FString::Printf(TEXT("item_value(%s, %d)"), *Name, Item.Value));
+        }
+
+        AssertItemTaxonomy(Name, Item.Category, Item.Material, Item.BaseType, Item.Rarity, Item.ItemType);
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] PrologEngine initialized %d world item definitions as facts"), Items.Num());
+}
+
+void UPrologEngine::LoadItemReasoningRules()
+{
+    if (!bInitialized) return;
+
+    // Assert IS-A reasoning rules as facts/rules in the KB text.
+    // These mirror the rules from GamePrologEngine.loadItemReasoningRules().
+    const FString ItemRules = TEXT(
+        "item_is_a(Item, Category) :- item_category(Item, Category).\n"
+        "item_is_a(Item, BaseType) :- item_base_type(Item, BaseType).\n"
+        "item_is_a(Item, Type) :- item_type(Item, Type).\n"
+        "has_item_of_type(Player, Type) :- has(Player, Item), item_is_a(Item, Type).\n"
+        "has_at_least(Player, Item, N) :- has_item(Player, Item, Qty), Qty >= N.\n"
+    );
+
+    KnowledgeBase += TEXT("\n") + ItemRules;
+    ParseKnowledgeBase(); // Re-parse to pick up new rules
+
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] PrologEngine loaded item IS-A reasoning rules"));
 }
 
 void UPrologEngine::UpdateGameState(const FInsimulGameState& State)
@@ -523,6 +586,293 @@ bool UPrologEngine::IsWillingToShare(const FString& NPCId, const FString& Target
     bool bHasWillingRules = FindFacts(TEXT("willing_to_share(")).Num() > 0;
     if (!bHasWillingRules) return true;
     return HasFact(Pattern);
+}
+
+// ── NPC Intelligence Queries (additional) ───────────────────────────────────
+
+FString UPrologEngine::GetConflictStyle(const FString& NPCId)
+{
+    if (!bInitialized) return FString();
+
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] PrologEngine::GetConflictStyle(%s) — stub query"), *NPCId);
+
+    FString Prefix = FString::Printf(TEXT("conflict_style(%s,"), *Sanitize(NPCId));
+    TArray<FString> MatchingFacts = FindFacts(Prefix);
+
+    if (MatchingFacts.Num() > 0)
+    {
+        // Extract second argument
+        int32 CommaIdx = INDEX_NONE;
+        int32 CloseParenIdx = INDEX_NONE;
+        MatchingFacts[0].FindChar(TEXT(','), CommaIdx);
+        MatchingFacts[0].FindLastChar(TEXT(')'), CloseParenIdx);
+        if (CommaIdx != INDEX_NONE && CloseParenIdx != INDEX_NONE && CloseParenIdx > CommaIdx + 1)
+        {
+            return MatchingFacts[0].Mid(CommaIdx + 1, CloseParenIdx - CommaIdx - 1).TrimStartAndEnd();
+        }
+    }
+
+    return FString();
+}
+
+bool UPrologEngine::IsGrieving(const FString& NPCId)
+{
+    if (!bInitialized) return false;
+
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] PrologEngine::IsGrieving(%s) — stub query"), *NPCId);
+
+    FString Pattern = FString::Printf(TEXT("is_grieving(%s)"), *Sanitize(NPCId));
+    return HasFact(Pattern);
+}
+
+// ── NPC State Updates ───────────────────────────────────────────────────────
+
+void UPrologEngine::UpdateNPCPersonality(const FString& NPCId, const FInsimulNPCPersonality& Personality)
+{
+    if (!bInitialized) return;
+
+    FString Id = Sanitize(NPCId);
+    RetractPattern(TEXT("personality"), Id);
+
+    if (Personality.Openness >= 0.f)
+        AssertFact(FString::Printf(TEXT("personality(%s, openness, %d)"), *Id, FMath::RoundToInt(Personality.Openness * 100)));
+    if (Personality.Conscientiousness >= 0.f)
+        AssertFact(FString::Printf(TEXT("personality(%s, conscientiousness, %d)"), *Id, FMath::RoundToInt(Personality.Conscientiousness * 100)));
+    if (Personality.Extroversion >= 0.f)
+        AssertFact(FString::Printf(TEXT("personality(%s, extroversion, %d)"), *Id, FMath::RoundToInt(Personality.Extroversion * 100)));
+    if (Personality.Agreeableness >= 0.f)
+        AssertFact(FString::Printf(TEXT("personality(%s, agreeableness, %d)"), *Id, FMath::RoundToInt(Personality.Agreeableness * 100)));
+    if (Personality.Neuroticism >= 0.f)
+        AssertFact(FString::Printf(TEXT("personality(%s, neuroticism, %d)"), *Id, FMath::RoundToInt(Personality.Neuroticism * 100)));
+}
+
+void UPrologEngine::UpdateNPCEmotionalState(const FString& NPCId, const FInsimulNPCEmotionalState& State)
+{
+    if (!bInitialized) return;
+
+    FString Id = Sanitize(NPCId);
+    RetractPattern(TEXT("mood"), Id);
+    RetractPattern(TEXT("stress_level"), Id);
+    RetractPattern(TEXT("social_desire"), Id);
+
+    if (!State.Mood.IsEmpty())
+        AssertFact(FString::Printf(TEXT("mood(%s, %s)"), *Id, *Sanitize(State.Mood)));
+    if (State.StressLevel >= 0.f)
+        AssertFact(FString::Printf(TEXT("stress_level(%s, %d)"), *Id, FMath::RoundToInt(State.StressLevel * 100)));
+    if (State.SocialDesire >= 0.f)
+        AssertFact(FString::Printf(TEXT("social_desire(%s, %d)"), *Id, FMath::RoundToInt(State.SocialDesire * 100)));
+    if (State.Energy >= 0.f)
+        AssertFact(FString::Printf(TEXT("energy(%s, %d)"), *Id, FMath::RoundToInt(State.Energy)));
+}
+
+void UPrologEngine::UpdateNPCRelationship(const FString& NPC1Id, const FString& NPC2Id, const FInsimulNPCRelationship& Relationship)
+{
+    if (!bInitialized) return;
+
+    FString Id1 = Sanitize(NPC1Id);
+    FString Id2 = Sanitize(NPC2Id);
+
+    RetractPattern(TEXT("relationship_charge"), Id1, Id2);
+    RetractPattern(TEXT("relationship_trust"), Id1, Id2);
+    RetractPattern(TEXT("conversation_count"), Id1, Id2);
+    RetractPattern(TEXT("friends"), Id1, Id2);
+    RetractPattern(TEXT("enemies"), Id1, Id2);
+
+    AssertFact(FString::Printf(TEXT("relationship_charge(%s, %s, %d)"), *Id1, *Id2, FMath::RoundToInt(Relationship.Charge * 100)));
+    AssertFact(FString::Printf(TEXT("relationship_trust(%s, %s, %d)"), *Id1, *Id2, FMath::RoundToInt(Relationship.Trust * 100)));
+
+    if (Relationship.ConversationCount > 0)
+        AssertFact(FString::Printf(TEXT("conversation_count(%s, %s, %d)"), *Id1, *Id2, Relationship.ConversationCount));
+    if (Relationship.bIsFriend)
+        AssertFact(FString::Printf(TEXT("friends(%s, %s)"), *Id1, *Id2));
+    if (Relationship.bIsEnemy)
+        AssertFact(FString::Printf(TEXT("enemies(%s, %s)"), *Id1, *Id2));
+}
+
+void UPrologEngine::RecordPlayerAction(const FString& PlayerId, const FString& NPCId, const FString& ActionName)
+{
+    if (!bInitialized) return;
+
+    AssertFact(FString::Printf(TEXT("player_action(%s, %s, %s)"),
+        *Sanitize(PlayerId), *Sanitize(NPCId), *Sanitize(ActionName)));
+}
+
+// ── Event Bus Integration ───────────────────────────────────────────────────
+
+void UPrologEngine::SubscribeToEventBus(UEventBus* EventBus)
+{
+    if (!EventBus) return;
+
+    // Unsubscribe from previous
+    if (SubscribedEventBus.IsValid() && EventBusSubscriptionHandle >= 0)
+    {
+        SubscribedEventBus->Unsubscribe(EventBusSubscriptionHandle);
+    }
+
+    SubscribedEventBus = EventBus;
+
+    // Subscribe to all events via the global delegate
+    EventBus->OnAnyEvent.AddDynamic(this, &UPrologEngine::HandleGameEvent);
+
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] PrologEngine subscribed to EventBus"));
+}
+
+void UPrologEngine::SetActiveQuests(const TArray<FString>& QuestIds)
+{
+    ActiveQuestIds = QuestIds;
+}
+
+void UPrologEngine::HandleGameEvent(const FInsimulGameEvent& Event)
+{
+    if (!bInitialized) return;
+
+    switch (Event.EventType)
+    {
+        case EInsimulEventType::ItemCollected:
+        {
+            FString Name = Sanitize(Event.ItemName);
+            AssertFact(FString::Printf(TEXT("collected(player, %s, %d)"), *Name, Event.Quantity));
+            AssertFact(FString::Printf(TEXT("has(player, %s)"), *Name));
+            UpdateItemQuantity(Name, Event.Quantity);
+            AssertItemTaxonomy(Name, Event.Taxonomy.Category, Event.Taxonomy.Material,
+                Event.Taxonomy.BaseType, Event.Taxonomy.Rarity, Event.Taxonomy.ItemType);
+            break;
+        }
+        case EInsimulEventType::EnemyDefeated:
+            AssertFact(FString::Printf(TEXT("defeated(player, %s)"), *Sanitize(Event.EnemyType)));
+            break;
+        case EInsimulEventType::LocationVisited:
+            AssertFact(FString::Printf(TEXT("visited(player, %s)"), *Sanitize(Event.LocationId)));
+            break;
+        case EInsimulEventType::NPCTalked:
+            AssertFact(FString::Printf(TEXT("talked_to(player, %s, %d)"), *Sanitize(Event.NPCId), Event.TurnCount));
+            break;
+        case EInsimulEventType::ItemDelivered:
+            AssertFact(FString::Printf(TEXT("delivered(player, %s, %s)"), *Sanitize(Event.NPCId), *Sanitize(Event.ItemName)));
+            break;
+        case EInsimulEventType::VocabularyUsed:
+            AssertFact(FString::Printf(TEXT("vocab_used(player, %s, %d)"), *Sanitize(Event.Word), Event.bCorrect ? 1 : 0));
+            break;
+        case EInsimulEventType::ItemCrafted:
+        {
+            FString Name = Sanitize(Event.ItemName);
+            AssertFact(FString::Printf(TEXT("crafted(player, %s, %d)"), *Name, Event.Quantity));
+            AssertFact(FString::Printf(TEXT("has(player, %s)"), *Name));
+            UpdateItemQuantity(Name, Event.Quantity);
+            AssertItemTaxonomy(Name, Event.Taxonomy.Category, Event.Taxonomy.Material,
+                Event.Taxonomy.BaseType, Event.Taxonomy.Rarity, Event.Taxonomy.ItemType);
+            break;
+        }
+        case EInsimulEventType::LocationDiscovered:
+            AssertFact(FString::Printf(TEXT("discovered(player, %s)"), *Sanitize(Event.LocationId)));
+            break;
+        case EInsimulEventType::SettlementEntered:
+            AssertFact(FString::Printf(TEXT("visited(player, %s)"), *Sanitize(Event.SettlementId)));
+            break;
+        case EInsimulEventType::ReputationChanged:
+            AssertFact(FString::Printf(TEXT("reputation_change(player, %s, %d)"), *Sanitize(Event.FactionId), Event.Delta));
+            break;
+        case EInsimulEventType::QuestAccepted:
+            AssertFact(FString::Printf(TEXT("quest_active(player, %s)"), *Sanitize(Event.QuestId)));
+            break;
+        case EInsimulEventType::QuestCompleted:
+            AssertFact(FString::Printf(TEXT("quest_completed(player, %s)"), *Sanitize(Event.QuestId)));
+            break;
+        case EInsimulEventType::PuzzleSolved:
+            AssertFact(FString::Printf(TEXT("puzzle_solved(player, %s)"), *Sanitize(Event.PuzzleId)));
+            break;
+        case EInsimulEventType::ItemRemoved:
+        case EInsimulEventType::ItemDropped:
+        {
+            FString Name = Sanitize(Event.ItemName);
+            int32 Qty = FMath::Max(1, Event.Quantity);
+            UpdateItemQuantity(Name, -Qty);
+            int32* Remaining = ItemQuantities.Find(Name);
+            if (!Remaining || *Remaining <= 0)
+            {
+                RetractFact(FString::Printf(TEXT("has(player, %s)"), *Name));
+            }
+            break;
+        }
+        case EInsimulEventType::ItemUsed:
+        {
+            FString Name = Sanitize(Event.ItemName);
+            UpdateItemQuantity(Name, -1);
+            int32* Remaining = ItemQuantities.Find(Name);
+            if (!Remaining || *Remaining <= 0)
+            {
+                RetractFact(FString::Printf(TEXT("has(player, %s)"), *Name));
+            }
+            break;
+        }
+        case EInsimulEventType::ItemEquipped:
+            AssertFact(FString::Printf(TEXT("equipped(player, %s, %s)"), *Sanitize(Event.ItemName), *Sanitize(Event.Slot)));
+            break;
+        case EInsimulEventType::ItemUnequipped:
+            RetractFact(FString::Printf(TEXT("equipped(player, %s, %s)"), *Sanitize(Event.ItemName), *Sanitize(Event.Slot)));
+            break;
+        default:
+            return; // No re-evaluation needed
+    }
+
+    // Re-evaluate active quests after fact assertion
+    ReevaluateQuests();
+}
+
+void UPrologEngine::ReevaluateQuests()
+{
+    for (const FString& QuestId : ActiveQuestIds)
+    {
+        if (IsQuestComplete(QuestId, TEXT("player")))
+        {
+            // Fire quest completed event
+            FInsimulGameEvent CompletedEvent;
+            CompletedEvent.EventType = EInsimulEventType::QuestCompleted;
+            CompletedEvent.QuestId = QuestId;
+            OnQuestCompleted.Broadcast(CompletedEvent);
+        }
+    }
+}
+
+void UPrologEngine::AssertItemTaxonomy(const FString& ItemName, const FString& Category, const FString& Material, const FString& BaseType, const FString& Rarity, const FString& ItemType)
+{
+    if (!Category.IsEmpty())
+    {
+        AssertFact(FString::Printf(TEXT("item_category(%s, %s)"), *ItemName, *Sanitize(Category)));
+        AssertFact(FString::Printf(TEXT("item_is_a(%s, %s)"), *ItemName, *Sanitize(Category)));
+    }
+    if (!Material.IsEmpty())
+    {
+        AssertFact(FString::Printf(TEXT("item_material(%s, %s)"), *ItemName, *Sanitize(Material)));
+    }
+    if (!BaseType.IsEmpty())
+    {
+        AssertFact(FString::Printf(TEXT("item_base_type(%s, %s)"), *ItemName, *Sanitize(BaseType)));
+        AssertFact(FString::Printf(TEXT("item_is_a(%s, %s)"), *ItemName, *Sanitize(BaseType)));
+    }
+    if (!Rarity.IsEmpty())
+    {
+        AssertFact(FString::Printf(TEXT("item_rarity(%s, %s)"), *ItemName, *Sanitize(Rarity)));
+    }
+    if (!ItemType.IsEmpty())
+    {
+        AssertFact(FString::Printf(TEXT("item_is_a(%s, %s)"), *ItemName, *Sanitize(ItemType)));
+    }
+}
+
+void UPrologEngine::UpdateItemQuantity(const FString& ItemName, int32 Delta)
+{
+    int32& CurrentQty = ItemQuantities.FindOrAdd(ItemName);
+    CurrentQty = FMath::Max(0, CurrentQty + Delta);
+
+    // Retract old quantity fact
+    RetractPattern(TEXT("has_item"), TEXT("player"), ItemName);
+
+    // Assert new quantity if > 0
+    if (CurrentQty > 0)
+    {
+        AssertFact(FString::Printf(TEXT("has_item(player, %s, %d)"), *ItemName, CurrentQty));
+    }
 }
 
 // ── Private Helpers ─────────────────────────────────────────────────────────

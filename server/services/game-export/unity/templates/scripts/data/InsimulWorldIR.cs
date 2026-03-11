@@ -4,7 +4,7 @@ namespace Insimul.Data
 {
     /// <summary>
     /// Root container matching the WorldIR JSON structure.
-    /// Use JsonUtility.FromJson<InsimulWorldIR>(json) to deserialize.
+    /// Use JsonUtility.FromJson&lt;InsimulWorldIR&gt;(json) to deserialize.
     /// </summary>
     [Serializable]
     public class InsimulWorldIR
@@ -19,6 +19,7 @@ namespace Insimul.Data
         public CombatData combat;
         public SurvivalData survival;
         public ResourcesData resources;
+        public string prologContent;
     }
 
     [Serializable] public class MetaData
@@ -35,6 +36,8 @@ namespace Insimul.Data
     {
         public int terrainSize;
         public InsimulSettlementData[] settlements;
+        public InsimulCountryData[] countries;
+        public InsimulStateData[] states;
     }
 
     [Serializable] public class EntitiesData
@@ -87,6 +90,7 @@ namespace Insimul.Data
         public float speed = 5f;
         public float jumpHeight = 1.2f;
         public float gravity = 1f;
+        public string modelAsset;
     }
 
     [Serializable] public class UIData
@@ -96,6 +100,7 @@ namespace Insimul.Data
         public bool showStaminaBar;
         public bool showAmmoCounter;
         public bool showCompass;
+        public string genreLayout;
     }
 
     [Serializable] public class CombatData
@@ -112,6 +117,7 @@ namespace Insimul.Data
         public float blockReduction;
         public float dodgeChance;
         public float attackCooldown;
+        public float combatRange;
     }
 
     [Serializable] public class SurvivalData
@@ -123,11 +129,13 @@ namespace Insimul.Data
     {
         public string id;
         public string name;
+        public string icon;
         public float maxValue;
         public float startValue;
         public float decayRate;
         public float criticalThreshold;
         public float damageRate;
+        public float warningThreshold;
     }
 
     [Serializable] public class ResourcesData
@@ -139,10 +147,14 @@ namespace Insimul.Data
     {
         public string id;
         public string name;
+        public string icon;
+        public ColorData color;
         public float maxStack;
         public float gatherTime;
         public float respawnTime;
     }
+
+    // ── Item Data ────────────────────────────────────────────────────────
 
     [Serializable] public class InsimulItemData
     {
@@ -154,23 +166,41 @@ namespace Insimul.Data
         public int stackSize = 1;
         public float weight;
         public int value;
+        public int sellValue;
+        public bool tradeable = true;
         public string[] tags;
+        // Taxonomy
+        public string category;
+        public string material;
+        public string baseType;
     }
+
+    // ── Loot Tables ──────────────────────────────────────────────────────
 
     [Serializable] public class InsimulLootTableData
     {
         public string id;
         public string name;
+        public string enemyType;
         public InsimulLootEntryData[] entries;
+        public int goldMin;
+        public int goldMax;
     }
 
     [Serializable] public class InsimulLootEntryData
     {
         public string itemId;
+        public string itemName;
+        public string itemType;
+        public float dropChance = 1f;
         public float weight = 1f;
         public int minQuantity = 1;
         public int maxQuantity = 1;
+        public int value;
+        public int sellValue;
     }
+
+    // ── Truths / Grammars / Dialogue / Language ──────────────────────────
 
     [Serializable] public class InsimulTruthData
     {
@@ -208,5 +238,151 @@ namespace Insimul.Data
         public float temperature;
         public int maxTokens;
         public string systemPrompt;
+    }
+
+    // ── Geography sub-types ──────────────────────────────────────────────
+
+    [Serializable] public class InsimulCountryData
+    {
+        public string id;
+        public string name;
+    }
+
+    [Serializable] public class InsimulStateData
+    {
+        public string id;
+        public string name;
+        public string countryId;
+        public string terrain;
+    }
+
+    // ── Mercantile types ─────────────────────────────────────────────────
+
+    [Serializable] public class InsimulShopItemData
+    {
+        public string id;
+        public string name;
+        public string description;
+        public string itemType;
+        public int buyPrice;
+        public int sellPrice;
+        public int stock;
+        public int maxStock;
+        public float restockRate;
+        public string rarity;
+    }
+
+    [Serializable] public class InsimulMerchantInventoryData
+    {
+        public string merchantId;
+        public string merchantName;
+        public InsimulShopItemData[] items;
+        public int goldReserve;
+        public float buyMultiplier = 1f;
+        public float sellMultiplier = 1f;
+    }
+
+    [Serializable] public class InsimulTradeTransactionData
+    {
+        public string type; // buy, sell, steal, discard
+        public string itemId;
+        public int quantity;
+        public int totalPrice;
+        public string merchantId;
+        public bool success;
+        public long timestamp;
+    }
+
+    // ── Resource types ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Resource type enum matching shared/game-engine/types.ts ResourceType.
+    /// </summary>
+    public enum InsimulResourceType
+    {
+        Wood, Stone, Iron, Gold, Food, Water, Fiber, Crystal, Oil
+    }
+
+    // ── Crafting ─────────────────────────────────────────────────────────
+
+    [Serializable] public class InsimulCraftingRecipeData
+    {
+        public string id;
+        public string name;
+        public string description;
+        public string category; // tool, weapon, armor, consumable, material, building_material, utility
+        public string icon;
+        public InsimulCraftingIngredient[] ingredients;
+        public float craftTime;
+        public int outputQuantity = 1;
+        public int requiredLevel;
+        public bool unlocked;
+    }
+
+    [Serializable] public class InsimulCraftingIngredient
+    {
+        public string resourceType;
+        public int quantity;
+    }
+
+    // ── Survival events ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Need type enum matching shared/game-engine/types.ts NeedType.
+    /// </summary>
+    public enum InsimulNeedType
+    {
+        Hunger, Thirst, Temperature, Stamina, Sleep
+    }
+
+    [Serializable] public class InsimulNeedConfigData
+    {
+        public string id; // NeedType as string
+        public string name;
+        public string icon;
+        public float maxValue;
+        public float startValue;
+        public float decayRate;
+        public float criticalThreshold;
+        public float damageRate;
+        public float warningThreshold;
+    }
+
+    [Serializable] public class InsimulNeedStateData
+    {
+        public string id;
+        public float current;
+        public float max;
+        public float decayRate;
+        public bool isCritical;
+        public bool isWarning;
+    }
+
+    [Serializable] public class InsimulSurvivalEventData
+    {
+        public string type; // need_critical, need_warning, need_restored, damage_from_need, need_satisfied
+        public string needType;
+        public float value;
+        public string message;
+    }
+
+    // ── Camera ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Camera mode enum matching shared/game-engine/types.ts CameraMode.
+    /// </summary>
+    public enum InsimulCameraMode
+    {
+        FirstPerson, ThirdPerson, Isometric, SideScroll, TopDown, Fighting
+    }
+
+    // ── Audio ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Audio role enum matching shared/game-engine/types.ts AudioRole.
+    /// </summary>
+    public enum InsimulAudioRole
+    {
+        Footstep, Ambient, Combat, Interact, Music
     }
 }
