@@ -4203,13 +4203,19 @@ app.get("/api/rules", async (req, res) => {
   // Complete world generation (societies + rules + actions + quests)
   app.post("/api/generate/complete-world", async (req, res) => {
     try {
-      const { worldId, worldType, customPrompt, customLabel, gameType, worldName, worldDescription, worldLanguages: requestedWorldLanguages } = req.body;
+      const { worldId, worldType, customPrompt, customLabel, gameType, worldName, worldDescription, worldLanguages: requestedWorldLanguages, learningTargetLanguage } = req.body;
+
+      // Validate: language-learning worlds must specify a learning target language
+      if (gameType === 'language-learning' && !learningTargetLanguage) {
+        return res.status(400).json({ error: "Language-learning worlds require a learning target language. Add at least one world language and mark it as the learning target." });
+      }
+
       const { progressTracker } = await import("./utils/progress-tracker.js");
       const taskId = `world-gen-${worldId}-${Date.now()}`;
-      
+
       // Start tracking progress
       progressTracker.startTask(taskId);
-      
+
       // Return taskId immediately so frontend can start polling
       res.json({ taskId, message: "Generation started" });
       
@@ -4223,7 +4229,8 @@ app.get("/api/rules", async (req, res) => {
           console.log(`   Custom Prompt: ${customPrompt ? 'Yes' : 'No'}`);
 
           const existingWorld = await storage.getWorld(worldId);
-          const worldTargetLanguage = existingWorld?.targetLanguage || null;
+          // Prefer learningTargetLanguage from request, fall back to deprecated world.targetLanguage
+          const worldTargetLanguage = learningTargetLanguage || existingWorld?.targetLanguage || null;
 
           // Enrich the world description with the world type
       const worldTypeDescriptions: Record<string, string> = {

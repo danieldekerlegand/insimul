@@ -103,6 +103,8 @@ export function WorldSelectionScreen({ onWorldSelected, onOpenAuth, onOpenAdminP
           countries: genConfig.countries,
           // World languages to create as WorldLanguage records
           worldLanguages: genConfig.worldLanguages,
+          // Learning target language for language-learning worlds
+          learningTargetLanguage: genConfig.learningTargetLanguage,
         });
         
         const genResult = await genResponse.json();

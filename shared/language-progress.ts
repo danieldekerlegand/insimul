@@ -28,6 +28,7 @@ export interface GrammarPattern {
   timesUsedIncorrectly: number;
   mastered: boolean;
   examples: string[];
+  explanations: string[];       // Pedagogical explanations from grammar feedback
 }
 
 export interface GrammarCorrection {
@@ -87,6 +88,8 @@ export interface FluencyGainResult {
   wordsReinforced: number;
   bonuses: string[];
   grammarScore: number;           // 0.0-1.0 ratio of correct grammar turns
+  newWordsList?: { word: string; meaning: string }[];  // words learned this conversation
+  targetLanguagePercentage?: number;  // 0-100% target language usage
 }
 
 /**

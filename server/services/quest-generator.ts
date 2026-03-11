@@ -9,6 +9,7 @@
 import { getQuestTypeForWorld, type World } from '../../shared/quest-types/index.js';
 import type { InsertQuest } from '../../shared/schema.js';
 import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from '../config/gemini.js';
+import type { PlayerProficiency } from '../../shared/language-utils.js';
 
 /**
  * Call LLM for quest generation using Gemini API.
@@ -64,6 +65,47 @@ Return ONLY valid JSON. No markdown, no code fences, no explanation.`;
 }
 
 /**
+ * Map player fluency to an appropriate quest difficulty
+ */
+function fluencyToDifficulty(fluency: number): string {
+  if (fluency < 30) return 'beginner';
+  if (fluency < 60) return 'intermediate';
+  return 'advanced';
+}
+
+/**
+ * Build a proficiency context string for the LLM prompt
+ */
+function buildProficiencyPrompt(proficiency: PlayerProficiency): string {
+  let prompt = `\nPLAYER PROFICIENCY:
+- Fluency: ${proficiency.overallFluency.toFixed(0)}/100
+- Vocabulary: ${proficiency.vocabularyCount} words encountered, ${proficiency.masteredWordCount} mastered
+- Conversations completed: ${proficiency.conversationCount}`;
+
+  if (proficiency.weakGrammarPatterns.length > 0) {
+    prompt += `\n- Weak grammar areas: ${proficiency.weakGrammarPatterns.slice(0, 3).join(', ')}`;
+    prompt += `\n- IMPORTANT: Generate quests that target these weak areas to help the player improve.`;
+  }
+  if (proficiency.strongGrammarPatterns.length > 0) {
+    prompt += `\n- Strong grammar areas: ${proficiency.strongGrammarPatterns.slice(0, 3).join(', ')} (avoid over-testing these)`;
+  }
+
+  if (proficiency.overallFluency < 20) {
+    prompt += `\n- The player is a BEGINNER. Quests should use simple vocabulary (1-3 new words), short conversations, and lots of English support.`;
+  } else if (proficiency.overallFluency < 40) {
+    prompt += `\n- The player is ELEMENTARY. Quests can introduce 3-5 new words and require short conversations in the target language.`;
+  } else if (proficiency.overallFluency < 60) {
+    prompt += `\n- The player is INTERMEDIATE. Quests should use 5-8 new words, multi-step objectives, and expect significant target language usage.`;
+  } else if (proficiency.overallFluency < 80) {
+    prompt += `\n- The player is ADVANCED. Quests should challenge with 8-12 new words, nuanced objectives, and mostly target language.`;
+  } else {
+    prompt += `\n- The player is NEAR-NATIVE. Quests should be fully in the target language with complex, nuanced objectives.`;
+  }
+
+  return prompt;
+}
+
+/**
  * Generate a random category from quest type
  */
 function randomCategory(questType: any): string {
@@ -82,13 +124,15 @@ export async function generateQuestForType(params: {
   difficulty: string;
   assignedTo?: string;
   assignedBy?: string;
+  playerProficiency?: PlayerProficiency;
 }): Promise<InsertQuest> {
-  const { world, questType, category, difficulty, assignedTo, assignedBy } = params;
+  const { world, questType, category, difficulty, assignedTo, assignedBy, playerProficiency } = params;
 
   // Build AI prompt using quest type's generation prompt
   const basePrompt = questType.generationPrompt(world);
+  const proficiencyContext = playerProficiency ? buildProficiencyPrompt(playerProficiency) : '';
   const fullPrompt = `${basePrompt}
-
+${proficiencyContext}
 Category: ${category}
 Difficulty: ${difficulty}
 
@@ -142,6 +186,7 @@ export async function generateQuestsForWorld(
     category?: string;
     difficulty?: string;
     assignedTo?: string;
+    playerProficiency?: PlayerProficiency;
   }
 ): Promise<InsertQuest[]> {
   const questType = getQuestTypeForWorld(world);
@@ -149,7 +194,19 @@ export async function generateQuestsForWorld(
 
   for (let i = 0; i < count; i++) {
     const category = options?.category || randomCategory(questType);
-    const difficulty = options?.difficulty || randomDifficulty(questType);
+
+    let difficulty: string;
+    if (options?.difficulty) {
+      difficulty = options.difficulty;
+    } else if (options?.playerProficiency) {
+      // Mix confidence (below-level) and growth (at-level) quests:
+      // ~2/3 at the player's level, ~1/3 one tier below for confidence
+      const atLevel = fluencyToDifficulty(options.playerProficiency.overallFluency);
+      const belowLevel = fluencyToDifficulty(Math.max(0, options.playerProficiency.overallFluency - 30));
+      difficulty = (i % 3 === 0 && atLevel !== belowLevel) ? belowLevel : atLevel;
+    } else {
+      difficulty = randomDifficulty(questType);
+    }
 
     const quest = await generateQuestForType({
       world,
@@ -157,6 +214,7 @@ export async function generateQuestsForWorld(
       category,
       difficulty,
       assignedTo: options?.assignedTo,
+      playerProficiency: options?.playerProficiency,
     });
 
     quests.push(quest);
@@ -184,22 +242,25 @@ export async function generateQuestFromDialogue(params: {
   playerId: string;
   playerName: string;
   conversationContext: string;
+  playerProficiency?: PlayerProficiency;
   questHint?: {
     category?: string;
     difficulty?: string;
     objectives?: string[];
   };
 }): Promise<InsertQuest> {
-  const { world, npcId, npcName, playerId, playerName, conversationContext, questHint } = params;
+  const { world, npcId, npcName, playerId, playerName, conversationContext, playerProficiency, questHint } = params;
 
   const questType = getQuestTypeForWorld(world);
 
   // Build context-aware prompt
   const category = questHint?.category || randomCategory(questType);
-  const difficulty = questHint?.difficulty || 'normal';
+  const difficulty = questHint?.difficulty
+    || (playerProficiency ? fluencyToDifficulty(playerProficiency.overallFluency) : 'normal');
+  const proficiencyContext = playerProficiency ? buildProficiencyPrompt(playerProficiency) : '';
 
   const prompt = `${questType.generationPrompt(world)}
-
+${proficiencyContext}
 NPC: ${npcName}
 Player: ${playerName}
 Conversation Context: ${conversationContext}
@@ -212,6 +273,7 @@ Generate a quest that fits naturally with the conversation context. The quest sh
 - Match the NPC's role and personality
 - Have 2-3 objectives that make sense in the context
 ${questHint?.objectives ? `- Include objectives related to: ${questHint.objectives.join(', ')}` : ''}
+${playerProficiency ? '- Match difficulty to the player\'s current proficiency level' : ''}
 
 Return JSON format as specified above.`;
 

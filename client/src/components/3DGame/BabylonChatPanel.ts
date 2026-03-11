@@ -17,6 +17,7 @@ import { NPCTalkingIndicator } from "./NPCTalkingIndicator";
 import { buildGreeting, buildLanguageAwareSystemPrompt, buildWorldLanguageContext, extractLanguageFluencies, getLanguageBCP47 } from "@shared/language-utils";
 import type { WorldLanguageContext } from "@shared/language-utils";
 import { LanguageProgressTracker } from "./LanguageProgressTracker";
+import { scorePronunciation, formatPronunciationFeedback } from "@shared/pronunciation-scoring";
 
 interface Message {
   role: 'user' | 'assistant';
@@ -65,7 +66,8 @@ export class BabylonChatPanel {
   private _advancedTexture: AdvancedDynamicTexture;
   private scene: Scene;
   private chatContainer: Rectangle | null = null;
-  private messagesArea: Rectangle | null = null;
+  private messagesScrollViewer: ScrollViewer | null = null;
+  private messagesStack: StackPanel | null = null;
   private inputText: InputText | null = null;
   private inputContainer: Container | null = null;
   private micButton: Button | null = null; // Store reference to mic button
@@ -83,6 +85,11 @@ export class BabylonChatPanel {
   private _enterKeyHandler: ((e: KeyboardEvent) => void) | null = null;
   private _inputFocused = false;
   private isProcessing = false;
+  private _hintTimer: ReturnType<typeof setTimeout> | null = null;
+  private _hintShown = false;
+  private _patienceTimer: ReturnType<typeof setTimeout> | null = null;
+  private _sessionGrammarErrors: Map<string, number> = new Map(); // pattern -> error count this session
+  private _grammarFocusShown: Set<string> = new Set(); // patterns already shown focus popup
 
   // Audio queue for sentence-level TTS playback
   private audioQueue: { index: number; blob: Blob }[] = [];
@@ -114,6 +121,8 @@ export class BabylonChatPanel {
   private onNPCConversationStarted: ((npcId: string) => void) | null = null;
   private onQuestTurnedIn: ((questId: string, rewards: any) => void) | null = null;
   private onNPCSpeechUpdate: ((text: string) => void) | null = null;
+  private onFluencyGain: ((fluency: number, gain: number) => void) | null = null;
+  private onConversationSummary: ((result: any) => void) | null = null;
   private pendingTurnInQuests: any[] = [];
 
   // Expose advancedTexture for debugging
@@ -216,6 +225,7 @@ export class BabylonChatPanel {
   public hide(userInitiated: boolean = false) {
     console.log('[ChatPanel] Hide() called - was isVisible:', this.isVisible, 'userInitiated:', userInitiated);
     console.log('[ChatPanel] Call stack:', new Error().stack);
+    this.clearHintTimer();
     this.isVisible = false;
     if (this.chatContainer) {
       this.chatContainer.isVisible = false;
@@ -236,6 +246,8 @@ export class BabylonChatPanel {
         if (result.bonuses.length > 0) {
           console.log(`[LanguageTracker] Bonuses: ${result.bonuses.join(", ")}`);
         }
+        // Fire conversation summary callback
+        this.onConversationSummary?.(result);
       }
     }
     // Hide talking indicator
@@ -266,12 +278,15 @@ export class BabylonChatPanel {
   private initializeChat(truths: Truth[]) {
     if (!this.character) return;
 
-    // Initialize language progress tracker if world has a target language
-    if (this.world?.targetLanguage && this.world.targetLanguage !== 'English') {
+    // Initialize language progress tracker from world languages or legacy targetLanguage
+    const learningLang = this.worldLanguageContext?.learningTargetLanguage?.name
+      || this.worldLanguageContext?.targetLanguage
+      || this.world?.targetLanguage;
+    if (learningLang && learningLang !== 'English') {
       this.languageTracker = new LanguageProgressTracker(
         'player',
         this.character.worldId,
-        this.world.targetLanguage
+        learningLang
       );
     }
 
@@ -304,10 +319,20 @@ export class BabylonChatPanel {
       });
     }
 
-    // Set up language tracker if needed
+    // Set up language tracker callbacks
     if (this.languageTracker) {
+      if (this.worldLanguageContext) {
+        this.languageTracker.setWorldLanguageContext(this.worldLanguageContext);
+      }
+      this.languageTracker.setOnFluencyGain((result) => {
+        console.log(`[LanguageTracker] Fluency: ${result.previousFluency.toFixed(1)} → ${result.newFluency.toFixed(1)} (+${result.gain.toFixed(2)})`);
+        this._proficiencyDirty = true;
+        this._cachedSystemPrompt = null; // Force prompt rebuild next message
+        this.onFluencyGain?.(result.newFluency, result.gain);
+      });
       this.languageTracker.setOnWordMastered((entry) => {
         console.log(`[LanguageTracker] Word mastered: ${entry.word}!`);
+        this._proficiencyDirty = true;
       });
     }
 
@@ -317,14 +342,14 @@ export class BabylonChatPanel {
   private createChatUI() {
     console.log('[ChatPanel] Creating chat UI...');
 
-    // Main container - positioned at bottom right
+    // Main container - compact panel at bottom right
     this.chatContainer = new Rectangle("chatContainer");
-    this.chatContainer.width = "400px";
-    this.chatContainer.height = "450px";
-    this.chatContainer.background = "rgba(0, 0, 0, 0.95)";
-    this.chatContainer.color = "white";
-    this.chatContainer.thickness = 2;
-    this.chatContainer.cornerRadius = 10;
+    this.chatContainer.width = "320px";
+    this.chatContainer.height = "350px";
+    this.chatContainer.background = "rgba(0, 0, 0, 0.65)";
+    this.chatContainer.color = "rgba(255, 255, 255, 0.5)";
+    this.chatContainer.thickness = 1;
+    this.chatContainer.cornerRadius = 8;
     this.chatContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     this.chatContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
     this.chatContainer.zIndex = 10000;
@@ -337,8 +362,8 @@ export class BabylonChatPanel {
     // Header with character name
     const header = new Rectangle("chatHeader");
     header.width = "100%";
-    header.height = "40px";
-    header.background = "rgba(30, 30, 30, 0.9)";
+    header.height = "32px";
+    header.background = "rgba(20, 20, 20, 0.6)";
     header.thickness = 0;
     header.cornerRadius = 5;
     header.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
@@ -349,7 +374,7 @@ export class BabylonChatPanel {
     this.titleText = new TextBlock();
     this.titleText.text = this.character ? `${this.character.firstName} ${this.character.lastName}` : "Chat";
     this.titleText.color = "white";
-    this.titleText.fontSize = 16;
+    this.titleText.fontSize = 13;
     this.titleText.fontWeight = "bold";
     this.titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     this.titleText.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
@@ -358,14 +383,14 @@ export class BabylonChatPanel {
 
     // Close button
     const closeBtn = Button.CreateSimpleButton("closeChat", "X");
-    closeBtn.width = "30px";
-    closeBtn.height = "30px";
+    closeBtn.width = "24px";
+    closeBtn.height = "24px";
     closeBtn.color = "white";
     closeBtn.background = "rgba(255, 50, 50, 0.8)";
     closeBtn.cornerRadius = 5;
-    closeBtn.fontSize = 14;
-    closeBtn.top = "5px";
-    closeBtn.left = "-5px";
+    closeBtn.fontSize = 12;
+    closeBtn.top = "4px";
+    closeBtn.left = "-4px";
     closeBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     closeBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     closeBtn.onPointerClickObservable.add(() => {
@@ -373,38 +398,58 @@ export class BabylonChatPanel {
     });
     header.addControl(closeBtn);
 
-    // Messages area
-    const messagesArea = new Rectangle("messagesArea");
-    messagesArea.width = "90%";
-    messagesArea.height = "310px";
-    messagesArea.background = "rgba(20, 20, 20, 0.5)";
-    messagesArea.thickness = 1;
-    messagesArea.color = "rgba(255, 255, 255, 0.3)";
-    messagesArea.top = "50px";
-    messagesArea.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    messagesArea.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    this.chatContainer.addControl(messagesArea);
-    this.messagesArea = messagesArea;
+    // Messages area — ScrollViewer wrapping a StackPanel
+    const messagesOuter = new Rectangle("messagesOuter");
+    messagesOuter.width = "92%";
+    messagesOuter.height = "245px";
+    messagesOuter.background = "rgba(10, 10, 10, 0.3)";
+    messagesOuter.thickness = 0;
+    messagesOuter.top = "38px";
+    messagesOuter.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    messagesOuter.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    this.chatContainer.addControl(messagesOuter);
+
+    const scrollViewer = new ScrollViewer("messagesScroll");
+    scrollViewer.width = "100%";
+    scrollViewer.height = "100%";
+    scrollViewer.thickness = 0;
+    scrollViewer.barSize = 8;
+    scrollViewer.barColor = "rgba(255, 255, 255, 0.4)";
+    scrollViewer.barBackground = "transparent";
+    scrollViewer.wheelPrecision = 3;
+    messagesOuter.addControl(scrollViewer);
+    this.messagesScrollViewer = scrollViewer;
+
+    const messagesStack = new StackPanel("messagesStack");
+    messagesStack.width = "100%";
+    messagesStack.isVertical = true;
+    messagesStack.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    messagesStack.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    // StackPanel resizes to fit children; ScrollViewer will scroll when it overflows
+    messagesStack.adaptHeightToChildren = true;
+    scrollViewer.addControl(messagesStack);
+    this.messagesStack = messagesStack;
 
     // Input area at the bottom
     const inputArea = new Rectangle("inputArea");
-    inputArea.width = "90%";
-    inputArea.height = "40px";
-    inputArea.background = "rgba(30, 30, 30, 0.9)";
+    inputArea.width = "92%";
+    inputArea.height = "36px";
+    inputArea.background = "rgba(20, 20, 20, 0.5)";
     inputArea.thickness = 0;
-    inputArea.top = "360px";
+    inputArea.top = "288px";
     inputArea.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     inputArea.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     this.chatContainer.addControl(inputArea);
 
     // Input text field
     this.inputText = new InputText("chatInput");
-    this.inputText.width = "60%";
-    this.inputText.height = "30px";
+    this.inputText.width = "58%";
+    this.inputText.height = "26px";
     this.inputText.color = "white";
-    this.inputText.background = "rgba(60, 60, 60, 0.8)";
+    this.inputText.fontSize = 12;
+    this.inputText.background = "rgba(60, 60, 60, 0.5)";
     this.inputText.thickness = 1;
-    this.inputText.left = "5px";
+    this.inputText.left = "4px";
     this.inputText.text = "Type your message...";
     this.inputText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     this.inputText.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
@@ -428,13 +473,13 @@ export class BabylonChatPanel {
 
     // Microphone button
     this.micButton = Button.CreateSimpleButton("micBtn", "Mic");
-    this.micButton.width = "30px";
-    this.micButton.height = "30px";
+    this.micButton.width = "26px";
+    this.micButton.height = "26px";
     this.micButton.color = "white";
-    this.micButton.background = this.isRecording ? "rgba(255, 50, 50, 0.8)" : "rgba(60, 60, 60, 0.8)";
-    this.micButton.cornerRadius = 5;
-    this.micButton.fontSize = 10;
-    this.micButton.left = "61%";
+    this.micButton.background = this.isRecording ? "rgba(255, 50, 50, 0.8)" : "rgba(60, 60, 60, 0.5)";
+    this.micButton.cornerRadius = 4;
+    this.micButton.fontSize = 9;
+    this.micButton.left = "60%";
     this.micButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     this.micButton.onPointerClickObservable.add(() => {
       if (this.isRecording) {
@@ -447,13 +492,13 @@ export class BabylonChatPanel {
 
     // Send button
     const sendBtn = Button.CreateSimpleButton("sendBtn", "Send");
-    sendBtn.width = "30%";
-    sendBtn.height = "30px";
+    sendBtn.width = "28%";
+    sendBtn.height = "26px";
     sendBtn.color = "white";
-    sendBtn.background = "rgba(30, 150, 255, 0.8)";
-    sendBtn.cornerRadius = 5;
-    sendBtn.fontSize = 14;
-    sendBtn.left = "-5px";
+    sendBtn.background = "rgba(30, 150, 255, 0.6)";
+    sendBtn.cornerRadius = 4;
+    sendBtn.fontSize = 12;
+    sendBtn.left = "-4px";
     sendBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     sendBtn.onPointerClickObservable.add(() => {
       this.sendMessage();
@@ -469,75 +514,78 @@ export class BabylonChatPanel {
     this._enterKeyHandler = handleEnter;
     window.addEventListener("keydown", handleEnter);
 
-    // Loading indicator (initially hidden)
+    // Loading indicator (initially hidden) — lives outside the scroll stack
     this.loadingIndicator = new TextBlock("loadingIndicator");
     this.loadingIndicator.text = "NPC is thinking...";
     this.loadingIndicator.color = "#888";
-    this.loadingIndicator.fontSize = 12;
+    this.loadingIndicator.fontSize = 11;
+    this.loadingIndicator.height = "16px";
     this.loadingIndicator.isVisible = false;
-    this.messagesArea.addControl(this.loadingIndicator);
+    this.messagesStack.addControl(this.loadingIndicator);
 
     console.log('[ChatPanel] Chat UI created');
   }
   
-  /**
-   * Estimate pixel height for a message based on text length and available
-   * width (~320px after padding). Each line of ~42 chars at fontSize 14
-   * is roughly 20px tall.
-   */
-  private estimateMessageHeight(text: string): number {
-    const charsPerLine = 42;
-    const lineHeight = 20;
-    const lines = Math.max(1, Math.ceil((text || ' ').length / charsPerLine));
-    return lines * lineHeight + 6;
-  }
-
   private displayMessages() {
-    if (!this.messagesArea) return;
+    if (!this.messagesStack) return;
 
-    // Clear existing message controls
-    const toRemove = this.messagesArea.children.filter(
+    // Clear existing message controls (keep loadingIndicator)
+    const toRemove = this.messagesStack.children.filter(
       c => c.name && c.name.startsWith('msg-')
     );
-    toRemove.forEach(c => this.messagesArea!.removeControl(c));
+    toRemove.forEach(c => this.messagesStack!.removeControl(c));
 
-    // Calculate how many messages fit. Work backwards from most recent.
-    const areaHeight = 300; // usable px inside messagesArea
-    let usedHeight = 0;
-    let startIdx = this.messages.length - 1;
-    while (startIdx >= 0) {
-      const h = this.estimateMessageHeight(this.messages[startIdx].content);
-      if (usedHeight + h > areaHeight) break;
-      usedHeight += h;
-      startIdx--;
+    // Re-add loading indicator at end if it was removed
+    if (this.loadingIndicator && this.loadingIndicator.parent !== this.messagesStack) {
+      this.messagesStack.addControl(this.loadingIndicator);
     }
-    startIdx = Math.max(0, startIdx + 1);
 
-    let yOffset = 10;
-    for (let i = startIdx; i < this.messages.length; i++) {
+    // Add ALL messages — the ScrollViewer handles overflow
+    for (let i = 0; i < this.messages.length; i++) {
       const msg = this.messages[i];
       const isUser = msg.role === 'user';
 
       const messageText = new TextBlock(`msg-${i}`);
       messageText.text = msg.content || ' ';
-      messageText.color = isUser ? "#87CEEB" : "white";
-      messageText.fontSize = 14;
+
+      // Color-code grammar feedback messages distinctly
+      const content = msg.content || '';
+      let msgColor = isUser ? "#87CEEB" : "rgba(255, 255, 255, 0.9)";
+      if (!isUser && content.startsWith('✓ ')) {
+        msgColor = "#4CAF50"; // Green for correct grammar
+      } else if (!isUser && content.startsWith('✎ Tip: ')) {
+        msgColor = "#FFC107"; // Amber for grammar corrections
+      } else if (!isUser && content.startsWith('📖 Grammar Focus')) {
+        msgColor = "#FF9800"; // Orange for grammar focus popups
+      }
+      messageText.color = msgColor;
+      messageText.fontSize = 12;
       messageText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      messageText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
       messageText.textWrapping = TextWrapping.WordWrap;
-      messageText.top = yOffset + "px";
-      messageText.left = "10px";
-      messageText.width = "90%";
-      this.messagesArea.addControl(messageText);
+      messageText.resizeToFit = true;
+      messageText.width = "95%";
+      messageText.paddingLeft = "8px";
+      messageText.paddingRight = "8px";
+      messageText.paddingTop = "3px";
+      messageText.paddingBottom = "3px";
 
-      yOffset += this.estimateMessageHeight(msg.content);
+      // Insert before loading indicator
+      if (this.loadingIndicator) {
+        const loadIdx = this.messagesStack.children.indexOf(this.loadingIndicator);
+        if (loadIdx >= 0) {
+          this.messagesStack.removeControl(this.loadingIndicator);
+          this.messagesStack.addControl(messageText);
+          this.messagesStack.addControl(this.loadingIndicator);
+        } else {
+          this.messagesStack.addControl(messageText);
+        }
+      } else {
+        this.messagesStack.addControl(messageText);
+      }
     }
 
-    // Position loading indicator at the bottom
-    if (this.loadingIndicator) {
-      this.loadingIndicator.top = yOffset + "px";
-      this.loadingIndicator.left = "10px";
-    }
+    // Auto-scroll to bottom
+    this.scrollToBottom();
   }
 
   /**
@@ -545,23 +593,83 @@ export class BabylonChatPanel {
    * Falls back to a full rebuild if the control isn't found.
    */
   private updateLastMessageText(text: string) {
-    if (!this.messagesArea) return;
+    if (!this.messagesStack) return;
 
     const lastIdx = this.messages.length - 1;
-    const existing = this.messagesArea.children.find(
+    const existing = this.messagesStack.children.find(
       c => c.name === `msg-${lastIdx}`
     );
     if (existing && existing instanceof TextBlock) {
       existing.text = text || ' ';
-      this._advancedTexture.markAsDirty();
+      this.scrollToBottom();
       return;
     }
     // Fallback to full rebuild
     this.displayMessages();
   }
 
+  /**
+   * Scroll the messages ScrollViewer to the bottom so the latest message is visible.
+   */
+  private scrollToBottom() {
+    if (!this.messagesScrollViewer) return;
+    // Defer to next frame so layout has been computed
+    setTimeout(() => {
+      if (this.messagesScrollViewer?.verticalBar) {
+        this.messagesScrollViewer.verticalBar.value = 1;
+      }
+    }, 0);
+  }
+
   private updateMessagesDisplay() {
     this.displayMessages();
+  }
+
+  private displayGrammarFeedback(text: string, isCorrect: boolean) {
+    // Show as a styled tip in the messages area
+    const prefix = isCorrect ? '✓ ' : '✎ Tip: ';
+    const color = isCorrect ? '#4CAF50' : '#FFC107';
+
+    // Add as a system-style message that will be displayed
+    this.messages.push({
+      role: 'assistant',
+      content: `${prefix}${text}`,
+      timestamp: new Date(),
+    });
+    this.updateMessagesDisplay();
+
+    // Auto-remove the feedback message after 8 seconds to avoid clutter
+    const feedbackIdx = this.messages.length - 1;
+    setTimeout(() => {
+      if (this.messages[feedbackIdx]?.content.startsWith(prefix)) {
+        this.messages.splice(feedbackIdx, 1);
+        this.updateMessagesDisplay();
+      }
+    }, 8000);
+  }
+
+  /**
+   * Show a "Grammar Focus" popup when the player makes the same error 3+ times.
+   * Displayed as a persistent message with a rule explanation.
+   */
+  private showGrammarFocusPopup(pattern: string, explanation: string, example: string) {
+    const focusMsg = `📖 Grammar Focus: ${pattern}\n${explanation}\nCorrect form: "${example}"\n(This pattern has come up several times — practice makes perfect!)`;
+
+    this.messages.push({
+      role: 'assistant',
+      content: focusMsg,
+      timestamp: new Date(),
+    });
+    this.updateMessagesDisplay();
+
+    // Auto-remove after 15 seconds (longer than normal feedback)
+    const idx = this.messages.length - 1;
+    setTimeout(() => {
+      if (this.messages[idx]?.content.startsWith('📖 Grammar Focus')) {
+        this.messages.splice(idx, 1);
+        this.updateMessagesDisplay();
+      }
+    }, 15000);
   }
 
   private async sendMessage() {
@@ -570,6 +678,8 @@ export class BabylonChatPanel {
     const userMessage = this.inputText.text.trim();
     if (!userMessage) return;
 
+    this.clearHintTimer();
+    this._hintShown = false;
     this.inputText.text = "Type your message...";
     this.isProcessing = true;
 
@@ -628,11 +738,24 @@ export class BabylonChatPanel {
 
             if (feedback.status === 'corrected' && feedback.errors.length > 0) {
               console.log(`[LanguageTracker] Grammar corrections: ${feedback.errors.length}`);
-              feedback.errors.forEach(err => {
-                console.log(`  - ${err.pattern}: "${err.incorrect}" -> "${err.corrected}"`);
-              });
+              // Display grammar corrections as a special message
+              const corrections = feedback.errors.map(err =>
+                `"${err.incorrect}" → "${err.corrected}" (${err.explanation})`
+              ).join('\n');
+              this.displayGrammarFeedback(corrections, false);
+
+              // Track repeated grammar errors — show focus popup after 3 errors of same type
+              for (const err of feedback.errors) {
+                const count = (this._sessionGrammarErrors.get(err.pattern) || 0) + 1;
+                this._sessionGrammarErrors.set(err.pattern, count);
+                if (count >= 3 && !this._grammarFocusShown.has(err.pattern)) {
+                  this._grammarFocusShown.add(err.pattern);
+                  this.showGrammarFocusPopup(err.pattern, err.explanation, err.corrected);
+                }
+              }
             } else if (feedback.status === 'correct') {
               console.log('[LanguageTracker] Grammar: correct!');
+              this.displayGrammarFeedback('Great grammar!', true);
             }
           }
         }
@@ -656,6 +779,9 @@ export class BabylonChatPanel {
         await this.textToSpeech(cleanedResponse);
       }
 
+      // Start hint timer for beginner players
+      this.startHintTimer();
+
     } catch (error) {
       console.error('Chat error:', error);
       this.messages.push({
@@ -666,6 +792,76 @@ export class BabylonChatPanel {
       this.updateMessagesDisplay();
     } finally {
       this.isProcessing = false;
+    }
+  }
+
+  private startHintTimer() {
+    this.clearHintTimer();
+    if (!this.languageTracker) return;
+
+    const fluency = this.languageTracker.getFluency();
+    const occupation = this.character?.occupation?.toLowerCase() || '';
+
+    // Determine NPC patience based on occupation difficulty
+    // Patient occupations (teacher, innkeeper, shopkeeper) wait much longer
+    const patientOccupations = ['teacher', 'innkeeper', 'shopkeeper', 'bartender', 'healer', 'priest'];
+    const impatientOccupations = ['scholar', 'noble', 'merchant', 'guard', 'captain', 'lord', 'duke'];
+    const isPatient = patientOccupations.some(o => occupation.includes(o));
+    const isImpatient = impatientOccupations.some(o => occupation.includes(o));
+
+    // Hint timer: only for beginner/elementary players
+    if (fluency < 40 && !this._hintShown) {
+      const hintDelay = fluency < 20 ? 10000 : 15000;
+      this._hintTimer = setTimeout(() => {
+        if (!this.isProcessing && this.isVisible && this.character) {
+          this._hintShown = true;
+          this.messages.push({
+            role: 'assistant',
+            content: fluency < 20
+              ? `(Don't worry, take your time! You can try saying something simple like "hello" or ask me a question in English.)`
+              : `(Need a hint? Try using some of the words I just used, or ask me to repeat something!)`,
+            timestamp: new Date()
+          });
+          this.updateMessagesDisplay();
+        }
+      }, hintDelay);
+    }
+
+    // Patience timer: NPC walks away if player is silent too long
+    // Patient NPCs: 60s, Neutral NPCs: 30s, Impatient NPCs: 20s
+    // Beginners get extra time
+    const basePatienceMs = isPatient ? 60000 : isImpatient ? 20000 : 30000;
+    const patienceMs = fluency < 20 ? basePatienceMs * 1.5 : basePatienceMs;
+
+    this._patienceTimer = setTimeout(() => {
+      if (!this.isProcessing && this.isVisible && this.character) {
+        const farewell = isImpatient
+          ? `*${this.character.firstName} looks distracted and turns to leave* "I must attend to other matters. Perhaps we can speak another time."`
+          : isPatient
+          ? `*${this.character.firstName} smiles warmly* "I should get back to work, but come talk to me anytime! You're doing great!"`
+          : `*${this.character.firstName} nods politely* "Well, it was nice chatting. I'll be around if you need me."`;
+        this.messages.push({
+          role: 'assistant',
+          content: farewell,
+          timestamp: new Date()
+        });
+        this.updateMessagesDisplay();
+        // Auto-close after a short delay so the player can read the farewell
+        setTimeout(() => {
+          if (this.isVisible) this.hide(true);
+        }, 3000);
+      }
+    }, patienceMs);
+  }
+
+  private clearHintTimer() {
+    if (this._hintTimer) {
+      clearTimeout(this._hintTimer);
+      this._hintTimer = null;
+    }
+    if (this._patienceTimer) {
+      clearTimeout(this._patienceTimer);
+      this._patienceTimer = null;
     }
   }
 
@@ -954,14 +1150,17 @@ export class BabylonChatPanel {
 
   private _cachedSystemPrompt: string | null = null;
   private _systemPromptCharId: string | null = null;
+  private _proficiencyDirty = false;
 
   private buildSystemPrompt(): string {
     if (!this.character) return '';
     // Return cached prompt if character hasn't changed
     if (this._cachedSystemPrompt && this._systemPromptCharId === this.character.id) {
-      // Only rebuild if inventory context changed
-      if (!this.playerInventoryContext) return this._cachedSystemPrompt;
+      // Rebuild if inventory context or proficiency data changed
+      if (!this.playerInventoryContext && !this._proficiencyDirty) return this._cachedSystemPrompt;
     }
+    this._proficiencyDirty = false;
+    const proficiency = this.languageTracker?.getPlayerProficiency() || undefined;
     let prompt = buildLanguageAwareSystemPrompt(
       this.character,
       this.truths,
@@ -973,7 +1172,8 @@ export class BabylonChatPanel {
         gameType: this.world.gameType,
         description: this.world.description,
         targetLanguage: this.world.targetLanguage,
-      } : undefined
+      } : undefined,
+      proficiency
     );
     if (this.playerInventoryContext) {
       prompt += this.playerInventoryContext;
@@ -1252,6 +1452,133 @@ export class BabylonChatPanel {
   }
 
   /**
+   * Pronunciation practice: play a phrase via TTS, then record player's attempt
+   * and score accuracy. Called when NPC offers a pronunciation challenge.
+   */
+  public async practicePronunciation(phrase: string): Promise<void> {
+    // Show the phrase to practice
+    this.messages.push({
+      role: 'assistant',
+      content: `🗣️ Repeat after me: "${phrase}"`,
+      timestamp: new Date(),
+    });
+    this.updateMessagesDisplay();
+
+    // Play the phrase via TTS so player can hear correct pronunciation
+    await this.textToSpeech(phrase);
+
+    // Wait a moment, then auto-start recording
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    this.messages.push({
+      role: 'assistant',
+      content: '🎤 Your turn! Recording...',
+      timestamp: new Date(),
+    });
+    this.updateMessagesDisplay();
+
+    // Record player's attempt
+    try {
+      const audioBlob = await this.recordPronunciationAttempt(5000); // 5 second max
+      const transcript = await this.speechToText(audioBlob);
+
+      // Score the pronunciation
+      const result = scorePronunciation(phrase, transcript);
+      const feedbackMsg = formatPronunciationFeedback(result);
+
+      // Show detailed feedback
+      this.messages.push({
+        role: 'assistant',
+        content: feedbackMsg,
+        timestamp: new Date(),
+      });
+
+      // Show word-level detail for close/missed words
+      const issues = result.wordResults.filter(w => w.match === 'close' || w.match === 'missed');
+      if (issues.length > 0 && result.overallScore < 90) {
+        const details = issues.map(w => {
+          if (w.match === 'missed') return `"${w.expected}" — not detected`;
+          return `"${w.spoken}" → "${w.expected}"`;
+        }).join('\n');
+        this.messages.push({
+          role: 'assistant',
+          content: details,
+          timestamp: new Date(),
+        });
+      }
+
+      this.updateMessagesDisplay();
+
+      // Track pronunciation practice in language tracker
+      if (this.languageTracker) {
+        this.languageTracker.analyzePlayerMessage(transcript);
+      }
+    } catch (error) {
+      console.error('Pronunciation practice error:', error);
+      this.messages.push({
+        role: 'assistant',
+        content: '⚠️ Could not capture audio. Try again!',
+        timestamp: new Date(),
+      });
+      this.updateMessagesDisplay();
+    }
+  }
+
+  /**
+   * Record audio for a fixed duration and return the blob.
+   */
+  private recordPronunciationAttempt(maxDurationMs: number): Promise<Blob> {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream);
+        const chunks: Blob[] = [];
+
+        recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) chunks.push(event.data);
+        };
+
+        recorder.onstop = () => {
+          stream.getTracks().forEach(track => track.stop());
+          resolve(new Blob(chunks, { type: 'audio/webm' }));
+        };
+
+        recorder.onerror = () => {
+          stream.getTracks().forEach(track => track.stop());
+          reject(new Error('Recording failed'));
+        };
+
+        recorder.start();
+
+        // Update mic button visual
+        if (this.micButton) {
+          this.micButton.background = "rgba(255, 50, 50, 0.8)";
+        }
+
+        // Auto-stop after duration
+        setTimeout(() => {
+          if (recorder.state === 'recording') {
+            recorder.stop();
+          }
+          if (this.micButton) {
+            this.micButton.background = "rgba(100, 100, 100, 0.6)";
+          }
+        }, maxDurationMs);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  /**
+   * Speak a single word via TTS (for vocabulary pronunciation).
+   * Returns a promise that resolves when speech is complete.
+   */
+  public async speakWord(word: string): Promise<void> {
+    await this.textToSpeech(word);
+  }
+
+  /**
    * Track quest progress from conversation
    */
   private trackQuestProgress(userMessage: string, aiResponse: string) {
@@ -1286,6 +1613,10 @@ export class BabylonChatPanel {
     if (this.onConversationTurn && keywords.length > 0) {
       this.onConversationTurn(keywords);
     }
+  }
+
+  public getLanguageTracker(): import('./LanguageProgressTracker').LanguageProgressTracker | null {
+    return this.languageTracker;
   }
 
   public setOnClose(callback: () => void) {
@@ -1327,6 +1658,53 @@ export class BabylonChatPanel {
 
   public setOnQuestTurnedIn(callback: (questId: string, rewards: any) => void) {
     this.onQuestTurnedIn = callback;
+  }
+
+  public setOnFluencyGain(callback: (fluency: number, gain: number) => void) {
+    this.onFluencyGain = callback;
+  }
+
+  public setOnConversationSummary(callback: (result: any) => void) {
+    this.onConversationSummary = callback;
+  }
+
+  private _onExternalNewWord: ((entry: any) => void) | null = null;
+  private _onExternalWordMastered: ((entry: any) => void) | null = null;
+  private _onExternalGrammarFeedback: ((feedback: any) => void) | null = null;
+
+  public setOnNewWordLearned(callback: (entry: any) => void) {
+    this._onExternalNewWord = callback;
+    if (this.languageTracker) {
+      const orig = this.languageTracker['onNewWordLearned'];
+      this.languageTracker.setOnNewWordLearned((entry) => {
+        orig?.(entry);
+        callback(entry);
+      });
+    }
+  }
+
+  public setOnWordMastered(callback: (entry: any) => void) {
+    this._onExternalWordMastered = callback;
+    // The tracker's onWordMastered is set during initLanguageTracking.
+    // We chain it after.
+    if (this.languageTracker) {
+      const orig = this.languageTracker['onWordMastered'];
+      this.languageTracker.setOnWordMastered((entry) => {
+        orig?.(entry);
+        callback(entry);
+      });
+    }
+  }
+
+  public setOnGrammarFeedbackExternal(callback: (feedback: any) => void) {
+    this._onExternalGrammarFeedback = callback;
+    if (this.languageTracker) {
+      const orig = this.languageTracker['onGrammarFeedback'];
+      this.languageTracker.setOnGrammarFeedback((feedback) => {
+        orig?.(feedback);
+        callback(feedback);
+      });
+    }
   }
 
   /**

@@ -387,10 +387,13 @@ export class ProceduralBuildingGenerator {
 
     if (modelPrototype) {
       // glTF models are a hierarchy: root TransformNode → child Meshes.
-      // Use instantiateHierarchy to deep-clone the entire tree.
+      // Use instantiateHierarchy with doNotInstantiate:true to create full
+      // clones rather than InstancedMesh objects. Instances require their
+      // source prototype mesh to be active for rendering, which breaks
+      // RTT-based captures (minimap snapshot) since prototypes are disabled.
       const instance = modelPrototype.instantiateHierarchy(
         parent,
-        undefined,
+        { doNotInstantiate: true },
         (source, clone) => {
           clone.name = `${source.name}_${spec.id}`;
         }

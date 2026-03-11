@@ -7,7 +7,7 @@
  */
 
 import type { WorldLanguage } from '@shared/language';
-import type { WorldLanguageContext } from '@shared/language-utils';
+import type { WorldLanguageContext, PlayerProficiency } from '@shared/language-utils';
 import {
   LanguageProgress,
   VocabularyEntry,
@@ -29,6 +29,10 @@ export class LanguageProgressTracker {
   // Per-conversation grammar counters
   private conversationGrammarCorrect: number = 0;
   private conversationGrammarErrors: number = 0;
+
+  // Per-conversation word tracking
+  private conversationNewWords: VocabularyEntry[] = [];
+  private conversationReinforcedWords: Set<string> = new Set();
 
   // Callbacks
   private onFluencyGain: ((result: FluencyGainResult) => void) | null = null;
@@ -79,6 +83,8 @@ export class LanguageProgressTracker {
     };
     this.conversationGrammarCorrect = 0;
     this.conversationGrammarErrors = 0;
+    this.conversationNewWords = [];
+    this.conversationReinforcedWords = new Set();
   }
 
   /**
@@ -122,6 +128,10 @@ export class LanguageProgressTracker {
     if (usages.length > 0) {
       this.recordVocabularyUsage(usages);
       this.onVocabularyUsed?.(usages);
+      // Track reinforced words for conversation summary
+      for (const usage of usages) {
+        this.conversationReinforcedWords.add(usage.word);
+      }
     }
 
     // Update conversation
@@ -176,6 +186,7 @@ export class LanguageProgressTracker {
             this.progress.vocabulary.push(entry);
             this.progress.totalWordsLearned++;
             newWords.push(entry);
+            this.conversationNewWords.push(entry);
             this.onNewWordLearned?.(entry);
           }
         }
@@ -207,7 +218,7 @@ export class LanguageProgressTracker {
 
       // Track individual grammar patterns
       for (const error of feedback.errors) {
-        this.trackGrammarPattern(error.pattern, false, error.incorrect);
+        this.trackGrammarPattern(error.pattern, false, error.incorrect, error.explanation);
       }
     }
 
@@ -262,7 +273,7 @@ export class LanguageProgressTracker {
   /**
    * Track a grammar pattern (correct or incorrect usage)
    */
-  private trackGrammarPattern(patternName: string, correct: boolean, example: string): void {
+  private trackGrammarPattern(patternName: string, correct: boolean, example: string, explanation?: string): void {
     const language = this.progress.language;
     let pattern = this.progress.grammarPatterns.find(
       p => p.pattern === patternName && p.language === language
@@ -277,8 +288,14 @@ export class LanguageProgressTracker {
         timesUsedIncorrectly: 0,
         mastered: false,
         examples: [],
+        explanations: [],
       };
       this.progress.grammarPatterns.push(pattern);
+    }
+
+    // Ensure explanations array exists for older data
+    if (!pattern.explanations) {
+      pattern.explanations = [];
     }
 
     if (correct) {
@@ -292,6 +309,14 @@ export class LanguageProgressTracker {
       pattern.examples.push(example);
       if (pattern.examples.length > 5) {
         pattern.examples.shift();
+      }
+    }
+
+    // Add explanation (keep last 3, deduplicated)
+    if (explanation && !pattern.explanations.includes(explanation)) {
+      pattern.explanations.push(explanation);
+      if (pattern.explanations.length > 3) {
+        pattern.explanations.shift();
       }
     }
 
@@ -333,6 +358,12 @@ export class LanguageProgressTracker {
       conv.targetLanguagePercentage
     );
 
+    // Populate word counts from per-conversation tracking
+    result.wordsLearned = this.conversationNewWords.length;
+    result.wordsReinforced = this.conversationReinforcedWords.size;
+    result.newWordsList = this.conversationNewWords.map(w => ({ word: w.word, meaning: w.meaning }));
+    result.targetLanguagePercentage = conv.targetLanguagePercentage;
+
     this.progress.overallFluency = result.newFluency;
     conv.fluencyGained = result.gain;
 
@@ -341,9 +372,11 @@ export class LanguageProgressTracker {
     this.progress.totalConversations++;
     this.progress.lastActivityTimestamp = Date.now();
 
-    // Reset per-conversation grammar counters
+    // Reset per-conversation counters
     this.conversationGrammarCorrect = 0;
     this.conversationGrammarErrors = 0;
+    this.conversationNewWords = [];
+    this.conversationReinforcedWords = new Set();
 
     this.currentConversation = null;
     this.onFluencyGain?.(result);
@@ -399,6 +432,19 @@ export class LanguageProgressTracker {
 
   public getProgress(): LanguageProgress { return { ...this.progress }; }
   public getFluency(): number { return this.progress.overallFluency; }
+
+  public getPlayerProficiency(): PlayerProficiency {
+    const weakPatterns = this.getWeakGrammarPatterns();
+    const strongPatterns = this.progress.grammarPatterns.filter(p => p.mastered);
+    return {
+      overallFluency: this.progress.overallFluency,
+      vocabularyCount: this.progress.vocabulary.length,
+      masteredWordCount: this.progress.vocabulary.filter(v => v.masteryLevel === 'mastered').length,
+      weakGrammarPatterns: weakPatterns.map(p => p.pattern),
+      strongGrammarPatterns: strongPatterns.map(p => p.pattern),
+      conversationCount: this.progress.totalConversations,
+    };
+  }
   public getVocabulary(): VocabularyEntry[] { return [...this.progress.vocabulary]; }
   public getTotalWordsLearned(): number { return this.progress.totalWordsLearned; }
 
@@ -422,6 +468,36 @@ export class LanguageProgressTracker {
     return this.progress.grammarPatterns
       .filter(p => !p.mastered && p.timesUsedIncorrectly > 0)
       .sort((a, b) => b.timesUsedIncorrectly - a.timesUsedIncorrectly);
+  }
+
+  /**
+   * Spaced repetition: get words due for review.
+   * A word is "due" if it hasn't been encountered in the last N conversations
+   * (scaled by mastery: new=2, learning=3, familiar=5, mastered=8).
+   */
+  public getWordsDueForReview(): VocabularyEntry[] {
+    const now = Date.now();
+    const intervalMs: Record<string, number> = {
+      new: 2 * 60 * 60 * 1000,       // 2 hours
+      learning: 8 * 60 * 60 * 1000,   // 8 hours
+      familiar: 24 * 60 * 60 * 1000,  // 1 day
+      mastered: 72 * 60 * 60 * 1000,  // 3 days
+    };
+
+    return this.progress.vocabulary.filter(v => {
+      const interval = intervalMs[v.masteryLevel] || intervalMs.learning;
+      return (now - v.lastEncountered) > interval;
+    }).sort((a, b) => a.lastEncountered - b.lastEncountered); // oldest first
+  }
+
+  /**
+   * Get review words suitable for NPC dialogue injection.
+   * Returns up to `count` words that are due for review.
+   */
+  public getReviewWordsForNPC(count: number = 3): string[] {
+    return this.getWordsDueForReview()
+      .slice(0, count)
+      .map(v => v.word);
   }
 
   /**

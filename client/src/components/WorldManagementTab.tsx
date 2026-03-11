@@ -15,7 +15,7 @@ import {
   Upload, Download, ChevronRight, Package,
 } from 'lucide-react';
 import { WorldSettingsDialog } from './WorldSettingsDialog';
-import { WORLD_TYPES, GAME_TYPES, LANGUAGES } from './WorldCreateDialog';
+import { WORLD_TYPES, GAME_TYPES } from './WorldCreateDialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
@@ -513,21 +513,16 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
               </Select>
             </div>
 
-            {/* Target Language (shown when game type is language-learning) */}
+            {/* Target Language guidance (shown when game type is language-learning) */}
             {editGameType === 'language-learning' && (
               <div className="space-y-2">
-                <Label htmlFor="edit-target-language">Target Language</Label>
-                <Select value={editTargetLanguage || 'none'} onValueChange={(v) => setEditTargetLanguage(v === 'none' ? '' : v)}>
-                  <SelectTrigger id="edit-target-language">
-                    <SelectValue placeholder="Select language" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {LANGUAGES.map((lang) => (
-                      <SelectItem key={lang} value={lang}>{lang}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Learning Target Language</Label>
+                <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
+                  {editTargetLanguage ? (
+                    <span>Current target: <strong>{editTargetLanguage}</strong> (legacy setting). </span>
+                  ) : null}
+                  Manage learning target languages in the <strong>Languages</strong> tab — add a WorldLanguage record and mark it as the learning target.
+                </div>
               </div>
             )}
 

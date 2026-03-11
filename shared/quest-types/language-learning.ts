@@ -42,6 +42,42 @@ export const languageLearningQuestType: QuestTypeDefinition = {
       icon: '🌍',
       description: 'Learn about culture and customs',
     },
+    {
+      id: 'visual_vocabulary',
+      name: 'Visual Vocabulary',
+      icon: '👁',
+      description: 'Identify objects by their target-language names',
+    },
+    {
+      id: 'follow_instructions',
+      name: 'Follow Instructions',
+      icon: '🗺',
+      description: 'Follow directions given in the target language',
+    },
+    {
+      id: 'scavenger_hunt',
+      name: 'Scavenger Hunt',
+      icon: '🔍',
+      description: 'Find objects matching target-language vocabulary',
+    },
+    {
+      id: 'listening_comprehension',
+      name: 'Listening Comprehension',
+      icon: '🎧',
+      description: 'Listen to NPC speech and answer comprehension questions',
+    },
+    {
+      id: 'translation_challenge',
+      name: 'Translation Challenge',
+      icon: '🔄',
+      description: 'Translate phrases between languages accurately',
+    },
+    {
+      id: 'navigation',
+      name: 'Language Navigation',
+      icon: '🧭',
+      description: 'Navigate the world following target-language directions',
+    },
   ],
 
   objectiveTypes: [
@@ -154,6 +190,54 @@ export const languageLearningQuestType: QuestTypeDefinition = {
         return (progress.newWordsLearned || 0) >= (progress.required || 5);
       },
     },
+    {
+      id: 'identify_object',
+      name: 'Identify Object',
+      trackingLogic: (context) => context.objectsIdentified || 0,
+      completionCheck: (progress) => {
+        return (progress.objectsIdentified || 0) >= (progress.required || 3);
+      },
+    },
+    {
+      id: 'follow_directions',
+      name: 'Follow Directions',
+      trackingLogic: (context) => context.stepsCompleted || 0,
+      completionCheck: (progress) => {
+        return (progress.stepsCompleted || 0) >= (progress.required || 1);
+      },
+    },
+    {
+      id: 'find_vocabulary_items',
+      name: 'Find Vocabulary Items',
+      trackingLogic: (context) => context.vocabularyItemsFound || 0,
+      completionCheck: (progress) => {
+        return (progress.vocabularyItemsFound || 0) >= (progress.required || 5);
+      },
+    },
+    {
+      id: 'listening_comprehension',
+      name: 'Listening Comprehension',
+      trackingLogic: (context) => context.questionsCorrect || 0,
+      completionCheck: (progress) => {
+        return (progress.questionsCorrect || 0) >= (progress.required || 3);
+      },
+    },
+    {
+      id: 'translation_challenge',
+      name: 'Translation Challenge',
+      trackingLogic: (context) => context.translationsCorrect || 0,
+      completionCheck: (progress) => {
+        return (progress.translationsCorrect || 0) >= (progress.required || 3);
+      },
+    },
+    {
+      id: 'navigate_language',
+      name: 'Navigate Using Language',
+      trackingLogic: (context) => context.waypointsReached || 0,
+      completionCheck: (progress) => {
+        return (progress.waypointsReached || 0) >= (progress.required || 1);
+      },
+    },
   ],
 
   rewardTypes: ['experience', 'fluency', 'items', 'unlock'],
@@ -183,16 +267,33 @@ World Description: ${world.description || 'A language learning environment'}
 
 Create a quest that helps the player practice ${language} through natural interactions. The quest should:
 - Have a clear narrative context that fits the ${setting} setting
-- Include 2-4 objectives from: use_vocabulary, complete_conversation, practice_grammar, collect_item, visit_location, talk_to_npc, use_vocabulary_category, sustained_conversation, master_words, learn_new_words
+- Include 2-4 objectives from: use_vocabulary, complete_conversation, practice_grammar, collect_item, visit_location, talk_to_npc, use_vocabulary_category, sustained_conversation, master_words, learn_new_words, identify_object, follow_directions, find_vocabulary_items, listening_comprehension, translation_challenge, navigate_language
 - Specify vocabulary words or grammar patterns to practice
 - Set appropriate difficulty (beginner/intermediate/advanced)
 - Provide meaningful rewards (XP and fluency points)
+
+Quest category descriptions:
+- visual_vocabulary: NPC asks player to find/identify specific objects by their ${language} name
+- follow_instructions: NPC gives multi-step directions in ${language}; player follows them
+- scavenger_hunt: Player receives a list of ${language} words and finds matching objects in the world
+- listening_comprehension: NPC tells a short story in ${language}; player answers comprehension questions to another NPC
+- translation_challenge: NPC presents phrases in English; player types translations in ${language} (or vice versa)
+- navigation: NPC gives directions in ${language}; player physically navigates the 3D world to the correct location
+
+For listening_comprehension, use completionCriteria:
+{ "type": "listening_comprehension", "storyNpcId": "npc_id", "answerNpcId": "npc_id", "questions": [{ "question": "...", "correctAnswer": "..." }] }
+
+For translation_challenge, use completionCriteria:
+{ "type": "translation_challenge", "phrases": [{ "source": "Hello", "expected": "Bonjour", "language": "target" }] }
+
+For navigate_language, use completionCriteria:
+{ "type": "navigate_language", "instructions": "Full directions in ${language}", "waypoints": [{ "instruction": "Turn left at the fountain", "x": 10, "z": 20 }] }
 
 Return JSON format:
 {
   "title": "Quest title in English",
   "description": "Quest description with narrative context",
-  "category": "conversation|vocabulary|grammar|translation|cultural",
+  "category": "conversation|vocabulary|grammar|translation|cultural|visual_vocabulary|follow_instructions|scavenger_hunt|listening_comprehension|translation_challenge|navigation",
   "difficulty": "beginner|intermediate|advanced",
   "objectives": [
     {

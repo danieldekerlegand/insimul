@@ -128,6 +128,8 @@ export class BabylonGUIManager {
   private helpPanel: Container | null = null;
   private toastContainer: StackPanel | null = null;
   private activeToasts: Map<string, Container> = new Map();
+  private fluencyPanel: Rectangle | null = null;
+  private _gameType: string | null = null;
 
   // State
   private isMenuOpen = false;
@@ -177,6 +179,7 @@ export class BabylonGUIManager {
     this.createFeedbackPanel();
     this.createMinimapPanel();
     this.createReputationPanel();
+    this.createFluencyPanel();
   }
 
   private createMenuButton() {
@@ -818,6 +821,139 @@ export class BabylonGUIManager {
     this.advancedTexture.addControl(panel);
   }
 
+  private createFluencyPanel() {
+    const panel = new Rectangle("fluencyPanel");
+    panel.width = "280px";
+    panel.height = "50px";
+    panel.background = "rgba(0, 0, 0, 0.7)";
+    panel.color = "#4FC3F7";
+    panel.thickness = 1;
+    panel.cornerRadius = 5;
+    panel.top = "10px";
+    panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    panel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    panel.isVisible = false; // Only visible for language-learning games
+
+    // Fluency level label
+    const levelLabel = new TextBlock("fluencyLevelLabel");
+    levelLabel.text = "Beginner";
+    levelLabel.color = "#4FC3F7";
+    levelLabel.fontSize = 12;
+    levelLabel.fontWeight = "bold";
+    levelLabel.top = "5px";
+    levelLabel.height = "16px";
+    levelLabel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    panel.addControl(levelLabel);
+
+    // Bar background
+    const barBg = new Rectangle("fluencyBarBg");
+    barBg.width = "250px";
+    barBg.height = "12px";
+    barBg.background = "rgba(60, 60, 60, 0.9)";
+    barBg.color = "#555";
+    barBg.thickness = 1;
+    barBg.cornerRadius = 6;
+    barBg.top = "24px";
+    barBg.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    panel.addControl(barBg);
+
+    // Bar fill
+    const barFill = new Rectangle("fluencyBarFill");
+    barFill.width = "0px";
+    barFill.height = "12px";
+    barFill.background = "#4FC3F7";
+    barFill.cornerRadius = 6;
+    barFill.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    barBg.addControl(barFill);
+
+    // Fluency percentage text
+    const percentText = new TextBlock("fluencyPercentText");
+    percentText.text = "0%";
+    percentText.color = "white";
+    percentText.fontSize = 9;
+    barBg.addControl(percentText);
+
+    this.fluencyPanel = panel;
+    this.advancedTexture.addControl(panel);
+  }
+
+  public setGameType(gameType: string) {
+    this._gameType = gameType;
+    const isLanguageLearning = gameType === 'language-learning' || gameType === 'educational';
+    if (this.fluencyPanel) {
+      this.fluencyPanel.isVisible = isLanguageLearning;
+    }
+  }
+
+  public updateFluency(fluency: number, fluencyGain?: number) {
+    if (!this.fluencyPanel) return;
+
+    // Determine level label
+    let levelName: string;
+    let color: string;
+    if (fluency >= 80) { levelName = 'Near-Native'; color = '#FFD700'; }
+    else if (fluency >= 60) { levelName = 'Advanced'; color = '#4CAF50'; }
+    else if (fluency >= 40) { levelName = 'Intermediate'; color = '#8BC34A'; }
+    else if (fluency >= 20) { levelName = 'Elementary'; color = '#FFC107'; }
+    else { levelName = 'Beginner'; color = '#4FC3F7'; }
+
+    const levelLabel = this.fluencyPanel.getDescendants().find(
+      c => c.name === 'fluencyLevelLabel'
+    ) as TextBlock;
+    if (levelLabel) {
+      levelLabel.text = `${levelName} — ${fluency.toFixed(0)}%`;
+      levelLabel.color = color;
+    }
+
+    const barFill = this.fluencyPanel.getDescendants().find(
+      c => c.name === 'fluencyBarFill'
+    ) as Rectangle;
+    if (barFill) {
+      barFill.width = `${250 * (fluency / 100)}px`;
+      barFill.background = color;
+    }
+
+    const percentText = this.fluencyPanel.getDescendants().find(
+      c => c.name === 'fluencyPercentText'
+    ) as TextBlock;
+    if (percentText) {
+      percentText.text = `${fluency.toFixed(1)}%`;
+    }
+
+    this.fluencyPanel.color = color;
+
+    // Show floating gain text if provided
+    if (fluencyGain && fluencyGain > 0) {
+      this.showFluencyGainToast(`+${fluencyGain.toFixed(2)} Fluency`);
+    }
+  }
+
+  private showFluencyGainToast(text: string) {
+    const toast = new TextBlock("fluencyGainToast");
+    toast.text = text;
+    toast.color = "#4FC3F7";
+    toast.fontSize = 16;
+    toast.fontWeight = "bold";
+    toast.top = "65px";
+    toast.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    toast.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    this.advancedTexture.addControl(toast);
+
+    // Animate fade out
+    let alpha = 1;
+    let yOffset = 65;
+    const interval = setInterval(() => {
+      alpha -= 0.02;
+      yOffset -= 0.5;
+      toast.alpha = alpha;
+      toast.top = `${yOffset}px`;
+      if (alpha <= 0) {
+        clearInterval(interval);
+        this.advancedTexture.removeControl(toast);
+      }
+    }, 33);
+  }
+
   // Public methods for updating UI
 
   public updatePlayerStatus(status: PlayerStatus) {
@@ -1117,111 +1253,37 @@ export class BabylonGUIManager {
   }
 
   /**
-   * Render the static minimap layer (terrain + buildings) once to a canvas texture.
-   * Called on first updateMinimap when building data is available.
+   * Set the minimap background image from a pre-rendered data URL.
+   * Called once during loading by BabylonGame after capturing a top-down screenshot.
    */
-  private renderMinimapStaticLayer(data: MinimapData): void {
-    if (!this.scene || this.scene.isDisposed) return;
+  public setMinimapImage(dataUrl: string, worldSize: number): void {
+    this._minimapWorldSize = worldSize;
 
-    const TEX_SIZE = 512; // High-res texture for crisp rendering
-    const half = data.worldSize / 2;
-
-    // Create an offscreen canvas
-    const canvas = document.createElement('canvas');
-    canvas.width = TEX_SIZE;
-    canvas.height = TEX_SIZE;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // World coord → pixel
-    const toPixel = (wx: number, wz: number): [number, number] => {
-      const px = ((wx + half) / data.worldSize) * TEX_SIZE;
-      const py = ((-wz + half) / data.worldSize) * TEX_SIZE; // invert Z for top-down
-      return [px, py];
-    };
-
-    // Background: ocean/water
-    ctx.fillStyle = '#2a4a6b';
-    ctx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
-
-    // Terrain: green land mass with slight padding
-    const margin = 4;
-    const landSize = TEX_SIZE - margin * 2;
-    ctx.fillStyle = '#3a5a2a';
-    ctx.fillRect(margin, margin, landSize, landSize);
-
-    // Subtle terrain grid
-    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-    ctx.lineWidth = 0.5;
-    const gridStep = TEX_SIZE / 8;
-    for (let i = 1; i < 8; i++) {
-      const pos = margin + (landSize / 8) * i;
-      ctx.beginPath();
-      ctx.moveTo(pos, margin);
-      ctx.lineTo(pos, TEX_SIZE - margin);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(margin, pos);
-      ctx.lineTo(TEX_SIZE - margin, pos);
-      ctx.stroke();
-    }
-
-    // Draw buildings as footprints
-    if (data.buildings) {
-      for (const bld of data.buildings) {
-        const [px, py] = toPixel(bld.position.x, bld.position.z);
-        const size = bld.type === 'business' ? 5 : 4;
-
-        if (bld.type === 'business') {
-          ctx.fillStyle = '#8B6914'; // Warm brown
-        } else if (bld.type === 'residence') {
-          ctx.fillStyle = '#5A6A80'; // Blue-gray
-        } else {
-          ctx.fillStyle = '#6B6B5A'; // Muted olive
-        }
-
-        ctx.fillRect(px - size / 2, py - size / 2, size, size);
-
-        // Tiny roof highlight
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        ctx.fillRect(px - size / 2, py - size / 2, size, 1);
+    // Load the data URL into an HTMLImageElement, then draw to a canvas
+    // so we can do sliding-window extraction efficiently.
+    const img = new window.Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        this._minimapFullImage = canvas;
+        this.minimapStaticRendered = true;
+        console.log(`[Insimul] Minimap snapshot loaded: ${img.width}x${img.height}`);
       }
-    }
-
-    // Draw settlement name labels
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    for (const settlement of data.settlements) {
-      const [sx, sy] = toPixel(settlement.position.x, settlement.position.z);
-
-      // Label background
-      ctx.font = 'bold 11px sans-serif';
-      const textWidth = ctx.measureText(settlement.name).width;
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      ctx.fillRect(sx - textWidth / 2 - 3, sy - 16, textWidth + 6, 14);
-
-      // Label text
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillText(settlement.name, sx, sy - 4);
-    }
-
-    // Convert canvas to data URL and set as minimap background
-    const dataUrl = canvas.toDataURL('image/png');
-    if (this.minimapStaticImage) {
-      this.minimapStaticImage.source = dataUrl;
-      this.minimapStaticImage.isVisible = true;
-    }
-
-    this.minimapStaticRendered = true;
+    };
+    img.src = dataUrl;
   }
+
+  private _minimapWorldSize: number = 512;
+
+  /** The full-world overhead snapshot canvas, used by the sliding-window minimap. */
+  private _minimapFullImage: HTMLCanvasElement | null = null;
 
   public updateMinimap(data: MinimapData) {
     if (!this.minimapPanel) return;
-
-    // Render static layer once (buildings + terrain)
-    if (!this.minimapStaticRendered && data.buildings && data.buildings.length > 0) {
-      this.renderMinimapStaticLayer(data);
-    }
 
     const mapContainer = this.minimapPanel.getDescendants().find(
       (c) => c.name === "minimapContainer"
@@ -1236,27 +1298,75 @@ export class BabylonGUIManager {
     });
 
     const MAP_SIZE = 200;
-    const scale = MAP_SIZE / data.worldSize;
+    const mapHalf = MAP_SIZE / 2;
+    const worldSize = data.worldSize;
+    const worldHalf = worldSize / 2;
+
+    // --- Sliding-window background: extract the area around the player ---
+    if (this._minimapFullImage && this.minimapStaticImage) {
+      // The viewport shows a square region of the world centered on the player.
+      // viewRadius controls how much of the world is visible (in world units).
+      const viewRadius = worldSize * 0.2; // Show ~40% of the world width
+      const px = data.playerPosition.x;
+      const pz = data.playerPosition.z;
+
+      // Convert player world coords to pixel coords in the full image
+      const imgW = this._minimapFullImage.width;
+      const imgH = this._minimapFullImage.height;
+      const playerImgX = ((px + worldHalf) / worldSize) * imgW;
+      const playerImgY = ((-pz + worldHalf) / worldSize) * imgH;
+      const viewRadiusPx = (viewRadius / worldSize) * imgW;
+
+      // Source rectangle in the full image (clamped to image bounds)
+      const srcX = Math.max(0, Math.min(imgW - viewRadiusPx * 2, playerImgX - viewRadiusPx));
+      const srcY = Math.max(0, Math.min(imgH - viewRadiusPx * 2, playerImgY - viewRadiusPx));
+      const srcSize = viewRadiusPx * 2;
+
+      // Extract the viewport region to a small canvas and set as minimap background
+      const vpCanvas = document.createElement('canvas');
+      vpCanvas.width = MAP_SIZE;
+      vpCanvas.height = MAP_SIZE;
+      const vpCtx = vpCanvas.getContext('2d');
+      if (vpCtx) {
+        vpCtx.drawImage(this._minimapFullImage, srcX, srcY, srcSize, srcSize, 0, 0, MAP_SIZE, MAP_SIZE);
+        this.minimapStaticImage.source = vpCanvas.toDataURL('image/png');
+        this.minimapStaticImage.isVisible = true;
+      }
+
+      // Store the current viewport bounds for marker positioning
+    }
+
+    // Map world coords to minimap pixel offsets relative to the current viewport
+    const viewRadius = worldSize * 0.2;
+    const vpCx = data.playerPosition.x;
+    const vpCz = data.playerPosition.z;
+    const vpSize = viewRadius * 2;
+
+    const toMap = (wx: number, wz: number): [number, number] => {
+      const mx = ((wx - vpCx) / vpSize) * MAP_SIZE;
+      const mz = (-(wz - vpCz) / vpSize) * MAP_SIZE;
+      return [mx, mz];
+    };
 
     // Draw NPC markers (small dots)
     if (data.npcPositions) {
       for (const npc of data.npcPositions) {
-        const nx = npc.position.x * scale;
-        const nz = npc.position.z * scale;
+        const [nx, nz] = toMap(npc.position.x, npc.position.z);
+
+        if (Math.abs(nx) > mapHalf || Math.abs(nz) > mapHalf) continue;
 
         const dot = new Ellipse(`npc-${npc.id}`);
-        dot.width = "4px";
-        dot.height = "4px";
+        dot.width = "5px";
+        dot.height = "5px";
         dot.thickness = 0;
 
-        // Color by role
         if (npc.role === 'guard') dot.background = '#F44336';
         else if (npc.role === 'merchant') dot.background = '#4CAF50';
         else if (npc.role === 'questgiver') dot.background = '#FFC107';
-        else dot.background = 'rgba(200,200,200,0.6)';
+        else dot.background = 'rgba(200,200,200,0.7)';
 
         dot.left = `${nx}px`;
-        dot.top = `${-nz}px`;
+        dot.top = `${nz}px`;
         mapContainer.addControl(dot);
       }
     }
@@ -1264,8 +1374,9 @@ export class BabylonGUIManager {
     // Draw quest markers (diamond shape)
     if (data.questMarkers) {
       for (const quest of data.questMarkers) {
-        const qx = quest.position.x * scale;
-        const qz = quest.position.z * scale;
+        const [qx, qz] = toMap(quest.position.x, quest.position.z);
+
+        if (Math.abs(qx) > mapHalf || Math.abs(qz) > mapHalf) continue;
 
         const questMarker = new Rectangle(`quest-${quest.id}`);
         questMarker.width = "10px";
@@ -1276,34 +1387,35 @@ export class BabylonGUIManager {
         questMarker.cornerRadius = 2;
         questMarker.rotation = Math.PI / 4;
         questMarker.left = `${qx}px`;
-        questMarker.top = `${-qz}px`;
+        questMarker.top = `${qz}px`;
         mapContainer.addControl(questMarker);
       }
     }
 
-    // Draw player marker (bright, with border)
-    const playerX = data.playerPosition.x * scale;
-    const playerZ = data.playerPosition.z * scale;
-
+    // Player is always centered in the sliding-window minimap
     const playerOuter = new Ellipse("player-marker-outer");
-    playerOuter.width = "12px";
-    playerOuter.height = "12px";
+    playerOuter.width = "14px";
+    playerOuter.height = "14px";
     playerOuter.background = "rgba(0,0,0,0.4)";
     playerOuter.color = "transparent";
     playerOuter.thickness = 0;
-    playerOuter.left = `${playerX}px`;
-    playerOuter.top = `${-playerZ}px`;
     mapContainer.addControl(playerOuter);
 
     const playerMarker = new Ellipse("player-marker");
-    playerMarker.width = "8px";
-    playerMarker.height = "8px";
+    playerMarker.width = "10px";
+    playerMarker.height = "10px";
     playerMarker.background = "#FFC107";
     playerMarker.color = "white";
     playerMarker.thickness = 2;
-    playerMarker.left = `${playerX}px`;
-    playerMarker.top = `${-playerZ}px`;
     mapContainer.addControl(playerMarker);
+  }
+
+  /**
+   * Force a re-render of the minimap's 3D overhead snapshot.
+   * Currently a no-op since the snapshot is captured during loading.
+   */
+  public refreshMinimapSnapshot(_data: MinimapData): Promise<void> {
+    return Promise.resolve();
   }
 
   public updateReputation(data: ReputationData | null) {

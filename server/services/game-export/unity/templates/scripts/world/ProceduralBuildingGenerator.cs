@@ -191,7 +191,8 @@ namespace Insimul.World
                 var pos = bld.position.ToVector3();
                 bool placed = false;
 
-                // 1. Check role model prototypes first
+                // 1. Check role model prototypes first.
+                // Uses full Instantiate (not GPU instances) for RTT/minimap compatibility.
                 if (!placed && !string.IsNullOrEmpty(bld.buildingRole) &&
                     _roleModelPrototypes.TryGetValue(bld.buildingRole, out var rolePrefab))
                 {

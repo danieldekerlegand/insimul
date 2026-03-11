@@ -160,7 +160,9 @@ void AProceduralBuildingGenerator::GenerateBuilding(FVector Position, float Rota
     UE_LOG(LogTemp, Log, TEXT("[Insimul] Generate building %s at %s (%dx%.0fx%.0f)"),
         *BuildingRole, *Position.ToString(), Floors, Width, Depth);
 
-    // Check for a registered role model first
+    // Check for a registered role model first.
+    // Note: full clones are used (not GPU instances) to ensure compatibility
+    // with render-to-texture captures like minimap snapshots.
     if (auto* ModelPtr = RoleModelPrototypes.Find(BuildingRole))
     {
         UStaticMesh* Model = *ModelPtr;

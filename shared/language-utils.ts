@@ -38,6 +38,15 @@ export interface WorldLanguageContext {
   gameType?: string;
 }
 
+export interface PlayerProficiency {
+  overallFluency: number;        // 0-100
+  vocabularyCount: number;       // words encountered
+  masteredWordCount: number;     // words mastered
+  weakGrammarPatterns: string[]; // patterns with errors
+  strongGrammarPatterns: string[]; // mastered patterns
+  conversationCount: number;     // total conversations held
+}
+
 /**
  * Find the WorldLanguage marked as the learning target.
  */
@@ -563,6 +572,139 @@ export function buildWorldLanguageSection(worldContext: WorldLanguageContext): s
 }
 
 /**
+ * Get a difficulty modifier based on NPC occupation.
+ * Negative = more patient/simpler language, positive = more complex.
+ * Returns a value in the range [-15, +15].
+ */
+export function getOccupationDifficultyModifier(occupation?: string | null): number {
+  if (!occupation) return 0;
+  const lower = occupation.toLowerCase();
+
+  // Patient/simple occupations (-15)
+  const patient = ['teacher', 'innkeeper', 'shopkeeper', 'barkeep', 'bartender',
+    'nurse', 'healer', 'librarian', 'tutor', 'caretaker', 'nanny', 'host',
+    'receptionist', 'guide', 'tour guide'];
+  if (patient.some(o => lower.includes(o))) return -15;
+
+  // Neutral occupations (0)
+  const neutral = ['guard', 'farmer', 'artisan', 'craftsman', 'blacksmith',
+    'carpenter', 'fisherman', 'miner', 'baker', 'cook', 'tailor', 'weaver',
+    'hunter', 'soldier', 'warrior', 'laborer', 'servant', 'woodcutter'];
+  if (neutral.some(o => lower.includes(o))) return 0;
+
+  // Complex/formal occupations (+15)
+  const complex = ['scholar', 'noble', 'merchant', 'diplomat', 'priest',
+    'priestess', 'wizard', 'mage', 'professor', 'philosopher', 'judge',
+    'lawyer', 'doctor', 'physician', 'alchemist', 'scribe', 'advisor',
+    'councilor', 'mayor', 'governor', 'king', 'queen', 'prince', 'princess',
+    'lord', 'lady', 'senator', 'magistrate'];
+  if (complex.some(o => lower.includes(o))) return 15;
+
+  return 0;
+}
+
+/**
+ * Build the player proficiency section of a system prompt.
+ * Adapts NPC dialogue complexity based on the player's current language level.
+ */
+export function buildPlayerProficiencySection(
+  proficiency: PlayerProficiency,
+  targetLanguage: string,
+  npcOccupation?: string | null
+): string {
+  const { overallFluency, vocabularyCount, masteredWordCount, weakGrammarPatterns, strongGrammarPatterns, conversationCount } = proficiency;
+
+  // Compute effective difficulty: player fluency adjusted by NPC occupation
+  const occupationMod = getOccupationDifficultyModifier(npcOccupation);
+  const effectiveFluency = Math.max(0, Math.min(100, overallFluency + occupationMod));
+
+  let section = `\nPLAYER LANGUAGE PROFICIENCY (${targetLanguage}):\n`;
+  section += `- Fluency: ${overallFluency.toFixed(0)}/100\n`;
+  section += `- Vocabulary: ${vocabularyCount} words encountered, ${masteredWordCount} mastered\n`;
+  section += `- Conversations completed: ${conversationCount}\n`;
+
+  if (weakGrammarPatterns.length > 0) {
+    section += `- Struggling with: ${weakGrammarPatterns.slice(0, 3).join(', ')}\n`;
+  }
+  if (strongGrammarPatterns.length > 0) {
+    section += `- Good at: ${strongGrammarPatterns.slice(0, 3).join(', ')}\n`;
+  }
+
+  // Add occupation-based difficulty note
+  if (occupationMod < 0) {
+    section += `\nAs a ${npcOccupation}, you are naturally patient and accommodating with language learners. Simplify your speech more than usual.\n`;
+  } else if (occupationMod > 0) {
+    section += `\nAs a ${npcOccupation}, you naturally use formal and complex language. You may be less accommodating but still helpful.\n`;
+  }
+
+  section += `\nADAPTIVE DIALOGUE RULES:\n`;
+
+  if (effectiveFluency < 20) {
+    // Beginner tier
+    section += `This player is a BEGINNER. You MUST:\n`;
+    section += `- Use 80-90% English in your responses\n`;
+    section += `- Introduce only 1-2 new ${targetLanguage} words per message\n`;
+    section += `- Always provide English translations immediately after ${targetLanguage} words\n`;
+    section += `- Use very short, simple sentences (5-7 words)\n`;
+    section += `- Be extremely encouraging and patient — celebrate every attempt\n`;
+    section += `- Repeat key vocabulary multiple times naturally\n`;
+    section += `- If the player seems confused, offer hints in English\n`;
+    section += `- Speak slowly: use short sentences separated by periods, not long compound sentences\n`;
+    section += `- Use gestures and body language descriptions (e.g., *points to the bread* "This is 'pain'!")\n`;
+  } else if (effectiveFluency < 40) {
+    // Elementary tier
+    section += `This player is at an ELEMENTARY level. You should:\n`;
+    section += `- Use 30-40% ${targetLanguage} in your responses\n`;
+    section += `- Introduce 2-4 new words per message\n`;
+    section += `- Use short sentences in ${targetLanguage} with English translations nearby\n`;
+    section += `- Gently correct 1 grammar error per message (don't overwhelm)\n`;
+    section += `- Be warm and encouraging\n`;
+    section += `- Use common everyday vocabulary\n`;
+  } else if (effectiveFluency < 60) {
+    // Intermediate tier
+    section += `This player is at an INTERMEDIATE level. You should:\n`;
+    section += `- Use 50-70% ${targetLanguage} in your responses\n`;
+    section += `- Use full sentences in ${targetLanguage}\n`;
+    section += `- Introduce 3-5 new words, including some idiomatic expressions\n`;
+    section += `- Correct up to 2 grammar errors per message with brief explanations\n`;
+    section += `- Only translate unusual or new words to English\n`;
+    section += `- Begin using more complex sentence structures\n`;
+  } else if (effectiveFluency < 80) {
+    // Advanced tier
+    section += `This player is at an ADVANCED level. You should:\n`;
+    section += `- Use 80-95% ${targetLanguage} in your responses\n`;
+    section += `- Speak naturally with idioms, humor, and cultural references\n`;
+    section += `- Correct all grammar errors with detailed explanations\n`;
+    section += `- Only use English for truly complex explanations\n`;
+    section += `- Challenge the player with varied vocabulary and structures\n`;
+    section += `- Speak at natural speed — use longer, complex sentences\n`;
+    section += `- You may playfully challenge or tease the player about mistakes\n`;
+  } else {
+    // Near-native tier
+    section += `This player is NEAR-NATIVE. You should:\n`;
+    section += `- Use 100% ${targetLanguage} in your responses\n`;
+    section += `- Speak at full natural complexity with slang and colloquialisms\n`;
+    section += `- Discuss nuanced topics, wordplay, and cultural subtleties\n`;
+    section += `- Only correct subtle errors or offer style improvements\n`;
+    section += `- Treat them as a fellow speaker, not a learner\n`;
+    section += `- Speak at full natural speed with no simplification\n`;
+  }
+
+  // Target weak patterns
+  if (weakGrammarPatterns.length > 0 && effectiveFluency >= 20) {
+    section += `\nFOCUS AREA: The player struggles with ${weakGrammarPatterns.slice(0, 2).join(' and ')}. `;
+    section += `Try to naturally use these patterns in your speech so the player can learn by example.\n`;
+  }
+
+  // Avoid re-teaching mastered patterns
+  if (strongGrammarPatterns.length > 0) {
+    section += `The player has mastered: ${strongGrammarPatterns.join(', ')}. Don't over-explain these.\n`;
+  }
+
+  return section;
+}
+
+/**
  * Build the full language-aware system prompt for character dialogue.
  * This replaces the hardcoded French/English system prompt builder.
  */
@@ -570,7 +712,8 @@ export function buildLanguageAwareSystemPrompt(
   character: CharacterInfo,
   truths: Truth[],
   worldContext?: WorldLanguageContext,
-  worldInfo?: { id: string; name: string; worldType?: string; gameType?: string; description?: string; targetLanguage?: string }
+  worldInfo?: { id: string; name: string; worldType?: string; gameType?: string; description?: string; targetLanguage?: string },
+  playerProficiency?: PlayerProficiency
 ): string {
   const presentTruths = truths.filter(t => t.timestep === 0);
   const fluencies = extractLanguageFluencies(truths);
@@ -598,6 +741,12 @@ ${buildLanguageSection(fluencies, worldContext?.targetLanguage)}
       worldContext.targetLanguage,
       worldContext.primaryLanguage
     );
+    prompt += '\n';
+  }
+
+  // Add player proficiency section for language-learning games
+  if (isLanguageLearning && playerProficiency && worldContext?.targetLanguage && worldContext.targetLanguage !== 'English') {
+    prompt += buildPlayerProficiencySection(playerProficiency, worldContext.targetLanguage, occupation);
     prompt += '\n';
   }
 

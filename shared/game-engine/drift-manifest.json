@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-10T09:38:35.006Z",
+  "lastUpdated": "2026-03-11T02:51:22.839Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -194,7 +194,7 @@
     {
       "path": "client/src/components/3DGame/ProceduralBuildingGenerator.ts",
       "description": "Procedural building placement and geometry. Changes affect world-generator templates.",
-      "hash": "e59abb851f4de11bb90b6d790c84f1c41294f8e2db98670b816e72119728658e",
+      "hash": "f8b8a15873067f867ed913ff029e5e739b26c3766e7a27561eb7baee1014e5e8",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -392,7 +392,7 @@
     {
       "path": "client/src/components/3DGame/QuestObjectManager.ts",
       "description": "Quest object lifecycle: 15 objective types, collectible tracking, completion logic. New objective types need handling in exported quest systems.",
-      "hash": "514b4b66bcdb26f94cbf631397573ae3e5b0c11ffe7d87a4b159bb34bd527631",
+      "hash": "3be2d49e3fdd3e5ec3b5067407aa19ccde3686946dac14f252e7735268247eeb",
       "engineMappings": [
         {
           "engine": "unreal",

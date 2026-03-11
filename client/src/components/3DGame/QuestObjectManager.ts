@@ -26,7 +26,15 @@ export type QuestObjectiveType =
   | 'escort_npc'        // Escort NPC to destination
   | 'deliver_item'      // Deliver item to NPC/location
   | 'craft_item'        // Craft specific items
-  | 'gain_reputation';  // Gain reputation with faction
+  | 'gain_reputation'    // Gain reputation with faction
+  // Language learning — structured exercises
+  | 'identify_object'   // Visual vocabulary: identify an object by its target-language name
+  | 'follow_directions' // Follow multi-step instructions given in the target language
+  | 'find_vocabulary_items' // Scavenger hunt: find objects matching target-language words
+  // Language learning — advanced exercises
+  | 'listening_comprehension' // Listen to NPC speech, answer comprehension questions
+  | 'translation_challenge'   // Translate text between languages
+  | 'navigate_language';      // Navigate the world following target-language directions
 
 export interface QuestObjective {
   id: string;
@@ -82,6 +90,39 @@ export interface QuestObjective {
   factionId?: string;
   reputationGained?: number;
   reputationRequired?: number;
+
+  // For language learning exercises
+  targetLanguageWord?: string;  // The word in the target language to identify/find
+  englishMeaning?: string;      // English translation for hint
+  vocabularyList?: { word: string; meaning: string }[];  // For scavenger hunts
+  stepsCompleted?: number;      // For follow_directions / navigate_language
+  stepsRequired?: number;       // For follow_directions / navigate_language
+  directionSteps?: { instruction: string; targetPosition?: Vector3 }[];  // Multi-step directions
+
+  // For listening_comprehension
+  listeningStoryNpcId?: string;       // NPC who tells the story
+  comprehensionQuestions?: { question: string; correctAnswer: string }[];
+  questionsAnswered?: number;
+  questionsCorrect?: number;
+
+  // For translation_challenge
+  translationPhrases?: { source: string; expected: string; language: string }[];
+  translationsCompleted?: number;
+  translationsCorrect?: number;
+
+  // For navigate_language
+  navigationInstructions?: string;   // Full instruction text in target language
+  navigationWaypoints?: { instruction: string; targetPosition?: Vector3 }[];
+  waypointsReached?: number;
+
+  // Advanced follow_directions / navigate_language
+  timeLimitSeconds?: number;         // Time limit for completing the objective
+  startedAt?: number;                // Timestamp when objective was started (ms)
+  hintsRequested?: number;           // Number of English hints requested
+  showWaypoint?: boolean;            // Whether GPS-style waypoint is shown (only on hint request)
+
+  // For scavenger hunt category rotation
+  vocabularyCategory?: string;       // Current category for vocabulary scavenger hunt
 }
 
 export interface Quest {
@@ -122,6 +163,7 @@ export class QuestObjectManager {
   private onObjectCollected?: (questId: string, objectiveId: string) => void;
   private onLocationVisited?: (questId: string, objectiveId: string) => void;
   private onObjectiveCompleted?: (questId: string, objectiveId: string) => void;
+  private onStoryTTS?: (text: string, npcId?: string) => void;
 
   constructor(scene: Scene) {
     this.scene = scene;
@@ -318,6 +360,124 @@ export class QuestObjectManager {
       });
     }
 
+    // Check for identify_object objectives (visual vocabulary)
+    if (quest.completionCriteria?.type === 'identify_object') {
+      const items = quest.completionCriteria.objects || [];
+      items.forEach((obj: any, index: number) => {
+        objectives.push({
+          id: `${quest.id}_identify_${index}`,
+          questId: quest.id,
+          type: 'identify_object',
+          description: obj.description || `Find the "${obj.targetWord}"`,
+          completed: false,
+          targetLanguageWord: obj.targetWord,
+          englishMeaning: obj.meaning,
+          itemName: obj.meaning, // Use English name for label matching
+          spawnPositions: this.generateSpawnPositions(1),
+        });
+      });
+    }
+
+    // Check for follow_directions objectives
+    if (quest.completionCriteria?.type === 'follow_directions') {
+      const steps = quest.completionCriteria.steps || [];
+      objectives.push({
+        id: `${quest.id}_directions`,
+        questId: quest.id,
+        type: 'follow_directions',
+        description: quest.completionCriteria.description || 'Follow the directions',
+        completed: false,
+        stepsCompleted: 0,
+        stepsRequired: steps.length || 1,
+        directionSteps: steps.map((step: any) => ({
+          instruction: step.instruction,
+          targetPosition: step.x !== undefined ? new Vector3(step.x, 0, step.z) : this.generateLocationPosition(),
+        })),
+      });
+    }
+
+    // Check for find_vocabulary_items objectives (scavenger hunt)
+    if (quest.completionCriteria?.type === 'find_vocabulary_items') {
+      const vocabList: { word: string; meaning: string }[] = quest.completionCriteria.vocabularyList || [];
+      vocabList.forEach((item, index) => {
+        objectives.push({
+          id: `${quest.id}_vocab_find_${index}`,
+          questId: quest.id,
+          type: 'find_vocabulary_items',
+          description: `Find: "${item.word}" (${item.meaning})`,
+          completed: false,
+          targetLanguageWord: item.word,
+          englishMeaning: item.meaning,
+          itemName: item.meaning,
+          spawnPositions: this.generateSpawnPositions(1),
+        });
+      });
+    }
+
+    // Check for listening_comprehension objectives
+    if (quest.completionCriteria?.type === 'listening_comprehension') {
+      const questions = quest.completionCriteria.questions || [];
+      objectives.push({
+        id: `${quest.id}_listening`,
+        questId: quest.id,
+        type: 'listening_comprehension',
+        description: quest.completionCriteria.description || 'Listen to the NPC and answer questions',
+        completed: false,
+        listeningStoryNpcId: quest.completionCriteria.storyNpcId || quest.assignedByCharacterId,
+        comprehensionQuestions: questions.map((q: any) => ({
+          question: q.question,
+          correctAnswer: q.correctAnswer || q.answer,
+        })),
+        questionsAnswered: 0,
+        questionsCorrect: 0,
+        requiredCount: questions.length || 3,
+        currentCount: 0,
+        npcId: quest.completionCriteria.answerNpcId || quest.completionCriteria.storyNpcId,
+        npcName: quest.completionCriteria.answerNpcName,
+      });
+    }
+
+    // Check for translation_challenge objectives
+    if (quest.completionCriteria?.type === 'translation_challenge') {
+      const phrases = quest.completionCriteria.phrases || [];
+      objectives.push({
+        id: `${quest.id}_translation`,
+        questId: quest.id,
+        type: 'translation_challenge',
+        description: quest.completionCriteria.description || 'Translate the phrases',
+        completed: false,
+        translationPhrases: phrases.map((p: any) => ({
+          source: p.source || p.text,
+          expected: p.expected || p.translation,
+          language: p.language || 'target',
+        })),
+        translationsCompleted: 0,
+        translationsCorrect: 0,
+        requiredCount: phrases.length || 3,
+        currentCount: 0,
+      });
+    }
+
+    // Check for navigate_language objectives
+    if (quest.completionCriteria?.type === 'navigate_language') {
+      const waypoints = quest.completionCriteria.waypoints || quest.completionCriteria.steps || [];
+      objectives.push({
+        id: `${quest.id}_navigate`,
+        questId: quest.id,
+        type: 'navigate_language',
+        description: quest.completionCriteria.description || 'Follow directions in the target language',
+        completed: false,
+        navigationInstructions: quest.completionCriteria.instructions,
+        navigationWaypoints: waypoints.map((wp: any) => ({
+          instruction: wp.instruction || wp.direction,
+          targetPosition: wp.x !== undefined ? new Vector3(wp.x, 0, wp.z) : this.generateLocationPosition(),
+        })),
+        waypointsReached: 0,
+        stepsCompleted: 0,
+        stepsRequired: waypoints.length || 1,
+      });
+    }
+
     // Check for NPC talk objectives
     if (quest.assignedByCharacterId) {
       objectives.push({
@@ -446,6 +606,31 @@ export class QuestObjectManager {
             completed: obj.isCompleted || false,
             arrived: false,
           });
+        } else if (desc.includes('identify') || desc.includes('point to') || desc.includes('show me')) {
+          // Visual vocabulary / identify object
+          objectives.push({
+            id: `${quest.id}_obj_${index}`,
+            questId: quest.id,
+            type: 'identify_object',
+            description: obj.description,
+            completed: obj.isCompleted || false,
+            targetLanguageWord: obj.targetWord || obj.vocabularyWords?.[0],
+            englishMeaning: obj.meaning,
+            spawnPositions: this.generateSpawnPositions(1),
+          });
+        } else if (desc.includes('follow') && (desc.includes('direction') || desc.includes('instruction') || desc.includes('path'))) {
+          // Follow directions
+          objectives.push({
+            id: `${quest.id}_obj_${index}`,
+            questId: quest.id,
+            type: 'follow_directions',
+            description: obj.description,
+            completed: obj.isCompleted || false,
+            stepsCompleted: 0,
+            stepsRequired: obj.required || 1,
+            locationPosition: this.generateLocationPosition(),
+            locationRadius: 5,
+          });
         }
       });
     }
@@ -477,6 +662,35 @@ export class QuestObjectManager {
       case 'complete_conversation':
         // These are tracked through conversation, no physical spawn
         console.log(`Quest objective: ${objective.description}`);
+        break;
+
+      case 'identify_object':
+      case 'find_vocabulary_items':
+        // Spawn labeled collectible items with target-language labels
+        this.spawnVocabularyItem(objective);
+        break;
+
+      case 'follow_directions':
+        // Spawn waypoint markers for direction steps
+        this.spawnDirectionWaypoints(objective);
+        break;
+
+      case 'listening_comprehension':
+        // Trigger TTS for the story text when the objective starts
+        if (this.onStoryTTS && objective.description) {
+          this.onStoryTTS(objective.description, objective.listeningStoryNpcId);
+        }
+        console.log(`[QuestObjectManager] listening_comprehension objective: ${objective.description}`);
+        break;
+
+      case 'translation_challenge':
+        // These are conversation-based, no physical spawn needed
+        console.log(`[QuestObjectManager] ${objective.type} objective: ${objective.description}`);
+        break;
+
+      case 'navigate_language':
+        // Spawn navigation waypoints (reuses direction waypoint visuals with blue color)
+        this.spawnNavigationWaypoints(objective);
         break;
     }
   }
@@ -679,6 +893,191 @@ export class QuestObjectManager {
     this.scene.beginAnimation(beacon, 0, 60, true);
 
     this.locationMarkers.set(markerId, beacon);
+  }
+
+  /**
+   * Spawn a vocabulary-labeled collectible for visual vocab / scavenger hunt quests.
+   * Shows the target-language word as the label — player must identify the correct object.
+   */
+  private spawnVocabularyItem(objective: QuestObjective) {
+    const positions = objective.spawnPositions || this.generateSpawnPositions(1);
+    const word = objective.targetLanguageWord || objective.itemName || '???';
+    const meaning = objective.englishMeaning || '';
+
+    positions.forEach((position, index) => {
+      const itemId = `${objective.id}_vocabitem_${index}`;
+
+      // Create a glowing sphere with vocabulary label
+      const item = MeshBuilder.CreateSphere(
+        `vocab_item_${itemId}`,
+        { diameter: 0.7, segments: 16 },
+        this.scene
+      );
+      item.position = position;
+
+      // Purple-ish material for vocabulary items (distinct from golden quest items)
+      const material = new StandardMaterial(`vocab_item_mat_${itemId}`, this.scene);
+      material.diffuseColor = new Color3(0.6, 0.3, 0.9);
+      material.emissiveColor = new Color3(0.3, 0.15, 0.45);
+      material.alpha = 0.9;
+      item.material = material;
+
+      // Floating animation
+      const floatAnim = new Animation(
+        `vocab_float_${itemId}`, 'position.y', 30,
+        Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CYCLE
+      );
+      const baseY = position.y;
+      floatAnim.setKeys([
+        { frame: 0, value: baseY },
+        { frame: 30, value: baseY + 0.25 },
+        { frame: 60, value: baseY }
+      ]);
+      item.animations.push(floatAnim);
+      this.scene.beginAnimation(item, 0, 60, true);
+
+      // Collision-based collection
+      item.actionManager = new ActionManager(this.scene);
+      item.actionManager.registerAction(
+        new ExecuteCodeAction(
+          { trigger: ActionManager.OnIntersectionEnterTrigger, parameter: { usePreciseIntersection: false } },
+          () => { this.collectItem(objective.questId, objective.id, itemId); }
+        )
+      );
+
+      // Target-language label (shows the foreign word — player identifies by meaning)
+      const advancedTexture = GUI.AdvancedDynamicTexture.CreateFullscreenUI(`vocab_ui_${itemId}`);
+      const label = new GUI.Rectangle(`vocab_label_${itemId}`);
+      label.width = '180px';
+      label.height = '50px';
+      label.cornerRadius = 8;
+      label.color = '#B388FF';
+      label.thickness = 2;
+      label.background = 'rgba(30, 0, 60, 0.85)';
+
+      const text = new GUI.TextBlock();
+      text.text = `📖 ${word}${meaning ? `\n(${meaning})` : ''}`;
+      text.color = '#E1BEE7';
+      text.fontSize = 12;
+      text.textWrapping = true;
+      label.addControl(text);
+
+      advancedTexture.addControl(label);
+      label.linkWithMesh(item);
+      label.linkOffsetY = -55;
+
+      this.questObjects.set(itemId, {
+        mesh: item,
+        label: advancedTexture,
+        questId: objective.questId,
+        objectiveId: objective.id,
+        type: objective.type,
+        isCollected: false,
+      });
+    });
+  }
+
+  /**
+   * Spawn waypoint markers for follow-directions quests.
+   * Each direction step gets a beacon the player must reach in order.
+   */
+  private spawnDirectionWaypoints(objective: QuestObjective) {
+    // Start the timer if a time limit is set
+    if (objective.timeLimitSeconds && !objective.startedAt) {
+      objective.startedAt = Date.now();
+    }
+
+    const steps = objective.directionSteps || [];
+    if (steps.length === 0 && objective.locationPosition) {
+      // Single-step fallback: just one location marker
+      this.spawnLocationMarker({
+        ...objective,
+        type: 'visit_location',
+      });
+      return;
+    }
+
+    // Spawn the first step's waypoint (subsequent ones spawn as the player completes each step)
+    if (steps.length > 0 && steps[0].targetPosition) {
+      const step = steps[0];
+      const markerId = `${objective.id}_step_0`;
+
+      const beacon = MeshBuilder.CreateCylinder(
+        `direction_beacon_${markerId}`,
+        { height: 8, diameter: 1.5, tessellation: 24 },
+        this.scene
+      );
+      beacon.position = step.targetPosition!.clone();
+      beacon.position.y += 4;
+
+      // Green material for direction waypoints
+      const material = new StandardMaterial(`direction_mat_${markerId}`, this.scene);
+      material.diffuseColor = new Color3(0.2, 0.9, 0.4);
+      material.emissiveColor = new Color3(0.1, 0.45, 0.2);
+      material.alpha = 0.35;
+      beacon.material = material;
+
+      // Pulsing animation
+      const pulseAnim = new Animation(
+        `direction_pulse_${markerId}`, 'material.alpha', 30,
+        Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CYCLE
+      );
+      pulseAnim.setKeys([
+        { frame: 0, value: 0.2 },
+        { frame: 30, value: 0.5 },
+        { frame: 60, value: 0.2 }
+      ]);
+      beacon.animations.push(pulseAnim);
+      this.scene.beginAnimation(beacon, 0, 60, true);
+
+      this.locationMarkers.set(markerId, beacon);
+
+      console.log(`[QuestObjectManager] Direction waypoint spawned for step 0: "${step.instruction}"`);
+    }
+  }
+
+  /**
+   * Spawn navigation waypoints for navigate_language objectives (blue beacons)
+   */
+  private spawnNavigationWaypoints(objective: QuestObjective) {
+    const waypoints = objective.navigationWaypoints || [];
+    if (waypoints.length === 0) return;
+
+    // Spawn the first waypoint (subsequent ones spawn as player reaches each one)
+    const wp = waypoints[0];
+    if (!wp.targetPosition) return;
+
+    const markerId = `${objective.id}_nav_0`;
+    const beacon = MeshBuilder.CreateCylinder(
+      `nav_beacon_${markerId}`,
+      { height: 8, diameter: 1.5, tessellation: 24 },
+      this.scene
+    );
+    beacon.position = wp.targetPosition.clone();
+    beacon.position.y += 4;
+
+    // Blue material for navigation waypoints
+    const material = new StandardMaterial(`nav_mat_${markerId}`, this.scene);
+    material.diffuseColor = new Color3(0.2, 0.5, 0.95);
+    material.emissiveColor = new Color3(0.1, 0.25, 0.5);
+    material.alpha = 0.35;
+    beacon.material = material;
+
+    // Pulsing animation
+    const pulseAnim = new Animation(
+      `nav_pulse_${markerId}`, 'material.alpha', 30,
+      Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CYCLE
+    );
+    pulseAnim.setKeys([
+      { frame: 0, value: 0.2 },
+      { frame: 30, value: 0.5 },
+      { frame: 60, value: 0.2 }
+    ]);
+    beacon.animations.push(pulseAnim);
+    this.scene.beginAnimation(beacon, 0, 60, true);
+
+    this.locationMarkers.set(markerId, beacon);
+    console.log(`[QuestObjectManager] Navigation waypoint spawned for step 0: "${wp.instruction}"`);
   }
 
   /**
@@ -995,6 +1394,14 @@ export class QuestObjectManager {
   }
 
   /**
+   * Set callback for when a listening comprehension story should be spoken via TTS.
+   * Called when a listening_comprehension objective is spawned.
+   */
+  public setOnStoryTTS(callback: (text: string, npcId?: string) => void) {
+    this.onStoryTTS = callback;
+  }
+
+  /**
    * Track enemy defeat for combat quests
    */
   public trackEnemyDefeat(enemyType: string, questId?: string) {
@@ -1094,6 +1501,211 @@ export class QuestObjectManager {
         }
       });
     });
+  }
+
+  /**
+   * Track a listening comprehension answer.
+   * The AI evaluates whether the player's answer demonstrates comprehension.
+   * @param isCorrect Whether the AI determined the answer was correct
+   */
+  public trackListeningAnswer(isCorrect: boolean, questId?: string) {
+    this.activeQuests.forEach(quest => {
+      if (questId && quest.id !== questId) return;
+
+      quest.objectives?.forEach(objective => {
+        if (objective.type === 'listening_comprehension' && !objective.completed) {
+          objective.questionsAnswered = (objective.questionsAnswered || 0) + 1;
+          if (isCorrect) {
+            objective.questionsCorrect = (objective.questionsCorrect || 0) + 1;
+          }
+          objective.currentCount = objective.questionsAnswered;
+
+          const required = objective.requiredCount || objective.comprehensionQuestions?.length || 3;
+          if (objective.questionsCorrect! >= required) {
+            this.completeObjective(quest.id, objective.id);
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Track a translation challenge attempt.
+   * The AI evaluates translation accuracy.
+   * @param isCorrect Whether the translation was accepted
+   */
+  public trackTranslationAttempt(isCorrect: boolean, questId?: string) {
+    this.activeQuests.forEach(quest => {
+      if (questId && quest.id !== questId) return;
+
+      quest.objectives?.forEach(objective => {
+        if (objective.type === 'translation_challenge' && !objective.completed) {
+          if (isCorrect) {
+            objective.translationsCorrect = (objective.translationsCorrect || 0) + 1;
+          }
+          objective.translationsCompleted = (objective.translationsCompleted || 0) + 1;
+          objective.currentCount = objective.translationsCorrect || 0;
+
+          const required = objective.requiredCount || objective.translationPhrases?.length || 3;
+          if (objective.translationsCorrect! >= required) {
+            this.completeObjective(quest.id, objective.id);
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Track navigation waypoint arrival for navigate_language objectives.
+   * Called when the player reaches a waypoint position.
+   */
+  public trackNavigationWaypoint(questId?: string) {
+    this.activeQuests.forEach(quest => {
+      if (questId && quest.id !== questId) return;
+
+      quest.objectives?.forEach(objective => {
+        if (objective.type === 'navigate_language' && !objective.completed) {
+          objective.waypointsReached = (objective.waypointsReached || 0) + 1;
+          objective.stepsCompleted = objective.waypointsReached;
+
+          const waypoints = objective.navigationWaypoints || [];
+          const nextIdx = objective.waypointsReached;
+
+          // Remove current waypoint marker
+          const prevMarkerId = `${objective.id}_nav_${nextIdx - 1}`;
+          const prevMarker = this.locationMarkers.get(prevMarkerId);
+          if (prevMarker) {
+            prevMarker.dispose();
+            this.locationMarkers.delete(prevMarkerId);
+          }
+
+          if (nextIdx >= (objective.stepsRequired || waypoints.length)) {
+            // All waypoints reached
+            this.completeObjective(quest.id, objective.id);
+          } else if (nextIdx < waypoints.length && waypoints[nextIdx].targetPosition) {
+            // Spawn next waypoint
+            const wp = waypoints[nextIdx];
+            const markerId = `${objective.id}_nav_${nextIdx}`;
+            const beacon = MeshBuilder.CreateCylinder(
+              `nav_beacon_${markerId}`,
+              { height: 8, diameter: 1.5, tessellation: 24 },
+              this.scene
+            );
+            beacon.position = wp.targetPosition!.clone();
+            beacon.position.y += 4;
+
+            const material = new StandardMaterial(`nav_mat_${markerId}`, this.scene);
+            material.diffuseColor = new Color3(0.2, 0.5, 0.95);
+            material.emissiveColor = new Color3(0.1, 0.25, 0.5);
+            material.alpha = 0.35;
+            beacon.material = material;
+
+            const pulseAnim = new Animation(
+              `nav_pulse_${markerId}`, 'material.alpha', 30,
+              Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CYCLE
+            );
+            pulseAnim.setKeys([
+              { frame: 0, value: 0.2 },
+              { frame: 30, value: 0.5 },
+              { frame: 60, value: 0.2 }
+            ]);
+            beacon.animations.push(pulseAnim);
+            this.scene.beginAnimation(beacon, 0, 60, true);
+
+            this.locationMarkers.set(markerId, beacon);
+            console.log(`[QuestObjectManager] Next navigation waypoint: step ${nextIdx} "${wp.instruction}"`);
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Check if any timed objectives have expired and mark them failed.
+   * Should be called periodically (e.g., each game tick or every few seconds).
+   * Returns descriptions of any expired objectives for UI notification.
+   */
+  public checkTimedObjectives(): string[] {
+    const expired: string[] = [];
+    const now = Date.now();
+
+    this.activeQuests.forEach(quest => {
+      quest.objectives?.forEach(objective => {
+        if (objective.completed) return;
+        if (!objective.timeLimitSeconds || !objective.startedAt) return;
+
+        const elapsedSec = (now - objective.startedAt) / 1000;
+        if (elapsedSec > objective.timeLimitSeconds) {
+          objective.completed = true;
+          expired.push(`Time expired: ${objective.description}`);
+          console.log(`[QuestObjectManager] Timed objective expired: ${objective.id}`);
+        }
+      });
+    });
+
+    return expired;
+  }
+
+  /**
+   * Get remaining time for a timed objective in seconds, or null if untimed.
+   */
+  public getObjectiveTimeRemaining(objectiveId: string): number | null {
+    for (const quest of this.activeQuests) {
+      const obj = quest.objectives?.find(o => o.id === objectiveId);
+      if (obj?.timeLimitSeconds && obj.startedAt) {
+        const elapsed = (Date.now() - obj.startedAt) / 1000;
+        return Math.max(0, obj.timeLimitSeconds - elapsed);
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Request a GPS-style waypoint hint for a navigate_language or follow_directions objective.
+   * Only shows the next waypoint if not already shown. Increments hint counter.
+   * Returns the English hint text, or null if no hint available.
+   */
+  public requestNavigationHint(questId?: string): string | null {
+    for (const quest of this.activeQuests) {
+      if (questId && quest.id !== questId) continue;
+
+      for (const objective of (quest.objectives || [])) {
+        if (objective.completed) continue;
+        if (objective.type !== 'navigate_language' && objective.type !== 'follow_directions') continue;
+
+        objective.hintsRequested = (objective.hintsRequested || 0) + 1;
+        objective.showWaypoint = true;
+
+        // Return the English meaning of the current step
+        const steps = objective.type === 'navigate_language'
+          ? objective.navigationWaypoints
+          : objective.directionSteps;
+        const currentStep = (objective.stepsCompleted || 0);
+        if (steps && currentStep < steps.length) {
+          return steps[currentStep].instruction;
+        }
+        return objective.englishMeaning || objective.description;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Get the current vocabulary category for a scavenger hunt objective.
+   * Categories rotate each time a scavenger hunt quest is completed.
+   */
+  public static readonly SCAVENGER_CATEGORIES = [
+    'food', 'colors', 'animals', 'clothing', 'household',
+    'nature', 'body', 'professions', 'transportation', 'weather'
+  ];
+
+  /**
+   * Get the next scavenger hunt category, rotating through the list.
+   * Pass the index of the last completed category (or -1 for first).
+   */
+  public static getNextScavengerCategory(lastCategoryIndex: number): string {
+    const cats = QuestObjectManager.SCAVENGER_CATEGORIES;
+    return cats[(lastCategoryIndex + 1) % cats.length];
   }
 
   /**

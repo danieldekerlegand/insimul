@@ -387,6 +387,24 @@ export class BabylonQuestTracker {
           return Math.min(progress.messagesCount / criteria.requiredMessages, 1);
         }
         break;
+
+      case 'listening_comprehension':
+        if (criteria.questions?.length && progress.questionsCorrect !== undefined) {
+          return Math.min(progress.questionsCorrect / criteria.questions.length, 1);
+        }
+        break;
+
+      case 'translation_challenge':
+        if (criteria.phrases?.length && progress.translationsCorrect !== undefined) {
+          return Math.min(progress.translationsCorrect / criteria.phrases.length, 1);
+        }
+        break;
+
+      case 'navigate_language':
+        if (criteria.waypoints?.length && progress.waypointsReached !== undefined) {
+          return Math.min(progress.waypointsReached / criteria.waypoints.length, 1);
+        }
+        break;
     }
 
     return null;
@@ -400,6 +418,9 @@ export class BabylonQuestTracker {
       case 'vocabulary': return '📚';
       case 'grammar': return '📝';
       case 'cultural': return '🌍';
+      case 'listening_comprehension': return '🎧';
+      case 'translation_challenge': return '🔄';
+      case 'navigation': return '🧭';
 
       // RPG
       case 'combat': return '⚔️';

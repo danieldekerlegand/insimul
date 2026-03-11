@@ -381,8 +381,8 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
   const [inputMode, setInputMode] = useState<'preset' | 'custom'>('preset');
   const [selectedWorldType, setSelectedWorldType] = useState(WORLD_TYPES[0].value);
   const [selectedGameType, setSelectedGameType] = useState<string | undefined>(undefined);
-  const [targetLanguage, setTargetLanguage] = useState<string | undefined>(undefined);
   const [worldLanguages, setWorldLanguages] = useState<string[]>([]);
+  const [learningTargetLanguage, setLearningTargetLanguage] = useState<string | undefined>(undefined);
   const [customPrompt, setCustomPrompt] = useState('');
   const [customLabel, setCustomLabel] = useState('');
 
@@ -427,7 +427,12 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
     });
   };
 
+  // Validation: language-learning worlds must have a learning target language
+  const missingLearningTarget = selectedGameType === 'language-learning' && !learningTargetLanguage;
+
   const handleSubmit = (data: CreateWorldForm) => {
+    if (missingLearningTarget) return;
+
     const generateContent = creationMode === 'procedural';
     const worldType = inputMode === 'preset' ? selectedWorldType : undefined;
     const prompt = inputMode === 'custom' ? customPrompt : undefined;
@@ -444,8 +449,8 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
     }
 
     // Add target language for language-learning worlds (deprecated field, kept for backward compat)
-    if (selectedGameType === 'language-learning' && targetLanguage) {
-      data.targetLanguage = targetLanguage;
+    if (selectedGameType === 'language-learning' && learningTargetLanguage) {
+      data.targetLanguage = learningTargetLanguage;
     }
 
     // Add procedural generation config
@@ -458,6 +463,8 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
         countries: countryConfigs,
         // World languages to create as WorldLanguage records
         worldLanguages: worldLanguages.length > 0 ? worldLanguages : undefined,
+        // For language-learning worlds, specify which language is the learning target
+        learningTargetLanguage: selectedGameType === 'language-learning' ? learningTargetLanguage : undefined,
       };
     }
 
@@ -469,8 +476,8 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
     setInputMode('preset');
     setSelectedWorldType(WORLD_TYPES[0].value);
     setSelectedGameType(undefined);
-    setTargetLanguage(undefined);
     setWorldLanguages([]);
+    setLearningTargetLanguage(undefined);
     setCustomPrompt('');
     setCustomLabel('');
     setGenerateGeography(true);
@@ -650,28 +657,10 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
                   </SelectContent>
                 </Select>
                 {selectedGameType === 'language-learning' && (
-                  <div className="mt-3 space-y-3">
+                  <div className="mt-3">
                     <div className="p-3 bg-muted rounded-md">
                       <p className="text-sm text-muted-foreground">
-                        Language Learning worlds feature countries, cities, towns, and villages tailored for vocabulary and grammar practice in any language. Generate realistic or fictional locations optimized for immersive language acquisition.
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Target Language</Label>
-                      <Select value={targetLanguage} onValueChange={setTargetLanguage}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select target language" />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-[300px]">
-                          {LANGUAGES.map((lang) => (
-                            <SelectItem key={lang} value={lang}>
-                              {lang}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Choose the language learners will practice in this world
+                        Language Learning worlds feature immersive vocabulary and grammar practice. Set the learning target language in the <strong>World Languages</strong> section below.
                       </p>
                     </div>
                   </div>
@@ -690,6 +679,7 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
                 </CardTitle>
                 <CardDescription>
                   Languages spoken in this world. NPCs will use these in dialogue.
+                  {selectedGameType === 'language-learning' && ' Mark one language as the learning target.'}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -699,7 +689,12 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
                       value=""
                       onValueChange={(lang) => {
                         if (lang && !worldLanguages.includes(lang)) {
-                          setWorldLanguages([...worldLanguages, lang]);
+                          const updated = [...worldLanguages, lang];
+                          setWorldLanguages(updated);
+                          // Auto-select first language as learning target for language-learning worlds
+                          if (selectedGameType === 'language-learning' && !learningTargetLanguage) {
+                            setLearningTargetLanguage(lang);
+                          }
                         }
                       }}
                     >
@@ -720,13 +715,37 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
                       {worldLanguages.map((lang) => (
                         <span
                           key={lang}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-sm"
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-sm ${
+                            selectedGameType === 'language-learning' && learningTargetLanguage === lang
+                              ? 'bg-primary/20 border border-primary'
+                              : 'bg-muted'
+                          }`}
                         >
+                          {selectedGameType === 'language-learning' && (
+                            <button
+                              type="button"
+                              className="mr-1 text-xs"
+                              title="Set as learning target"
+                              onClick={() => setLearningTargetLanguage(lang)}
+                            >
+                              {learningTargetLanguage === lang ? '🎯' : '○'}
+                            </button>
+                          )}
                           {lang}
+                          {selectedGameType === 'language-learning' && learningTargetLanguage === lang && (
+                            <span className="text-xs text-primary ml-1">(target)</span>
+                          )}
                           <button
                             type="button"
                             className="ml-1 text-muted-foreground hover:text-foreground"
-                            onClick={() => setWorldLanguages(worldLanguages.filter(l => l !== lang))}
+                            onClick={() => {
+                              const updated = worldLanguages.filter(l => l !== lang);
+                              setWorldLanguages(updated);
+                              // If removing the learning target, auto-select the next one
+                              if (learningTargetLanguage === lang) {
+                                setLearningTargetLanguage(updated[0] || undefined);
+                              }
+                            }}
                           >
                             ×
                           </button>
@@ -735,8 +754,10 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
                     </div>
                   )}
                   {worldLanguages.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      No world languages selected. NPCs will speak English by default.
+                    <p className={`text-xs ${missingLearningTarget ? 'text-red-500 font-medium' : 'text-muted-foreground'}`}>
+                      {selectedGameType === 'language-learning'
+                        ? 'Add at least one language and mark it as the learning target.'
+                        : 'No world languages selected. NPCs will speak English by default.'}
                     </p>
                   )}
                 </div>
@@ -862,7 +883,7 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
             </Button>
             <Button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || missingLearningTarget}
               data-testid="button-submit-world"
             >
               {isLoading ? "Creating..." : "Create World"}

@@ -146,7 +146,8 @@ func _get_shared_material(key: String, color: Color) -> StandardMaterial3D:
 func generate_building(pos: Vector3, rotation_y: float, floors: int,
 		width: float, depth: float, role: String) -> void:
 
-	# Check for a registered role model first
+	# Check for a registered role model first.
+	# Uses full scene instantiation (not MultiMesh) for RTT/minimap compatibility.
 	if _role_model_prototypes.has(role):
 		var scene: PackedScene = _role_model_prototypes[role]
 		if scene != null:

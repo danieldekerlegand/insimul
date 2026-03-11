@@ -18,6 +18,8 @@ import {
   Mesh,
   MeshBuilder,
   StandardMaterial,
+  ActionManager as BabylonActionManager,
+  ExecuteCodeAction,
 } from '@babylonjs/core';
 import * as GUI from '@babylonjs/gui';
 import { VRUIPanel } from './VRUIPanel';
@@ -51,6 +53,9 @@ export class VRVocabularyLabels {
   private showNativeLanguage: boolean = false;
   private proximityRange: number = 5;
   private pointRevealEnabled: boolean = true;
+
+  // Callbacks
+  private onLabelClicked: ((entry: VocabularyEntry, id: string) => void) | null = null;
 
   // Target language
   private targetLanguage: string = '';
@@ -92,6 +97,21 @@ export class VRVocabularyLabels {
     ));
 
     panel.hide();
+
+    // Make mesh clickable — clicking adds word to vocabulary and fires callback
+    if (!mesh.actionManager) {
+      mesh.actionManager = new BabylonActionManager(this.scene);
+    }
+    mesh.actionManager.registerAction(
+      new ExecuteCodeAction(
+        BabylonActionManager.OnPickTrigger,
+        () => {
+          if (this.onLabelClicked) {
+            this.onLabelClicked(entry, id);
+          }
+        }
+      )
+    );
 
     this.labels.set(id, {
       mesh,
@@ -310,6 +330,14 @@ export class VRVocabularyLabels {
       case 'learning': return '#ffcc44';
       case 'mastered': return '#44cc44';
     }
+  }
+
+  /**
+   * Set callback for when a vocabulary label is clicked/interacted with.
+   * Fires with the VocabularyEntry and the object ID.
+   */
+  public setOnLabelClicked(callback: (entry: VocabularyEntry, id: string) => void): void {
+    this.onLabelClicked = callback;
   }
 
   /**

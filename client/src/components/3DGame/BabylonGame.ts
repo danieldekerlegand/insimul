@@ -9,12 +9,14 @@
 import {
   AbstractMesh,
   ArcRotateCamera,
+  Camera,
   Color3,
   Color4,
   DirectionalLight,
   DynamicTexture,
   Effect,
   Engine,
+  FreeCamera,
   HemisphericLight,
   Mesh,
   MeshBuilder,
@@ -29,6 +31,7 @@ import {
   Sound,
   StandardMaterial,
   Texture,
+  Tools,
   Vector3,
   Observer
 } from "@babylonjs/core";
@@ -77,6 +80,16 @@ import { VRUIPanel, VRHandMenu } from "@/components/3DGame/VRUIPanel.ts";
 import { VRInteractionManager } from "@/components/3DGame/VRInteractionManager.ts";
 import { VRHUDManager } from "@/components/3DGame/VRHUDManager.ts";
 import { VRCombatAdapter } from "@/components/3DGame/VRCombatAdapter.ts";
+import { BabylonVocabularyPanel } from "@/components/3DGame/BabylonVocabularyPanel.ts";
+import { BuildingSignManager, BuildingSignData } from "@/components/3DGame/BuildingSignManager.ts";
+import { LanguageGamificationTracker } from "@/components/3DGame/LanguageGamificationTracker.ts";
+import { BabylonConversationHistoryPanel } from "@/components/3DGame/BabylonConversationHistoryPanel.ts";
+import { BabylonSkillTreePanel } from "@/components/3DGame/BabylonSkillTreePanel.ts";
+import { EnvironmentalAudioManager } from "@/components/3DGame/EnvironmentalAudioManager.ts";
+import { CulturalEventManager } from "@/components/3DGame/CulturalEventManager.ts";
+import { BabylonNoticeBoardPanel } from "@/components/3DGame/BabylonNoticeBoardPanel.ts";
+import { ContentGatingManager } from "@/components/3DGame/ContentGatingManager.ts";
+import { generateQuestSuggestions, selectQuestForNPC } from "@/components/3DGame/DynamicQuestBoard.ts";
 import { VRChatPanel } from "@/components/3DGame/VRChatPanel.ts";
 import { VRVocabularyLabels } from "@/components/3DGame/VRVocabularyLabels.ts";
 import { VRHandTrackingManager } from "@/components/3DGame/VRHandTrackingManager.ts";
@@ -312,6 +325,15 @@ export class BabylonGame {
   private inventory: BabylonInventory | null = null;
   private shopPanel: BabylonShopPanel | null = null;
   private rulesPanel: BabylonRulesPanel | null = null;
+  private vocabularyPanel: BabylonVocabularyPanel | null = null;
+  private conversationHistoryPanel: BabylonConversationHistoryPanel | null = null;
+  private skillTreePanel: BabylonSkillTreePanel | null = null;
+  private buildingSignManager: BuildingSignManager | null = null;
+  private gamificationTracker: LanguageGamificationTracker | null = null;
+  private environmentalAudio: EnvironmentalAudioManager | null = null;
+  private culturalEventManager: CulturalEventManager | null = null;
+  private noticeBoardPanel: BabylonNoticeBoardPanel | null = null;
+  private contentGatingManager: ContentGatingManager | null = null;
   private ruleEnforcer: RuleEnforcer | null = null;
   private prologEngine: GamePrologEngine | null = null;
   private eventBus: GameEventBus = new GameEventBus();
@@ -1137,6 +1159,72 @@ export class BabylonGame {
         this.npcTalkingIndicator.updateText(this.conversationNPCId, text);
       }
     });
+    this.chatPanel.setOnFluencyGain((fluency: number, gain: number) => {
+      this.guiManager?.updateFluency(fluency, gain);
+    });
+    this.chatPanel.setOnConversationSummary((result: any) => {
+      // Calculate star rating: 1-5 based on composite score
+      const grammarStars = Math.ceil(result.grammarScore * 2.5); // 0-2.5
+      const fluencyStars = Math.min(2.5, result.gain); // 0-2.5
+      const stars = Math.max(1, Math.min(5, Math.round(grammarStars + fluencyStars)));
+      const starStr = '★'.repeat(stars) + '☆'.repeat(5 - stars);
+
+      // Build detailed description
+      const lines: string[] = [];
+      lines.push(`Fluency: +${result.gain.toFixed(2)} (${result.previousFluency.toFixed(0)}% → ${result.newFluency.toFixed(0)}%)`);
+
+      if (result.targetLanguagePercentage !== undefined) {
+        lines.push(`Target language: ${Math.round(result.targetLanguagePercentage)}%`);
+      }
+      if (result.grammarScore !== undefined) {
+        lines.push(`Grammar: ${Math.round(result.grammarScore * 100)}%`);
+      }
+      if (result.wordsLearned > 0) {
+        const wordList = result.newWordsList?.map((w: any) => w.word).slice(0, 5).join(', ') || '';
+        lines.push(`New words: ${result.wordsLearned}${wordList ? ` (${wordList})` : ''}`);
+      }
+      if (result.wordsReinforced > 0) {
+        lines.push(`Words practiced: ${result.wordsReinforced}`);
+      }
+      if (result.bonuses.length > 0) {
+        lines.push(result.bonuses.join(' • '));
+      }
+
+      // Feed conversation result to gamification tracker
+      this.gamificationTracker?.onConversationEnd(result);
+
+      // Update content gating based on new stats
+      if (this.contentGatingManager) {
+        const tracker = this.chatPanel?.getLanguageTracker();
+        const gamification = this.gamificationTracker;
+        if (tracker && gamification) {
+          const progress = tracker.getProgress();
+          const gState = gamification.getState();
+          this.contentGatingManager.updatePlayerProgress({
+            fluency: progress.overallFluency,
+            level: gState.xp.level,
+            wordsMastered: progress.vocabulary.filter(v => v.masteryLevel === 'mastered').length,
+            questsCompleted: gState.questsCompleted,
+          });
+        }
+      }
+
+      this.guiManager?.showToast({
+        title: `Conversation Complete ${starStr}`,
+        description: lines.join('\n'),
+      });
+    });
+
+    // Wire gamification to word/grammar events from chat panel
+    this.chatPanel.setOnNewWordLearned((entry: any) => {
+      this.gamificationTracker?.onNewWordLearned(entry);
+    });
+    this.chatPanel.setOnWordMastered((entry: any) => {
+      this.gamificationTracker?.onWordMastered(entry);
+    });
+    this.chatPanel.setOnGrammarFeedbackExternal((feedback: any) => {
+      this.gamificationTracker?.onGrammarFeedback(feedback);
+    });
 
     // Initialize quest tracker
     this.questTracker = new BabylonQuestTracker(this.guiManager.advancedTexture, scene);
@@ -1160,6 +1248,10 @@ export class BabylonGame {
     });
     this.questObjectManager.setOnObjectiveCompleted((questId, objectiveId) => {
       this.handleQuestObjectiveCompleted(questId, objectiveId, 'objective');
+    });
+    this.questObjectManager.setOnStoryTTS((text, _npcId) => {
+      // Speak the listening comprehension story text via TTS
+      this.chatPanel?.speakWord(text);
     });
 
     // Initialize quest indicator manager
@@ -1192,6 +1284,158 @@ export class BabylonGame {
 
     // Initialize rules panel
     this.rulesPanel = new BabylonRulesPanel(scene, this.guiManager.advancedTexture);
+
+    // Initialize vocabulary/grammar panel (V key)
+    this.vocabularyPanel = new BabylonVocabularyPanel(this.guiManager.advancedTexture);
+    this.vocabularyPanel.setOnClose(() => {
+      // Resume game input when panel closes
+    });
+    this.vocabularyPanel.setOnWordSpeak((word: string) => {
+      // Use TTS to pronounce the word
+      this.chatPanel?.speakWord(word);
+    });
+
+    // Initialize conversation history panel (H key)
+    this.conversationHistoryPanel = new BabylonConversationHistoryPanel(this.guiManager.advancedTexture);
+    this.conversationHistoryPanel.setOnClose(() => {});
+
+    // Initialize skill tree panel (K key)
+    this.skillTreePanel = new BabylonSkillTreePanel(this.guiManager.advancedTexture);
+    this.skillTreePanel.setOnClose(() => {});
+    this.skillTreePanel.setOnSkillUnlocked((node) => {
+      this.guiManager?.showToast({
+        title: `${node.icon} Skill Unlocked!`,
+        description: `${node.name}: ${node.description}`,
+        duration: 4000,
+      });
+    });
+
+    // Initialize environmental audio manager
+    this.environmentalAudio = new EnvironmentalAudioManager(scene);
+    this.environmentalAudio.setOnSubtitle((text, _translation, duration) => {
+      this.guiManager?.showToast({
+        title: text,
+        description: '',
+        duration,
+      });
+    });
+    this.environmentalAudio.start();
+
+    // Initialize cultural event manager
+    this.culturalEventManager = new CulturalEventManager();
+    this.culturalEventManager.setOnEventStart((event) => {
+      this.guiManager?.showToast({
+        title: `${event.targetLanguageName}`,
+        description: event.description,
+        duration: 6000,
+      });
+    });
+    this.culturalEventManager.setOnEventEnd((event) => {
+      this.guiManager?.showToast({
+        title: `${event.name} has ended`,
+        description: 'The celebration winds down...',
+        duration: 3000,
+      });
+    });
+    this.culturalEventManager.start();
+
+    // Initialize notice board panel (N key)
+    this.noticeBoardPanel = new BabylonNoticeBoardPanel(this.guiManager.advancedTexture);
+    this.noticeBoardPanel.setOnClose(() => {});
+    this.noticeBoardPanel.setOnWordClicked((word, meaning) => {
+      const tracker = this.chatPanel?.getLanguageTracker();
+      if (tracker) {
+        tracker.analyzeNPCResponse(word);
+      }
+      this.guiManager?.showToast({
+        title: word,
+        description: meaning,
+        duration: 2500,
+      });
+    });
+    this.noticeBoardPanel.setOnQuestionAnswered((correct, _articleId) => {
+      if (correct) {
+        this.gamificationTracker?.onQuestCompleted('cultural');
+        this.guiManager?.showToast({
+          title: 'Correct!',
+          description: 'Bonus XP earned for comprehension!',
+          duration: 3000,
+        });
+      } else {
+        this.guiManager?.showToast({
+          title: 'Not quite...',
+          description: 'Try reading the article again!',
+          duration: 3000,
+        });
+      }
+    });
+
+    // Initialize content gating manager (unlockable content by fluency/level)
+    this.contentGatingManager = new ContentGatingManager();
+    this.contentGatingManager.setOnContentUnlocked((gate) => {
+      this.guiManager?.showToast({
+        title: `Unlocked: ${gate.name}`,
+        description: gate.description,
+        duration: 4000,
+      });
+    });
+
+    // Initialize building sign manager for bilingual signage
+    this.buildingSignManager = new BuildingSignManager(scene);
+    this.buildingSignManager.setOnSignClicked((data) => {
+      // Add the word to vocabulary when player clicks a sign
+      const tracker = this.chatPanel?.getLanguageTracker();
+      if (tracker) {
+        tracker.analyzeNPCResponse(data.targetName);
+      }
+      this.guiManager?.showToast({
+        title: data.targetName,
+        description: `${data.nativeName} — ${data.businessType || data.buildingType}`,
+        duration: 3000,
+      });
+    });
+    this.buildingSignManager.setOnObjectInteracted((data) => {
+      const tracker = this.chatPanel?.getLanguageTracker();
+      if (tracker) {
+        tracker.analyzeNPCResponse(data.targetWord);
+      }
+      this.guiManager?.showToast({
+        title: data.targetWord,
+        description: data.nativeWord,
+        duration: 2500,
+      });
+    });
+
+    // Initialize gamification tracker (XP, achievements, daily challenges)
+    this.gamificationTracker = new LanguageGamificationTracker();
+    this.gamificationTracker.setOnXPGain((event) => {
+      this.guiManager?.showToast({
+        title: `+${event.amount} XP`,
+        description: event.reason,
+        duration: 2000,
+      });
+    });
+    this.gamificationTracker.setOnLevelUp((event) => {
+      this.guiManager?.showToast({
+        title: `Level Up! Level ${event.newLevel}`,
+        description: `${event.tier} tier reached`,
+        duration: 5000,
+      });
+    });
+    this.gamificationTracker.setOnAchievementUnlocked((event) => {
+      this.guiManager?.showToast({
+        title: `${event.achievement.icon} Achievement Unlocked!`,
+        description: `${event.achievement.name}: ${event.achievement.description}`,
+        duration: 5000,
+      });
+    });
+    this.gamificationTracker.setOnDailyChallengeCompleted((challenge) => {
+      this.guiManager?.showToast({
+        title: 'Daily Challenge Complete!',
+        description: `${challenge.description} (+${challenge.xpReward} XP)`,
+        duration: 4000,
+      });
+    });
 
     // Initialize rule enforcer
     this.ruleEnforcer = new RuleEnforcer(scene);
@@ -1832,6 +2076,21 @@ export class BabylonGame {
           // Register building for hover info display
           this.buildingInfoDisplay?.registerBuilding(building);
 
+          // Create bilingual building sign (language-learning worlds)
+          if (this.buildingSignManager && business.name) {
+            const tracker = this.chatPanel?.getLanguageTracker();
+            if (tracker) {
+              this.buildingSignManager.setPlayerFluency(tracker.getFluency());
+            }
+            this.buildingSignManager.createBuildingSign(building, {
+              buildingId: business.id,
+              nativeName: business.businessType || 'Business',
+              targetName: business.name,
+              buildingType: 'business',
+              businessType: business.businessType,
+            });
+          }
+
           buildingIndex++;
         }
 
@@ -2395,6 +2654,12 @@ export class BabylonGame {
         }
       }
     }
+
+    // Capture the minimap snapshot BEFORE hiding prototypes.
+    // InstancedMesh objects require their source prototype meshes to be enabled
+    // in order to render in an RTT-based screenshot. After hidePrototypes() the
+    // source meshes are disabled and instanced buildings won't appear.
+    await this.captureMinimapSnapshot();
 
     // Hide ALL template prototype meshes now that world generation is done.
     // We move them far off-screen rather than disposing because
@@ -4858,6 +5123,87 @@ export class BabylonGame {
     }
   }
 
+  /**
+   * Capture a top-down orthographic screenshot of the world for the minimap.
+   * Must be called BEFORE hidePrototypes() so clone source meshes are present.
+   */
+  private async captureMinimapSnapshot(): Promise<void> {
+    if (!this.scene || !this.guiManager) return;
+    const engine = this.scene.getEngine();
+    if (!engine) return;
+
+    const worldSize = this.terrainSize || 512;
+    const half = worldSize / 2;
+
+    // Create an orthographic camera looking straight down
+    const snapCam = new FreeCamera("_minimapSnapCam", new Vector3(0, 800, -0.01), this.scene);
+    snapCam.rotation = new Vector3(Math.PI / 2, 0, 0);
+    snapCam.mode = Camera.ORTHOGRAPHIC_CAMERA;
+    snapCam.orthoLeft = -half;
+    snapCam.orthoRight = half;
+    snapCam.orthoTop = half;
+    snapCam.orthoBottom = -half;
+    snapCam.minZ = 0.1;
+    snapCam.maxZ = 2000;
+
+    // Hide sky dome so it doesn't dominate the view
+    const hideNames = new Set(['sky-dome', 'sky_dome', 'skybox', 'skyBox', 'backdrop', 'environment']);
+    const meshesToRestore: { mesh: AbstractMesh; wasEnabled: boolean }[] = [];
+    for (const mesh of this.scene.meshes) {
+      if (hideNames.has(mesh.name) && mesh.isEnabled()) {
+        meshesToRestore.push({ mesh, wasEnabled: true });
+        mesh.setEnabled(false);
+      }
+    }
+
+    // Hide GUI so fullscreen button / panels don't appear in the snapshot
+    const guiWasVisible = this.guiManager.advancedTexture.rootContainer.isVisible;
+    this.guiManager.advancedTexture.rootContainer.isVisible = false;
+
+    const prevClearColor = this.scene.clearColor.clone();
+    this.scene.clearColor = new Color4(0.22, 0.35, 0.18, 1);
+
+    const SNAPSHOT_SIZE = 2048;
+
+    // Temporarily remove LOD levels so distant buildings aren't culled.
+    // Buildings have addLODLevel(500, null) but the minimap camera is at y=800.
+    const lodBackup: { mesh: Mesh; distance: number }[] = [];
+    for (const mesh of this.scene.meshes) {
+      if (mesh.isDisposed() || !(mesh instanceof Mesh)) continue;
+      const lodLevels = mesh.getLODLevels();
+      if (lodLevels.length > 0) {
+        for (const lod of lodLevels) {
+          lodBackup.push({ mesh, distance: lod.distanceOrScreenCoverage });
+          mesh.removeLODLevel(lod.mesh);
+        }
+      }
+    }
+
+    try {
+      const dataUrl = await Tools.CreateScreenshotUsingRenderTargetAsync(
+        engine, snapCam, SNAPSHOT_SIZE
+      );
+      this.guiManager.setMinimapImage(dataUrl, worldSize);
+    } catch (err) {
+      console.error('[BabylonGame] Minimap snapshot failed:', err);
+    }
+
+    // Restore LOD levels
+    for (const entry of lodBackup) {
+      if (!entry.mesh.isDisposed()) {
+        entry.mesh.addLODLevel(entry.distance, null);
+      }
+    }
+
+    // Restore scene state
+    for (const entry of meshesToRestore) {
+      entry.mesh.setEnabled(entry.wasEnabled);
+    }
+    this.guiManager.advancedTexture.rootContainer.isVisible = guiWasVisible;
+    this.scene.clearColor = prevClearColor;
+    snapCam.dispose();
+  }
+
   private _minimapBuildingsCollected = false;
   private _minimapBuildings: Array<{ position: { x: number; z: number }; type: 'business' | 'residence' | 'other' }> = [];
 
@@ -5023,6 +5369,30 @@ export class BabylonGame {
     if (event.code === 'KeyT' && !event.repeat) {
       event.preventDefault();
       this.handleTargetEnemy();
+    }
+
+    // V - Toggle vocabulary/grammar panel
+    if (event.code === 'KeyV' && !event.shiftKey && !event.repeat) {
+      event.preventDefault();
+      this.handleToggleVocabularyPanel();
+    }
+
+    // H - Toggle conversation history panel
+    if (event.code === 'KeyH' && !event.repeat) {
+      event.preventDefault();
+      this.handleToggleConversationHistory();
+    }
+
+    // K - Toggle skill tree panel
+    if (event.code === 'KeyK' && !event.repeat) {
+      event.preventDefault();
+      this.handleToggleSkillTree();
+    }
+
+    // N - Toggle notice board
+    if (event.code === 'KeyN' && !event.repeat) {
+      event.preventDefault();
+      this.handleToggleNoticeBoard();
     }
 
     // Shift+V - Toggle VR
@@ -5636,6 +6006,72 @@ export class BabylonGame {
     }
   }
 
+  private handleToggleVocabularyPanel(): void {
+    if (!this.vocabularyPanel) return;
+
+    // Refresh data from language tracker before showing
+    const tracker = this.chatPanel?.getLanguageTracker();
+    if (tracker) {
+      const progress = tracker.getProgress();
+      this.vocabularyPanel.updateData(
+        tracker.getVocabulary(),
+        tracker.getGrammarPatterns(),
+        progress.overallFluency,
+        progress.totalCorrectUsages,
+        tracker.getWordsDueForReview()
+      );
+    }
+    this.vocabularyPanel.toggle();
+  }
+
+  private handleToggleConversationHistory(): void {
+    if (!this.conversationHistoryPanel) return;
+
+    const tracker = this.chatPanel?.getLanguageTracker();
+    if (tracker) {
+      this.conversationHistoryPanel.updateData(tracker.getRecentConversations(20));
+    }
+    this.conversationHistoryPanel.toggle();
+  }
+
+  private handleToggleSkillTree(): void {
+    if (!this.skillTreePanel) return;
+
+    const tracker = this.chatPanel?.getLanguageTracker();
+    if (tracker) {
+      const progress = tracker.getProgress();
+      const conversations = progress.conversations || [];
+      const avgTLPct = conversations.length > 0
+        ? conversations.reduce((s, c) => s + c.targetLanguagePercentage, 0) / conversations.length
+        : 0;
+      const maxTurns = conversations.length > 0
+        ? Math.max(...conversations.map(c => c.turns))
+        : 0;
+
+      this.skillTreePanel.updateStats({
+        wordsLearned: progress.totalWordsLearned,
+        wordsMastered: progress.vocabulary.filter(v => v.masteryLevel === 'mastered').length,
+        conversations: progress.totalConversations,
+        grammarPatterns: progress.grammarPatterns.length,
+        avgTargetLanguagePct: avgTLPct,
+        fluency: progress.overallFluency,
+        maxSustainedTurns: maxTurns,
+        questsCompleted: this.gamificationTracker?.getState().questsCompleted || 0,
+      });
+    }
+    this.skillTreePanel.toggle();
+  }
+
+  private handleToggleNoticeBoard(): void {
+    if (!this.noticeBoardPanel) return;
+
+    const tracker = this.chatPanel?.getLanguageTracker();
+    if (tracker) {
+      this.noticeBoardPanel.setPlayerFluency(tracker.getFluency());
+    }
+    this.noticeBoardPanel.toggle();
+  }
+
   private async handleToggleVR(): Promise<void> {
     if (!this.vrManager || !this.scene) return;
 
@@ -5819,6 +6255,19 @@ export class BabylonGame {
             });
           }
         }
+      });
+
+      // Wire click callback to add words to vocabulary
+      this.vrVocabLabels.setOnLabelClicked((entry, _id) => {
+        const tracker = this.chatPanel?.getLanguageTracker();
+        if (tracker) {
+          tracker.analyzeNPCResponse(entry.targetWord);
+        }
+        this.guiManager?.showToast({
+          title: entry.targetWord,
+          description: entry.nativeWord,
+          duration: 2500,
+        });
       });
 
       this.vrVocabLabels.enable();
@@ -6679,6 +7128,9 @@ export class BabylonGame {
   private initGenreUI(gameType: string): void {
     if (!this.guiManager || !this.scene) return;
 
+    // Set game type on GUI manager for language-learning HUD visibility
+    this.guiManager.setGameType(gameType);
+
     // Dispose previous genre UI
     this.genreUI?.dispose();
     this.genreUI = null;
@@ -7151,6 +7603,15 @@ export class BabylonGame {
     this.inventory?.dispose();
     this.shopPanel?.dispose();
     this.rulesPanel?.dispose();
+    this.vocabularyPanel?.dispose();
+    this.conversationHistoryPanel?.dispose();
+    this.skillTreePanel?.dispose();
+    this.buildingSignManager?.dispose();
+    this.gamificationTracker?.dispose();
+    this.environmentalAudio?.dispose();
+    this.culturalEventManager?.dispose();
+    this.noticeBoardPanel?.dispose();
+    this.contentGatingManager?.dispose();
     this.ruleEnforcer?.dispose();
     this.prologEngine?.dispose();
     this.prologEngine = null;
