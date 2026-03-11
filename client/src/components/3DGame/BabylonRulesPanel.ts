@@ -58,6 +58,13 @@ export class BabylonRulesPanel {
     this.container.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     this.container.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_CENTER;
 
+    // Vertical layout: title bar -> scroll area
+    const mainLayout = new GUI.StackPanel('rulesMainLayout');
+    mainLayout.isVertical = true;
+    mainLayout.width = '100%';
+    mainLayout.height = '100%';
+    this.container.addControl(mainLayout);
+
     // Title bar
     const titleBar = new GUI.Rectangle('rulesTitleBar');
     titleBar.width = '500px';
@@ -65,8 +72,7 @@ export class BabylonRulesPanel {
     titleBar.cornerRadius = 10;
     titleBar.background = 'rgba(60, 40, 80, 1)';
     titleBar.thickness = 0;
-    titleBar.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    this.container.addControl(titleBar);
+    mainLayout.addControl(titleBar);
 
     // Title text
     const titleText = new GUI.TextBlock('rulesTitle');
@@ -74,9 +80,7 @@ export class BabylonRulesPanel {
     titleText.fontSize = 22;
     titleText.fontWeight = 'bold';
     titleText.color = 'white';
-    titleText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    titleText.top = '20px';
-    this.container.addControl(titleText);
+    titleBar.addControl(titleText);
 
     // Close button
     const closeButton = GUI.Button.CreateSimpleButton('rulesClose', 'X');
@@ -88,34 +92,30 @@ export class BabylonRulesPanel {
     closeButton.fontSize = 18;
     closeButton.fontWeight = 'bold';
     closeButton.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    closeButton.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    closeButton.top = '10px';
+    closeButton.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_CENTER;
     closeButton.left = '-10px';
     closeButton.onPointerUpObservable.add(() => {
       this.hide();
       if (this.onClose) this.onClose();
     });
-    this.container.addControl(closeButton);
+    titleBar.addControl(closeButton);
 
     // Subtitle
     const subtitle = new GUI.TextBlock('rulesSubtitle');
     subtitle.text = 'Active rules governing this world';
     subtitle.fontSize = 13;
     subtitle.color = 'rgba(200, 200, 200, 0.9)';
-    subtitle.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    subtitle.top = '45px';
-    this.container.addControl(subtitle);
+    subtitle.height = '20px';
+    mainLayout.addControl(subtitle);
 
-    // Rules scroll view
+    // Rules scroll view — fills remaining space
     const scrollViewer = new GUI.ScrollViewer('rulesScroll');
     scrollViewer.width = '480px';
-    scrollViewer.height = '520px';
-    scrollViewer.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    scrollViewer.top = '70px';
+    scrollViewer.height = '510px';
     scrollViewer.thickness = 0;
     scrollViewer.barColor = 'rgba(150, 100, 200, 0.8)';
     scrollViewer.barBackground = 'rgba(50, 50, 50, 0.5)';
-    this.container.addControl(scrollViewer);
+    mainLayout.addControl(scrollViewer);
 
     // Rules container (stack panel inside scroll viewer)
     this.rulesContainer = new GUI.StackPanel('rulesItems');
@@ -216,21 +216,41 @@ export class BabylonRulesPanel {
     card.thickness = 2;
     card.background = 'rgba(30, 30, 40, 0.9)';
 
-    // Rule name
+    // Vertical stack for card content
+    const cardStack = new GUI.StackPanel(`rule_stack_${rule.id}`);
+    cardStack.isVertical = true;
+    cardStack.width = '100%';
+    cardStack.height = '100%';
+    cardStack.paddingLeft = '15px';
+    cardStack.paddingRight = '15px';
+    cardStack.paddingTop = '8px';
+    card.addControl(cardStack);
+
+    // Row 1: Name + type badge + optional base indicator
+    const headerRow = new GUI.StackPanel(`rule_header_${rule.id}`);
+    headerRow.isVertical = false;
+    headerRow.width = '100%';
+    headerRow.height = '24px';
+    cardStack.addControl(headerRow);
+
     const nameText = new GUI.TextBlock(`rule_name_${rule.id}`);
     nameText.text = rule.name;
     nameText.fontSize = 16;
     nameText.fontWeight = 'bold';
     nameText.color = this.getRuleTypeColor(rule.ruleType);
-    nameText.height = '20px';
-    nameText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    nameText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    nameText.top = '10px';
-    nameText.left = '15px';
+    nameText.width = '60%';
     nameText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    card.addControl(nameText);
+    headerRow.addControl(nameText);
 
-    // Rule type badge
+    if (rule.isBase) {
+      const baseIndicator = new GUI.TextBlock(`rule_base_${rule.id}`);
+      baseIndicator.text = '🌐';
+      baseIndicator.fontSize = 16;
+      baseIndicator.width = '24px';
+      headerRow.addControl(baseIndicator);
+    }
+
+    // Type badge
     const typeBadge = new GUI.Rectangle(`rule_type_${rule.id}`);
     typeBadge.width = '80px';
     typeBadge.height = '22px';
@@ -238,11 +258,7 @@ export class BabylonRulesPanel {
     typeBadge.background = this.getRuleTypeColor(rule.ruleType);
     typeBadge.color = 'transparent';
     typeBadge.thickness = 0;
-    typeBadge.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    typeBadge.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    typeBadge.top = '8px';
-    typeBadge.left = '-10px';
-    card.addControl(typeBadge);
+    headerRow.addControl(typeBadge);
 
     const typeText = new GUI.TextBlock(`rule_type_text_${rule.id}`);
     typeText.text = rule.ruleType.toUpperCase();
@@ -251,20 +267,16 @@ export class BabylonRulesPanel {
     typeText.color = 'rgba(0, 0, 0, 0.9)';
     typeBadge.addControl(typeText);
 
-    // Priority indicator
+    // Priority indicator (inline after type badge)
     if (rule.priority !== undefined && rule.priority !== 5) {
       const priorityBadge = new GUI.Rectangle(`rule_priority_${rule.id}`);
-      priorityBadge.width = '60px';
+      priorityBadge.width = '50px';
       priorityBadge.height = '20px';
       priorityBadge.cornerRadius = 10;
       priorityBadge.background = rule.priority > 5 ? 'rgba(255, 100, 100, 0.8)' : 'rgba(100, 150, 255, 0.8)';
       priorityBadge.color = 'white';
       priorityBadge.thickness = 1;
-      priorityBadge.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      priorityBadge.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-      priorityBadge.top = '35px';
-      priorityBadge.left = '-10px';
-      card.addControl(priorityBadge);
+      headerRow.addControl(priorityBadge);
 
       const priorityText = new GUI.TextBlock(`rule_priority_text_${rule.id}`);
       priorityText.text = `P${rule.priority}`;
@@ -274,37 +286,25 @@ export class BabylonRulesPanel {
       priorityBadge.addControl(priorityText);
     }
 
-    // Base rule indicator
-    if (rule.isBase) {
-      const baseIndicator = new GUI.TextBlock(`rule_base_${rule.id}`);
-      baseIndicator.text = '🌐';
-      baseIndicator.fontSize = 16;
-      baseIndicator.height = '20px';
-      baseIndicator.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-      baseIndicator.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      baseIndicator.top = '10px';
-      baseIndicator.left = '-100px';
-      card.addControl(baseIndicator);
-    }
-
-    // Description
+    // Row 2: Description
     if (rule.description) {
       const descText = new GUI.TextBlock(`rule_desc_${rule.id}`);
       descText.text = rule.description;
       descText.fontSize = 12;
       descText.color = '#CCCCCC';
       descText.height = '55px';
-      descText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-      descText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-      descText.top = '38px';
-      descText.left = '15px';
-      descText.paddingRight = '15px';
       descText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
       descText.textWrapping = true;
-      card.addControl(descText);
+      cardStack.addControl(descText);
     }
 
-    // Category and tags
+    // Row 3: Tags + conditions/effects summary
+    const footerRow = new GUI.StackPanel(`rule_footer_${rule.id}`);
+    footerRow.isVertical = false;
+    footerRow.width = '100%';
+    footerRow.height = '20px';
+    cardStack.addControl(footerRow);
+
     let tagString = '';
     if (rule.category) {
       tagString += `📂 ${rule.category}`;
@@ -314,36 +314,25 @@ export class BabylonRulesPanel {
       tagString += (tagString ? ' • ' : '') + `🏷️ ${firstTags}`;
     }
 
-    if (tagString) {
-      const tagsText = new GUI.TextBlock(`rule_tags_${rule.id}`);
-      tagsText.text = tagString;
-      tagsText.fontSize = 10;
-      tagsText.color = '#999999';
-      tagsText.height = '20px';
-      tagsText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
-      tagsText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-      tagsText.top = '-10px';
-      tagsText.left = '15px';
-      tagsText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-      card.addControl(tagsText);
-    }
+    const tagsText = new GUI.TextBlock(`rule_tags_${rule.id}`);
+    tagsText.text = tagString;
+    tagsText.fontSize = 10;
+    tagsText.color = '#999999';
+    tagsText.width = '60%';
+    tagsText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    footerRow.addControl(tagsText);
 
-    // Conditions/Effects summary
     const condCount = rule.conditions?.length || 0;
     const effCount = rule.effects?.length || 0;
-    if (condCount > 0 || effCount > 0) {
-      const summaryText = new GUI.TextBlock(`rule_summary_${rule.id}`);
-      summaryText.text = `${condCount} condition${condCount !== 1 ? 's' : ''} → ${effCount} effect${effCount !== 1 ? 's' : ''}`;
-      summaryText.fontSize = 10;
-      summaryText.color = '#AAAAAA';
-      summaryText.height = '20px';
-      summaryText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
-      summaryText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      summaryText.top = '-10px';
-      summaryText.left = '-15px';
-      summaryText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      card.addControl(summaryText);
-    }
+    const summaryText = new GUI.TextBlock(`rule_summary_${rule.id}`);
+    summaryText.text = condCount > 0 || effCount > 0
+      ? `${condCount} condition${condCount !== 1 ? 's' : ''} → ${effCount} effect${effCount !== 1 ? 's' : ''}`
+      : '';
+    summaryText.fontSize = 10;
+    summaryText.color = '#AAAAAA';
+    summaryText.width = '40%';
+    summaryText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    footerRow.addControl(summaryText);
 
     return card;
   }

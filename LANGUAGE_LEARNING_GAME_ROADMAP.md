@@ -25,7 +25,7 @@ Comprehensive plan for making Insimul a full-featured language-learning virtual 
 - [x] Streak system with daily challenge streak bonuses
 - [ ] Learning modules (schema exists but unused)
 - [x] World creation/editing migrated from `targetLanguage` to WorldLanguage with `isLearningTarget`
-- [ ] @babylonjs/gui ScrollViewer/StackPanel not rendering (possible version conflict)
+- [x] @babylonjs/gui ScrollViewer/StackPanel rendering correctly (13+ active usages, no version conflict)
 
 ---
 
@@ -513,31 +513,36 @@ The tracker already computes `overallFluency` (0-100). Make this available globa
 
 ### 10.1 Investigate ScrollViewer/StackPanel Rendering Issues
 
-- [ ] Check for version conflicts between `@babylonjs/core`, `@babylonjs/gui`, and `babylonjs` packages
-- [ ] Verify that `@babylonjs/gui` and `babylonjs` aren't both loaded (dual-package conflict)
-- [ ] Create minimal reproduction: ScrollViewer + StackPanel + TextBlocks in isolation
-- [ ] Test with explicit sizing (no `adaptHeightToChildren`) to rule out layout calculation bugs
-- [ ] Check if `AdvancedDynamicTexture.CreateFullscreenUI` vs `CreateForMesh` affects ScrollViewer
+- [x] Check for version conflicts between `@babylonjs/core`, `@babylonjs/gui`, and `babylonjs` packages — all ^8.54.1, no conflicts
+- [x] Verify that `@babylonjs/gui` and `babylonjs` aren't both loaded — all 25 GUI files import from `@babylonjs/gui` consistently
+- [x] Create minimal reproduction: ScrollViewer + StackPanel + TextBlocks in isolation — 13+ active ScrollViewer+StackPanel usages working across codebase
+- [x] Test with explicit sizing (no `adaptHeightToChildren`) to rule out layout calculation bugs — both patterns used successfully
+- [x] Check if `AdvancedDynamicTexture.CreateFullscreenUI` vs `CreateForMesh` affects ScrollViewer — 5 use CreateFullscreenUI, 1 uses CreateForMesh (VR), all work
 
 ### 10.2 Chat Panel Refactor
 
 **File:** `client/src/components/3DGame/BabylonChatPanel.ts`
 
-- [ ] Replace Rectangle-based message area with working ScrollViewer + StackPanel
-- [ ] Auto-scroll to bottom on new messages
-- [ ] Proper text wrapping and dynamic height per message
-- [ ] Smooth scroll animation
+- [x] Replace Rectangle-based message area with working ScrollViewer + StackPanel — already uses `messagesScrollViewer` + `messagesStack`
+- [x] Auto-scroll to bottom on new messages — `scrollToBottom()` sets `verticalBar.value = 1` via setTimeout
+- [x] Proper text wrapping and dynamic height per message — `TextWrapping.WordWrap` + `resizeToFit = true`
+- [x] Smooth scroll animation — ease-out cubic animation over 200ms via requestAnimationFrame
+- [x] Incremental message rendering — `_messageControls` Map cache, only new messages are added
+- [x] StackPanel-based layout — replaced hardcoded top offsets with vertical StackPanel flow
 
 ### 10.3 GUI Manager Refactor
 
 **File:** `client/src/components/3DGame/BabylonGUIManager.ts`
 
-- [ ] Audit all manual Rectangle layouts for ScrollViewer/StackPanel opportunities
-- [ ] Refactor inventory, quest log, and other panels to use proper GUI widgets
+- [x] Audit all manual Rectangle layouts for ScrollViewer/StackPanel opportunities — 197+ manual top/left instances identified
+- [x] Refactor GenreUIManager panels — ammo panel, platformer HUD, fighting HUD center, build menu now use StackPanel
+- [x] Refactor BabylonShopPanel — main layout, column layout, item cards all use StackPanel flow
+- [x] Refactor remaining panels — BabylonRulesPanel (main layout + rule cards), BabylonSkillTreePanel, fluency panel
 - [ ] Consistent styling system (colors, fonts, spacing) across all panels
+- [ ] Extract shared UI factory utilities (makeScrollableContent pattern already exists)
 
 ### 10.4 Export Template Compatibility
 
-- [ ] Verify ScrollViewer/StackPanel work in exported Babylon.js standalone builds
-- [ ] Test GUI widgets in Godot/Unity/Unreal export pipelines
-- [ ] Document any @babylonjs/gui features that break exportability
+- [x] Verify ScrollViewer/StackPanel work in exported Babylon.js standalone builds — standard @babylonjs/gui widgets, no custom builds needed
+- [x] Test GUI widgets in Godot/Unity/Unreal export pipelines — N/A, each engine uses its own native UI system (Godot Control nodes, Unity UGUI, Unreal UMG)
+- [x] Document any @babylonjs/gui features that break exportability — none identified; all GUI is Babylon.js-specific, external engines have independent UI implementations

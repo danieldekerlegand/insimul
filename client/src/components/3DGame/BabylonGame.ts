@@ -5277,6 +5277,7 @@ export class BabylonGame {
         x: this.playerMesh.position.x,
         z: this.playerMesh.position.z
       },
+      playerRotationY: this.playerMesh.rotation.y,
       worldSize: this.terrainSize || 512
     });
   }

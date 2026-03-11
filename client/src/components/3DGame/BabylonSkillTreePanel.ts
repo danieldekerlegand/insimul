@@ -57,6 +57,13 @@ export class BabylonSkillTreePanel {
     this.container.zIndex = 50;
     this.advancedTexture.addControl(this.container);
 
+    // Vertical layout: title bar -> header -> scroll area
+    const mainLayout = new GUI.StackPanel('skillTreeMainLayout');
+    mainLayout.isVertical = true;
+    mainLayout.width = '100%';
+    mainLayout.height = '100%';
+    this.container.addControl(mainLayout);
+
     // Title bar
     const titleBar = new GUI.Rectangle('skillTreeTitleBar');
     titleBar.width = '500px';
@@ -64,17 +71,14 @@ export class BabylonSkillTreePanel {
     titleBar.cornerRadius = 10;
     titleBar.background = 'rgba(40, 70, 50, 1)';
     titleBar.thickness = 0;
-    titleBar.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    this.container.addControl(titleBar);
+    mainLayout.addControl(titleBar);
 
     const titleText = new GUI.TextBlock('skillTreeTitle');
     titleText.text = 'Skill Tree';
     titleText.fontSize = 20;
     titleText.fontWeight = 'bold';
     titleText.color = 'white';
-    titleText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    titleText.top = '14px';
-    this.container.addControl(titleText);
+    titleBar.addControl(titleText);
 
     // Close button
     const closeBtn = GUI.Button.CreateSimpleButton('skillTreeClose', 'X');
@@ -86,35 +90,30 @@ export class BabylonSkillTreePanel {
     closeBtn.fontSize = 16;
     closeBtn.fontWeight = 'bold';
     closeBtn.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    closeBtn.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    closeBtn.top = '7px';
+    closeBtn.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_CENTER;
     closeBtn.left = '-8px';
     closeBtn.onPointerUpObservable.add(() => {
       this.hide();
       this.onClose?.();
     });
-    this.container.addControl(closeBtn);
+    titleBar.addControl(closeBtn);
 
     // Header summary
     this.headerText = new GUI.TextBlock('skillTreeHeader');
     this.headerText.text = '';
     this.headerText.fontSize = 12;
     this.headerText.color = 'rgba(200, 200, 200, 0.9)';
-    this.headerText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    this.headerText.top = '54px';
     this.headerText.height = '20px';
-    this.container.addControl(this.headerText);
+    mainLayout.addControl(this.headerText);
 
-    // Scroll area
+    // Scroll area — fills remaining space
     this.scrollViewer = new GUI.ScrollViewer('skillTreeScroll');
     this.scrollViewer.width = '480px';
-    this.scrollViewer.height = '490px';
-    this.scrollViewer.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    this.scrollViewer.top = '80px';
+    this.scrollViewer.height = '500px';
     this.scrollViewer.thickness = 0;
     this.scrollViewer.barColor = 'rgba(100, 160, 100, 0.8)';
     this.scrollViewer.barBackground = 'rgba(50, 50, 50, 0.5)';
-    this.container.addControl(this.scrollViewer);
+    mainLayout.addControl(this.scrollViewer);
 
     this.contentStack = new GUI.StackPanel('skillTreeContent');
     this.contentStack.width = '460px';

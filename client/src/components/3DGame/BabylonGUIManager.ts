@@ -79,6 +79,7 @@ export interface MinimapData {
     role?: string;
   }>;
   playerPosition: { x: number; z: number };
+  playerRotationY: number; // Player's Y-axis rotation in radians
   worldSize: number; // Terrain size for scaling
 }
 
@@ -834,16 +835,21 @@ export class BabylonGUIManager {
     panel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     panel.isVisible = false; // Only visible for language-learning games
 
+    const fluencyStack = new StackPanel("fluencyStack");
+    fluencyStack.isVertical = true;
+    fluencyStack.width = "100%";
+    fluencyStack.paddingTop = "5px";
+    fluencyStack.spacing = 5;
+    panel.addControl(fluencyStack);
+
     // Fluency level label
     const levelLabel = new TextBlock("fluencyLevelLabel");
     levelLabel.text = "Beginner";
     levelLabel.color = "#4FC3F7";
     levelLabel.fontSize = 12;
     levelLabel.fontWeight = "bold";
-    levelLabel.top = "5px";
     levelLabel.height = "16px";
-    levelLabel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    panel.addControl(levelLabel);
+    fluencyStack.addControl(levelLabel);
 
     // Bar background
     const barBg = new Rectangle("fluencyBarBg");
@@ -853,9 +859,7 @@ export class BabylonGUIManager {
     barBg.color = "#555";
     barBg.thickness = 1;
     barBg.cornerRadius = 6;
-    barBg.top = "24px";
-    barBg.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    panel.addControl(barBg);
+    fluencyStack.addControl(barBg);
 
     // Bar fill
     const barFill = new Rectangle("fluencyBarFill");
@@ -1281,6 +1285,22 @@ export class BabylonGUIManager {
 
   /** The full-world overhead snapshot canvas, used by the sliding-window minimap. */
   private _minimapFullImage: HTMLCanvasElement | null = null;
+  /** Reusable offscreen canvas for minimap viewport extraction (avoids per-frame allocation). */
+  private _minimapVpCanvas: HTMLCanvasElement | null = null;
+  private _minimapVpCtx: CanvasRenderingContext2D | null = null;
+  /** Last source rect used for the minimap viewport, to skip redundant redraws. */
+  private _minimapLastSrcX = -1;
+  private _minimapLastSrcY = -1;
+  /** Last data URL assigned to the minimap background to avoid redundant source assignments. */
+  private _minimapLastDataUrl = '';
+
+  // Persistent minimap controls (created once, updated per frame)
+  private _minimapPlayerOuter: Ellipse | null = null;
+  private _minimapPlayerMarker: Ellipse | null = null;
+  private _minimapConeImg: Image | null = null;
+  private _minimapConeSvgUrl = '';
+  /** Ephemeral minimap controls that are recreated each frame (NPCs, quests). */
+  private _minimapDynamicControls: Control[] = [];
 
   public updateMinimap(data: MinimapData) {
     if (!this.minimapPanel) return;
@@ -1291,12 +1311,6 @@ export class BabylonGUIManager {
 
     if (!mapContainer) return;
 
-    // Clear dynamic elements
-    mapContainer.children.slice().forEach((child) => {
-      mapContainer.removeControl(child);
-      child.dispose();
-    });
-
     const MAP_SIZE = 200;
     const mapHalf = MAP_SIZE / 2;
     const worldSize = data.worldSize;
@@ -1304,37 +1318,55 @@ export class BabylonGUIManager {
 
     // --- Sliding-window background: extract the area around the player ---
     if (this._minimapFullImage && this.minimapStaticImage) {
-      // The viewport shows a square region of the world centered on the player.
-      // viewRadius controls how much of the world is visible (in world units).
-      const viewRadius = worldSize * 0.2; // Show ~40% of the world width
+      const viewRadius = worldSize * 0.2;
       const px = data.playerPosition.x;
       const pz = data.playerPosition.z;
 
-      // Convert player world coords to pixel coords in the full image
       const imgW = this._minimapFullImage.width;
       const imgH = this._minimapFullImage.height;
       const playerImgX = ((px + worldHalf) / worldSize) * imgW;
       const playerImgY = ((-pz + worldHalf) / worldSize) * imgH;
       const viewRadiusPx = (viewRadius / worldSize) * imgW;
 
-      // Source rectangle in the full image (clamped to image bounds)
       const srcX = Math.max(0, Math.min(imgW - viewRadiusPx * 2, playerImgX - viewRadiusPx));
       const srcY = Math.max(0, Math.min(imgH - viewRadiusPx * 2, playerImgY - viewRadiusPx));
       const srcSize = viewRadiusPx * 2;
 
-      // Extract the viewport region to a small canvas and set as minimap background
-      const vpCanvas = document.createElement('canvas');
-      vpCanvas.width = MAP_SIZE;
-      vpCanvas.height = MAP_SIZE;
-      const vpCtx = vpCanvas.getContext('2d');
-      if (vpCtx) {
-        vpCtx.drawImage(this._minimapFullImage, srcX, srcY, srcSize, srcSize, 0, 0, MAP_SIZE, MAP_SIZE);
-        this.minimapStaticImage.source = vpCanvas.toDataURL('image/png');
-        this.minimapStaticImage.isVisible = true;
+      // Only re-encode when the viewport has shifted enough to matter visually.
+      const dx = Math.abs(srcX - this._minimapLastSrcX);
+      const dy = Math.abs(srcY - this._minimapLastSrcY);
+      if (dx >= 2 || dy >= 2 || !this.minimapStaticImage.isVisible) {
+        if (!this._minimapVpCanvas) {
+          this._minimapVpCanvas = document.createElement('canvas');
+          this._minimapVpCanvas.width = MAP_SIZE;
+          this._minimapVpCanvas.height = MAP_SIZE;
+          this._minimapVpCtx = this._minimapVpCanvas.getContext('2d');
+        }
+        if (this._minimapVpCtx) {
+          this._minimapVpCtx.drawImage(
+            this._minimapFullImage, srcX, srcY, srcSize, srcSize,
+            0, 0, MAP_SIZE, MAP_SIZE
+          );
+          const dataUrl = this._minimapVpCanvas.toDataURL('image/jpeg', 0.85);
+          // Only assign source when the data URL actually changed, to avoid
+          // triggering an image reload cycle that causes flicker.
+          if (dataUrl !== this._minimapLastDataUrl) {
+            this.minimapStaticImage.source = dataUrl;
+            this._minimapLastDataUrl = dataUrl;
+          }
+          this.minimapStaticImage.isVisible = true;
+        }
+        this._minimapLastSrcX = srcX;
+        this._minimapLastSrcY = srcY;
       }
-
-      // Store the current viewport bounds for marker positioning
     }
+
+    // --- Remove only ephemeral markers (NPCs, quests) from the previous frame ---
+    for (const ctrl of this._minimapDynamicControls) {
+      mapContainer.removeControl(ctrl);
+      ctrl.dispose();
+    }
+    this._minimapDynamicControls = [];
 
     // Map world coords to minimap pixel offsets relative to the current viewport
     const viewRadius = worldSize * 0.2;
@@ -1348,11 +1380,10 @@ export class BabylonGUIManager {
       return [mx, mz];
     };
 
-    // Draw NPC markers (small dots)
+    // Draw NPC markers (small dots) — ephemeral, recreated each frame
     if (data.npcPositions) {
       for (const npc of data.npcPositions) {
         const [nx, nz] = toMap(npc.position.x, npc.position.z);
-
         if (Math.abs(nx) > mapHalf || Math.abs(nz) > mapHalf) continue;
 
         const dot = new Ellipse(`npc-${npc.id}`);
@@ -1368,14 +1399,14 @@ export class BabylonGUIManager {
         dot.left = `${nx}px`;
         dot.top = `${nz}px`;
         mapContainer.addControl(dot);
+        this._minimapDynamicControls.push(dot);
       }
     }
 
-    // Draw quest markers (diamond shape)
+    // Draw quest markers (diamond shape) — ephemeral
     if (data.questMarkers) {
       for (const quest of data.questMarkers) {
         const [qx, qz] = toMap(quest.position.x, quest.position.z);
-
         if (Math.abs(qx) > mapHalf || Math.abs(qz) > mapHalf) continue;
 
         const questMarker = new Rectangle(`quest-${quest.id}`);
@@ -1389,25 +1420,49 @@ export class BabylonGUIManager {
         questMarker.left = `${qx}px`;
         questMarker.top = `${qz}px`;
         mapContainer.addControl(questMarker);
+        this._minimapDynamicControls.push(questMarker);
       }
     }
 
-    // Player is always centered in the sliding-window minimap
-    const playerOuter = new Ellipse("player-marker-outer");
-    playerOuter.width = "14px";
-    playerOuter.height = "14px";
-    playerOuter.background = "rgba(0,0,0,0.4)";
-    playerOuter.color = "transparent";
-    playerOuter.thickness = 0;
-    mapContainer.addControl(playerOuter);
+    // --- Persistent player controls: created once, updated per frame ---
 
-    const playerMarker = new Ellipse("player-marker");
-    playerMarker.width = "10px";
-    playerMarker.height = "10px";
-    playerMarker.background = "#FFC107";
-    playerMarker.color = "white";
-    playerMarker.thickness = 2;
-    mapContainer.addControl(playerMarker);
+    // Direction cone (added first so it renders behind the player dot)
+    if (!this._minimapConeImg) {
+      const coneW = 10;
+      const coneH = 28;
+      const triH = 10;
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${coneW}" height="${coneH}" viewBox="0 0 ${coneW} ${coneH}">` +
+        `<polygon points="${coneW / 2},1 ${coneW - 1},${triH} ${1},${triH}" ` +
+        `fill="rgba(255,193,7,0.5)" stroke="#FFC107" stroke-width="1"/>` +
+        `</svg>`;
+      this._minimapConeSvgUrl = "data:image/svg+xml," + encodeURIComponent(svg);
+
+      this._minimapConeImg = new Image("player-cone", this._minimapConeSvgUrl);
+      this._minimapConeImg.width = `${coneW}px`;
+      this._minimapConeImg.height = `${coneH}px`;
+      mapContainer.addControl(this._minimapConeImg);
+    }
+    this._minimapConeImg.rotation = data.playerRotationY;
+
+    if (!this._minimapPlayerOuter) {
+      this._minimapPlayerOuter = new Ellipse("player-marker-outer");
+      this._minimapPlayerOuter.width = "14px";
+      this._minimapPlayerOuter.height = "14px";
+      this._minimapPlayerOuter.background = "rgba(0,0,0,0.4)";
+      this._minimapPlayerOuter.color = "transparent";
+      this._minimapPlayerOuter.thickness = 0;
+      mapContainer.addControl(this._minimapPlayerOuter);
+    }
+
+    if (!this._minimapPlayerMarker) {
+      this._minimapPlayerMarker = new Ellipse("player-marker");
+      this._minimapPlayerMarker.width = "10px";
+      this._minimapPlayerMarker.height = "10px";
+      this._minimapPlayerMarker.background = "#FFC107";
+      this._minimapPlayerMarker.color = "white";
+      this._minimapPlayerMarker.thickness = 2;
+      mapContainer.addControl(this._minimapPlayerMarker);
+    }
   }
 
   /**

@@ -73,6 +73,10 @@ export class BabylonChatPanel {
   private micButton: Button | null = null; // Store reference to mic button
   private titleText: TextBlock | null = null; // Store reference to title text
   private loadingIndicator: TextBlock | null = null; // Loading indicator
+  /** Cached message TextBlock controls indexed by position — avoids full rebuild */
+  private _messageControls: Map<number, TextBlock> = new Map();
+  /** Smooth scroll animation frame handle */
+  private _scrollAnimFrame: number | null = null;
   private streamingResponse: TextBlock | null = null; // Streaming response text
   private character: Character | null = null;
   private truths: Truth[] = [];
@@ -359,6 +363,13 @@ export class BabylonChatPanel {
     // Add to texture
     this._advancedTexture.addControl(this.chatContainer);
 
+    // Use a vertical StackPanel layout instead of absolute pixel positioning
+    const mainLayout = new StackPanel("chatMainLayout");
+    mainLayout.width = "100%";
+    mainLayout.height = "100%";
+    mainLayout.isVertical = true;
+    this.chatContainer.addControl(mainLayout);
+
     // Header with character name
     const header = new Rectangle("chatHeader");
     header.width = "100%";
@@ -366,10 +377,7 @@ export class BabylonChatPanel {
     header.background = "rgba(20, 20, 20, 0.6)";
     header.thickness = 0;
     header.cornerRadius = 5;
-    header.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    header.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    header.top = "0px";
-    this.chatContainer.addControl(header);
+    mainLayout.addControl(header);
 
     this.titleText = new TextBlock();
     this.titleText.text = this.character ? `${this.character.firstName} ${this.character.lastName}` : "Chat";
@@ -389,25 +397,23 @@ export class BabylonChatPanel {
     closeBtn.background = "rgba(255, 50, 50, 0.8)";
     closeBtn.cornerRadius = 5;
     closeBtn.fontSize = 12;
-    closeBtn.top = "4px";
     closeBtn.left = "-4px";
     closeBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    closeBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    closeBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
     closeBtn.onPointerClickObservable.add(() => {
       this.hide(true);
     });
     header.addControl(closeBtn);
 
     // Messages area — ScrollViewer wrapping a StackPanel
+    // Height is "stretch" — fills remaining space between header (32px) and input (36px)
     const messagesOuter = new Rectangle("messagesOuter");
     messagesOuter.width = "92%";
-    messagesOuter.height = "245px";
+    messagesOuter.height = "282px";
     messagesOuter.background = "rgba(10, 10, 10, 0.3)";
     messagesOuter.thickness = 0;
-    messagesOuter.top = "38px";
     messagesOuter.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    messagesOuter.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    this.chatContainer.addControl(messagesOuter);
+    mainLayout.addControl(messagesOuter);
 
     const scrollViewer = new ScrollViewer("messagesScroll");
     scrollViewer.width = "100%";
@@ -425,7 +431,6 @@ export class BabylonChatPanel {
     messagesStack.isVertical = true;
     messagesStack.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     messagesStack.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    // StackPanel resizes to fit children; ScrollViewer will scroll when it overflows
     messagesStack.adaptHeightToChildren = true;
     scrollViewer.addControl(messagesStack);
     this.messagesStack = messagesStack;
@@ -436,10 +441,8 @@ export class BabylonChatPanel {
     inputArea.height = "36px";
     inputArea.background = "rgba(20, 20, 20, 0.5)";
     inputArea.thickness = 0;
-    inputArea.top = "288px";
     inputArea.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    inputArea.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    this.chatContainer.addControl(inputArea);
+    mainLayout.addControl(inputArea);
 
     // Input text field
     this.inputText = new InputText("chatInput");
@@ -526,62 +529,65 @@ export class BabylonChatPanel {
     console.log('[ChatPanel] Chat UI created');
   }
   
+  /** Determine the display color for a message based on role and content prefix. */
+  private getMessageColor(msg: Message): string {
+    if (msg.role === 'user') return "#87CEEB";
+    const content = msg.content || '';
+    if (content.startsWith('✓ ')) return "#4CAF50";       // Correct grammar
+    if (content.startsWith('✎ Tip: ')) return "#FFC107";  // Grammar corrections
+    if (content.startsWith('📖 Grammar Focus')) return "#FF9800"; // Grammar focus
+    return "rgba(255, 255, 255, 0.9)";
+  }
+
+  /** Create a styled TextBlock for a message at the given index. */
+  private createMessageControl(index: number): TextBlock {
+    const msg = this.messages[index];
+    const messageText = new TextBlock(`msg-${index}`);
+    messageText.text = msg.content || ' ';
+    messageText.color = this.getMessageColor(msg);
+    messageText.fontSize = 12;
+    messageText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    messageText.textWrapping = TextWrapping.WordWrap;
+    messageText.resizeToFit = true;
+    messageText.width = "95%";
+    messageText.paddingLeft = "8px";
+    messageText.paddingRight = "8px";
+    messageText.paddingTop = "3px";
+    messageText.paddingBottom = "3px";
+    return messageText;
+  }
+
   private displayMessages() {
     if (!this.messagesStack) return;
 
-    // Clear existing message controls (keep loadingIndicator)
-    const toRemove = this.messagesStack.children.filter(
-      c => c.name && c.name.startsWith('msg-')
-    );
-    toRemove.forEach(c => this.messagesStack!.removeControl(c));
+    // Incremental: only add controls for messages that don't have cached controls yet
+    const existingCount = this._messageControls.size;
 
-    // Re-add loading indicator at end if it was removed
-    if (this.loadingIndicator && this.loadingIndicator.parent !== this.messagesStack) {
-      this.messagesStack.addControl(this.loadingIndicator);
+    // If messages were removed (e.g. feedback auto-cleanup), do a full rebuild
+    if (existingCount > this.messages.length) {
+      // Remove all cached controls
+      this._messageControls.forEach((ctrl) => {
+        this.messagesStack!.removeControl(ctrl);
+      });
+      this._messageControls.clear();
     }
 
-    // Add ALL messages — the ScrollViewer handles overflow
-    for (let i = 0; i < this.messages.length; i++) {
-      const msg = this.messages[i];
-      const isUser = msg.role === 'user';
+    // Ensure loading indicator is at the end
+    if (this.loadingIndicator && this.loadingIndicator.parent === this.messagesStack) {
+      this.messagesStack.removeControl(this.loadingIndicator);
+    }
 
-      const messageText = new TextBlock(`msg-${i}`);
-      messageText.text = msg.content || ' ';
+    // Add only new message controls
+    const startIdx = this._messageControls.size;
+    for (let i = startIdx; i < this.messages.length; i++) {
+      const ctrl = this.createMessageControl(i);
+      this._messageControls.set(i, ctrl);
+      this.messagesStack.addControl(ctrl);
+    }
 
-      // Color-code grammar feedback messages distinctly
-      const content = msg.content || '';
-      let msgColor = isUser ? "#87CEEB" : "rgba(255, 255, 255, 0.9)";
-      if (!isUser && content.startsWith('✓ ')) {
-        msgColor = "#4CAF50"; // Green for correct grammar
-      } else if (!isUser && content.startsWith('✎ Tip: ')) {
-        msgColor = "#FFC107"; // Amber for grammar corrections
-      } else if (!isUser && content.startsWith('📖 Grammar Focus')) {
-        msgColor = "#FF9800"; // Orange for grammar focus popups
-      }
-      messageText.color = msgColor;
-      messageText.fontSize = 12;
-      messageText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      messageText.textWrapping = TextWrapping.WordWrap;
-      messageText.resizeToFit = true;
-      messageText.width = "95%";
-      messageText.paddingLeft = "8px";
-      messageText.paddingRight = "8px";
-      messageText.paddingTop = "3px";
-      messageText.paddingBottom = "3px";
-
-      // Insert before loading indicator
-      if (this.loadingIndicator) {
-        const loadIdx = this.messagesStack.children.indexOf(this.loadingIndicator);
-        if (loadIdx >= 0) {
-          this.messagesStack.removeControl(this.loadingIndicator);
-          this.messagesStack.addControl(messageText);
-          this.messagesStack.addControl(this.loadingIndicator);
-        } else {
-          this.messagesStack.addControl(messageText);
-        }
-      } else {
-        this.messagesStack.addControl(messageText);
-      }
+    // Re-add loading indicator at the end
+    if (this.loadingIndicator) {
+      this.messagesStack.addControl(this.loadingIndicator);
     }
 
     // Auto-scroll to bottom
@@ -590,17 +596,15 @@ export class BabylonChatPanel {
 
   /**
    * Update the text of the last message control in-place (for streaming).
-   * Falls back to a full rebuild if the control isn't found.
+   * Uses the control cache for O(1) lookup.
    */
   private updateLastMessageText(text: string) {
     if (!this.messagesStack) return;
 
     const lastIdx = this.messages.length - 1;
-    const existing = this.messagesStack.children.find(
-      c => c.name === `msg-${lastIdx}`
-    );
-    if (existing && existing instanceof TextBlock) {
-      existing.text = text || ' ';
+    const cached = this._messageControls.get(lastIdx);
+    if (cached) {
+      cached.text = text || ' ';
       this.scrollToBottom();
       return;
     }
@@ -609,15 +613,50 @@ export class BabylonChatPanel {
   }
 
   /**
-   * Scroll the messages ScrollViewer to the bottom so the latest message is visible.
+   * Scroll the messages ScrollViewer to the bottom with smooth animation.
    */
   private scrollToBottom() {
     if (!this.messagesScrollViewer) return;
+
+    // Cancel any in-progress scroll animation
+    if (this._scrollAnimFrame !== null) {
+      cancelAnimationFrame(this._scrollAnimFrame);
+      this._scrollAnimFrame = null;
+    }
+
     // Defer to next frame so layout has been computed
     setTimeout(() => {
-      if (this.messagesScrollViewer?.verticalBar) {
-        this.messagesScrollViewer.verticalBar.value = 1;
+      if (!this.messagesScrollViewer?.verticalBar) return;
+
+      const bar = this.messagesScrollViewer.verticalBar;
+      const start = bar.value;
+      const target = 1;
+
+      // If already at bottom or close, snap immediately
+      if (target - start < 0.05) {
+        bar.value = target;
+        return;
       }
+
+      // Smooth scroll over ~200ms (roughly 12 frames at 60fps)
+      const duration = 200;
+      const startTime = performance.now();
+
+      const animate = (now: number) => {
+        const elapsed = now - startTime;
+        const t = Math.min(elapsed / duration, 1);
+        // Ease-out cubic
+        const eased = 1 - Math.pow(1 - t, 3);
+        bar.value = start + (target - start) * eased;
+
+        if (t < 1) {
+          this._scrollAnimFrame = requestAnimationFrame(animate);
+        } else {
+          this._scrollAnimFrame = null;
+        }
+      };
+
+      this._scrollAnimFrame = requestAnimationFrame(animate);
     }, 0);
   }
 
@@ -2127,6 +2166,11 @@ export class BabylonChatPanel {
       this.talkingIndicator.dispose();
       this.talkingIndicator = null;
     }
+    if (this._scrollAnimFrame !== null) {
+      cancelAnimationFrame(this._scrollAnimFrame);
+      this._scrollAnimFrame = null;
+    }
+    this._messageControls.clear();
     if (this.chatContainer) {
       this._advancedTexture.removeControl(this.chatContainer);
     }

@@ -60,6 +60,13 @@ export class BabylonShopPanel {
     this.container.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_CENTER;
     this.advancedTexture.addControl(this.container);
 
+    // Vertical layout: title bar -> columns -> status
+    const mainLayout = new GUI.StackPanel('shopMainLayout');
+    mainLayout.isVertical = true;
+    mainLayout.width = '100%';
+    mainLayout.height = '100%';
+    this.container.addControl(mainLayout);
+
     // Title bar
     const titleBar = new GUI.Rectangle('shopTitleBar');
     titleBar.width = '700px';
@@ -67,17 +74,14 @@ export class BabylonShopPanel {
     titleBar.cornerRadius = 10;
     titleBar.background = 'rgba(50, 35, 20, 1)';
     titleBar.thickness = 0;
-    titleBar.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    this.container.addControl(titleBar);
+    mainLayout.addControl(titleBar);
 
     const titleText = new GUI.TextBlock('shopTitle');
     titleText.text = 'Shop';
     titleText.fontSize = 18;
     titleText.fontWeight = 'bold';
     titleText.color = '#FFD700';
-    titleText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    titleText.top = '12px';
-    this.container.addControl(titleText);
+    titleBar.addControl(titleText);
 
     // Close button
     const closeBtn = GUI.Button.CreateSimpleButton('shopClose', 'X');
@@ -89,20 +93,17 @@ export class BabylonShopPanel {
     closeBtn.fontSize = 16;
     closeBtn.fontWeight = 'bold';
     closeBtn.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    closeBtn.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    closeBtn.top = '5px';
+    closeBtn.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_CENTER;
     closeBtn.left = '-5px';
     closeBtn.onPointerUpObservable.add(() => this.hide());
-    this.container.addControl(closeBtn);
+    titleBar.addControl(closeBtn);
 
     // Two-column layout
     const columnsContainer = new GUI.StackPanel('shopColumns');
     columnsContainer.isVertical = false;
     columnsContainer.width = '680px';
-    columnsContainer.height = '410px';
-    columnsContainer.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    columnsContainer.top = '50px';
-    this.container.addControl(columnsContainer);
+    columnsContainer.height = '440px';
+    mainLayout.addControl(columnsContainer);
 
     // Left column: Merchant inventory
     const leftCol = this.createColumn('merchantCol', 'Merchant Wares', true);
@@ -130,9 +131,7 @@ export class BabylonShopPanel {
     this.statusText.fontSize = 13;
     this.statusText.color = '#AAAAAA';
     this.statusText.height = '25px';
-    this.statusText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
-    this.statusText.top = '-5px';
-    this.container.addControl(this.statusText);
+    mainLayout.addControl(this.statusText);
 
     this.container.isVisible = false;
   }
@@ -142,11 +141,18 @@ export class BabylonShopPanel {
     title: string,
     isMerchant: boolean
   ): { wrapper: GUI.Rectangle; itemsPanel: GUI.StackPanel; goldText: GUI.TextBlock } {
+    // Use a StackPanel wrapper to vertically stack header + scroll area
     const wrapper = new GUI.Rectangle(`${id}_wrapper`);
     wrapper.width = '338px';
-    wrapper.height = '410px';
+    wrapper.height = '440px';
     wrapper.thickness = 0;
     wrapper.background = 'transparent';
+
+    const colLayout = new GUI.StackPanel(`${id}_layout`);
+    colLayout.isVertical = true;
+    colLayout.width = '100%';
+    colLayout.height = '100%';
+    wrapper.addControl(colLayout);
 
     // Column header
     const header = new GUI.Rectangle(`${id}_header`);
@@ -155,8 +161,7 @@ export class BabylonShopPanel {
     header.background = 'rgba(40, 40, 40, 0.8)';
     header.cornerRadius = 5;
     header.thickness = 0;
-    header.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    wrapper.addControl(header);
+    colLayout.addControl(header);
 
     const headerText = new GUI.TextBlock(`${id}_title`);
     headerText.text = title;
@@ -164,7 +169,8 @@ export class BabylonShopPanel {
     headerText.fontWeight = 'bold';
     headerText.color = 'white';
     headerText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    headerText.left = '10px';
+    headerText.paddingLeft = '10px';
+    headerText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
     header.addControl(headerText);
 
     const goldText = new GUI.TextBlock(`${id}_gold`);
@@ -172,19 +178,18 @@ export class BabylonShopPanel {
     goldText.fontSize = 13;
     goldText.color = '#FFD700';
     goldText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    goldText.left = '-10px';
+    goldText.paddingRight = '10px';
+    goldText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
     header.addControl(goldText);
 
-    // Scrollable items area
+    // Scrollable items area — fills remaining height
     const scrollViewer = new GUI.ScrollViewer(`${id}_scroll`);
     scrollViewer.width = '330px';
-    scrollViewer.height = '365px';
-    scrollViewer.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    scrollViewer.top = '40px';
+    scrollViewer.height = '400px';
     scrollViewer.thickness = 0;
     scrollViewer.barColor = 'rgba(100, 100, 100, 0.8)';
     scrollViewer.barBackground = 'rgba(50, 50, 50, 0.5)';
-    wrapper.addControl(scrollViewer);
+    colLayout.addControl(scrollViewer);
 
     const itemsPanel = new GUI.StackPanel(`${id}_items`);
     itemsPanel.width = '310px';
@@ -295,67 +300,72 @@ export class BabylonShopPanel {
     card.thickness = 1;
     card.background = 'rgba(25, 25, 25, 0.9)';
 
-    // Item name
+    // Vertical stack for card content rows
+    const cardStack = new GUI.StackPanel(`${uid}_stack`);
+    cardStack.isVertical = true;
+    cardStack.width = '100%';
+    cardStack.height = '100%';
+    cardStack.paddingLeft = '10px';
+    cardStack.paddingRight = '10px';
+    cardStack.paddingTop = '4px';
+    card.addControl(cardStack);
+
+    // Row 1: Name + stock
+    const topRow = new GUI.StackPanel(`${uid}_topRow`);
+    topRow.isVertical = false;
+    topRow.width = '100%';
+    topRow.height = '20px';
+    cardStack.addControl(topRow);
+
     const nameText = new GUI.TextBlock(`${uid}_name`);
     nameText.text = item.name;
     nameText.fontSize = 14;
     nameText.fontWeight = 'bold';
     nameText.color = this.getItemColor(item.type);
-    nameText.height = '18px';
-    nameText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    nameText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    nameText.top = '6px';
-    nameText.left = '10px';
+    nameText.width = mode === 'buy' ? '70%' : '100%';
     nameText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    card.addControl(nameText);
+    topRow.addControl(nameText);
 
-    // Stock indicator
     if (mode === 'buy') {
       const stockText = new GUI.TextBlock(`${uid}_stock`);
       stockText.text = `Stock: ${item.stock}`;
       stockText.fontSize = 11;
       stockText.color = item.stock <= 2 ? '#FF6347' : '#AAA';
-      stockText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      stockText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-      stockText.top = '7px';
-      stockText.left = '-10px';
+      stockText.width = '30%';
       stockText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      card.addControl(stockText);
+      topRow.addControl(stockText);
     }
 
-    // Description
-    if (item.description) {
-      const descText = new GUI.TextBlock(`${uid}_desc`);
-      descText.text = item.description;
-      descText.fontSize = 10;
-      descText.color = '#999';
-      descText.height = '16px';
-      descText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-      descText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-      descText.top = '25px';
-      descText.left = '10px';
-      descText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-      card.addControl(descText);
-    }
+    // Row 2: Description
+    const descText = new GUI.TextBlock(`${uid}_desc`);
+    descText.text = item.description || '';
+    descText.fontSize = 10;
+    descText.color = '#999';
+    descText.height = '16px';
+    descText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    cardStack.addControl(descText);
 
-    // Price and action button
+    // Row 3: Price + action button
     const price = mode === 'buy' ? item.buyPrice : item.sellPrice;
     const canAfford = mode === 'buy' ? this.playerGold >= price : true;
     const merchantCanAfford = mode === 'sell'
       ? (this.merchantConfig?.goldReserve || 0) >= price
       : true;
 
+    const bottomRow = new GUI.StackPanel(`${uid}_bottomRow`);
+    bottomRow.isVertical = false;
+    bottomRow.width = '100%';
+    bottomRow.height = '26px';
+    cardStack.addControl(bottomRow);
+
     const priceText = new GUI.TextBlock(`${uid}_price`);
     priceText.text = `${price}g`;
     priceText.fontSize = 14;
     priceText.fontWeight = 'bold';
     priceText.color = canAfford && merchantCanAfford ? '#FFD700' : '#FF4444';
-    priceText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
-    priceText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    priceText.top = '-8px';
-    priceText.left = '10px';
+    priceText.width = '70%';
     priceText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    card.addControl(priceText);
+    bottomRow.addControl(priceText);
 
     const actionBtn = GUI.Button.CreateSimpleButton(
       `${uid}_btn`,
@@ -371,10 +381,6 @@ export class BabylonShopPanel {
     actionBtn.cornerRadius = 4;
     actionBtn.fontSize = 12;
     actionBtn.fontWeight = 'bold';
-    actionBtn.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    actionBtn.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
-    actionBtn.top = '-6px';
-    actionBtn.left = '-8px';
 
     if (canAfford && merchantCanAfford) {
       actionBtn.onPointerUpObservable.add(() => {
@@ -382,7 +388,7 @@ export class BabylonShopPanel {
       });
     }
 
-    card.addControl(actionBtn);
+    bottomRow.addControl(actionBtn);
 
     return card;
   }

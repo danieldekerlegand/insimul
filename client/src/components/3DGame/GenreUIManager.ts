@@ -157,20 +157,25 @@ export class GenreUIManager {
       this.ammoPanel.color = 'rgba(255,255,255,0.3)';
       this.genreContainer!.addControl(this.ammoPanel);
 
+      const ammoStack = new GUI.StackPanel('ammoStack');
+      ammoStack.isVertical = true;
+      ammoStack.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+      this.ammoPanel.addControl(ammoStack);
+
       this.ammoText = new GUI.TextBlock('ammoText');
       this.ammoText.text = '30 / 90';
       this.ammoText.fontSize = 28;
       this.ammoText.fontWeight = 'bold';
       this.ammoText.color = 'white';
-      this.ammoText.top = '-5px';
-      this.ammoPanel.addControl(this.ammoText);
+      this.ammoText.height = '40px';
+      ammoStack.addControl(this.ammoText);
 
       this.weaponNameText = new GUI.TextBlock('weaponName');
       this.weaponNameText.text = 'Pistol';
       this.weaponNameText.fontSize = 12;
       this.weaponNameText.color = 'rgba(255,255,255,0.7)';
-      this.weaponNameText.top = '20px';
-      this.ammoPanel.addControl(this.weaponNameText);
+      this.weaponNameText.height = '20px';
+      ammoStack.addControl(this.weaponNameText);
     }
 
     // Compass (top-center)
@@ -250,21 +255,22 @@ export class GenreUIManager {
     this.buildMenuPanel.isVisible = false; // Toggle with B key
     this.genreContainer!.addControl(this.buildMenuPanel);
 
+    const buildMainStack = new GUI.StackPanel('buildMainStack');
+    buildMainStack.isVertical = true;
+    buildMainStack.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+    buildMainStack.paddingTop = '10px';
+    buildMainStack.spacing = 5;
+    this.buildMenuPanel.addControl(buildMainStack);
+
     const buildTitle = new GUI.TextBlock('buildTitle');
     buildTitle.text = '🏗️ Build';
     buildTitle.fontSize = 16;
     buildTitle.fontWeight = 'bold';
     buildTitle.color = 'white';
     buildTitle.height = '30px';
-    buildTitle.top = '10px';
-    buildTitle.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    this.buildMenuPanel.addControl(buildTitle);
+    buildMainStack.addControl(buildTitle);
 
-    const buildStack = new GUI.StackPanel('buildStack');
-    buildStack.top = '45px';
-    buildStack.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    buildStack.spacing = 5;
-    this.buildMenuPanel.addControl(buildStack);
+    const buildStack = buildMainStack;
 
     const buildings = ['House', 'Barracks', 'Farm', 'Workshop', 'Tower', 'Wall'];
     for (const building of buildings) {
@@ -316,7 +322,15 @@ export class GenreUIManager {
     this.platformerPanel.thickness = 0;
     this.genreContainer!.addControl(this.platformerPanel);
 
-    // Lives (top-left)
+    // Horizontal stack distributes lives / collectibles / timer evenly
+    const platformerStack = new GUI.StackPanel('platformerStack');
+    platformerStack.isVertical = false;
+    platformerStack.width = '100%';
+    platformerStack.height = '100%';
+    platformerStack.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+    this.platformerPanel.addControl(platformerStack);
+
+    // Lives (left)
     this.livesText = new GUI.TextBlock('lives');
     this.livesText.text = '❤️ x 3';
     this.livesText.fontSize = 22;
@@ -324,12 +338,12 @@ export class GenreUIManager {
     this.livesText.color = 'white';
     this.livesText.outlineWidth = 2;
     this.livesText.outlineColor = 'black';
-    this.livesText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    this.livesText.left = '20px';
-    this.livesText.width = '120px';
-    this.platformerPanel.addControl(this.livesText);
+    this.livesText.width = '33%';
+    this.livesText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.livesText.paddingLeft = '20px';
+    platformerStack.addControl(this.livesText);
 
-    // Collectibles (top-center)
+    // Collectibles (center)
     this.collectiblesText = new GUI.TextBlock('collectibles');
     this.collectiblesText.text = '⭐ 0 / 100';
     this.collectiblesText.fontSize = 22;
@@ -337,9 +351,10 @@ export class GenreUIManager {
     this.collectiblesText.color = '#FFD700';
     this.collectiblesText.outlineWidth = 2;
     this.collectiblesText.outlineColor = 'black';
-    this.platformerPanel.addControl(this.collectiblesText);
+    this.collectiblesText.width = '34%';
+    platformerStack.addControl(this.collectiblesText);
 
-    // Timer (top-right)
+    // Timer (right)
     this.timerText = new GUI.TextBlock('timer');
     this.timerText.text = '⏱️ 0:00';
     this.timerText.fontSize = 22;
@@ -347,10 +362,10 @@ export class GenreUIManager {
     this.timerText.color = 'white';
     this.timerText.outlineWidth = 2;
     this.timerText.outlineColor = 'black';
-    this.timerText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    this.timerText.left = '-20px';
-    this.timerText.width = '120px';
-    this.platformerPanel.addControl(this.timerText);
+    this.timerText.width = '33%';
+    this.timerText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    this.timerText.paddingRight = '20px';
+    platformerStack.addControl(this.timerText);
   }
 
   // ==========================================
@@ -438,24 +453,29 @@ export class GenreUIManager {
     this.player2HealthFill.thickness = 0;
     this.player2HealthBar.addControl(this.player2HealthFill);
 
-    // Round and timer (center top)
+    // Round and timer (center top) — vertical stack for proper flow
+    const centerStack = new GUI.StackPanel('fightCenterStack');
+    centerStack.isVertical = true;
+    centerStack.width = '100px';
+    centerStack.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+    centerStack.paddingTop = '5px';
+    topBar.addControl(centerStack);
+
     this.roundText = new GUI.TextBlock('roundText');
     this.roundText.text = 'Round 1';
     this.roundText.fontSize = 16;
     this.roundText.fontWeight = 'bold';
     this.roundText.color = '#FFD700';
-    this.roundText.top = '5px';
-    this.roundText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    topBar.addControl(this.roundText);
+    this.roundText.height = '22px';
+    centerStack.addControl(this.roundText);
 
     this.fightTimerText = new GUI.TextBlock('fightTimer');
     this.fightTimerText.text = '99';
     this.fightTimerText.fontSize = 32;
     this.fightTimerText.fontWeight = 'bold';
     this.fightTimerText.color = 'white';
-    this.fightTimerText.top = '25px';
-    this.fightTimerText.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    topBar.addControl(this.fightTimerText);
+    this.fightTimerText.height = '42px';
+    centerStack.addControl(this.fightTimerText);
 
     // Special meter (bottom-left)
     this.specialMeterBar = new GUI.Rectangle('specialMeterBg');
