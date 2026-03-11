@@ -1,0 +1,66 @@
+I would like to perform a thorough, deep, comprehensive analysis and refactor of the Insimul system at every level, including every  
+feature of the editor app, every feature of the in-app game (but especially player/NPC chat and quest/item/action management), 
+data gathering/metrics/insights/visualization, and external game exports for currently supported game engines.
+
+I'd like to start with the content editors and data structures (society, rules, actions, quests,      
+items, grammars, and languages). I'd want to analyze the truth system in Insimul, which is the most transparent layer   
+of Prolog in the system, integrating this system more fully within the content editor as a whole; I believe that this   
+will potentially necessitate the merging of truth within the content editor as an aspect of EVERY content editor, as    
+well as potentially integrating a new content system that we might call "history". One of the goals of Insimul is not   
+only to facilitate the procedural generation of complex genealogies, towns, game actions, and social rules, but also a  
+history of the world, as in the things in history that have happened, both big and small. For example, if a character   
+in a world got divorced in 1985, that event should register in the history editor; because the history editor can       
+potentially incorporate a HUGE amount of details, its UI needs to be very carefully developed. As of today, the         
+integration of history, i.e. truth values over time, is one of the weakest aspects of the Insimul system. Time in       
+Insimul is represented in terms of abstract "steps", but we should make it possible for users to define values for      
+this timestep, such as a year, a day, an hour, a minute, and so on. Based on the current system structure, I'd like     
+for you to choose a default, but we can adjust it as need be.
+
+As of right now, however, the system only procedurally generates world truths within the present, at timestep 0. 
+We do want to avoid using calls to a remote LLM for every single thing in the system, both because of the monetary cost 
+but also because of the time cost. However, the Talk of the Town system was created for exactly such a thing-- generation 
+of a town history, starting from a particular year and ending at a particular year, with world events happening all throughout 
+the timespan. All of this happened without calling an LLM. We don't want to avoid using LLMs wherever beneficial, but if we 
+can drastically improve our world truth management by revisiting Talk of the Town's codebase and applying some of the missing 
+functionality here, we should do so, using an optimized approach to LLM usage, such as batched or multi-tiered requests and 
+prompts. The Prolog Knowledge Base is great to have, but its presence on its own makes it seem completely disconnected from the      
+rest of the editor. We need to make sure that its features are properly integrated with the rest of the editor, rather  
+than being a sort of second-class citizen used only for syncing and exporting static data. We may want to combine it    
+with the Simulations feature, if that seems logical. One useful starting point for this goal might be to analyze the database
+backups in /data/backups, which have been stored as JSON documents for easy analysis. You can analyze the data for both content and
+schema, in order to determine any potentially improved method for storing our Insimul Postgres data within the MongoDB database,
+with an aim of keeping it consistently, permanently aligned.
+
+It is very important that the data in society, rules, actions, quests, items, grammars, languages, and truths/history all
+work together for each world so that they contribute to the construction of functional, engaging, creative interactive emergent
+narratives. Players should be able to complete quests, including by but not limited to:
+
+- talking to characters
+- fighting with characters
+- collecting items
+- crafting items
+- visiting locations
+- listening to conversations
+- solving puzzles
+- romancing characters
+- speaking certain utterances (especially for language-learning games!)
+
+These are the main activities that come to mind, but we should continue to enhance and expand this list, and we should also
+begin to standardize the Insimul content/syntax defining in-game rules, realities, behaviors, and so on. Rules in Insimul are
+meant to encompass social rules (as in social mores in societies) and game logic-- basically anything that "happens" in the game.
+
+I am working actively on the first major game product constructed using the Insimul system, which is to be a langauge-learning game
+that incorporates RPG elements and completely interactive, open-ended conversation. I'd like for you to keep that in mind as you work
+on this large-scale refactor, with a goal of completely building out the rest of this game, while keeping the system still flexible enough
+to construct the other types of games that it intends to support, represented by the game genres and game types lists.
+
+Because I am working on a major game that I will be beta-testing through user studies, it is also important that we significantly build out
+the data gathering/metrics/insights/visualization features. We want to make sure that both the in-app game and the exported games are able to
+track user playthrough data. We need to allow game creators to configure the exported game versions so that they can connect to a remote Insimul API,
+periodically submitting user playthrough data to the server. In case of API failure, we should be storing local copies of all of the user playthrough data.
+If the game is a language-learning game, it should also store and send data regarding language learning progress, successes and failures.
+I've included a file evaluation-plan.pdf that covers the type of data we're interested in collecting, so please read over that document when you
+work on the language-learning-specific data collection features.
+
+In order to accomplish all of this work, you should begin by constructing a very thorough, comprehensive set of roadmap plans, one for each major
+segment of the overall plan. Then, you should work on completing each roadmap step by step, until all of each roadmap's steps are done.

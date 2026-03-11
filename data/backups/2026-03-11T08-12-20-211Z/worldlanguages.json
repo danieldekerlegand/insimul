@@ -1,0 +1,32 @@
+[
+  {
+    "_id": "69b111978d01a64747724dc0",
+    "worldId": "69b111838d01a64747724ce0",
+    "scopeType": "world",
+    "scopeId": "69b111838d01a64747724ce0",
+    "name": "French",
+    "description": "The French language — the player's learning target.",
+    "kind": "real",
+    "realCode": "fr-FR",
+    "isPrimary": true,
+    "isLearningTarget": true,
+    "parentLanguageId": null,
+    "influenceLanguageIds": [],
+    "realInfluenceCodes": [],
+    "config": null,
+    "features": null,
+    "phonemes": null,
+    "grammar": null,
+    "writingSystem": null,
+    "culturalContext": null,
+    "phoneticInventory": null,
+    "sampleWords": null,
+    "sampleTexts": null,
+    "etymology": null,
+    "dialectVariations": null,
+    "learningModules": null,
+    "createdAt": "2026-03-11T06:54:15.892Z",
+    "updatedAt": "2026-03-11T06:54:15.892Z",
+    "__v": 0
+  }
+]

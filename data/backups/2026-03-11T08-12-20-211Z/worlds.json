@@ -1,0 +1,55 @@
+[
+  {
+    "_id": "69b111838d01a64747724ce0",
+    "name": "French Louisiana",
+    "description": "A contemporary modern world with real-world issues and challenges",
+    "targetLanguage": "French",
+    "worldType": "modern-realistic",
+    "gameType": "language-learning",
+    "ownerId": null,
+    "visibility": "private",
+    "isTemplate": false,
+    "allowedUserIds": [],
+    "maxPlayers": null,
+    "requiresAuth": false,
+    "selectedAssetCollectionId": "69aa4ff243b41b578ffc4001",
+    "cameraPerspective": "third_person",
+    "sourceFormats": null,
+    "config": {
+      "worldType": "modern-realistic",
+      "gameType": "language-learning"
+    },
+    "worldData": null,
+    "historicalEvents": null,
+    "generationConfig": {
+      "generateGeography": true,
+      "generateGenealogy": true,
+      "generateWorldMap": true,
+      "gameType": "language-learning",
+      "countries": [
+        {
+          "terrain": "plains",
+          "foundedYear": 1200,
+          "generateStates": true,
+          "numStatesPerCountry": 1,
+          "numCitiesPerState": 0,
+          "numTownsPerState": 0,
+          "numVillagesPerState": 1,
+          "numFoundingFamilies": 8,
+          "generations": 5,
+          "marriageRate": 0.8,
+          "fertilityRate": 0.7,
+          "deathRate": 0.4
+        }
+      ],
+      "worldLanguages": [
+        "French"
+      ],
+      "learningTargetLanguage": "French"
+    },
+    "version": 1,
+    "createdAt": "2026-03-11T06:53:55.144Z",
+    "updatedAt": "2026-03-11T07:40:05.675Z",
+    "__v": 0
+  }
+]

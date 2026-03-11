@@ -1,0 +1,16 @@
+[
+  {
+    "_id": "69202a3f1406f653f66e72ca",
+    "username": "dldekerl",
+    "email": "dldekerl@gmail.com",
+    "passwordHash": "$2b$10$LuP3WdbeNo9YmFGK1xH7t.UYFvALdqqq0cPPRUulow59Ky5EYKPS.",
+    "displayName": "Daniel DeKerlegand",
+    "avatarUrl": null,
+    "isActive": true,
+    "isVerified": false,
+    "lastLoginAt": "2026-03-05T03:05:37.448Z",
+    "createdAt": "2025-11-21T09:00:47.609Z",
+    "updatedAt": "2026-03-05T03:05:37.448Z",
+    "__v": 0
+  }
+]

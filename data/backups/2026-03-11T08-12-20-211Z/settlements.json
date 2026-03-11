@@ -1,0 +1,203 @@
+[
+  {
+    "_id": "69b111948d01a64747724cfe",
+    "worldId": "69b111838d01a64747724ce0",
+    "countryId": "69b111948d01a64747724cfa",
+    "stateId": "69b111948d01a64747724cfc",
+    "name": "Belle Rêve",
+    "description": null,
+    "settlementType": "village",
+    "terrain": "plains",
+    "population": 0,
+    "foundedYear": 1200,
+    "founderIds": null,
+    "currentGeneration": 0,
+    "maxGenerations": 10,
+    "currentYear": null,
+    "currentMonth": 1,
+    "currentDay": 1,
+    "timeOfDay": "day",
+    "ordinalDate": 0,
+    "mayorId": null,
+    "localGovernmentType": null,
+    "districts": [
+      {
+        "id": "district-0",
+        "name": "Downtown",
+        "type": "district",
+        "x": 416.66666666666663,
+        "y": 250,
+        "width": 125,
+        "height": 125,
+        "properties": {
+          "wealth": 68.16280394983384,
+          "crime": 44.28656589911565,
+          "established": 1233
+        }
+      },
+      {
+        "id": "district-1",
+        "name": "Riverside",
+        "type": "district",
+        "x": 83.33333333333334,
+        "y": 250.00000000000003,
+        "width": 125,
+        "height": 125,
+        "properties": {
+          "wealth": 90.9994796451172,
+          "crime": 29.338746277559412,
+          "established": 1225
+        }
+      }
+    ],
+    "streets": [
+      {
+        "id": "street-0",
+        "name": "Main St",
+        "type": "street",
+        "x": 469.1901302386081,
+        "y": 281.144690743469,
+        "parentId": "district-0",
+        "properties": {
+          "length": 385.7265158758901,
+          "condition": "good",
+          "traffic": "high"
+        }
+      },
+      {
+        "id": "street-1",
+        "name": "Oak Ave",
+        "type": "street",
+        "x": 396.2899744795948,
+        "y": 282.39068458218003,
+        "parentId": "district-0",
+        "properties": {
+          "length": 351.44986210121374,
+          "condition": "poor",
+          "traffic": "low"
+        }
+      },
+      {
+        "id": "street-2",
+        "name": "Maple Dr",
+        "type": "street",
+        "x": 360.4068401325356,
+        "y": 214.10687362924477,
+        "parentId": "district-0",
+        "properties": {
+          "length": 477.9827419037202,
+          "condition": "good",
+          "traffic": "high"
+        }
+      },
+      {
+        "id": "street-3",
+        "name": "Cedar Ln",
+        "type": "street",
+        "x": 116.72452988876964,
+        "y": 290.0248906635433,
+        "parentId": "district-1",
+        "properties": {
+          "length": 426.4754950318026,
+          "condition": "good",
+          "traffic": "low"
+        }
+      },
+      {
+        "id": "street-4",
+        "name": "Pine Rd",
+        "type": "street",
+        "x": 78.3138059981269,
+        "y": 269.64526783177683,
+        "parentId": "district-1",
+        "properties": {
+          "length": 462.58508827091407,
+          "condition": "good",
+          "traffic": "high"
+        }
+      },
+      {
+        "id": "street-5",
+        "name": "Elm St",
+        "type": "street",
+        "x": 114.61523293259476,
+        "y": 202.26462242096912,
+        "parentId": "district-1",
+        "properties": {
+          "length": 223.12875281533425,
+          "condition": "poor",
+          "traffic": "low"
+        }
+      }
+    ],
+    "landmarks": [
+      {
+        "id": "landmark-0",
+        "name": "Town Square",
+        "type": "landmark",
+        "x": 439.63589663228845,
+        "y": 253.08088133612782,
+        "parentId": "district-0",
+        "properties": {
+          "visitors": 598,
+          "historical": true,
+          "established": 1539
+        }
+      },
+      {
+        "id": "landmark-1",
+        "name": "Central Park",
+        "type": "landmark",
+        "x": 61.486143031395606,
+        "y": 265.33132026122775,
+        "parentId": "district-1",
+        "properties": {
+          "visitors": 448,
+          "historical": true,
+          "established": 1607
+        }
+      },
+      {
+        "id": "landmark-2",
+        "name": "Old Mill",
+        "type": "landmark",
+        "x": 429.871803375766,
+        "y": 257.79737891329324,
+        "parentId": "district-0",
+        "properties": {
+          "visitors": 719,
+          "historical": false,
+          "established": 1858
+        }
+      },
+      {
+        "id": "landmark-3",
+        "name": "Clock Tower",
+        "type": "landmark",
+        "x": 86.39498171359435,
+        "y": 238.92133843438245,
+        "parentId": "district-1",
+        "properties": {
+          "visitors": 656,
+          "historical": true,
+          "established": 1275
+        }
+      }
+    ],
+    "socialStructure": null,
+    "economicData": null,
+    "genealogies": null,
+    "familyTrees": null,
+    "unemployedCharacterIds": null,
+    "vacantLotIds": null,
+    "departedCharacterIds": null,
+    "deceasedCharacterIds": null,
+    "previousCountryIds": null,
+    "previousStateIds": null,
+    "annexationHistory": null,
+    "generationConfig": null,
+    "createdAt": "2026-03-11T06:54:12.486Z",
+    "updatedAt": "2026-03-11T06:54:14.641Z",
+    "__v": 0
+  }
+]
