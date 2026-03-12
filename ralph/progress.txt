@@ -40,6 +40,7 @@ Started: Thu Mar 12 00:10:56 CDT 2026
 - VolitionSystem uses 3-level action grammar: START_GOALS → NON_TERMINAL_ACTIONS → TERMINAL_ACTIONS; scoring: `startScore * (1.0 + termScore)`; schedule override events: `volition_schedule_override`, `volition_return_to_schedule`
 - Mercantile types (`MerchantInventory`, `ShopItem`, `ItemType`) are in `shared/game-engine/types.ts`; `BusinessType` union is in `shared/schema.ts`
 - `merchant-inventory.ts` exports `generateMerchantInventory()`, `getAcceptedItemTypes()`, `restockInventory()` — use `MerchantInventoryStorage` interface for DI
+- Unity UPM packages: `package.json` + `Runtime/`/`Editor/` with `.asmdef` files; `Samples~` (tilde) for importable samples; Editor code must be in editor-only asmdef to avoid build errors
 
 ---
 
@@ -703,4 +704,25 @@ Started: Thu Mar 12 00:10:56 CDT 2026
   - Used HTTP/SSE transport (same as JS SDK) instead of native gRPC — UE gRPC support is complex and the server already has an HTTP bridge
   - Standard UE plugin structure: `.uplugin` at root, `Source/<ModuleName>/Public/` for headers, `Private/` for .cpp
   - All BlueprintCallable/BlueprintAssignable functions must be UFUNCTIONs
+---
+
+## 2026-03-12 - US-035
+- Created `packages/insimul-plugin-unity/` as a Unity Package Manager (UPM) package for Unity 2022.3 LTS+
+- InsimulManager MonoBehaviour singleton: manages HTTP client, server config, session generation
+- InsimulNPC MonoBehaviour: attach to any GameObject for conversation with session lifecycle, UnityEvents for all response types
+- InsimulHttpClient: HTTP/SSE transport (POST to /api/conversation/stream, /stream-audio, /end) with SSE line parsing
+- InsimulMicrophone: wraps Unity Microphone class with WAV encoding for push-to-talk
+- InsimulAudioPlayer: streams TTS audio to AudioSource with pre-buffering, spatial audio, chunk queue
+- InsimulLipSync: applies viseme weights to SkinnedMeshRenderer blend shapes with smooth interpolation, OVR 15-viseme format
+- Custom editor inspectors for InsimulManager (connection test, validation) and InsimulNPC (runtime state display)
+- README with quickstart, component reference, and architecture overview
+- Sample scene description in Samples~/BasicConversation/
+- Files changed: 13 new files in packages/insimul-plugin-unity/
+- **Learnings for future iterations:**
+  - Unity UPM packages use `package.json` (not npm format), `Runtime/` and `Editor/` folders with `.asmdef` assembly definitions
+  - `Samples~` folder (with tilde) is special — UPM shows it as importable sample but doesn't auto-include in project
+  - Unity's `JsonUtility` is limited (no Dictionary support) — SSE event types use flat [Serializable] classes
+  - UnityWebRequest downloads full response before returning (no true streaming) — for real-time streaming, consider native WebSocket or plugin-based SSE
+  - Same HTTP/SSE transport pattern as UE plugin — keeps all engine plugins consistent
+  - Editor scripts must be in `Editor/` folder with editor-only asmdef to avoid build errors
 ---
