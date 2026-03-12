@@ -47,6 +47,10 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
   const [editTargetLanguage, setEditTargetLanguage] = useState<string>('');
   const [editAssetCollectionId, setEditAssetCollectionId] = useState<string>('');
   const [editCameraPerspective, setEditCameraPerspective] = useState<string>('third_person');
+  const [editTimestepUnit, setEditTimestepUnit] = useState<string>('year');
+  const [editGameplayTimestepUnit, setEditGameplayTimestepUnit] = useState<string>('day');
+  const [editHistoryStartYear, setEditHistoryStartYear] = useState<string>('');
+  const [editHistoryEndYear, setEditHistoryEndYear] = useState<string>('');
   const { toast } = useToast();
   const { token } = useAuth();
 
@@ -77,6 +81,10 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
             setEditTargetLanguage(world.targetLanguage || '');
             setEditAssetCollectionId(world.selectedAssetCollectionId || '');
             setEditCameraPerspective(world.cameraPerspective || 'third_person');
+            setEditTimestepUnit(world.timestepUnit || 'year');
+            setEditGameplayTimestepUnit(world.gameplayTimestepUnit || 'day');
+            setEditHistoryStartYear(world.historyStartYear?.toString() || '');
+            setEditHistoryEndYear(world.historyEndYear?.toString() || '');
           }
         } catch (error) {
           console.error('Failed to load world data:', error);
@@ -237,6 +245,10 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
           targetLanguage: editTargetLanguage || null,
           selectedAssetCollectionId: editAssetCollectionId && editAssetCollectionId !== 'none' ? editAssetCollectionId : null,
           cameraPerspective: editCameraPerspective || 'third_person',
+          timestepUnit: editTimestepUnit || 'year',
+          gameplayTimestepUnit: editGameplayTimestepUnit || 'day',
+          historyStartYear: editHistoryStartYear ? parseInt(editHistoryStartYear, 10) : null,
+          historyEndYear: editHistoryEndYear ? parseInt(editHistoryEndYear, 10) : null,
         }),
       });
       if (!response.ok) throw new Error('Failed to update world');
@@ -568,6 +580,67 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
               </Select>
               <div className="text-xs text-muted-foreground">
                 Camera mode used when playing this world
+              </div>
+            </div>
+
+            {/* Timestep Configuration */}
+            <div className="space-y-2 pt-2 border-t border-white/10">
+              <Label className="text-sm font-semibold">Time Configuration</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="edit-timestep-unit" className="text-xs">History Timestep</Label>
+                  <Select value={editTimestepUnit} onValueChange={setEditTimestepUnit}>
+                    <SelectTrigger id="edit-timestep-unit">
+                      <SelectValue placeholder="Select unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="year">Year</SelectItem>
+                      <SelectItem value="day">Day</SelectItem>
+                      <SelectItem value="hour">Hour</SelectItem>
+                      <SelectItem value="minute">Minute</SelectItem>
+                      <SelectItem value="custom">Custom</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="edit-gameplay-timestep" className="text-xs">Gameplay Timestep</Label>
+                  <Select value={editGameplayTimestepUnit} onValueChange={setEditGameplayTimestepUnit}>
+                    <SelectTrigger id="edit-gameplay-timestep">
+                      <SelectValue placeholder="Select unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="year">Year</SelectItem>
+                      <SelectItem value="day">Day</SelectItem>
+                      <SelectItem value="hour">Hour</SelectItem>
+                      <SelectItem value="minute">Minute</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="edit-history-start" className="text-xs">History Start Year</Label>
+                  <Input
+                    id="edit-history-start"
+                    type="number"
+                    placeholder="e.g., 1839"
+                    value={editHistoryStartYear}
+                    onChange={(e) => setEditHistoryStartYear(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="edit-history-end" className="text-xs">History End Year</Label>
+                  <Input
+                    id="edit-history-end"
+                    type="number"
+                    placeholder="e.g., 1979"
+                    value={editHistoryEndYear}
+                    onChange={(e) => setEditHistoryEndYear(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Historical simulation runs from start to end year. Gameplay begins after the end year.
               </div>
             </div>
           </div>

@@ -66,6 +66,21 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Dialogue")
     void SelectAction(const FString& ActionId);
 
+    /** Romance action input data */
+    struct FInsimulRomanceAction
+    {
+        FString Id;
+        FString Name;
+        FString RequiredStage;
+        float SparkGain = 0.0f;
+        FString Description;
+        float EnergyCost = 5.0f;
+    };
+
+    /** Show dialogue with romance actions merged alongside base actions */
+    UFUNCTION(BlueprintCallable, Category = "Dialogue")
+    void ShowWithRomanceActions(const TArray<FString>& BaseActionIds, const TArray<FInsimulRomanceAction>& RomanceActions, float Energy);
+
 private:
     FInsimulAIConfig AIConfig;
     TArray<FInsimulDialogueContext> DialogueContexts;

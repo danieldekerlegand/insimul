@@ -387,6 +387,67 @@ func is_willing_to_share(npc_id: String, target_id: String) -> bool:
 		   _kb_content.contains("willing_to_share(%s, %s)" % [npc_atom, target_atom])
 
 
+## Evaluate volition rules for an NPC. Returns scored actions sorted by score descending.
+## Stub: scans volition_score facts.
+func evaluate_volition_rules(npc_id: String) -> Array[Dictionary]:
+	var results: Array[Dictionary] = []
+	if not _initialized:
+		return results
+	var npc_atom: String = _sanitize(npc_id)
+	var prefix: String = "volition_score(%s, " % npc_atom
+	for fact in _facts:
+		if fact.begins_with(prefix):
+			# Parse volition_score(npcId, action, target, score)
+			var inner: String = fact.substr(prefix.length())
+			var end: int = inner.find(")")
+			if end > 0:
+				var parts: PackedStringArray = inner.substr(0, end).split(",")
+				if parts.size() >= 3:
+					results.append({
+						"action_id": parts[0].strip_edges(),
+						"target_id": parts[1].strip_edges(),
+						"score": float(parts[2].strip_edges())
+					})
+	# Sort by score descending
+	results.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a.get("score", 0)) > float(b.get("score", 0)))
+	return results
+
+
+## Get the current romance stage between the player and an NPC.
+## Returns empty string if no romance stage exists.
+func get_romance_stage(npc_id: String) -> String:
+	if not _initialized:
+		return ""
+	var npc_atom: String = _sanitize(npc_id)
+	var prefix: String = "romance_stage(player, %s, " % npc_atom
+	for fact in _facts:
+		if fact.begins_with(prefix):
+			var inner: String = fact.substr(prefix.length())
+			var end: int = inner.find(")")
+			if end > 0:
+				return inner.substr(0, end).strip_edges()
+	return ""
+
+
+## Check if a romance action can be performed with an NPC.
+## Returns true by default if no romance rules are loaded.
+func can_perform_romance_action(npc_id: String, action_type: String) -> bool:
+	if not _initialized:
+		return true
+	var npc_atom: String = _sanitize(npc_id)
+	var action_atom: String = _sanitize(action_type)
+	var pattern: String = "can_romance_action(player, %s, %s)" % [npc_atom, action_atom]
+	# If no romance rules loaded, allow by default (graceful degradation)
+	var has_rules: bool = false
+	for fact in _facts:
+		if fact.begins_with("can_romance_action("):
+			has_rules = true
+			break
+	if not has_rules:
+		return true
+	return _has_fact(pattern)
+
+
 ## Update NPC personality facts. Retracts old personality facts, asserts new ones.
 func update_npc_personality(npc_id: String, personality: Dictionary) -> void:
 	if not _initialized:
@@ -528,6 +589,52 @@ func _handle_game_event(event: Dictionary) -> void:
 		"item_unequipped":
 			var equip_fact: String = "equipped(player, %s, %s)" % [_sanitize(str(event.get("item_name", ""))), _sanitize(str(event.get("slot", "")))]
 			_facts.erase(equip_fact)
+		"romance_action":
+			var npc_id: String = _sanitize(str(event.get("npc_id", "")))
+			var action_type: String = _sanitize(str(event.get("action_type", "")))
+			var status: String = "accepted" if event.get("accepted", false) else "rejected"
+			_assert_internal("romance_action(player, %s, %s, %s)" % [npc_id, action_type, status])
+			# Emit create_truth event for accepted actions
+			if event.get("accepted", false) and _event_bus != null and _event_bus.has_method("emit_event"):
+				_event_bus.emit_event({
+					"type": "state_created_truth",
+					"character_id": "player",
+					"title": "Romance: %s with %s" % [str(event.get("action_type", "")), str(event.get("npc_name", ""))],
+					"content": "Player performed %s on %s" % [str(event.get("action_type", "")), str(event.get("npc_name", ""))],
+					"entry_type": "romance"
+				})
+		"romance_stage_changed":
+			var npc_id: String = _sanitize(str(event.get("npc_id", "")))
+			var from_stage: String = _sanitize(str(event.get("from_stage", "")))
+			var to_stage: String = _sanitize(str(event.get("to_stage", "")))
+			_retract_pattern("romance_stage(player, %s" % npc_id)
+			_assert_internal("romance_stage(player, %s, %s)" % [npc_id, to_stage])
+			_assert_internal("romance_history(player, %s, %s, %s)" % [npc_id, from_stage, to_stage])
+			# Emit create_truth event
+			if _event_bus != null and _event_bus.has_method("emit_event"):
+				_event_bus.emit_event({
+					"type": "state_created_truth",
+					"character_id": "player",
+					"title": "Romance stage: %s -> %s with %s" % [str(event.get("from_stage", "")), str(event.get("to_stage", "")), str(event.get("npc_name", ""))],
+					"content": "Romance stage changed from %s to %s" % [str(event.get("from_stage", "")), str(event.get("to_stage", ""))],
+					"entry_type": "romance"
+				})
+		"npc_volition_action":
+			_assert_internal("volition_acted(%s, %s, %s)" % [_sanitize(str(event.get("npc_id", ""))), _sanitize(str(event.get("action_id", ""))), _sanitize(str(event.get("target_id", "")))])
+		"conversation_overheard":
+			_assert_internal("overheard_conversation(player, %s, %s, %s)" % [_sanitize(str(event.get("npc_id_1", ""))), _sanitize(str(event.get("npc_id_2", ""))), _sanitize(str(event.get("topic", "")))])
+		"state_created_truth":
+			_assert_internal("has_state(%s, %s)" % [_sanitize(str(event.get("character_id", ""))), _sanitize(str(event.get("state_type", "")))])
+		"state_expired_truth":
+			_retract_pattern("has_state(%s, %s" % [_sanitize(str(event.get("character_id", ""))), _sanitize(str(event.get("state_type", "")))])
+		"puzzle_failed":
+			_assert_internal("puzzle_failed(player, %s, %s)" % [_sanitize(str(event.get("puzzle_id", ""))), str(event.get("attempts", 0))])
+		"quest_failed":
+			_assert_internal("quest_failed(player, %s)" % _sanitize(str(event.get("quest_id", ""))))
+		"quest_abandoned":
+			var qid: String = _sanitize(str(event.get("quest_id", "")))
+			_assert_internal("quest_abandoned(player, %s)" % qid)
+			_retract_pattern("quest_active(player, %s" % qid)
 		_:
 			return  # No re-evaluation for unhandled events
 	_reevaluate_quests()

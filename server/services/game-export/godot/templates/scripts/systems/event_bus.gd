@@ -7,7 +7,7 @@ class_name EventBus
 ##
 ## Mirrors GameEventBus.ts from the Babylon.js source.
 
-## All 20 event type constants.
+## All 37 event type constants.
 const EVENT_ITEM_COLLECTED := "item_collected"
 const EVENT_ENEMY_DEFEATED := "enemy_defeated"
 const EVENT_LOCATION_VISITED := "location_visited"
@@ -28,6 +28,22 @@ const EVENT_ITEM_USED := "item_used"
 const EVENT_ITEM_DROPPED := "item_dropped"
 const EVENT_ITEM_EQUIPPED := "item_equipped"
 const EVENT_ITEM_UNEQUIPPED := "item_unequipped"
+const EVENT_UTTERANCE_EVALUATED := "utterance_evaluated"
+const EVENT_UTTERANCE_QUEST_PROGRESS := "utterance_quest_progress"
+const EVENT_UTTERANCE_QUEST_COMPLETED := "utterance_quest_completed"
+const EVENT_AMBIENT_CONVERSATION_STARTED := "ambient_conversation_started"
+const EVENT_AMBIENT_CONVERSATION_ENDED := "ambient_conversation_ended"
+const EVENT_VOCABULARY_OVERHEARD := "vocabulary_overheard"
+const EVENT_STATE_CREATED_TRUTH := "state_created_truth"
+const EVENT_STATE_EXPIRED_TRUTH := "state_expired_truth"
+const EVENT_ROMANCE_ACTION := "romance_action"
+const EVENT_ROMANCE_STAGE_CHANGED := "romance_stage_changed"
+const EVENT_NPC_VOLITION_ACTION := "npc_volition_action"
+const EVENT_PUZZLE_FAILED := "puzzle_failed"
+const EVENT_QUEST_FAILED := "quest_failed"
+const EVENT_QUEST_ABANDONED := "quest_abandoned"
+const EVENT_CONVERSATION_OVERHEARD := "conversation_overheard"
+const EVENT_CREATE_TRUTH := "create_truth"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -38,6 +54,14 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_LOCATION_DISCOVERED, EVENT_SETTLEMENT_ENTERED, EVENT_PUZZLE_SOLVED,
 	EVENT_ITEM_REMOVED, EVENT_ITEM_USED, EVENT_ITEM_DROPPED,
 	EVENT_ITEM_EQUIPPED, EVENT_ITEM_UNEQUIPPED,
+	EVENT_UTTERANCE_EVALUATED, EVENT_UTTERANCE_QUEST_PROGRESS,
+	EVENT_UTTERANCE_QUEST_COMPLETED, EVENT_AMBIENT_CONVERSATION_STARTED,
+	EVENT_AMBIENT_CONVERSATION_ENDED, EVENT_VOCABULARY_OVERHEARD,
+	EVENT_STATE_CREATED_TRUTH, EVENT_STATE_EXPIRED_TRUTH,
+	EVENT_ROMANCE_ACTION, EVENT_ROMANCE_STAGE_CHANGED,
+	EVENT_NPC_VOLITION_ACTION, EVENT_PUZZLE_FAILED,
+	EVENT_QUEST_FAILED, EVENT_QUEST_ABANDONED,
+	EVENT_CONVERSATION_OVERHEARD, EVENT_CREATE_TRUTH,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
@@ -74,6 +98,22 @@ var _global_handlers: Array[Callable] = []
 ##   item_dropped:        {type, item_id, item_name, quantity}
 ##   item_equipped:       {type, item_id, item_name, slot}
 ##   item_unequipped:     {type, item_id, item_name, slot}
+##   utterance_evaluated: {type, objective_id, input, score, passed, feedback}
+##   utterance_quest_progress: {type, quest_id, objective_id, current, required, percentage}
+##   utterance_quest_completed: {type, quest_id, objective_id, final_score, xp_awarded}
+##   ambient_conversation_started: {type, conversation_id, participants, location_id, topic}
+##   ambient_conversation_ended: {type, conversation_id, participants, duration_ms, vocabulary_count}
+##   vocabulary_overheard: {type, word, translation, language, context, conversation_id, speaker_npc_id}
+##   state_created_truth: {type, character_id, state_type, cause, title, content, entry_type}
+##   state_expired_truth: {type, character_id, state_type, cause, title, content, entry_type}
+##   romance_action:      {type, npc_id, npc_name, action_type, accepted, stage_change?}
+##   romance_stage_changed: {type, npc_id, npc_name, from_stage, to_stage}
+##   npc_volition_action: {type, npc_id, action_id, target_id, score}
+##   puzzle_failed:       {type, puzzle_id, puzzle_type, attempts}
+##   quest_failed:        {type, quest_id}
+##   quest_abandoned:     {type, quest_id}
+##   conversation_overheard: {type, npc_id_1, npc_id_2, topic, language_used}
+##   create_truth:        {type, character_id, title, content, entry_type, category?}
 ##
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}
 func emit_event(event: Dictionary) -> void:

@@ -131,6 +131,34 @@ func select_action(action_id: String) -> void:
 
 	print("[Insimul] Action not found: %s" % action_id)
 
+## Show dialogue with romance actions merged alongside base actions.
+## Converts romance action dicts into standard social action format and appends them.
+## romance_actions: Array of dicts with keys: id, name, requiredStage, sparkGain, description (optional), energyCost (optional)
+func show_with_romance_actions(base_actions: Array, romance_actions: Array, energy: float) -> void:
+	set_player_energy(energy)
+
+	var combined: Array = base_actions.duplicate()
+	for ra in romance_actions:
+		if not ra is Dictionary:
+			continue
+		var desc: String = ra.get("description", "")
+		if desc.is_empty():
+			desc = "Romance action (requires %s stage)" % ra.get("requiredStage", "unknown")
+		combined.append({
+			"id": "romance_%s" % ra.get("id", ""),
+			"name": "\u{1F495} %s" % ra.get("name", ""),
+			"description": desc,
+			"actionType": "social",
+			"category": "romance",
+			"energyCost": ra.get("energyCost", 5.0),
+			"sparkGain": ra.get("sparkGain", 0.0),
+			"romanceActionId": ra.get("id", ""),
+			"tags": ["romance"]
+		})
+	_social_actions = combined
+
+	print("[Insimul] show_with_romance_actions: added %d romance actions (total=%d)" % [romance_actions.size(), _social_actions.size()])
+
 func _load_social_actions() -> void:
 	var actions_file = FileAccess.open("res://data/social_actions.json", FileAccess.READ)
 	if actions_file:

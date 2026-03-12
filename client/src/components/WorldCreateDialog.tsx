@@ -11,7 +11,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Globe, Plus, Sparkles, FileText, TreePine, Users, Map, Building, Anchor, Cpu, Wand2 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Globe, Plus, Sparkles, FileText, TreePine, Users, Map, Building, Anchor, Cpu, Wand2, Clock, ChevronDown } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertWorldSchema, type InsertWorld } from "@shared/schema";
@@ -386,6 +387,13 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
   const [customPrompt, setCustomPrompt] = useState('');
   const [customLabel, setCustomLabel] = useState('');
 
+  // Time configuration
+  const [timestepUnit, setTimestepUnit] = useState('year');
+  const [gameplayTimestepUnit, setGameplayTimestepUnit] = useState('day');
+  const [historyStartYear, setHistoryStartYear] = useState('');
+  const [historyEndYear, setHistoryEndYear] = useState('');
+  const [timeConfigOpen, setTimeConfigOpen] = useState(false);
+
   // Generation options (world-level)
   const [generateGeography, setGenerateGeography] = useState(true);
   const [generateGenealogy, setGenerateGenealogy] = useState(true);
@@ -468,6 +476,12 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
       };
     }
 
+    // Time configuration
+    data.timestepUnit = timestepUnit;
+    data.gameplayTimestepUnit = gameplayTimestepUnit;
+    if (historyStartYear) data.historyStartYear = parseInt(historyStartYear, 10);
+    if (historyEndYear) data.historyEndYear = parseInt(historyEndYear, 10);
+
     onCreateWorld(data, generateContent, worldType, prompt, selectedGameType, label, generateWorldMap);
     setOpen(false);
     form.reset();
@@ -485,6 +499,11 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
     setGenerateWorldMap(true);
     setNumCountries(1);
     setCountryConfigs([{ ...DEFAULT_COUNTRY_CONFIG }]);
+    setTimestepUnit('year');
+    setGameplayTimestepUnit('day');
+    setHistoryStartYear('');
+    setHistoryEndYear('');
+    setTimeConfigOpen(false);
   };
 
   return (
@@ -871,6 +890,85 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
               </Card>
             </div>
           )}
+
+          {/* Time Configuration (collapsible) */}
+          <Collapsible open={timeConfigOpen} onOpenChange={setTimeConfigOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between px-6 py-3 text-left hover:bg-white/5 transition-colors rounded-t-lg"
+                >
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Time Configuration</span>
+                    <span className="text-xs text-muted-foreground">(optional)</span>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${timeConfigOpen ? 'rotate-180' : ''}`} />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="space-y-4 pt-0">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="create-timestep-unit" className="text-xs">History Timestep</Label>
+                      <Select value={timestepUnit} onValueChange={setTimestepUnit}>
+                        <SelectTrigger id="create-timestep-unit">
+                          <SelectValue placeholder="Select unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="year">Year</SelectItem>
+                          <SelectItem value="day">Day</SelectItem>
+                          <SelectItem value="hour">Hour</SelectItem>
+                          <SelectItem value="minute">Minute</SelectItem>
+                          <SelectItem value="custom">Custom</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="create-gameplay-timestep" className="text-xs">Gameplay Timestep</Label>
+                      <Select value={gameplayTimestepUnit} onValueChange={setGameplayTimestepUnit}>
+                        <SelectTrigger id="create-gameplay-timestep">
+                          <SelectValue placeholder="Select unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="year">Year</SelectItem>
+                          <SelectItem value="day">Day</SelectItem>
+                          <SelectItem value="hour">Hour</SelectItem>
+                          <SelectItem value="minute">Minute</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="create-history-start" className="text-xs">History Start Year</Label>
+                      <Input
+                        id="create-history-start"
+                        type="number"
+                        placeholder="e.g., 1839"
+                        value={historyStartYear}
+                        onChange={(e) => setHistoryStartYear(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="create-history-end" className="text-xs">History End Year</Label>
+                      <Input
+                        id="create-history-end"
+                        type="number"
+                        placeholder="e.g., 1979"
+                        value={historyEndYear}
+                        onChange={(e) => setHistoryEndYear(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Historical simulation runs from start to end year at the history timestep. Gameplay begins after the end year at the gameplay timestep.
+                  </p>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
 
           <DialogFooter className="gap-2">
             <Button

@@ -22,6 +22,8 @@ import { generateProjectFiles } from './babylon-project-generator';
 import { GameFileCopier } from './game-file-copier';
 import { bundleAssetsFromCollection, bundleCoreAssets, type TargetEngine } from '../asset-bundler';
 import { generateWorldIR } from '../ir-generator';
+import { generateBabylonTelemetryIntegration } from '../babylon-telemetry-integration';
+import { TELEMETRY_DEFAULTS } from '../telemetry-config';
 import type { BabylonExportOptions } from './types';
 
 // createRequire needed for ESM projects.
@@ -161,11 +163,28 @@ export async function exportBabylonProject(
   // 10. Generate asset manifest
   const manifestJson = generateAssetManifestJson(assetBundle.manifest);
   
+  // Include telemetry integration if enabled
+  const telemetryFiles: GeneratedFile[] = [];
+  if (options.telemetry?.enabled) {
+    const telemetryTs = generateBabylonTelemetryIntegration({
+      apiEndpoint: options.telemetry.serverUrl,
+      apiKey: options.telemetry.apiKey,
+      batchSize: options.telemetry.batchSize ?? TELEMETRY_DEFAULTS.batchSize,
+      flushIntervalMs: options.telemetry.flushIntervalMs ?? TELEMETRY_DEFAULTS.flushIntervalMs,
+    });
+    telemetryFiles.push({
+      path: 'src/telemetry-integration.ts',
+      content: telemetryTs,
+    });
+    console.log('[Export] Babylon.js telemetry integration included');
+  }
+
   // Combine all files
   const allFiles: GeneratedFile[] = [
     ...dataFiles,
     ...gameFiles,
     ...sharedTypesFiles,
+    ...telemetryFiles,
     mainEntryFile,
     ...projectFiles,
     { path: 'public/data/asset-manifest.json', content: manifestJson },

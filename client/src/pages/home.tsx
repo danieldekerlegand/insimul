@@ -1,51 +1,35 @@
 import { useState } from 'react';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { WorldSelectionScreen } from '@/components/WorldSelectionScreen';
 import { ModernNavbar } from '@/components/ModernNavbar';
 import { RulesHub } from '@/components/rules/RulesHub';
 import { UnifiedWorldExplorerTab } from '@/components/UnifiedWorldExplorerTab';
 import { ActionsHub } from '@/components/actions/ActionsHub';
 import { WorldManagementTab } from '@/components/WorldManagementTab';
-import { TruthTab } from '@/components/TruthTab';
 import { QuestsHub } from '@/components/quests/QuestsHub';
 import { ItemsHub } from '@/components/items/ItemsHub';
-import { PrologKnowledgeBase } from '@/components/PrologKnowledgeBase';
-import { PrologSimulationPanel } from '@/components/prolog/PrologSimulationPanel';
+import { WorldIntelligenceTab } from '@/components/WorldIntelligenceTab';
 import { GrammarsHub } from '@/components/grammars/GrammarsHub';
 import { LanguagesHub } from '@/components/languages/LanguagesHub';
 import { ExportDialog } from '@/components/ExportDialog';
 import { EngineExportDialog } from '@/components/EngineExportDialog';
 import { ImportDialog } from '@/components/ImportDialog';
-import { SimulationCreateDialog } from '@/components/SimulationCreateDialog';
-import { SimulationConfigDialog } from '@/components/SimulationConfigDialog';
-import { SimulationTimelineView } from '@/components/SimulationTimelineView';
 import { BabylonWorld } from '@/components/3DGame/BabylonWorld';
 import { AuthDialog } from '@/components/AuthDialog';
 import { AdminPanel } from '@/components/AdminPanel';
 import { PlaythroughsList } from '@/components/PlaythroughsList';
 import { PlaythroughAnalytics } from '@/components/PlaythroughAnalytics';
+import { ResearcherDashboard } from '@/components/ResearcherDashboard';
 import { WorldBrowser } from '@/components/WorldBrowser';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Play } from 'lucide-react';
 import { InsimulRuleCompiler } from '@/lib/unified-syntax';
-import type { InsertSimulation } from '@/../../shared/schema';
 
 interface Character {
   id: string;
   firstName: string;
   lastName: string;
-}
-
-interface Simulation {
-  id: string;
-  name: string;
-  description?: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  results?: any;
 }
 
 export default function Home() {
@@ -65,7 +49,7 @@ export default function Home() {
   const { toast } = useToast();
   const { user, login, isAuthenticated } = useAuth();
 
-  // Fetch characters for tabs that need them (TruthTab)
+  // Fetch characters for tabs that need them (WorldIntelligenceTab, ExportDialog)
   const { data: characters = [] } = useQuery<Character[]>({
     queryKey: ['/api/worlds', selectedWorld, 'characters'],
     enabled: !!selectedWorld,
@@ -87,62 +71,6 @@ export default function Home() {
   const { data: worlds = [] } = useQuery<any[]>({
     queryKey: ['/api/worlds'],
   });
-
-  // Fetch simulations for this world
-  const { data: simulations = [] } = useQuery<Simulation[]>({
-    queryKey: ['/api/worlds', selectedWorld, 'simulations'],
-    enabled: !!selectedWorld && activeTab === 'simulations',
-  });
-
-  // Create simulation mutation
-  const createSimulationMutation = useMutation({
-    mutationFn: async (data: InsertSimulation) => {
-      const response = await fetch(`/api/worlds/${selectedWorld}/simulations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) throw new Error('Failed to create simulation');
-      return await response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/worlds', selectedWorld, 'simulations'] });
-      toast({ title: 'Simulation created successfully' });
-    },
-    onError: (error: any) => {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    },
-  });
-
-  // Run simulation mutation
-  const runSimulationMutation = useMutation({
-    mutationFn: async ({ simulationId, config }: { simulationId: string; config?: any }) => {
-      const response = await fetch(`/api/simulations/${simulationId}/run`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config || {}),
-      });
-      if (!response.ok) throw new Error('Failed to run simulation');
-      return response.json();
-    },
-    onSuccess: (data, variables) => {
-      const speedText = variables.config?.executionSpeed === 'fast' ? 'quickly' :
-        variables.config?.executionSpeed === 'detailed' ? 'with detailed analysis' : '';
-      queryClient.invalidateQueries({ queryKey: ['/api/worlds', selectedWorld, 'simulations'] });
-      toast({
-        title: 'Simulation completed',
-        description: `Simulation ran ${speedText}. Check the results below.`,
-      });
-    },
-    onError: (error: any) => {
-      toast({ title: 'Simulation failed', description: error.message, variant: 'destructive' });
-    },
-  });
-
-  // Handler for running simulation
-  const handleRunSimulation = (simulationId: string, config?: any) => {
-    runSimulationMutation.mutate({ simulationId, config });
-  };
 
   // Show admin panel if open
   if (adminPanelOpen) {
@@ -221,19 +149,9 @@ export default function Home() {
           </div>
         )}
 
-        {/* Truth Tab */}
-        {activeTab === 'truth' && selectedWorld && (
-          <TruthTab worldId={selectedWorld} characters={characters} />
-        )}
-
-        {/* Prolog Knowledge Base Tab */}
-        {activeTab === 'prolog' && selectedWorld && (
-          <div className="space-y-6">
-            <PrologKnowledgeBase worldId={selectedWorld} />
-            <div className="px-6">
-              <PrologSimulationPanel worldId={selectedWorld} />
-            </div>
-          </div>
+        {/* World Intelligence Tab — Merged History, KB, Simulations, Truth */}
+        {activeTab === 'world-intelligence' && selectedWorld && (
+          <WorldIntelligenceTab worldId={selectedWorld} characters={characters} />
         )}
 
         {/* Quests Tab */}
@@ -264,133 +182,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Simulations Tab */}
-        {activeTab === 'simulations' && selectedWorld && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Play className="w-5 h-5" />
-                    Simulations ({simulations.length})
-                  </CardTitle>
-                  <CardDescription>
-                    Run insimul simulations combining all systems with Tracery narrative generation
-                  </CardDescription>
-                </div>
-                <SimulationCreateDialog
-                  worldId={selectedWorld}
-                  onCreateSimulation={(data) => createSimulationMutation.mutate(data)}
-                  isLoading={createSimulationMutation.isPending}
-                />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {simulations.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No simulations yet. Create one to get started!
-                  </div>
-                ) : (
-                  simulations.map((simulation) => (
-                    <Card key={simulation.id} className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-semibold">{simulation.name}</div>
-                          {simulation.description && (
-                            <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">
-                              {simulation.description}
-                            </p>
-                          )}
-                          <div className="flex items-center gap-2 mt-2">
-                            <Badge
-                              variant={
-                                simulation.status === 'completed' ? 'default' :
-                                simulation.status === 'running' ? 'secondary' : 'outline'
-                              }
-                            >
-                              {simulation.status || 'pending'}
-                            </Badge>
-                          </div>
-                        </div>
-                        <SimulationConfigDialog
-                          onRunSimulation={(config) => handleRunSimulation(simulation.id, config)}
-                          isLoading={runSimulationMutation.isPending || simulation.status === 'running'}
-                          worlds={worlds}
-                        >
-                          <Button
-                            size="sm"
-                            disabled={runSimulationMutation.isPending || simulation.status === 'running'}
-                          >
-                            <Play className="w-4 h-4 mr-2" />
-                            Configure & Run
-                          </Button>
-                        </SimulationConfigDialog>
-                      </div>
-
-                      {simulation.results && (
-                        <>
-                          <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-800 rounded">
-                            <div className="text-sm font-medium mb-2">Simulation Results:</div>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                              <div>
-                                <strong>Execution Time:</strong><br />
-                                {Math.round(simulation.results.executionTime)}ms
-                              </div>
-                              <div>
-                                <strong>Rules Executed:</strong><br />
-                                {simulation.results.rulesExecuted}
-                              </div>
-                              <div>
-                                <strong>Events Generated:</strong><br />
-                                {simulation.results.eventsGenerated}
-                              </div>
-                              <div>
-                                <strong>Characters Affected:</strong><br />
-                                {simulation.results.charactersAffected}
-                              </div>
-                            </div>
-                            {simulation.results.narrative && (
-                              <div className="mt-3 p-3 bg-white dark:bg-slate-900 rounded border">
-                                <div className="text-sm font-medium mb-1">Generated Narrative:</div>
-                                <p className="text-sm italic">{simulation.results.narrative}</p>
-                              </div>
-                            )}
-                            {simulation.results.truthsCreated && simulation.results.truthsCreated.length > 0 && (
-                              <div className="mt-3 text-sm text-muted-foreground">
-                                ✅ Created {simulation.results.truthsCreated.length} timeline {simulation.results.truthsCreated.length === 1 ? 'event' : 'events'}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Timeline View */}
-                          {simulation.results.truthsCreated && simulation.results.truthsCreated.length > 0 && (
-                            <div className="mt-4">
-                              <SimulationTimelineView
-                                simulationId={simulation.id}
-                                worldId={selectedWorld}
-                                truthsCreated={simulation.results.truthsCreated}
-                                ruleExecutionSequence={simulation.results.ruleExecutionSequence}
-                                characterSnapshots={simulation.results.characterSnapshots ?
-                                  new Map(Object.entries(simulation.results.characterSnapshots).map(([timestep, chars]) => [
-                                    Number(timestep),
-                                    new Map(Object.entries(chars as any))
-                                  ])) :
-                                  new Map()
-                                }
-                              />
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </Card>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         {/* 3D Game Tab */}
         {activeTab === '3d-game' && selectedWorld && isAuthenticated && (
           <BabylonWorld
@@ -398,13 +189,18 @@ export default function Home() {
             worldName={currentWorld?.name || 'Unknown World'}
             worldType={currentWorld?.config?.worldType}
             userId={user?.id}
-            onBack={() => setActiveTab('simulations')}
+            onBack={() => setActiveTab('world-intelligence')}
           />
         )}
 
         {/* Analytics Tab */}
         {activeTab === 'analytics' && selectedWorld && (
           <PlaythroughAnalytics worldId={selectedWorld} />
+        )}
+
+        {/* Research Dashboard Tab */}
+        {activeTab === 'research' && selectedWorld && (
+          <ResearcherDashboard worldId={selectedWorld} />
         )}
 
         {/* My Playthroughs Tab */}

@@ -29,6 +29,7 @@ export class GamePrologEngine {
   private engine: TauPrologEngine;
   private initialized = false;
   private eventBusUnsubscribe: (() => void) | null = null;
+  private eventBusRef: GameEventBus | null = null;
   private activeQuestIds: string[] = [];
   private onQuestCompleted?: (questId: string) => void;
   /** Track per-item quantities so has_item/3 stays accurate. */
@@ -60,6 +61,7 @@ export class GamePrologEngine {
     if (this.eventBusUnsubscribe) {
       this.eventBusUnsubscribe();
     }
+    this.eventBusRef = eventBus;
     this.eventBusUnsubscribe = eventBus.onAny((event: GameEvent) => {
       this.handleGameEvent(event).catch((e) => {
         console.warn('[GamePrologEngine] Error handling game event:', e);
@@ -178,6 +180,107 @@ export class GamePrologEngine {
         await this.engine.retractFact(
           `equipped(player, ${this.sanitize(event.itemName)}, ${this.sanitize(event.slot)})`
         );
+        break;
+      // Romance events → assert relationship facts
+      case 'romance_action': {
+        const npc = this.sanitize(event.npcId);
+        await this.engine.assertFact(
+          `romance_action(player, ${npc}, ${this.sanitize(event.actionType)}, ${event.accepted ? 'accepted' : 'rejected'})`
+        );
+        // Emit truth for significant romance actions
+        if (event.accepted && this.eventBusRef) {
+          this.eventBusRef.emit({
+            type: 'create_truth',
+            characterId: 'player',
+            title: `Romance: ${event.actionType} with ${event.npcName}`,
+            content: `Player ${event.actionType} with ${event.npcName} (${event.accepted ? 'accepted' : 'rejected'})`,
+            entryType: 'event',
+            category: 'romance',
+          });
+        }
+        break;
+      }
+      case 'romance_stage_changed': {
+        const npc = this.sanitize(event.npcId);
+        // Retract old romance stage
+        try {
+          await this.engine.retractFact(`romance_stage(player, ${npc}, ${this.sanitize(event.fromStage)})`);
+        } catch { /* may not exist */ }
+        await this.engine.assertFact(
+          `romance_stage(player, ${npc}, ${this.sanitize(event.toStage)})`
+        );
+        await this.engine.assertFact(
+          `romance_history(player, ${npc}, ${this.sanitize(event.fromStage)}, ${this.sanitize(event.toStage)})`
+        );
+        // Emit truth for romance stage transitions
+        if (this.eventBusRef) {
+          this.eventBusRef.emit({
+            type: 'create_truth',
+            characterId: 'player',
+            title: `Romance stage: ${event.toStage} with ${event.npcName}`,
+            content: `Player began ${event.toStage} with ${event.npcName} (previously ${event.fromStage})`,
+            entryType: 'event',
+            category: 'romance',
+          });
+        }
+        break;
+      }
+      // Volition events → assert volition action facts
+      case 'npc_volition_action': {
+        const npc = this.sanitize(event.npcId);
+        const target = this.sanitize(event.targetId);
+        const action = this.sanitize(event.actionId);
+        await this.engine.assertFact(
+          `volition_acted(${npc}, ${action}, ${target})`
+        );
+        break;
+      }
+      // Conversation overheard → assert for quest tracking
+      case 'conversation_overheard': {
+        const npc1 = this.sanitize(event.npcId1);
+        const npc2 = this.sanitize(event.npcId2);
+        const topic = this.sanitize(event.topic);
+        await this.engine.assertFact(
+          `overheard_conversation(player, ${npc1}, ${npc2}, ${topic})`
+        );
+        break;
+      }
+      // State truth events → assert state facts
+      case 'state_created_truth': {
+        const charId = this.sanitize(event.characterId);
+        const stateType = this.sanitize(event.stateType);
+        await this.engine.assertFact(`has_state(${charId}, ${stateType})`);
+        break;
+      }
+      case 'state_expired_truth': {
+        const charId = this.sanitize(event.characterId);
+        const stateType = this.sanitize(event.stateType);
+        try {
+          await this.engine.retractFact(`has_state(${charId}, ${stateType})`);
+        } catch { /* may not exist */ }
+        break;
+      }
+      // Puzzle failure
+      case 'puzzle_failed':
+        await this.engine.assertFact(
+          `puzzle_failed(player, ${this.sanitize(event.puzzleId)}, ${event.attempts})`
+        );
+        break;
+      // Quest lifecycle
+      case 'quest_failed':
+        await this.engine.assertFact(
+          `quest_failed(player, ${this.sanitize(event.questId)})`
+        );
+        break;
+      case 'quest_abandoned':
+        await this.engine.assertFact(
+          `quest_abandoned(player, ${this.sanitize(event.questId)})`
+        );
+        try {
+          await this.engine.retractFact(
+            `quest_active(player, ${this.sanitize(event.questId)})`
+          );
+        } catch { /* may not exist */ }
         break;
       default:
         return; // No re-evaluation needed for unhandled events
@@ -660,6 +763,56 @@ export class GamePrologEngine {
     }
   }
 
+  // ── Volition & Romance Queries ────────────────────────────────────────────
+
+  /**
+   * Evaluate volition rules for an NPC via Prolog.
+   * Returns scored actions sorted by volition score (highest first).
+   */
+  async evaluateVolitionRules(npcId: string): Promise<Array<{ actionId: string; targetId: string; score: number }>> {
+    if (!this.initialized) return [];
+    try {
+      const result = await this.engine.query(
+        `volition_score(${this.sanitize(npcId)}, Action, Target, Score)`
+      );
+      if (!result.success) return [];
+      return result.bindings
+        .map(r => ({
+          actionId: String(r.Action || ''),
+          targetId: String(r.Target || ''),
+          score: Number(r.Score || 0),
+        }))
+        .filter(r => r.actionId)
+        .sort((a, b) => b.score - a.score);
+    } catch { return []; }
+  }
+
+  /**
+   * Get the current romance stage between player and an NPC.
+   */
+  async getRomanceStage(npcId: string): Promise<string | null> {
+    if (!this.initialized) return null;
+    try {
+      const result = await this.engine.query(
+        `romance_stage(player, ${this.sanitize(npcId)}, Stage)`
+      );
+      if (!result.success || result.bindings.length === 0) return null;
+      return String(result.bindings[0].Stage || '');
+    } catch { return null; }
+  }
+
+  /**
+   * Check if a romance action is available based on current stage.
+   */
+  async canPerformRomanceAction(npcId: string, actionType: string): Promise<boolean> {
+    if (!this.initialized) return false;
+    try {
+      return await this.engine.queryOnce(
+        `can_romance_action(player, ${this.sanitize(npcId)}, ${this.sanitize(actionType)})`
+      );
+    } catch { return true; } // Allow by default if no rules loaded
+  }
+
   /**
    * Record that the player performed an action on an NPC.
    */
@@ -751,6 +904,7 @@ sumlist([H|T], S) :- sumlist(T, S1), S is S1 + H.
       this.eventBusUnsubscribe();
       this.eventBusUnsubscribe = null;
     }
+    this.eventBusRef = null;
     this.engine.clear();
     this.initialized = false;
     this.itemQuantities.clear();

@@ -255,6 +255,20 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
     void RecordPlayerAction(const FString& PlayerId, const FString& NPCId, const FString& ActionName);
 
+    // ── Volition & Romance Queries ──────────────────────────────────────
+
+    /** Evaluate volition rules for an NPC; returns scored actions sorted descending */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    TArray<FString> EvaluateVolitionRules(const FString& NPCId);
+
+    /** Get the current romance stage between the player and an NPC (empty if none) */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    FString GetRomanceStage(const FString& NPCId);
+
+    /** Check if a romance action can be performed with an NPC */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    bool CanPerformRomanceAction(const FString& NPCId, const FString& ActionType);
+
     // ── Event Bus Integration ───────────────────────────────────────────
 
     /** Subscribe to an EventBus to automatically assert Prolog facts from game events */
@@ -305,8 +319,11 @@ private:
     /** Event bus subscription handle for cleanup */
     int32 EventBusSubscriptionHandle = -1;
 
-    /** Weak reference to subscribed event bus */
+    /** Weak reference to subscribed event bus for emitting events back */
     TWeakObjectPtr<UEventBus> SubscribedEventBus;
+
+    /** Stored reference to event bus so PrologEngine can emit events (e.g., create_truth) */
+    TWeakObjectPtr<UEventBus> EventBusRef;
 
     /** Handle a game event by asserting Prolog facts */
     UFUNCTION()

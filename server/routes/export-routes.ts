@@ -13,6 +13,7 @@ import { exportUnrealProject } from '../services/game-export/unreal/unreal-expor
 import { exportUnityProject } from '../services/game-export/unity/unity-exporter';
 import { exportGodotProject } from '../services/game-export/godot/godot-exporter';
 import { exportBabylonProject, exportBabylonProjectAsZip as packageBabylonExport } from '../services/game-export/babylon/babylon-exporter-new';
+import type { ExportTelemetryConfig } from '../services/game-export/telemetry-config';
 
 export function registerExportRoutes(app: Express): void {
 
@@ -143,7 +144,7 @@ export function registerExportRoutes(app: Express): void {
   app.post('/api/worlds/:worldId/export/:engine', async (req, res) => {
     // Increase timeout for export operations (5 minutes)
     req.setTimeout(300000);
-    
+
     try {
       const { worldId, engine } = req.params;
       const supportedEngines = ['babylon', 'unreal', 'unity', 'godot'];
@@ -153,6 +154,36 @@ export function registerExportRoutes(app: Express): void {
           success: false,
           error: `Unsupported engine: ${engine}. Supported: ${supportedEngines.join(', ')}`,
         });
+      }
+
+      // ── Resolve telemetry config if provided ──
+      let telemetryConfig: ExportTelemetryConfig | undefined;
+      if (req.body.telemetry?.enabled) {
+        const { serverUrl, apiKeyId } = req.body.telemetry;
+        let resolvedApiKey = '';
+
+        // Look up the actual API key from the ID
+        if (apiKeyId) {
+          try {
+            const { storage } = await import(/* webpackIgnore: true */ '../db/storage.js' as any);
+            const keys = await storage.getApiKeysByWorld(worldId);
+            const found = keys.find((k: any) => k.id === apiKeyId);
+            if (found?.key) {
+              resolvedApiKey = found.key;
+            }
+          } catch (err) {
+            console.warn('[Export] Failed to resolve telemetry API key:', err);
+          }
+        }
+
+        telemetryConfig = {
+          enabled: true,
+          serverUrl: serverUrl || `${req.protocol}://${req.get('host')}`,
+          apiKey: resolvedApiKey,
+          batchSize: 25,
+          flushIntervalMs: 30_000,
+        };
+        console.log(`[Export] Telemetry enabled for export (serverUrl: ${telemetryConfig.serverUrl})`);
       }
 
       // ── Babylon.js: IR JSON bundle as ZIP ──
@@ -168,7 +199,7 @@ export function registerExportRoutes(app: Express): void {
         }
 
         console.log(`[Export] Generating Babylon.js ${mode} project for world ${worldId}...`);
-        const zipBuffer = await exportBabylonProject(worldId, { mode });
+        const zipBuffer = await exportBabylonProject(worldId, { mode, telemetry: telemetryConfig });
 
         // Get world IR for filename
         const ir = await generateWorldIR(worldId);
@@ -184,7 +215,7 @@ export function registerExportRoutes(app: Express): void {
         const format = req.body.format || req.query.format || 'zip';
 
         console.log(`[Export] Generating Unreal project for world ${worldId}...`);
-        const result = await exportUnrealProject(worldId);
+        const result = await exportUnrealProject(worldId, { telemetry: telemetryConfig });
 
         console.log(`[Export] Unreal project generated: ${result.stats.totalFiles} files, ${result.stats.cppFiles} C++, ${result.stats.dataFiles} data, ${Math.round(result.stats.totalSizeBytes / 1024)}KB in ${result.stats.generationTimeMs}ms`);
 
@@ -218,7 +249,7 @@ export function registerExportRoutes(app: Express): void {
         const format = req.body.format || req.query.format || 'zip';
 
         console.log(`[Export] Generating Unity project for world ${worldId}...`);
-        const result = await exportUnityProject(worldId);
+        const result = await exportUnityProject(worldId, { telemetry: telemetryConfig });
 
         console.log(`[Export] Unity project generated: ${result.stats.totalFiles} files, ${result.stats.csharpFiles} C#, ${result.stats.dataFiles} data, ${Math.round(result.stats.totalSizeBytes / 1024)}KB in ${result.stats.generationTimeMs}ms`);
 
@@ -251,7 +282,7 @@ export function registerExportRoutes(app: Express): void {
         const format = req.body.format || req.query.format || 'zip';
 
         console.log(`[Export] Generating Godot project for world ${worldId}...`);
-        const result = await exportGodotProject(worldId);
+        const result = await exportGodotProject(worldId, { telemetry: telemetryConfig });
 
         console.log(`[Export] Godot project generated: ${result.stats.totalFiles} files, ${result.stats.gdscriptFiles} GDScript, ${result.stats.dataFiles} data, ${Math.round(result.stats.totalSizeBytes / 1024)}KB in ${result.stats.generationTimeMs}ms`);
 

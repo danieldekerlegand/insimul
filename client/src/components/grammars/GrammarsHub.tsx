@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Plus, Search, Edit, Trash2, PlayCircle, FileText, BookOpen, ChevronRight, ChevronDown, Sparkles,
+  X, Save, Link2,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { GrammarEditor } from '../GrammarEditor';
@@ -19,6 +20,16 @@ import {
   Dialog, DialogContent,
 } from '@/components/ui/dialog';
 
+const CONTEXT_TYPE_OPTIONS = [
+  'narrative', 'dialogue', 'description', 'history',
+  'quest', 'item', 'character', 'location',
+] as const;
+
+interface TruthBinding {
+  placeholder: string;
+  truthQuery: string;
+}
+
 interface Grammar {
   id: string;
   worldId: string;
@@ -26,6 +37,8 @@ interface Grammar {
   description: string | null;
   grammar: Record<string, string | string[]>;
   tags: string[];
+  truthBindings?: TruthBinding[];
+  contextType?: string | null;
   isActive: boolean;
   createdAt: Date | null;
   updatedAt: Date | null;
@@ -47,11 +60,23 @@ export function GrammarsHub({ worldId }: GrammarsHubProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [grammarToDelete, setGrammarToDelete] = useState<Grammar | null>(null);
   const [expandedTags, setExpandedTags] = useState<Set<string>>(new Set());
+  const [editingBindings, setEditingBindings] = useState<TruthBinding[]>([]);
+  const [isBindingsDirty, setIsBindingsDirty] = useState(false);
+  const [editingContextType, setEditingContextType] = useState<string | null>(null);
+  const [isContextTypeDirty, setIsContextTypeDirty] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     loadGrammars();
   }, [worldId]);
+
+  // Sync editing state when selected grammar changes
+  useEffect(() => {
+    setEditingBindings(selectedGrammar?.truthBindings ?? []);
+    setIsBindingsDirty(false);
+    setEditingContextType(selectedGrammar?.contextType ?? null);
+    setIsContextTypeDirty(false);
+  }, [selectedGrammar?.id]);
 
   const loadGrammars = async () => {
     try {
@@ -125,6 +150,45 @@ export function GrammarsHub({ worldId }: GrammarsHubProps) {
     } catch (error) {
       console.error('Error deleting grammar:', error);
       toast({ title: 'Error', description: 'Failed to delete grammar', variant: 'destructive' });
+    }
+  };
+
+  const handleSaveTruthBindings = async () => {
+    if (!selectedGrammar) return;
+    try {
+      const response = await fetch(`/api/grammars/${selectedGrammar.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ truthBindings: editingBindings }),
+      });
+      if (!response.ok) throw new Error('Failed to save truth bindings');
+      toast({ title: 'Truth bindings saved' });
+      setIsBindingsDirty(false);
+      await loadGrammars();
+      // Update selected grammar in place
+      setSelectedGrammar(prev => prev ? { ...prev, truthBindings: editingBindings } : null);
+    } catch (error) {
+      console.error('Error saving truth bindings:', error);
+      toast({ title: 'Error', description: 'Failed to save truth bindings', variant: 'destructive' });
+    }
+  };
+
+  const handleSaveContextType = async () => {
+    if (!selectedGrammar) return;
+    try {
+      const response = await fetch(`/api/grammars/${selectedGrammar.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contextType: editingContextType }),
+      });
+      if (!response.ok) throw new Error('Failed to save context type');
+      toast({ title: 'Context type saved' });
+      setIsContextTypeDirty(false);
+      await loadGrammars();
+      setSelectedGrammar(prev => prev ? { ...prev, contextType: editingContextType } : null);
+    } catch (error) {
+      console.error('Error saving context type:', error);
+      toast({ title: 'Error', description: 'Failed to save context type', variant: 'destructive' });
     }
   };
 
@@ -256,6 +320,27 @@ export function GrammarsHub({ worldId }: GrammarsHubProps) {
                   <p className="text-xs text-muted-foreground truncate">
                     {selectedGrammar.description || 'No description'}
                   </p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Context:</span>
+                    <select
+                      value={editingContextType ?? ''}
+                      onChange={(e) => {
+                        setEditingContextType(e.target.value || null);
+                        setIsContextTypeDirty(true);
+                      }}
+                      className="h-6 text-xs bg-transparent border border-white/15 rounded px-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    >
+                      <option value="">None</option>
+                      {CONTEXT_TYPE_OPTIONS.map(ct => (
+                        <option key={ct} value={ct}>{ct}</option>
+                      ))}
+                    </select>
+                    {isContextTypeDirty && (
+                      <Button variant="ghost" size="icon" className="h-5 w-5" onClick={handleSaveContextType} title="Save context type">
+                        <Save className="h-3 w-3 text-emerald-500" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => {
@@ -298,6 +383,81 @@ export function GrammarsHub({ worldId }: GrammarsHubProps) {
                     </div>
                   </div>
                 )}
+
+                {/* Truth Bindings */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <Link2 className="h-3 w-3" />
+                      Truth Bindings ({editingBindings.length})
+                    </h3>
+                    <div className="flex items-center gap-1">
+                      {isBindingsDirty && (
+                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={handleSaveTruthBindings} title="Save bindings">
+                          <Save className="h-3 w-3 text-emerald-500" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5"
+                        onClick={() => {
+                          setEditingBindings([...editingBindings, { placeholder: '', truthQuery: '' }]);
+                          setIsBindingsDirty(true);
+                        }}
+                        title="Add binding"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  {editingBindings.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground italic">
+                      No truth bindings. Click + to map Tracery variables to world truths.
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {editingBindings.map((binding, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5 p-2 bg-muted/30 rounded-lg">
+                          <Input
+                            value={binding.placeholder}
+                            onChange={(e) => {
+                              const updated = [...editingBindings];
+                              updated[idx] = { ...updated[idx], placeholder: e.target.value };
+                              setEditingBindings(updated);
+                              setIsBindingsDirty(true);
+                            }}
+                            placeholder="variable_name"
+                            className="h-6 text-xs font-mono bg-transparent border-white/15 flex-[1]"
+                          />
+                          <span className="text-[10px] text-muted-foreground flex-shrink-0">&rarr;</span>
+                          <Input
+                            value={binding.truthQuery}
+                            onChange={(e) => {
+                              const updated = [...editingBindings];
+                              updated[idx] = { ...updated[idx], truthQuery: e.target.value };
+                              setEditingBindings(updated);
+                              setIsBindingsDirty(true);
+                            }}
+                            placeholder="truth:field:filterKey=filterValue"
+                            className="h-6 text-xs font-mono bg-transparent border-white/15 flex-[2]"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 flex-shrink-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => {
+                              setEditingBindings(editingBindings.filter((_, i) => i !== idx));
+                              setIsBindingsDirty(true);
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 {/* Grammar Symbols */}
                 <div>
@@ -449,6 +609,7 @@ export function GrammarsHub({ worldId }: GrammarsHubProps) {
         {selectedGrammar && (
           <GrammarTestConsole
             grammar={selectedGrammar}
+            worldId={worldId}
             onClose={() => { setIsTesting(false); }}
           />
         )}

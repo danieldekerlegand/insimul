@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useWorldPermissions } from '@/hooks/use-world-permissions';
 import {
   Package, Plus, ChevronRight, ChevronDown, Edit, Save, X, Trash2, Copy, Download,
+  BookOpen, Scroll, Languages,
 } from 'lucide-react';
 
 interface ItemsHubProps {
@@ -54,6 +55,20 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
   const [editForm, setEditForm] = useState<any>({});
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [truths, setTruths] = useState<any[]>([]);
+  const [quests, setQuests] = useState<any[]>([]);
+
+  // Load truths and quests for detail sections
+  useEffect(() => {
+    if (!worldId) return;
+    Promise.all([
+      fetch(`/api/worlds/${worldId}/truths`).then(r => r.ok ? r.json() : []),
+      fetch(`/api/worlds/${worldId}/quests`).then(r => r.ok ? r.json() : []),
+    ]).then(([t, q]) => {
+      setTruths(t);
+      setQuests(q);
+    }).catch(() => {});
+  }, [worldId]);
 
   // Load items
   useEffect(() => {
@@ -492,6 +507,84 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
                       {selectedItem.tags.map((tag: string) => (
                         <Badge key={tag} variant="secondary" className="text-[10px]">{tag}</Badge>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Lore Truths */}
+                  {selectedItem.relatedTruthIds?.length > 0 && (
+                    <div className="text-sm">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-muted-foreground font-medium">Lore Truths</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedItem.relatedTruthIds.map((truthId: string) => {
+                          const truth = truths.find((t: any) => t.id === truthId);
+                          return (
+                            <Badge key={truthId} variant="outline" className="text-[10px] bg-indigo-500/10 text-indigo-400 border-indigo-500/20">
+                              {truth?.title || truth?.name || truthId}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quest Relevance */}
+                  {(() => {
+                    const relevantQuests = quests.filter((q: any) => {
+                      const id = selectedItem.id;
+                      const contentMatch = q.content && typeof q.content === 'string' && q.content.includes(id);
+                      const objectivesMatch = q.objectives && JSON.stringify(q.objectives).includes(id);
+                      return contentMatch || objectivesMatch;
+                    });
+                    if (relevantQuests.length === 0) return null;
+                    return (
+                      <div className="text-sm">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <Scroll className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-muted-foreground font-medium">Quest Relevance</span>
+                        </div>
+                        <div className="space-y-1">
+                          {relevantQuests.map((q: any) => (
+                            <div key={q.id} className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-[10px] bg-yellow-500/10 text-yellow-500 border-yellow-500/20">
+                                {q.name || q.title || q.id}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Language Learning Data */}
+                  {selectedItem.languageLearningData && (
+                    <div className="text-sm">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <Languages className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-muted-foreground font-medium">Language Learning Data</span>
+                      </div>
+                      <div className="bg-muted/30 border border-border rounded-md p-3 space-y-2">
+                        {selectedItem.languageLearningData.targetWord && (
+                          <div><span className="text-muted-foreground">Target Word:</span> <span className="font-mono">{selectedItem.languageLearningData.targetWord}</span></div>
+                        )}
+                        {selectedItem.languageLearningData.targetLanguage && (
+                          <div><span className="text-muted-foreground">Language:</span> {selectedItem.languageLearningData.targetLanguage}</div>
+                        )}
+                        {selectedItem.languageLearningData.pronunciation && (
+                          <div><span className="text-muted-foreground">Pronunciation:</span> <span className="italic">{selectedItem.languageLearningData.pronunciation}</span></div>
+                        )}
+                        {selectedItem.languageLearningData.category && (
+                          <div><span className="text-muted-foreground">Category:</span> <Badge variant="secondary" className="text-[10px] ml-1">{selectedItem.languageLearningData.category}</Badge></div>
+                        )}
+                        {Object.entries(selectedItem.languageLearningData)
+                          .filter(([key]) => !['targetWord', 'targetLanguage', 'pronunciation', 'category'].includes(key))
+                          .map(([key, val]) => (
+                            <div key={key}><span className="text-muted-foreground">{key}:</span> {String(val)}</div>
+                          ))
+                        }
+                      </div>
                     </div>
                   )}
                 </div>

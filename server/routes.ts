@@ -1,6 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from './db/storage';
+import { createTelemetryRoutes } from './routes/telemetry-routes';
+import { createHistoryRoutes } from './routes/history-routes';
+import { enrichHistoricalEvents, type WorldContext } from './services/llm-event-enrichment.js';
 import { prologAutoSync } from './engines/prolog/prolog-auto-sync';
 import { convertActionToProlog } from '../shared/prolog/action-converter';
 import { convertQuestToProlog } from '../shared/prolog/quest-converter';
@@ -148,6 +151,7 @@ import { registerAuthRoutes } from "./routes/auth-routes.js";
 import { registerPlaythroughRoutes } from "./routes/playthrough-routes.js";
 import { registerExportRoutes } from "./routes/export-routes.js";
 import { AuthService } from "./services/auth-service.js";
+import { autoLinkTruth } from "./services/truth-auto-linker.js";
 import { canEditWorld, canAccessWorld } from "./middleware/permissions.js";
 
 // Helper function to generate narrative text from actual characters
@@ -921,7 +925,7 @@ app.get("/api/rules", async (req, res) => {
   app.post("/api/grammars/test", async (req, res) => {
     try {
       const { TraceryService } = await import("./services/tracery-service.js");
-      const { grammar, variables = {}, iterations = 5 } = req.body;
+      const { grammar, variables = {}, iterations = 5, truthBindings, worldId } = req.body;
 
       if (!grammar) {
         return res.status(400).json({ error: "Grammar is required" });
@@ -932,7 +936,24 @@ app.get("/api/rules", async (req, res) => {
         return res.status(400).json({ error: "Grammar must have an 'origin' symbol" });
       }
 
-      // Generate multiple variations
+      // If truth bindings and worldId are provided, resolve them against world truths
+      if (truthBindings && Array.isArray(truthBindings) && truthBindings.length > 0 && worldId) {
+        const rawTruths = await storage.getTruthsByWorld(worldId);
+        const truths = rawTruths.map(t => ({
+          ...t,
+          tags: t.tags ?? undefined,
+        }));
+        const results: string[] = [];
+        const safeIterations = Math.min(iterations, 20);
+        for (let i = 0; i < safeIterations; i++) {
+          results.push(
+            TraceryService.expandWithTruthBindings(grammar, truthBindings, truths as any, variables)
+          );
+        }
+        return res.json({ results });
+      }
+
+      // Generate multiple variations without truth bindings
       const results = TraceryService.test(grammar, variables, Math.min(iterations, 20));
 
       res.json({ results });
@@ -7167,6 +7188,9 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         prologAutoSync.onTruthChanged(req.params.worldId, entry as any, owner as any).catch(e => console.warn('[PrologAutoSync] truth create:', e));
       }
 
+      // Auto-link truth to related entities bidirectionally
+      autoLinkTruth(storage, entry.id, req.params.worldId).catch(e => console.warn('[TruthAutoLinker]', e));
+
       res.status(201).json(entry);
     } catch (error) {
       console.error("Failed to create truth entry:", error);
@@ -7186,6 +7210,11 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       if ((entry as any).entryType === 'ownership' && (entry as any).characterId && (entry as any).worldId) {
         const owner = await storage.getCharacter((entry as any).characterId);
         prologAutoSync.onTruthChanged((entry as any).worldId, entry as any, owner as any).catch(e => console.warn('[PrologAutoSync] truth create:', e));
+      }
+
+      // Auto-link truth to related entities bidirectionally
+      if ((entry as any).worldId) {
+        autoLinkTruth(storage, entry.id, (entry as any).worldId).catch(e => console.warn('[TruthAutoLinker]', e));
       }
 
       res.status(201).json(entry);
@@ -7211,12 +7240,29 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         prologAutoSync.onTruthChanged((entry as any).worldId, entry as any, owner as any).catch(e => console.warn('[PrologAutoSync] truth update:', e));
       }
 
+      // Re-link truth after content update
+      if ((entry as any).worldId) {
+        autoLinkTruth(storage, entry.id, (entry as any).worldId).catch(e => console.warn('[TruthAutoLinker]', e));
+      }
+
       res.json(entry);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid truth entry data", details: error.errors });
       }
       res.status(500).json({ error: "Failed to update truth entry" });
+    }
+  });
+
+  // Batch auto-link all truths in a world
+  app.post("/api/worlds/:worldId/truths/auto-link", async (req, res) => {
+    try {
+      const { autoLinkAllTruths } = await import("./services/truth-auto-linker.js");
+      const result = await autoLinkAllTruths(storage as any, req.params.worldId);
+      res.json(result);
+    } catch (error) {
+      console.error("Failed to auto-link truths:", error);
+      res.status(500).json({ error: "Failed to auto-link truths" });
     }
   });
 
@@ -10421,6 +10467,81 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       res.status(500).json({ error: "Failed to get merchant inventory" });
     }
   });
+
+  // Enrich historical event narratives with LLM
+  app.post("/api/worlds/:worldId/history/enrich", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const tierParam = req.query.tier ? parseInt(req.query.tier as string, 10) : undefined;
+      const tier = tierParam === 1 || tierParam === 2 || tierParam === 3 ? tierParam : undefined;
+
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      const truths = await storage.getTruthsByWorld(worldId);
+      if (truths.length === 0) {
+        return res.json({ enriched: 0, results: [] });
+      }
+
+      // Build world context
+      const settlements = await storage.getSettlementsByWorld(worldId);
+      const characters = await storage.getCharactersByWorld(worldId);
+      const countries = typeof (storage as any).getCountriesByWorld === 'function'
+        ? await (storage as any).getCountriesByWorld(worldId)
+        : [];
+
+      const worldContext: WorldContext = {
+        worldName: world.name,
+        worldDescription: world.description ?? undefined,
+        settlements: settlements.map((s: any) => ({ name: s.name, description: s.description })),
+        countries: countries.map((c: any) => ({ name: c.name, description: c.description })),
+        characters: characters.map((c: any) => ({
+          id: c.id,
+          firstName: c.firstName,
+          lastName: c.lastName,
+          description: c.description,
+          occupation: c.occupation,
+        })),
+      };
+
+      const results = await enrichHistoricalEvents(truths as any[], worldContext, tier);
+
+      // Update truth entries with enriched content
+      let updated = 0;
+      for (const result of results) {
+        if (result.enrichedContent !== result.originalContent) {
+          await storage.updateTruth(result.id, { content: result.enrichedContent });
+          updated++;
+        }
+      }
+
+      res.json({
+        enriched: updated,
+        total: results.length,
+        byTier: {
+          tier1: results.filter((r) => r.tier === 1).length,
+          tier2: results.filter((r) => r.tier === 2).length,
+          tier3: results.filter((r) => r.tier === 3).length,
+        },
+        results: results.map((r) => ({
+          id: r.id,
+          tier: r.tier,
+          changed: r.enrichedContent !== r.originalContent,
+        })),
+      });
+    } catch (error) {
+      console.error("Failed to enrich historical events:", error);
+      res.status(500).json({ error: "Failed to enrich historical events", details: (error as Error).message });
+    }
+  });
+
+  // Register telemetry, evaluation, engagement, and external API routes
+  app.use('/api', createTelemetryRoutes(storage));
+
+  // Register history import/export routes
+  app.use('/api', createHistoryRoutes(storage));
 
   const httpServer = createServer(app);
   return httpServer;

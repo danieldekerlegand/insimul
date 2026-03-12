@@ -5,7 +5,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Download, Package, CheckCircle2, AlertCircle, Loader2, FileText, Code2, Database, Settings } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { Download, Package, CheckCircle2, AlertCircle, Loader2, FileText, Code2, Database, Settings, Radio } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 type EngineType = 'babylon' | 'unreal' | 'unity' | 'godot';
@@ -89,6 +93,12 @@ interface EngineExportDialogProps {
   initialEngine?: EngineType;
 }
 
+interface TelemetryApiKey {
+  id: string;
+  name: string;
+  key: string;
+}
+
 export function EngineExportDialog({ open, onOpenChange, worldId, worldName, initialEngine }: EngineExportDialogProps) {
   const [selectedEngine, setSelectedEngine] = useState<EngineType>(initialEngine || 'unreal');
   const [babylonMode, setBabylonMode] = useState<BabylonMode>('web');
@@ -99,6 +109,30 @@ export function EngineExportDialog({ open, onOpenChange, worldId, worldName, ini
   const [error, setError] = useState<string | null>(null);
   const [isDone, setIsDone] = useState(false);
   const { toast } = useToast();
+
+  // Telemetry configuration state
+  const [telemetryEnabled, setTelemetryEnabled] = useState(false);
+  const [telemetryServerUrl, setTelemetryServerUrl] = useState(window.location.origin);
+  const [telemetryApiKeyId, setTelemetryApiKeyId] = useState<string>('');
+  const [telemetryApiKeys, setTelemetryApiKeys] = useState<TelemetryApiKey[]>([]);
+  const [loadingApiKeys, setLoadingApiKeys] = useState(false);
+
+  // Fetch API keys when telemetry is enabled
+  useEffect(() => {
+    if (telemetryEnabled && worldId) {
+      setLoadingApiKeys(true);
+      fetch(`/api/worlds/${worldId}/api-keys`)
+        .then(res => res.ok ? res.json() : [])
+        .then((keys: TelemetryApiKey[]) => {
+          setTelemetryApiKeys(keys);
+          if (keys.length > 0 && !telemetryApiKeyId) {
+            setTelemetryApiKeyId(keys[0].id);
+          }
+        })
+        .catch(() => setTelemetryApiKeys([]))
+        .finally(() => setLoadingApiKeys(false));
+    }
+  }, [telemetryEnabled, worldId]);
 
   const reset = useCallback(() => {
     setIsExporting(false);
@@ -161,6 +195,13 @@ export function EngineExportDialog({ open, onOpenChange, worldId, worldName, ini
       const body: any = { format: 'zip' };
       if (selectedEngine === 'babylon') {
         body.mode = babylonMode;
+      }
+      if (telemetryEnabled) {
+        body.telemetry = {
+          enabled: true,
+          serverUrl: telemetryServerUrl,
+          apiKeyId: telemetryApiKeyId,
+        };
       }
       
       const response = await fetch(`/api/worlds/${worldId}/export/${selectedEngine}`, {
@@ -314,6 +355,77 @@ export function EngineExportDialog({ open, onOpenChange, worldId, worldName, ini
                   </SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {/* Telemetry Configuration */}
+          {!isExporting && !isDone && (
+            <div className="space-y-3">
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="telemetry-toggle" className="text-sm font-medium flex items-center gap-1.5">
+                    <Radio className="w-3.5 h-3.5" />
+                    Enable Telemetry
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Include a telemetry client in the exported project
+                  </p>
+                </div>
+                <Switch
+                  id="telemetry-toggle"
+                  checked={telemetryEnabled}
+                  onCheckedChange={setTelemetryEnabled}
+                />
+              </div>
+
+              {telemetryEnabled && (
+                <div className="space-y-3 pl-1 border-l-2 border-muted ml-1.5">
+                  <div className="space-y-1.5 pl-3">
+                    <Label htmlFor="telemetry-server-url" className="text-xs">Server URL</Label>
+                    <Input
+                      id="telemetry-server-url"
+                      value={telemetryServerUrl}
+                      onChange={(e) => setTelemetryServerUrl(e.target.value)}
+                      placeholder="https://your-server.example.com"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5 pl-3">
+                    <Label htmlFor="telemetry-api-key" className="text-xs">API Key</Label>
+                    {loadingApiKeys ? (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Loading API keys...
+                      </div>
+                    ) : telemetryApiKeys.length > 0 ? (
+                      <Select
+                        value={telemetryApiKeyId}
+                        onValueChange={setTelemetryApiKeyId}
+                      >
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue placeholder="Select an API key" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {telemetryApiKeys.map(k => (
+                            <SelectItem key={k.id} value={k.id}>
+                              <span className="flex items-center gap-2">
+                                <span>{k.name || 'Unnamed Key'}</span>
+                                <span className="text-xs text-muted-foreground font-mono">{k.key}</span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-xs text-muted-foreground py-1">
+                        No API keys configured for this world. Create one in the Telemetry settings.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+              <Separator />
             </div>
           )}
 

@@ -24,6 +24,7 @@ import {
   Trash2,
   Loader2
 } from 'lucide-react';
+import { TruthContextPanel } from './TruthContextPanel';
 
 interface LanguagesTabProps {
   worldId: string;
@@ -946,6 +947,15 @@ export function LanguagesTab({ worldId }: LanguagesTabProps) {
                     </p>
                   )}
                 </div>
+
+                {/* Truth Context Panel (US-2.06) */}
+                <TruthContextPanel
+                  worldId={worldId}
+                  entityType="language"
+                  entityId={selectedLanguage?.id}
+                  entityName={selectedLanguage?.name}
+                  defaultCollapsed={true}
+                />
 
                 <Tabs defaultValue="chat" className="flex-1 flex flex-col min-h-0">
                   <TabsList className="w-full justify-start mb-2 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-xl p-1 h-auto">

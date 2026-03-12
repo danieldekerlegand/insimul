@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,6 +6,9 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { CheckCircle2, Clock, XCircle, Trophy, Target, Plus } from 'lucide-react';
 import { QuestCreateDialog } from './QuestCreateDialog';
+import { TruthContextPanel } from './TruthContextPanel';
+import { ContentValidationIndicator } from './prolog/ContentValidationIndicator';
+import { validateQuestContent } from '@shared/prolog/content-validators';
 
 interface Quest {
   id: string;
@@ -28,6 +31,7 @@ interface Quest {
   assignedAt: Date;
   completedAt: Date | null;
   expiresAt: Date | null;
+  content: string | null;
   conversationContext: string | null;
   tags: string[] | null;
   createdAt: Date;
@@ -91,6 +95,12 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
         return '🎯';
     }
   };
+
+  // Validation of selected quest's Prolog content
+  const questValidation = useMemo(() => {
+    if (!selectedQuest?.content) return null;
+    return validateQuestContent(selectedQuest.content);
+  }, [selectedQuest?.content]);
 
   const activeQuests = quests.filter(q => q.status === 'active');
   const completedQuests = quests.filter(q => q.status === 'completed');
@@ -465,6 +475,25 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
                   Continue Quest
                 </Button>
               )}
+
+              {/* Prolog Content Validation */}
+              {questValidation && (
+                <ContentValidationIndicator
+                  validationResult={questValidation}
+                  label="Prolog Validation"
+                  defaultCollapsed={true}
+                />
+              )}
+
+              {/* Truth Context Panel (US-2.06) */}
+              <TruthContextPanel
+                worldId={worldId}
+                entityType="quest"
+                entityId={selectedQuest?.id}
+                entityName={selectedQuest?.title}
+                entityTags={selectedQuest?.tags ?? undefined}
+                defaultCollapsed={true}
+              />
             </CardContent>
           </Card>
         ) : (

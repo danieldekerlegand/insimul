@@ -151,6 +151,43 @@ namespace Insimul.Systems
             Debug.LogWarning($"[Insimul] Action not found: {actionId}");
         }
 
+        /// <summary>
+        /// Show dialogue with romance actions merged alongside base actions.
+        /// Converts romance actions to standard SocialActionData and appends them.
+        /// </summary>
+        public void ShowWithRomanceActions(SocialActionData[] baseActions, RomanceActionData[] romanceActions, float energy)
+        {
+            SetPlayerEnergy(energy);
+
+            var combined = new System.Collections.Generic.List<SocialActionData>(baseActions);
+            foreach (var ra in romanceActions)
+            {
+                combined.Add(new SocialActionData
+                {
+                    id = $"romance_{ra.id}",
+                    name = $"\U0001F495 {ra.name}",
+                    description = string.IsNullOrEmpty(ra.description)
+                        ? $"Romance action (requires {ra.requiredStage} stage)"
+                        : ra.description,
+                    energyCost = ra.energyCost > 0f ? ra.energyCost : 5f
+                });
+            }
+            _socialActions = combined.ToArray();
+
+            Debug.Log($"[Insimul] ShowWithRomanceActions: added {romanceActions.Length} romance actions (total={_socialActions.Length})");
+        }
+
+        [System.Serializable]
+        public class RomanceActionData
+        {
+            public string id;
+            public string name;
+            public string requiredStage;
+            public float sparkGain;
+            public string description;
+            public float energyCost = 5f;
+        }
+
         private void LoadSocialActions()
         {
             var actionsAsset = Resources.Load<TextAsset>("Data/SocialActions");
@@ -168,7 +205,7 @@ namespace Insimul.Systems
         }
 
         [System.Serializable]
-        private class SocialActionData
+        public class SocialActionData
         {
             public string id;
             public string name;

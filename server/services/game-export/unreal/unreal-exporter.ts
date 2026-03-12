@@ -13,6 +13,9 @@ import { generateLevelFiles } from './unreal-level-generator';
 import { generateWorldIR } from '../ir-generator';
 import { bundleCoreAssets, bundleAssetsFromCollection, generateAssetManifestJson, type BundledAsset, type TargetEngine } from '../asset-bundler';
 import type { WorldIR } from '@shared/game-engine/ir-types';
+import { generateUnrealTelemetryTemplate } from '../unreal-telemetry-template';
+import type { ExportTelemetryConfig } from '../telemetry-config';
+import { TELEMETRY_DEFAULTS } from '../telemetry-config';
 import { createRequire } from 'node:module';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -103,7 +106,11 @@ async function packageAsZip(
  * 3. Bundles Base Collection assets
  * 4. Packages everything into a ZIP buffer
  */
-export async function exportUnrealProject(worldId: string): Promise<UnrealExportResult> {
+export interface UnrealExportOptions {
+  telemetry?: ExportTelemetryConfig;
+}
+
+export async function exportUnrealProject(worldId: string, options?: UnrealExportOptions): Promise<UnrealExportResult> {
   console.log('[Export] Starting Unreal export for world:', worldId);
   const startTime = Date.now();
 
@@ -117,6 +124,25 @@ export async function exportUnrealProject(worldId: string): Promise<UnrealExport
 
   // 3. Run all generators
   const allFiles = generateUnrealFilesFromIR(ir);
+
+  // 3b. Include telemetry client if enabled
+  if (options?.telemetry?.enabled) {
+    const telemetryCpp = generateUnrealTelemetryTemplate({
+      apiEndpoint: options.telemetry.serverUrl,
+      apiKey: options.telemetry.apiKey,
+      batchSize: options.telemetry.batchSize ?? TELEMETRY_DEFAULTS.batchSize,
+      flushIntervalMs: options.telemetry.flushIntervalMs ?? TELEMETRY_DEFAULTS.flushIntervalMs,
+    });
+    allFiles.push({
+      path: 'Source/Insimul/TelemetrySubsystem.h',
+      content: telemetryCpp.header,
+    });
+    allFiles.push({
+      path: 'Source/Insimul/TelemetrySubsystem.cpp',
+      content: telemetryCpp.source,
+    });
+    console.log('[Export] Unreal telemetry client included');
+  }
 
   // 4. Bundle assets from the world's selected collection
   const engine: TargetEngine = 'unreal';

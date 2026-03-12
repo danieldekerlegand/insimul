@@ -1,6 +1,7 @@
 // Action system logic for RPG game
 
 import { Action, ActionState, ActionContext, ActionResult, ActionEffect, ACTION_UI_CONFIGS } from '../types/actions';
+import { rankActions, STANDARD_ACTION_AFFINITIES, type ActionCandidate, type PersonalityProfile } from '@shared/game-engine/action-selection';
 
 export class ActionManager {
   private availableActions: Action[] = [];
@@ -48,6 +49,38 @@ export class ActionManager {
       // Prerequisites are now checked via Prolog (GamePrologEngine.canPerformAction)
       return true;
     });
+  }
+
+  /**
+   * Get contextual actions ranked by softmax probability for a given personality.
+   * Returns actions sorted by probability (most-likely first) for UI display.
+   * Falls back to the default getContextualActions order if no personality is provided.
+   */
+  getContextualActionsRanked(context: ActionContext & { personality?: PersonalityProfile }): Array<{ action: Action; probability: number }> {
+    const actions = this.getContextualActions(context);
+    if (actions.length === 0) return [];
+
+    if (!context.personality) {
+      // No personality available — return in default order with uniform probability
+      const uniform = 1 / actions.length;
+      return actions.map(a => ({ action: a, probability: uniform }));
+    }
+
+    // Convert Actions to ActionCandidates for ranking
+    const candidates: ActionCandidate[] = actions.map(a => ({
+      id: a.id,
+      name: a.name,
+      baseWeight: 0.5, // neutral base weight
+      personalityAffinities: STANDARD_ACTION_AFFINITIES[a.actionType] || {},
+    }));
+
+    const ranked = rankActions(candidates, context.personality);
+
+    // Map ranked results back to Action objects
+    return ranked.map(r => {
+      const action = actions.find(a => a.id === r.action.id)!;
+      return { action, probability: r.probability };
+    }).filter(r => r.action);
   }
 
   /**

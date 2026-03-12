@@ -271,4 +271,41 @@ export class BabylonDialogueActions {
   public isVisible(): boolean {
     return this.container !== null;
   }
+
+  /**
+   * Show dialogue actions with romance actions appended based on relationship stage.
+   * Romance actions from RomanceSystem are converted to the Action format.
+   */
+  public showWithRomanceActions(
+    parentContainer: GUI.Container,
+    baseActions: Action[],
+    romanceActions: Array<{ id: string; name: string; requiredStage: string; sparkGain: number; description?: string; energyCost?: number }>,
+    playerEnergy: number,
+    onActionSelect: (actionId: string) => void
+  ) {
+    const convertedRomance: Action[] = romanceActions.map(ra => ({
+      id: `romance_${ra.id}`,
+      worldId: null,
+      name: `💕 ${ra.name}`,
+      description: ra.description || `Romance action (requires ${ra.requiredStage} stage)`,
+      actionType: 'social' as const,
+      category: 'romance',
+      duration: null,
+      difficulty: null,
+      energyCost: ra.energyCost ?? 5,
+      targetType: 'npc',
+      requiresTarget: true,
+      range: null,
+      isAvailable: true,
+      cooldown: null,
+      verbPast: null,
+      verbPresent: null,
+      narrativeTemplates: [],
+      sourceFormat: null,
+      customData: { romanceActionId: ra.id, sparkGain: ra.sparkGain },
+      tags: ['romance'],
+    }));
+
+    this.show(parentContainer, [...baseActions, ...convertedRomance], playerEnergy, onActionSelect);
+  }
 }

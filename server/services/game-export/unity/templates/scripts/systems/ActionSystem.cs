@@ -35,6 +35,29 @@ namespace Insimul.Systems
     }
 
     /// <summary>
+    /// Big Five personality profile for personality-based action ranking.
+    /// Each trait ranges from -1.0 to 1.0.
+    /// </summary>
+    [System.Serializable]
+    public class PersonalityProfile
+    {
+        public float openness;
+        public float conscientiousness;
+        public float extroversion;
+        public float agreeableness;
+        public float neuroticism;
+    }
+
+    /// <summary>
+    /// An action paired with its softmax probability from personality ranking.
+    /// </summary>
+    public struct RankedAction
+    {
+        public InsimulActionData action;
+        public float probability;
+    }
+
+    /// <summary>
     /// Tracks per-action cooldown and usage state.
     /// </summary>
     [System.Serializable]
@@ -142,6 +165,116 @@ namespace Insimul.Systems
             if (_actionStates.TryGetValue(actionId, out var state))
                 return state.cooldownRemaining;
             return 0f;
+        }
+
+        /// <summary>Standard personality affinities for common action types.</summary>
+        private static readonly Dictionary<string, Dictionary<string, float>> StandardAffinities = new()
+        {
+            // Social actions
+            ["greet"] = new() { ["extroversion"] = 0.4f, ["agreeableness"] = 0.3f },
+            ["compliment"] = new() { ["agreeableness"] = 0.5f, ["extroversion"] = 0.2f },
+            ["gossip"] = new() { ["extroversion"] = 0.3f, ["agreeableness"] = -0.3f, ["openness"] = 0.1f },
+            ["argue"] = new() { ["extroversion"] = 0.2f, ["agreeableness"] = -0.5f, ["neuroticism"] = 0.3f },
+            ["comfort"] = new() { ["agreeableness"] = 0.6f, ["extroversion"] = 0.1f },
+            ["apologize"] = new() { ["agreeableness"] = 0.4f, ["conscientiousness"] = 0.3f },
+            // Physical actions
+            ["fight"] = new() { ["agreeableness"] = -0.5f, ["extroversion"] = 0.3f, ["neuroticism"] = 0.2f },
+            ["flee"] = new() { ["neuroticism"] = 0.5f, ["agreeableness"] = 0.2f },
+            ["explore"] = new() { ["openness"] = 0.6f, ["extroversion"] = 0.2f },
+            ["rest"] = new() { ["conscientiousness"] = -0.2f, ["neuroticism"] = 0.1f },
+            // Economic actions
+            ["trade"] = new() { ["conscientiousness"] = 0.4f, ["agreeableness"] = 0.1f },
+            ["steal"] = new() { ["agreeableness"] = -0.6f, ["conscientiousness"] = -0.4f, ["neuroticism"] = 0.2f },
+            ["craft"] = new() { ["conscientiousness"] = 0.5f, ["openness"] = 0.3f },
+            ["work"] = new() { ["conscientiousness"] = 0.6f },
+            // Romance actions
+            ["flirt"] = new() { ["extroversion"] = 0.4f, ["openness"] = 0.3f, ["agreeableness"] = 0.1f },
+            ["express_love"] = new() { ["agreeableness"] = 0.4f, ["extroversion"] = 0.2f, ["openness"] = 0.3f },
+            // Mental actions
+            ["study"] = new() { ["openness"] = 0.5f, ["conscientiousness"] = 0.4f },
+            ["meditate"] = new() { ["openness"] = 0.4f, ["neuroticism"] = -0.3f },
+            ["plan"] = new() { ["conscientiousness"] = 0.6f, ["openness"] = 0.2f },
+        };
+
+        /// <summary>Get contextual actions ranked by personality match using softmax probability.
+        /// If personality is null, returns uniform probability.</summary>
+        public List<RankedAction> GetContextualActionsRanked(float playerEnergy, bool hasTarget, PersonalityProfile personality = null)
+        {
+            var result = new List<RankedAction>();
+            var contextualActions = new List<InsimulActionData>();
+
+            foreach (var action in _actions)
+            {
+                if (!action.isActive) continue;
+                if (_actionStates.TryGetValue(action.id, out var state) && state.cooldownRemaining > 0f) continue;
+                if (action.energyCost > 0 && action.energyCost > playerEnergy) continue;
+                if (action.requiresTarget && !hasTarget) continue;
+                contextualActions.Add(action);
+            }
+
+            if (contextualActions.Count == 0) return result;
+
+            if (personality == null)
+            {
+                float uniform = 1f / contextualActions.Count;
+                foreach (var action in contextualActions)
+                    result.Add(new RankedAction { action = action, probability = uniform });
+                return result;
+            }
+
+            // Build trait lookup
+            var traitValues = new Dictionary<string, float>
+            {
+                ["openness"] = personality.openness,
+                ["conscientiousness"] = personality.conscientiousness,
+                ["extroversion"] = personality.extroversion,
+                ["agreeableness"] = personality.agreeableness,
+                ["neuroticism"] = personality.neuroticism,
+            };
+
+            // Compute raw scores
+            float temperature = 1.0f;
+            var scores = new float[contextualActions.Count];
+            for (int i = 0; i < contextualActions.Count; i++)
+            {
+                float score = 0.5f; // base weight
+                if (StandardAffinities.TryGetValue(contextualActions[i].actionType ?? "", out var affinities))
+                {
+                    foreach (var kvp in affinities)
+                    {
+                        if (traitValues.TryGetValue(kvp.Key, out float traitVal))
+                            score += traitVal * kvp.Value;
+                    }
+                }
+                scores[i] = score;
+            }
+
+            // Softmax with temperature
+            float maxScore = scores[0];
+            for (int i = 1; i < scores.Length; i++)
+                maxScore = Mathf.Max(maxScore, scores[i]);
+
+            float sumExp = 0f;
+            var exps = new float[scores.Length];
+            for (int i = 0; i < scores.Length; i++)
+            {
+                exps[i] = Mathf.Exp((scores[i] - maxScore) / Mathf.Max(0.01f, temperature));
+                sumExp += exps[i];
+            }
+
+            if (sumExp <= 0f) sumExp = 1f;
+            for (int i = 0; i < contextualActions.Count; i++)
+            {
+                result.Add(new RankedAction
+                {
+                    action = contextualActions[i],
+                    probability = exps[i] / sumExp,
+                });
+            }
+
+            // Sort descending by probability
+            result.Sort((a, b) => b.probability.CompareTo(a.probability));
+            return result;
         }
 
         public ActionResult ExecuteAction(string actionId, GameObject source, GameObject target = null)

@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-11T07:30:32.064Z",
+  "lastUpdated": "2026-03-12T04:17:54.820Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -148,7 +148,7 @@
     {
       "path": "client/src/components/3DGame/BabylonDialogueActions.ts",
       "description": "Dialogue tree traversal, choice selection, NPC conversation flow.",
-      "hash": "511df10b545455060cc1af8fa15719cee01ee0ae281b4d018a9bddfa6c5de28b",
+      "hash": "f4d698a054f4e479bda39d76f8b9e6d7a3b5c3bbd6997d6ea17805b260e5cc91",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -171,7 +171,7 @@
     {
       "path": "client/src/components/3DGame/actions/ActionManager.ts",
       "description": "Action execution pipeline: availability checks, cooldowns, energy costs, effects.",
-      "hash": "dc198bb5034260a3ebc75f1465fdc743dc2d004cef2debca4d4433ca9ad9a417",
+      "hash": "188556acd1010a79a2d532e563be2b7ddc56a06711cd533554b6f01e5c0213ae",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -262,7 +262,7 @@
     {
       "path": "client/src/components/3DGame/GameEventBus.ts",
       "description": "Centralized typed event bus (20 event types). Exported engines need equivalent event routing for gameplay actions.",
-      "hash": "6d46545482a5e5602649c6346e1c41f5c3f2e17c5529c51c8cec5ca049220459",
+      "hash": "3c17d0bb4efad6f91f8e7d6f6f18890cf29830912566dd3b9c8aae654e130a88",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -289,7 +289,7 @@
     {
       "path": "client/src/components/3DGame/GamePrologEngine.ts",
       "description": "Client-side Prolog runtime: KB initialization, event-to-fact pipeline, quest/action queries. Exported engines need equivalent Prolog query logic.",
-      "hash": "493f550d1d556af03d578c1f98f28c1c41167bc9100b47f309ac0bbf6b6db540",
+      "hash": "56e8af9d656bf469d70ca571e6f2302fe576d9a9de15f2b43761ec5801b2eb0a",
       "engineMappings": [
         {
           "engine": "unreal",

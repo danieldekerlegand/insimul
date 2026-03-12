@@ -13,6 +13,9 @@ import { generateSceneFiles } from './unity-scene-generator';
 import { generateWorldIR } from '../ir-generator';
 import { bundleCoreAssets, bundleAssetsFromCollection, generateAssetManifestJson, type BundledAsset, type TargetEngine } from '../asset-bundler';
 import type { WorldIR } from '@shared/game-engine/ir-types';
+import { generateUnityTelemetryTemplate } from '../unity-telemetry-template';
+import type { ExportTelemetryConfig } from '../telemetry-config';
+import { TELEMETRY_DEFAULTS } from '../telemetry-config';
 import { createRequire } from 'node:module';
 
 // createRequire needed for ESM projects.
@@ -90,7 +93,11 @@ async function packageAsZip(
 /**
  * Generate a complete Unity project from a world ID.
  */
-export async function exportUnityProject(worldId: string): Promise<UnityExportResult> {
+export interface UnityExportOptions {
+  telemetry?: ExportTelemetryConfig;
+}
+
+export async function exportUnityProject(worldId: string, options?: UnityExportOptions): Promise<UnityExportResult> {
   console.log('[Export] Starting Unity export for world:', worldId);
   const startTime = Date.now();
 
@@ -104,6 +111,21 @@ export async function exportUnityProject(worldId: string): Promise<UnityExportRe
 
   // 3. Run all generators
   const allFiles = generateUnityFilesFromIR(ir);
+
+  // 3b. Include telemetry client if enabled
+  if (options?.telemetry?.enabled) {
+    const telemetryCs = generateUnityTelemetryTemplate({
+      apiEndpoint: options.telemetry.serverUrl,
+      apiKey: options.telemetry.apiKey,
+      batchSize: options.telemetry.batchSize ?? TELEMETRY_DEFAULTS.batchSize,
+      flushIntervalMs: options.telemetry.flushIntervalMs ?? TELEMETRY_DEFAULTS.flushIntervalMs,
+    });
+    allFiles.push({
+      path: 'Assets/Scripts/Insimul/TelemetryManager.cs',
+      content: telemetryCs,
+    });
+    console.log('[Export] Unity telemetry client included');
+  }
 
   // 4. Bundle assets from the world's selected collection
   const engine: TargetEngine = 'unity';

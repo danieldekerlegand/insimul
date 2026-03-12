@@ -183,6 +183,16 @@ export interface WorldLanguage {
   dialectVariations?: DialectVariation[] | null;
   learningModules?: LearningModule[] | null;
 
+  relatedTruthIds?: string[];
+  culturalTruthIds?: string[];
+  historicalTruthIds?: string[];
+  idiomsAndProverbs?: Array<{
+    phrase: string;
+    meaning: string;
+    culturalContext: string;
+    difficulty: string;
+  }>;
+
   createdAt: Date;
   updatedAt: Date;
 }

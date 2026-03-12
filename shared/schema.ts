@@ -152,6 +152,7 @@ export const rules = pgTable("rules", {
   priority: integer("priority").default(5),
   likelihood: real("likelihood").default(1.0),
   tags: jsonb("tags").$type<string[]>().default([]),
+  relatedTruthIds: jsonb("related_truth_ids").$type<string[]>().default([]),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -167,6 +168,18 @@ export const grammars = pgTable("grammars", {
   tags: jsonb("tags").$type<string[]>().default([]),
   worldType: text("world_type"), // e.g., "cyberpunk", "medieval-fantasy", "custom_pirate_world"
   gameType: text("game_type"), // e.g., "rpg", "language-learning", "simulation"
+
+  // Truth bindings — map Tracery placeholders to Prolog truth queries
+  truthBindings: jsonb("truth_bindings").$type<Array<{
+    placeholder: string;
+    truthQuery: string;
+  }>>().default([]),
+
+  // Context type — categorizes grammar usage
+  contextType: text("context_type"), // narrative, dialogue, history, item_description, quest_description, ambient
+
+  relatedTruthIds: jsonb("related_truth_ids").$type<string[]>().default([]),
+
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -263,6 +276,15 @@ export const worlds = pgTable("worlds", {
 
   // Camera perspective: first_person, third_person, isometric, side_scroll, top_down, fighting
   cameraPerspective: text("camera_perspective"),
+
+  // Timestep configuration
+  timestepUnit: text("timestep_unit").default("year"), // year, day, hour, minute, custom
+  gameplayTimestepUnit: text("gameplay_timestep_unit").default("day"), // separate unit for gameplay
+  customTimestepLabel: text("custom_timestep_label"), // label for custom timestep units
+  customTimestepDurationMs: integer("custom_timestep_duration_ms"), // duration in ms for custom units
+  historyStartYear: integer("history_start_year"), // e.g., 1839 — start of historical simulation
+  historyEndYear: integer("history_end_year"), // e.g., 1979 — end of historical simulation / start of gameplay
+  currentGameYear: integer("current_game_year"), // derived from historyEndYear + gameplay timesteps
 
   // Configuration
   config: jsonb("config").$type<Record<string, any>>().default({}),
@@ -462,6 +484,7 @@ export const actions = pgTable("actions", {
 
   // Tags and metadata
   tags: jsonb("tags").$type<string[]>().default([]),
+  relatedTruthIds: jsonb("related_truth_ids").$type<string[]>().default([]),
   isActive: boolean("is_active").default(true),
 
   createdAt: timestamp("created_at").defaultNow(),
@@ -477,7 +500,7 @@ export const truths = pgTable("truths", {
   // Entry metadata
   title: text("title").notNull(),
   content: text("content").notNull(),
-  entryType: text("entry_type").notNull(), // event, backstory, relationship, achievement, milestone, prophecy, plan
+  entryType: text("entry_type").notNull(), // event, backstory, relationship, achievement, milestone, prophecy, plan, history
 
   // Temporal information (generic timestep-based)
   timestep: integer("timestep").notNull().default(0), // Generic time unit, can be compared for past/present/future
@@ -485,6 +508,14 @@ export const truths = pgTable("truths", {
   timeYear: integer("time_year"), // Optional: year in world timeline for display
   timeSeason: text("time_season"), // Optional: spring, summer, fall, winter
   timeDescription: text("time_description"), // Optional: "In the third year of King Edmund's reign"
+
+  // Historical context
+  historicalEra: text("historical_era"), // e.g., "founding", "civil_war", "industrial", "modern" — for grouping
+  historicalSignificance: text("historical_significance"), // world, country, state, settlement, family, personal — scope of impact
+
+  // Causal chains between historical events
+  causesTruthIds: jsonb("causes_truth_ids").$type<string[]>().default([]), // truths this event causes
+  causedByTruthIds: jsonb("caused_by_truth_ids").$type<string[]>().default([]), // truths that caused this event
 
   // Related entities
   relatedCharacterIds: jsonb("related_character_ids").$type<string[]>().default([]),
@@ -577,6 +608,8 @@ export const quests = pgTable("quests", {
   // Prolog content — single source of truth for quest logic
   content: text("quest_content"),
 
+  relatedTruthIds: jsonb("related_truth_ids").$type<string[]>().default([]),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -618,6 +651,33 @@ export const items = pgTable("items", {
 
   // Extensibility
   metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+
+  // Crafting recipe (if this item can be crafted)
+  craftingRecipe: jsonb("crafting_recipe").$type<{
+    ingredients: Array<{ itemId: string; quantity: number }>;
+    craftTime: number;
+    requiredLevel: number;
+    requiredStation?: string;
+  }>(),
+
+  // Quest relevance (auto-populated from quest definitions)
+  questRelevance: jsonb("quest_relevance").$type<Array<{
+    questId: string;
+    role: 'objective' | 'reward' | 'tool' | 'key';
+  }>>().default([]),
+
+  // In-game lore text (separate from editor description)
+  loreText: text("lore_text"),
+
+  // Language learning data (for vocabulary items in language-learning games)
+  languageLearningData: jsonb("language_learning_data").$type<{
+    targetWord: string;
+    targetLanguage: string;
+    pronunciation: string;
+    category: string;
+  }>(),
+
+  relatedTruthIds: jsonb("related_truth_ids").$type<string[]>().default([]),
 
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -770,6 +830,7 @@ export const insertRuleSchema = createInsertSchema(rules).pick({
   priority: true,
   likelihood: true,
   tags: true,
+  relatedTruthIds: true,
   isActive: true,
 });
 
@@ -781,6 +842,9 @@ export const insertGrammarSchema = createInsertSchema(grammars).pick({
   tags: true,
   worldType: true,
   gameType: true,
+  truthBindings: true,
+  contextType: true,
+  relatedTruthIds: true,
   isActive: true,
 });
 
@@ -853,6 +917,7 @@ export const insertActionSchema = createInsertSchema(actions).pick({
   narrativeTemplates: true,
   customData: true,
   tags: true,
+  relatedTruthIds: true,
   isActive: true,
 });
 
@@ -867,6 +932,10 @@ export const insertTruthSchema = createInsertSchema(truths).pick({
   timeYear: true,
   timeSeason: true,
   timeDescription: true,
+  historicalEra: true,
+  historicalSignificance: true,
+  causesTruthIds: true,
+  causedByTruthIds: true,
   relatedCharacterIds: true,
   relatedLocationIds: true,
   tags: true,
@@ -897,6 +966,7 @@ export const insertQuestSchema = createInsertSchema(quests).pick({
   conversationContext: true,
   tags: true,
   content: true,
+  relatedTruthIds: true,
 });
 
 export const insertItemSchema = createInsertSchema(items).pick({
@@ -922,6 +992,11 @@ export const insertItemSchema = createInsertSchema(items).pick({
   tags: true,
   isBase: true,
   metadata: true,
+  craftingRecipe: true,
+  questRelevance: true,
+  loreText: true,
+  languageLearningData: true,
+  relatedTruthIds: true,
 });
 
 export type InsertItem = z.infer<typeof insertItemSchema>;
@@ -940,7 +1015,8 @@ export const users = pgTable("users", {
   displayName: text("display_name"),
   avatarUrl: text("avatar_url"),
 
-  // Account status
+  // Account status & role
+  role: text("role").default("user"), // user, researcher, admin
   isActive: boolean("is_active").default(true),
   isVerified: boolean("is_verified").default(false),
   lastLoginAt: timestamp("last_login_at"),

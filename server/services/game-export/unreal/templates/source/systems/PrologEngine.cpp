@@ -19,6 +19,7 @@ void UPrologEngine::Deinitialize()
         EventBusSubscriptionHandle = -1;
     }
     SubscribedEventBus = nullptr;
+    EventBusRef = nullptr;
 
     KnowledgeBase.Empty();
     Facts.Empty();
@@ -710,6 +711,7 @@ void UPrologEngine::SubscribeToEventBus(UEventBus* EventBus)
     }
 
     SubscribedEventBus = EventBus;
+    EventBusRef = EventBus;
 
     // Subscribe to all events via the global delegate
     EventBus->OnAnyEvent.AddDynamic(this, &UPrologEngine::HandleGameEvent);
@@ -811,6 +813,70 @@ void UPrologEngine::HandleGameEvent(const FInsimulGameEvent& Event)
         case EInsimulEventType::ItemUnequipped:
             RetractFact(FString::Printf(TEXT("equipped(player, %s, %s)"), *Sanitize(Event.ItemName), *Sanitize(Event.Slot)));
             break;
+        case EInsimulEventType::RomanceAction:
+        {
+            FString Status = Event.bAccepted ? TEXT("accepted") : TEXT("rejected");
+            AssertFact(FString::Printf(TEXT("romance_action(player, %s, %s, %s)"),
+                *Sanitize(Event.NPCId), *Sanitize(Event.ActionType), *Status));
+            // Emit create_truth event for accepted actions
+            if (Event.bAccepted && EventBusRef.IsValid())
+            {
+                FInsimulGameEvent TruthEvent;
+                TruthEvent.EventType = EInsimulEventType::StateCreatedTruth;
+                TruthEvent.CharacterId = TEXT("player");
+                TruthEvent.Title = FString::Printf(TEXT("Romance: %s with %s"), *Event.ActionType, *Event.NPCName);
+                TruthEvent.Content = FString::Printf(TEXT("Player performed %s on %s"), *Event.ActionType, *Event.NPCName);
+                TruthEvent.EntryType = TEXT("romance");
+                EventBusRef->Emit(TruthEvent);
+            }
+            break;
+        }
+        case EInsimulEventType::RomanceStageChanged:
+        {
+            RetractPattern(TEXT("romance_stage"), TEXT("player"), Sanitize(Event.NPCId));
+            AssertFact(FString::Printf(TEXT("romance_stage(player, %s, %s)"),
+                *Sanitize(Event.NPCId), *Sanitize(Event.ToStage)));
+            AssertFact(FString::Printf(TEXT("romance_history(player, %s, %s, %s)"),
+                *Sanitize(Event.NPCId), *Sanitize(Event.FromStage), *Sanitize(Event.ToStage)));
+            // Emit create_truth event
+            if (EventBusRef.IsValid())
+            {
+                FInsimulGameEvent TruthEvent;
+                TruthEvent.EventType = EInsimulEventType::StateCreatedTruth;
+                TruthEvent.CharacterId = TEXT("player");
+                TruthEvent.Title = FString::Printf(TEXT("Romance stage: %s -> %s with %s"), *Event.FromStage, *Event.ToStage, *Event.NPCName);
+                TruthEvent.Content = FString::Printf(TEXT("Romance stage changed from %s to %s"), *Event.FromStage, *Event.ToStage);
+                TruthEvent.EntryType = TEXT("romance");
+                EventBusRef->Emit(TruthEvent);
+            }
+            break;
+        }
+        case EInsimulEventType::NpcVolitionAction:
+            AssertFact(FString::Printf(TEXT("volition_acted(%s, %s, %s)"),
+                *Sanitize(Event.NPCId), *Sanitize(Event.ActionId), *Sanitize(Event.TargetId)));
+            break;
+        case EInsimulEventType::ConversationOverheard:
+            AssertFact(FString::Printf(TEXT("overheard_conversation(player, %s, %s, %s)"),
+                *Sanitize(Event.NpcId1), *Sanitize(Event.NpcId2), *Sanitize(Event.Topic)));
+            break;
+        case EInsimulEventType::StateCreatedTruth:
+            AssertFact(FString::Printf(TEXT("has_state(%s, %s)"),
+                *Sanitize(Event.CharacterId), *Sanitize(Event.StateType)));
+            break;
+        case EInsimulEventType::StateExpiredTruth:
+            RetractPattern(TEXT("has_state"), Sanitize(Event.CharacterId), Sanitize(Event.StateType));
+            break;
+        case EInsimulEventType::PuzzleFailed:
+            AssertFact(FString::Printf(TEXT("puzzle_failed(player, %s, %d)"),
+                *Sanitize(Event.PuzzleId), Event.Attempts));
+            break;
+        case EInsimulEventType::QuestFailed:
+            AssertFact(FString::Printf(TEXT("quest_failed(player, %s)"), *Sanitize(Event.QuestId)));
+            break;
+        case EInsimulEventType::QuestAbandoned:
+            AssertFact(FString::Printf(TEXT("quest_abandoned(player, %s)"), *Sanitize(Event.QuestId)));
+            RetractPattern(TEXT("quest_active"), TEXT("player"), Sanitize(Event.QuestId));
+            break;
         default:
             return; // No re-evaluation needed
     }
@@ -873,6 +939,66 @@ void UPrologEngine::UpdateItemQuantity(const FString& ItemName, int32 Delta)
     {
         AssertFact(FString::Printf(TEXT("has_item(player, %s, %d)"), *ItemName, CurrentQty));
     }
+}
+
+// ── Volition & Romance Queries ──────────────────────────────────────────────
+
+TArray<FString> UPrologEngine::EvaluateVolitionRules(const FString& NPCId)
+{
+    if (!bInitialized) return {};
+
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] PrologEngine::EvaluateVolitionRules(%s) — stub query"), *NPCId);
+
+    // Look for volition_score(NPCId, Action, Target, Score) facts
+    FString Prefix = FString::Printf(TEXT("volition_score(%s,"), *Sanitize(NPCId));
+    TArray<FString> MatchingFacts = FindFacts(Prefix);
+
+    // Return matching facts as strings (sorted by score descending would require parsing)
+    return MatchingFacts;
+}
+
+FString UPrologEngine::GetRomanceStage(const FString& NPCId)
+{
+    if (!bInitialized) return FString();
+
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] PrologEngine::GetRomanceStage(%s) — stub query"), *NPCId);
+
+    // Look for romance_stage(player, NPCId, Stage) fact
+    FString Prefix = FString::Printf(TEXT("romance_stage(player, %s,"), *Sanitize(NPCId));
+    TArray<FString> MatchingFacts = FindFacts(Prefix);
+
+    if (MatchingFacts.Num() > 0)
+    {
+        // Extract third argument (stage)
+        int32 LastCommaIdx = INDEX_NONE;
+        int32 CloseParenIdx = INDEX_NONE;
+        MatchingFacts[0].FindLastChar(TEXT(','), LastCommaIdx);
+        MatchingFacts[0].FindLastChar(TEXT(')'), CloseParenIdx);
+        if (LastCommaIdx != INDEX_NONE && CloseParenIdx != INDEX_NONE && CloseParenIdx > LastCommaIdx + 1)
+        {
+            return MatchingFacts[0].Mid(LastCommaIdx + 1, CloseParenIdx - LastCommaIdx - 1).TrimStartAndEnd();
+        }
+    }
+
+    return FString();
+}
+
+bool UPrologEngine::CanPerformRomanceAction(const FString& NPCId, const FString& ActionType)
+{
+    if (!bInitialized) return true;
+
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] PrologEngine::CanPerformRomanceAction(%s, %s) — stub query"),
+        *NPCId, *ActionType);
+
+    // Check for can_romance_action(player, NPCId, ActionType) fact
+    FString Pattern = FString::Printf(TEXT("can_romance_action(player, %s, %s)"),
+        *Sanitize(NPCId), *Sanitize(ActionType));
+
+    // If no romance rules loaded, allow by default (graceful degradation)
+    bool bHasRomanceRules = FindFacts(TEXT("can_romance_action(")).Num() > 0;
+    if (!bHasRomanceRules) return true;
+
+    return HasFact(Pattern);
 }
 
 // ── Private Helpers ─────────────────────────────────────────────────────────

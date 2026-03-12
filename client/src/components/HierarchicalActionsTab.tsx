@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,6 +12,9 @@ import { apiRequest } from '@/lib/queryClient';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { TruthContextPanel } from './TruthContextPanel';
+import { ContentValidationIndicator } from './prolog/ContentValidationIndicator';
+import { validateActionContent } from '@shared/prolog/content-validators';
 
 interface HierarchicalActionsTabProps {
   worldId: string;
@@ -41,6 +44,7 @@ interface Action {
   verbPast: string | null;
   verbPresent: string | null;
   narrativeTemplates: string[];
+  content: string | null;
   sourceFormat: string | null;
   customData: Record<string, any>;
   tags: string[];
@@ -176,6 +180,12 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
       fetchActions();
     }
   };
+
+  // Validation of selected action's Prolog content
+  const actionValidation = useMemo(() => {
+    if (!selectedAction?.content) return null;
+    return validateActionContent(selectedAction.content);
+  }, [selectedAction?.content]);
 
   // Get action type color
   const getActionTypeColor = (type: string) => {
@@ -610,9 +620,28 @@ export function HierarchicalActionsTab({ worldId }: HierarchicalActionsTabProps)
               </div>
             </CardContent>
           </Card>
+
+          {/* Prolog Content Validation */}
+          {actionValidation && (
+            <ContentValidationIndicator
+              validationResult={actionValidation}
+              label="Prolog Validation"
+              defaultCollapsed={true}
+            />
+          )}
+
+          {/* Truth Context Panel (US-2.06) */}
+          <TruthContextPanel
+            worldId={worldId}
+            entityType="action"
+            entityId={selectedAction?.id}
+            entityName={selectedAction?.name}
+            entityTags={selectedAction?.tags}
+            defaultCollapsed={true}
+          />
         </div>
       )}
-      
+
       {/* Create Dialog */}
       <ActionCreateDialog
         open={showCreateDialog}

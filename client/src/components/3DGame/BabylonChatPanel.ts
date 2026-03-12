@@ -127,6 +127,7 @@ export class BabylonChatPanel {
   private onNPCSpeechUpdate: ((text: string) => void) | null = null;
   private onFluencyGain: ((fluency: number, gain: number) => void) | null = null;
   private onConversationSummary: ((result: any) => void) | null = null;
+  private onDialogueRating: ((messageIndex: number, rating: number) => void) | null = null;
   private pendingTurnInQuests: any[] = [];
 
   // Expose advancedTexture for debugging
@@ -557,6 +558,52 @@ export class BabylonChatPanel {
     return messageText;
   }
 
+  /** Create a row of 1-5 star rating buttons for an NPC message. */
+  private createRatingRow(messageIndex: number): StackPanel {
+    const row = new StackPanel(`rating-${messageIndex}`);
+    row.isVertical = false;
+    row.height = "18px";
+    row.paddingLeft = "8px";
+    row.paddingBottom = "2px";
+    row.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+
+    const label = new TextBlock(`rateLabel-${messageIndex}`, "Rate:");
+    label.fontSize = 9;
+    label.color = "#666";
+    label.width = "30px";
+    label.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    row.addControl(label);
+
+    for (let star = 1; star <= 5; star++) {
+      const btn = Button.CreateSimpleButton(`star-${messageIndex}-${star}`, "★");
+      btn.width = "18px";
+      btn.height = "16px";
+      btn.fontSize = 11;
+      btn.color = "#555";
+      btn.thickness = 0;
+      btn.background = "transparent";
+      btn.onPointerEnterObservable.add(() => { btn.color = "#FFD700"; });
+      btn.onPointerOutObservable.add(() => { btn.color = "#555"; });
+      btn.onPointerClickObservable.add(() => {
+        // Highlight selected stars
+        for (let s = 1; s <= 5; s++) {
+          const siblingBtn = row.getChildByName(`star-${messageIndex}-${s}`) as Button | null;
+          if (siblingBtn) {
+            const textBlock = siblingBtn.children?.[0] as TextBlock | undefined;
+            if (textBlock) textBlock.color = s <= star ? "#FFD700" : "#555";
+          }
+        }
+        // Fire callback
+        if (this.onDialogueRating) {
+          this.onDialogueRating(messageIndex, star);
+        }
+      });
+      row.addControl(btn);
+    }
+
+    return row;
+  }
+
   private displayMessages() {
     if (!this.messagesStack) return;
 
@@ -583,6 +630,12 @@ export class BabylonChatPanel {
       const ctrl = this.createMessageControl(i);
       this._messageControls.set(i, ctrl);
       this.messagesStack.addControl(ctrl);
+
+      // Add rating buttons after NPC messages (not system messages)
+      if (this.messages[i].role === 'assistant' && !this.messages[i].content.startsWith('✓ ') && !this.messages[i].content.startsWith('✎ ')) {
+        const ratingRow = this.createRatingRow(i);
+        this.messagesStack.addControl(ratingRow);
+      }
     }
 
     // Re-add loading indicator at the end
@@ -1705,6 +1758,11 @@ export class BabylonChatPanel {
 
   public setOnConversationSummary(callback: (result: any) => void) {
     this.onConversationSummary = callback;
+  }
+
+  /** Set callback for when the player rates an NPC dialogue response (1-5 stars). */
+  public setOnDialogueRating(callback: (messageIndex: number, rating: number) => void) {
+    this.onDialogueRating = callback;
   }
 
   private _onExternalNewWord: ((entry: any) => void) | null = null;

@@ -38,7 +38,29 @@ export type GameEvent =
   | { type: 'item_used'; itemId: string; itemName: string }
   | { type: 'item_dropped'; itemId: string; itemName: string; quantity: number }
   | { type: 'item_equipped'; itemId: string; itemName: string; slot: string }
-  | { type: 'item_unequipped'; itemId: string; itemName: string; slot: string };
+  | { type: 'item_unequipped'; itemId: string; itemName: string; slot: string }
+  | { type: 'utterance_evaluated'; objectiveId: string; input: string; score: number; passed: boolean; feedback: string }
+  | { type: 'utterance_quest_progress'; questId: string; objectiveId: string; current: number; required: number; percentage: number }
+  | { type: 'utterance_quest_completed'; questId: string; objectiveId: string; finalScore: number; xpAwarded: number }
+  | { type: 'ambient_conversation_started'; conversationId: string; participants: [string, string]; locationId: string; topic: string }
+  | { type: 'ambient_conversation_ended'; conversationId: string; participants: [string, string]; durationMs: number; vocabularyCount: number }
+  | { type: 'vocabulary_overheard'; word: string; translation: string; language: string; context: string; conversationId: string; speakerNpcId: string }
+  | { type: 'state_created_truth'; characterId: string; stateType: string; cause: string; title: string; content: string; entryType: 'event' }
+  | { type: 'state_expired_truth'; characterId: string; stateType: string; cause: string; title: string; content: string; entryType: 'event' }
+  // Romance events
+  | { type: 'romance_action'; npcId: string; npcName: string; actionType: string; accepted: boolean; stageChange?: string }
+  | { type: 'romance_stage_changed'; npcId: string; npcName: string; fromStage: string; toStage: string }
+  // Volition events
+  | { type: 'npc_volition_action'; npcId: string; actionId: string; targetId: string; score: number }
+  // Puzzle events
+  | { type: 'puzzle_failed'; puzzleId: string; puzzleType: string; attempts: number }
+  // Quest events
+  | { type: 'quest_failed'; questId: string }
+  | { type: 'quest_abandoned'; questId: string }
+  // Conversation eavesdrop
+  | { type: 'conversation_overheard'; npcId1: string; npcId2: string; topic: string; languageUsed: string }
+  // Truth creation (emitted when game events should be recorded as world truths)
+  | { type: 'create_truth'; characterId: string; title: string; content: string; entryType: 'event' | 'fact' | 'secret'; category?: string };
 
 export type GameEventType = GameEvent['type'];
 

@@ -29,7 +29,23 @@ enum class EInsimulEventType : uint8
     ItemUsed            UMETA(DisplayName = "Item Used"),
     ItemDropped         UMETA(DisplayName = "Item Dropped"),
     ItemEquipped        UMETA(DisplayName = "Item Equipped"),
-    ItemUnequipped      UMETA(DisplayName = "Item Unequipped")
+    ItemUnequipped          UMETA(DisplayName = "Item Unequipped"),
+    UtteranceEvaluated      UMETA(DisplayName = "Utterance Evaluated"),
+    UtteranceQuestProgress  UMETA(DisplayName = "Utterance Quest Progress"),
+    UtteranceQuestCompleted UMETA(DisplayName = "Utterance Quest Completed"),
+    AmbientConversationStarted UMETA(DisplayName = "Ambient Conversation Started"),
+    AmbientConversationEnded   UMETA(DisplayName = "Ambient Conversation Ended"),
+    VocabularyOverheard     UMETA(DisplayName = "Vocabulary Overheard"),
+    StateCreatedTruth       UMETA(DisplayName = "State Created Truth"),
+    StateExpiredTruth       UMETA(DisplayName = "State Expired Truth"),
+    RomanceAction           UMETA(DisplayName = "Romance Action"),
+    RomanceStageChanged     UMETA(DisplayName = "Romance Stage Changed"),
+    NpcVolitionAction       UMETA(DisplayName = "NPC Volition Action"),
+    PuzzleFailed            UMETA(DisplayName = "Puzzle Failed"),
+    QuestFailed             UMETA(DisplayName = "Quest Failed"),
+    QuestAbandoned          UMETA(DisplayName = "Quest Abandoned"),
+    ConversationOverheard   UMETA(DisplayName = "Conversation Overheard"),
+    CreateTruth             UMETA(DisplayName = "Create Truth")
 };
 
 /**
@@ -54,7 +70,7 @@ struct FInsimulItemTaxonomy
  * Since C++ cannot use TypeScript-style discriminated unions, this struct
  * carries all possible fields across every event type. Only fields relevant
  * to the given EventType are populated; the rest use defaults. This mirrors
- * the 20-variant GameEvent union in GameEventBus.ts.
+ * the 37-variant GameEvent union in GameEventBus.ts.
  */
 USTRUCT(BlueprintType)
 struct FInsimulGameEvent
@@ -104,6 +120,58 @@ struct FInsimulGameEvent
 
     // ── Equipment fields ──────────────────────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Slot;
+
+    // ── Utterance / language quest fields ────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ObjectiveId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Input;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Score = 0.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bPassed = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Feedback;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Current = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Required = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Percentage = 0.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float FinalScore = 0.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 XpAwarded = 0;
+
+    // ── Ambient conversation fields ─────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ConversationId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> Participants;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Topic;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 DurationMs = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 VocabularyCount = 0;
+
+    // ── Vocabulary overheard fields ─────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Translation;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Language;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Context;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString SpeakerNpcId;
+
+    // ── State / truth fields ────────────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString CharacterId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString StateType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Cause;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Title;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Content;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString EntryType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Category;
+
+    // ── Romance fields ──────────────────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bAccepted = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString StageChange;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString FromStage;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ToStage;
+
+    // ── Volition fields ─────────────────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ActionId;
+
+    // ── Puzzle / quest failure fields ───────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PuzzleType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Attempts = 0;
+
+    // ── Conversation overheard fields ───────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString NpcId1;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString NpcId2;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString LanguageUsed;
 };
 
 // ── Delegates ────────────────────────────────────────────────────────────────

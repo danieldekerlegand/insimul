@@ -28,7 +28,23 @@ namespace Insimul.Systems
         ItemUsed,
         ItemDropped,
         ItemEquipped,
-        ItemUnequipped
+        ItemUnequipped,
+        UtteranceEvaluated,
+        UtteranceQuestProgress,
+        UtteranceQuestCompleted,
+        AmbientConversationStarted,
+        AmbientConversationEnded,
+        VocabularyOverheard,
+        StateCreatedTruth,
+        StateExpiredTruth,
+        RomanceAction,
+        RomanceStageChanged,
+        NpcVolitionAction,
+        PuzzleFailed,
+        QuestFailed,
+        QuestAbandoned,
+        ConversationOverheard,
+        CreateTruth
     }
 
     /// <summary>
@@ -200,6 +216,153 @@ namespace Insimul.Systems
         public string itemId;
         public string itemName;
         public string slot;
+    }
+
+    public class UtteranceEvaluatedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.UtteranceEvaluated;
+        public string objectiveId;
+        public string input;
+        public float score;
+        public bool passed;
+        public string feedback;
+    }
+
+    public class UtteranceQuestProgressEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.UtteranceQuestProgress;
+        public string questId;
+        public string objectiveId;
+        public int current;
+        public int required;
+        public float percentage;
+    }
+
+    public class UtteranceQuestCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.UtteranceQuestCompleted;
+        public string questId;
+        public string objectiveId;
+        public float finalScore;
+        public int xpAwarded;
+    }
+
+    public class AmbientConversationStartedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AmbientConversationStarted;
+        public string conversationId;
+        public string[] participants;
+        public string locationId;
+        public string topic;
+    }
+
+    public class AmbientConversationEndedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AmbientConversationEnded;
+        public string conversationId;
+        public string[] participants;
+        public int durationMs;
+        public int vocabularyCount;
+    }
+
+    public class VocabularyOverheardEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.VocabularyOverheard;
+        public string word;
+        public string translation;
+        public string language;
+        public string context;
+        public string conversationId;
+        public string speakerNpcId;
+    }
+
+    public class StateCreatedTruthEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.StateCreatedTruth;
+        public string characterId;
+        public string stateType;
+        public string cause;
+        public string title;
+        public string content;
+        public string entryType;
+    }
+
+    public class StateExpiredTruthEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.StateExpiredTruth;
+        public string characterId;
+        public string stateType;
+        public string cause;
+        public string title;
+        public string content;
+        public string entryType;
+    }
+
+    public class RomanceActionEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.RomanceAction;
+        public string npcId;
+        public string npcName;
+        public string actionType;
+        public bool accepted;
+        public string stageChange;
+    }
+
+    public class RomanceStageChangedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.RomanceStageChanged;
+        public string npcId;
+        public string npcName;
+        public string fromStage;
+        public string toStage;
+    }
+
+    public class NpcVolitionActionEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.NpcVolitionAction;
+        public string npcId;
+        public string actionId;
+        public string targetId;
+        public float score;
+    }
+
+    public class PuzzleFailedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.PuzzleFailed;
+        public string puzzleId;
+        public string puzzleType;
+        public int attempts;
+    }
+
+    public class QuestFailedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.QuestFailed;
+        public string questId;
+    }
+
+    public class QuestAbandonedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.QuestAbandoned;
+        public string questId;
+    }
+
+    public class ConversationOverheardEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.ConversationOverheard;
+        public string npcId1;
+        public string npcId2;
+        public string topic;
+        public string languageUsed;
+    }
+
+    public class CreateTruthEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.CreateTruth;
+        public string characterId;
+        public string title;
+        public string content;
+        public string entryType;
+        public string category;
     }
 
     // ── Event Bus ────────────────────────────────────────────────────────────

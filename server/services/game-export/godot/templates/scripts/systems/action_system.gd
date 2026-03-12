@@ -70,6 +70,105 @@ func get_cooldown(action_id: String) -> float:
 		return _action_states[action_id].get("cooldown_remaining", 0.0)
 	return 0.0
 
+## Standard personality affinities for common action types.
+## Maps actionType -> { trait -> weight }.
+const STANDARD_ACTION_AFFINITIES: Dictionary = {
+	# Social actions
+	"greet": {"extroversion": 0.4, "agreeableness": 0.3},
+	"compliment": {"agreeableness": 0.5, "extroversion": 0.2},
+	"gossip": {"extroversion": 0.3, "agreeableness": -0.3, "openness": 0.1},
+	"argue": {"extroversion": 0.2, "agreeableness": -0.5, "neuroticism": 0.3},
+	"comfort": {"agreeableness": 0.6, "extroversion": 0.1},
+	"apologize": {"agreeableness": 0.4, "conscientiousness": 0.3},
+	# Physical actions
+	"fight": {"agreeableness": -0.5, "extroversion": 0.3, "neuroticism": 0.2},
+	"flee": {"neuroticism": 0.5, "agreeableness": 0.2},
+	"explore": {"openness": 0.6, "extroversion": 0.2},
+	"rest": {"conscientiousness": -0.2, "neuroticism": 0.1},
+	# Economic actions
+	"trade": {"conscientiousness": 0.4, "agreeableness": 0.1},
+	"steal": {"agreeableness": -0.6, "conscientiousness": -0.4, "neuroticism": 0.2},
+	"craft": {"conscientiousness": 0.5, "openness": 0.3},
+	"work": {"conscientiousness": 0.6},
+	# Romance actions
+	"flirt": {"extroversion": 0.4, "openness": 0.3, "agreeableness": 0.1},
+	"express_love": {"agreeableness": 0.4, "extroversion": 0.2, "openness": 0.3},
+	# Mental actions
+	"study": {"openness": 0.5, "conscientiousness": 0.4},
+	"meditate": {"openness": 0.4, "neuroticism": -0.3},
+	"plan": {"conscientiousness": 0.6, "openness": 0.2},
+}
+
+## Get contextual actions ranked by personality match using softmax probability.
+## personality: Dictionary with keys openness, conscientiousness, extroversion, agreeableness, neuroticism (each -1 to 1).
+## Returns Array[Dictionary] with keys: action (Dictionary), probability (float), sorted descending.
+## If personality is empty, returns uniform probability.
+func get_contextual_actions_ranked(context: Dictionary = {}, personality: Dictionary = {}) -> Array[Dictionary]:
+	var player_energy: float = context.get("player_energy", 100.0)
+	var has_target: bool = context.has("target")
+
+	# Gather contextual actions
+	var contextual: Array[Dictionary] = []
+	for a in actions:
+		if not a.get("isActive", true):
+			continue
+		var aid: String = a.get("id", "")
+		if _action_states.has(aid):
+			if _action_states[aid].get("cooldown_remaining", 0.0) > 0:
+				continue
+		var energy_cost: float = a.get("energyCost", 0)
+		if energy_cost > 0 and energy_cost > player_energy:
+			continue
+		if a.get("requiresTarget", false) and not has_target:
+			continue
+		contextual.append(a)
+
+	if contextual.is_empty():
+		return []
+
+	# Uniform fallback if no personality provided
+	if personality.is_empty():
+		var uniform: float = 1.0 / contextual.size()
+		var uniform_result: Array[Dictionary] = []
+		for a in contextual:
+			uniform_result.append({"action": a, "probability": uniform})
+		return uniform_result
+
+	# Compute raw scores via dot product of personality traits with action affinities
+	var scores: Array[float] = []
+	for a in contextual:
+		var score: float = 0.5 # base weight
+		var action_type: String = a.get("actionType", "")
+		if STANDARD_ACTION_AFFINITIES.has(action_type):
+			var affinities: Dictionary = STANDARD_ACTION_AFFINITIES[action_type]
+			for trait in affinities:
+				score += personality.get(trait, 0.0) * affinities[trait]
+		scores.append(score)
+
+	# Softmax with temperature
+	var temperature: float = 1.0
+	var max_score: float = scores[0]
+	for s in scores:
+		max_score = maxf(max_score, s)
+
+	var exps: Array[float] = []
+	var sum_exp: float = 0.0
+	for s in scores:
+		var e: float = exp((s - max_score) / maxf(0.01, temperature))
+		exps.append(e)
+		sum_exp += e
+
+	if sum_exp <= 0.0:
+		sum_exp = 1.0
+
+	var result: Array[Dictionary] = []
+	for i in range(contextual.size()):
+		result.append({"action": contextual[i], "probability": exps[i] / sum_exp})
+
+	# Sort descending by probability
+	result.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["probability"] > b["probability"])
+	return result
+
 ## Execute an action and return a result dictionary.
 ## Result: {success: bool, message: String, energy_used: int, effects: Array[Dictionary], narrative_text: String}
 func execute_action(action_id: String, source: Node, target: Node = null) -> Dictionary:

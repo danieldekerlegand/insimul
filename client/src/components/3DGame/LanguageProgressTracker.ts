@@ -525,10 +525,156 @@ export class LanguageProgressTracker {
   public setOnVocabularyUsed(cb: (usages: VocabularyUsage[]) => void): void { this.onVocabularyUsed = cb; }
   public setOnGrammarFeedback(cb: (feedback: GrammarFeedback) => void): void { this.onGrammarFeedback = cb; }
 
+  // ── Server Sync ────────────────────────────────────────────────────────────
+
+  private syncIntervalId: ReturnType<typeof setInterval> | null = null;
+  private lastSyncTimestamp: number = 0;
+  private syncInProgress: boolean = false;
+  private syncEndpoint: string = '/api/language-progress/sync';
+
+  /**
+   * Start periodic server sync. Sends progress every `intervalMs` (default: 60s).
+   * Also syncs on `beforeunload` (session end).
+   */
+  public startServerSync(intervalMs: number = 60_000): void {
+    this.stopServerSync();
+
+    // Periodic sync
+    this.syncIntervalId = setInterval(() => {
+      this.syncToServer().catch(err =>
+        console.warn('[LanguageProgressTracker] Periodic sync failed:', err)
+      );
+    }, intervalMs);
+
+    // Sync on page unload / session end
+    this._boundBeforeUnload = () => {
+      this.syncToServerBeacon();
+    };
+    window.addEventListener('beforeunload', this._boundBeforeUnload);
+  }
+
+  private _boundBeforeUnload: (() => void) | null = null;
+
+  /**
+   * Stop periodic server sync.
+   */
+  public stopServerSync(): void {
+    if (this.syncIntervalId !== null) {
+      clearInterval(this.syncIntervalId);
+      this.syncIntervalId = null;
+    }
+    if (this._boundBeforeUnload) {
+      window.removeEventListener('beforeunload', this._boundBeforeUnload);
+      this._boundBeforeUnload = null;
+    }
+  }
+
+  /**
+   * Sync current progress to the server via fetch.
+   */
+  public async syncToServer(): Promise<void> {
+    if (this.syncInProgress) return;
+    if (this.progress.lastActivityTimestamp <= this.lastSyncTimestamp) return; // No changes
+
+    this.syncInProgress = true;
+    try {
+      const payload = this.buildSyncPayload();
+      const response = await fetch(this.syncEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        this.lastSyncTimestamp = Date.now();
+      } else {
+        console.warn('[LanguageProgressTracker] Sync returned', response.status);
+      }
+    } catch (err) {
+      console.warn('[LanguageProgressTracker] Sync failed:', err);
+    } finally {
+      this.syncInProgress = false;
+    }
+  }
+
+  /**
+   * Sync using sendBeacon (for page unload — does not wait for response).
+   */
+  private syncToServerBeacon(): void {
+    if (this.progress.lastActivityTimestamp <= this.lastSyncTimestamp) return;
+    try {
+      const payload = this.buildSyncPayload();
+      const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+      navigator.sendBeacon(this.syncEndpoint, blob);
+      this.lastSyncTimestamp = Date.now();
+    } catch {
+      // Best-effort — sendBeacon can fail silently
+    }
+  }
+
+  /**
+   * Build the sync payload matching the POST /api/language-progress/sync endpoint.
+   */
+  private buildSyncPayload(): {
+    playerId: string;
+    worldId: string;
+    progress: Record<string, unknown>;
+    vocabulary: Array<Record<string, unknown>>;
+    grammarPatterns: Array<Record<string, unknown>>;
+    conversations: Array<Record<string, unknown>>;
+  } {
+    // Only include conversations since last sync
+    const newConversations = this.progress.conversations.filter(
+      c => c.timestamp > this.lastSyncTimestamp
+    );
+
+    return {
+      playerId: this.progress.playerId,
+      worldId: this.progress.worldId,
+      progress: {
+        targetLanguage: this.progress.language,
+        overallFluency: this.progress.overallFluency,
+        totalConversations: this.progress.totalConversations,
+        totalWordsLearned: this.progress.totalWordsLearned,
+        streakDays: this.progress.streakDays,
+      },
+      vocabulary: this.progress.vocabulary.map(v => ({
+        word: v.word,
+        meaning: v.meaning,
+        category: v.category,
+        timesEncountered: v.timesEncountered,
+        timesUsedCorrectly: v.timesUsedCorrectly,
+        masteryLevel: v.masteryLevel,
+        lastEncountered: v.lastEncountered,
+        context: v.context,
+      })),
+      grammarPatterns: this.progress.grammarPatterns.map(g => ({
+        pattern: g.pattern,
+        correctUsages: g.timesUsedCorrectly,
+        incorrectUsages: g.timesUsedIncorrectly,
+        examples: g.examples,
+        masteryLevel: g.mastered ? 'mastered' : 'learning',
+      })),
+      conversations: newConversations.map(c => ({
+        characterId: c.characterId,
+        turns: c.turns,
+        wordsUsed: c.wordsUsed,
+        targetLanguagePercentage: c.targetLanguagePercentage,
+        fluencyGained: c.fluencyGained,
+        grammarErrors: [],
+        timestamp: c.timestamp,
+        duration: 0,
+      })),
+    };
+  }
+
   /**
    * Dispose
    */
   public dispose(): void {
+    this.stopServerSync();
+    // Final sync attempt
+    this.syncToServerBeacon();
     this.currentConversation = null;
     this.worldLanguageContext = null;
   }

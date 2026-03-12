@@ -15,6 +15,9 @@ import { RuleConvertDialog } from '../RuleConvertDialog';
 import { PredicatePalette } from '../prolog/PredicatePalette';
 import { PrologQueryTester } from '../prolog/PrologQueryTester';
 import { PrologSyntaxHighlight } from '../prolog/PrologSyntaxHighlight';
+import { ContentValidationIndicator } from '../prolog/ContentValidationIndicator';
+import { TruthContextPanel } from '../TruthContextPanel';
+import { validateRuleContent } from '@shared/prolog/content-validators';
 
 interface RulesHubProps {
   worldId: string;
@@ -226,6 +229,13 @@ export function RulesHub({ worldId }: RulesHubProps) {
       toast({ title: 'Failed to save rule', variant: 'destructive' });
     }
   };
+
+  // Validation of current content
+  const ruleValidation = useMemo(() => {
+    const content = isEditing ? editedContent : selectedRule?.content;
+    if (!content) return null;
+    return validateRuleContent(content);
+  }, [isEditing, editedContent, selectedRule?.content]);
 
   // ─── Left panel: tree ──────────────────────────────────────────────────────
 
@@ -503,6 +513,29 @@ export function RulesHub({ worldId }: RulesHubProps) {
               </div>
             </ScrollArea>
           )}
+        </div>
+
+        {/* Prolog Content Validation */}
+        {ruleValidation && (
+          <div className="px-4 pb-2 shrink-0">
+            <ContentValidationIndicator
+              validationResult={ruleValidation}
+              label="Prolog Validation"
+              defaultCollapsed={!isEditing}
+            />
+          </div>
+        )}
+
+        {/* Truth Context Panel (US-2.06) */}
+        <div className="px-4 pb-4 shrink-0">
+          <TruthContextPanel
+            worldId={worldId}
+            entityType="rule"
+            entityId={selectedRule?.id}
+            entityName={selectedRule?.name}
+            entityTags={selectedRule?.tags}
+            defaultCollapsed={true}
+          />
         </div>
       </div>
     );

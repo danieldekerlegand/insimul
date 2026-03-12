@@ -41,6 +41,7 @@ import {
   Edit3,
   Settings,
   Trash2,
+  FlaskConical,
 } from "lucide-react";
 
 interface ModernNavbarProps {
@@ -65,11 +66,10 @@ const tabMeta: Record<string, { label: string; icon: any }> = {
   items: { label: "Items", icon: Package },
   grammars: { label: "Grammars", icon: FileText },
   languages: { label: "Languages", icon: Sparkles },
-  truth: { label: "Truth System", icon: BookOpen },
-  prolog: { label: "Prolog KB", icon: Brain },
-  simulations: { label: "Simulations", icon: Play },
+  "world-intelligence": { label: "World Intelligence", icon: Brain },
   "3d-game": { label: "Explore World", icon: Gamepad2 },
   analytics: { label: "Analytics", icon: BarChart3 },
+  research: { label: "Research", icon: FlaskConical },
   "my-playthroughs": { label: "My Playthroughs", icon: History },
 };
 

@@ -17,6 +17,7 @@ import { GrammarEditor } from './GrammarEditor';
 import { GrammarTestConsole } from './GrammarTestConsole';
 import { GenerateGrammarDialog } from './GenerateGrammarDialog';
 import { NamePatternEditor } from './NamePatternEditor';
+import { TruthContextPanel } from './TruthContextPanel';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -392,6 +393,16 @@ export function GrammarsTab({ worldId }: GrammarsTabProps) {
                     <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>
+
+                {/* Truth Context Panel (US-2.06) */}
+                <TruthContextPanel
+                  worldId={worldId}
+                  entityType="grammar"
+                  entityId={grammar.id}
+                  entityName={grammar.name}
+                  entityTags={grammar.tags}
+                  defaultCollapsed={true}
+                />
               </CardContent>
             </Card>
           ))}

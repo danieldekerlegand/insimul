@@ -13,6 +13,9 @@ import { generateSceneFiles } from './godot-scene-generator';
 import { generateWorldIR } from '../ir-generator';
 import { bundleCoreAssets, bundleAssetsFromCollection, generateAssetManifestJson, type BundledAsset, type TargetEngine } from '../asset-bundler';
 import type { WorldIR } from '@shared/game-engine/ir-types';
+import { generateGodotTelemetryTemplate } from '../godot-telemetry-template';
+import type { ExportTelemetryConfig } from '../telemetry-config';
+import { TELEMETRY_DEFAULTS } from '../telemetry-config';
 import { createRequire } from 'node:module';
 
 // createRequire needed for ESM projects.
@@ -88,7 +91,11 @@ async function packageAsZip(
 /**
  * Generate a complete Godot 4.x project from a world ID.
  */
-export async function exportGodotProject(worldId: string): Promise<GodotExportResult> {
+export interface GodotExportOptions {
+  telemetry?: ExportTelemetryConfig;
+}
+
+export async function exportGodotProject(worldId: string, options?: GodotExportOptions): Promise<GodotExportResult> {
   console.log('[Export] Starting Godot export for world:', worldId);
   const startTime = Date.now();
 
@@ -102,6 +109,21 @@ export async function exportGodotProject(worldId: string): Promise<GodotExportRe
 
   // 3. Run all generators
   const allFiles = generateGodotFilesFromIR(ir);
+
+  // 3b. Include telemetry client if enabled
+  if (options?.telemetry?.enabled) {
+    const telemetryGd = generateGodotTelemetryTemplate({
+      apiEndpoint: options.telemetry.serverUrl,
+      apiKey: options.telemetry.apiKey,
+      batchSize: options.telemetry.batchSize ?? TELEMETRY_DEFAULTS.batchSize,
+      flushIntervalMs: options.telemetry.flushIntervalMs ?? TELEMETRY_DEFAULTS.flushIntervalMs,
+    });
+    allFiles.push({
+      path: 'scripts/autoload/telemetry_client.gd',
+      content: telemetryGd,
+    });
+    console.log('[Export] Godot telemetry client included');
+  }
 
   // 4. Bundle assets from the world's selected collection
   const engine: TargetEngine = 'godot';

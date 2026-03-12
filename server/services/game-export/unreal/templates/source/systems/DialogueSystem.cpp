@@ -205,6 +205,30 @@ void UDialogueSystem::SelectAction(const FString& ActionId)
     UE_LOG(LogTemp, Warning, TEXT("[Insimul] Action not found: %s"), *ActionId);
 }
 
+void UDialogueSystem::ShowWithRomanceActions(const TArray<FString>& BaseActionIds, const TArray<FInsimulRomanceAction>& RomanceActions, float Energy)
+{
+    SetPlayerEnergy(Energy);
+
+    // Convert romance actions to standard social action JSON objects and append
+    for (const auto& RA : RomanceActions)
+    {
+        TSharedPtr<FJsonObject> ActionObj = MakeShareable(new FJsonObject());
+        ActionObj->SetStringField(TEXT("id"), FString::Printf(TEXT("romance_%s"), *RA.Id));
+        ActionObj->SetStringField(TEXT("name"), FString::Printf(TEXT("\xF0\x9F\x92\x95 %s"), *RA.Name));
+        ActionObj->SetStringField(TEXT("description"), RA.Description.IsEmpty()
+            ? FString::Printf(TEXT("Romance action (requires %s stage)"), *RA.RequiredStage)
+            : RA.Description);
+        ActionObj->SetStringField(TEXT("actionType"), TEXT("social"));
+        ActionObj->SetStringField(TEXT("category"), TEXT("romance"));
+        ActionObj->SetNumberField(TEXT("energyCost"), RA.EnergyCost);
+        ActionObj->SetNumberField(TEXT("sparkGain"), RA.SparkGain);
+        ActionObj->SetStringField(TEXT("romanceActionId"), RA.Id);
+        SocialActions.Add(ActionObj);
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] ShowWithRomanceActions: added %d romance actions (total=%d)"), RomanceActions.Num(), SocialActions.Num());
+}
+
 void UDialogueSystem::LoadSocialActions()
 {
     FString ActionsPath = FPaths::ProjectContentDir() / TEXT("Data/SocialActions.json");

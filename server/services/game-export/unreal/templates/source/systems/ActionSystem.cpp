@@ -189,6 +189,145 @@ FString UActionSystem::GenerateNarrativeText(const TSharedPtr<FJsonObject>& Acti
     return FString::Printf(TEXT("You %s."), *VerbPast);
 }
 
+TMap<FString, TMap<FString, float>> UActionSystem::GetStandardActionAffinities()
+{
+    TMap<FString, TMap<FString, float>> Affinities;
+
+    // Social actions
+    Affinities.Add(TEXT("greet"), {{TEXT("Extroversion"), 0.4f}, {TEXT("Agreeableness"), 0.3f}});
+    Affinities.Add(TEXT("compliment"), {{TEXT("Agreeableness"), 0.5f}, {TEXT("Extroversion"), 0.2f}});
+    Affinities.Add(TEXT("gossip"), {{TEXT("Extroversion"), 0.3f}, {TEXT("Agreeableness"), -0.3f}, {TEXT("Openness"), 0.1f}});
+    Affinities.Add(TEXT("argue"), {{TEXT("Extroversion"), 0.2f}, {TEXT("Agreeableness"), -0.5f}, {TEXT("Neuroticism"), 0.3f}});
+    Affinities.Add(TEXT("comfort"), {{TEXT("Agreeableness"), 0.6f}, {TEXT("Extroversion"), 0.1f}});
+    Affinities.Add(TEXT("apologize"), {{TEXT("Agreeableness"), 0.4f}, {TEXT("Conscientiousness"), 0.3f}});
+
+    // Physical actions
+    Affinities.Add(TEXT("fight"), {{TEXT("Agreeableness"), -0.5f}, {TEXT("Extroversion"), 0.3f}, {TEXT("Neuroticism"), 0.2f}});
+    Affinities.Add(TEXT("flee"), {{TEXT("Neuroticism"), 0.5f}, {TEXT("Agreeableness"), 0.2f}});
+    Affinities.Add(TEXT("explore"), {{TEXT("Openness"), 0.6f}, {TEXT("Extroversion"), 0.2f}});
+    Affinities.Add(TEXT("rest"), {{TEXT("Conscientiousness"), -0.2f}, {TEXT("Neuroticism"), 0.1f}});
+
+    // Economic actions
+    Affinities.Add(TEXT("trade"), {{TEXT("Conscientiousness"), 0.4f}, {TEXT("Agreeableness"), 0.1f}});
+    Affinities.Add(TEXT("steal"), {{TEXT("Agreeableness"), -0.6f}, {TEXT("Conscientiousness"), -0.4f}, {TEXT("Neuroticism"), 0.2f}});
+    Affinities.Add(TEXT("craft"), {{TEXT("Conscientiousness"), 0.5f}, {TEXT("Openness"), 0.3f}});
+    Affinities.Add(TEXT("work"), {{TEXT("Conscientiousness"), 0.6f}});
+
+    // Romance actions
+    Affinities.Add(TEXT("flirt"), {{TEXT("Extroversion"), 0.4f}, {TEXT("Openness"), 0.3f}, {TEXT("Agreeableness"), 0.1f}});
+    Affinities.Add(TEXT("express_love"), {{TEXT("Agreeableness"), 0.4f}, {TEXT("Extroversion"), 0.2f}, {TEXT("Openness"), 0.3f}});
+
+    // Mental actions
+    Affinities.Add(TEXT("study"), {{TEXT("Openness"), 0.5f}, {TEXT("Conscientiousness"), 0.4f}});
+    Affinities.Add(TEXT("meditate"), {{TEXT("Openness"), 0.4f}, {TEXT("Neuroticism"), -0.3f}});
+    Affinities.Add(TEXT("plan"), {{TEXT("Conscientiousness"), 0.6f}, {TEXT("Openness"), 0.2f}});
+
+    return Affinities;
+}
+
+TArray<FInsimulRankedAction> UActionSystem::GetContextualActionsRanked(float PlayerEnergy, bool bHasTarget, const FInsimulPersonalityProfile& Personality)
+{
+    TArray<FString> ContextualIds = GetContextualActions(PlayerEnergy, bHasTarget);
+    TArray<FInsimulRankedAction> Result;
+
+    if (ContextualIds.Num() == 0) return Result;
+
+    // Check if personality is effectively zero (no personality provided)
+    bool bHasPersonality = FMath::Abs(Personality.Openness) > KINDA_SMALL_NUMBER
+        || FMath::Abs(Personality.Conscientiousness) > KINDA_SMALL_NUMBER
+        || FMath::Abs(Personality.Extroversion) > KINDA_SMALL_NUMBER
+        || FMath::Abs(Personality.Agreeableness) > KINDA_SMALL_NUMBER
+        || FMath::Abs(Personality.Neuroticism) > KINDA_SMALL_NUMBER;
+
+    if (!bHasPersonality)
+    {
+        float Uniform = 1.f / ContextualIds.Num();
+        for (const FString& Id : ContextualIds)
+        {
+            FInsimulRankedAction Ranked;
+            Ranked.ActionId = Id;
+            Ranked.Probability = Uniform;
+            Result.Add(Ranked);
+        }
+        return Result;
+    }
+
+    // Build personality trait map for dot product
+    TMap<FString, float> TraitValues;
+    TraitValues.Add(TEXT("Openness"), Personality.Openness);
+    TraitValues.Add(TEXT("Conscientiousness"), Personality.Conscientiousness);
+    TraitValues.Add(TEXT("Extroversion"), Personality.Extroversion);
+    TraitValues.Add(TEXT("Agreeableness"), Personality.Agreeableness);
+    TraitValues.Add(TEXT("Neuroticism"), Personality.Neuroticism);
+
+    static const TMap<FString, TMap<FString, float>> Affinities = GetStandardActionAffinities();
+    const float Temperature = 1.0f;
+
+    // Compute raw scores
+    TArray<float> Scores;
+    for (const FString& Id : ContextualIds)
+    {
+        float Score = 0.5f; // base weight
+
+        // Find action type
+        FString ActionType;
+        for (const auto& ActionObj : ParsedActions)
+        {
+            FString AId;
+            ActionObj->TryGetStringField(TEXT("id"), AId);
+            if (AId == Id)
+            {
+                ActionObj->TryGetStringField(TEXT("actionType"), ActionType);
+                break;
+            }
+        }
+
+        // Dot product of personality traits with action affinities
+        if (const TMap<FString, float>* TypeAffinities = Affinities.Find(ActionType))
+        {
+            for (const auto& Pair : *TypeAffinities)
+            {
+                if (const float* TraitVal = TraitValues.Find(Pair.Key))
+                {
+                    Score += (*TraitVal) * Pair.Value;
+                }
+            }
+        }
+
+        Scores.Add(Score);
+    }
+
+    // Softmax with temperature
+    float MaxScore = Scores[0];
+    for (float S : Scores) MaxScore = FMath::Max(MaxScore, S);
+
+    TArray<float> Exps;
+    float SumExp = 0.f;
+    for (float S : Scores)
+    {
+        float E = FMath::Exp((S - MaxScore) / FMath::Max(0.01f, Temperature));
+        Exps.Add(E);
+        SumExp += E;
+    }
+
+    // Build ranked results
+    if (SumExp <= 0.f) SumExp = 1.f;
+    for (int32 i = 0; i < ContextualIds.Num(); ++i)
+    {
+        FInsimulRankedAction Ranked;
+        Ranked.ActionId = ContextualIds[i];
+        Ranked.Probability = Exps[i] / SumExp;
+        Result.Add(Ranked);
+    }
+
+    // Sort descending by probability
+    Result.Sort([](const FInsimulRankedAction& A, const FInsimulRankedAction& B) {
+        return A.Probability > B.Probability;
+    });
+
+    return Result;
+}
+
 FInsimulActionResult UActionSystem::ExecuteAction(const FString& ActionId, AActor* Source, AActor* Target)
 {
     FInsimulActionResult Result;

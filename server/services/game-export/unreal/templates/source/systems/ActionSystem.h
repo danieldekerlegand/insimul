@@ -52,6 +52,34 @@ struct FInsimulActionResult
     UPROPERTY(BlueprintReadOnly) FString NarrativeText;
 };
 
+/**
+ * Big Five personality profile for personality-based action ranking.
+ * Each trait ranges from -1.0 to 1.0.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulPersonalityProfile
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Openness = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Conscientiousness = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Extroversion = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Agreeableness = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Neuroticism = 0.f;
+};
+
+/**
+ * An action paired with its softmax probability from personality ranking.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulRankedAction
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly) FString ActionId;
+    UPROPERTY(BlueprintReadOnly) float Probability = 0.f;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGoldEffectApplied, int32, Amount);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemEffectApplied, const FString&, ItemId, int32, Quantity);
 
@@ -86,6 +114,11 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Actions")
     TArray<FString> GetContextualActions(float PlayerEnergy, bool bHasTarget);
 
+    /** Get contextual actions ranked by personality match using softmax probability.
+     *  If no personality is provided (all zeros), returns uniform probability. */
+    UFUNCTION(BlueprintCallable, Category = "Actions")
+    TArray<FInsimulRankedAction> GetContextualActionsRanked(float PlayerEnergy, bool bHasTarget, const FInsimulPersonalityProfile& Personality);
+
     /** Check whether an action can be performed; returns false with Reason populated on failure. */
     UFUNCTION(BlueprintCallable, Category = "Actions")
     bool CanPerformAction(const FString& ActionId, float PlayerEnergy, bool bHasTarget, FString& Reason);
@@ -115,4 +148,8 @@ private:
 
     /** Generate narrative text from an action's narrativeTemplates array. */
     FString GenerateNarrativeText(const TSharedPtr<FJsonObject>& ActionObj, const FString& ActorName, const FString& TargetName);
+
+    /** Standard personality affinities for common action types.
+     *  Maps actionType -> { trait -> weight }. */
+    static TMap<FString, TMap<FString, float>> GetStandardActionAffinities();
 };

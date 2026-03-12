@@ -9,6 +9,7 @@ export interface TokenPayload {
   userId: string;
   username: string;
   email: string;
+  role?: string;
 }
 
 export class AuthService {
@@ -35,6 +36,7 @@ export class AuthService {
       userId: user.id,
       username: user.username,
       email: user.email,
+      role: (user as any).role || 'user',
     };
 
     return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -63,5 +65,32 @@ export class AuthService {
     }
 
     return parts[1];
+  }
+
+  /**
+   * Express middleware that requires a specific role.
+   * Extracts token from Authorization header, verifies it,
+   * and checks that the user has the required role.
+   */
+  static requireRole(...allowedRoles: string[]) {
+    return (req: any, res: any, next: any) => {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ error: 'Invalid or expired token' });
+      }
+
+      const userRole = payload.role || 'user';
+      if (!allowedRoles.includes(userRole) && userRole !== 'admin') {
+        return res.status(403).json({ error: 'Insufficient permissions', requiredRole: allowedRoles });
+      }
+
+      (req as any).user = payload;
+      next();
+    };
   }
 }

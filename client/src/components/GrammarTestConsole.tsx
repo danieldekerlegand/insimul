@@ -16,26 +16,37 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+interface TruthBinding {
+  placeholder: string;
+  truthQuery: string;
+}
+
 interface Grammar {
   id: string;
   name: string;
   description: string | null;
   grammar: Record<string, string | string[]>;
   tags: string[];
+  truthBindings?: TruthBinding[];
+  contextType?: string | null;
 }
 
 interface GrammarTestConsoleProps {
   grammar: Grammar;
+  worldId?: string;
   onClose: () => void;
 }
 
-export function GrammarTestConsole({ grammar, onClose }: GrammarTestConsoleProps) {
+export function GrammarTestConsole({ grammar, worldId, onClose }: GrammarTestConsoleProps) {
   const [variables, setVariables] = useState<Record<string, string>>({});
   const [results, setResults] = useState<string[]>([]);
   const [iterationCount, setIterationCount] = useState(5);
   const [generating, setGenerating] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [resolveTruths, setResolveTruths] = useState(true);
   const { toast } = useToast();
+
+  const hasTruthBindings = (grammar.truthBindings?.length ?? 0) > 0;
 
   // Extract variable placeholders from grammar
   const extractVariables = (): string[] => {
@@ -63,14 +74,22 @@ export function GrammarTestConsole({ grammar, onClose }: GrammarTestConsoleProps
   const handleGenerate = async () => {
     setGenerating(true);
     try {
+      const body: Record<string, any> = {
+        grammar: grammar.grammar,
+        variables,
+        iterations: iterationCount,
+      };
+
+      // Include truth bindings if the grammar has them and the user wants resolution
+      if (hasTruthBindings && resolveTruths && worldId) {
+        body.truthBindings = grammar.truthBindings;
+        body.worldId = worldId;
+      }
+
       const response = await fetch('/api/grammars/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          grammar: grammar.grammar,
-          variables,
-          iterations: iterationCount,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) throw new Error('Failed to generate');
@@ -187,6 +206,39 @@ export function GrammarTestConsole({ grammar, onClose }: GrammarTestConsoleProps
                     />
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Truth bindings toggle */}
+            {hasTruthBindings && (
+              <div className="space-y-2">
+                <Label>Truth Bindings</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="resolveTruths"
+                    checked={resolveTruths}
+                    onChange={(e) => setResolveTruths(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <Label htmlFor="resolveTruths" className="text-sm font-normal cursor-pointer">
+                    Resolve truth bindings
+                  </Label>
+                </div>
+                <div className="space-y-1">
+                  {grammar.truthBindings!.map((b, i) => (
+                    <div key={i} className="text-xs text-muted-foreground font-mono pl-2 border-l-2 border-blue-500/30">
+                      <span className="text-blue-400">#{b.placeholder}#</span>
+                      <span className="mx-1">&larr;</span>
+                      <span>{b.truthQuery}</span>
+                    </div>
+                  ))}
+                </div>
+                {!worldId && (
+                  <p className="text-xs text-amber-500">
+                    No world context available. Truth bindings will not be resolved.
+                  </p>
+                )}
               </div>
             )}
 

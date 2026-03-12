@@ -56,6 +56,7 @@ namespace Insimul.Systems
         public int FactCount => _facts.Count;
 
         private Action _eventBusUnsubscribe;
+        private GameEventBus _eventBusRef;
 
         // ── Initialization ────────────────────────────────────────────────────
 
@@ -666,6 +667,7 @@ has_at_least(Player, Item, N) :- has_item(Player, Item, Qty), Qty >= N.
         public void SubscribeToEventBus(GameEventBus eventBus)
         {
             _eventBusUnsubscribe?.Invoke();
+            _eventBusRef = eventBus;
             _eventBusUnsubscribe = eventBus.OnAny(HandleGameEvent);
         }
 
@@ -775,9 +777,134 @@ has_at_least(Player, Item, N) :- has_item(Player, Item, Qty), Qty >= N.
                 case ItemUnequippedEvent e:
                     RetractFact($"equipped(player, {Sanitize(e.itemName)}, {Sanitize(e.slot)})");
                     break;
+                case RomanceActionEvent e:
+                {
+                    var status = e.accepted ? "accepted" : "rejected";
+                    AssertFact($"romance_action(player, {Sanitize(e.npcId)}, {Sanitize(e.actionType)}, {status})");
+                    // Emit create_truth event for accepted actions
+                    if (e.accepted && _eventBusRef != null)
+                    {
+                        _eventBusRef.Emit(new CreateTruthEvent
+                        {
+                            characterId = "player",
+                            title = $"Romance: {e.actionType} with {e.npcName}",
+                            content = $"Player performed {e.actionType} on {e.npcName}",
+                            entryType = "romance"
+                        });
+                    }
+                    break;
+                }
+                case RomanceStageChangedEvent e:
+                {
+                    RetractPattern("romance_stage", "player", Sanitize(e.npcId));
+                    AssertFact($"romance_stage(player, {Sanitize(e.npcId)}, {Sanitize(e.toStage)})");
+                    AssertFact($"romance_history(player, {Sanitize(e.npcId)}, {Sanitize(e.fromStage)}, {Sanitize(e.toStage)})");
+                    // Emit create_truth event
+                    if (_eventBusRef != null)
+                    {
+                        _eventBusRef.Emit(new CreateTruthEvent
+                        {
+                            characterId = "player",
+                            title = $"Romance stage: {e.fromStage} -> {e.toStage} with {e.npcName}",
+                            content = $"Romance stage changed from {e.fromStage} to {e.toStage}",
+                            entryType = "romance"
+                        });
+                    }
+                    break;
+                }
+                case NpcVolitionActionEvent e:
+                    AssertFact($"volition_acted({Sanitize(e.npcId)}, {Sanitize(e.actionId)}, {Sanitize(e.targetId)})");
+                    break;
+                case ConversationOverheardEvent e:
+                    AssertFact($"overheard_conversation(player, {Sanitize(e.npcId1)}, {Sanitize(e.npcId2)}, {Sanitize(e.topic)})");
+                    break;
+                case StateCreatedTruthEvent e:
+                    AssertFact($"has_state({Sanitize(e.characterId)}, {Sanitize(e.stateType)})");
+                    break;
+                case StateExpiredTruthEvent e:
+                    RetractPattern("has_state", Sanitize(e.characterId), Sanitize(e.stateType));
+                    break;
+                case PuzzleFailedEvent e:
+                    AssertFact($"puzzle_failed(player, {Sanitize(e.puzzleId)}, {e.attempts})");
+                    break;
+                case QuestFailedEvent e:
+                    AssertFact($"quest_failed(player, {Sanitize(e.questId)})");
+                    break;
+                case QuestAbandonedEvent e:
+                    AssertFact($"quest_abandoned(player, {Sanitize(e.questId)})");
+                    RetractPattern("quest_active", "player", Sanitize(e.questId));
+                    break;
             }
 
             ReevaluateQuests();
+        }
+
+        // ── Volition & Romance Queries ────────────────────────────────────────
+
+        /// <summary>
+        /// Evaluate volition rules for an NPC. Returns scored actions sorted by score descending.
+        /// Stub: scans volition_score facts.
+        /// </summary>
+        public List<(string actionId, string targetId, float score)> EvaluateVolitionRules(string npcId)
+        {
+            if (!_initialized) return new List<(string, string, float)>();
+
+            var npcAtom = Sanitize(npcId);
+            var prefix = $"volition_score({npcAtom}, ";
+            var results = new List<(string actionId, string targetId, float score)>();
+
+            foreach (var fact in _facts)
+            {
+                if (!fact.StartsWith(prefix)) continue;
+                // Parse volition_score(npcId, action, target, score)
+                var inner = fact.Substring(prefix.Length);
+                var parts = inner.TrimEnd(')').Split(',');
+                if (parts.Length >= 3)
+                {
+                    var action = parts[0].Trim();
+                    var target = parts[1].Trim();
+                    float.TryParse(parts[2].Trim(), out float score);
+                    results.Add((action, target, score));
+                }
+            }
+
+            results.Sort((a, b) => b.score.CompareTo(a.score));
+            return results;
+        }
+
+        /// <summary>
+        /// Get the current romance stage between the player and an NPC.
+        /// Returns null if no romance stage exists.
+        /// </summary>
+        public string GetRomanceStage(string npcId)
+        {
+            if (!_initialized) return null;
+            var results = ScanBinaryFact("romance_stage", "player");
+            var npcAtom = Sanitize(npcId);
+            // romance_stage(player, npcId, stage) — need to find the one with matching npcId
+            var prefix = $"romance_stage(player, {npcAtom}, ";
+            foreach (var fact in _facts)
+            {
+                if (fact.StartsWith(prefix) && fact.EndsWith(")"))
+                {
+                    return fact.Substring(prefix.Length, fact.Length - prefix.Length - 1).Trim();
+                }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Check if a romance action can be performed with an NPC.
+        /// Returns true by default if no romance rules are loaded.
+        /// </summary>
+        public bool CanPerformRomanceAction(string npcId, string actionType)
+        {
+            if (!_initialized) return true;
+
+            var pattern = $"can_romance_action(player, {Sanitize(npcId)}, {Sanitize(actionType)})";
+            // If no romance rules loaded, allow by default (graceful degradation)
+            if (!HasAnyFactWithPrefix("can_romance_action(")) return true;
+            return HasFact(pattern);
         }
 
         // ── Dispose ──────────────────────────────────────────────────────────
@@ -789,6 +916,7 @@ has_at_least(Player, Item, N) :- has_item(Player, Item, Qty), Qty >= N.
         {
             _eventBusUnsubscribe?.Invoke();
             _eventBusUnsubscribe = null;
+            _eventBusRef = null;
             _facts.Clear();
             _knowledgeBase.Clear();
             _activeQuestIds.Clear();

@@ -20,7 +20,7 @@ import type {
 } from '@shared/language';
 import {
   Globe, Sparkles, MessageCircle, Trash2, Loader2, Plus, ChevronRight, ChevronDown,
-  Send, BookOpen,
+  Send, BookOpen, Landmark, Languages, MapPin,
 } from 'lucide-react';
 
 interface LanguagesHubProps {
@@ -64,6 +64,9 @@ export function LanguagesHub({ worldId }: LanguagesHubProps) {
   // Tree
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['world']));
 
+  // Truths (for cultural context panel)
+  const [truths, setTruths] = useState<any[]>([]);
+
   // Chat
   const [chatMessages, setChatMessages] = useState<LanguageChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
@@ -100,6 +103,7 @@ export function LanguagesHub({ worldId }: LanguagesHubProps) {
     loadLanguages();
     loadLocations();
     loadGeminiStatus();
+    loadTruths();
   }, [worldId]);
 
   useEffect(() => {
@@ -168,6 +172,15 @@ export function LanguagesHub({ worldId }: LanguagesHubProps) {
       }
     } catch (error) {
       toast({ title: 'Error', description: 'Failed to load location data', variant: 'destructive' });
+    }
+  };
+
+  const loadTruths = async () => {
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/truths`);
+      if (res.ok) setTruths(await res.json());
+    } catch {
+      // non-critical, ignore
     }
   };
 
@@ -356,6 +369,18 @@ export function LanguagesHub({ worldId }: LanguagesHubProps) {
     }
     return language.scopeType;
   };
+
+  // Resolve related truths for the selected language
+  const relatedTruths = useMemo(() => {
+    if (!selectedLanguage || !truths.length) return [];
+    const allRelatedIds = new Set([
+      ...(selectedLanguage.relatedTruthIds ?? []),
+      ...(selectedLanguage.culturalTruthIds ?? []),
+      ...(selectedLanguage.historicalTruthIds ?? []),
+    ]);
+    if (allRelatedIds.size === 0) return [];
+    return truths.filter((t: any) => allRelatedIds.has(t.id));
+  }, [selectedLanguage, truths]);
 
   const sortedChatMessages = useMemo(
     () => [...chatMessages].sort((a, b) => {
@@ -587,6 +612,177 @@ export function LanguagesHub({ worldId }: LanguagesHubProps) {
                         </p>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {/* Cultural Context */}
+                {(selectedLanguage.culturalContext || relatedTruths.length > 0 || selectedLanguage.etymology?.length || selectedLanguage.dialectVariations?.length) && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-1.5">
+                      <Landmark className="h-3.5 w-3.5 text-primary" />
+                      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cultural Context</h3>
+                    </div>
+
+                    {/* Cultural Context Details */}
+                    {selectedLanguage.culturalContext && (
+                      <div className="p-3 bg-muted/30 rounded-lg space-y-2">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          <div>
+                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Region</span>
+                            <p className="text-sm font-medium">{selectedLanguage.culturalContext.region}</p>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Speakers</span>
+                            <p className="text-sm font-medium">{selectedLanguage.culturalContext.speakers.toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Status</span>
+                            <p className="text-sm font-medium capitalize">{selectedLanguage.culturalContext.status}</p>
+                          </div>
+                          {selectedLanguage.culturalContext.historicalPeriod && (
+                            <div>
+                              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Historical Period</span>
+                              <p className="text-sm font-medium">{selectedLanguage.culturalContext.historicalPeriod}</p>
+                            </div>
+                          )}
+                          {selectedLanguage.culturalContext.socialStructure && (
+                            <div className="col-span-2">
+                              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Social Structure</span>
+                              <p className="text-sm font-medium">{selectedLanguage.culturalContext.socialStructure}</p>
+                            </div>
+                          )}
+                        </div>
+                        {selectedLanguage.culturalContext.culturalNotes && selectedLanguage.culturalContext.culturalNotes.length > 0 && (
+                          <div>
+                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Cultural Notes</span>
+                            <ul className="mt-1 space-y-1">
+                              {selectedLanguage.culturalContext.culturalNotes.map((note, i) => (
+                                <li key={i} className="text-xs text-muted-foreground flex gap-1.5">
+                                  <span className="text-primary/60 shrink-0">-</span>
+                                  <span>{note}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {selectedLanguage.culturalContext.geographicalFeatures && selectedLanguage.culturalContext.geographicalFeatures.length > 0 && (
+                          <div>
+                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Geographical Features</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {selectedLanguage.culturalContext.geographicalFeatures.map((feat, i) => (
+                                <Badge key={i} variant="outline" className="text-[10px]">
+                                  <MapPin className="h-2.5 w-2.5 mr-0.5" />
+                                  {feat}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Related Truths */}
+                    {relatedTruths.length > 0 && (
+                      <div>
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Linked Truths</span>
+                        <div className="mt-1.5 space-y-1.5">
+                          {relatedTruths.map((truth: any) => (
+                            <div key={truth.id} className="p-2.5 bg-muted/30 rounded-lg border border-white/10">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-medium">{truth.title || truth.name || 'Untitled Truth'}</span>
+                                {truth.era && <Badge variant="secondary" className="text-[10px]">{truth.era}</Badge>}
+                                {truth.significance && <Badge variant="outline" className="text-[10px] capitalize">{truth.significance}</Badge>}
+                                {truth.category && <Badge variant="outline" className="text-[10px] capitalize">{truth.category}</Badge>}
+                              </div>
+                              {truth.description && (
+                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{truth.description}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Etymology */}
+                    {selectedLanguage.etymology && selectedLanguage.etymology.length > 0 && (
+                      <div>
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Etymology</span>
+                        <div className="mt-1.5 space-y-1.5">
+                          {selectedLanguage.etymology.map((etym, i) => (
+                            <div key={i} className="p-2.5 bg-muted/30 rounded-lg">
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-sm font-medium font-mono">{etym.word}</span>
+                                <span className="text-xs text-muted-foreground">- {etym.meaning}</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">Origin: {etym.origin}</p>
+                              {etym.evolution.length > 0 && (
+                                <div className="flex items-center gap-1 mt-1 text-[11px] font-mono text-muted-foreground">
+                                  {etym.evolution.map((step, j) => (
+                                    <span key={j} className="flex items-center gap-1">
+                                      {j > 0 && <span className="text-primary/50">{'->'}</span>}
+                                      <span>{step}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              {etym.cognates && Object.keys(etym.cognates).length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {Object.entries(etym.cognates).map(([lang, word]) => (
+                                    <Badge key={lang} variant="secondary" className="text-[10px] font-mono">
+                                      {lang}: {word}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Dialect Variations */}
+                    {selectedLanguage.dialectVariations && selectedLanguage.dialectVariations.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <Languages className="h-3 w-3 text-primary/70" />
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Dialect Variations</span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {selectedLanguage.dialectVariations.map((dialect, i) => (
+                            <div key={i} className="p-2.5 bg-muted/30 rounded-lg">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">{dialect.name}</span>
+                                <Badge variant="outline" className="text-[10px]">
+                                  <MapPin className="h-2.5 w-2.5 mr-0.5" />
+                                  {dialect.region}
+                                </Badge>
+                              </div>
+                              {dialect.differences.phonological && dialect.differences.phonological.length > 0 && (
+                                <div className="mt-1">
+                                  <span className="text-[10px] text-muted-foreground">Phonological:</span>
+                                  <span className="text-xs text-muted-foreground ml-1">{dialect.differences.phonological.join(', ')}</span>
+                                </div>
+                              )}
+                              {dialect.differences.grammatical && dialect.differences.grammatical.length > 0 && (
+                                <div className="mt-0.5">
+                                  <span className="text-[10px] text-muted-foreground">Grammatical:</span>
+                                  <span className="text-xs text-muted-foreground ml-1">{dialect.differences.grammatical.join(', ')}</span>
+                                </div>
+                              )}
+                              {dialect.differences.lexical && Object.keys(dialect.differences.lexical).length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {Object.entries(dialect.differences.lexical).map(([word, variant]) => (
+                                    <Badge key={word} variant="secondary" className="text-[10px] font-mono">
+                                      {word} {'<->'} {variant}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
