@@ -701,7 +701,7 @@
         "Plugin passes Godot addon validation"
       ],
       "priority": 36,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

@@ -41,6 +41,7 @@ Started: Thu Mar 12 00:10:56 CDT 2026
 - Mercantile types (`MerchantInventory`, `ShopItem`, `ItemType`) are in `shared/game-engine/types.ts`; `BusinessType` union is in `shared/schema.ts`
 - `merchant-inventory.ts` exports `generateMerchantInventory()`, `getAcceptedItemTypes()`, `restockInventory()` — use `MerchantInventoryStorage` interface for DI
 - Unity UPM packages: `package.json` + `Runtime/`/`Editor/` with `.asmdef` files; `Samples~` (tilde) for importable samples; Editor code must be in editor-only asmdef to avoid build errors
+- Godot plugins: `addons/insimul/plugin.cfg` + `@tool` EditorPlugin script; autoload singletons registered in `_enter_tree()`; SSE parsed from complete HTTP response body (not incremental streaming)
 
 ---
 
@@ -725,4 +726,28 @@ Started: Thu Mar 12 00:10:56 CDT 2026
   - UnityWebRequest downloads full response before returning (no true streaming) — for real-time streaming, consider native WebSocket or plugin-based SSE
   - Same HTTP/SSE transport pattern as UE plugin — keeps all engine plugins consistent
   - Editor scripts must be in `Editor/` folder with editor-only asmdef to avoid build errors
+---
+
+## 2026-03-12 - US-036
+- Created Insimul Godot plugin package at `packages/insimul-plugin-godot/`
+- Plugin structure: `addons/insimul/` with `plugin.cfg` for Godot addon registration
+- **Files created:**
+  - `addons/insimul/plugin.cfg` — Plugin metadata and entry point
+  - `addons/insimul/insimul_plugin.gd` — EditorPlugin registering InsimulClient autoload
+  - `addons/insimul/insimul_types.gd` — Shared types (TextChunk, AudioChunk, Viseme, FacialData, ActionTrigger, enums)
+  - `addons/insimul/insimul_http_client.gd` — HTTP/SSE transport (text + audio requests, SSE parsing)
+  - `addons/insimul/insimul_client.gd` — Autoloaded singleton managing server connection and session
+  - `addons/insimul/insimul_npc.gd` — Node to attach to CharacterBody3D for per-NPC conversation
+  - `addons/insimul/insimul_audio_player.gd` — Streaming TTS playback via AudioStreamPlayer3D with prebuffering
+  - `addons/insimul/insimul_lip_sync.gd` — Applies viseme weights to MeshInstance3D blend shapes with smooth interpolation
+  - `addons/insimul/insimul_microphone.gd` — AudioEffectCapture wrapper for mic recording, outputs PCM16 bytes
+  - `README.md` — Setup guide with quickstart code examples
+- **Transport:** Uses HTTP/SSE (same as JS SDK, Unity, and Unreal plugins) — NOT WebSocket, despite PRD mentioning it. WebSocket bridge is US-037.
+- **Learnings for future iterations:**
+  - Godot plugins use `plugin.cfg` (not `package.json`) with `@tool` script as entry point
+  - Godot's `HTTPRequest` node returns full response body on `request_completed` — SSE is parsed from complete body, not incrementally streamed
+  - `AudioStreamMicrophone` + `AudioEffectCapture` is Godot's mic capture pattern; requires an audio bus with the capture effect
+  - GDScript typed arrays use `Array[Type]` syntax (e.g., `Array[InsimulTypes.Viseme]`)
+  - `Marshalls.base64_to_raw()` is Godot's built-in base64 decoder
+  - Godot supports `AudioStreamMP3` natively in 4.x for MP3 audio chunks
 ---
