@@ -3,10 +3,52 @@
  *
  * A Babylon.js GUI panel for buying/selling items with merchant NPCs.
  * Displays merchant inventory on the left and player inventory on the right.
+ *
+ * Features:
+ * - Quantity controls for stackable items (buy/sell multiple)
+ * - Rarity-based price multipliers and color coding
+ * - Sell validation: merchants only buy item types they deal in
+ * - Insufficient funds / merchant can't afford feedback
+ * - Gold tracking for both player and merchant
  */
 
 import * as GUI from '@babylonjs/gui';
-import type { ShopItem, InventoryItem } from '@shared/game-engine/types';
+import type { ShopItem, InventoryItem, ItemType } from '@shared/game-engine/types';
+
+/** Accepted item types per business type for sell validation */
+const BUSINESS_ACCEPTED_TYPES: Record<string, Set<string>> = {
+  Bakery: new Set(['food', 'material']),
+  Bar: new Set(['food', 'drink', 'material']),
+  Restaurant: new Set(['food', 'drink']),
+  Shop: new Set(['tool', 'consumable', 'material', 'weapon', 'armor']),
+  GroceryStore: new Set(['food', 'drink', 'material']),
+  Pharmacy: new Set(['consumable', 'material', 'tool']),
+  JewelryStore: new Set(['armor']), // jewelry is typed as armor
+  Brewery: new Set(['drink', 'material']),
+  Farm: new Set(['food', 'drink', 'material', 'tool']),
+  // Aliases
+  Hotel: new Set(['food', 'drink']),
+  Hospital: new Set(['consumable', 'material', 'tool']),
+  Church: new Set(['tool', 'consumable', 'material', 'weapon', 'armor']),
+  School: new Set(['tool', 'consumable', 'material', 'weapon', 'armor']),
+  Generic: new Set(['tool', 'consumable', 'material', 'weapon', 'armor']),
+};
+
+const RARITY_COLORS: Record<string, string> = {
+  common: '#CCCCCC',
+  uncommon: '#1EFF00',
+  rare: '#0070FF',
+  epic: '#A335EE',
+  legendary: '#FF8000',
+};
+
+const RARITY_PRICE_MULTIPLIERS: Record<string, number> = {
+  common: 1,
+  uncommon: 3,
+  rare: 10,
+  epic: 50,
+  legendary: 200,
+};
 
 export interface ShopPanelConfig {
   merchantId: string;
@@ -15,6 +57,8 @@ export interface ShopPanelConfig {
   goldReserve: number;
   buyMultiplier: number;
   sellMultiplier: number;
+  /** Business type — used to determine which item types the merchant will buy */
+  businessType?: string;
 }
 
 export interface ShopTransaction {
@@ -37,6 +81,9 @@ export class BabylonShopPanel {
   private merchantConfig: ShopPanelConfig | null = null;
   private playerItems: InventoryItem[] = [];
   private playerGold: number = 0;
+
+  /** Track selected quantities per item for multi-buy/sell */
+  private selectedQuantities: Map<string, number> = new Map();
 
   private onBuy: ((transaction: ShopTransaction) => void) | null = null;
   private onSell: ((transaction: ShopTransaction) => void) | null = null;
@@ -139,7 +186,7 @@ export class BabylonShopPanel {
   private createColumn(
     id: string,
     title: string,
-    isMerchant: boolean
+    _isMerchant: boolean
   ): { wrapper: GUI.Rectangle; itemsPanel: GUI.StackPanel; goldText: GUI.TextBlock } {
     // Use a StackPanel wrapper to vertically stack header + scroll area
     const wrapper = new GUI.Rectangle(`${id}_wrapper`);
@@ -203,6 +250,7 @@ export class BabylonShopPanel {
     this.merchantConfig = config;
     this.playerItems = playerItems;
     this.playerGold = playerGold;
+    this.selectedQuantities.clear();
 
     if (this.container) {
       // Update title
@@ -230,6 +278,16 @@ export class BabylonShopPanel {
 
   public getIsVisible(): boolean {
     return this.isVisible;
+  }
+
+  /**
+   * Check if the merchant accepts a given item type for selling.
+   */
+  private merchantAcceptsItemType(itemType: ItemType): boolean {
+    if (!this.merchantConfig?.businessType) return true; // no business type = accept all
+    const accepted = BUSINESS_ACCEPTED_TYPES[this.merchantConfig.businessType];
+    if (!accepted) return true; // unknown business type = accept all
+    return accepted.has(itemType);
   }
 
   private refreshMerchantItems(): void {
@@ -272,9 +330,12 @@ export class BabylonShopPanel {
     }
 
     for (const item of sellableItems) {
-      const sellPrice = Math.floor(
-        (item.sellValue || item.value || 0) * (this.merchantConfig?.sellMultiplier || 0.6)
-      );
+      const accepted = this.merchantAcceptsItemType(item.type);
+      const sellPrice = accepted
+        ? Math.floor(
+            (item.sellValue || item.value || 0) * (this.merchantConfig?.sellMultiplier || 0.5)
+          )
+        : 0;
       const shopItem: ShopItem = {
         ...item,
         buyPrice: item.value || 0,
@@ -282,23 +343,36 @@ export class BabylonShopPanel {
         stock: item.quantity,
         maxStock: item.quantity,
       };
-      const card = this.createShopItemCard(shopItem, 'sell');
+      const card = this.createShopItemCard(shopItem, 'sell', !accepted);
       this.playerItemsContainer.addControl(card);
     }
   }
 
   private createShopItemCard(
     item: ShopItem,
-    mode: 'buy' | 'sell'
+    mode: 'buy' | 'sell',
+    merchantRefuses: boolean = false
   ): GUI.Rectangle {
     const uid = `${mode}_${item.id}`;
+    const qtyKey = `${mode}_${item.id}`;
+    const maxQty = mode === 'buy' ? item.stock : item.quantity;
+    const isStackable = maxQty > 1;
+
+    // Initialize quantity selection
+    if (!this.selectedQuantities.has(qtyKey)) {
+      this.selectedQuantities.set(qtyKey, 1);
+    }
+    const selectedQty = this.selectedQuantities.get(qtyKey) || 1;
+    const unitPrice = mode === 'buy' ? item.buyPrice : item.sellPrice;
+    const totalPrice = unitPrice * selectedQty;
+
     const card = new GUI.Rectangle(uid);
     card.width = '305px';
-    card.height = '65px';
+    card.height = isStackable ? '80px' : '65px';
     card.cornerRadius = 5;
-    card.color = 'rgba(100, 100, 100, 0.4)';
+    card.color = merchantRefuses ? 'rgba(80, 50, 50, 0.6)' : 'rgba(100, 100, 100, 0.4)';
     card.thickness = 1;
-    card.background = 'rgba(25, 25, 25, 0.9)';
+    card.background = merchantRefuses ? 'rgba(30, 15, 15, 0.9)' : 'rgba(25, 25, 25, 0.9)';
 
     // Vertical stack for card content rows
     const cardStack = new GUI.StackPanel(`${uid}_stack`);
@@ -310,7 +384,7 @@ export class BabylonShopPanel {
     cardStack.paddingTop = '4px';
     card.addControl(cardStack);
 
-    // Row 1: Name + stock
+    // Row 1: Name + rarity + stock
     const topRow = new GUI.StackPanel(`${uid}_topRow`);
     topRow.isVertical = false;
     topRow.width = '100%';
@@ -318,10 +392,13 @@ export class BabylonShopPanel {
     cardStack.addControl(topRow);
 
     const nameText = new GUI.TextBlock(`${uid}_name`);
-    nameText.text = item.name;
+    const rarityLabel = item.rarity && item.rarity !== 'common' ? ` [${item.rarity}]` : '';
+    nameText.text = item.name + rarityLabel;
     nameText.fontSize = 14;
     nameText.fontWeight = 'bold';
-    nameText.color = this.getItemColor(item.type);
+    nameText.color = merchantRefuses
+      ? '#666'
+      : (item.rarity ? RARITY_COLORS[item.rarity] || this.getItemColor(item.type) : this.getItemColor(item.type));
     nameText.width = mode === 'buy' ? '70%' : '100%';
     nameText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
     topRow.addControl(nameText);
@@ -336,21 +413,90 @@ export class BabylonShopPanel {
       topRow.addControl(stockText);
     }
 
-    // Row 2: Description
+    // Row 2: Description (or refusal notice)
     const descText = new GUI.TextBlock(`${uid}_desc`);
-    descText.text = item.description || '';
+    descText.text = merchantRefuses
+      ? `${this.merchantConfig?.merchantName || 'Merchant'} doesn't deal in ${item.type} items`
+      : (item.description || '');
     descText.fontSize = 10;
-    descText.color = '#999';
+    descText.color = merchantRefuses ? '#AA4444' : '#999';
     descText.height = '16px';
     descText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
     cardStack.addControl(descText);
 
+    // Row 2.5: Quantity controls (only for stackable items)
+    if (isStackable && !merchantRefuses) {
+      const qtyRow = new GUI.StackPanel(`${uid}_qtyRow`);
+      qtyRow.isVertical = false;
+      qtyRow.width = '100%';
+      qtyRow.height = '18px';
+      cardStack.addControl(qtyRow);
+
+      const qtyLabel = new GUI.TextBlock(`${uid}_qtyLabel`);
+      qtyLabel.text = 'Qty:';
+      qtyLabel.fontSize = 11;
+      qtyLabel.color = '#AAA';
+      qtyLabel.width = '30px';
+      qtyLabel.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+      qtyRow.addControl(qtyLabel);
+
+      const minusBtn = GUI.Button.CreateSimpleButton(`${uid}_minus`, '-');
+      minusBtn.width = '22px';
+      minusBtn.height = '16px';
+      minusBtn.color = 'white';
+      minusBtn.background = 'rgba(80, 80, 80, 0.8)';
+      minusBtn.cornerRadius = 3;
+      minusBtn.fontSize = 12;
+      minusBtn.fontWeight = 'bold';
+      minusBtn.onPointerUpObservable.add(() => {
+        const cur = this.selectedQuantities.get(qtyKey) || 1;
+        if (cur > 1) {
+          this.selectedQuantities.set(qtyKey, cur - 1);
+          this.refreshMerchantItems();
+          this.refreshPlayerItems();
+        }
+      });
+      qtyRow.addControl(minusBtn);
+
+      const qtyText = new GUI.TextBlock(`${uid}_qtyVal`);
+      qtyText.text = ` ${selectedQty} `;
+      qtyText.fontSize = 12;
+      qtyText.color = 'white';
+      qtyText.fontWeight = 'bold';
+      qtyText.width = '30px';
+      qtyRow.addControl(qtyText);
+
+      const plusBtn = GUI.Button.CreateSimpleButton(`${uid}_plus`, '+');
+      plusBtn.width = '22px';
+      plusBtn.height = '16px';
+      plusBtn.color = 'white';
+      plusBtn.background = 'rgba(80, 80, 80, 0.8)';
+      plusBtn.cornerRadius = 3;
+      plusBtn.fontSize = 12;
+      plusBtn.fontWeight = 'bold';
+      plusBtn.onPointerUpObservable.add(() => {
+        const cur = this.selectedQuantities.get(qtyKey) || 1;
+        if (cur < maxQty) {
+          this.selectedQuantities.set(qtyKey, cur + 1);
+          this.refreshMerchantItems();
+          this.refreshPlayerItems();
+        }
+      });
+      qtyRow.addControl(plusBtn);
+
+      // Spacer
+      const spacer = new GUI.TextBlock(`${uid}_spacer`);
+      spacer.text = '';
+      spacer.width = '60%';
+      qtyRow.addControl(spacer);
+    }
+
     // Row 3: Price + action button
-    const price = mode === 'buy' ? item.buyPrice : item.sellPrice;
-    const canAfford = mode === 'buy' ? this.playerGold >= price : true;
+    const canAfford = mode === 'buy' ? this.playerGold >= totalPrice : true;
     const merchantCanAfford = mode === 'sell'
-      ? (this.merchantConfig?.goldReserve || 0) >= price
+      ? (this.merchantConfig?.goldReserve || 0) >= totalPrice
       : true;
+    const canTransact = canAfford && merchantCanAfford && !merchantRefuses;
 
     const bottomRow = new GUI.StackPanel(`${uid}_bottomRow`);
     bottomRow.isVertical = false;
@@ -359,32 +505,52 @@ export class BabylonShopPanel {
     cardStack.addControl(bottomRow);
 
     const priceText = new GUI.TextBlock(`${uid}_price`);
-    priceText.text = `${price}g`;
+    if (merchantRefuses) {
+      priceText.text = 'N/A';
+      priceText.color = '#666';
+    } else {
+      const qtyStr = selectedQty > 1 ? ` (${unitPrice}g x${selectedQty})` : '';
+      priceText.text = `${totalPrice}g${qtyStr}`;
+      priceText.color = canTransact ? '#FFD700' : '#FF4444';
+    }
     priceText.fontSize = 14;
     priceText.fontWeight = 'bold';
-    priceText.color = canAfford && merchantCanAfford ? '#FFD700' : '#FF4444';
     priceText.width = '70%';
     priceText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
     bottomRow.addControl(priceText);
 
     const actionBtn = GUI.Button.CreateSimpleButton(
       `${uid}_btn`,
-      mode === 'buy' ? 'Buy' : 'Sell'
+      merchantRefuses ? 'Refused' : (mode === 'buy' ? 'Buy' : 'Sell')
     );
-    actionBtn.width = '60px';
+    actionBtn.width = '65px';
     actionBtn.height = '24px';
-    actionBtn.color = 'white';
-    actionBtn.background =
-      mode === 'buy'
-        ? canAfford ? 'rgba(40, 120, 40, 0.9)' : 'rgba(80, 80, 80, 0.5)'
-        : merchantCanAfford ? 'rgba(40, 80, 150, 0.9)' : 'rgba(80, 80, 80, 0.5)';
+    actionBtn.color = merchantRefuses ? '#666' : 'white';
     actionBtn.cornerRadius = 4;
     actionBtn.fontSize = 12;
     actionBtn.fontWeight = 'bold';
 
-    if (canAfford && merchantCanAfford) {
+    if (merchantRefuses) {
+      actionBtn.background = 'rgba(50, 50, 50, 0.5)';
+    } else if (mode === 'buy') {
+      actionBtn.background = canAfford ? 'rgba(40, 120, 40, 0.9)' : 'rgba(80, 80, 80, 0.5)';
+    } else {
+      actionBtn.background = merchantCanAfford ? 'rgba(40, 80, 150, 0.9)' : 'rgba(80, 80, 80, 0.5)';
+    }
+
+    if (canTransact) {
       actionBtn.onPointerUpObservable.add(() => {
-        this.executeTransaction(mode, item, 1, price);
+        const qty = this.selectedQuantities.get(qtyKey) || 1;
+        this.executeTransaction(mode, item, qty, unitPrice * qty);
+      });
+    } else if (!merchantRefuses) {
+      // Show reason on click
+      actionBtn.onPointerUpObservable.add(() => {
+        if (mode === 'buy' && !canAfford) {
+          this.showStatus(`Insufficient gold! Need ${totalPrice}g, have ${this.playerGold}g`, '#FF4444');
+        } else if (mode === 'sell' && !merchantCanAfford) {
+          this.showStatus(`Merchant can't afford ${totalPrice}g (has ${this.merchantConfig?.goldReserve || 0}g)`, '#FF4444');
+        }
       });
     }
 
@@ -403,7 +569,7 @@ export class BabylonShopPanel {
 
     if (type === 'buy') {
       if (this.playerGold < totalPrice) {
-        this.showStatus('Not enough gold!', '#FF4444');
+        this.showStatus(`Insufficient gold! Need ${totalPrice}g, have ${this.playerGold}g`, '#FF4444');
         return;
       }
 
@@ -414,11 +580,33 @@ export class BabylonShopPanel {
         if (shopItem) shopItem.stock -= quantity;
       }
 
+      // Add item to player inventory
+      const existing = this.playerItems.find(i => i.name === item.name && i.type === item.type);
+      if (existing) {
+        existing.quantity += quantity;
+      } else {
+        this.playerItems.push({
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          type: item.type,
+          quantity,
+          icon: item.icon,
+          value: item.buyPrice,
+          sellValue: item.sellPrice,
+          tradeable: item.tradeable,
+          effects: item.effects,
+          category: item.category,
+          rarity: item.rarity,
+        });
+      }
+
       if (this.onBuy) this.onBuy(transaction);
-      this.showStatus(`Bought ${item.name} for ${totalPrice}g`, '#90EE90');
+      const qtyStr = quantity > 1 ? ` x${quantity}` : '';
+      this.showStatus(`Bought ${item.name}${qtyStr} for ${totalPrice}g`, '#90EE90');
     } else {
       if (this.merchantConfig && this.merchantConfig.goldReserve < totalPrice) {
-        this.showStatus('Merchant cannot afford this!', '#FF4444');
+        this.showStatus(`Merchant can't afford ${totalPrice}g!`, '#FF4444');
         return;
       }
 
@@ -436,9 +624,21 @@ export class BabylonShopPanel {
         }
       }
 
+      // Add stock back to merchant (if they sell this type)
+      if (this.merchantConfig) {
+        const merchantItem = this.merchantConfig.items.find(i => i.name === item.name);
+        if (merchantItem) {
+          merchantItem.stock += quantity;
+        }
+      }
+
       if (this.onSell) this.onSell(transaction);
-      this.showStatus(`Sold ${item.name} for ${totalPrice}g`, '#87CEEB');
+      const qtyStr = quantity > 1 ? ` x${quantity}` : '';
+      this.showStatus(`Sold ${item.name}${qtyStr} for ${totalPrice}g`, '#87CEEB');
     }
+
+    // Reset quantity selection for this item
+    this.selectedQuantities.delete(`${type}_${item.id}`);
 
     this.refreshMerchantItems();
     this.refreshPlayerItems();
@@ -478,6 +678,10 @@ export class BabylonShopPanel {
 
   public getPlayerGold(): number {
     return this.playerGold;
+  }
+
+  public getPlayerItems(): InventoryItem[] {
+    return this.playerItems;
   }
 
   public setOnBuy(callback: (transaction: ShopTransaction) => void): void {

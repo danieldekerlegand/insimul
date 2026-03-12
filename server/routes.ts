@@ -10468,6 +10468,18 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       // Generate stock based on merchant type
       const merchantStock = generateMerchantStock(occupation, worldId);
 
+      // Map occupation to business type for sell validation on client
+      const occupationToBusinessType: Record<string, string> = {
+        blacksmith: 'Shop', baker: 'Bakery', apothecary: 'Pharmacy',
+        tailor: 'Shop', jeweler: 'JewelryStore', merchant: 'Shop',
+        shopkeeper: 'Shop', trader: 'Shop', vendor: 'Shop',
+        butcher: 'GroceryStore', armorer: 'Shop', weaponsmith: 'Shop',
+      };
+      let businessType = 'Shop';
+      for (const [key, bType] of Object.entries(occupationToBusinessType)) {
+        if (occupation.includes(key)) { businessType = bType; break; }
+      }
+
       res.json({
         merchantId,
         merchantName: `${character.firstName} ${character.lastName}`,
@@ -10475,6 +10487,7 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         goldReserve: merchantStock.goldReserve,
         buyMultiplier: merchantStock.buyMultiplier,
         sellMultiplier: merchantStock.sellMultiplier,
+        businessType,
       });
     } catch (error) {
       console.error("Failed to get merchant inventory:", error);
