@@ -49,7 +49,8 @@ import {
   getOccupationHistory,
   promoteEmployee 
 } from "./extensions/tott/hiring-system.js";
-import { 
+import { validateOccupationChains, validateAndAutoFix } from "./services/jobsite-validation.js";
+import {
   generateEvent, 
   getCharacterEvents, 
   getWorldEvents, 
@@ -2317,6 +2318,19 @@ app.get("/api/rules", async (req, res) => {
       res.json({ success: true, message: "Employee promoted successfully" });
     } catch (error) {
       res.status(500).json({ error: "Failed to promote employee", details: (error as Error).message });
+    }
+  });
+
+  // Occupation chain validation
+  app.get("/api/worlds/:worldId/validate/occupations", async (req, res) => {
+    try {
+      const autofix = req.query.autofix === 'true';
+      const result = autofix
+        ? await validateAndAutoFix(req.params.worldId)
+        : await validateOccupationChains(req.params.worldId);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to validate occupations", details: (error as Error).message });
     }
   });
 
