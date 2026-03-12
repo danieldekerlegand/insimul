@@ -104,6 +104,7 @@ import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/Sett
 import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
 import { GameEventBus } from "@/components/3DGame/GameEventBus.ts";
 import { BuildingCollisionSystem } from "@/components/3DGame/BuildingCollisionSystem.ts";
+import { BuildingEntrySystem } from "@/components/3DGame/BuildingEntrySystem.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 
 // Constants
@@ -480,6 +481,7 @@ export class BabylonGame {
   private activeInterior: InteriorLayout | null = null;
   private savedOverworldPosition: Vector3 | null = null;
   private isInsideBuilding: boolean = false;
+  private buildingEntrySystem: BuildingEntrySystem | null = null;
 
   // Observers (for cleanup)
   private keyboardHandler: ((event: KeyboardEvent) => void) | null = null;
@@ -1511,6 +1513,39 @@ export class BabylonGame {
     this.natureGenerator = new ProceduralNatureGenerator(scene);
     this.roadGenerator = new RoadGenerator(scene);
     this.interiorGenerator = new BuildingInteriorGenerator(scene);
+    this.buildingEntrySystem = new BuildingEntrySystem(scene, this.interiorGenerator, {
+      onTeleportPlayer: (pos: Vector3) => {
+        if (this.playerMesh) this.playerMesh.position = pos;
+      },
+      getPlayerPosition: () => this.playerMesh?.position ?? null,
+      onEnterBuilding: (_buildingId: string, interior: InteriorLayout) => {
+        this.activeInterior = interior;
+        this.isInsideBuilding = true;
+      },
+      onExitBuilding: () => {
+        this.activeInterior = null;
+        this.isInsideBuilding = false;
+        this.savedOverworldPosition = null;
+      },
+      onShowToast: (title: string, description?: string, duration?: number) => {
+        this.guiManager?.showToast({ title, description, duration });
+      },
+    });
+    // Pause/resume overworld NPC movement when entering/exiting buildings
+    this.buildingEntrySystem.registerNPCPauseCallback(
+      () => {
+        // Pause: disable NPC controllers
+        this.npcMeshes.forEach((instance) => {
+          if (instance.controller) {
+            instance.controller.walk(false);
+            instance.controller.run(false);
+          }
+        });
+      },
+      () => {
+        // Resume: NPC behavior loop will pick back up naturally
+      }
+    );
     this.worldScaleManager = new WorldScaleManager(512, this.config.worldId);
 
     if (this.buildingGenerator) {
@@ -2096,6 +2131,19 @@ export class BabylonGame {
             floors: buildingSpec.floors,
           });
 
+          // Register building for entry system
+          this.buildingEntrySystem?.registerBuilding({
+            id: business.id,
+            position: building.position.clone(),
+            rotation: buildingSpec.rotation,
+            width: buildingSpec.width,
+            depth: buildingSpec.depth,
+            buildingType: 'business',
+            businessType: business.businessType,
+            buildingName: business.name,
+            mesh: building,
+          });
+
           // Register building for hover info display
           this.buildingInfoDisplay?.registerBuilding(building);
 
@@ -2175,6 +2223,18 @@ export class BabylonGame {
             width: buildingSpec.width,
             depth: buildingSpec.depth,
             floors: buildingSpec.floors,
+          });
+
+          // Register building for entry system
+          this.buildingEntrySystem?.registerBuilding({
+            id: residence.id,
+            position: building.position.clone(),
+            rotation: buildingSpec.rotation,
+            width: buildingSpec.width,
+            depth: buildingSpec.depth,
+            buildingType: 'residence',
+            buildingName: 'Residence',
+            mesh: building,
           });
 
           // Register building for hover info display
@@ -2301,6 +2361,19 @@ export class BabylonGame {
               floors: buildingSpec.floors,
             });
 
+            // Register building for entry system
+            this.buildingEntrySystem?.registerBuilding({
+              id: bizId,
+              position: building.position.clone(),
+              rotation: buildingSpec.rotation,
+              width: buildingSpec.width,
+              depth: buildingSpec.depth,
+              buildingType: 'business',
+              businessType: biz.businessType,
+              buildingName: biz.name,
+              mesh: building,
+            });
+
             this.buildingInfoDisplay?.registerBuilding(building);
             buildingIndex++;
           }
@@ -2357,6 +2430,18 @@ export class BabylonGame {
             width: buildingSpec.width,
             depth: buildingSpec.depth,
             floors: buildingSpec.floors,
+          });
+
+          // Register building for entry system
+          this.buildingEntrySystem?.registerBuilding({
+            id: genericResId,
+            position: building.position.clone(),
+            rotation: buildingSpec.rotation,
+            width: buildingSpec.width,
+            depth: buildingSpec.depth,
+            buildingType: 'residence',
+            buildingName: 'Residence',
+            mesh: building,
           });
 
           // Register building for hover info display
@@ -4549,23 +4634,32 @@ export class BabylonGame {
 
       // Phase 4B: Interior exit door — click to leave building
       if (metadata.interiorExit && metadata.buildingId) {
-        this.exitBuilding();
+        if (this.buildingEntrySystem?.isInside) {
+          this.buildingEntrySystem.exitBuilding();
+        } else {
+          this.exitBuilding();
+        }
         return;
       }
 
       // Phase 4B: Building door — click to enter building interior
       if (metadata.buildingType && metadata.buildingId) {
         const buildingMesh = pickInfo.pickedMesh as Mesh;
-        // Only enter if player is close enough (within 8 units)
+        // Only enter if player is close enough (within 12 units)
         if (this.playerMesh) {
           const dist = Vector3.Distance(this.playerMesh.position, buildingMesh.position);
           if (dist < 12) {
-            this.enterBuilding(
-              metadata.buildingId || metadata.businessId || metadata.residenceId,
-              metadata.buildingType,
-              metadata.businessType,
-              buildingMesh.position.clone()
-            );
+            const buildingId = metadata.buildingId || metadata.businessId || metadata.residenceId;
+            if (this.buildingEntrySystem) {
+              this.buildingEntrySystem.enterBuilding(buildingId);
+            } else {
+              this.enterBuilding(
+                buildingId,
+                metadata.buildingType,
+                metadata.businessType,
+                buildingMesh.position.clone()
+              );
+            }
             return;
           }
         }
@@ -7574,7 +7668,9 @@ export class BabylonGame {
     this.buildingData.clear();
     this.settlementStats.clear();
 
-    // Dispose building interiors
+    // Dispose building entry system and interiors
+    this.buildingEntrySystem?.dispose();
+    this.buildingEntrySystem = null;
     this.interiorGenerator?.dispose();
     this.activeInterior = null;
     this.savedOverworldPosition = null;
