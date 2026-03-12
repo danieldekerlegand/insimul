@@ -772,3 +772,25 @@ Started: Thu Mar 12 00:10:56 CDT 2026
   - Binary WebSocket frames (`isBinary: true`) used for raw audio; JSON frames for everything else (text chunks, meta, errors, audio metadata)
   - WS_BRIDGE_PORT env var controls standalone port; alternatively pass `httpServer` option to attach to existing HTTP server
 ---
+
+## 2026-03-12 17:19 CDT - US-038
+- Implemented plugin bundler module that reads plugin source files from packages/ and generates engine-specific configuration
+- Each exporter (Babylon, Unity, Godot, Unreal) now automatically bundles the corresponding Insimul plugin with character-to-NPC mappings, server URL, WebSocket URL, and API key
+- Babylon: SDK files bundled into src/insimul-sdk/ with TypeScript config module
+- Unity: Plugin files bundled into Assets/Plugins/Insimul/ with C# InsimulExportConfig static class
+- Godot: Addon files bundled into addons/insimul/ with GDScript InsimulExportConfig class
+- Unreal: Plugin files bundled into Plugins/Insimul/ with .uplugin, INI config, and C++ header
+- Files changed:
+  - server/services/game-export/plugin-bundler.ts (new — core bundling logic)
+  - server/services/game-export/babylon/babylon-exporter-new.ts (import + bundle SDK)
+  - server/services/game-export/unity/unity-exporter.ts (import + bundle plugin)
+  - server/services/game-export/godot/godot-exporter.ts (import + bundle plugin)
+  - server/services/game-export/unreal/unreal-exporter.ts (import + bundle plugin)
+  - server/__tests__/plugin-bundler.test.ts (new — 13 tests, all passing)
+- **Learnings for future iterations:**
+  - Plugin packages live in packages/ — each has a consistent structure (Runtime/Source/src + metadata)
+  - Character mappings come from matching NPCIR.characterId to CharacterIR entries in the WorldIR
+  - All four exporters follow same pattern: generate files → add telemetry → add plugins → bundle assets → ZIP
+  - Plugin bundler uses readDirRecursive to copy source files, then generates engine-specific config files
+  - Unreal needs both INI config (runtime settings) and C++ header (compile-time constants)
+---

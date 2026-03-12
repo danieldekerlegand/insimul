@@ -739,7 +739,7 @@
         "Integration test: export Babylon.js project, verify SDK is included and configured"
       ],
       "priority": 38,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
