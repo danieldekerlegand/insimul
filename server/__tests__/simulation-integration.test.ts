@@ -36,11 +36,12 @@ vi.mock('../engines/prolog/prolog-sync.js', () => ({
 }));
 
 vi.mock('../engines/prolog/prolog-manager.js', () => ({
-  PrologManager: vi.fn().mockImplementation(() => ({
-    initialize: vi.fn().mockResolvedValue(undefined),
-    query: vi.fn().mockResolvedValue([]),
-    assertFact: vi.fn().mockResolvedValue(undefined),
-  })),
+  PrologManager: vi.fn().mockImplementation(function (this: any) {
+    this.initialize = vi.fn().mockResolvedValue(undefined);
+    this.query = vi.fn().mockResolvedValue([]);
+    this.assertFact = vi.fn().mockResolvedValue(undefined);
+    this.addRule = vi.fn().mockResolvedValue(undefined);
+  }),
 }));
 
 // ── Mock TotT extension modules (lazy-imported by simulateLoFi) ──
@@ -56,14 +57,19 @@ vi.mock('../extensions/tott/autonomous-behavior-system.js', () => ({
     // Produce a marriage roughly every 50 timesteps
     const hasMarriage = timestepCallCount % 50 === 0;
     return {
-      observations: [],
-      socializations: [],
-      totalInteractions: 0,
+      observations: [{ id: `obs-${timestepCallCount}` }],
+      socializations: [{ id: `soc-${timestepCallCount}` }],
+      totalInteractions: 1,
       lifeEvents: hasMarriage
         ? { marriages: [{ id: `m-${timestepCallCount}` }], proposals: [], conceptions: [], births: [], divorces: [] }
         : { marriages: [], proposals: [], conceptions: [], births: [], divorces: [] },
     };
   }),
+  checkForMarriageProposals: vi.fn().mockResolvedValue([]),
+  checkForReproduction: vi.fn().mockResolvedValue([]),
+  checkForBirths: vi.fn().mockResolvedValue([]),
+  checkForDivorces: vi.fn().mockResolvedValue([]),
+  updateDynamicTracking: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../extensions/tott/lifecycle-system.js', () => ({
@@ -93,10 +99,50 @@ vi.mock('../extensions/tott/building-commission-system.js', () => ({
 
 vi.mock('../extensions/tott/town-events-system.js', () => ({
   checkRandomEvents: vi.fn().mockResolvedValue([]),
+  decayMorale: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../extensions/tott/appearance-system.js', () => ({
   updateAppearanceForAge: vi.fn(),
+}));
+
+// ── Additional TotT module mocks for hi-fi simulation (US-005) ──
+
+vi.mock('../extensions/tott/routine-system.js', () => ({
+  updateAllWhereabouts: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../extensions/tott/knowledge-system.js', () => ({
+  propagateAllKnowledge: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../extensions/tott/social-dynamics-system.js', () => ({
+  decaySalience: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../extensions/tott/economics-system.js', () => ({
+  paySalaries: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../extensions/tott/drama-recognition-system.js', () => ({
+  excavateDrama: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../extensions/tott/artifact-system.js', () => ({
+  ageArtifact: vi.fn().mockResolvedValue(undefined),
+  getArtifactsByWorld: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../extensions/tott/education-system.js', () => ({
+  updateStudentProgress: vi.fn().mockResolvedValue(undefined),
+}));
+
+// ── Mock unified-syntax for Prolog step ──
+vi.mock('../../client/src/lib/unified-syntax.js', () => ({
+  InsimulRuleCompiler: vi.fn().mockImplementation(function (this: any) {
+    this.compile = vi.fn().mockReturnValue([]);
+    this.generateSwiProlog = vi.fn().mockReturnValue('');
+  }),
 }));
 
 // ── Helpers ──
@@ -298,4 +344,87 @@ describe('Lo-fi simulation end-to-end (US-004)', () => {
     expect(result.rates.birthRate).toBeGreaterThan(0);
     expect(result.rates.deathRateMultiplier).toBeGreaterThan(0);
   });
+});
+
+// ── Hi-fi simulation tests (US-005) ──
+
+describe('Hi-fi simulation end-to-end (US-005)', () => {
+  let mockStorage: IStorage;
+  let characters: Character[];
+  const worldId = 'world-1';
+  const world = makeWorld({ id: worldId });
+
+  beforeEach(() => {
+    deathCount = 0;
+    marriageCount = 0;
+    timestepCallCount = 0;
+
+    characters = seedCharacters(worldId, 10);
+
+    mockStorage = {
+      getWorld: vi.fn().mockResolvedValue(world),
+      getCharactersByWorld: vi.fn().mockResolvedValue(characters),
+      getRulesByWorld: vi.fn().mockResolvedValue([]),
+      getGrammarsByWorld: vi.fn().mockResolvedValue([]),
+      getCharacter: vi.fn().mockImplementation(async (id: string) =>
+        characters.find(c => c.id === id) ?? null
+      ),
+      updateCharacter: vi.fn().mockResolvedValue(null),
+      createTruth: vi.fn().mockResolvedValue({}),
+      getBusinessesByWorld: vi.fn().mockResolvedValue([]),
+      getLotsByWorld: vi.fn().mockResolvedValue([]),
+      getResidencesByWorld: vi.fn().mockResolvedValue([]),
+      getSettlementsByWorld: vi.fn().mockResolvedValue([]),
+      getCountriesByWorld: vi.fn().mockResolvedValue([]),
+      getStatesByWorld: vi.fn().mockResolvedValue([]),
+      getItemsByWorld: vi.fn().mockResolvedValue([]),
+      getTruthsByWorld: vi.fn().mockResolvedValue([]),
+      getAchievementsByWorld: vi.fn().mockResolvedValue([]),
+      getLanguagesByWorld: vi.fn().mockResolvedValue([]),
+    } as unknown as IStorage;
+  });
+
+  it('should complete 10-step hi-fi simulation successfully', async () => {
+    const { InsimulSimulationEngine } = await import('../engines/unified-engine.js');
+    const engine = new InsimulSimulationEngine(mockStorage);
+
+    const result = await engine.simulateHiFi(worldId, 'sim-hifi-1', {
+      simulationMode: 'hi-fi',
+      steps: 10,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.error).toBeUndefined();
+  }, 30_000);
+
+  it('should produce 10 step results', async () => {
+    const { InsimulSimulationEngine } = await import('../engines/unified-engine.js');
+    const engine = new InsimulSimulationEngine(mockStorage);
+
+    const result = await engine.simulateHiFi(worldId, 'sim-hifi-2', {
+      simulationMode: 'hi-fi',
+      steps: 10,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.stepResults).toHaveLength(10);
+  }, 30_000);
+
+  it('should produce aggregate counters > 0', async () => {
+    const { InsimulSimulationEngine } = await import('../engines/unified-engine.js');
+    const engine = new InsimulSimulationEngine(mockStorage);
+
+    const result = await engine.simulateHiFi(worldId, 'sim-hifi-3', {
+      simulationMode: 'hi-fi',
+      steps: 10,
+    });
+
+    expect(result.success).toBe(true);
+    // At least one aggregate counter should be > 0
+    const hasActivity =
+      result.totalObservations > 0 ||
+      result.totalSocializations > 0 ||
+      result.totalKnowledgePropagations > 0;
+    expect(hasActivity).toBe(true);
+  }, 30_000);
 });
