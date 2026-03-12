@@ -12,6 +12,8 @@ import { buildContext } from './context-manager.js';
 import type { ContextManagerStorage } from './context-manager.js';
 import type { IStreamingLLMProvider, ConversationContext } from './providers/llm-provider.js';
 import type { ISTTProvider, AudioStreamChunk } from './stt/stt-provider.js';
+import type { ITTSProvider, VoiceProfile, AudioChunkOutput } from './tts/tts-provider.js';
+import { splitAtSentenceBoundaries, assignVoiceProfile, VOICE_PROFILES } from './tts/tts-provider.js';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -31,7 +33,10 @@ export interface GrpcServerOptions {
   port?: number;
   llmProvider?: IStreamingLLMProvider;
   sttProvider?: ISTTProvider;
+  ttsProvider?: ITTSProvider;
   storageOverride?: ContextManagerStorage;
+  /** Enable audio response pipeline (TTS synthesis of LLM output) */
+  enableAudioResponse?: boolean;
 }
 
 // ── Session store ─────────────────────────────────────────────────────
@@ -98,9 +103,51 @@ function addToHistory(
 
 // ── gRPC Handlers ─────────────────────────────────────────────────────
 
+// ── Connection Pool (cached provider instances) ──────────────────────
+
+const providerPool: {
+  llm: IStreamingLLMProvider | null;
+  stt: ISTTProvider | null;
+  tts: ITTSProvider | null;
+} = { llm: null, stt: null, tts: null };
+
+/** Get or cache a warm provider instance to avoid re-creation overhead. */
+function getPooledLLM(options: GrpcServerOptions): IStreamingLLMProvider {
+  if (options.llmProvider) return options.llmProvider;
+  if (!providerPool.llm) providerPool.llm = getProvider();
+  return providerPool.llm;
+}
+
+export function clearProviderPool(): void {
+  providerPool.llm = null;
+  providerPool.stt = null;
+  providerPool.tts = null;
+}
+
+// ── Per-session voice profile cache ──────────────────────────────────
+
+const voiceProfileCache = new Map<string, VoiceProfile>();
+
+function getVoiceForSession(sessionId: string, characterId: string): VoiceProfile {
+  const key = `${sessionId}:${characterId}`;
+  let profile = voiceProfileCache.get(key);
+  if (!profile) {
+    // Default voice; real voice assignment uses character attributes
+    profile = VOICE_PROFILES[0];
+    voiceProfileCache.set(key, profile);
+  }
+  return profile;
+}
+
+export function setVoiceForSession(sessionId: string, characterId: string, profile: VoiceProfile): void {
+  voiceProfileCache.set(`${sessionId}:${characterId}`, profile);
+}
+
 function createHandlers(options: GrpcServerOptions) {
-  const llmProvider = options.llmProvider ?? getProvider();
+  const llmProvider = getPooledLLM(options);
   const sttProvider = options.sttProvider ?? null;
+  const ttsProvider = options.ttsProvider ?? null;
+  const enableAudioResponse = options.enableAudioResponse ?? (ttsProvider !== null);
   const storageOverride = options.storageOverride;
 
   // Per-stream audio buffer for collecting audio chunks until stream ends
@@ -110,9 +157,9 @@ function createHandlers(options: GrpcServerOptions) {
     call.on('data', async (request: any) => {
       try {
         if (request.textInput) {
-          await handleTextInput(call, request.textInput, llmProvider, storageOverride);
+          await handleTextInput(call, request.textInput, llmProvider, storageOverride, false);
         } else if (request.audioChunk) {
-          await handleAudioChunkInput(call, request.audioChunk, llmProvider, sttProvider, storageOverride);
+          await handleAudioChunkInput(call, request.audioChunk, llmProvider, sttProvider, ctxStorage);
         } else if (request.systemCommand) {
           handleSystemCommand(call, request.systemCommand);
         }
@@ -138,19 +185,29 @@ function createHandlers(options: GrpcServerOptions) {
     });
   }
 
+  const ctxStorage = storageOverride;
+
+  /**
+   * Handle text input with optional TTS audio pipeline.
+   *
+   * When `withAudio` is true and a TTS provider is available, the pipeline runs:
+   *   LLM tokens → accumulate into sentences → TTS synthesis per sentence → AudioChunk responses
+   * Text chunks are streamed immediately (text arrives before audio).
+   * TTS runs in parallel: while LLM generates sentence N+1, TTS synthesizes sentence N.
+   */
   async function handleTextInput(
     call: grpc.ServerDuplexStream<any, any>,
     textInput: any,
     provider: IStreamingLLMProvider,
-    ctxStorage?: ContextManagerStorage,
+    ctxStorageArg?: ContextManagerStorage,
+    withAudio?: boolean,
   ) {
     const { text, sessionId, characterId, languageCode } = textInput;
+    const shouldSynthesizeAudio = (withAudio ?? enableAudioResponse) && ttsProvider !== null;
 
     // Get or create session
     let session = sessions.get(sessionId);
     if (!session) {
-      // Derive worldId and playerId from context
-      // For now use characterId lookup; playerId defaults to sessionId
       const worldId = textInput.worldId ?? '';
       const playerId = textInput.playerId ?? sessionId;
       session = createSession(sessionId, characterId, worldId, playerId, languageCode);
@@ -165,11 +222,10 @@ function createHandlers(options: GrpcServerOptions) {
           session.playerId,
           session.worldId,
           sessionId,
-          ctxStorage,
+          ctxStorageArg,
         );
         session.conversationContext = fullCtx.conversationContext;
       } catch {
-        // Fallback minimal context if context-manager fails
         session.conversationContext = {
           systemPrompt: `You are an NPC in a game world. Respond in character.`,
           characterName: characterId,
@@ -185,16 +241,47 @@ function createHandlers(options: GrpcServerOptions) {
     // Add user message to history
     addToHistory(session, 'user', text);
 
-    // Stream LLM response token-by-token
+    // Stream LLM response token-by-token, with optional TTS pipelining
     let fullResponse = '';
+    const ttsPromises: Array<Promise<void>> = [];
+    let sentenceBuffer = '';
+
+    // TTS helper: synthesize a sentence and stream audio chunks
+    const synthesizeSentence = (sentence: string) => {
+      if (!shouldSynthesizeAudio || !ttsProvider) return;
+      const voice = getVoiceForSession(sessionId, characterId);
+      const promise = (async () => {
+        try {
+          const audioChunks = ttsProvider.synthesize(sentence, voice, {
+            languageCode: languageCode || undefined,
+          });
+          for await (const chunk of audioChunks) {
+            call.write({
+              audioChunk: {
+                data: chunk.data,
+                encoding: chunk.encoding,
+                sampleRate: chunk.sampleRate,
+                durationMs: chunk.durationMs,
+              },
+            });
+          }
+        } catch (err: any) {
+          console.error('[gRPC] TTS synthesis error:', err.message);
+        }
+      })();
+      ttsPromises.push(promise);
+    };
+
     try {
       const tokens = provider.streamCompletion(text, session.conversationContext, {
         languageCode,
-        conversationHistory: session.history.slice(0, -1), // exclude current message (already in prompt)
+        conversationHistory: session.history.slice(0, -1),
       });
 
       for await (const token of tokens) {
         fullResponse += token;
+
+        // Stream text chunk immediately (text arrives before audio)
         call.write({
           textChunk: {
             text: token,
@@ -203,12 +290,30 @@ function createHandlers(options: GrpcServerOptions) {
             sessionId,
           },
         });
+
+        // Accumulate into sentence buffer for TTS pipelining
+        if (shouldSynthesizeAudio) {
+          sentenceBuffer += token;
+          const sentences = splitAtSentenceBoundaries(sentenceBuffer);
+          if (sentences.length > 1) {
+            // Complete sentence(s) detected — synthesize all but the last (which may be incomplete)
+            for (let i = 0; i < sentences.length - 1; i++) {
+              synthesizeSentence(sentences[i]);
+            }
+            sentenceBuffer = sentences[sentences.length - 1];
+          }
+        }
       }
     } catch (err: any) {
       console.error('[gRPC] LLM streaming error:', err.message);
     }
 
-    // Send final marker
+    // Synthesize any remaining text in the sentence buffer
+    if (shouldSynthesizeAudio && sentenceBuffer.trim()) {
+      synthesizeSentence(sentenceBuffer.trim());
+    }
+
+    // Send final text marker
     call.write({
       textChunk: {
         text: '',
@@ -217,6 +322,11 @@ function createHandlers(options: GrpcServerOptions) {
         sessionId,
       },
     });
+
+    // Wait for all TTS synthesis to complete before moving on
+    if (ttsPromises.length > 0) {
+      await Promise.all(ttsPromises);
+    }
 
     // Store assistant response in history
     if (fullResponse) {
@@ -229,7 +339,7 @@ function createHandlers(options: GrpcServerOptions) {
     audioChunk: any,
     provider: IStreamingLLMProvider,
     stt: ISTTProvider | null,
-    ctxStorage?: ContextManagerStorage,
+    ctxStorageArg?: ContextManagerStorage,
   ) {
     if (!stt) {
       call.write({
@@ -287,13 +397,13 @@ function createHandlers(options: GrpcServerOptions) {
         return;
       }
 
-      // Feed transcribed text through the normal text pipeline
+      // Feed transcribed text through the full pipeline (with audio response enabled)
       await handleTextInput(call, {
         text: fullText.trim(),
         sessionId,
         characterId,
         languageCode: audioChunk.languageCode ?? 'en',
-      }, provider, ctxStorage);
+      }, provider, ctxStorageArg, true);
     }
   }
 
@@ -392,6 +502,8 @@ export function stopGrpcServer(): Promise<void> {
       grpcServer.tryShutdown(() => {
         grpcServer = null;
         sessions.clear();
+        voiceProfileCache.clear();
+        clearProviderPool();
         resolve();
       });
     } else {
@@ -400,4 +512,4 @@ export function stopGrpcServer(): Promise<void> {
   });
 }
 
-export { sessions };
+export { sessions, voiceProfileCache };
