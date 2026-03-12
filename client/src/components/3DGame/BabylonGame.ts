@@ -105,6 +105,7 @@ import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
 import { GameEventBus } from "@/components/3DGame/GameEventBus.ts";
 import { BuildingCollisionSystem } from "@/components/3DGame/BuildingCollisionSystem.ts";
 import { BuildingEntrySystem } from "@/components/3DGame/BuildingEntrySystem.ts";
+import { InteriorNPCManager } from "@/components/3DGame/InteriorNPCManager.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 
 // Constants
@@ -482,6 +483,7 @@ export class BabylonGame {
   private savedOverworldPosition: Vector3 | null = null;
   private isInsideBuilding: boolean = false;
   private buildingEntrySystem: BuildingEntrySystem | null = null;
+  private interiorNPCManager: InteriorNPCManager | null = null;
 
   // Observers (for cleanup)
   private keyboardHandler: ((event: KeyboardEvent) => void) | null = null;
@@ -1518,19 +1520,60 @@ export class BabylonGame {
         if (this.playerMesh) this.playerMesh.position = pos;
       },
       getPlayerPosition: () => this.playerMesh?.position ?? null,
-      onEnterBuilding: (_buildingId: string, interior: InteriorLayout) => {
+      onEnterBuilding: (buildingId: string, interior: InteriorLayout) => {
         this.activeInterior = interior;
         this.isInsideBuilding = true;
+        // Populate interior with NPCs
+        const buildingInfo = this.buildingData.get(buildingId);
+        if (buildingInfo && this.interiorNPCManager) {
+          this.interiorNPCManager.populateInterior(
+            buildingId,
+            interior,
+            buildingInfo.metadata || {},
+            this.npcMeshes as any,
+            undefined
+          );
+        }
       },
       onExitBuilding: () => {
         this.activeInterior = null;
         this.isInsideBuilding = false;
         this.savedOverworldPosition = null;
+        // Clear interior NPCs
+        this.interiorNPCManager?.clearInterior();
       },
       onShowToast: (title: string, description?: string, duration?: number) => {
         this.guiManager?.showToast({ title, description, duration });
       },
     });
+    // Initialize interior NPC manager
+    this.interiorNPCManager = new InteriorNPCManager({
+      onAnimationChange: (npcId: string, state: string) => {
+        const instance = this.npcMeshes.get(npcId);
+        if (instance?.controller) {
+          // Use controller's animation system
+          instance.controller.walk(state === 'walk');
+          instance.controller.run(state === 'run');
+        }
+      },
+      onFaceDirection: (npcId: string, targetPos: Vector3) => {
+        const instance = this.npcMeshes.get(npcId);
+        if (instance?.mesh) {
+          const dir = targetPos.subtract(instance.mesh.position);
+          instance.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+        }
+      },
+      onNPCGreeting: (npcId: string, greeting: string) => {
+        const instance = this.npcMeshes.get(npcId);
+        const name = instance?.characterData?.firstName || 'NPC';
+        this.guiManager?.showToast({
+          title: name,
+          description: greeting,
+          duration: 3000,
+        });
+      },
+    });
+
     // Pause/resume overworld NPC movement when entering/exiting buildings
     this.buildingEntrySystem.registerNPCPauseCallback(
       () => {
@@ -7668,7 +7711,9 @@ export class BabylonGame {
     this.buildingData.clear();
     this.settlementStats.clear();
 
-    // Dispose building entry system and interiors
+    // Dispose building entry system, interior NPCs, and interiors
+    this.interiorNPCManager?.dispose();
+    this.interiorNPCManager = null;
     this.buildingEntrySystem?.dispose();
     this.buildingEntrySystem = null;
     this.interiorGenerator?.dispose();
