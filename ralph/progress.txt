@@ -23,6 +23,20 @@ Started: Thu Mar 12 00:10:56 CDT 2026
 - NPCMovementController wraps PathfindingSystem + CharacterController: use `moveTo()` for pathfinding-driven movement, `startConversation()`/`endConversation()` to pause/resume
 - NPC routine data: `character.customData.routine.routine.{day,night}` — arrays of TimeBlock with startHour/endHour/location/locationType/occasion
 - ScheduleExecutor drives NPC movement from routines: register NPCs with `registerNPC()`, call `update(deltaMs)` each frame; handles game clock, phase resolution, personality-adjusted wake/sleep
+- Occupation data lives in `character.customData.currentOccupation` (not the `occupations` table); `character.currentOccupationId` is set in parallel
+- NPCAnimationController uses weight-based crossfade blending (`setWeightForAllAnimatables`) — separate from CharacterController's stop/start pattern
+- AnimationGroup names from .babylon model files are matched case-insensitively; use `registerAnimation()` to add lazy-loaded groups at runtime
+- `new Set<AnimationState>([...])` needs explicit generic — TS infers `Set<string>` otherwise
+- AnimationAssetManager uses `SceneLoader.LoadAssetContainerAsync` for lazy loading — call `addAllToScene()` after config; cache key is `skeletonType::animName`
+- BuildingCollisionSystem generates invisible wall colliders; use `BUILDING_COLLISION_GROUP` metadata to identify building hits in raycasts
+- There are 4 building creation sites in BabylonGame.ts — any new per-building feature must be added to all 4 (businesses, residences, auto-generated, generic fill)
+- `DynamicTexture.getContext()` returns `ICanvasRenderingContext` — cast to `any` for full Canvas2D API (textAlign, textBaseline, roundRect)
+- BuildingEntrySystem manages door proximity, E key entry/exit, fade transitions, and NPC pausing — register buildings via `registerBuilding()` at creation time
+- InteriorNPCManager teleports NPCs to interior Y-offset (500+) positions; `populateInterior()` on enter, `clearInterior()` on exit restores overworld positions
+- `buildingData.metadata.employees` can be `string[]` or `{id: string}[]` — always handle both formats with `typeof e === 'string' ? e : e.id`
+- VolitionSystem uses 3-level action grammar: START_GOALS → NON_TERMINAL_ACTIONS → TERMINAL_ACTIONS; scoring: `startScore * (1.0 + termScore)`; schedule override events: `volition_schedule_override`, `volition_return_to_schedule`
+- Mercantile types (`MerchantInventory`, `ShopItem`, `ItemType`) are in `shared/game-engine/types.ts`; `BusinessType` union is in `shared/schema.ts`
+- `merchant-inventory.ts` exports `generateMerchantInventory()`, `getAcceptedItemTypes()`, `restockInventory()` — use `MerchantInventoryStorage` interface for DI
 
 ---
 
@@ -361,4 +375,260 @@ Started: Thu Mar 12 00:10:56 CDT 2026
   - Hour-range checks must handle midnight wrapping (e.g., 22-06): `hour >= start || hour < end` when `start > end`
   - Staggered NPC evaluation uses `performance.now()` frame-slot modulo to spread work across 10 frames
   - ScheduleExecutor is client-side only — it reads routine data that was set server-side via `setRoutine()` in `server/extensions/tott/routine-system.ts`
+---
+
+## 2026-03-12 - US-019
+- Created `server/services/jobsite-validation.ts` with occupation chain validation and auto-generation
+- `validateOccupationChains(worldId)` validates each employed NPC's chain: character → customData.currentOccupation → business → lot → building
+- `validateAndAutoFix(worldId)` auto-generates missing businesses, lots, and building links
+- Business-to-building-type mapping covers all 30+ BusinessType values (BUSINESS_TO_BUILDING_TYPE)
+- Vocation-to-business-type mapping for auto-generating businesses from NPC vocation
+- Auto-fix finds vacant lots first; creates new lots only when none available
+- Exposed endpoint: `GET /api/worlds/:worldId/validate/occupations?autofix=true` in `server/routes.ts`
+- Dependency injection via `JobsiteValidationStorage` interface — testable without MongoDB
+- Created `server/__tests__/jobsite-validation.test.ts` — 16 tests all passing
+- Files changed: server/services/jobsite-validation.ts (new), server/__tests__/jobsite-validation.test.ts (new), server/routes.ts (modified)
+- **Learnings for future iterations:**
+  - Occupation data lives in `character.customData.currentOccupation` (inline object with businessId, vocation, shift, etc.) — NOT in the `occupations` table directly
+  - `character.currentOccupationId` is set alongside `customData.currentOccupation` — both must be present for an employed NPC
+  - The hiring system in `server/extensions/tott/hiring-system.ts` uses `storage.updateCharacter()` to set both fields atomically
+  - Business `lotId` can be null — many businesses lack lot assignments, making this validation essential
+  - Lot `buildingType` is 'business' | 'residence' | 'vacant' — check buildingType AND buildingId together
+  - When creating mock storage for tests, use high starting IDs (e.g., 100) to avoid collision with hardcoded test fixture IDs
+---
+
+## 2026-03-12 - US-020
+- Created `client/src/components/3DGame/NPCAnimationController.ts` — animation state machine with crossfade blending
+- **Animation state machine**: 10 states (idle, walk, run, talk, listen, work, sit, eat, wave, sleep)
+- **Crossfade blending**: weight-based AnimationGroup blending with smoothstep easing (configurable 0.2-0.5s)
+- **Speed scaling**: walk/run animation speed matches NPC movement speed via `setSpeedScale()`
+- **Idle variations**: random sub-animations (weight-shift, look-around) on configurable timer so NPCs don't idle identically
+- **Directional facing**: smooth lerp rotation toward conversation partner during talk/listen states
+- **Animation resolution**: scans loaded AnimationGroups by name patterns per state; fallback to idle if missing
+- **Animation events**: `onStateChanged`, `onAnimationComplete`, `onMilestone` callbacks
+- **Runtime registration**: `registerAnimation()` for lazy-loaded animation groups
+- Files changed: client/src/components/3DGame/NPCAnimationController.ts (new)
+- **Learnings for future iterations:**
+  - AnimationGroup weight-based blending uses `setWeightForAllAnimatables(weight)` — must start the animation first, then adjust weight
+  - `new Set<T>()` needs explicit generic param in this TS config; `new Set(['a','b'])` infers `Set<string>` not `Set<MyUnionType>`
+  - CharacterController's animation system is stop/start (no blending); NPCAnimationController is a higher-level alternative for smooth transitions
+  - Non-looping animations (wave) auto-return to idle via `onAnimationGroupEndObservable.addOnce()`
+  - Smoothstep `t*t*(3-2*t)` provides more natural crossfade than linear interpolation
+---
+
+## 2026-03-12 - US-021
+- Created `client/src/components/3DGame/AnimationAssetManager.ts` — animation asset pipeline with lazy loading and sharing
+- **Animation manifest**: JSON format mapping animation names to asset paths, format, category, skeleton type, Mixamo flag
+- **Lazy loading**: `getAnimation()` loads on first use via `SceneLoader.LoadAssetContainerAsync`, caches by skeletonType::animName
+- **Skeleton sharing**: same animation data cached per skeleton type; `cloneForSkeleton()` retargets to specific skeleton
+- **Category fallback chain**: missing specific animations (e.g., knead_dough) fall back to category defaults (work → idle)
+- **Minimum animation set**: idle, walk, run, talk, listen, wave, work_standing, work_sitting, sit, eat, drink, sleep
+- **Mixamo GLB support**: `isMixamo` flag enables bone name normalization (strips "mixamo.com:" prefix) during retargeting
+- **External registration**: `registerExternalAnimation()` for caching animations loaded from model files (not manifest)
+- **Preloading**: `preloadCategories()` warms cache for a set of AnimationStates in parallel
+- **Reference counting**: `releaseAnimation()` disposes when refCount hits 0
+- **Default manifest builder**: `createDefaultManifest()` creates a starter manifest for Mixamo GLB assets
+- Created `server/__tests__/animation-asset-manager.test.ts` — 24 tests all passing
+- Files changed: AnimationAssetManager.ts (new), animation-asset-manager.test.ts (new)
+- **Learnings for future iterations:**
+  - `SceneLoader.LoadAssetContainerAsync` loads without auto-adding to scene — call `container.addAllToScene()` after configuration
+  - Mixamo bone names use "mixamo.com:" prefix — strip during retargeting to match target skeleton bones
+  - Category fallback chain allows specific work animations (knead_dough, pour, hammer) to gracefully degrade to generic work/idle
+  - Animation caching uses composite key `skeletonType::animName` to share identical animations across NPCs with same skeleton
+  - Babylon.js `AnimationGroup.clone()` creates a new group that can be independently retargeted to different skeletons
+---
+
+## 2026-03-12 - US-022
+- Created `client/src/components/3DGame/OccupationActivitySystem.ts` — occupation activity system for visible NPC work behavior
+- **Business-to-activity mapping**: 20 business types mapped (Bakery, Bar, Restaurant, Shop, GroceryStore, Hospital, LawFirm, Bank, School, Church, Farm, Factory, PoliceStation, FireStation, Hotel, TownHall, JewelryStore, Pharmacy, Brewery, Daycare) + default fallback
+- **Activity cycling**: NPCs rotate through 2-3 work activities with randomized durations (30-120 game-minutes)
+- **Break behavior**: 1-2 breaks per shift (sit, eat animations) with 30% base chance increasing over shift
+- **Shopkeeper interruption**: `interruptForCommerce()` pauses work for player commerce; `resumeAfterCommerce()` resumes
+- **Callback-driven**: `onAnimationChange`, `onPositionChange`, `onShopkeeperInterrupted`, `onShopkeeperResumed`
+- **Time tracking**: Uses game-minutes delta from `msPerGameHour` parameter (matches ScheduleExecutor time system)
+- Created `server/__tests__/occupation-activity-system.test.ts` — 36 tests all passing
+- Files changed: OccupationActivitySystem.ts (new), occupation-activity-system.test.ts (new)
+- **Learnings for future iterations:**
+  - OccupationActivitySystem is a peer to ScheduleExecutor — ScheduleExecutor moves NPCs to buildings, OccupationActivitySystem manages what they do once there
+  - `startWorkShift()` should be called when NPC arrives at work (ScheduleExecutor's `hasArrived` flag); `endWorkShift()` when leaving
+  - Shopkeeper businesses: Bakery, Bar, Shop, GroceryStore, JewelryStore, Pharmacy — these can be interrupted by player
+  - Activity profiles use `WorkActivity` with animation state + duration range; breaks use `BreakActivity` with fixed duration
+  - Game-minute delta calculation: `(deltaTimeMs / msPerGameHour) * 60` converts real time to game-minutes
+---
+
+## 2026-03-12 - US-023
+- Created `client/src/components/3DGame/BuildingCollisionSystem.ts` — invisible wall collision meshes for buildings
+- **4 wall segments per building** (back, left, right) plus front wall split around door gap (2.5-unit door width)
+- Collision meshes use `checkCollisions = true` with `isVisible = false` — Babylon.js moveWithCollisions system (no physics engine)
+- Walls use simplified box geometry positioned at building edges, rotated to match building rotation
+- `BUILDING_COLLISION_GROUP` metadata tag on all collision meshes for raycast distinction
+- `generateCollision(spec)` creates walls from explicit dimensions; `generateFromBuildingData()` looks up dimensions from business type
+- Debug visualization: `toggleDebug()` shows red wireframe overlay of all collision boxes
+- Integrated into `BabylonGame.ts`: collision generated at all 4 building creation sites (businesses, residences, auto-generated businesses, generic residences)
+- Disposal integrated into BabylonGame.dispose()
+- Created `server/__tests__/building-collision-system.test.ts` — 17 tests all passing
+- Files changed: BuildingCollisionSystem.ts (new), building-collision-system.test.ts (new), BabylonGame.ts (modified)
+- **Learnings for future iterations:**
+  - ProceduralBuildingGenerator door is at `(0, doorHeight/2, depth/2 + 0.06)` relative to building center — front face, centered on X axis
+  - Building rotation is stored in `buildingSpec.rotation` (random 0-2π) and applied to the mesh; collision walls must be rotated to match
+  - `buildingData` Map stores mesh reference but NOT building dimensions — must pass `buildingSpec` values explicitly at creation time
+  - There are 4 separate building creation sites in BabylonGame.ts (businesses, residences, auto-generated businesses, generic fill residences) — all need collision
+  - `freezeWorldMatrix()` is critical for static collision performance — all wall meshes are frozen since buildings don't move
+  - Manual browser verification needed (no dev-browser MCP tool available)
+---
+
+## 2026-03-12 - US-024
+- Created `client/src/components/3DGame/BuildingEntrySystem.ts` — building entry/exit system with door proximity detection and transitions
+- **Door proximity detection**: per-frame check within 2m of building doors; floating billboard prompt with DynamicTexture text
+- **E key entry/exit**: keyboard handler for E key to enter nearest building or exit current interior
+- **Fade transitions**: 0.5s fade-to-black / fade-from-black using fullscreen billboard overlay (same pattern as existing `performFadeTransition`)
+- **Interior loading**: delegates to existing `BuildingInteriorGenerator`; player teleports to interior doorPosition facing into room
+- **Exit**: interior door returns player to saved overworld position via `exitBuilding()`
+- **Building name indicator**: floating DynamicTexture billboard tracks camera position while inside, showing building name
+- **NPC movement pausing**: `registerNPCPauseCallback()` pauses overworld NPC controllers on enter, resumes on exit
+- **BabylonGame integration**: registered at all 4 building creation sites; pointer handler delegates to entry system; disposed in `disposeWorld()`
+- Created `server/__tests__/building-entry-system.test.ts` — 29 tests all passing
+- Files changed: BuildingEntrySystem.ts (new), building-entry-system.test.ts (new), BabylonGame.ts (modified)
+- **Learnings for future iterations:**
+  - Babylon.js `DynamicTexture.getContext()` returns `ICanvasRenderingContext` which lacks `textAlign`, `textBaseline`, `roundRect` — cast to `any` for full Canvas2D API
+  - `roundRect` is not universally supported — use fallback to `fillRect` when missing
+  - `performFadeTransition` uses render observer + Promise pattern that's hard to test; add `_fadeOverride` escape hatch for synchronous test resolution
+  - BuildingEntrySystem uses callback-based DI (`BuildingEntryCallbacks`) for teleporting player, getting position, showing toasts — keeps it decoupled from BabylonGame internals
+  - Door world position calculated from building center + rotation: `localDoorZ = depth/2 + 0.5`, rotated by `sin(rotation)*z, cos(rotation)*z`
+  - Manual browser verification needed (no dev-browser MCP tool available)
+---
+
+## 2026-03-12 - US-025
+- Created `client/src/components/3DGame/InteriorNPCManager.ts` — manages NPC presence inside building interiors
+- **NPC selection**: queries `buildingData` metadata for employees/owner/occupants; adds visitors by relationship strength with player
+- **Business hours**: employees only appear during 7-20; residence occupants appear anytime
+- **NPC count cap**: max 6 per interior, prioritizing employees > owner > visitors by relationship
+- **Furniture role placement**: 8 business types mapped (Bakery, Bar, Restaurant, Shop, GroceryStore, Hospital, Church, School) + defaults + residence
+- **Role-appropriate positions**: shopkeeper behind counter, bartender behind bar, visitors at tables/stools, teachers at desks
+- **Occupation activities**: NPCs get animation states from furniture roles (work, sit, idle, talk, walk)
+- **Greetings**: business-type-specific greeting messages triggered via `onNPCGreeting` callback
+- **Conversation support**: NPCs are pickable (via existing BabylonGame pointer handler) since they're Mesh instances
+- **BabylonGame integration**: `onEnterBuilding` callback populates interior; `onExitBuilding` clears and restores NPCs
+- Created `server/__tests__/interior-npc-manager.test.ts` — 30 tests all passing
+- Files changed: InteriorNPCManager.ts (new), interior-npc-manager.test.ts (new), BabylonGame.ts (modified)
+- **Learnings for future iterations:**
+  - `buildingData.metadata.employees` can be `string[]` or `{id: string}[]` — always check both formats
+  - `buildingData.metadata.ownerId` can be null for auto-generated buildings
+  - `BabylonGameConfig` has no `characterId` field — player character ID not directly available in config
+  - InteriorNPCManager uses callback-based DI pattern matching BuildingEntrySystem for animation/direction/greeting events
+  - NPC meshes are teleported to interior Y-offset positions (500+); saved positions restored on `clearInterior()`
+  - Manual browser verification needed (no dev-browser MCP tool available)
+---
+
+## 2026-03-12 - US-026
+- Implemented NPCSocializationController.ts for autonomous NPC-to-NPC socialization
+- NPCs at the same location evaluate socialization every 5 game-minutes
+- Socialization probability based on: extroversion, relationship level, mood, time of day, agreeableness
+- When socializing: NPCs walk toward midpoint, face each other, alternate talk/listen animations
+- Triggers server-side NPC-NPC conversation engine via callback
+- Post-conversation: relationship values (friendship, trust, romance spark) update via callback
+- Personality-driven positioning: introverts seek corners, extroverts gather in center
+- Player overhearing: if within 25 units, conversation text streams to client
+- Text streaming with configurable intervals, emits conversation_overheard events
+- Files changed: client/src/components/3DGame/NPCSocializationController.ts
+- **Learnings for future iterations:**
+  - NPCSocializationController uses callback pattern (SocializationCallbacks) for all external interactions — keeps it decoupled from movement/animation/conversation systems
+  - `SocializableNPC` is a lightweight projection of character data — not the full character schema
+  - Socialization pairs tracked by composite key `${npc1Id}_${npc2Id}`
+  - MAX_CONCURRENT_SOCIALIZATIONS = 5 to cap performance impact
+---
+
+## 2026-03-12 - US-027
+- Enhanced VolitionSystem.ts with Ensemble-style action grammar hierarchy: start goals → non-terminal strategies → terminal actions
+- Added 24 terminal actions, 10 non-terminal strategies, 6 start goals with personality affinities
+- Added situational modifiers: health (low health boosts self-care), emotional state (angry→conflict, sad→self-care), recent events (insulted→conflict)
+- Added schedule override system: high-scoring goals (≥0.8) with priority ≥2 trigger schedule override, with return-to-schedule on completion
+- Added goal persistence: active goals carry across evaluation cycles with 1.1x commitment bias
+- Scoring formula: `startScore * (1.0 + termScore)` — start goal score propagates as base, terminal personality adds differentiation
+- Fixed `lastCalcTimestep` initialization to `-Infinity` to correctly skip recalculation at timestep 0
+- Added `getAllGoals()` method for unfiltered goal access (useful for analytics/debugging)
+- Created 15 unit tests covering grammar expansion, personality-driven selection, situational modifiers, schedule override, goal persistence
+- Files changed: client/src/components/3DGame/VolitionSystem.ts, server/__tests__/volition-system.test.ts
+- **Learnings for future iterations:**
+  - VolitionSystem uses three-level action grammar: START_GOALS → NON_TERMINAL_ACTIONS → TERMINAL_ACTIONS (all exported constants)
+  - Scoring formula `startScore * (1.0 + termScore)` works better than weighted blend — preserves start goal signal while differentiating terminals
+  - `lastCalcTimestep` must start at `-Infinity` (not 0) to allow first-timestep recalculation
+  - Tests for randomized systems (softmax) should compare score distributions via `getAllGoals()` rather than sampled actions via `executeTopGoal()`
+  - Schedule override events: `volition_schedule_override` (when override starts), `volition_return_to_schedule` (when goal completes/fails)
+---
+
+## 2026-03-12 - US-028
+- Created `server/services/merchant-inventory.ts` with full merchant inventory auto-generation
+- Business-type-to-inventory catalog mapping: 8 business types (Bakery, Bar, Restaurant, Shop, GroceryStore, Pharmacy, JewelryStore, Brewery, Farm) with 10-12 items each
+- Business type aliases: Hotel→Restaurant, Hospital→Pharmacy, Church/School/Bank→Shop, etc.
+- Personality-influenced pricing: agreeable merchants have lower buy prices (±20% variation) and higher sell multipliers
+- Rarity price multipliers: common 1x, uncommon 3x, rare 10x, epic 50x, legendary 200x
+- Gold reserve by business type: 200-1000 range (JewelryStore/Bank at 1000, Farm/Bakery at 300)
+- Restock system: `restockInventory()` increases stock toward maxStock at restockRate per day
+- Accepted item types: `getAcceptedItemTypes()` returns Set of ItemType a merchant deals in
+- Language support: item translations via `targetLanguage` parameter (placeholder for future language-learning integration)
+- DI via `MerchantInventoryStorage` interface — testable without MongoDB
+- Created 23 unit tests covering generation, pricing, gold reserves, restocking, type validation, aliases
+- Files changed: server/services/merchant-inventory.ts, server/__tests__/merchant-inventory.test.ts
+- **Learnings for future iterations:**
+  - `MerchantInventory`, `ShopItem`, `ItemType` types are in `shared/game-engine/types.ts` — use these, not ad-hoc types
+  - `BusinessType` union is in `shared/schema.ts` — all business types are title-case strings (Bakery, Bar, etc.)
+  - Personality pricing: `agreeableness` 0-1 maps to ±20% price mod; use `applyPriceVariation(basePrice, agreeableness)`
+  - `getAcceptedItemTypes()` is useful for US-029 (buy/sell validation — merchant refuses items they don't deal in)
+  - Inventory is generated in memory; US-032 (world state save/load) will need to persist it
+---
+
+## 2026-03-12 - US-029
+- Enhanced BabylonShopPanel.ts with full buy/sell transaction system
+- Added quantity controls (+ / - buttons) for stackable items to buy/sell multiple at once
+- Added rarity display with color coding (common=gray, uncommon=green, rare=blue, epic=purple, legendary=orange)
+- Added sell validation: merchants refuse item types they don't deal in (e.g., blacksmith won't buy food)
+- Added businessType to ShopPanelConfig and server merchant endpoint response
+- Added insufficient funds messaging with specific gold amounts on button click
+- Buy transactions now add items to player inventory locally
+- Sell transactions add stock back to merchant if they carry that item
+- Gray out buttons + show red price for unaffordable items
+- Updated server/routes.ts merchant inventory endpoint to include businessType (occupation→businessType mapping)
+- Files changed: client/src/components/3DGame/BabylonShopPanel.ts, server/routes.ts, ralph/prd.json
+- **Learnings for future iterations:**
+  - `BUSINESS_ACCEPTED_TYPES` map in BabylonShopPanel provides client-side sell validation — mirrors `getAcceptedItemTypes()` from merchant-inventory.ts
+  - Server endpoint maps occupation keywords to business types for client sell validation — the mapping lives in the route handler
+  - `businessType` in ShopPanelConfig is optional — graceful fallback accepts all item types when not provided
+  - Babylon.js GUI StackPanel quantity controls need explicit width constraints or they overflow
+  - Manual browser verification needed for UI changes (no dev-browser tool available)
+---
+
+## 2026-03-12 - US-030
+- Enhanced BabylonShopPanel.ts with full language-learning mode
+- Added `ShopLanguageConfig` interface and `setLanguageConfig()` method to enable language mode
+- Item names displayed in target language (from WorldLanguage.sampleWords) with native-language tooltip on hover
+- Beginner mode: point-and-click purchase with vocabulary display ("You bought pain (bread)")
+- Intermediate/Advanced mode: player must type item name in target language to purchase (fuzzy match accepts Levenshtein distance <= 2)
+- Difficulty auto-scales from playerProficiency: <30 = beginner, 30-65 = intermediate, 65+ = advanced
+- Pronunciation button (speaker icon) per item triggers onPronounce callback for TTS
+- Vocabulary tracking: onVocabularyLearned callback fires on purchase, adding items to learned vocabulary
+- Merchant responds in target language (greetings, thanks, insufficient gold) for French/Spanish/German/Italian/Japanese/Portuguese
+- Word mastery indicator ("Learned" / "New word!") shown per item
+- Files changed: client/src/components/3DGame/BabylonShopPanel.ts
+- **Learnings for future iterations:**
+  - WorldLanguage.sampleWords is `{ [english: string]: conlangWord }` — use `getTranslatedName()` to look up by item name or individual words
+  - BabylonShopPanel uses callback pattern (setOnBuy, setLanguageConfig) — callers wire up LanguageProgressTracker externally
+  - GUI.InputText `onKeyboardEventProcessedObservable` receives the raw KeyboardEvent — cast `eventData as KeyboardEvent` to check `.key`
+  - Levenshtein distance <= 2 is a good fuzzy match threshold for language input (accepts minor typos without being too lenient)
+---
+
+## 2026-03-12 - US-031
+- Created `client/src/components/3DGame/NPCSimulationLOD.ts` — centralized LOD management system
+- LOD tiers: Near (<30m) full animation/pathfinding/lip sync; Medium (30-100m) simplified walk/idle, 100ms throttled updates; Far (>100m) position-only teleport to schedule; Off-screen: schedule-transition-only updates
+- Staggered evaluation: NPC tier re-evaluation spread across 10-frame windows (each frame only evaluates 1/10th of NPCs)
+- Object pooling: `acquireMesh()`/`releaseMesh()`/`addToPool()` for reusing NPC mesh instances as characters enter/leave player area
+- Animation instancing: group NPCs by current animation name, `isAnimationLeader()` determines which NPC evaluates the animation (others copy)
+- Frame budget monitor: rolling 60-frame average; if avg > 18ms (~55fps) auto-doubles update intervals; restores at < 15ms (~67fps)
+- Integrated into BabylonGame.ts: initialized at scene setup, player position fed each frame, NPC registration on loadNPC(), cleanup on dispose
+- Files changed: client/src/components/3DGame/NPCSimulationLOD.ts (new), client/src/components/3DGame/BabylonGame.ts
+- **Learnings for future iterations:**
+  - BabylonGame.ts already has extensive LOD in `updateNPCBehaviorsBatched()` with distance thresholds — NPCSimulationLOD provides a higher-level abstraction that can be queried by other systems
+  - `scene.activeCamera.isInFrustum(mesh)` checks if a mesh is in the camera's view frustum — useful for off-screen detection
+  - Object pooling key is `skeletonType` string — NPCs with same skeleton can share mesh instances
+  - Frame budget monitoring uses performance.now() for high-resolution timing; rolling window avoids single-frame spikes
 ---

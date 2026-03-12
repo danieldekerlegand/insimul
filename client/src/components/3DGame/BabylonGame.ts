@@ -106,6 +106,7 @@ import { GameEventBus } from "@/components/3DGame/GameEventBus.ts";
 import { BuildingCollisionSystem } from "@/components/3DGame/BuildingCollisionSystem.ts";
 import { BuildingEntrySystem } from "@/components/3DGame/BuildingEntrySystem.ts";
 import { InteriorNPCManager } from "@/components/3DGame/InteriorNPCManager.ts";
+import { NPCSimulationLOD } from "@/components/3DGame/NPCSimulationLOD.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 
 // Constants
@@ -485,6 +486,9 @@ export class BabylonGame {
   private buildingEntrySystem: BuildingEntrySystem | null = null;
   private interiorNPCManager: InteriorNPCManager | null = null;
 
+  // NPC Simulation LOD
+  private npcSimulationLOD: NPCSimulationLOD | null = null;
+
   // Observers (for cleanup)
   private keyboardHandler: ((event: KeyboardEvent) => void) | null = null;
   private resizeHandler: (() => void) | null = null;
@@ -713,6 +717,9 @@ export class BabylonGame {
 
     // Initialize building collision system
     this.buildingCollisionSystem = new BuildingCollisionSystem(scene);
+
+    // Initialize NPC simulation LOD system
+    this.npcSimulationLOD = new NPCSimulationLOD(scene);
 
     // Performance: skip unnecessary per-frame clears when sky dome covers background
     scene.autoClear = false;
@@ -4271,6 +4278,11 @@ export class BabylonGame {
 
       this.npcMeshes.set(character.id, npcInstance);
 
+      // Register with LOD system
+      if (this.npcSimulationLOD) {
+        this.npcSimulationLOD.registerNPC(character.id, root, npcInstance.billboardLOD);
+      }
+
       const npcInfo: NPCDisplayInfo = {
         id: character.id,
         name: npcName,
@@ -4931,6 +4943,12 @@ export class BabylonGame {
         if (pos.x > half) pos.x = half;
         if (pos.z < -half) pos.z = -half;
         if (pos.z > half) pos.z = half;
+      }
+
+      // Update NPC simulation LOD system
+      if (this.npcSimulationLOD && this.playerMesh) {
+        this.npcSimulationLOD.setPlayerPosition(this.playerMesh.position);
+        this.npcSimulationLOD.update(dt);
       }
 
       // Update chunk visibility based on player position (cheap: just compares chunk coords)
@@ -7592,6 +7610,11 @@ export class BabylonGame {
     if (this.scene && this._npcBehaviorObserver) {
       this.scene.onBeforeRenderObservable.remove(this._npcBehaviorObserver);
       this._npcBehaviorObserver = null;
+    }
+    // Clean up NPC simulation LOD
+    if (this.npcSimulationLOD) {
+      this.npcSimulationLOD.dispose();
+      this.npcSimulationLOD = null;
     }
   }
 

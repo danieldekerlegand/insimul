@@ -574,7 +574,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 30,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -592,7 +592,7 @@
         "Performance test: 50 NPCs in world maintain 60fps (verify no frame drops in browser dev tools)"
       ],
       "priority": 31,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
