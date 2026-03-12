@@ -428,3 +428,86 @@ describe('Hi-fi simulation end-to-end (US-005)', () => {
     expect(hasActivity).toBe(true);
   }, 30_000);
 });
+
+// ── Determinism test (US-006) ──
+
+/**
+ * Seeded PRNG (Mulberry32) — fast, deterministic replacement for Math.random.
+ */
+function mulberry32(seed: number): () => number {
+  let s = seed | 0;
+  return () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+describe('Determinism: identical seed produces identical results (US-006)', () => {
+  function createMockStorage(characters: Character[]): IStorage {
+    return {
+      getWorld: vi.fn().mockResolvedValue(makeWorld()),
+      getCharactersByWorld: vi.fn().mockResolvedValue(characters),
+      getRulesByWorld: vi.fn().mockResolvedValue([]),
+      getGrammarsByWorld: vi.fn().mockResolvedValue([]),
+      getCharacter: vi.fn().mockImplementation(async (id: string) =>
+        characters.find(c => c.id === id) ?? null
+      ),
+      updateCharacter: vi.fn().mockResolvedValue(null),
+      createTruth: vi.fn().mockResolvedValue({}),
+      getBusinessesByWorld: vi.fn().mockResolvedValue([]),
+      getLotsByWorld: vi.fn().mockResolvedValue([]),
+      getResidencesByWorld: vi.fn().mockResolvedValue([]),
+      getSettlementsByWorld: vi.fn().mockResolvedValue([]),
+      getCountriesByWorld: vi.fn().mockResolvedValue([]),
+      getStatesByWorld: vi.fn().mockResolvedValue([]),
+      getItemsByWorld: vi.fn().mockResolvedValue([]),
+      getTruthsByWorld: vi.fn().mockResolvedValue([]),
+      getAchievementsByWorld: vi.fn().mockResolvedValue([]),
+      getLanguagesByWorld: vi.fn().mockResolvedValue([]),
+    } as unknown as IStorage;
+  }
+
+  it('should produce identical totalLifeEvents when Math.random is seeded identically', async () => {
+    const { InsimulSimulationEngine } = await import('../engines/unified-engine.js');
+    const config = {
+      simulationMode: 'lo-fi' as const,
+      steps: 140,
+      samplingRate: 3.6,
+    };
+
+    // Run 1 — seed Math.random
+    const originalRandom = Math.random;
+    timestepCallCount = 0;
+    deathCount = 0;
+    marriageCount = 0;
+    Math.random = mulberry32(42);
+    const engine1 = new InsimulSimulationEngine(createMockStorage(seedCharacters('world-1', 20)));
+    const result1 = await engine1.simulateLoFi('world-1', 'det-1', config);
+
+    // Run 2 — same seed
+    timestepCallCount = 0;
+    deathCount = 0;
+    marriageCount = 0;
+    Math.random = mulberry32(42);
+    const engine2 = new InsimulSimulationEngine(createMockStorage(seedCharacters('world-1', 20)));
+    const result2 = await engine2.simulateLoFi('world-1', 'det-2', config);
+
+    // Restore original Math.random
+    Math.random = originalRandom;
+
+    expect(result1.success).toBe(true);
+    expect(result2.success).toBe(true);
+
+    // Both runs must produce identical life event counts
+    expect(result1.totalLifeEvents.deaths).toBe(result2.totalLifeEvents.deaths);
+    expect(result1.totalLifeEvents.marriages).toBe(result2.totalLifeEvents.marriages);
+    expect(result1.totalLifeEvents.conceptions).toBe(result2.totalLifeEvents.conceptions);
+    expect(result1.totalLifeEvents.births).toBe(result2.totalLifeEvents.births);
+    expect(result1.totalLifeEvents.divorces).toBe(result2.totalLifeEvents.divorces);
+
+    // Sanity: at least some events happened
+    expect(result1.totalLifeEvents.deaths).toBeGreaterThan(0);
+  }, 60_000);
+});
