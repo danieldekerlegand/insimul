@@ -689,4 +689,99 @@ export function registerPlaythroughRoutes(app: Express) {
       res.status(500).json({ message: "Failed to check access" });
     }
   });
+
+  // ===== GAME STATE SAVE/LOAD =====
+
+  // Save game state to a slot
+  app.post("/api/worlds/:worldId/game-state", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const { worldId } = req.params;
+      const { playthroughId, slotIndex, state } = req.body;
+
+      if (!playthroughId || slotIndex == null || !state) {
+        return res.status(400).json({ message: "playthroughId, slotIndex, and state are required" });
+      }
+
+      if (slotIndex < 0 || slotIndex > 2) {
+        return res.status(400).json({ message: "slotIndex must be 0, 1, or 2" });
+      }
+
+      // Verify playthrough ownership
+      const playthrough = await storage.getPlaythrough(playthroughId);
+      if (!playthrough) {
+        return res.status(404).json({ message: "Playthrough not found" });
+      }
+      if (playthrough.userId !== payload.userId) {
+        return res.status(403).json({ message: "Not your playthrough" });
+      }
+      if (playthrough.worldId !== worldId) {
+        return res.status(400).json({ message: "Playthrough does not belong to this world" });
+      }
+
+      // Store state in playthrough's saveData keyed by slot
+      const saveData = (playthrough.saveData as Record<string, any>) || {};
+      saveData[`slot_${slotIndex}`] = state;
+
+      await storage.updatePlaythrough(playthroughId, {
+        saveData,
+        lastPlayedAt: new Date(),
+      });
+
+      res.json({ success: true, slotIndex, savedAt: state.savedAt });
+    } catch (error) {
+      console.error("Save game state error:", error);
+      res.status(500).json({ message: "Failed to save game state" });
+    }
+  });
+
+  // Load game state from a slot
+  app.get("/api/worlds/:worldId/game-state", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const { worldId } = req.params;
+      const playthroughId = req.query.playthroughId as string;
+      const slotIndex = parseInt(req.query.slotIndex as string, 10);
+
+      if (!playthroughId || isNaN(slotIndex)) {
+        return res.status(400).json({ message: "playthroughId and slotIndex query params required" });
+      }
+
+      // Verify playthrough ownership
+      const playthrough = await storage.getPlaythrough(playthroughId);
+      if (!playthrough) {
+        return res.status(404).json({ message: "Playthrough not found" });
+      }
+      if (playthrough.userId !== payload.userId) {
+        return res.status(403).json({ message: "Not your playthrough" });
+      }
+      if (playthrough.worldId !== worldId) {
+        return res.status(400).json({ message: "Playthrough does not belong to this world" });
+      }
+
+      const saveData = (playthrough.saveData as Record<string, any>) || {};
+      const state = saveData[`slot_${slotIndex}`] || null;
+
+      res.json({ state });
+    } catch (error) {
+      console.error("Load game state error:", error);
+      res.status(500).json({ message: "Failed to load game state" });
+    }
+  });
 }

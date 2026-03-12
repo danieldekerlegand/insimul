@@ -238,3 +238,42 @@ FString UDataLoader::LoadAssetManifest()
 {
     return LoadDataFile(TEXT("asset-manifest.json"));
 }
+
+// ── Save / Load ────────────────────────────────────────────────────────
+
+bool UDataLoader::SaveGameState(int32 SlotIndex, const FString& GameStateJSON)
+{
+    if (SlotIndex < 0 || SlotIndex > 2)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Insimul] SaveGameState: invalid slot %d (must be 0-2)"), SlotIndex);
+        return false;
+    }
+    const FString SaveDir = FPaths::ProjectSavedDir() / TEXT("SaveGames");
+    const FString SavePath = SaveDir / FString::Printf(TEXT("insimul_save_%d.json"), SlotIndex);
+    if (!FFileHelper::SaveStringToFile(GameStateJSON, *SavePath))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Insimul] SaveGameState: failed to write %s"), *SavePath);
+        return false;
+    }
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] SaveGameState: saved to slot %d (%d chars)"), SlotIndex, GameStateJSON.Len());
+    return true;
+}
+
+FString UDataLoader::LoadGameState(int32 SlotIndex)
+{
+    if (SlotIndex < 0 || SlotIndex > 2)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Insimul] LoadGameState: invalid slot %d (must be 0-2)"), SlotIndex);
+        return FString();
+    }
+    const FString SaveDir = FPaths::ProjectSavedDir() / TEXT("SaveGames");
+    const FString SavePath = SaveDir / FString::Printf(TEXT("insimul_save_%d.json"), SlotIndex);
+    FString Contents;
+    if (!FFileHelper::LoadFileToString(Contents, *SavePath))
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("[Insimul] LoadGameState: no save in slot %d"), SlotIndex);
+        return FString();
+    }
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] LoadGameState: loaded slot %d (%d chars)"), SlotIndex, Contents.Len());
+    return Contents;
+}

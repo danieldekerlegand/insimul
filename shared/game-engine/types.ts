@@ -819,6 +819,44 @@ export interface PlayerConfig {
   gravity: number;
 }
 
+// ─── Save State ─────────────────────────────────────────────────────────────
+
+export interface SavedNPCState {
+  id: string;
+  position: Vec3;
+  state: NPCState;
+  disposition: number;
+  currentSchedulePhase?: string;
+  emotionalState?: string;
+}
+
+export interface SavedMerchantState {
+  merchantId: string;
+  goldReserve: number;
+  items: ShopItem[];
+}
+
+export interface GameSaveState {
+  version: number;
+  slotIndex: number;
+  savedAt: string;
+  gameTime: number;
+  player: {
+    position: Vec3;
+    rotation: Vec3;
+    gold: number;
+    health: number;
+    energy: number;
+    inventory: InventoryItem[];
+  };
+  npcs: SavedNPCState[];
+  relationships: Record<string, Record<string, { type: string; strength: number; trust?: number }>>;
+  romance: any;
+  merchants: SavedMerchantState[];
+  currentZone: { id: string; name: string; type: string } | null;
+  questProgress: Record<string, any>;
+}
+
 // ─── UI Configuration ───────────────────────────────────────────────────────
 
 export interface UIConfig {

@@ -177,6 +177,23 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadAssetManifest();
 
+    // ── Save / Load ────────────────────────────────────────────────────
+
+    /**
+     * Save game state JSON to a numbered slot (0-2).
+     * Writes to Saved/SaveGames/insimul_save_<SlotIndex>.json.
+     * Returns true on success.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    bool SaveGameState(int32 SlotIndex, const FString& GameStateJSON);
+
+    /**
+     * Load game state JSON from a numbered slot (0-2).
+     * Returns empty string if the slot has no save data.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadGameState(int32 SlotIndex);
+
     // ── Status ─────────────────────────────────────────────────────────
 
     /** True once at least one file has been loaded successfully. */

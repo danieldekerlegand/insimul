@@ -43,6 +43,8 @@ export interface DataSource {
   getMerchantInventory(worldId: string, merchantId: string): Promise<any>;
   loadPrologContent(worldId: string): Promise<string | null>;
   loadWorldItems(worldId: string): Promise<any[]>;
+  saveGameState(worldId: string, playthroughId: string, slotIndex: number, state: any): Promise<void>;
+  loadGameState(worldId: string, playthroughId: string, slotIndex: number): Promise<any | null>;
 }
 
 /**
@@ -212,6 +214,24 @@ export class ApiDataSource implements DataSource {
       }
     } catch { /* Prolog not available */ }
     return null;
+  }
+
+  async saveGameState(worldId: string, playthroughId: string, slotIndex: number, state: any): Promise<void> {
+    await fetch(`/api/worlds/${worldId}/game-state`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify({ playthroughId, slotIndex, state }),
+    });
+  }
+
+  async loadGameState(worldId: string, playthroughId: string, slotIndex: number): Promise<any | null> {
+    const res = await fetch(
+      `/api/worlds/${worldId}/game-state?playthroughId=${playthroughId}&slotIndex=${slotIndex}`,
+      { headers: this.getHeaders() }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.state || null;
   }
 }
 
@@ -563,6 +583,23 @@ export class FileDataSource implements DataSource {
       return await readDataFile('data/items.json');
     } catch {
       return [];
+    }
+  }
+
+  async saveGameState(_worldId: string, _playthroughId: string, slotIndex: number, state: any): Promise<void> {
+    try {
+      localStorage.setItem(`insimul_save_${slotIndex}`, JSON.stringify(state));
+    } catch (err) {
+      console.error('Failed to save game state to localStorage:', err);
+    }
+  }
+
+  async loadGameState(_worldId: string, _playthroughId: string, slotIndex: number): Promise<any | null> {
+    try {
+      const raw = localStorage.getItem(`insimul_save_${slotIndex}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
     }
   }
 }

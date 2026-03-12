@@ -211,6 +211,44 @@ func load_prolog_knowledge_base() -> String:
 func load_prolog_content() -> String:
 	return load_prolog_knowledge_base()
 
+# ── Save / Load ───────────────────────────────────────────────
+
+## Save game state dictionary to a numbered slot (0-2).
+## Writes to user://insimul_save_<slot_index>.json.
+func save_game_state(slot_index: int, game_state: Dictionary) -> bool:
+	if slot_index < 0 or slot_index > 2:
+		push_warning("[Insimul] save_game_state: invalid slot %d (must be 0-2)" % slot_index)
+		return false
+	var save_path := "user://insimul_save_%d.json" % slot_index
+	var json := JSON.stringify(game_state)
+	var file := FileAccess.open(save_path, FileAccess.WRITE)
+	if file == null:
+		push_error("[Insimul] save_game_state: could not open %s for writing" % save_path)
+		return false
+	file.store_string(json)
+	print("[Insimul] save_game_state: saved to slot %d" % slot_index)
+	return true
+
+## Load game state dictionary from a numbered slot (0-2).
+## Returns empty dictionary if no save exists.
+func load_game_state(slot_index: int) -> Dictionary:
+	if slot_index < 0 or slot_index > 2:
+		push_warning("[Insimul] load_game_state: invalid slot %d (must be 0-2)" % slot_index)
+		return {}
+	var save_path := "user://insimul_save_%d.json" % slot_index
+	if not FileAccess.file_exists(save_path):
+		return {}
+	var file := FileAccess.open(save_path, FileAccess.READ)
+	if file == null:
+		return {}
+	var json := JSON.new()
+	var error := json.parse(file.get_as_text())
+	if error != OK:
+		push_error("[Insimul] load_game_state: JSON parse error in slot %d" % slot_index)
+		return {}
+	print("[Insimul] load_game_state: loaded slot %d" % slot_index)
+	return json.data if json.data is Dictionary else {}
+
 # ── Internal caching ──────────────────────────────────────────
 
 func _ensure_world_ir() -> void:
