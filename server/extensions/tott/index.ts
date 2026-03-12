@@ -27,6 +27,9 @@ export * from './autonomous-behavior-system';
 // Phase 16: Building Commission
 export * from './building-commission-system';
 
+// Building lifecycle functions (construct, demolish, renovate, succession) are consolidated
+// into building-commission-system.ts with Prolog integration and truth creation
+
 // Business operations (business.py)
 export * from './business-system';
 

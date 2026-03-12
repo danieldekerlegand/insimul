@@ -14,8 +14,11 @@
  */
 
 import { storage } from '../../db/storage';
-import type { Character } from '@shared/schema';
+import type { Business, BusinessType, Lot, Character, InsertTruth } from '@shared/schema';
 import { getPersonality } from './personality-behavior-system.js';
+import { getBusinessEmployees, type OccupationData } from './hiring-system.js';
+import { closeBusiness, transferOwnership } from './business-system.js';
+import { prologAssertFact } from './prolog-queries.js';
 
 // ============================================================================
 // TYPES & CONSTANTS
@@ -430,24 +433,36 @@ function calculateProgressRate(commission: BuildingCommission): number {
  * Create actual building in world after completion
  */
 async function createBuilding(commission: BuildingCommission): Promise<void> {
-  // This would integrate with the actual building/location system
-  // For now, just mark it as complete
-  
   const commissioner = await storage.getCharacter(commission.commissionerId);
   if (!commissioner) return;
-  
+
+  // Track on the commissioner's customData
   const customData = (commissioner as any).customData || {};
   const commissions = customData.completedBuildings as string[] || [];
   commissions.push(commission.id);
-  
+
   await storage.updateCharacter(commission.commissionerId, {
     customData: {
       ...customData,
       completedBuildings: commissions
     }
   } as any);
-  
-  console.log(`🏠 Building ${commission.type} added to world for ${commissioner.firstName}`);
+
+  // Update the lot if one was assigned to this commission
+  if (commission.lotId) {
+    const lot = await storage.getLot(commission.lotId);
+    if (lot) {
+      const buildingType = commission.type === 'house' || commission.type === 'apartment'
+        ? 'residence'
+        : 'business';
+      await storage.updateLot(commission.lotId, {
+        buildingId: commission.id,
+        buildingType
+      });
+    }
+  }
+
+  console.log(`Building ${commission.type} added to world for ${commissioner.firstName}`);
 }
 
 /**
@@ -698,4 +713,544 @@ export function getTimelineDescription(commission: BuildingCommission, currentTi
   return parts.join('. ');
 }
 
-// All functions are already exported above with 'export function' or 'export async function'
+// ============================================================================
+// BUILDING LIFECYCLE TYPES
+// ============================================================================
+
+export interface ConstructionResult {
+  lot: Lot;
+  business?: Business;
+  buildingId: string;
+}
+
+export interface DemolitionResult {
+  lot: Lot;
+  formerBuildingId: string;
+}
+
+export interface RenovationResult {
+  lot: Lot;
+  business: Business;
+  previousBusinessType: string;
+}
+
+export interface SuccessionResult {
+  businessId: string;
+  outcome: 'family_successor' | 'employee_successor' | 'business_closed';
+  successorId?: string;
+  successorName?: string;
+  successorRelation?: string;
+}
+
+// ============================================================================
+// BUILDING LIFECYCLE
+// ============================================================================
+
+/**
+ * Construct a building on a vacant lot and optionally assign a business to it.
+ *
+ * This is called after a building commission completes (or directly when founding
+ * a business that needs a physical location). It:
+ *   1. Validates the lot exists and is vacant
+ *   2. Creates a business record if a businessId is not already provided
+ *   3. Updates the lot to mark it as occupied with the building reference
+ *   4. Asserts Prolog facts for the new building
+ */
+export async function constructBuilding(
+  worldId: string,
+  lotId: string,
+  businessId: string | null,
+  buildingType: BuildingType | string
+): Promise<ConstructionResult> {
+  // Fetch the lot
+  const lot = await storage.getLot(lotId);
+  if (!lot) {
+    throw new Error(`Lot ${lotId} not found`);
+  }
+
+  // Check lot is vacant
+  if (lot.buildingId && lot.buildingType !== 'vacant') {
+    throw new Error(
+      `Lot ${lotId} is not vacant — currently occupied by building ${lot.buildingId} (${lot.buildingType})`
+    );
+  }
+
+  // Determine what the lot will hold
+  const isResidential = buildingType === 'house' || buildingType === 'apartment';
+  const lotBuildingType = isResidential ? 'residence' : 'business';
+
+  let business: Business | undefined;
+  let buildingId: string;
+
+  if (businessId) {
+    // Link an existing business to this lot
+    const existingBusiness = await storage.getBusiness(businessId);
+    if (!existingBusiness) {
+      throw new Error(`Business ${businessId} not found`);
+    }
+    business = existingBusiness;
+    buildingId = businessId;
+
+    // Update the business to reference this lot
+    await storage.updateBusiness(businessId, { lotId });
+  } else {
+    // The buildingId is the lot itself for vacant-to-occupied transitions
+    // without a specific business entity (e.g., residential construction)
+    buildingId = lotId;
+  }
+
+  // Update lot to mark as occupied
+  const updatedLot = await storage.updateLot(lotId, {
+    buildingId,
+    buildingType: lotBuildingType,
+  });
+
+  if (!updatedLot) {
+    throw new Error(`Failed to update lot ${lotId}`);
+  }
+
+  console.log(
+    `[building-lifecycle] Constructed ${buildingType} on lot ${lotId} (building: ${buildingId})`
+  );
+
+  // Assert Prolog fact
+  const prologLotId = lotId.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  const prologBuildingId = buildingId.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  await prologAssertFact(
+    worldId,
+    `building(${prologBuildingId}, ${buildingType}, ${prologLotId})`
+  );
+
+  return {
+    lot: updatedLot,
+    business,
+    buildingId,
+  };
+}
+
+/**
+ * Demolish a building and return its lot to vacant status.
+ *
+ * If the building is a business, the business must already be closed
+ * (isOutOfBusiness === true) before demolition. The demolished building ID
+ * is appended to the lot's formerBuildingIds for historical tracking.
+ */
+export async function demolishBuilding(
+  worldId: string,
+  buildingId: string
+): Promise<DemolitionResult> {
+  // Find the lot that references this building
+  const lot = await findLotByBuildingId(worldId, buildingId);
+  if (!lot) {
+    throw new Error(
+      `No lot found with building ${buildingId} in world ${worldId}`
+    );
+  }
+
+  // If it's a business, ensure it is closed
+  if (lot.buildingType === 'business') {
+    const business = await storage.getBusiness(buildingId);
+    if (business && !business.isOutOfBusiness) {
+      throw new Error(
+        `Business ${business.name} (${buildingId}) is still active — close it before demolishing`
+      );
+    }
+
+    // Clear the business's lot reference
+    if (business) {
+      await storage.updateBusiness(buildingId, { lotId: null } as any);
+    }
+  }
+
+  // Track former building in lot history
+  const formerBuildingIds = [...(lot.formerBuildingIds || []), buildingId];
+
+  // Return lot to vacant
+  const updatedLot = await storage.updateLot(lot.id, {
+    buildingId: null,
+    buildingType: 'vacant',
+    formerBuildingIds,
+  } as any);
+
+  if (!updatedLot) {
+    throw new Error(`Failed to update lot ${lot.id} during demolition`);
+  }
+
+  console.log(
+    `[building-lifecycle] Demolished building ${buildingId} on lot ${lot.id} — lot is now vacant`
+  );
+
+  // Assert Prolog fact
+  const prologBuildingId = buildingId.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  await prologAssertFact(worldId, `demolished(${prologBuildingId})`);
+
+  return {
+    lot: updatedLot,
+    formerBuildingId: buildingId,
+  };
+}
+
+/**
+ * Renovate an existing building to change its business type without demolition.
+ *
+ * This keeps the same lot and building ID but changes what kind of business
+ * operates there (e.g., converting a bakery into a restaurant).
+ */
+export async function renovateBuilding(
+  worldId: string,
+  buildingId: string,
+  newBusinessType: BusinessType
+): Promise<RenovationResult> {
+  // Fetch the business
+  const business = await storage.getBusiness(buildingId);
+  if (!business) {
+    throw new Error(`Business ${buildingId} not found for renovation`);
+  }
+
+  if (business.isOutOfBusiness) {
+    throw new Error(
+      `Cannot renovate closed business ${business.name} — reopen or construct a new building instead`
+    );
+  }
+
+  const previousBusinessType = business.businessType;
+
+  // Update business type
+  await storage.updateBusiness(buildingId, {
+    businessType: newBusinessType,
+  });
+
+  // Find the lot for return value
+  let lot: Lot | undefined;
+  if (business.lotId) {
+    lot = await storage.getLot(business.lotId);
+  }
+  if (!lot) {
+    const foundLot = await findLotByBuildingId(worldId, buildingId);
+    if (foundLot) lot = foundLot;
+  }
+
+  if (!lot) {
+    throw new Error(`No lot found for business ${buildingId}`);
+  }
+
+  console.log(
+    `[building-lifecycle] Renovated building ${buildingId}: ${previousBusinessType} -> ${newBusinessType}`
+  );
+
+  // Assert Prolog fact
+  const prologBuildingId = buildingId.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  const prologNewType = (newBusinessType as string).toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  await prologAssertFact(
+    worldId,
+    `renovated(${prologBuildingId}, ${prologNewType})`
+  );
+
+  // Fetch updated business
+  const updatedBusiness = await storage.getBusiness(buildingId);
+
+  return {
+    lot,
+    business: updatedBusiness || business,
+    previousBusinessType,
+  };
+}
+
+/**
+ * Handle business succession when an owner retires, dies, or otherwise departs.
+ *
+ * Succession priority:
+ *   1. Family members (spouse first, then adult children by age)
+ *   2. Employees by seniority (longest-serving first)
+ *   3. If no successor is found, the business closes
+ *
+ * Each outcome generates a truth entry documenting the succession event.
+ */
+export async function handleBusinessSuccession(
+  worldId: string,
+  businessId: string,
+  departingOwnerId: string
+): Promise<SuccessionResult> {
+  const business = await storage.getBusiness(businessId);
+  if (!business) {
+    throw new Error(`Business ${businessId} not found`);
+  }
+
+  if (business.isOutOfBusiness) {
+    throw new Error(`Business ${business.name} is already closed`);
+  }
+
+  const departingOwner = await storage.getCharacter(departingOwnerId);
+  if (!departingOwner) {
+    throw new Error(`Departing owner ${departingOwnerId} not found`);
+  }
+
+  const currentYear = new Date().getFullYear();
+  const ownerName = `${departingOwner.firstName} ${departingOwner.lastName}`;
+
+  // ---- Step 1: Check family members ----
+  const familySuccessor = await findFamilySuccessor(departingOwner, worldId);
+  if (familySuccessor) {
+    const successorName = `${familySuccessor.character.firstName} ${familySuccessor.character.lastName}`;
+
+    await transferOwnership({
+      businessId,
+      newOwnerId: familySuccessor.character.id,
+      transferReason: 'inheritance',
+      currentYear,
+      currentTimestep: 0,
+    });
+
+    await createSuccessionTruth(worldId, {
+      businessName: business.name,
+      departingOwnerName: ownerName,
+      departingOwnerId,
+      successorName,
+      successorId: familySuccessor.character.id,
+      relation: familySuccessor.relation,
+      outcome: 'family_successor',
+    });
+
+    console.log(
+      `[building-lifecycle] ${successorName} (${familySuccessor.relation}) inherits ${business.name} from ${ownerName}`
+    );
+
+    return {
+      businessId,
+      outcome: 'family_successor',
+      successorId: familySuccessor.character.id,
+      successorName,
+      successorRelation: familySuccessor.relation,
+    };
+  }
+
+  // ---- Step 2: Check employees by seniority ----
+  const employeeSuccessor = await findEmployeeSuccessor(businessId, worldId);
+  if (employeeSuccessor) {
+    const successorName = `${employeeSuccessor.character.firstName} ${employeeSuccessor.character.lastName}`;
+
+    await transferOwnership({
+      businessId,
+      newOwnerId: employeeSuccessor.character.id,
+      transferReason: 'sale',
+      currentYear,
+      currentTimestep: 0,
+    });
+
+    await createSuccessionTruth(worldId, {
+      businessName: business.name,
+      departingOwnerName: ownerName,
+      departingOwnerId,
+      successorName,
+      successorId: employeeSuccessor.character.id,
+      relation: 'senior employee',
+      outcome: 'employee_successor',
+    });
+
+    console.log(
+      `[building-lifecycle] Employee ${successorName} takes over ${business.name} from ${ownerName}`
+    );
+
+    return {
+      businessId,
+      outcome: 'employee_successor',
+      successorId: employeeSuccessor.character.id,
+      successorName,
+      successorRelation: 'senior employee',
+    };
+  }
+
+  // ---- Step 3: No successor — close the business ----
+  await closeBusiness({
+    businessId,
+    reason: 'retirement',
+    currentYear,
+    currentTimestep: 0,
+    notifyEmployees: true,
+  });
+
+  await createSuccessionTruth(worldId, {
+    businessName: business.name,
+    departingOwnerName: ownerName,
+    departingOwnerId,
+    successorName: undefined,
+    successorId: undefined,
+    relation: undefined,
+    outcome: 'business_closed',
+  });
+
+  console.log(
+    `[building-lifecycle] ${business.name} closes — no successor found for ${ownerName}`
+  );
+
+  return {
+    businessId,
+    outcome: 'business_closed',
+  };
+}
+
+// ============================================================================
+// BUILDING LIFECYCLE HELPERS
+// ============================================================================
+
+/**
+ * Find a lot that references a given building ID.
+ * Searches across all settlements in the world.
+ */
+async function findLotByBuildingId(
+  worldId: string,
+  buildingId: string
+): Promise<Lot | undefined> {
+  const world = await storage.getWorld(worldId);
+  if (!world) return undefined;
+
+  const settlements = await storage.getSettlementsByWorld(worldId);
+  for (const settlement of settlements) {
+    const lots = await storage.getLotsBySettlement(settlement.id);
+    const match = lots.find((l) => l.buildingId === buildingId);
+    if (match) return match;
+  }
+
+  return undefined;
+}
+
+/**
+ * Find a family successor for a departing owner.
+ * Priority: spouse, then adult children sorted by age (oldest first).
+ */
+async function findFamilySuccessor(
+  departingOwner: Character,
+  worldId: string
+): Promise<{ character: Character; relation: string } | null> {
+  const relationships = departingOwner.relationships as Record<
+    string,
+    { type: string; [key: string]: any }
+  > | null;
+
+  if (!relationships) return null;
+
+  const spouseIds: string[] = [];
+  const childIds: string[] = [];
+
+  for (const [charId, rel] of Object.entries(relationships)) {
+    const relType = (rel.type || '').toLowerCase();
+    if (relType === 'spouse' || relType === 'married') {
+      spouseIds.push(charId);
+    } else if (relType === 'child' || relType === 'son' || relType === 'daughter') {
+      childIds.push(charId);
+    }
+  }
+
+  // Try spouse first
+  for (const spouseId of spouseIds) {
+    const spouse = await storage.getCharacter(spouseId);
+    if (spouse && spouse.status === 'active' && !spouse.retired) {
+      return { character: spouse, relation: 'spouse' };
+    }
+  }
+
+  // Then children (oldest first — lowest birthYear)
+  const children: Character[] = [];
+  for (const childId of childIds) {
+    const child = await storage.getCharacter(childId);
+    if (child && child.status === 'active' && !child.retired) {
+      const age = (departingOwner.birthYear || 0) > 0 && (child.birthYear || 0) > 0
+        ? new Date().getFullYear() - (child.birthYear || 0)
+        : 25;
+      if (age >= 18) {
+        children.push(child);
+      }
+    }
+  }
+
+  children.sort((a, b) => (a.birthYear || 0) - (b.birthYear || 0));
+
+  if (children.length > 0) {
+    return { character: children[0], relation: 'child' };
+  }
+
+  return null;
+}
+
+/**
+ * Find the most senior employee to succeed as owner.
+ */
+async function findEmployeeSuccessor(
+  businessId: string,
+  worldId: string
+): Promise<{ character: Character; occupation: OccupationData } | null> {
+  const employees = await getBusinessEmployees(businessId, worldId);
+
+  if (employees.length === 0) return null;
+
+  const sorted = [...employees].sort(
+    (a, b) => (a.occupation.startYear || 0) - (b.occupation.startYear || 0)
+  );
+
+  for (const emp of sorted) {
+    if (emp.character.status === 'active' && !emp.character.retired) {
+      return emp;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Create a truth entry documenting a business succession event.
+ */
+async function createSuccessionTruth(
+  worldId: string,
+  opts: {
+    businessName: string;
+    departingOwnerName: string;
+    departingOwnerId: string;
+    successorName?: string;
+    successorId?: string;
+    relation?: string;
+    outcome: SuccessionResult['outcome'];
+  }
+): Promise<void> {
+  let title: string;
+  let content: string;
+  const tags = ['business_succession', opts.outcome];
+
+  switch (opts.outcome) {
+    case 'family_successor':
+      title = `${opts.successorName} Inherits ${opts.businessName}`;
+      content = `${opts.departingOwnerName} departed as owner of ${opts.businessName}. Their ${opts.relation}, ${opts.successorName}, took over the business.`;
+      break;
+    case 'employee_successor':
+      title = `${opts.successorName} Takes Over ${opts.businessName}`;
+      content = `After ${opts.departingOwnerName} departed, long-time employee ${opts.successorName} assumed ownership of ${opts.businessName}.`;
+      break;
+    case 'business_closed':
+      title = `${opts.businessName} Closes Its Doors`;
+      content = `${opts.businessName} closed permanently after ${opts.departingOwnerName} departed with no suitable successor.`;
+      break;
+  }
+
+  const relatedCharacterIds = [opts.departingOwnerId];
+  if (opts.successorId) {
+    relatedCharacterIds.push(opts.successorId);
+  }
+
+  const truth: InsertTruth = {
+    worldId,
+    title,
+    content,
+    entryType: 'event',
+    timestep: 0,
+    tags,
+    relatedCharacterIds,
+    importance: 6,
+    isPublic: true,
+    source: 'simulation_generated',
+  };
+
+  try {
+    await storage.createTruth(truth);
+  } catch (error) {
+    console.error('[building-lifecycle] Failed to create succession truth:', error);
+  }
+}
