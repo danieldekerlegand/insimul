@@ -28,6 +28,7 @@ Started: Thu Mar 12 00:10:56 CDT 2026
 - AnimationGroup names from .babylon model files are matched case-insensitively; use `registerAnimation()` to add lazy-loaded groups at runtime
 - `new Set<AnimationState>([...])` needs explicit generic — TS infers `Set<string>` otherwise
 - AnimationAssetManager uses `SceneLoader.LoadAssetContainerAsync` for lazy loading — call `addAllToScene()` after config; cache key is `skeletonType::animName`
+- Standalone packages under `packages/` get their own `tsconfig.json` and typecheck independently (`cd packages/foo && npx tsc --noEmit`); tests still go in `shared/__tests__/`
 - BuildingCollisionSystem generates invisible wall colliders; use `BUILDING_COLLISION_GROUP` metadata to identify building hits in raycasts
 - There are 4 building creation sites in BabylonGame.ts — any new per-building feature must be added to all 4 (businesses, residences, auto-generated, generic fill)
 - `DynamicTexture.getContext()` returns `ICanvasRenderingContext` — cast to `any` for full Canvas2D API (textAlign, textBaseline, roundRect)
@@ -631,4 +632,51 @@ Started: Thu Mar 12 00:10:56 CDT 2026
   - `scene.activeCamera.isInFrustum(mesh)` checks if a mesh is in the camera's view frustum — useful for off-screen detection
   - Object pooling key is `skeletonType` string — NPCs with same skeleton can share mesh instances
   - Frame budget monitoring uses performance.now() for high-resolution timing; rolling window avoids single-frame spikes
+---
+
+## 2026-03-12 - US-032
+- Created `client/src/components/3DGame/WorldStateManager.ts` — client-side state serialization manager with auto-save, 3 save slots, incremental diff computation
+- Added `GameSaveState`, `SavedNPCState`, `SavedMerchantState` types to `shared/game-engine/types.ts`
+- Added `saveGameState()` and `loadGameState()` to `DataSource` interface, `ApiDataSource` (API), and `FileDataSource` (localStorage)
+- Added `POST /api/worlds/:worldId/game-state` and `GET /api/worlds/:worldId/game-state` endpoints to `server/routes/playthrough-routes.ts`
+- Server stores save slots inside `Playthrough.saveData` keyed by `slot_0`, `slot_1`, `slot_2`
+- Updated all 4 export engine templates with save/load: Unreal (SaveGames dir), Unity (persistentDataPath), Godot (user:// dir)
+- 18 unit tests passing in `shared/__tests__/world-state-manager.test.ts`
+- Files changed: WorldStateManager.ts (new), DataSource.ts, types.ts, playthrough-routes.ts, DataLoader.h, DataLoader.cpp, InsimulDataLoader.cs, data_loader.gd, world-state-manager.test.ts (new)
+- **Learnings for future iterations:**
+  - `Playthrough.saveData` is `Schema.Types.Mixed` in Mongo — can store arbitrary nested objects keyed by slot index
+  - Drift hook requires updating all 4 export templates (Unreal/Unity/Godot) when changing DataSource.ts or shared/game-engine/types.ts; run `npm run drift:update` after
+  - WorldStateManager uses interface segregation (GameStateSource/GameStateTarget) to decouple from BabylonGame — makes testing possible without Babylon.js
+  - FileDataSource save/load uses localStorage for exported games; ApiDataSource uses the server endpoint
+---
+
+## 2026-03-12 16:45 CDT - US-033
+- Implemented standalone @insimul/sdk JavaScript/TypeScript SDK package
+- InsimulClient class: SSE-based streaming to conversation service HTTP bridge
+  - startConversation(), sendText(), sendAudio(), endConversation(), healthCheck()
+  - Event callbacks: onTextChunk, onAudioChunk, onVisemeData, onActionTrigger, onError, onStateChange
+  - Automatic session_id tracking, resume support
+  - API key authentication with world ID scoping
+- StreamingAudioPlayer: standalone Web Audio API player (no Babylon.js dependency)
+  - Pre-buffering, seamless chunk scheduling, volume control
+- MicCapture: browser MediaStream microphone recording with WebM/Opus output
+- Full TypeScript type definitions mirroring proto/conversation.proto
+- README with quickstart guide and API reference
+- 15 unit tests passing (mock SSE stream, event callbacks, session management)
+- Files created:
+  - packages/insimul-sdk-js/package.json
+  - packages/insimul-sdk-js/tsconfig.json
+  - packages/insimul-sdk-js/README.md
+  - packages/insimul-sdk-js/src/index.ts
+  - packages/insimul-sdk-js/src/types.ts
+  - packages/insimul-sdk-js/src/client.ts
+  - packages/insimul-sdk-js/src/streaming-audio-player.ts
+  - packages/insimul-sdk-js/src/mic-capture.ts
+  - shared/__tests__/insimul-sdk.test.ts
+- **Learnings for future iterations:**
+  - SDK uses HTTP/SSE bridge (not native gRPC) for browser compatibility — matches existing http-bridge.ts endpoints
+  - SDK types mirror shared/proto/conversation.ts but are self-contained (no cross-package imports)
+  - SDK tests go in shared/__tests__/ since the vitest config only includes server/__tests__ and shared/__tests__
+  - The SDK's StreamingAudioPlayer is a simplified version of the Babylon.js one — no spatial audio or AudioManager ducking (engine-agnostic)
+  - createMockSSEResponse() helper pattern works well for testing SSE consumers in vitest
 ---

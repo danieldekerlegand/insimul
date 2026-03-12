@@ -1,7 +1,7 @@
 {
   "project": "Insimul",
   "branchName": "ralph/living-world-conversation",
-  "description": "Living World & Real-Time Conversation Engine — gRPC streaming conversation microservice, full voice pipeline, autonomous NPC behavior, pathfinding, building collision/interiors, language-integrated commerce, and plugin SDKs for JS/Unreal/Unity/Godot",
+  "description": "Living World & Real-Time Conversation Engine \u2014 gRPC streaming conversation microservice, full voice pipeline, autonomous NPC behavior, pathfinding, building collision/interiors, language-integrated commerce, and plugin SDKs for JS/Unreal/Unity/Godot",
   "userStories": [
     {
       "id": "US-001",
@@ -61,7 +61,7 @@
     },
     {
       "id": "US-004",
-      "title": "gRPC server — text streaming endpoint",
+      "title": "gRPC server \u2014 text streaming endpoint",
       "description": "As a developer, I need a gRPC server that handles text-based conversation streams with sub-500ms first-token latency.",
       "acceptanceCriteria": [
         "Create server/services/conversation/grpc-server.ts using @grpc/grpc-js",
@@ -81,7 +81,7 @@
     },
     {
       "id": "US-005",
-      "title": "gRPC server — session management and concurrency",
+      "title": "gRPC server \u2014 session management and concurrency",
       "description": "As a developer, I need the gRPC server to handle concurrent sessions with conversation history.",
       "acceptanceCriteria": [
         "Session store: in-memory map of session_id to conversation state (history, character context, active status)",
@@ -104,7 +104,7 @@
       "description": "As a developer, I need NPCs to remember previous conversations so relationships feel meaningful.",
       "acceptanceCriteria": [
         "Create server/services/conversation/npc-memory.ts",
-        "Store conversation summaries per NPC-player pair in MongoDB (not full transcripts — key points only)",
+        "Store conversation summaries per NPC-player pair in MongoDB (not full transcripts \u2014 key points only)",
         "Summary includes: topics discussed, promises made, questions asked, emotional tone, language used",
         "Conversation count tracking per NPC-player pair",
         "Key fact extraction: store player-shared information (name, origin, quest details)",
@@ -149,7 +149,7 @@
         "TranscriptionResult includes: text, isFinal, confidence, languageDetected",
         "Create Google Cloud Speech-to-Text provider as default implementation",
         "Streaming transcription: partial results arrive as player speaks (not waiting for silence)",
-        "Integrate into gRPC server: AudioChunk input → STT → text → LLM → response",
+        "Integrate into gRPC server: AudioChunk input \u2192 STT \u2192 text \u2192 LLM \u2192 response",
         "Typecheck passes",
         "Unit test: mock STT provider returns streaming transcription results"
       ],
@@ -179,11 +179,11 @@
     },
     {
       "id": "US-010",
-      "title": "gRPC server — audio streaming integration",
+      "title": "gRPC server \u2014 audio streaming integration",
       "description": "As a developer, I need the gRPC server to handle full audio pipeline: STT input, LLM processing, TTS output.",
       "acceptanceCriteria": [
         "Extend ConversationStream handler to accept AudioChunk input",
-        "Pipeline: AudioChunk → STT (streaming) → text → LLM (streaming) → TTS (streaming) → AudioChunk + TextChunk response",
+        "Pipeline: AudioChunk \u2192 STT (streaming) \u2192 text \u2192 LLM (streaming) \u2192 TTS (streaming) \u2192 AudioChunk + TextChunk response",
         "Pipeline parallelism: while LLM generates sentence N+1, TTS synthesizes sentence N",
         "Stream TextChunk and AudioChunk responses concurrently (text arrives before audio)",
         "First audio playback target: within 1 second of player finishing input",
@@ -352,8 +352,8 @@
       "title": "Jobsite validation and auto-generation",
       "description": "As a developer, I need every employed NPC to have a valid workplace building so schedules don't break.",
       "acceptanceCriteria": [
-        "Create validation in world generation: verify each NPC's currentOccupationId → occupation.businessId → business.lotId → lot has a building",
-        "Business-to-building-type mapping: Bakery → bakery, LawFirm → office, Restaurant → restaurant, Hospital → hospital, etc.",
+        "Create validation in world generation: verify each NPC's currentOccupationId \u2192 occupation.businessId \u2192 business.lotId \u2192 lot has a building",
+        "Business-to-building-type mapping: Bakery \u2192 bakery, LawFirm \u2192 office, Restaurant \u2192 restaurant, Hospital \u2192 hospital, etc.",
         "If NPC has occupation but no corresponding business exists, auto-generate business and building on available lot",
         "If no lots available, create new lot for the auto-generated building",
         "Validation report: log warnings for any broken NPC-occupation-business-building chain",
@@ -393,7 +393,7 @@
         "Define animation manifest: JSON mapping animation names to asset paths and metadata",
         "Lazy loading: animations load on first use, not at world start",
         "Animation sharing: same animation data shared across NPCs with same skeleton type",
-        "Fallback: if specific animation missing, fall back to category default (e.g., missing knead_dough → work_standing)",
+        "Fallback: if specific animation missing, fall back to category default (e.g., missing knead_dough \u2192 work_standing)",
         "Minimum animation set defined: idle, walk, run, talk, listen, wave, work_standing, work_sitting, sit, eat, drink, sleep",
         "Support Mixamo GLB animation import format",
         "Typecheck passes"
@@ -447,7 +447,7 @@
         "Create client/src/components/3DGame/BuildingEntrySystem.ts",
         "Door detection: when player within 2m of building door, show 'Enter [Building Name]' prompt (floating UI)",
         "Entry trigger: player presses E key or clicks prompt",
-        "Loading transition: fade-to-black (0.5s) → load interior (using existing BuildingInteriorGenerator) → fade-from-black (0.5s)",
+        "Loading transition: fade-to-black (0.5s) \u2192 load interior (using existing BuildingInteriorGenerator) \u2192 fade-from-black (0.5s)",
         "Player spawns at interior door position facing into room",
         "Exit: door inside interior returns player to overworld at building exterior door position",
         "UI indicator: show current building name while inside",
@@ -499,11 +499,11 @@
     },
     {
       "id": "US-027",
-      "title": "TotT-style dynamic decision making — action grammar hierarchy",
+      "title": "TotT-style dynamic decision making \u2014 action grammar hierarchy",
       "description": "As a developer, I need NPCs to make dynamic decisions via Ensemble-style action grammar rather than rigid schedules.",
       "acceptanceCriteria": [
-        "Enhance VolitionSystem.ts with action grammar hierarchy: start (high-level goals) → non-terminal (strategies) → terminal (concrete actions)",
-        "Example: be_social (start) → find_friend (non-terminal) → walk_to_tavern + greet_friend (terminal)",
+        "Enhance VolitionSystem.ts with action grammar hierarchy: start (high-level goals) \u2192 non-terminal (strategies) \u2192 terminal (concrete actions)",
+        "Example: be_social (start) \u2192 find_friend (non-terminal) \u2192 walk_to_tavern + greet_friend (terminal)",
         "Each terminal action uses existing softmax personality-weighted selection",
         "Situational modifiers: health (rest if injured), emotional state (avoid social if angry), recent events",
         "Schedule override: high-priority volition fires override routine (e.g., angry NPC confronts rival instead of going to work)",
@@ -522,10 +522,10 @@
       "description": "As a developer, I need merchant NPCs to have auto-generated inventories matching their business type.",
       "acceptanceCriteria": [
         "Create server/services/merchant-inventory.ts",
-        "Map business types to inventory categories: Bakery → food items, Blacksmith → weapons/tools/materials, Tavern → drinks/food, General Store → mixed, Apothecary → potions/herbs, Clothier → armor/fabric, Bookshop → collectibles",
+        "Map business types to inventory categories: Bakery \u2192 food items, Blacksmith \u2192 weapons/tools/materials, Tavern \u2192 drinks/food, General Store \u2192 mixed, Apothecary \u2192 potions/herbs, Clothier \u2192 armor/fabric, Bookshop \u2192 collectibles",
         "Auto-generate 8-15 items per merchant at world creation based on business type",
         "Item names and descriptions generated in world's language if language-learning world",
-        "Price variation: ±20% from base, influenced by merchant personality (agreeable → lower)",
+        "Price variation: \u00b120% from base, influenced by merchant personality (agreeable \u2192 lower)",
         "Merchant gold reserve: 200-1000 based on business size",
         "Inventory refresh: merchants restock daily (game-time)",
         "Typecheck passes",
@@ -569,7 +569,7 @@
         "Difficulty auto-scales based on player proficiency level from LanguageProgressTracker",
         "Pronunciation practice: click item name to hear TTS pronunciation",
         "Vocabulary tracking: purchased items added to player learned vocabulary list",
-        "Merchant responds in target language (Voilà!, Merci!, Vous n'avez pas assez d'or)",
+        "Merchant responds in target language (Voil\u00e0!, Merci!, Vous n'avez pas assez d'or)",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
@@ -597,7 +597,7 @@
     },
     {
       "id": "US-032",
-      "title": "World state serialization — save and load",
+      "title": "World state serialization \u2014 save and load",
       "description": "As a player, I want NPC positions, inventories, and relationship changes to persist across sessions.",
       "acceptanceCriteria": [
         "Create client/src/components/3DGame/WorldStateManager.ts",
@@ -611,7 +611,7 @@
         "Integration test: save state, reload, verify NPC positions and inventory match"
       ],
       "priority": 32,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -634,7 +634,7 @@
         "Unit test: mock gRPC connection, verify event callbacks fire"
       ],
       "priority": 33,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -726,14 +726,14 @@
     },
     {
       "id": "US-038",
-      "title": "Export pipeline — bundle Insimul plugins into exported games",
+      "title": "Export pipeline \u2014 bundle Insimul plugins into exported games",
       "description": "As a developer, I need the export pipeline to automatically include and configure Insimul plugins.",
       "acceptanceCriteria": [
         "Babylon.js exporter: bundle @insimul/sdk into exported project, configure with world API key and character IDs",
         "Unreal exporter: include insimul-plugin-unreal in Plugins folder, pre-configure character mappings in DefaultGame.ini",
         "Unity exporter: include insimul-plugin-unity as UPM package, pre-configure InsimulManager",
         "Godot exporter: include insimul-plugin-godot in addons folder, pre-configure autoload",
-        "All exporters: embed character-to-NPC mapping (game character → Insimul character ID)",
+        "All exporters: embed character-to-NPC mapping (game character \u2192 Insimul character ID)",
         "All exporters: include conversation service URL configuration",
         "Typecheck passes",
         "Integration test: export Babylon.js project, verify SDK is included and configured"
