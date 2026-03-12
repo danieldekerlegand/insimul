@@ -517,6 +517,11 @@ process.on('unhandledRejection', async (reason, promise) => {
       .then(({ startGrpcServer }) => startGrpcServer())
       .catch((err) => console.warn('[gRPC] Conversation server failed to start:', err.message));
 
+    // Start WebSocket conversation bridge (non-blocking — failure doesn't prevent HTTP startup)
+    import('./services/conversation/ws-bridge.js')
+      .then(({ startWSBridge }) => startWSBridge())
+      .catch((err) => console.warn('[WS-Bridge] Conversation WebSocket bridge failed to start:', err.message));
+
     // Start server
     const port = parseInt(process.env.PORT || '8000', 10);
     server.listen(port, "0.0.0.0", () => {
