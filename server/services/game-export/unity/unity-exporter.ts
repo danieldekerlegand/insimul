@@ -16,6 +16,7 @@ import type { WorldIR } from '@shared/game-engine/ir-types';
 import { generateUnityTelemetryTemplate } from '../unity-telemetry-template';
 import type { ExportTelemetryConfig } from '../telemetry-config';
 import { TELEMETRY_DEFAULTS } from '../telemetry-config';
+import { bundleUnityPlugin } from '../plugin-bundler';
 import { createRequire } from 'node:module';
 
 // createRequire needed for ESM projects.
@@ -125,6 +126,13 @@ export async function exportUnityProject(worldId: string, options?: UnityExportO
       content: telemetryCs,
     });
     console.log('[Export] Unity telemetry client included');
+  }
+
+  // 3c. Bundle Insimul plugin
+  console.log('[Export] Bundling Insimul Unity plugin...');
+  const pluginFiles = bundleUnityPlugin(ir);
+  for (const f of pluginFiles) {
+    allFiles.push({ path: f.path, content: f.content });
   }
 
   // 4. Bundle assets from the world's selected collection

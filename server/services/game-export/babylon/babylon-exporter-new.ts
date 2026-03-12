@@ -24,6 +24,7 @@ import { bundleAssetsFromCollection, bundleCoreAssets, type TargetEngine } from 
 import { generateWorldIR } from '../ir-generator';
 import { generateBabylonTelemetryIntegration } from '../babylon-telemetry-integration';
 import { TELEMETRY_DEFAULTS } from '../telemetry-config';
+import { bundleBabylonPlugin } from '../plugin-bundler';
 import type { BabylonExportOptions } from './types';
 
 // createRequire needed for ESM projects.
@@ -179,12 +180,17 @@ export async function exportBabylonProject(
     console.log('[Export] Babylon.js telemetry integration included');
   }
 
+  // Bundle Insimul SDK plugin
+  console.log('[Export] Bundling Insimul SDK...');
+  const pluginFiles: GeneratedFile[] = bundleBabylonPlugin(ir).map(f => ({ path: f.path, content: f.content }));
+
   // Combine all files
   const allFiles: GeneratedFile[] = [
     ...dataFiles,
     ...gameFiles,
     ...sharedTypesFiles,
     ...telemetryFiles,
+    ...pluginFiles,
     mainEntryFile,
     ...projectFiles,
     { path: 'public/data/asset-manifest.json', content: manifestJson },

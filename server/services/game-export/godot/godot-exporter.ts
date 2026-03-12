@@ -16,6 +16,7 @@ import type { WorldIR } from '@shared/game-engine/ir-types';
 import { generateGodotTelemetryTemplate } from '../godot-telemetry-template';
 import type { ExportTelemetryConfig } from '../telemetry-config';
 import { TELEMETRY_DEFAULTS } from '../telemetry-config';
+import { bundleGodotPlugin } from '../plugin-bundler';
 import { createRequire } from 'node:module';
 
 // createRequire needed for ESM projects.
@@ -123,6 +124,13 @@ export async function exportGodotProject(worldId: string, options?: GodotExportO
       content: telemetryGd,
     });
     console.log('[Export] Godot telemetry client included');
+  }
+
+  // 3c. Bundle Insimul plugin
+  console.log('[Export] Bundling Insimul Godot plugin...');
+  const pluginFiles = bundleGodotPlugin(ir);
+  for (const f of pluginFiles) {
+    allFiles.push({ path: f.path, content: f.content });
   }
 
   // 4. Bundle assets from the world's selected collection
