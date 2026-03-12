@@ -21,6 +21,8 @@ Started: Thu Mar 12 00:10:56 CDT 2026
 - Use `Array.from(map.values())` / `Array.from(map.entries())` for Map iteration — TS target lacks downlevelIteration
 - CharacterController uses boolean toggles `walk(true/false)`, `run(true/false)` — set speed with `setWalkSpeed()`/`setRunSpeed()` before toggling
 - NPCMovementController wraps PathfindingSystem + CharacterController: use `moveTo()` for pathfinding-driven movement, `startConversation()`/`endConversation()` to pause/resume
+- Engine plugins (UE/Unity/Godot) live in `packages/insimul-plugin-<engine>/` — use HTTP/SSE transport (same as JS SDK) not native gRPC
+- UE plugin delegate forwarding requires intermediate UFUNCTION handlers — cannot AddDynamic directly to another delegate Broadcast
 - NPC routine data: `character.customData.routine.routine.{day,night}` — arrays of TimeBlock with startHour/endHour/location/locationType/occasion
 - ScheduleExecutor drives NPC movement from routines: register NPCs with `registerNPC()`, call `update(deltaMs)` each frame; handles game clock, phase resolution, personality-adjusted wake/sleep
 - Occupation data lives in `character.customData.currentOccupation` (not the `occupations` table); `character.currentOccupationId` is set in parallel
@@ -679,4 +681,26 @@ Started: Thu Mar 12 00:10:56 CDT 2026
   - SDK tests go in shared/__tests__/ since the vitest config only includes server/__tests__ and shared/__tests__
   - The SDK's StreamingAudioPlayer is a simplified version of the Babylon.js one — no spatial audio or AudioManager ducking (engine-agnostic)
   - createMockSSEResponse() helper pattern works well for testing SSE consumers in vitest
+---
+
+## 2026-03-12 - US-034
+- Created `packages/insimul-plugin-unreal/` — full UE5.3+ plugin for the Insimul conversation service
+- **Files created:**
+  - `Insimul.uplugin` — plugin descriptor
+  - `Source/Insimul/Insimul.Build.cs` — module build rules (depends on Core, HTTP, Json, AudioMixer, AudioCapture)
+  - `Public/InsimulTypes.h` — shared USTRUCTs, UENUMs, delegates (FInsimulConfig, FInsimulTextChunk, FInsimulAudioChunk, FInsimulViseme, FInsimulFacialData, FInsimulActionTrigger)
+  - `Public/InsimulModule.h` + `Private/InsimulModule.cpp` — module startup/shutdown
+  - `Public/InsimulSubsystem.h` + `Private/InsimulSubsystem.cpp` — UGameInstanceSubsystem managing gRPC connection and config (loads from DefaultGame.ini)
+  - `Public/InsimulHttpClient.h` + `Private/InsimulHttpClient.cpp` — HTTP/SSE transport client (async, no game thread blocking)
+  - `Public/InsimulChatbotComponent.h` + `Private/InsimulChatbotComponent.cpp` — ActorComponent for NPC conversation
+  - `Public/InsimulAudioCaptureComponent.h` + `Private/InsimulAudioCaptureComponent.cpp` — Microphone capture wrapper
+  - `Public/InsimulAudioStreamer.h` + `Private/InsimulAudioStreamer.cpp` — Streaming TTS playback via UAudioComponent
+  - `Public/InsimulFaceSync.h` + `Private/InsimulFaceSync.cpp` — Viseme-to-morph-target lip sync (15 OVR visemes)
+  - `README.md` — setup guide with C++ and Blueprint examples
+- **Learnings for future iterations:**
+  - UE plugins are pure C++ — not included in TypeScript typecheck, so `npx tsc --noEmit` won't catch UE compile errors
+  - UE delegate forwarding requires intermediate UFUNCTION handlers; can't bind directly to another delegate's `.Broadcast`
+  - Used HTTP/SSE transport (same as JS SDK) instead of native gRPC — UE gRPC support is complex and the server already has an HTTP bridge
+  - Standard UE plugin structure: `.uplugin` at root, `Source/<ModuleName>/Public/` for headers, `Private/` for .cpp
+  - All BlueprintCallable/BlueprintAssignable functions must be UFUNCTIONs
 ---
