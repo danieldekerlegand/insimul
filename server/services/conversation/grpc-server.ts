@@ -14,6 +14,9 @@ import type { IStreamingLLMProvider, ConversationContext } from './providers/llm
 import type { ISTTProvider, AudioStreamChunk } from './stt/stt-provider.js';
 import type { ITTSProvider, VoiceProfile, AudioChunkOutput } from './tts/tts-provider.js';
 import { splitAtSentenceBoundaries, assignVoiceProfile, VOICE_PROFILES } from './tts/tts-provider.js';
+import type { IVisemeGenerator } from './viseme/viseme-generator.js';
+import type { VisemeQuality } from './viseme/viseme-generator.js';
+import { createVisemeGenerator } from './viseme/viseme-generator.js';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -37,6 +40,10 @@ export interface GrpcServerOptions {
   storageOverride?: ContextManagerStorage;
   /** Enable audio response pipeline (TTS synthesis of LLM output) */
   enableAudioResponse?: boolean;
+  /** Viseme generator for lip sync data */
+  visemeGenerator?: IVisemeGenerator;
+  /** Viseme quality level: 'full' (15 OVR), 'simplified' (5 shapes), 'disabled' */
+  visemeQuality?: VisemeQuality;
 }
 
 // ── Session store ─────────────────────────────────────────────────────
@@ -149,6 +156,9 @@ function createHandlers(options: GrpcServerOptions) {
   const ttsProvider = options.ttsProvider ?? null;
   const enableAudioResponse = options.enableAudioResponse ?? (ttsProvider !== null);
   const storageOverride = options.storageOverride;
+  const visemeQuality: VisemeQuality = options.visemeQuality ?? 'full';
+  const visemeGen: IVisemeGenerator | null =
+    visemeQuality === 'disabled' ? null : (options.visemeGenerator ?? createVisemeGenerator());
 
   // Per-stream audio buffer for collecting audio chunks until stream ends
   const audioBuffers = new Map<string, AudioStreamChunk[]>();
@@ -246,7 +256,7 @@ function createHandlers(options: GrpcServerOptions) {
     const ttsPromises: Array<Promise<void>> = [];
     let sentenceBuffer = '';
 
-    // TTS helper: synthesize a sentence and stream audio chunks
+    // TTS helper: synthesize a sentence and stream audio chunks + viseme data
     const synthesizeSentence = (sentence: string) => {
       if (!shouldSynthesizeAudio || !ttsProvider) return;
       const voice = getVoiceForSession(sessionId, characterId);
@@ -256,6 +266,14 @@ function createHandlers(options: GrpcServerOptions) {
             languageCode: languageCode || undefined,
           });
           for await (const chunk of audioChunks) {
+            // Generate viseme data synchronized to audio chunk timing
+            if (visemeGen && visemeQuality !== 'disabled') {
+              const facialData = visemeGen.generateVisemes(sentence, chunk.durationMs, visemeQuality);
+              if (facialData.visemes.length > 0) {
+                call.write({ facialData });
+              }
+            }
+
             call.write({
               audioChunk: {
                 data: chunk.data,
