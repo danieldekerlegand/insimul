@@ -14,6 +14,15 @@ Started: Thu Mar 12 00:10:56 CDT 2026
 - Use dependency injection (optional `storageOverride` param) for testable server services — avoids MongoDB connection in tests
 - Browsers can't use native gRPC; use SSE HTTP bridge (`server/services/conversation/http-bridge.ts`) for client ↔ gRPC conversation pipeline
 - BabylonChatPanel uses graceful degradation: try gRPC streaming → fall back to direct Gemini API if unavailable
+- NavigationSystem uses grid-based navmesh: `generateNavMesh()` takes terrain size + building obstacles, `findPath()` returns smoothed Vector3[] waypoints
+- Ground mesh is `GroundMesh` from `CreateGroundFromHeightMap` — use `getHeightAtCoordinates()` for terrain height sampling
+- Building dimensions from `ProceduralBuildingGenerator.BUILDING_TYPES` — width/depth in world units, position is center
+- PathfindingSystem wraps NavigationSystem: dynamic obstacles via `setDynamicObstacle()`, budgeted queue via `requestPath()`, path validation via `isPathBlocked()`
+- Use `Array.from(map.values())` / `Array.from(map.entries())` for Map iteration — TS target lacks downlevelIteration
+- CharacterController uses boolean toggles `walk(true/false)`, `run(true/false)` — set speed with `setWalkSpeed()`/`setRunSpeed()` before toggling
+- NPCMovementController wraps PathfindingSystem + CharacterController: use `moveTo()` for pathfinding-driven movement, `startConversation()`/`endConversation()` to pause/resume
+- NPC routine data: `character.customData.routine.routine.{day,night}` — arrays of TimeBlock with startHour/endHour/location/locationType/occasion
+- ScheduleExecutor drives NPC movement from routines: register NPCs with `registerNPC()`, call `update(deltaMs)` each frame; handles game clock, phase resolution, personality-adjusted wake/sleep
 
 ---
 
@@ -266,4 +275,90 @@ Started: Thu Mar 12 00:10:56 CDT 2026
   - StreamingAudioPlayer's `finish()` must be called to signal end-of-stream (triggers final chunk scheduling)
   - Visual state indicators are best placed in the chat header as a small TextBlock with color-coded states
   - Manual browser verification needed (no dev-browser MCP tool available)
+---
+
+## 2026-03-12 - US-015
+- Created `client/src/components/3DGame/NavigationSystem.ts` — grid-based navigation mesh system
+- Grid generation from terrain heightmap with configurable cell size (default 2 units)
+- Building footprint obstacles with rotation support and door gap detection (default: one door at front face)
+- Water body circular obstacles
+- Slope-based unwalkable cell detection (configurable max slope angle)
+- A* pathfinding with 8-directional movement, octile distance heuristic, diagonal corner-cutting prevention
+- Path smoothing via line-of-sight waypoint reduction
+- Road cell marking (always walkable)
+- Debug visualization: wireframe overlay with color-coded cells (green=walkable, cyan=doorway, yellow=road)
+- `findPath(start, end)` returns smoothed Vector3[] waypoints; snaps to nearest walkable cell if start/end is on obstacle
+- `isWalkable(x, z)` and `getHeightAt(x, z)` utility methods
+- Files changed: client/src/components/3DGame/NavigationSystem.ts (new)
+- **Learnings for future iterations:**
+  - `GroundMesh` (from `CreateGroundFromHeightMap`) has `getHeightAtCoordinates(x, z)` for efficient terrain height sampling — no need to raycast
+  - Building positions from `buildingData` Map use center coordinates; width/depth from `ProceduralBuildingGenerator.BUILDING_TYPES` static map
+  - `Ray` class must be imported from `@babylonjs/core` — no `require()` in browser ESM
+  - Building rotation is in radians — transform cell centers to local space with cos/sin for rotated footprint detection
+  - US-016 (A* enhancements) should add: dynamic obstacle avoidance, per-frame pathfinding budget, crowd agent support
+---
+
+## 2026-03-12 - US-016
+- Created `client/src/components/3DGame/PathfindingSystem.ts` — wraps NavigationSystem with advanced pathfinding features
+- **Dynamic obstacle tracking**: `setDynamicObstacle(id, position, radius)` for NPC and player positions as avoidable obstacles
+- **Obstacle avoidance steering**: `getAvoidanceOffset(agentId, position, heading)` computes lateral steering force to avoid nearby agents
+- **Per-frame pathfinding budget**: `requestPath()` queues requests; `update()` processes max 5 per frame (configurable) with 4ms time budget
+- **Priority queue**: higher priority requests processed first; re-pathing uses priority 10
+- **Path invalidation**: periodic validation checks if dynamic obstacles block active paths; triggers automatic re-pathing
+- **Reachable locations**: `getReachableLocations(fromPos, maxDistance)` returns sorted list of reachable registered locations via actual pathfinding (not straight-line)
+- **Active path management**: `setActivePath()`, `advanceWaypoint()`, `clearActivePath()` for per-agent path tracking
+- **Debug visualization**: toggle-able orange path lines for selected NPC via `setDebugSelectedAgent()` and `toggleDebugPaths()`
+- **Point-to-segment distance**: used for path blocking detection (proper projection with clamped t-parameter)
+- Created `server/__tests__/pathfinding-system.test.ts` — 29 tests all passing
+- Files changed: PathfindingSystem.ts (new), pathfinding-system.test.ts (new)
+- **Learnings for future iterations:**
+  - PathfindingSystem is a layer above NavigationSystem — NavigationSystem owns the grid and A*, PathfindingSystem adds dynamic obstacles, budgeting, and agent management
+  - `MeshBuilder.CreateLines()` for debug path visualization; set `mesh.color` and `mesh.isPickable = false`
+  - Avoidance uses cross product with Up vector to get perpendicular steering direction; dot product filters out obstacles behind the agent
+  - Path validation interval (500ms) prevents excessive re-pathing; only checks remaining waypoints from currentIndex
+  - 50 NPCs × 5 paths/frame = 10 frames to service all requests — well within 16ms frame budget since A* on grid is fast
+---
+
+## 2026-03-12 - US-017
+- Created `client/src/components/3DGame/NPCMovementController.ts` — high-level NPC movement controller
+- `moveTo(target, speed?, callback?)` requests path via PathfindingSystem and walks NPC along waypoints
+- Three speed tiers: stroll (1.5 m/s), walk (3.0 m/s), hurry (5.0 m/s)
+- Smooth rotation toward movement direction via angle-based slerp interpolation (5 rad/s turn speed)
+- Animation integration: walk for stroll/walk speeds, run for hurry — delegates to CharacterController
+- Arrival detection within 0.5m tolerance triggers callback
+- Queue system: `queueMoveTo()` chains sequential movement commands, processed FIFO on arrival
+- Interrupt: new `moveTo()` cancels current movement and reroutes via pathfinding
+- Conversation support: `startConversation(partnerPosition)` pauses movement, saves state, faces partner; `endConversation()` resumes
+- Dynamic obstacle avoidance: applies PathfindingSystem's `getAvoidanceOffset()` lateral steering each frame
+- `dispose()` cleans up dynamic obstacles, active paths, and pending requests
+- ICharacterController interface extracted to avoid importing the full 2000-line CharacterController class
+- Files changed: client/src/components/3DGame/NPCMovementController.ts (new)
+- **Learnings for future iterations:**
+  - CharacterController uses `walk(true/false)` and `run(true/false)` boolean toggles — not speed-based; call `setWalkSpeed()`/`setRunSpeed()` to adjust actual speed before toggling
+  - PathfindingSystem.requestPath is async with callback — path arrives later; must check `currentCommand` still matches to avoid stale paths
+  - NPC mesh.rotation.y is the yaw angle; `Math.atan2(dx, dz)` gives target angle for face-forward movement in Babylon.js coordinate system
+  - Movement commands save/restore on conversation: saves currentCommand + queue, resumes from saved destination after endConversation
+  - ICharacterController interface allows test mocking without the full CharacterController dependency chain
+---
+
+## 2026-03-12 - US-018
+- Created `client/src/components/3DGame/ScheduleExecutor.ts` — daily schedule execution engine
+- **Game clock system**: configurable real-to-game time ratio (default 1 real minute = 1 game hour), hour/minute tracking, midnight wraparound
+- **Schedule phase resolution**: default day-shift schedule (sleep→morning→commute→work→commute→evening), night-shift schedule, and custom TimeBlock-based routines from character.customData.routine
+- **Personality-modified times**: high conscientiousness = early riser (wake 05:00), low = night owl (sleep 23:00)
+- **Location resolution**: resolves 'home'/'work'/building IDs/location types to Vector3 positions via registered buildings and NPC home/work positions
+- **Movement dispatch**: issues `moveTo()` commands via NPCMovementController with speed appropriate to phase (walk for commute, stroll for leisure)
+- **Conversation interrupts**: `pauseForConversation()` suspends schedule, `resumeAfterConversation()` forces re-evaluation to catch up
+- **Schedule catch-up**: when NPC is late (e.g., just registered mid-day), skips directly to current phase instead of replaying past phases
+- **Staggered updates**: NPC evaluations spread across 10-frame window to avoid spike
+- **Night shift detection**: examines routine data for night working blocks
+- Created `server/__tests__/schedule-executor.test.ts` — 39 tests all passing
+- Files changed: ScheduleExecutor.ts (new), schedule-executor.test.ts (new)
+- **Learnings for future iterations:**
+  - Routine data lives in `character.customData.routine` as a `RoutineData` object with `routine.day[]` and `routine.night[]` TimeBlock arrays
+  - `buildingData` Map in BabylonGame stores `{ position: Vector3, metadata: any, mesh: Mesh }` keyed by business/residence ID — use metadata.buildingType for type lookups
+  - NPCInstance.characterData stores the full character object from the DB; personality is at `.personality.{openness,conscientiousness,extroversion,agreeableness,neuroticism}`
+  - Hour-range checks must handle midnight wrapping (e.g., 22-06): `hour >= start || hour < end` when `start > end`
+  - Staggered NPC evaluation uses `performance.now()` frame-slot modulo to spread work across 10 frames
+  - ScheduleExecutor is client-side only — it reads routine data that was set server-side via `setRoutine()` in `server/extensions/tott/routine-system.ts`
 ---
