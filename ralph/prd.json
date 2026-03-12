@@ -756,7 +756,7 @@
         "Unit test: metrics collection calculates percentiles correctly"
       ],
       "priority": 39,
-      "passes": false,
+      "passes": true,
       "notes": ""
     }
   ]

@@ -17,6 +17,7 @@ import { splitAtSentenceBoundaries, assignVoiceProfile, VOICE_PROFILES } from '.
 import type { IVisemeGenerator } from './viseme/viseme-generator.js';
 import type { VisemeQuality } from './viseme/viseme-generator.js';
 import { createVisemeGenerator } from './viseme/viseme-generator.js';
+import { PipelineTimer, getConversationMetrics } from './conversation-metrics.js';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -213,7 +214,15 @@ function createHandlers(options: GrpcServerOptions) {
     withAudio?: boolean,
   ) {
     const { text, sessionId, characterId, languageCode } = textInput;
+    const metrics = getConversationMetrics();
     const shouldSynthesizeAudio = (withAudio ?? enableAudioResponse) && ttsProvider !== null;
+    const e2eTimer = new PipelineTimer('end_to_end');
+
+    // Adaptive quality: degrade viseme/TTS quality when latency is high
+    let effectiveVisemeQuality = visemeQuality;
+    if (metrics.isDegraded) {
+      effectiveVisemeQuality = effectiveVisemeQuality === 'full' ? 'simplified' : effectiveVisemeQuality;
+    }
 
     // Get or create session
     let session = sessions.get(sessionId);
@@ -226,6 +235,7 @@ function createHandlers(options: GrpcServerOptions) {
     // Build context on first message or if character changed
     if (!session.conversationContext || session.characterId !== characterId) {
       session.characterId = characterId;
+      const ctxTimer = new PipelineTimer('context');
       try {
         const fullCtx = await buildContext(
           characterId,
@@ -241,6 +251,7 @@ function createHandlers(options: GrpcServerOptions) {
           characterName: characterId,
         };
       }
+      ctxTimer.stop();
     }
 
     // Send ACTIVE state
@@ -259,16 +270,31 @@ function createHandlers(options: GrpcServerOptions) {
     // TTS helper: synthesize a sentence and stream audio chunks + viseme data
     const synthesizeSentence = (sentence: string) => {
       if (!shouldSynthesizeAudio || !ttsProvider) return;
+      // Skip TTS entirely when adaptive quality degrades and latency is very high
+      if (metrics.isDegraded) {
+        const e2eStats = metrics.getStageStats('end_to_end');
+        if (e2eStats && e2eStats.p95 > 4000) return; // skip TTS if extremely slow
+      }
       const voice = getVoiceForSession(sessionId, characterId);
       const promise = (async () => {
+        const ttsTimer = new PipelineTimer('tts_total');
+        let firstChunkRecorded = false;
+        const ttsFirstChunkTimer = new PipelineTimer('tts_first_chunk');
         try {
           const audioChunks = ttsProvider.synthesize(sentence, voice, {
             languageCode: languageCode || undefined,
           });
           for await (const chunk of audioChunks) {
+            if (!firstChunkRecorded) {
+              ttsFirstChunkTimer.stop();
+              firstChunkRecorded = true;
+            }
+
             // Generate viseme data synchronized to audio chunk timing
-            if (visemeGen && visemeQuality !== 'disabled') {
-              const facialData = visemeGen.generateVisemes(sentence, chunk.durationMs, visemeQuality);
+            if (visemeGen && effectiveVisemeQuality !== 'disabled') {
+              const visemeTimer = new PipelineTimer('viseme');
+              const facialData = visemeGen.generateVisemes(sentence, chunk.durationMs, effectiveVisemeQuality);
+              visemeTimer.stop();
               if (facialData.visemes.length > 0) {
                 call.write({ facialData });
               }
@@ -286,9 +312,15 @@ function createHandlers(options: GrpcServerOptions) {
         } catch (err: any) {
           console.error('[gRPC] TTS synthesis error:', err.message);
         }
+        if (!firstChunkRecorded) ttsFirstChunkTimer.stop();
+        ttsTimer.stop();
       })();
       ttsPromises.push(promise);
     };
+
+    const llmTotalTimer = new PipelineTimer('llm_total');
+    const llmFirstTokenTimer = new PipelineTimer('llm_first_token');
+    let firstTokenRecorded = false;
 
     try {
       const tokens = provider.streamCompletion(text, session.conversationContext, {
@@ -297,6 +329,10 @@ function createHandlers(options: GrpcServerOptions) {
       });
 
       for await (const token of tokens) {
+        if (!firstTokenRecorded) {
+          llmFirstTokenTimer.stop();
+          firstTokenRecorded = true;
+        }
         fullResponse += token;
 
         // Stream text chunk immediately (text arrives before audio)
@@ -325,6 +361,8 @@ function createHandlers(options: GrpcServerOptions) {
     } catch (err: any) {
       console.error('[gRPC] LLM streaming error:', err.message);
     }
+    if (!firstTokenRecorded) llmFirstTokenTimer.stop();
+    llmTotalTimer.stop();
 
     // Synthesize any remaining text in the sentence buffer
     if (shouldSynthesizeAudio && sentenceBuffer.trim()) {
@@ -350,6 +388,8 @@ function createHandlers(options: GrpcServerOptions) {
     if (fullResponse) {
       addToHistory(session, 'assistant', fullResponse);
     }
+
+    e2eTimer.stop();
   }
 
   async function handleAudioChunkInput(
@@ -398,6 +438,7 @@ function createHandlers(options: GrpcServerOptions) {
       };
 
       // Transcribe
+      const sttTimer = new PipelineTimer('stt');
       let fullText = '';
       const transcriptionResults = stt.streamTranscription(audioStream, {
         languageCode: audioChunk.languageCode,
@@ -410,6 +451,7 @@ function createHandlers(options: GrpcServerOptions) {
           fullText = result.isFinal ? result.text : fullText + result.text;
         }
       }
+      sttTimer.stop();
 
       if (!fullText.trim()) {
         return;

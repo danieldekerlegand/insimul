@@ -22,6 +22,7 @@ import type { ITTSProvider, VoiceProfile } from './tts/tts-provider.js';
 import { splitAtSentenceBoundaries, assignVoiceProfile } from './tts/tts-provider.js';
 import type { IVisemeGenerator, VisemeQuality } from './viseme/viseme-generator.js';
 import { createVisemeGenerator } from './viseme/viseme-generator.js';
+import { PipelineTimer, getConversationMetrics } from './conversation-metrics.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -51,6 +52,9 @@ async function streamTextResponse(
   worldId: string,
   languageCode: string,
 ): Promise<void> {
+  const metrics = getConversationMetrics();
+  const e2eTimer = new PipelineTimer('end_to_end');
+
   // Get or create session
   let session = getSession(sessionId);
   if (!session) {
@@ -60,6 +64,7 @@ async function streamTextResponse(
   // Build context on first message
   if (!session.conversationContext || session.characterId !== characterId) {
     session.characterId = characterId;
+    const ctxTimer = new PipelineTimer('context');
     try {
       const fullCtx = await buildContext(characterId, session.playerId, worldId, sessionId);
       session.conversationContext = fullCtx.conversationContext;
@@ -69,6 +74,7 @@ async function streamTextResponse(
         characterName: characterId,
       };
     }
+    ctxTimer.stop();
   }
 
   // Add user message to history
@@ -105,20 +111,38 @@ async function streamTextResponse(
   let sentenceBuffer = '';
   const ttsPromises: Array<Promise<void>> = [];
 
+  // Adaptive quality: degrade viseme quality when latency is high
+  const effectiveVisemeQuality = metrics.isDegraded ? 'simplified' : 'full';
+
   const synthesizeSentence = (sentence: string) => {
     if (!ttsProvider) return;
+    // Skip TTS entirely when adaptive quality degrades and latency is very high
+    if (metrics.isDegraded) {
+      const e2eStats = metrics.getStageStats('end_to_end');
+      if (e2eStats && e2eStats.p95 > 4000) return;
+    }
     const voice: VoiceProfile = assignVoiceProfile({
       gender: (session as any)?.conversationContext?.characterGender,
     });
     const promise = (async () => {
+      const ttsTimer = new PipelineTimer('tts_total');
+      let firstChunkRecorded = false;
+      const ttsFirstChunkTimer = new PipelineTimer('tts_first_chunk');
       try {
         const audioChunks = ttsProvider!.synthesize(sentence, voice, {
           languageCode: languageCode || undefined,
         });
         for await (const chunk of audioChunks) {
+          if (!firstChunkRecorded) {
+            ttsFirstChunkTimer.stop();
+            firstChunkRecorded = true;
+          }
+
           // Send viseme data before audio
           if (visemeGen) {
-            const facialData = visemeGen.generateVisemes(sentence, chunk.durationMs, 'full');
+            const visemeTimer = new PipelineTimer('viseme');
+            const facialData = visemeGen.generateVisemes(sentence, chunk.durationMs, effectiveVisemeQuality as any);
+            visemeTimer.stop();
             if (facialData.visemes.length > 0) {
               sendSSE(res, { type: 'facial', visemes: facialData.visemes });
             }
@@ -137,9 +161,15 @@ async function streamTextResponse(
       } catch (err: any) {
         console.error('[ConversationBridge] TTS error:', err.message);
       }
+      if (!firstChunkRecorded) ttsFirstChunkTimer.stop();
+      ttsTimer.stop();
     })();
     ttsPromises.push(promise);
   };
+
+  const llmTotalTimer = new PipelineTimer('llm_total');
+  const llmFirstTokenTimer = new PipelineTimer('llm_first_token');
+  let firstTokenRecorded = false;
 
   try {
     const tokens = llmProvider.streamCompletion(text, session.conversationContext!, {
@@ -148,6 +178,10 @@ async function streamTextResponse(
     });
 
     for await (const token of tokens) {
+      if (!firstTokenRecorded) {
+        llmFirstTokenTimer.stop();
+        firstTokenRecorded = true;
+      }
       fullResponse += token;
 
       // Stream text chunk immediately
@@ -169,6 +203,8 @@ async function streamTextResponse(
     console.error('[ConversationBridge] LLM streaming error:', err.message);
     sendSSE(res, { type: 'error', message: 'LLM streaming failed' });
   }
+  if (!firstTokenRecorded) llmFirstTokenTimer.stop();
+  llmTotalTimer.stop();
 
   // Synthesize remaining text
   if (ttsProvider && sentenceBuffer.trim()) {
@@ -187,6 +223,8 @@ async function streamTextResponse(
   if (fullResponse) {
     addToHistory(session, 'assistant', fullResponse);
   }
+
+  e2eTimer.stop();
 
   res.write('data: [DONE]\n\n');
   res.end();
@@ -260,6 +298,7 @@ export function registerConversationRoutes(app: Express): void {
 
       // Transcribe audio
       let transcript = '';
+      const sttTimer = new PipelineTimer('stt');
       try {
         const { speechToText } = await import('../../services/tts-stt.js');
         const audioBuffer = audioFile.buffer || audioFile;
@@ -271,6 +310,8 @@ export function registerConversationRoutes(app: Express): void {
         res.end();
         return;
       }
+
+      sttTimer.stop();
 
       if (!transcript.trim()) {
         sendSSE(res, { type: 'error', message: 'No speech detected' });
@@ -304,6 +345,16 @@ export function registerConversationRoutes(app: Express): void {
       endSessionFn(sessionId);
     }
     res.json({ ok: true });
+  });
+
+  /**
+   * GET /api/metrics/conversation
+   * Returns latency percentiles (p50/p95/p99) for each pipeline stage
+   * over a rolling window of the last 100 conversations.
+   */
+  app.get('/api/metrics/conversation', (_req: Request, res: Response) => {
+    const metrics = getConversationMetrics();
+    res.json(metrics.getSnapshot());
   });
 
   /**
