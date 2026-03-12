@@ -103,6 +103,7 @@ import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts"
 import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
 import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
 import { GameEventBus } from "@/components/3DGame/GameEventBus.ts";
+import { BuildingCollisionSystem } from "@/components/3DGame/BuildingCollisionSystem.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 
 // Constants
@@ -378,6 +379,7 @@ export class BabylonGame {
   private settlementRoadMeshes: Mesh[] = [];
   private zoneBoundaryMeshes: Map<string, { boundary: Mesh | null; particles?: ParticleSystem | null; zoneRadius?: number; zoneColor?: Color3 }> = new Map();
   private buildingData: Map<string, { position: Vector3; metadata: any; mesh: Mesh }> = new Map();
+  private buildingCollisionSystem: BuildingCollisionSystem | null = null;
   private settlementStats: Map<string, {
     id: string;
     name: string;
@@ -704,6 +706,9 @@ export class BabylonGame {
     scene.clearColor = new Color4(0.75, 0.75, 0.75, 1);
     scene.ambientColor = new Color3(1, 1, 1);
     scene.collisionsEnabled = true;
+
+    // Initialize building collision system
+    this.buildingCollisionSystem = new BuildingCollisionSystem(scene);
 
     // Performance: skip unnecessary per-frame clears when sky dome covers background
     scene.autoClear = false;
@@ -2081,6 +2086,16 @@ export class BabylonGame {
             mesh: building
           });
 
+          // Generate wall collision meshes
+          this.buildingCollisionSystem?.generateCollision({
+            id: business.id,
+            position: building.position,
+            rotation: buildingSpec.rotation,
+            width: buildingSpec.width,
+            depth: buildingSpec.depth,
+            floors: buildingSpec.floors,
+          });
+
           // Register building for hover info display
           this.buildingInfoDisplay?.registerBuilding(building);
 
@@ -2150,6 +2165,16 @@ export class BabylonGame {
             position: building.position.clone(),
             metadata: building.metadata,
             mesh: building
+          });
+
+          // Generate wall collision meshes
+          this.buildingCollisionSystem?.generateCollision({
+            id: residence.id,
+            position: building.position,
+            rotation: buildingSpec.rotation,
+            width: buildingSpec.width,
+            depth: buildingSpec.depth,
+            floors: buildingSpec.floors,
           });
 
           // Register building for hover info display
@@ -2266,6 +2291,16 @@ export class BabylonGame {
               mesh: building
             });
 
+            // Generate wall collision meshes
+            this.buildingCollisionSystem?.generateCollision({
+              id: bizId,
+              position: building.position,
+              rotation: buildingSpec.rotation,
+              width: buildingSpec.width,
+              depth: buildingSpec.depth,
+              floors: buildingSpec.floors,
+            });
+
             this.buildingInfoDisplay?.registerBuilding(building);
             buildingIndex++;
           }
@@ -2313,6 +2348,16 @@ export class BabylonGame {
             occupants: []
           };
           building.isPickable = true;
+
+          // Generate wall collision meshes
+          this.buildingCollisionSystem?.generateCollision({
+            id: genericResId,
+            position: building.position,
+            rotation: buildingSpec.rotation,
+            width: buildingSpec.width,
+            depth: buildingSpec.depth,
+            floors: buildingSpec.floors,
+          });
 
           // Register building for hover info display
           this.buildingInfoDisplay?.registerBuilding(building);
@@ -7627,6 +7672,8 @@ export class BabylonGame {
     this.ambientConversationManager = null;
     this.npcTalkingIndicator?.dispose();
     this.npcTalkingIndicator = null;
+    this.buildingCollisionSystem?.dispose();
+    this.buildingCollisionSystem = null;
     this.buildingInfoDisplay?.dispose();
     this.minimap?.dispose();
     this.inventory?.dispose();
