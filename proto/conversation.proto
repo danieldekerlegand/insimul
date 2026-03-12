@@ -1,0 +1,126 @@
+syntax = "proto3";
+
+package insimul.conversation;
+
+// Bidirectional streaming conversation between player and NPC
+service InsimulConversation {
+  // Player-NPC conversation stream
+  rpc ConversationStream (stream ConversationRequest) returns (stream ConversationResponse);
+  // Autonomous NPC-NPC conversation stream
+  rpc NpcToNpcStream (NpcToNpcRequest) returns (stream ConversationResponse);
+  // Health check
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+message ConversationRequest {
+  oneof input {
+    TextInput text_input = 1;
+    AudioChunkInput audio_chunk = 2;
+    SystemCommand system_command = 3;
+  }
+}
+
+message TextInput {
+  string text = 1;
+  string session_id = 2;
+  string character_id = 3;
+  string language_code = 4;
+}
+
+message AudioChunkInput {
+  bytes data = 1;
+  AudioEncoding encoding = 2;
+  int32 sample_rate = 3;
+  string session_id = 4;
+  string character_id = 5;
+}
+
+message SystemCommand {
+  SystemCommandType type = 1;
+  string session_id = 2;
+  map<string, string> parameters = 3;
+}
+
+enum SystemCommandType {
+  SYSTEM_COMMAND_TYPE_UNSPECIFIED = 0;
+  END = 1;
+  PAUSE = 2;
+  RESUME = 3;
+}
+
+enum AudioEncoding {
+  AUDIO_ENCODING_UNSPECIFIED = 0;
+  PCM = 1;
+  OPUS = 2;
+  MP3 = 3;
+}
+
+message ConversationResponse {
+  oneof payload {
+    TextChunk text_chunk = 1;
+    AudioChunkOutput audio_chunk = 2;
+    FacialData facial_data = 3;
+    ActionTrigger action_trigger = 4;
+    ConversationMeta conversation_meta = 5;
+  }
+}
+
+message TextChunk {
+  string text = 1;
+  bool is_final = 2;
+  string language_code = 3;
+  string session_id = 4;
+}
+
+message AudioChunkOutput {
+  bytes data = 1;
+  AudioEncoding encoding = 2;
+  int32 sample_rate = 3;
+  int32 duration_ms = 4;
+}
+
+message FacialData {
+  repeated Viseme visemes = 1;
+}
+
+message Viseme {
+  string phoneme = 1;
+  float weight = 2;
+  int32 duration_ms = 3;
+}
+
+message ActionTrigger {
+  string action_type = 1;
+  string target_id = 2;
+  map<string, string> parameters = 3;
+}
+
+message ConversationMeta {
+  string session_id = 1;
+  ConversationState state = 2;
+}
+
+enum ConversationState {
+  CONVERSATION_STATE_UNSPECIFIED = 0;
+  STARTED = 1;
+  ACTIVE = 2;
+  PAUSED = 3;
+  ENDED = 4;
+}
+
+// NPC-to-NPC conversation request
+message NpcToNpcRequest {
+  string npc1_id = 1;
+  string npc2_id = 2;
+  string world_id = 3;
+  string topic = 4;
+  string language_code = 5;
+}
+
+// Health check
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool healthy = 1;
+  string version = 2;
+}
