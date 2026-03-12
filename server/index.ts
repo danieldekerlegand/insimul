@@ -503,16 +503,21 @@ process.on('unhandledRejection', async (reason, promise) => {
       serveStatic(app);
     }
 
+    // Start gRPC conversation server (non-blocking — failure doesn't prevent HTTP startup)
+    import('./services/conversation/grpc-server.js')
+      .then(({ startGrpcServer }) => startGrpcServer())
+      .catch((err) => console.warn('[gRPC] Conversation server failed to start:', err.message));
+
     // Start server
     const port = parseInt(process.env.PORT || '8000', 10);
     server.listen(port, "0.0.0.0", () => {
       console.log(`\n🎮 Insimul Server running on port ${port}`);
       console.log(`   Health check: http://localhost:${port}/health`);
-      
+
       if (activeWorldId) {
         console.log(`\n🌍 Active World ID: ${activeWorldId}`);
       }
-      
+
       logEndpoints(app, port);
     });
     
