@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,8 @@ import { QuestCreateDialog } from '../QuestCreateDialog';
 import { PredicatePalette } from '../prolog/PredicatePalette';
 import { PrologQueryTester } from '../prolog/PrologQueryTester';
 import { PrologSyntaxHighlight } from '../prolog/PrologSyntaxHighlight';
+import { ContentValidationIndicator } from '../prolog/ContentValidationIndicator';
+import { validateQuestContent } from '@shared/prolog/content-validators';
 
 interface Quest {
   id: string;
@@ -118,6 +120,12 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
     if (!questGroups[key]) questGroups[key] = [];
     questGroups[key].push(q);
   });
+
+  // Validation of current content
+  const questValidation = useMemo(() => {
+    if (!selectedQuest?.content) return null;
+    return validateQuestContent(selectedQuest.content);
+  }, [selectedQuest?.content]);
 
   // Render progress bar helper
   const renderProgressBar = (current: number, total: number) => (
@@ -250,6 +258,17 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
                   </div>
                 )}
               </div>
+
+              {/* Prolog Content Validation */}
+              {questValidation && (
+                <div className="px-4 pb-2 shrink-0">
+                  <ContentValidationIndicator
+                    validationResult={questValidation}
+                    label="Prolog Validation"
+                    defaultCollapsed={true}
+                  />
+                </div>
+              )}
             </ScrollArea>
           </>
         ) : (

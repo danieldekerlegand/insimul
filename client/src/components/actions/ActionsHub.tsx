@@ -13,6 +13,8 @@ import { ActionEditDialog } from '../ActionEditDialog';
 import { PredicatePalette } from '../prolog/PredicatePalette';
 import { PrologQueryTester } from '../prolog/PrologQueryTester';
 import { PrologSyntaxHighlight } from '../prolog/PrologSyntaxHighlight';
+import { ContentValidationIndicator } from '../prolog/ContentValidationIndicator';
+import { validateActionContent } from '@shared/prolog/content-validators';
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -235,6 +237,12 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
     }
   };
 
+  // Validation of current content
+  const actionValidation = useMemo(() => {
+    if (!selectedAction?.content) return null;
+    return validateActionContent(selectedAction.content);
+  }, [selectedAction?.content]);
+
   const isBase = selectedAction ? baseActions.some(a => a.id === selectedAction.id) : false;
   const isEnabled = selectedAction ? enabledBaseActionIds.includes(selectedAction.id) : false;
 
@@ -436,6 +444,17 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
                   )}
                 </div>
               </ScrollArea>
+
+              {/* Prolog Content Validation */}
+              {actionValidation && (
+                <div className="px-4 pb-2 shrink-0">
+                  <ContentValidationIndicator
+                    validationResult={actionValidation}
+                    label="Prolog Validation"
+                    defaultCollapsed={true}
+                  />
+                </div>
+              )}
             </div>
           </>
         ) : (
