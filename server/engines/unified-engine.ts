@@ -1,6 +1,7 @@
 import { type Rule, type Grammar, type Character, type World, type InsertTruth } from "@shared/schema";
 import { type IStorage } from "../db/storage";
 import { TraceryService } from "../services/tracery-service";
+import { getWorldTypeDefaults, type WorldTypeRates } from "./world-type-defaults.js";
 
 /**
  * Effect types that can be generated from rule execution
@@ -93,6 +94,52 @@ export interface SimulationContext {
   ruleExecutionSequence: RuleExecutionRecord[];
   currentRuleExecution: RuleExecutionRecord | null; // Track current rule being executed
   variables: Record<string, any>;
+}
+
+/**
+ * Configuration for a simulation run.
+ */
+export interface SimulationConfig {
+  /**
+   * 'lo-fi' skips observation, routines, and detailed social dynamics.
+   * 'hi-fi' activates all TotT subsystems every timestep.
+   */
+  simulationMode: 'lo-fi' | 'hi-fi';
+
+  /** Number of timesteps to run (default 1) */
+  steps?: number;
+
+  /** Override world-type rate table (merged with world-type defaults) */
+  rateOverrides?: Partial<WorldTypeRates>;
+}
+
+/**
+ * Result of a hi-fi simulation run across multiple timesteps.
+ */
+export interface HiFiSimulationResult {
+  /** Per-step results */
+  stepResults: SimulationStepResult[];
+
+  /** Aggregate stats */
+  totalObservations: number;
+  totalSocializations: number;
+  totalLifeEvents: {
+    marriages: number;
+    conceptions: number;
+    births: number;
+    divorces: number;
+    deaths: number;
+  };
+  totalGriefInitiated: number;
+  totalConstructionUpdates: number;
+  totalKnowledgePropagations: number;
+  totalRandomTownEvents: number;
+
+  /** The resolved rate table used for this run */
+  rates: WorldTypeRates;
+
+  success: boolean;
+  error?: string;
 }
 
 /**
@@ -256,7 +303,7 @@ export class InsimulSimulationEngine {
 
       // Convert Insimul rules to Prolog format and add to knowledge base
       const compiler = new InsimulRuleCompiler();
-      for (const [ruleId, rule] of this.rules) {
+      for (const [ruleId, rule] of Array.from(this.rules)) {
         try {
           // Compile rule to Insimul format first
           const insimulRules = compiler.compile(rule.content, 'insimul');
@@ -275,7 +322,7 @@ export class InsimulSimulationEngine {
 
       // Query Prolog for triggered rules
       // For now, we execute all rules that have conditions satisfied
-      for (const [ruleId, rule] of this.rules) {
+      for (const [ruleId, rule] of Array.from(this.rules)) {
         await this.startRuleExecution(ruleId, rule);
         
         // Try to execute rule effects from parsedContent (legacy) or let Prolog handle them
@@ -612,9 +659,9 @@ export class InsimulSimulationEngine {
         attributes: {
           firstName: character.firstName,
           lastName: character.lastName,
-          birthYear: character.birthYear,
+          birthYear: character.birthYear ?? 0,
           gender: character.gender,
-          isAlive: character.isAlive,
+          isAlive: character.isAlive ?? true,
           occupation: character.occupation || null,
           currentLocation: character.currentLocation || null,
           status: character.status || 'active'
@@ -644,7 +691,7 @@ export class InsimulSimulationEngine {
   private async startRuleExecution(ruleId: string, rule: Rule): Promise<void> {
     if (!this.context) return;
 
-    const parsedContent = rule.parsedContent as any;
+    const parsedContent = (rule as any).parsedContent;
 
     this.context.currentRuleExecution = {
       timestep: this.context.currentTimestep,
@@ -761,6 +808,457 @@ export class InsimulSimulationEngine {
       changed: changes.length > 0,
       changes
     };
+  }
+
+  /**
+   * Resolve the effective rate table for a world, merging world-type defaults
+   * with any user-supplied overrides.
+   */
+  private resolveRates(world: World, overrides?: Partial<WorldTypeRates>): WorldTypeRates {
+    const base = getWorldTypeDefaults((world as any).worldType);
+    if (!overrides) return base;
+    return { ...base, ...overrides };
+  }
+
+  /**
+   * US-D.01: Lo-Fi Simulation Mode
+   *
+   * Fast 140-year historical compression. Samples a fraction of timesteps
+   * (default 3.6% per TotT) and only runs lightweight demographic systems:
+   * life events, economics, construction — no routines, observation, or
+   * social dynamics.  Target: 140 years in < 30 seconds.
+   */
+  async simulateLoFi(
+    worldId: string,
+    simulationId: string,
+    config: SimulationConfig & { samplingRate?: number }
+  ): Promise<HiFiSimulationResult> {
+    const DAYS_PER_YEAR = 365;
+    const years = config.steps ?? 140;
+    const totalDays = years * DAYS_PER_YEAR;
+    const samplingRate = (config as any).samplingRate ?? 3.6; // percent
+    const sampleEvery = Math.max(1, Math.round(100 / samplingRate));
+
+    const totalLifeEvents = { marriages: 0, conceptions: 0, births: 0, divorces: 0, deaths: 0 };
+    let totalConstructionUpdates = 0;
+    let totalRandomTownEvents = 0;
+    const stepResults: SimulationStepResult[] = [];
+
+    try {
+      if (!this.context || this.context.worldId !== worldId) {
+        await this.loadRules(worldId);
+        await this.loadGrammars(worldId);
+        await this.initializeContext(worldId, simulationId);
+      }
+      if (!this.context) throw new Error('Failed to initialize simulation context');
+
+      const rates = this.resolveRates(this.context.world, config.rateOverrides);
+
+      // Lazy-import only the lightweight systems needed for lo-fi
+      const [
+        { executeSimulationTimestep },
+        { calculateDeathProbability, die },
+        { processDeathGrief, updateGrief },
+        { processAllConstructions },
+        { checkRandomEvents },
+        { updateAppearanceForAge },
+      ] = await Promise.all([
+        import('../extensions/tott/autonomous-behavior-system.js'),
+        import('../extensions/tott/lifecycle-system.js'),
+        import('../extensions/tott/grieving-system.js'),
+        import('../extensions/tott/building-commission-system.js'),
+        import('../extensions/tott/town-events-system.js'),
+        import('../extensions/tott/appearance-system.js'),
+      ]);
+
+      for (let day = 0; day < totalDays; day++) {
+        this.context.currentTimestep++;
+        const ts = this.context.currentTimestep;
+
+        // Only sample a fraction of timesteps for detailed processing
+        if (day % sampleEvery !== 0) continue;
+
+        const hour = ts % 24;
+        const timeOfDay: 'day' | 'night' = (hour >= 6 && hour < 22) ? 'day' : 'night';
+
+        // Core life events (marriage, reproduction, birth, divorce)
+        try {
+          const simResult: any = await executeSimulationTimestep(worldId, ts, timeOfDay, hour);
+          if (simResult.lifeEvents) {
+            totalLifeEvents.marriages += (simResult.lifeEvents.marriages?.length ?? 0);
+            totalLifeEvents.conceptions += (simResult.lifeEvents.conceptions?.length ?? 0);
+            totalLifeEvents.births += (simResult.lifeEvents.births?.length ?? 0);
+            totalLifeEvents.divorces += (simResult.lifeEvents.divorces?.length ?? 0);
+          }
+        } catch { /* skip */ }
+
+        // Death checks
+        try {
+          const characters = await this.storage.getCharactersByWorld(worldId);
+          for (const character of characters) {
+            if (!character.isAlive) continue;
+            const age = (character as any).customData?.age ?? 0;
+            const baseProb = calculateDeathProbability(age);
+            // Scale probability by sample interval so aggregate rate is correct
+            const adjustedProb = baseProb * rates.deathRateMultiplier * sampleEvery;
+            if (Math.random() < adjustedProb) {
+              await die(character.id, 'old_age' as any, character.currentLocation || 'unknown', ts);
+              totalLifeEvents.deaths++;
+              try { await processDeathGrief(character.id, worldId, ts); } catch { /* skip */ }
+            }
+          }
+        } catch { /* skip */ }
+
+        // Grief updates (batched)
+        try {
+          const characters = await this.storage.getCharactersByWorld(worldId);
+          for (const c of characters) await updateGrief(c.id, ts);
+        } catch { /* skip */ }
+
+        // Construction progress
+        try {
+          const r = await processAllConstructions(worldId, ts);
+          totalConstructionUpdates += (r as any)?.processed ?? 0;
+        } catch { /* skip */ }
+
+        // Town events (less frequent in lo-fi)
+        if (day % (sampleEvery * 10) === 0) {
+          try {
+            const evts = await checkRandomEvents(worldId, ts);
+            totalRandomTownEvents += evts.length;
+          } catch { /* skip */ }
+        }
+
+        // Appearance aging (once per simulated year)
+        if (day % DAYS_PER_YEAR === 0) {
+          try {
+            const characters = await this.storage.getCharactersByWorld(worldId);
+            for (const c of characters) {
+              const appearance = (c as any).customData?.appearance;
+              if (appearance) updateAppearanceForAge(appearance, (c as any).customData?.age ?? 0);
+            }
+          } catch { /* skip */ }
+        }
+      }
+
+      return {
+        stepResults,
+        totalObservations: 0,
+        totalSocializations: 0,
+        totalLifeEvents,
+        totalGriefInitiated: 0,
+        totalConstructionUpdates,
+        totalKnowledgePropagations: 0,
+        totalRandomTownEvents,
+        rates,
+        success: true,
+      };
+    } catch (error) {
+      return {
+        stepResults: [],
+        totalObservations: 0,
+        totalSocializations: 0,
+        totalLifeEvents: { marriages: 0, conceptions: 0, births: 0, divorces: 0, deaths: 0 },
+        totalGriefInitiated: 0,
+        totalConstructionUpdates: 0,
+        totalKnowledgePropagations: 0,
+        totalRandomTownEvents: 0,
+        rates: this.resolveRates(this.context?.world ?? {} as World, config.rateOverrides),
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * US-D.01: Hi-Fi Simulation Mode
+   *
+   * Runs the full simulation with ALL Talk of the Town subsystems active:
+   *   1. Routines & whereabouts
+   *   2. Observation (characters perceive surroundings)
+   *   3. Socializing (conversations, charge/spark/trust updates)
+   *   4. Knowledge propagation & decay
+   *   5. Mental model deterioration
+   *   6. Life events (marriage, reproduction, birth, divorce)
+   *   7. Death checks & grieving
+   *   8. Economics (salary payments, market updates)
+   *   9. Hiring & business dynamics
+   *  10. Education progress
+   *  11. Construction progress
+   *  12. Town events & random events
+   *  13. Drama recognition
+   *  14. Appearance aging
+   *  15. Artifact aging
+   *  16. Salience decay
+   *  17. Prolog rule execution (same as executeStep)
+   *
+   * @param worldId       The world to simulate
+   * @param simulationId  Unique identifier for this simulation run
+   * @param config        Simulation configuration
+   */
+  async simulateHiFi(
+    worldId: string,
+    simulationId: string,
+    config: SimulationConfig
+  ): Promise<HiFiSimulationResult> {
+    const steps = config.steps ?? 1;
+
+    // Aggregate counters
+    let totalObservations = 0;
+    let totalSocializations = 0;
+    const totalLifeEvents = { marriages: 0, conceptions: 0, births: 0, divorces: 0, deaths: 0 };
+    let totalGriefInitiated = 0;
+    let totalConstructionUpdates = 0;
+    let totalKnowledgePropagations = 0;
+    let totalRandomTownEvents = 0;
+    const stepResults: SimulationStepResult[] = [];
+
+    try {
+      // Initialize context if needed
+      if (!this.context || this.context.worldId !== worldId) {
+        await this.loadRules(worldId);
+        await this.loadGrammars(worldId);
+        await this.initializeContext(worldId, simulationId);
+      }
+
+      if (!this.context) {
+        throw new Error('Failed to initialize simulation context');
+      }
+
+      const rates = this.resolveRates(this.context.world, config.rateOverrides);
+
+      // Lazy-import all TotT modules so we don't pay the cost if hi-fi is never used
+      const [
+        { updateAllWhereabouts },
+        { executeSimulationTimestep, checkForMarriageProposals, checkForReproduction, checkForBirths, checkForDivorces, updateDynamicTracking },
+        { propagateAllKnowledge },
+        { decaySalience },
+        { calculateDeathProbability, die },
+        { processDeathGrief, updateGrief },
+        { paySalaries },
+        { processAllConstructions },
+        { checkRandomEvents, decayMorale },
+        { excavateDrama },
+        { updateAppearanceForAge },
+        { ageArtifact, getArtifactsByWorld },
+        { updateStudentProgress },
+      ] = await Promise.all([
+        import('../extensions/tott/routine-system.js'),
+        import('../extensions/tott/autonomous-behavior-system.js'),
+        import('../extensions/tott/knowledge-system.js'),
+        import('../extensions/tott/social-dynamics-system.js'),
+        import('../extensions/tott/lifecycle-system.js'),
+        import('../extensions/tott/grieving-system.js'),
+        import('../extensions/tott/economics-system.js'),
+        import('../extensions/tott/building-commission-system.js'),
+        import('../extensions/tott/town-events-system.js'),
+        import('../extensions/tott/drama-recognition-system.js'),
+        import('../extensions/tott/appearance-system.js'),
+        import('../extensions/tott/artifact-system.js'),
+        import('../extensions/tott/education-system.js'),
+      ]);
+
+      for (let step = 0; step < steps; step++) {
+        this.context.currentTimestep++;
+        const ts = this.context.currentTimestep;
+        // Simple hour/time-of-day derivation (cycle through 24h)
+        const hour = ts % 24;
+        const timeOfDay: 'day' | 'night' = (hour >= 6 && hour < 22) ? 'day' : 'night';
+
+        // ── 1. Routines & whereabouts ──────────────────────────────────
+        try {
+          await updateAllWhereabouts(worldId, ts, timeOfDay, hour);
+        } catch (err) {
+          console.warn(`[hi-fi] routines error at step ${ts}:`, err);
+        }
+
+        // ── 2-4. Observation, Socializing, Life events (via executeSimulationTimestep) ─
+        try {
+          const simResult: any = await executeSimulationTimestep(worldId, ts, timeOfDay, hour);
+          totalObservations += (simResult.observations?.length ?? 0);
+          totalSocializations += (simResult.socializations?.length ?? 0);
+          if (simResult.lifeEvents) {
+            totalLifeEvents.marriages += (simResult.lifeEvents.marriages?.length ?? 0);
+            totalLifeEvents.conceptions += (simResult.lifeEvents.conceptions?.length ?? 0);
+            totalLifeEvents.births += (simResult.lifeEvents.births?.length ?? 0);
+            totalLifeEvents.divorces += (simResult.lifeEvents.divorces?.length ?? 0);
+          }
+        } catch (err) {
+          console.warn(`[hi-fi] core sim step error at step ${ts}:`, err);
+        }
+
+        // ── 5. Knowledge propagation (between co-located characters) ──
+        try {
+          const characters = await this.storage.getCharactersByWorld(worldId);
+          // Group characters by location for knowledge exchange
+          const byLocation = new Map<string, typeof characters>();
+          for (const c of characters) {
+            const loc = c.currentLocation || 'unknown';
+            if (!byLocation.has(loc)) byLocation.set(loc, []);
+            byLocation.get(loc)!.push(c);
+          }
+          for (const [, group] of Array.from(byLocation.entries())) {
+            for (let i = 0; i < group.length; i++) {
+              for (let j = i + 1; j < group.length; j++) {
+                await propagateAllKnowledge(group[i].id, group[j].id, ts);
+                totalKnowledgePropagations++;
+              }
+            }
+          }
+        } catch (err) {
+          console.warn(`[hi-fi] knowledge propagation error at step ${ts}:`, err);
+        }
+
+        // ── 6. Salience decay (mental model deterioration) ─────────────
+        try {
+          const characters = await this.storage.getCharactersByWorld(worldId);
+          for (const character of characters) {
+            await decaySalience(character.id);
+          }
+        } catch (err) {
+          console.warn(`[hi-fi] salience decay error at step ${ts}:`, err);
+        }
+
+        // ── 7. Death checks ────────────────────────────────────────────
+        try {
+          const characters = await this.storage.getCharactersByWorld(worldId);
+          for (const character of characters) {
+            if (!character.isAlive) continue;
+            const age = (character as any).customData?.age ?? 0;
+            const baseProb = calculateDeathProbability(age);
+            const adjustedProb = baseProb * rates.deathRateMultiplier;
+            if (Math.random() < adjustedProb) {
+              await die(character.id, 'old_age' as any, character.currentLocation || 'unknown', ts);
+              totalLifeEvents.deaths++;
+              // Trigger grief for related characters
+              try {
+                await processDeathGrief(character.id, worldId, ts);
+                totalGriefInitiated++;
+              } catch (griefErr) {
+                console.warn(`[hi-fi] grief error for ${character.id}:`, griefErr);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn(`[hi-fi] death check error at step ${ts}:`, err);
+        }
+
+        // ── 8. Grief updates ───────────────────────────────────────────
+        try {
+          const characters = await this.storage.getCharactersByWorld(worldId);
+          for (const character of characters) {
+            await updateGrief(character.id, ts);
+          }
+        } catch (err) {
+          console.warn(`[hi-fi] grief update error at step ${ts}:`, err);
+        }
+
+        // ── 9. Economics: salary payments (once per "month" = every 30 steps)
+        if (ts % 30 === 0) {
+          try {
+            await paySalaries(worldId, ts);
+          } catch (err) {
+            console.warn(`[hi-fi] salary payment error at step ${ts}:`, err);
+          }
+        }
+
+        // ── 10. Education progress ─────────────────────────────────────
+        try {
+          const characters = await this.storage.getCharactersByWorld(worldId);
+          for (const character of characters) {
+            await updateStudentProgress(character.id, ts);
+          }
+        } catch (err) {
+          console.warn(`[hi-fi] education error at step ${ts}:`, err);
+        }
+
+        // ── 11. Construction progress ──────────────────────────────────
+        try {
+          const constructionResult = await processAllConstructions(worldId, ts);
+          totalConstructionUpdates += (constructionResult as any)?.processed ?? 0;
+        } catch (err) {
+          console.warn(`[hi-fi] construction error at step ${ts}:`, err);
+        }
+
+        // ── 12. Town events & morale decay ─────────────────────────────
+        try {
+          const randomEvents = await checkRandomEvents(worldId, ts);
+          totalRandomTownEvents += randomEvents.length;
+          await decayMorale(worldId);
+        } catch (err) {
+          console.warn(`[hi-fi] town events error at step ${ts}:`, err);
+        }
+
+        // ── 13. Appearance aging (once per "year" = every 365 steps) ───
+        if (ts % 365 === 0) {
+          try {
+            const characters = await this.storage.getCharactersByWorld(worldId);
+            for (const character of characters) {
+              const appearance = (character as any).customData?.appearance;
+              if (appearance) {
+                const age = (character as any).customData?.age ?? 0;
+                updateAppearanceForAge(appearance, age);
+              }
+            }
+          } catch (err) {
+            console.warn(`[hi-fi] appearance aging error at step ${ts}:`, err);
+          }
+        }
+
+        // ── 14. Artifact aging (once per "year") ───────────────────────
+        if (ts % 365 === 0) {
+          try {
+            const artifacts = await getArtifactsByWorld(worldId);
+            for (const artifact of artifacts) {
+              await ageArtifact(artifact.id, 1);
+            }
+          } catch (err) {
+            console.warn(`[hi-fi] artifact aging error at step ${ts}:`, err);
+          }
+        }
+
+        // ── 15. Prolog rule execution (same as standard executeStep) ───
+        const prologResult = await this.executePrologStep();
+        stepResults.push(prologResult);
+
+        // Capture character snapshots
+        await this.captureCharacterSnapshots(ts);
+      }
+
+      // ── 16. Drama recognition (once at end of run) ─────────────────
+      try {
+        await excavateDrama(worldId);
+      } catch (err) {
+        console.warn(`[hi-fi] drama recognition error:`, err);
+      }
+
+      return {
+        stepResults,
+        totalObservations,
+        totalSocializations,
+        totalLifeEvents,
+        totalGriefInitiated,
+        totalConstructionUpdates,
+        totalKnowledgePropagations,
+        totalRandomTownEvents,
+        rates,
+        success: true,
+      };
+    } catch (error) {
+      return {
+        stepResults,
+        totalObservations,
+        totalSocializations,
+        totalLifeEvents,
+        totalGriefInitiated,
+        totalConstructionUpdates,
+        totalKnowledgePropagations,
+        totalRandomTownEvents,
+        rates: getWorldTypeDefaults(null),
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   /**
