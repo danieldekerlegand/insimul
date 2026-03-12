@@ -11,6 +11,7 @@ import { getProvider } from './providers/provider-registry.js';
 import { buildContext } from './context-manager.js';
 import type { ContextManagerStorage } from './context-manager.js';
 import type { IStreamingLLMProvider, ConversationContext } from './providers/llm-provider.js';
+import type { ISTTProvider, AudioStreamChunk } from './stt/stt-provider.js';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -29,6 +30,7 @@ export interface SessionState {
 export interface GrpcServerOptions {
   port?: number;
   llmProvider?: IStreamingLLMProvider;
+  sttProvider?: ISTTProvider;
   storageOverride?: ContextManagerStorage;
 }
 
@@ -98,17 +100,22 @@ function addToHistory(
 
 function createHandlers(options: GrpcServerOptions) {
   const llmProvider = options.llmProvider ?? getProvider();
+  const sttProvider = options.sttProvider ?? null;
   const storageOverride = options.storageOverride;
+
+  // Per-stream audio buffer for collecting audio chunks until stream ends
+  const audioBuffers = new Map<string, AudioStreamChunk[]>();
 
   async function handleConversationStream(call: grpc.ServerDuplexStream<any, any>) {
     call.on('data', async (request: any) => {
       try {
         if (request.textInput) {
           await handleTextInput(call, request.textInput, llmProvider, storageOverride);
+        } else if (request.audioChunk) {
+          await handleAudioChunkInput(call, request.audioChunk, llmProvider, sttProvider, storageOverride);
         } else if (request.systemCommand) {
           handleSystemCommand(call, request.systemCommand);
         }
-        // AudioChunk handled in US-010
       } catch (err: any) {
         console.error('[gRPC] ConversationStream error:', err.message);
         call.write({
@@ -214,6 +221,79 @@ function createHandlers(options: GrpcServerOptions) {
     // Store assistant response in history
     if (fullResponse) {
       addToHistory(session, 'assistant', fullResponse);
+    }
+  }
+
+  async function handleAudioChunkInput(
+    call: grpc.ServerDuplexStream<any, any>,
+    audioChunk: any,
+    provider: IStreamingLLMProvider,
+    stt: ISTTProvider | null,
+    ctxStorage?: ContextManagerStorage,
+  ) {
+    if (!stt) {
+      call.write({
+        conversationMeta: {
+          sessionId: audioChunk.sessionId ?? '',
+          state: 'ENDED',
+        },
+      });
+      return;
+    }
+
+    const { sessionId, characterId, encoding, sampleRate, data } = audioChunk;
+
+    // Buffer audio chunk
+    const bufferKey = sessionId ?? 'default';
+    if (!audioBuffers.has(bufferKey)) {
+      audioBuffers.set(bufferKey, []);
+    }
+    audioBuffers.get(bufferKey)!.push({
+      data: data instanceof Uint8Array ? data : new Uint8Array(data),
+      encoding: encoding ?? 1,
+      sampleRate: sampleRate ?? 16000,
+    });
+
+    // If data is empty, it signals end-of-audio — process the buffered audio
+    if (!data || data.length === 0) {
+      const chunks = audioBuffers.get(bufferKey) ?? [];
+      audioBuffers.delete(bufferKey);
+
+      // Create async iterable from buffered chunks (exclude the empty terminator)
+      const audioChunks = chunks.filter((c) => c.data.length > 0);
+      const audioStream: AsyncIterable<AudioStreamChunk> = {
+        async *[Symbol.asyncIterator]() {
+          for (const chunk of audioChunks) {
+            yield chunk;
+          }
+        },
+      };
+
+      // Transcribe
+      let fullText = '';
+      const transcriptionResults = stt.streamTranscription(audioStream, {
+        languageCode: audioChunk.languageCode,
+        sampleRate: sampleRate ?? 16000,
+        encoding: encoding ?? 1,
+      });
+
+      for await (const result of transcriptionResults) {
+        if (result.text) {
+          fullText = result.isFinal ? result.text : fullText + result.text;
+        }
+      }
+
+      if (!fullText.trim()) {
+        return;
+      }
+
+      // Feed transcribed text through the normal text pipeline
+      await handleTextInput(call, {
+        text: fullText.trim(),
+        sessionId,
+        characterId,
+        languageCode: audioChunk.languageCode ?? 'en',
+      }, provider, ctxStorage);
     }
   }
 
