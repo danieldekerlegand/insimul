@@ -18,6 +18,11 @@ import { buildGreeting, buildLanguageAwareSystemPrompt, buildWorldLanguageContex
 import type { WorldLanguageContext } from "@shared/language-utils";
 import { LanguageProgressTracker } from "./LanguageProgressTracker";
 import { scorePronunciation, formatPronunciationFeedback } from "@shared/pronunciation-scoring";
+import { ConversationClient } from "./ConversationClient";
+import type { ConversationState } from "./ConversationClient";
+import { StreamingAudioPlayer } from "./StreamingAudioPlayer";
+import type { StreamingAudioChunk } from "./StreamingAudioPlayer";
+import { LipSyncController } from "./LipSyncController";
 
 interface Message {
   role: 'user' | 'assistant';
@@ -106,6 +111,14 @@ export class BabylonChatPanel {
   private isRecording = false;
   private isSpeaking = false;
 
+  // gRPC streaming conversation service
+  private conversationClient: ConversationClient | null = null;
+  private streamingAudioPlayer: StreamingAudioPlayer | null = null;
+  private lipSyncController: LipSyncController | null = null;
+  private _grpcAvailable: boolean | null = null; // null = unchecked
+  private _conversationState: ConversationState = 'idle';
+  private _stateIndicator: TextBlock | null = null;
+
   // Dialogue Actions
   private dialogueActions: BabylonDialogueActions | null = null;
   private actionsContainer: Container | null = null;
@@ -157,10 +170,13 @@ export class BabylonChatPanel {
     this.truths = truths;
     this.npcMesh = npcMesh || null;
     this.isVisible = true;
-    
+
     // Clear previous messages for new conversation
     this.messages = [];
     console.log('[ChatPanel] Cleared previous messages');
+
+    // Initialize streaming conversation client
+    this.initConversationClient(character, npcMesh);
 
     // Notify that conversation started with this NPC (for quest tracking)
     if (this.onNPCConversationStarted) {
@@ -220,6 +236,83 @@ export class BabylonChatPanel {
     }
   }
 
+  /**
+   * Initialize the gRPC streaming conversation client, audio player, and lip sync.
+   * Falls back to direct Gemini API if conversation service is unavailable.
+   */
+  private initConversationClient(character: Character, npcMesh?: Mesh): void {
+    // Dispose previous instances
+    this.streamingAudioPlayer?.dispose();
+    this.lipSyncController?.dispose();
+
+    // Create conversation client (reuses session across same character)
+    if (!this.conversationClient) {
+      this.conversationClient = new ConversationClient();
+    }
+    this.conversationClient.setCharacter(character.id, character.worldId);
+
+    // Set up streaming audio player
+    this.streamingAudioPlayer = new StreamingAudioPlayer({
+      preBufferCount: 2,
+      npcPosition: npcMesh ? npcMesh.position : undefined,
+      maxDistance: 50,
+    });
+    this.streamingAudioPlayer.setCallbacks({
+      onStart: () => {
+        this.isSpeaking = true;
+        if (this.talkingIndicator && this.character && this.npcMesh) {
+          this.talkingIndicator.show(this.character.id, this.npcMesh);
+        }
+        this.updateConversationStateIndicator('speaking');
+      },
+      onComplete: () => {
+        this.isSpeaking = false;
+        if (this.talkingIndicator && this.character) {
+          this.talkingIndicator.hide(this.character.id);
+        }
+        this.updateConversationStateIndicator('idle');
+      },
+    });
+
+    // Set up lip sync controller
+    if (npcMesh) {
+      this.lipSyncController = new LipSyncController(this.scene, npcMesh);
+      this.lipSyncController.setAudioPlayer(this.streamingAudioPlayer);
+    }
+
+    // Wire conversation client callbacks
+    this.conversationClient.setCallbacks({
+      onTextChunk: (_text: string, _isFinal: boolean) => {
+        // Text handled directly in sendMessageViaGrpc
+      },
+      onAudioChunk: (chunk) => {
+        if (this.streamingAudioPlayer) {
+          this.streamingAudioPlayer.pushChunk(chunk as StreamingAudioChunk);
+        }
+      },
+      onFacialData: (data) => {
+        if (this.lipSyncController) {
+          this.lipSyncController.pushFacialData(data);
+        }
+      },
+      onStateChange: (state) => {
+        this._conversationState = state;
+        this.updateConversationStateIndicator(state);
+      },
+      onError: (err) => {
+        console.error('[ChatPanel] Conversation client error:', err);
+      },
+    });
+
+    // Check availability asynchronously (cache result)
+    if (this._grpcAvailable === null) {
+      this.conversationClient.isAvailable().then((available) => {
+        this._grpcAvailable = available;
+        console.log('[ChatPanel] Conversation streaming service:', available ? 'available' : 'unavailable (fallback to Gemini)');
+      });
+    }
+  }
+
   private handleResize() {
     if (this.chatContainer && this.isVisible) {
       console.log('[ChatPanel] Handling resize, refreshing GUI');
@@ -260,7 +353,13 @@ export class BabylonChatPanel {
       this.talkingIndicator.hide(this.character.id);
     }
     this.stopAllAudio();
-    
+
+    // Stop streaming audio and lip sync
+    this.streamingAudioPlayer?.stop();
+    this.lipSyncController?.stop();
+    this.conversationClient?.abort();
+    this.updateConversationStateIndicator('idle');
+
     // Only call onClose if user-initiated
     if (userInitiated) {
       console.log('[ChatPanel] Calling onClose callback');
@@ -389,6 +488,20 @@ export class BabylonChatPanel {
     this.titleText.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
     this.titleText.name = "chatTitle";
     header.addControl(this.titleText);
+
+    // Conversation state indicator (thinking/speaking/listening)
+    this._stateIndicator = new TextBlock("stateIndicator");
+    this._stateIndicator.text = '';
+    this._stateIndicator.color = '#ffd93d';
+    this._stateIndicator.fontSize = 11;
+    this._stateIndicator.fontWeight = 'bold';
+    this._stateIndicator.width = '36px';
+    this._stateIndicator.height = '20px';
+    this._stateIndicator.left = '10px';
+    this._stateIndicator.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this._stateIndicator.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    this._stateIndicator.isVisible = false;
+    header.addControl(this._stateIndicator);
 
     // Close button
     const closeBtn = Button.CreateSimpleButton("closeChat", "X");
@@ -787,6 +900,7 @@ export class BabylonChatPanel {
     if (this.loadingIndicator) {
       this.loadingIndicator.isVisible = true;
     }
+    this.updateConversationStateIndicator('thinking');
 
     try {
       // Add a placeholder assistant message for streaming
@@ -798,78 +912,22 @@ export class BabylonChatPanel {
       this.messages.push(placeholderMsg);
       this.updateMessagesDisplay();
 
-      // Stream response from Gemini
-      const aiResponse = await this.sendToGeminiStreaming(userMessage, (partialText: string) => {
-        placeholderMsg.content = partialText;
-        this.updateLastMessageText(partialText);
-        this.onNPCSpeechUpdate?.(partialText);
-      });
+      let responseText: string;
+
+      // Try gRPC streaming service first, fall back to direct Gemini API
+      if (this._grpcAvailable && this.conversationClient) {
+        responseText = await this.sendMessageViaGrpc(userMessage, placeholderMsg);
+      } else {
+        responseText = await this.sendMessageViaGemini(userMessage, placeholderMsg);
+      }
 
       // Hide loading indicator
       if (this.loadingIndicator) {
         this.loadingIndicator.isVisible = false;
       }
 
-      // Parse and create quest if present in response
-      let cleanedResponse = await this.parseAndCreateQuest(aiResponse.text);
-
-      // Parse grammar feedback for language-learning games only
-      const isLanguageLearning = this.world?.gameType === 'language-learning' ||
-                                 this.world?.gameType === 'educational' ||
-                                 this.world?.worldType === 'language-learning' ||
-                                 this.world?.worldType === 'educational';
-
-      if (this.languageTracker) {
-        if (isLanguageLearning) {
-          const { feedback, cleanedResponse: afterGrammarClean } =
-            this.languageTracker.parseGrammarFeedback(cleanedResponse);
-          cleanedResponse = afterGrammarClean;
-
-          if (feedback) {
-            this.languageTracker.recordGrammarFeedback(feedback);
-
-            if (feedback.status === 'corrected' && feedback.errors.length > 0) {
-              console.log(`[LanguageTracker] Grammar corrections: ${feedback.errors.length}`);
-              // Display grammar corrections as a special message
-              const corrections = feedback.errors.map(err =>
-                `"${err.incorrect}" → "${err.corrected}" (${err.explanation})`
-              ).join('\n');
-              this.displayGrammarFeedback(corrections, false);
-
-              // Track repeated grammar errors — show focus popup after 3 errors of same type
-              for (const err of feedback.errors) {
-                const count = (this._sessionGrammarErrors.get(err.pattern) || 0) + 1;
-                this._sessionGrammarErrors.set(err.pattern, count);
-                if (count >= 3 && !this._grammarFocusShown.has(err.pattern)) {
-                  this._grammarFocusShown.add(err.pattern);
-                  this.showGrammarFocusPopup(err.pattern, err.explanation, err.corrected);
-                }
-              }
-            } else if (feedback.status === 'correct') {
-              console.log('[LanguageTracker] Grammar: correct!');
-              this.displayGrammarFeedback('Great grammar!', true);
-            }
-          }
-        }
-
-        // Analyze vocabulary usage
-        this.languageTracker.analyzePlayerMessage(userMessage);
-        this.languageTracker.analyzeNPCResponse(cleanedResponse);
-      }
-
-      // Update final cleaned message content and do full display rebuild
-      placeholderMsg.content = cleanedResponse;
-      this.updateMessagesDisplay();
-
-      // Track vocabulary usage for quests
-      this.trackQuestProgress(userMessage, cleanedResponse);
-
-      // Play queued sentence audio, or fall back to full TTS
-      if (this.audioQueue.length > 0) {
-        await this.playAudioQueue();
-      } else {
-        await this.textToSpeech(cleanedResponse);
-      }
+      // Process the response (quests, grammar, vocabulary)
+      await this.processAssistantResponse(userMessage, responseText, placeholderMsg);
 
       // Start hint timer for beginner players
       this.startHintTimer();
@@ -884,6 +942,153 @@ export class BabylonChatPanel {
       this.updateMessagesDisplay();
     } finally {
       this.isProcessing = false;
+      this.updateConversationStateIndicator('idle');
+    }
+  }
+
+  /**
+   * Send message via gRPC streaming conversation service.
+   * Streams text token-by-token (typewriter effect), audio, and lip sync data.
+   */
+  private async sendMessageViaGrpc(
+    userMessage: string,
+    placeholderMsg: Message,
+  ): Promise<string> {
+    let accumulatedText = '';
+
+    // Override the text chunk callback for this specific request
+    const prevCallbacks = { ...this.conversationClient!['callbacks'] };
+    this.conversationClient!.setCallbacks({
+      ...prevCallbacks,
+      onTextChunk: (text: string, _isFinal: boolean) => {
+        accumulatedText += text;
+        placeholderMsg.content = accumulatedText;
+        this.updateLastMessageText(accumulatedText);
+        this.onNPCSpeechUpdate?.(accumulatedText);
+      },
+      onAudioChunk: (chunk) => {
+        if (this.streamingAudioPlayer) {
+          this.streamingAudioPlayer.pushChunk(chunk as StreamingAudioChunk);
+        }
+      },
+      onFacialData: (data) => {
+        if (this.lipSyncController) {
+          this.lipSyncController.pushFacialData(data);
+        }
+      },
+      onStateChange: (state) => {
+        this._conversationState = state;
+        this.updateConversationStateIndicator(state);
+      },
+      onComplete: () => {
+        // Signal end of audio stream
+        this.streamingAudioPlayer?.finish();
+        if (this.lipSyncController) {
+          this.lipSyncController.start();
+        }
+      },
+      onError: (err) => {
+        console.error('[ChatPanel] gRPC streaming error:', err);
+      },
+    });
+
+    const langCode = this.worldLanguageContext?.learningTargetLanguage?.name
+      ? getLanguageBCP47(this.worldLanguageContext.learningTargetLanguage.name)
+      : 'en';
+
+    try {
+      const fullText = await this.conversationClient!.sendText(userMessage, langCode);
+      return fullText || accumulatedText;
+    } catch (err) {
+      console.warn('[ChatPanel] gRPC failed, falling back to Gemini:', err);
+      // Mark gRPC as unavailable for this session and fall back
+      this._grpcAvailable = false;
+      return this.sendMessageViaGemini(userMessage, placeholderMsg);
+    }
+  }
+
+  /**
+   * Send message via direct Gemini API (legacy/fallback path).
+   */
+  private async sendMessageViaGemini(
+    userMessage: string,
+    placeholderMsg: Message,
+  ): Promise<string> {
+    const aiResponse = await this.sendToGeminiStreaming(userMessage, (partialText: string) => {
+      placeholderMsg.content = partialText;
+      this.updateLastMessageText(partialText);
+      this.onNPCSpeechUpdate?.(partialText);
+    });
+    return aiResponse.text;
+  }
+
+  /**
+   * Process assistant response: quests, grammar feedback, vocabulary tracking, TTS.
+   */
+  private async processAssistantResponse(
+    userMessage: string,
+    responseText: string,
+    placeholderMsg: Message,
+  ): Promise<void> {
+    // Parse and create quest if present in response
+    let cleanedResponse = await this.parseAndCreateQuest(responseText);
+
+    // Parse grammar feedback for language-learning games only
+    const isLanguageLearning = this.world?.gameType === 'language-learning' ||
+                               this.world?.gameType === 'educational' ||
+                               this.world?.worldType === 'language-learning' ||
+                               this.world?.worldType === 'educational';
+
+    if (this.languageTracker) {
+      if (isLanguageLearning) {
+        const { feedback, cleanedResponse: afterGrammarClean } =
+          this.languageTracker.parseGrammarFeedback(cleanedResponse);
+        cleanedResponse = afterGrammarClean;
+
+        if (feedback) {
+          this.languageTracker.recordGrammarFeedback(feedback);
+
+          if (feedback.status === 'corrected' && feedback.errors.length > 0) {
+            console.log(`[LanguageTracker] Grammar corrections: ${feedback.errors.length}`);
+            const corrections = feedback.errors.map(err =>
+              `"${err.incorrect}" → "${err.corrected}" (${err.explanation})`
+            ).join('\n');
+            this.displayGrammarFeedback(corrections, false);
+
+            for (const err of feedback.errors) {
+              const count = (this._sessionGrammarErrors.get(err.pattern) || 0) + 1;
+              this._sessionGrammarErrors.set(err.pattern, count);
+              if (count >= 3 && !this._grammarFocusShown.has(err.pattern)) {
+                this._grammarFocusShown.add(err.pattern);
+                this.showGrammarFocusPopup(err.pattern, err.explanation, err.corrected);
+              }
+            }
+          } else if (feedback.status === 'correct') {
+            console.log('[LanguageTracker] Grammar: correct!');
+            this.displayGrammarFeedback('Great grammar!', true);
+          }
+        }
+      }
+
+      this.languageTracker.analyzePlayerMessage(userMessage);
+      this.languageTracker.analyzeNPCResponse(cleanedResponse);
+    }
+
+    // Update final cleaned message content and do full display rebuild
+    placeholderMsg.content = cleanedResponse;
+    this.updateMessagesDisplay();
+
+    // Track vocabulary usage for quests
+    this.trackQuestProgress(userMessage, cleanedResponse);
+
+    // Play audio: if gRPC streaming audio was used, it's already playing.
+    // Otherwise fall back to queued audio or TTS.
+    if (!this._grpcAvailable || !this.streamingAudioPlayer?.getIsPlaying()) {
+      if (this.audioQueue.length > 0) {
+        await this.playAudioQueue();
+      } else {
+        await this.textToSpeech(cleanedResponse);
+      }
     }
   }
 
@@ -1378,112 +1583,46 @@ export class BabylonChatPanel {
         stream.getTracks().forEach(track => track.stop());
 
         this.isProcessing = true;
-        
+        this.updateConversationStateIndicator('listening');
+
         // Update input text to show processing
         if (this.inputText) {
-          this.inputText.text = "🔄 Transcribing audio...";
+          this.inputText.text = "Transcribing audio...";
           this.inputText.color = "#ffd93d";
         }
-        
+
         // Show thinking indicator
         if (this.loadingIndicator) {
           this.loadingIndicator.isVisible = true;
         }
-        
-        try {
-          // First try to send audio directly to Gemini
-          let response: { text: string; audio?: string; userTranscript?: string };
-          let userTranscript: string;
-          
-          try {
-            // Get transcript first so we can show it immediately
-            userTranscript = await this.speechToText(audioBlob);
-            
-            // Show user message right away
-            this.messages.push({
-              role: 'user',
-              content: userTranscript,
-              timestamp: new Date()
-            });
-            this.updateMessagesDisplay();
-            
-            // Update input to show thinking status
-            if (this.inputText) {
-              this.inputText.text = "NPC is thinking...";
-              this.inputText.color = "#ffd93d";
-            }
-            
-            // Now send to Gemini
-            const textResponse = await this.sendToGemini(userTranscript);
-            response = {
-              ...textResponse,
-              userTranscript: userTranscript
-            };
-          } catch (e) {
-            console.log('Direct audio API failed, falling back to speech-to-text');
-            // Fallback to speech-to-text then text chat
-            userTranscript = await this.speechToText(audioBlob);
-            
-            // Show user message right away
-            this.messages.push({
-              role: 'user',
-              content: userTranscript,
-              timestamp: new Date()
-            });
-            this.updateMessagesDisplay();
-            
-            // Update input to show thinking status
-            if (this.inputText) {
-              this.inputText.text = "NPC is thinking...";
-              this.inputText.color = "#ffd93d";
-            }
-            
-            const textResponse = await this.sendToGemini(userTranscript);
-            response = {
-              ...textResponse,
-              userTranscript: userTranscript
-            };
-          }
-          
-          // Add AI response
-          this.messages.push({
-            role: 'assistant',
-            content: response.text,
-            timestamp: new Date()
-          });
-          this.updateMessagesDisplay();
-          // Notify speech bubble overlay of NPC's words
-          this.onNPCSpeechUpdate?.(response.text);
 
-          // Play audio if available
-          if (response.audio) {
-            const audioBytes = Uint8Array.from(atob(response.audio), c => c.charCodeAt(0));
-            const audioBlob = new Blob([audioBytes], { type: 'audio/mp3' });
-            await this.playAudio(audioBlob);
+        try {
+          // Try gRPC audio streaming if available
+          if (this._grpcAvailable && this.conversationClient) {
+            await this.handleAudioViaGrpc(audioBlob);
           } else {
-            // Fallback to TTS
-            await this.textToSpeech(response.text);
+            await this.handleAudioViaGemini(audioBlob);
           }
-          
+
           // Hide thinking indicator
           if (this.loadingIndicator) {
             this.loadingIndicator.isVisible = false;
           }
-          
+
           // Reset input
           if (this.inputText) {
             this.inputText.text = "Type your message...";
             this.inputText.color = "white";
           }
-          
+
         } catch (error) {
           console.error('Audio processing error:', error);
-          
+
           // Hide thinking indicator on error
           if (this.loadingIndicator) {
             this.loadingIndicator.isVisible = false;
           }
-          
+
           // Reset input on error
           if (this.inputText) {
             this.inputText.text = "Type your message...";
@@ -1491,21 +1630,23 @@ export class BabylonChatPanel {
           }
         } finally {
           this.isProcessing = false;
+          this.updateConversationStateIndicator('idle');
         }
       };
 
       this.mediaRecorder.start();
       this.isRecording = true;
-      
+      this.updateConversationStateIndicator('listening');
+
       // Update mic button appearance
       if (this.micButton) {
         this.micButton.background = "rgba(255, 50, 50, 0.8)";
         this.micButton.color = "white";
       }
-      
+
       // Update input text to show recording
       if (this.inputText) {
-        this.inputText.text = "🎤 Recording...";
+        this.inputText.text = "Recording...";
         this.inputText.color = "#ff6b6b";
       }
     } catch (error) {
@@ -1524,6 +1665,154 @@ export class BabylonChatPanel {
         this.micButton.color = "white";
       }
     }
+  }
+
+  /**
+   * Handle audio input via gRPC streaming service.
+   * Sends audio to server for STT → LLM → TTS pipeline.
+   */
+  private async handleAudioViaGrpc(audioBlob: Blob): Promise<void> {
+    const placeholderMsg: Message = {
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+    };
+
+    // Set up streaming text accumulation
+    let accumulatedText = '';
+    this.conversationClient!.setCallbacks({
+      onTextChunk: (text: string) => {
+        accumulatedText += text;
+        placeholderMsg.content = accumulatedText;
+        if (this.messages[this.messages.length - 1] === placeholderMsg) {
+          this.updateLastMessageText(accumulatedText);
+        }
+        this.onNPCSpeechUpdate?.(accumulatedText);
+      },
+      onAudioChunk: (chunk) => {
+        this.streamingAudioPlayer?.pushChunk(chunk as StreamingAudioChunk);
+      },
+      onFacialData: (data) => {
+        this.lipSyncController?.pushFacialData(data);
+      },
+      onStateChange: (state) => {
+        this._conversationState = state;
+        this.updateConversationStateIndicator(state);
+      },
+      onComplete: () => {
+        this.streamingAudioPlayer?.finish();
+        this.lipSyncController?.start();
+      },
+      onError: (err) => {
+        console.error('[ChatPanel] gRPC audio error:', err);
+      },
+    });
+
+    try {
+      const langCode = this.worldLanguageContext?.learningTargetLanguage?.name
+        ? getLanguageBCP47(this.worldLanguageContext.learningTargetLanguage.name)
+        : 'en';
+
+      // The server will handle STT and send transcript + response
+      // First show "thinking" state
+      this.updateConversationStateIndicator('thinking');
+      if (this.inputText) {
+        this.inputText.text = "NPC is thinking...";
+        this.inputText.color = "#ffd93d";
+      }
+
+      // Add placeholder for streaming response
+      this.messages.push(placeholderMsg);
+      this.updateMessagesDisplay();
+
+      const fullText = await this.conversationClient!.sendAudio(audioBlob, langCode);
+      const responseText = fullText || accumulatedText;
+
+      // Process response (quests, grammar, etc.)
+      await this.processAssistantResponse('', responseText, placeholderMsg);
+    } catch (err) {
+      console.warn('[ChatPanel] gRPC audio failed, falling back to Gemini:', err);
+      this._grpcAvailable = false;
+      // Remove the placeholder if it was added
+      const idx = this.messages.indexOf(placeholderMsg);
+      if (idx >= 0) this.messages.splice(idx, 1);
+      await this.handleAudioViaGemini(audioBlob);
+    }
+  }
+
+  /**
+   * Handle audio input via legacy Gemini API path (fallback).
+   */
+  private async handleAudioViaGemini(audioBlob: Blob): Promise<void> {
+    let userTranscript: string;
+    try {
+      userTranscript = await this.speechToText(audioBlob);
+    } catch {
+      throw new Error('Failed to transcribe audio');
+    }
+
+    // Show user message
+    this.messages.push({
+      role: 'user',
+      content: userTranscript,
+      timestamp: new Date()
+    });
+    this.updateMessagesDisplay();
+
+    if (this.inputText) {
+      this.inputText.text = "NPC is thinking...";
+      this.inputText.color = "#ffd93d";
+    }
+
+    const textResponse = await this.sendToGemini(userTranscript);
+
+    // Add AI response
+    this.messages.push({
+      role: 'assistant',
+      content: textResponse.text,
+      timestamp: new Date()
+    });
+    this.updateMessagesDisplay();
+    this.onNPCSpeechUpdate?.(textResponse.text);
+
+    // Play audio
+    if (textResponse.audio) {
+      const audioBytes = Uint8Array.from(atob(textResponse.audio), c => c.charCodeAt(0));
+      const responseBlob = new Blob([audioBytes], { type: 'audio/mp3' });
+      await this.playAudio(responseBlob);
+    } else {
+      await this.textToSpeech(textResponse.text);
+    }
+  }
+
+  /**
+   * Update the visual state indicator in the chat panel.
+   * Shows: thinking (dots), speaking (wave icon), listening (mic icon).
+   */
+  private updateConversationStateIndicator(state: ConversationState | string): void {
+    if (!this._stateIndicator) return;
+
+    switch (state) {
+      case 'thinking':
+        this._stateIndicator.text = '...';
+        this._stateIndicator.color = '#ffd93d';
+        this._stateIndicator.isVisible = true;
+        break;
+      case 'speaking':
+        this._stateIndicator.text = ')))';
+        this._stateIndicator.color = '#4CAF50';
+        this._stateIndicator.isVisible = true;
+        break;
+      case 'listening':
+        this._stateIndicator.text = 'MIC';
+        this._stateIndicator.color = '#ff6b6b';
+        this._stateIndicator.isVisible = true;
+        break;
+      default:
+        this._stateIndicator.isVisible = false;
+        break;
+    }
+    this._advancedTexture.markAsDirty();
   }
 
   private async speechToText(audioBlob: Blob): Promise<string> {
@@ -2216,6 +2505,13 @@ export class BabylonChatPanel {
 
   public dispose() {
     this.stopAllAudio();
+    // Clean up gRPC streaming resources
+    this.streamingAudioPlayer?.dispose();
+    this.streamingAudioPlayer = null;
+    this.lipSyncController?.dispose();
+    this.lipSyncController = null;
+    this.conversationClient?.dispose();
+    this.conversationClient = null;
     if (this.dialogueActions) {
       this.dialogueActions.hide();
       this.dialogueActions = null;

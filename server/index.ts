@@ -401,7 +401,16 @@ process.on('unhandledRejection', async (reason, promise) => {
     // Register API routes
     const server = await registerRoutes(app);
     httpServer = server;
-    
+
+    // Register conversation streaming HTTP/SSE bridge routes
+    try {
+      const { registerConversationRoutes } = await import('./services/conversation/http-bridge.js');
+      registerConversationRoutes(app);
+      console.log('🗣️  Conversation streaming bridge registered');
+    } catch (err) {
+      console.warn('⚠️  Conversation bridge registration skipped:', (err as Error).message);
+    }
+
     // Additional database management endpoints
     app.get('/health', (req, res) => {
       res.json({ 

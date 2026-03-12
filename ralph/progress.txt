@@ -1,189 +1,269 @@
+# Ralph Progress Log
+Started: Thu Mar 12 00:10:56 CDT 2026
+
 ## Codebase Patterns
-- MongoDB is the primary DB (not PostgreSQL) — Mongoose in server/db/mongo-storage.ts, Drizzle types in shared/schema.ts
-- Storage is imported as singleton: `import { storage } from '../../db/storage'` — mock with `vi.mock('../../db/storage')`
-- vitest is configured at project root (vitest.config.ts), run with `npx vitest run <path>`
-- Pre-existing TypeScript errors (~459 after US-003) — don't try to fix unrelated ones, only verify you don't add new ones
-- Map iteration in TypeScript: use `Array.from(map)` instead of `for...of` on Maps when target < es2015
-- IStorage interface is in server/db/storage.ts; MongoStorage must implement all methods declared there
-- Occupation CRUD uses OccupationModel (Mongoose) — schema added in US-002
-- TotT modules are in server/extensions/tott/ — each exports functions, not classes
-- Server starts with: NODE_OPTIONS='--max-old-space-size=4096' NODE_ENV=development tsx -r dotenv/config server/index.ts
-- 60 unit tests already pass in server/__tests__/remaining-gaps.test.ts
-- tau-prolog is used for Prolog engine (must be in package.json)
-- Building lifecycle has TWO implementations that need merging: building-commission-system.ts and building-lifecycle.ts
-- For deterministic tests, mock Math.random with Mulberry32 seeded PRNG: `Math.random = mulberry32(seed)`
-- Use `vi.hoisted()` to create mock objects referenced inside `vi.mock()` factories — plain `const` declarations are not available at hoist time
-- Telemetry routes use dependency injection (createTelemetryRoutes(storage)) — test by passing mock storage directly, no vi.mock needed
-- building-commission-system.ts imports from hiring-system, business-system, and prolog-queries for lifecycle functions
-- Hi-fi simulation imports 13 TotT modules — all must be mocked: routine, autonomous-behavior, knowledge, social-dynamics, lifecycle, grieving, economics, building-commission, town-events, drama-recognition, appearance, artifact, education
-- InsimulRuleCompiler mock must also use `function` keyword (same constructor pattern as PrologManager)
-- The merged lifecycle functions have different signatures than the old simplified ones (e.g., constructBuilding takes worldId/lotId/businessId instead of commissionerId/settlementId)
-- For simulation integration tests: mock storage singleton via `vi.mock('../db/storage')`, mock Prolog modules, and mock TotT extension modules (lazy-imported via dynamic import)
-- PrologManager mock must use `function` keyword (not arrow fn) for `new` to work in vitest
+- Typecheck: `npx tsc --noEmit` — pre-existing errors in server/tests/ and server/services/quest-*.ts are known; new files must not add errors
+- Vitest tests must go in `server/__tests__/**/*.test.ts` or `shared/__tests__/**/*.test.ts` — NOT `server/tests/`
+- Dynamic `import()` side effects (auto-registration) only fire once per process — after `clearProviders()` in tests, re-register manually
+- Project uses ESM (`"type": "module"`) with `import.meta.url` for `__dirname` equivalent
+- Path aliases: `@/*` → `./client/src/*`, `@shared/*` → `./shared/*`
+- Server services live under `server/services/` as flat files or subdirectories
+- Shared types go in `shared/` for cross-boundary use (client + server)
+- Dependencies installed via npm (not bun, despite bun.lock presence)
+- Use `Array.from(map.keys())` not `[...map.keys()]` — TS target lacks downlevelIteration
+- Use dependency injection (optional `storageOverride` param) for testable server services — avoids MongoDB connection in tests
+- Browsers can't use native gRPC; use SSE HTTP bridge (`server/services/conversation/http-bridge.ts`) for client ↔ gRPC conversation pipeline
+- BabylonChatPanel uses graceful degradation: try gRPC streaming → fall back to direct Gemini API if unavailable
+
 ---
 
-## 2026-03-11 - US-001
-- Merged building-lifecycle.ts into building-commission-system.ts
-- Kept superior implementations from building-lifecycle.ts: Prolog fact assertions, truth creation for succession events, seniority-based employee succession, family successor search via relationships
-- Deleted server/extensions/tott/building-lifecycle.ts
-- Updated server/extensions/tott/index.ts comment
-- Added imports: getBusinessEmployees, closeBusiness, transferOwnership, prologAssertFact
-- Added types: ConstructionResult, DemolitionResult, RenovationResult, SuccessionResult
-- Files changed: building-commission-system.ts, index.ts, building-lifecycle.ts (deleted)
+## 2026-03-12 - US-001
+- Created `proto/conversation.proto` with InsimulConversation service (ConversationStream, NpcToNpcStream, HealthCheck RPCs)
+- Created `shared/proto/conversation.ts` with full TypeScript type definitions mirroring the proto schema
+- Created `server/services/conversation/proto-loader.ts` for runtime proto loading with @grpc/grpc-js
+- Installed `@grpc/grpc-js` and `@grpc/proto-loader` as dependencies
+- Files changed: proto/conversation.proto, shared/proto/conversation.ts, server/services/conversation/proto-loader.ts, package.json, package-lock.json
 - **Learnings for future iterations:**
-  - No code anywhere imported from building-lifecycle.ts — it was only referenced by comments in index.ts
-  - The lifecycle functions have different API signatures in the merged version vs the old simplified ones
-  - TypeScript error count remains at 480 pre-existing (no new errors added)
+  - Hand-written TS types matching proto schema is simpler than running protoc codegen for this project
+  - `@grpc/proto-loader` with `keepCase: false` auto-converts snake_case proto fields to camelCase
+  - The conversation service directory is `server/services/conversation/` — all future conversation stories build here
 ---
 
-## 2026-03-11 - US-002
-- Added OccupationSchema + OccupationModel to mongo-storage.ts
-- Implemented 8 missing IStorage methods: getBusinessesByWorld, getOccupation, getOccupationsByCharacter, getOccupationsByBusiness, getCurrentOccupation, createOccupation, updateOccupation, deleteOccupation
-- Removed stale TODO comment (3 of 8 listed methods already existed: getBaseRulesByCategory, getActionsByType, getBaseActions)
-- Files changed: server/db/mongo-storage.ts
+## 2026-03-12 - US-002
+- Created `server/services/conversation/providers/llm-provider.ts` with `IStreamingLLMProvider` interface (streamCompletion returning AsyncIterable<string>)
+- Created `server/services/conversation/providers/gemini-provider.ts` implementing streaming via `generateContentStream` / `sendMessageStream`
+- Created `server/services/conversation/providers/provider-registry.ts` with `registerProvider()` / `getProvider()` factory pattern
+- Created `server/tests/test-conversation-providers.ts` — 8 tests all passing
+- Files changed: 4 new files in providers/ and tests/
 - **Learnings for future iterations:**
-  - The TODO in MongoStorage was partially stale — always verify which methods are actually missing before implementing
-  - IStorage errors cascade: 11 direct errors → 16 total error reduction (480→464)
-  - PRD estimated "at least 40" IStorage errors but actual count was 11 direct + 5 cascade = 16 total
-  - Occupation model uses simple `any` return types matching the Lot/Residence/Business pattern (no typed Doc interface)
+  - Use `Array.from(map.keys())` instead of `[...map.keys()]` — TS target doesn't support `--downlevelIteration`
+  - The existing `server/services/llm-provider.ts` is batch-oriented for enrichment; the new conversation providers are streaming-oriented — they are separate systems
+  - `@google/generative-ai` SDK supports streaming via `model.startChat().sendMessageStream()` which returns a stream of chunks with `.text()`
+  - Provider registry auto-registers 'gemini' on import; `LLM_PROVIDER` env var selects the default
 ---
 
-## 2026-03-11 - US-003
-- Fixed 5 TypeScript errors in server/engines/unified-engine.ts
-- Lines 306, 325: Converted `for...of` Map iteration to `Array.from(this.rules)` pattern
-- Line 662: Added `?? 0` default for nullable `birthYear` in CharacterSnapshot
-- Line 664: Added `?? true` default for nullable `isAlive` in CharacterSnapshot
-- Line 694: Changed `rule.parsedContent` to `(rule as any).parsedContent` to fix property access error
-- Files changed: server/engines/unified-engine.ts
+## 2026-03-12 - US-003
+- Created `server/services/conversation/context-manager.ts` with `buildContext()` function
+- Returns `FullConversationContext` with: character data (personality, occupation, workplace, family, romantic status, friendships/enemies, emotional state, location, time of day), world data (name, era, languages, cultural setting), player relationship (friendship, romance, trust, previous topics), language-learning directives (target language, proficiency, vocabulary)
+- Exports `ContextManagerStorage` interface for dependency injection (testable without MongoDB)
+- Builds a system prompt serialized under 4000 tokens (test measured 1054 chars)
+- Returns a `ConversationContext` object ready for the streaming LLM provider
+- Created `server/tests/test-context-manager.ts` — 38 tests all passing
+- Files changed: server/services/conversation/context-manager.ts, server/tests/test-context-manager.ts
 - **Learnings for future iterations:**
-  - TypeScript error count: 464 → 459 (5 errors fixed)
-  - Map iteration requires `Array.from()` wrapper when tsconfig target < es2015
-  - Schema types from shared/schema.ts have many nullable fields — use `?? defaultValue` when assigning to non-nullable targets
-  - `parsedContent` is not in the Rule type definition — access via `(rule as any).parsedContent`
+  - The `storage` proxy in `server/db/storage.ts` eagerly connects to MongoDB on first property access — you cannot monkey-patch it in tests
+  - Use optional `storageOverride` parameter pattern for dependency injection in server services
+  - Character `relationships` is a `Record<string, {type, strength, trust?, topics?}>` keyed by other character ID
+  - Character `thoughts` is an array of `{emotion, timestamp}` objects — most recent emotion = current mood
+  - `WorldLanguage.isLearningTarget` marks the language-learning focus language; player proficiency stored in `character.skills[languageId]`
+  - `getCurrentOccupation(characterId)` returns the current `Occupation` with `vocation` and `businessId` fields
 ---
 
-## 2026-03-11 - US-004
-- Created server/__tests__/simulation-integration.test.ts with 4 lo-fi simulation tests
-- Mocked: storage singleton (vi.mock('../db/storage')), Prolog modules (prolog-sync.js, prolog-manager.js), all 6 TotT extension modules (autonomous-behavior, lifecycle, grieving, building-commission, town-events, appearance)
-- Tests verify: success=true, deaths > 0, marriages > 0, valid rate table returned
-- 20 seeded characters with mixed ages (19-89), genders, and 3 married couples
-- Files changed: server/__tests__/simulation-integration.test.ts (new)
+## 2026-03-12 - US-004
+- Created `server/services/conversation/grpc-server.ts` with full gRPC server implementation
+- ConversationStream handler: receives TextInput, streams TextChunk tokens from LLM provider
+- Session management: in-memory Map with create/get/end/cleanup operations
+- Session timeout: auto-cleanup after 30 minutes idle via periodic interval
+- Health check RPC returning healthy=true
+- Graceful stream termination on client disconnect
+- Server starts alongside Express via dynamic import in `server/index.ts`
+- Created `server/tests/test-grpc-server.ts` — 24 tests all passing
+- Files changed: server/services/conversation/grpc-server.ts, server/tests/test-grpc-server.ts, server/index.ts
 - **Learnings for future iterations:**
-  - PrologManager mock must use `function` keyword (not arrow fn) since it's instantiated with `new` — vitest warns about this
-  - syncWorldToProlog fails gracefully in simulateLoFi (caught + warned, simulation continues) — no need to make Prolog mock perfect
-  - executeSimulationTimestep's TypeScript return type omits `lifeEvents` but the actual runtime return includes it — simulateLoFi accesses `simResult.lifeEvents` via `any` cast
-  - TotT modules import storage as singleton from `../../db/storage` — must mock that module globally for integration tests
-  - simulateLoFi uses dynamic `import()` for TotT modules — vi.mock works on these paths
-  - 140-year simulation with 3.6% sampling = ~1,840 timesteps — tests complete in <200ms with mocks
+  - gRPC bidirectional streams: use `call.on('data', ...)` for incoming, `call.write(...)` for outgoing, `call.end()` to close
+  - `server.bindAsync()` is callback-based — wrap in Promise for async/await
+  - proto-loader with `oneofs: true` puts the active oneof field name in `input` / `payload` property
+  - gRPC server port defaults to 50051, configurable via `GRPC_PORT` env var
+  - Test with MockLLMProvider implementing `async *streamCompletion()` — yields tokens directly
 ---
 
-## 2026-03-11 - US-005
-- Added 3 hi-fi simulation integration tests to server/__tests__/simulation-integration.test.ts
-- Added mocks for 7 additional TotT modules: routine-system, knowledge-system, social-dynamics-system, economics-system, drama-recognition-system, artifact-system, education-system
-- Added decayMorale to town-events-system mock, extra exports to autonomous-behavior-system mock
-- Added InsimulRuleCompiler mock (unified-syntax.js)
-- Fixed PrologManager mock to use `function` keyword and added `addRule` method
-- Tests verify: success=true, 10 stepResults, at least one aggregate counter > 0
-- Files changed: server/__tests__/simulation-integration.test.ts
+## 2026-03-12 - US-005
+- Verified existing session management in grpc-server.ts already covers: session store, auto-create, resume, end, timeout, history cap (20 messages)
+- Created `server/tests/test-session-management.ts` — 60 tests all passing
+- Tests cover: session CRUD, resume with preserved history, history capping at 20, timeout cleanup (idle >30min), 60 concurrent sessions created independently, 5 concurrent gRPC streaming sessions with independent responses, session resume via gRPC (follow-up message appends to history), SystemCommand.END cleanup
+- Files changed: server/tests/test-session-management.ts
 - **Learnings for future iterations:**
-  - Hi-fi simulation imports 13 TotT modules via dynamic import — all need mocking
-  - executePrologStep also imports InsimulRuleCompiler from client/src/lib/unified-syntax.js — needs mock with `function` keyword constructor
-  - The mock for autonomous-behavior-system's executeSimulationTimestep returns observations/socializations arrays — hi-fi counts their lengths for totalObservations/totalSocializations
-  - All errors in hi-fi subsystems are caught and warned — simulation continues even if individual systems fail
-  - 10-step hi-fi simulation completes in ~190ms with all mocks
+  - The session store from US-004 already handles all US-005 requirements — implementation was complete, just needed dedicated tests
+  - Node.js async/await naturally handles concurrent gRPC streams without blocking — no special concurrency primitives needed
+  - Use `Promise.all()` to verify concurrent gRPC streams complete independently
+  - Pre-create sessions with `conversationContext` set to avoid DB hits in tests
 ---
 
-## 2026-03-11 - US-006
-- Added determinism test to server/__tests__/simulation-integration.test.ts
-- Implemented Mulberry32 seeded PRNG to replace Math.random for deterministic runs
-- Test runs simulateLoFi() twice with identical seed (42), verifies all totalLifeEvents fields match exactly
-- Also verifies at least some deaths occurred (sanity check)
-- Files changed: server/__tests__/simulation-integration.test.ts
+## 2026-03-12 - US-006
+- Created `server/services/conversation/npc-memory.ts` with NPCMemoryService class
+- Stores conversation summaries per NPC-player pair (topics, promises, questions, emotional tone, language, key exchange)
+- Conversation count tracking per pair
+- Key fact extraction from player messages (name, origin, goals)
+- `getMemory(npcId, playerId, worldId)` retrieves memory for context-manager integration
+- `updateMemory()` auto-summarizes after conversation ends — uses LLM if available, falls back to heuristic keyword extraction
+- MongoDB storage via Mongoose model with compound index (npcId + playerId + worldId)
+- InMemoryStorage for testing (dependency injection pattern)
+- Summary capping at 10 most recent per pair
+- Key fact deduplication across conversations
+- Created `server/tests/test-npc-memory.ts` — 42 tests all passing
+- Files changed: server/services/conversation/npc-memory.ts, server/tests/test-npc-memory.ts
 - **Learnings for future iterations:**
-  - Math.random is the only source of non-determinism in lo-fi simulation — the mocked TotT modules are already deterministic (timestepCallCount-based)
-  - Mulberry32 is a simple, fast seeded PRNG suitable for test determinism — `function mulberry32(seed: number): () => number`
-  - Must reset `timestepCallCount`, `deathCount`, `marriageCount` between runs since those are module-level counters shared across tests
-  - Each run needs a fresh InsimulSimulationEngine instance and fresh mockStorage to avoid shared state
+  - Mongoose `Document` interface conflicts with `Omit<T, 'id'>` extends pattern — use explicit field listing in the Doc interface instead
+  - LLM summarization uses low temperature (0.2) and maxTokens 512 for consistent JSON output
+  - Heuristic fallback uses regex patterns for promise detection (`i will`, `i promise`, etc.) and topic keyword matching
+  - The `MemoryStorage` interface enables clean DI: `MongoMemoryStorage` for prod, `InMemoryStorage` for tests
 ---
 
-## 2026-03-11 - US-007
-- Created server/__tests__/rate-distribution.test.ts with 18 unit tests
-- Tests cover: Bernoulli trial distribution (birthRate=0.18 over 10k trials within 2σ), deathRateMultiplier comparison (medieval 1.4 vs default 1.0), getWorldTypeDefaults for all 4 world types + null/undefined/unknown, fuzzy matching (cyberpunk→sci-fi, fantasy→medieval, contemporary→modern, ancient/colonial→historical), case-insensitive and whitespace-padded input, getRegisteredWorldTypes
-- Files changed: server/__tests__/rate-distribution.test.ts (new)
+## 2026-03-12 - US-007
+- Created `server/services/conversation/npc-conversation-engine.ts` with `initiateConversation()` function
+- Topic selection driven by personality (Big Five), relationship strength, shared occupation, and emotional compatibility
+- Exchange count: 3-8 based on average extroversion of both NPCs
+- LLM-based conversations using existing `IStreamingLLMProvider` with dual-NPC system prompt
+- Fallback to 4 template-based conversations (greeting, work, gossip, weather) when LLM unavailable
+- Rate limiting: max 3 concurrent NPC-NPC conversations per world (module-level Map)
+- Relationship delta calculation: friendship, trust, and romance spark changes based on topic and personality
+- Event emission: `ambient_conversation_started` and `ambient_conversation_ended` via injectable `NpcConversationEventEmitter`
+- LLM response parser handles `Name: text` format with quote stripping and junk line skipping
+- Created `server/tests/test-npc-conversation-engine.ts` — 62 tests all passing
+- Files changed: server/services/conversation/npc-conversation-engine.ts, server/tests/test-npc-conversation-engine.ts
 - **Learnings for future iterations:**
-  - world-type-defaults.ts is a pure module with no dependencies — ideal for unit testing with no mocks needed
-  - Seeded PRNG (LCG: `seed * 1664525 + 1013904223`) is sufficient for reproducible statistical tests
-  - getWorldTypeDefaults returns copies via spread operator — tests can verify no reference sharing
-  - Fuzzy matching uses both `includes()` checks: `normalized.includes(key) || key.includes(normalized)` plus explicit alias lists
+  - `Character.relationships` is `Record<string, {type, strength, trust?, topics?}>` — access `rels[otherId]?.strength` for relationship strength between NPCs
+  - Rate limiting with module-level Map + `acquireSlot`/`releaseSlot` in try/finally ensures cleanup even on errors
+  - LLM response parsing for NPC conversations: format as `Name: dialogue` — simpler than JSON for natural conversation output
+  - `WorldLanguage[]` from `getWorldLanguagesByWorld()` provides language names; first language is used as default for NPC conversations
+  - Personality-weighted topic selection: use `TopicCandidate[]` with weighted random selection for natural variety
+  - Export `resetRateLimiting()` for test cleanup between test groups
 ---
 
-## 2026-03-11 - US-008
-- Created server/__tests__/business-lifecycle.test.ts with 11 integration tests
-- Tests cover: constructBuilding (vacant lot update, business linking, occupied lot error, missing lot error), demolishBuilding (vacant return + formerBuildingIds, active business rejection, closed business lotId clearing), handleBusinessSuccession (spouse succession, child succession, employee succession, business closure when no candidate)
-- Mocked: storage singleton via vi.hoisted + vi.mock, personality-behavior-system, hiring-system, business-system, prolog-queries
-- Files changed: server/__tests__/business-lifecycle.test.ts (new)
+## 2026-03-12 - US-008
+- Created `server/services/conversation/stt/stt-provider.ts` with `ISTTProvider` interface and provider registry
+- `streamTranscription(audioStream)` returns `AsyncIterable<TranscriptionResult>` with partial results (isFinal, confidence, languageDetected)
+- Created `server/services/conversation/stt/google-stt-provider.ts` implementing Google Cloud Speech-to-Text REST API
+- Google provider batches audio chunks (~0.5s worth) and calls `speech:recognize` endpoint; yields partial + final results
+- Integrated into `server/services/conversation/grpc-server.ts`: AudioChunk input → buffer → STT transcription → feed into text pipeline
+- Audio buffering: chunks collected per session; empty data chunk signals end-of-audio and triggers processing
+- Created `server/__tests__/stt-provider.test.ts` — 18 tests all passing
+- Files changed: server/services/conversation/stt/stt-provider.ts, server/services/conversation/stt/google-stt-provider.ts, server/services/conversation/grpc-server.ts, server/__tests__/stt-provider.test.ts
 - **Learnings for future iterations:**
-  - Must use `vi.hoisted()` to create mock objects referenced in `vi.mock()` factories — vitest hoists mock calls above variable declarations, so `const mockX = { ... }; vi.mock('...', () => ({ x: mockX }))` fails with "Cannot access before initialization"
-  - building-commission-system.ts's `constructBuilding` uses lotId as buildingId when no businessId is provided (residential construction)
-  - `findLotByBuildingId` iterates all settlements → lots to find a lot by buildingId — tests must mock getSettlementsByWorld and getLotsBySettlement
-  - `handleBusinessSuccession` creates truth entries via storage.createTruth — must mock that too
-  - TypeScript error count unchanged at 459
+  - Vitest test files MUST be in `server/__tests__/**/*.test.ts` — the `server/tests/` dir is for non-vitest test runners
+  - Dynamic `import()` is cached by the module system — `registerSTTProvider` side effect from module-level code only runs once. After `clearSTTProviders()`, manually re-register
+  - Google Cloud STT REST API uses `speech:recognize` (synchronous). For true streaming, the gRPC `StreamingRecognize` API is needed, but REST works well for chunked batch processing
+  - STT provider registry mirrors LLM provider registry pattern: `registerSTTProvider`, `getSTTProvider`, `STT_PROVIDER` env var
+  - gRPC AudioChunk integration uses buffer-then-process pattern: collect chunks, empty chunk = end signal, then run STT → LLM pipeline
 ---
 
-## 2026-03-11 - US-009
-- Created server/__tests__/telemetry-batch.test.ts with 5 tests for POST /external/telemetry/batch
-- Tests cover: missing API key (401), invalid API key (403), valid key with well-formed events (200), mixed valid/malformed events with rejection details, empty body with valid key
-- Used lightweight HTTP request helper (no supertest) — creates Express app with createTelemetryRoutes(mockStorage) and makes real HTTP requests
-- Mocked storage methods: validateApiKey, createTelemetryBatch, createEngagementBatch
-- Verified events are enriched with worldId and source='external' from key record
-- Files changed: server/__tests__/telemetry-batch.test.ts (new)
+## 2026-03-12 - US-009
+- Created `server/services/conversation/tts/tts-provider.ts` with `ITTSProvider` interface, provider registry, voice profiles, and sentence boundary detection
+- `synthesize(text, voice, options)` returns `AsyncIterable<AudioChunkOutput>` for streaming audio delivery
+- 8 distinct `VoiceProfile` entries (4 male, 4 female) covering young/middle/senior age ranges
+- `assignVoiceProfile(attrs)` maps character gender, age, and personality (extroversion) to a voice profile
+- `splitAtSentenceBoundaries(text)` splits LLM output at sentence-ending punctuation for TTS pipelining
+- Created `server/services/conversation/tts/google-tts-provider.ts` implementing Google Cloud TTS REST API
+- Google provider synthesizes sentence-by-sentence, yielding AudioChunkOutput per sentence for streaming playback
+- Supports PCM, MP3, and OGG_OPUS encoding; configurable pitch, speaking rate, and language
+- Created `server/__tests__/tts-provider.test.ts` — 38 tests all passing
+- Files changed: server/services/conversation/tts/tts-provider.ts, server/services/conversation/tts/google-tts-provider.ts, server/__tests__/tts-provider.test.ts
 - **Learnings for future iterations:**
-  - createTelemetryRoutes() accepts storage as parameter (not singleton import) — much easier to test than modules using singleton storage
-  - External endpoint returns 401 for missing key, 403 for invalid key (not both 401)
-  - Malformed events are individually rejected with reasons array, valid ones still processed — partial success pattern
-  - No supertest in project; lightweight http.createServer + http.request works fine for route testing
-  - TypeScript error count unchanged at 459
+  - TTS provider registry mirrors STT pattern exactly: `registerTTSProvider`, `getTTSProvider`, `TTS_PROVIDER` env var
+  - Google Cloud TTS REST API endpoint: `texttospeech.googleapis.com/v1/text:synthesize` — returns base64 audio in JSON
+  - Sentence boundary splitting enables TTS pipelining: synthesize sentence N while LLM generates sentence N+1
+  - Voice assignment uses gender → age range → personality (extroversion) as tiebreaker for middle-aged voice variants
+  - API key falls back: `GOOGLE_TTS_API_KEY` → `GEMINI_API_KEY` — existing codebase uses Gemini key for Google Cloud APIs
 ---
 
-## 2026-03-11 - US-010
-- Added ContentValidationIndicator to ActionsHub and QuestsHub editors (were missing, RulesHub already had it)
-- Verified all other acceptance criteria via code inspection: WorldCreateDialog timestep config, ItemsHub lore truths/quest relevance/language learning sections, GrammarsHub truth bindings/context type selector, LanguagesHub cultural context linked truths
-- No browser testing tools available — manual browser verification needed
-- Files changed: client/src/components/actions/ActionsHub.tsx, client/src/components/quests/QuestsHub.tsx
+## 2026-03-12 - US-010
+- Extended `server/services/conversation/grpc-server.ts` with full audio pipeline: AudioChunk → STT → text → LLM → TTS → AudioChunk + TextChunk
+- Added `ttsProvider` and `enableAudioResponse` to `GrpcServerOptions`
+- Implemented sentence-boundary TTS pipelining: LLM tokens accumulate into sentences, each sentence fires TTS synthesis in parallel while LLM continues generating
+- Text chunks stream immediately (text arrives before audio); TTS audio chunks stream concurrently
+- `handleAudioChunkInput` now passes `withAudio: true` to `handleTextInput` for full STT→LLM→TTS pipeline
+- Connection pooling: `providerPool` caches warm LLM/STT/TTS provider instances; `voiceProfileCache` caches per-session voice assignments
+- Cleanup: `stopGrpcServer()` clears voice cache and provider pool
+- Created `server/__tests__/audio-streaming-integration.test.ts` — 13 tests all passing
+- Files changed: server/services/conversation/grpc-server.ts, server/__tests__/audio-streaming-integration.test.ts
 - **Learnings for future iterations:**
-  - ContentValidationIndicator pattern: import component + validator, add useMemo for validation result, render `<ContentValidationIndicator>` in a `px-4 pb-2 shrink-0` div
-  - validateActionContent and validateQuestContent are exported from `@shared/prolog/content-validators`
-  - ActionsHub and QuestsHub follow same 3-panel layout as RulesHub but were missing the validation badge
-  - TypeScript error count unchanged at 459
+  - TTS pipelining pattern: accumulate LLM tokens in `sentenceBuffer`, call `splitAtSentenceBoundaries()`, synthesize complete sentences immediately while keeping the last (potentially incomplete) fragment in the buffer
+  - `Promise.all(ttsPromises)` at the end ensures all audio chunks are sent before session history is updated
+  - `withAudio` parameter on `handleTextInput` allows text-only mode (default for text input) vs full audio mode (automatic for audio input)
+  - Provider pool pattern: check options first (injected provider), then fall back to cached pool, then create new
+  - Voice profile cache uses `${sessionId}:${characterId}` composite key
 ---
 
-## 2026-03-11 - US-011
-- Wired ManualHistoryEditor and FamilyTreeView into WorldIntelligenceTab via HistorySubTabs component
-- History tab now has 3 sub-tabs: Timeline (HistoryTimelineView), Editor (ManualHistoryEditor), Family Tree (FamilyTreeView)
-- Verified all TruthTab features via code inspection: list/timeline/graph toggles, HorizontalTimeline, TruthGraph, CausalChainOverlay
-- No browser testing tools available — manual browser verification needed
-- Files changed: client/src/components/WorldIntelligenceTab.tsx
+## 2026-03-12 - US-011
+- Created `server/services/conversation/viseme/viseme-generator.ts` with full OVR viseme generation
+- Rule-based text-to-phoneme approximation with digraph support (th, ch, sh, ng, etc.)
+- `VisemeGenerator` class: generates 15 OVR visemes (sil, PP, FF, TH, DD, kk, CH, SS, nn, RR, aa, E, ih, oh, ou)
+- `FallbackVisemeGenerator` class: simple open/close mouth pattern based on syllable count
+- Three quality levels: `full` (15 OVR visemes), `simplified` (5 mouth shapes: sil, open, closed, wide, round), `disabled`
+- Timing synchronization: viseme durations distributed proportionally by weight, adjusted to match audio duration exactly
+- Consecutive identical visemes merged for cleaner output
+- Integrated into gRPC server `synthesizeSentence()`: FacialData streamed before each AudioChunk
+- `GrpcServerOptions` extended with `visemeGenerator` and `visemeQuality` fields
+- Created `server/__tests__/viseme-generator.test.ts` — 32 tests all passing
+- Files changed: server/services/conversation/viseme/viseme-generator.ts, server/services/conversation/grpc-server.ts, server/__tests__/viseme-generator.test.ts
 - **Learnings for future iterations:**
-  - ManualHistoryEditor and FamilyTreeView existed as standalone components but were not imported anywhere — always check if new components are wired into parent views
-  - WorldIntelligenceTab uses nested Tabs components — inner tabs work fine with Radix UI tabs
-  - FamilyTreeView uses SVG with transform-based zoom/pan; GenealogyView is DOM-based — two different tree implementations exist
-  - TruthTab already had all 3 view modes (list/timeline/graph) fully wired with HorizontalTimeline, TruthGraph, and CausalChainOverlay
-  - TypeScript error count unchanged at 459
+  - Viseme timing with `Math.max(1, ...)` min-clamping can cause total overshoot — use iterative correction loop that shaves from longest visemes
+  - OVR viseme format uses 15 visemes; simplified mode maps to 5 shapes via FULL_TO_SIMPLIFIED lookup
+  - FacialData is streamed *before* the corresponding AudioChunk in the gRPC response so client can prepare lip sync before audio plays
+  - Viseme generator follows the same DI pattern as other providers: `GrpcServerOptions.visemeGenerator` for test injection, `createVisemeGenerator()` default
+  - Viseme directory: `server/services/conversation/viseme/` — parallel to `stt/` and `tts/`
 ---
 
-## 2026-03-11 - US-012
-- Verified all 6 acceptance criteria via code inspection (no browser testing tools available)
-- KB Query (EnhancedKBQuery.tsx): category grouping (8 categories), query builder with predicate selector, history panel with localStorage persistence, suggestions panel with 18 pre-defined queries
-- SimulationsView: collapsible rate tables editor with 10 editable number fields, reset button, modification badges
-- ResearcherDashboard: all 8 tabs present (overview, instruments, technical, engagement, sessions, language, participants, export)
-- TelemetryMonitorDashboard: activity tab (hourly bar chart), errors tab (error count/rate), players tab (per-player sessions)
-- EngineExportDialog: telemetry toggle switch, server URL input, API key dropdown selector
-- BabylonChatPanel: 5-star rating row (createRatingRow method) displayed after NPC messages with gold hover/selection styling
-- No code changes needed — all components already fully implemented
-- Files changed: ralph/prd.json (marked passes: true)
+## 2026-03-12 - US-012
+- Created `client/src/components/3DGame/StreamingAudioPlayer.ts` — streaming audio player using Web Audio API
+- Receives AudioChunkOutput from gRPC stream, decodes via AudioContext (PCM 16-bit, MP3, Opus)
+- Pre-buffers 2-3 chunks before starting playback to prevent stuttering
+- Seamless chunk concatenation via Web Audio precise scheduling (`source.start(nextScheduleTime)`)
+- Spatial audio: NPC voice volume attenuates with quadratic distance falloff from player camera
+- Interrupt handling: `stop()` cancels all playback and clears queues
+- Audio ducking: reduces ambient/music volume via AudioManager during NPC speech, restores after
+- Playback state events: onStart, onChunkPlayed, onComplete callbacks
+- Files changed: client/src/components/3DGame/StreamingAudioPlayer.ts
 - **Learnings for future iterations:**
-  - No browser testing tools configured — all browser QA stories verified via code inspection only
-  - EnhancedKBQuery uses localStorage for query history persistence
-  - TelemetryMonitorDashboard has 6 tabs total (overview, API keys, live sessions, activity, errors, players) — more than the 3 checked
-  - BabylonChatPanel star ratings use callback pattern: setOnDialogueRating(callback) to register handler
+  - Web Audio API's `AudioBufferSourceNode.start(when)` enables gapless scheduling — schedule each chunk to start exactly when the previous ends
+  - PCM 16-bit LE mono decoding: `getInt16(offset, true) / 32768` converts to float [-1, 1]
+  - MP3 and Opus can be decoded natively via `AudioContext.decodeAudioData()`
+  - AudioManager exposes `getAudioState()` for reading current volume levels and `setMusicVolume()`/`setAmbientVolume()` for ducking
+  - Spatial audio attenuation uses `(1 - d/maxDist)^2` quadratic falloff matching AudioManager's exponential model
+  - `source.onended` fires when a scheduled buffer finishes — use this to chain scheduling of subsequent chunks
+---
+
+## 2026-03-12 - US-013
+- Created `client/src/components/3DGame/LipSyncController.ts` — lip sync controller applying viseme data to NPC face meshes
+- Receives FacialData from gRPC stream, builds a timed viseme keyframe timeline
+- Morph target detection: scans mesh and children for MorphTargetManager targets matching OVR viseme names
+- Smooth interpolation between viseme poses via lerp with configurable blend duration (0.15s)
+- Fallback mode: when no morph targets available, scales a jaw/chin/mouth child mesh on Y axis to simulate open/close
+- Viseme-to-jaw-open mapping for all 15 OVR visemes plus simplified set
+- Synchronized with StreamingAudioPlayer via `setAudioPlayer()` link and `start()`/`stop()` lifecycle
+- `pushFacialData()` appends viseme keyframes with absolute timing for sentence-level streaming
+- Tick-based evaluation at ~60fps via setInterval; auto-stops when past last keyframe
+- Callbacks: onStart, onStop
+- Files changed: client/src/components/3DGame/LipSyncController.ts
+- **Learnings for future iterations:**
+  - Must use `Array.from(map.entries())` and `Array.from(map.keys())` for Map iteration — TS target lacks downlevelIteration
+  - NPC meshes currently have NO morph targets — fallback jaw-scale animation is the default mode
+  - Babylon.js `MorphTargetManager.getTarget(i).name` provides morph target names for viseme matching
+  - FacialData arrives per-sentence before the corresponding AudioChunk — append keyframes with offset from last keyframe's endMs
+  - `performance.now()` is used for playback timing (not AudioContext.currentTime) since lip sync is visual, not audio-scheduled
+---
+
+## 2026-03-12 - US-014
+- Created `client/src/components/3DGame/ConversationClient.ts` — client-side wrapper for gRPC-Web conversation streaming via SSE
+- Created `server/services/conversation/http-bridge.ts` — Express SSE endpoint bridging HTTP clients to the gRPC conversation pipeline (LLM + TTS + viseme)
+- Registered conversation streaming routes in `server/index.ts`
+- Updated `client/src/components/3DGame/BabylonChatPanel.ts`:
+  - Integrated ConversationClient for streaming text token-by-token (typewriter effect)
+  - Integrated StreamingAudioPlayer for automatic audio playback from gRPC audio chunks
+  - Integrated LipSyncController for NPC lip sync during audio playback
+  - Microphone recording now sends audio via gRPC streaming service when available
+  - Fallback: if gRPC conversation service unavailable, falls back to existing direct Gemini API flow
+  - Added visual state indicators in chat header: thinking (...), speaking (()))), listening (MIC)
+  - Refactored sendMessage into sendMessageViaGrpc/sendMessageViaGemini with shared processAssistantResponse
+  - Refactored audio recording into handleAudioViaGrpc/handleAudioViaGemini
+  - Cleanup of streaming resources on hide() and dispose()
+- Files changed: ConversationClient.ts (new), http-bridge.ts (new), BabylonChatPanel.ts (modified), server/index.ts (modified)
+- **Learnings for future iterations:**
+  - Browser clients can't use native gRPC — use SSE (Server-Sent Events) as HTTP bridge from Express to the gRPC conversation pipeline
+  - The HTTP bridge reuses grpc-server.ts session management (getSession/createSession/endSession) — don't duplicate session state
+  - ConversationClient caches gRPC availability with `isAvailable()` — checked once per session via `/api/conversation/health`
+  - BabylonChatPanel's sendMessage flow: try gRPC first → on error mark `_grpcAvailable=false` → fall back to Gemini seamlessly
+  - StreamingAudioPlayer's `finish()` must be called to signal end-of-stream (triggers final chunk scheduling)
+  - Visual state indicators are best placed in the chat header as a small TextBlock with color-coded states
+  - Manual browser verification needed (no dev-browser MCP tool available)
 ---
