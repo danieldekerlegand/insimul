@@ -42,6 +42,7 @@ Started: Thu Mar 12 00:10:56 CDT 2026
 - `merchant-inventory.ts` exports `generateMerchantInventory()`, `getAcceptedItemTypes()`, `restockInventory()` — use `MerchantInventoryStorage` interface for DI
 - Unity UPM packages: `package.json` + `Runtime/`/`Editor/` with `.asmdef` files; `Samples~` (tilde) for importable samples; Editor code must be in editor-only asmdef to avoid build errors
 - Godot plugins: `addons/insimul/plugin.cfg` + `@tool` EditorPlugin script; autoload singletons registered in `_enter_tree()`; SSE parsed from complete HTTP response body (not incremental streaming)
+- Conversation service has 3 transports: gRPC (grpc-server.ts), HTTP/SSE (http-bridge.ts), WebSocket (ws-bridge.ts) — all share the same session store from grpc-server.ts
 
 ---
 
@@ -750,4 +751,24 @@ Started: Thu Mar 12 00:10:56 CDT 2026
   - GDScript typed arrays use `Array[Type]` syntax (e.g., `Array[InsimulTypes.Viseme]`)
   - `Marshalls.base64_to_raw()` is Godot's built-in base64 decoder
   - Godot supports `AudioStreamMP3` natively in 4.x for MP3 audio chunks
+---
+
+## 2026-03-12 - US-037
+- Created `server/services/conversation/ws-bridge.ts` — WebSocket-to-gRPC bridge for the conversation service
+- WebSocket server on configurable port (default 50052, env: WS_BRIDGE_PORT), or attachable to existing HTTP server at /ws/conversation
+- Protocol: JSON text frames for ConversationRequest/Response, binary frames for raw audio data
+- Full streaming pipeline: textInput → session mgmt → LLM streaming → text chunks + optional TTS/viseme
+- Audio input: binary frames buffered per session, audioEnd message triggers STT → text pipeline
+- Session reconnection: resumeSession message restores existing session with history
+- System commands: END, PAUSE, RESUME matching gRPC server semantics
+- Sessions preserved on disconnect (not deleted) to allow reconnection
+- Registered in server/index.ts alongside gRPC server (non-blocking startup)
+- Created `server/__tests__/ws-bridge.test.ts` — 9 tests all passing
+- Files changed: server/services/conversation/ws-bridge.ts (new), server/__tests__/ws-bridge.test.ts (new), server/index.ts (modified)
+- **Learnings for future iterations:**
+  - WebSocket bridge reuses session store from grpc-server.ts (getSession/createSession/endSession) — sessions are shared between gRPC, HTTP, and WS bridges
+  - Tests must pre-create sessions with `conversationContext` set to avoid `buildContext` hitting MongoDB (which hangs in test environment)
+  - `ws` package is already a project dependency (v8.19.0)
+  - Binary WebSocket frames (`isBinary: true`) used for raw audio; JSON frames for everything else (text chunks, meta, errors, audio metadata)
+  - WS_BRIDGE_PORT env var controls standalone port; alternatively pass `httpServer` option to attach to existing HTTP server
 ---

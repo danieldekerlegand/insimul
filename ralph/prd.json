@@ -721,7 +721,7 @@
         "Unit test: WebSocket message round-trips correctly through bridge"
       ],
       "priority": 37,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
