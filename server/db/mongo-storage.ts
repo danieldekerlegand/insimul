@@ -164,6 +164,7 @@ const RuleSchema = new Schema({
   priority: { type: Number, default: 5 }, // denormalized from Prolog for sorting
   likelihood: { type: Number, default: 1.0 }, // denormalized from Prolog
   tags: { type: [String], default: [] },
+  relatedTruthIds: { type: [String], default: [] },
   isActive: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
@@ -179,6 +180,9 @@ const GrammarSchema = new Schema({
   description: { type: String, default: null },
   grammar: { type: Schema.Types.Mixed, required: true },
   tags: { type: Schema.Types.Mixed, default: null },
+  truthBindings: { type: Schema.Types.Mixed, default: [] },
+  contextType: { type: String, default: null },
+  relatedTruthIds: { type: [String], default: [] },
   isActive: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
@@ -235,6 +239,15 @@ const WorldSchema = new Schema({
 
   // Camera perspective
   cameraPerspective: { type: String, default: null },
+
+  // Timestep configuration
+  timestepUnit: { type: String, default: 'year' },
+  gameplayTimestepUnit: { type: String, default: 'day' },
+  customTimestepLabel: { type: String, default: null },
+  customTimestepDurationMs: { type: Number, default: null },
+  historyStartYear: { type: Number, default: null },
+  historyEndYear: { type: Number, default: null },
+  currentGameYear: { type: Number, default: null },
 
   sourceFormats: { type: Schema.Types.Mixed, default: null },
   config: { type: Schema.Types.Mixed, default: null },
@@ -370,6 +383,7 @@ const ActionSchema = new Schema({
   verbPresent: { type: String, default: null },
   narrativeTemplates: { type: Schema.Types.Mixed, default: [] },
   tags: { type: [String], default: [] },
+  relatedTruthIds: { type: [String], default: [] },
   customData: { type: Schema.Types.Mixed, default: null },
   isActive: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
@@ -391,6 +405,10 @@ const TruthSchema = new Schema({
   timeYear: { type: Number, default: null },
   timeSeason: { type: String, default: null },
   timeDescription: { type: String, default: null },
+  historicalEra: { type: String, default: null },
+  historicalSignificance: { type: String, default: null },
+  causesTruthIds: { type: [String], default: [] },
+  causedByTruthIds: { type: [String], default: [] },
   relatedCharacterIds: { type: Schema.Types.Mixed, default: null },
   relatedLocationIds: { type: Schema.Types.Mixed, default: null },
   tags: { type: Schema.Types.Mixed, default: null },
@@ -439,6 +457,7 @@ const QuestSchema = new Schema({
   conversationContext: { type: String, default: null },
   tags: { type: Schema.Types.Mixed, default: [] },
   content: { type: String, default: null }, // Prolog content — single source of truth
+  relatedTruthIds: { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
@@ -466,6 +485,11 @@ const ItemSchema = new Schema({
   tags: { type: Schema.Types.Mixed, default: [] },
   isBase: { type: Boolean, default: false },
   metadata: { type: Schema.Types.Mixed, default: {} },
+  craftingRecipe: { type: Schema.Types.Mixed, default: null },
+  questRelevance: { type: Schema.Types.Mixed, default: [] },
+  loreText: { type: String, default: null },
+  languageLearningData: { type: Schema.Types.Mixed, default: null },
+  relatedTruthIds: { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
@@ -513,6 +537,7 @@ const UserSchema = new Schema({
   passwordHash: { type: String, required: true },
   displayName: { type: String, default: null },
   avatarUrl: { type: String, default: null },
+  role: { type: String, default: 'user' },
   isActive: { type: Boolean, default: true },
   isVerified: { type: Boolean, default: false },
   lastLoginAt: { type: Date, default: null },
@@ -705,6 +730,11 @@ const WorldLanguageSchema = new Schema({
   dialectVariations: { type: Schema.Types.Mixed, default: null },
   learningModules: { type: Schema.Types.Mixed, default: null },
 
+  relatedTruthIds: { type: [String], default: [] },
+  culturalTruthIds: { type: [String], default: [] },
+  historicalTruthIds: { type: [String], default: [] },
+  idiomsAndProverbs: { type: Schema.Types.Mixed, default: [] },
+
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
@@ -756,6 +786,25 @@ const BusinessMongoSchema = new Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
+const OccupationSchema = new Schema({
+  worldId: { type: String, required: true },
+  characterId: { type: String, required: true },
+  businessId: { type: String, required: true },
+  vocation: { type: String, required: true },
+  level: { type: Number, default: 1 },
+  shift: { type: String, required: true },
+  startYear: { type: Number, required: true },
+  endYear: { type: Number, default: null },
+  yearsExperience: { type: Number, default: 0 },
+  terminationReason: { type: String, default: null },
+  predecessorId: { type: String, default: null },
+  successorId: { type: String, default: null },
+  isSupplemental: { type: Boolean, default: false },
+  hiredAsFavor: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
 const LanguageChatMessageSchema = new Schema({
   languageId: { type: String, required: true },
   worldId: { type: String, required: true },
@@ -767,6 +816,129 @@ const LanguageChatMessageSchema = new Schema({
   inLanguage: { type: String, default: null },
   createdAt: { type: Date, default: Date.now }
 });
+
+const LanguageProgressSchema = new Schema({
+  playerId: { type: String, required: true },
+  worldId: { type: String, required: true },
+  targetLanguage: { type: String, required: true },
+  overallFluency: { type: Number, default: 0 }, // 0-100
+  totalConversations: { type: Number, default: 0 },
+  totalWordsLearned: { type: Number, default: 0 },
+  streakDays: { type: Number, default: 0 },
+  xp: { type: Number, default: 0 },
+  level: { type: Number, default: 1 },
+  achievements: { type: [String], default: [] },
+  dailyChallenges: { type: Schema.Types.Mixed, default: [] },
+  lastSessionAt: { type: Date, default: null },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+LanguageProgressSchema.index({ playerId: 1, worldId: 1 });
+
+const VocabularyEntrySchema = new Schema({
+  playerId: { type: String, required: true },
+  worldId: { type: String, required: true },
+  word: { type: String, required: true },
+  meaning: { type: String, required: true },
+  category: { type: String, default: null },
+  timesEncountered: { type: Number, default: 0 },
+  timesUsedCorrectly: { type: Number, default: 0 },
+  masteryLevel: { type: String, default: 'new' }, // new, learning, familiar, mastered
+  lastEncountered: { type: Date, default: null },
+  context: { type: String, default: null },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+VocabularyEntrySchema.index({ playerId: 1, worldId: 1 });
+
+const GrammarPatternSchema = new Schema({
+  playerId: { type: String, required: true },
+  worldId: { type: String, required: true },
+  pattern: { type: String, required: true },
+  correctUsages: { type: Number, default: 0 },
+  incorrectUsages: { type: Number, default: 0 },
+  examples: { type: [String], default: [] },
+  masteryLevel: { type: String, default: 'new' },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+GrammarPatternSchema.index({ playerId: 1, worldId: 1 });
+
+const ConversationRecordSchema = new Schema({
+  playerId: { type: String, required: true },
+  worldId: { type: String, required: true },
+  characterId: { type: String, required: true },
+  turns: { type: Number, default: 0 },
+  wordsUsed: { type: [String], default: [] },
+  targetLanguagePercentage: { type: Number, default: 0 },
+  fluencyGained: { type: Number, default: 0 },
+  grammarErrors: { type: Schema.Types.Mixed, default: [] },
+  duration: { type: Number, default: 0 }, // seconds
+  createdAt: { type: Date, default: Date.now }
+});
+ConversationRecordSchema.index({ playerId: 1, worldId: 1 });
+
+const LanguageAssessmentSchema = new Schema({
+  playerId: { type: String, required: true },
+  worldId: { type: String, required: true },
+  assessmentType: { type: String, required: true }, // vocabulary, grammar, pronunciation, listening, pragmatic, cultural
+  targetLanguage: { type: String, required: true },
+  score: { type: Number, required: true },
+  maxScore: { type: Number, required: true },
+  details: { type: Schema.Types.Mixed, default: {} },
+  testWindow: { type: String, default: null }, // pre, post, delayed
+  studyId: { type: String, default: null },
+  createdAt: { type: Date, default: Date.now }
+});
+LanguageAssessmentSchema.index({ playerId: 1, worldId: 1 });
+
+const EvaluationResponseSchema = new Schema({
+  participantId: { type: String, required: true },
+  studyId: { type: String, required: true },
+  instrumentType: { type: String, required: true }, // actfl_opi, sus, ssq, ipq, engagement, grammar_judgment, gap_fill, vocabulary_productive, vocabulary_receptive, listening_comprehension, discourse_completion, cultural_knowledge
+  targetLanguage: { type: String, default: null },
+  responses: { type: Schema.Types.Mixed, default: [] },
+  score: { type: Number, default: null },
+  maxScore: { type: Number, default: null },
+  sessionId: { type: String, default: null },
+  createdAt: { type: Date, default: Date.now }
+});
+EvaluationResponseSchema.index({ studyId: 1, participantId: 1 });
+EvaluationResponseSchema.index({ studyId: 1, targetLanguage: 1 });
+
+const TechnicalTelemetrySchema = new Schema({
+  sessionId: { type: String, required: true },
+  playerId: { type: String, required: true },
+  worldId: { type: String, required: true },
+  metricType: { type: String, required: true }, // speech_wer, dialogue_latency_ms, dialogue_quality, render_fps, error, vr_session_type, vr_comfort_settings, vr_ssq_indicators
+  value: { type: Number, default: null },
+  metadata: { type: Schema.Types.Mixed, default: {} },
+  createdAt: { type: Date, default: Date.now }
+});
+TechnicalTelemetrySchema.index({ sessionId: 1 });
+TechnicalTelemetrySchema.index({ playerId: 1, worldId: 1 });
+
+const EngagementEventSchema = new Schema({
+  sessionId: { type: String, required: true },
+  playerId: { type: String, required: true },
+  worldId: { type: String, default: null },
+  eventType: { type: String, required: true }, // session_start, session_end, session_pause, session_resume, quest_started, quest_completed, quest_abandoned, area_explored, npc_conversation_started, npc_conversation_ended, menu_opened, menu_closed, idle_detected, frustration_signal
+  metadata: { type: Schema.Types.Mixed, default: {} },
+  createdAt: { type: Date, default: Date.now }
+});
+EngagementEventSchema.index({ sessionId: 1 });
+EngagementEventSchema.index({ playerId: 1 });
+
+const ApiKeySchema = new Schema({
+  key: { type: String, required: true, unique: true },
+  worldId: { type: String, required: true },
+  ownerId: { type: String, required: true },
+  permissions: { type: [String], default: ['telemetry:write'] },
+  isActive: { type: Boolean, default: true },
+  expiresAt: { type: Date, default: null },
+  createdAt: { type: Date, default: Date.now }
+});
+ApiKeySchema.index({ key: 1 });
 
 // Mongoose Models
 const RuleModel = mongoose.model<RuleDoc>('Rule', RuleSchema);
@@ -795,7 +967,17 @@ const WorldLanguageModel = mongoose.model<WorldLanguageDoc>('WorldLanguage', Wor
 const LotModel = mongoose.model('Lot', LotSchema);
 const ResidenceModel = mongoose.model('Residence', ResidenceSchema);
 const BusinessMongoModel = mongoose.model('Business', BusinessMongoSchema);
+const OccupationModel = mongoose.model('Occupation', OccupationSchema);
 const LanguageChatMessageModel = mongoose.model<LanguageChatMessageDoc>('LanguageChatMessage', LanguageChatMessageSchema);
+const LanguageProgressModel = mongoose.model('LanguageProgress', LanguageProgressSchema, 'languageprogress');
+const VocabularyEntryModel = mongoose.model('VocabularyEntry', VocabularyEntrySchema, 'vocabularyentries');
+const GrammarPatternModel = mongoose.model('GrammarPattern', GrammarPatternSchema, 'grammarpatterns');
+const ConversationRecordModel = mongoose.model('ConversationRecord', ConversationRecordSchema, 'conversationrecords');
+const LanguageAssessmentModel = mongoose.model('LanguageAssessment', LanguageAssessmentSchema, 'languageassessments');
+const EvaluationResponseModel = mongoose.model('EvaluationResponse', EvaluationResponseSchema, 'evaluationresponses');
+const TechnicalTelemetryModel = mongoose.model('TechnicalTelemetry', TechnicalTelemetrySchema, 'technicaltelemetry');
+const EngagementEventModel = mongoose.model('EngagementEvent', EngagementEventSchema, 'engagementevents');
+const ApiKeyModel = mongoose.model('ApiKey', ApiKeySchema, 'apikeys');
 
 // Helper to convert Mongoose doc to our type
 function docToRule(doc: RuleDoc | any): Rule {
@@ -916,9 +1098,6 @@ function docToLanguageChatMessage(doc: LanguageChatMessageDoc): LanguageChatMess
 }
 
 export class MongoStorage implements IStorage {
-  // TODO: Implement missing IStorage methods: getBusinessesByWorld, getOccupation, getOccupationsByCharacter, 
-  // getOccupationsByBusiness, getCurrentOccupation, getBaseRulesByCategory, getActionsByType, getBaseActions
-  
   private static connectionPromise: Promise<void> | null = null;
   private static connected = false;
 
@@ -1447,6 +1626,12 @@ export class MongoStorage implements IStorage {
     return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
   }
 
+  async getBusinessesByWorld(worldId: string): Promise<any[]> {
+    await this.connect();
+    const docs = await BusinessMongoModel.find({ worldId });
+    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+  }
+
   async createBusiness(business: any): Promise<any> {
     await this.connect();
     const doc = await new BusinessMongoModel(business).save();
@@ -1506,6 +1691,49 @@ export class MongoStorage implements IStorage {
     await this.connect();
     const docs = await ResidenceModel.insertMany(residences);
     return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+  }
+
+  // Occupation operations
+  async getOccupation(id: string): Promise<any | undefined> {
+    await this.connect();
+    const doc = await OccupationModel.findById(id);
+    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
+  }
+
+  async getOccupationsByCharacter(characterId: string): Promise<any[]> {
+    await this.connect();
+    const docs = await OccupationModel.find({ characterId });
+    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+  }
+
+  async getOccupationsByBusiness(businessId: string): Promise<any[]> {
+    await this.connect();
+    const docs = await OccupationModel.find({ businessId });
+    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+  }
+
+  async getCurrentOccupation(characterId: string): Promise<any | undefined> {
+    await this.connect();
+    const doc = await OccupationModel.findOne({ characterId, endYear: null });
+    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
+  }
+
+  async createOccupation(occupation: any): Promise<any> {
+    await this.connect();
+    const doc = await new OccupationModel(occupation).save();
+    return { ...doc.toObject(), id: doc._id.toString() };
+  }
+
+  async updateOccupation(id: string, occupation: any): Promise<any | undefined> {
+    await this.connect();
+    const doc = await OccupationModel.findByIdAndUpdate(id, { ...occupation, updatedAt: new Date() }, { new: true });
+    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
+  }
+
+  async deleteOccupation(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await OccupationModel.findByIdAndDelete(id);
+    return !!result;
   }
 
   // Rule operations
@@ -2416,6 +2644,201 @@ export class MongoStorage implements IStorage {
     await this.connect();
     const result = await PlayTraceModel.findByIdAndDelete(id);
     return !!result;
+  }
+
+  // ============= LANGUAGE PROGRESS =============
+
+  async getLanguageProgress(playerId: string, worldId: string): Promise<any | null> {
+    const doc = await LanguageProgressModel.findOne({ playerId, worldId });
+    return doc ? { id: doc._id.toString(), ...doc.toObject() } : null;
+  }
+
+  async upsertLanguageProgress(playerId: string, worldId: string, data: any): Promise<any> {
+    const doc = await LanguageProgressModel.findOneAndUpdate(
+      { playerId, worldId },
+      { $set: { ...data, updatedAt: new Date() } },
+      { upsert: true, new: true }
+    );
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  // ============= VOCABULARY =============
+
+  async getVocabularyEntries(playerId: string, worldId: string): Promise<any[]> {
+    const docs = await VocabularyEntryModel.find({ playerId, worldId });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  async upsertVocabularyEntry(playerId: string, worldId: string, word: string, data: any): Promise<any> {
+    const doc = await VocabularyEntryModel.findOneAndUpdate(
+      { playerId, worldId, word },
+      { $set: { ...data, updatedAt: new Date() } },
+      { upsert: true, new: true }
+    );
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  // ============= GRAMMAR PATTERNS =============
+
+  async getGrammarPatterns(playerId: string, worldId: string): Promise<any[]> {
+    const docs = await GrammarPatternModel.find({ playerId, worldId });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  async upsertGrammarPattern(playerId: string, worldId: string, pattern: string, data: any): Promise<any> {
+    const doc = await GrammarPatternModel.findOneAndUpdate(
+      { playerId, worldId, pattern },
+      { $set: { ...data, updatedAt: new Date() } },
+      { upsert: true, new: true }
+    );
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  // ============= CONVERSATION RECORDS =============
+
+  async getConversationRecords(playerId: string, worldId: string): Promise<any[]> {
+    const docs = await ConversationRecordModel.find({ playerId, worldId }).sort({ createdAt: -1 });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  async createConversationRecord(data: any): Promise<any> {
+    const doc = await ConversationRecordModel.create(data);
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  // ============= LANGUAGE ASSESSMENTS =============
+
+  async getLanguageAssessments(playerId: string, worldId: string): Promise<any[]> {
+    const docs = await LanguageAssessmentModel.find({ playerId, worldId }).sort({ createdAt: -1 });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  async createLanguageAssessment(data: any): Promise<any> {
+    const doc = await LanguageAssessmentModel.create(data);
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  async getAssessmentsByStudy(studyId: string): Promise<any[]> {
+    const docs = await LanguageAssessmentModel.find({ studyId }).sort({ createdAt: -1 });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  // ============= EVALUATION RESPONSES =============
+
+  async createEvaluationResponse(data: any): Promise<any> {
+    const doc = await EvaluationResponseModel.create(data);
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  async getEvaluationResponses(studyId: string, participantId?: string, targetLanguage?: string): Promise<any[]> {
+    const query: any = { studyId };
+    if (participantId) query.participantId = participantId;
+    if (targetLanguage) query.targetLanguage = targetLanguage;
+    const docs = await EvaluationResponseModel.find(query).sort({ createdAt: -1 });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  async getEvaluationSummary(studyId: string, targetLanguage?: string): Promise<any> {
+    const query: any = { studyId };
+    if (targetLanguage) query.targetLanguage = targetLanguage;
+    const docs = await EvaluationResponseModel.find(query);
+    const byInstrument: Record<string, { count: number; avgScore: number; scores: number[] }> = {};
+    for (const doc of docs) {
+      const type = doc.instrumentType;
+      if (!byInstrument[type]) byInstrument[type] = { count: 0, avgScore: 0, scores: [] };
+      byInstrument[type].count++;
+      if (doc.score != null) byInstrument[type].scores.push(doc.score);
+    }
+    for (const type of Object.keys(byInstrument)) {
+      const scores = byInstrument[type].scores;
+      byInstrument[type].avgScore = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+    }
+    return { studyId, totalResponses: docs.length, byInstrument };
+  }
+
+  // ============= TECHNICAL TELEMETRY =============
+
+  async createTelemetryBatch(events: any[]): Promise<number> {
+    if (events.length === 0) return 0;
+    const result = await TechnicalTelemetryModel.insertMany(events, { ordered: false });
+    return result.length;
+  }
+
+  async getTelemetrySummary(sessionId: string): Promise<any> {
+    const docs = await TechnicalTelemetryModel.find({ sessionId });
+    const byType: Record<string, { count: number; values: number[] }> = {};
+    for (const doc of docs) {
+      if (!byType[doc.metricType]) byType[doc.metricType] = { count: 0, values: [] };
+      byType[doc.metricType].count++;
+      if (doc.value != null) byType[doc.metricType].values.push(doc.value);
+    }
+    return { sessionId, totalMetrics: docs.length, byType };
+  }
+
+  async getAggregateTelemetry(studyId: string): Promise<any> {
+    // Get all sessions for this study via engagement events
+    const sessions = await EngagementEventModel.find({ eventType: 'session_start' }).distinct('sessionId');
+    const docs = await TechnicalTelemetryModel.find({ sessionId: { $in: sessions } });
+    const byType: Record<string, number[]> = {};
+    for (const doc of docs) {
+      if (!byType[doc.metricType]) byType[doc.metricType] = [];
+      if (doc.value != null) byType[doc.metricType].push(doc.value);
+    }
+    const summary: Record<string, any> = {};
+    for (const [type, values] of Object.entries(byType)) {
+      values.sort((a, b) => a - b);
+      summary[type] = {
+        count: values.length,
+        mean: values.reduce((a, b) => a + b, 0) / values.length,
+        p50: values[Math.floor(values.length * 0.5)] || 0,
+        p95: values[Math.floor(values.length * 0.95)] || 0,
+        p99: values[Math.floor(values.length * 0.99)] || 0,
+      };
+    }
+    return summary;
+  }
+
+  // ============= ENGAGEMENT EVENTS =============
+
+  async createEngagementEvent(data: any): Promise<any> {
+    const doc = await EngagementEventModel.create(data);
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  async createEngagementBatch(events: any[]): Promise<number> {
+    if (events.length === 0) return 0;
+    const result = await EngagementEventModel.insertMany(events, { ordered: false });
+    return result.length;
+  }
+
+  async getEngagementSessions(playerId: string, studyId?: string): Promise<any[]> {
+    const query: any = { playerId, eventType: { $in: ['session_start', 'session_end'] } };
+    const docs = await EngagementEventModel.find(query).sort({ createdAt: 1 });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  // ============= API KEYS =============
+
+  async createApiKey(data: { key: string; worldId: string; ownerId: string; permissions?: string[]; expiresAt?: Date }): Promise<any> {
+    const doc = await ApiKeyModel.create(data);
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  async validateApiKey(key: string): Promise<any | null> {
+    const doc = await ApiKeyModel.findOne({ key, isActive: true });
+    if (!doc) return null;
+    if (doc.expiresAt && doc.expiresAt < new Date()) return null;
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  async revokeApiKey(keyId: string): Promise<boolean> {
+    const result = await ApiKeyModel.updateOne({ _id: keyId }, { $set: { isActive: false } });
+    return result.modifiedCount > 0;
+  }
+
+  async getApiKeysByWorld(worldId: string): Promise<any[]> {
+    const docs = await ApiKeyModel.find({ worldId });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
 }
