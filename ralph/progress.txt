@@ -794,3 +794,40 @@ Started: Thu Mar 12 00:10:56 CDT 2026
   - Plugin bundler uses readDirRecursive to copy source files, then generates engine-specific config files
   - Unreal needs both INI config (runtime settings) and C++ header (compile-time constants)
 ---
+
+## 2026-03-12 17:25 CDT - US-039
+- Implemented response latency metrics and adaptive quality for the conversation pipeline
+- Created `server/services/conversation/conversation-metrics.ts` with:
+  - `ConversationMetricsCollector` class with rolling window of 100 entries per stage
+  - `percentile()` helper for p50/p95/p99 calculations
+  - `PipelineTimer` convenience class for timing pipeline stages
+  - Singleton pattern with `getConversationMetrics()` / `resetConversationMetrics()`
+  - Adaptive quality: degrades viseme quality (full→simplified) when p95 e2e > 2s, skips TTS when > 4s
+- Instrumented `server/services/conversation/grpc-server.ts`:
+  - end_to_end timer wrapping full request lifecycle
+  - context timer for context building
+  - llm_first_token and llm_total timers in LLM streaming loop
+  - tts_first_chunk and tts_total timers per sentence synthesis
+  - viseme timer per viseme generation call
+  - stt timer in audio chunk handler
+  - Adaptive quality: uses effectiveVisemeQuality based on degradation state
+- Instrumented `server/services/conversation/http-bridge.ts` with same timing points
+- Added `GET /api/metrics/conversation` endpoint returning full snapshot (stages, windowSize, collectedSince, adaptiveQuality)
+- Client-side prediction (typing indicator) was already implemented in BabylonChatPanel (US-014)
+- Created `server/__tests__/conversation-metrics.test.ts` with 19 tests covering:
+  - percentile calculations (empty, single, odd/even arrays, p50/p95/p99)
+  - MetricsCollector: record, retrieve, rolling window, snapshot, adaptive quality activation/deactivation, reset
+  - PipelineTimer: recording, idempotent stop, elapsed without stop
+  - Singleton: creation, reset
+- Files changed:
+  - NEW: `server/services/conversation/conversation-metrics.ts`
+  - NEW: `server/__tests__/conversation-metrics.test.ts`
+  - MOD: `server/services/conversation/grpc-server.ts`
+  - MOD: `server/services/conversation/http-bridge.ts`
+  - MOD: `ralph/prd.json`
+- **Learnings for future iterations:**
+  - `Array.from(map.values())` required for iterating Map values (codebase pattern confirmed again)
+  - Pipeline timing can be added non-invasively by wrapping existing code sections with PipelineTimer
+  - The http-bridge and grpc-server have very similar pipeline structures — instrumentation is nearly identical
+  - Adaptive quality is evaluated on each end_to_end recording, requires ≥3 samples before activating
+---
