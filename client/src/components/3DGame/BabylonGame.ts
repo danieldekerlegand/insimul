@@ -49,6 +49,7 @@ import { BabylonQuestTracker } from "@/components/3DGame/BabylonQuestTracker.ts"
 import { BabylonRadialMenu } from "@/components/3DGame/BabylonRadialMenu.ts";
 import { QuestObjectManager } from "@/components/3DGame/QuestObjectManager.ts";
 import { QuestIndicatorManager } from "@/components/3DGame/QuestIndicatorManager.ts";
+import { ListeningComprehensionManager } from "@/components/3DGame/ListeningComprehensionManager.ts";
 import { ProceduralBuildingGenerator, BuildingStyle } from "@/components/3DGame/ProceduralBuildingGenerator.ts";
 import { ProceduralNatureGenerator, BiomeStyle } from "@/components/3DGame/ProceduralNatureGenerator.ts";
 import { RoadGenerator } from "@/components/3DGame/RoadGenerator.ts";
@@ -341,6 +342,7 @@ export class BabylonGame {
   private questObjectManager: QuestObjectManager | null = null;
   private questIndicatorManager: QuestIndicatorManager | null = null;
   private questNotificationManager: QuestNotificationManager | null = null;
+  private listeningComprehensionManager: ListeningComprehensionManager | null = null;
   private buildingGenerator: ProceduralBuildingGenerator | null = null;
   private natureGenerator: ProceduralNatureGenerator | null = null;
   private roadGenerator: RoadGenerator | null = null;
@@ -1235,6 +1237,17 @@ export class BabylonGame {
         description: questData.title || 'Quest assigned',
       });
       this.eventBus.emit({ type: 'quest_accepted', questId: questData.id || '', questTitle: questData.title || '' });
+
+      // Register listening comprehension quests when newly assigned
+      if (questData.completionCriteria?.type === 'listening_comprehension' && this.listeningComprehensionManager) {
+        this.listeningComprehensionManager.registerQuest(
+          questData.id,
+          questData.completionCriteria.storyNpcId || questData.assignedByCharacterId,
+          questData.completionCriteria.answerNpcId,
+          questData.completionCriteria.questions || [],
+          (this.worldData as any)?.targetLanguage,
+        );
+      }
     });
     this.chatPanel.setOnQuestTurnedIn(async (questId, rewards) => {
       // Use QuestCompletionManager for the full ceremony
@@ -1397,6 +1410,38 @@ export class BabylonGame {
     this.questObjectManager.setOnStoryTTS((text, _npcId) => {
       // Speak the listening comprehension story text via TTS
       this.chatPanel?.speakWord(text);
+    });
+
+    // Initialize listening comprehension manager
+    this.listeningComprehensionManager = new ListeningComprehensionManager();
+    this.listeningComprehensionManager.setOnComplete((questId, score, storyText, passed) => {
+      // Update quest progress with score and story
+      this.dataSource.updateQuest(questId, {
+        progress: { comprehensionScore: score, storyText },
+      }).catch(err => console.error('[ListeningComprehension] Failed to save progress:', err));
+
+      // Track each answer as correct/incorrect based on pass threshold
+      if (passed) {
+        this.questObjectManager?.trackListeningAnswer(true, questId);
+      }
+
+      this.guiManager?.showToast({
+        title: passed ? 'Comprehension Passed!' : 'Comprehension Check',
+        description: passed
+          ? `Score: ${score}/100 — Great listening skills!`
+          : `Score: ${score}/100 — You need 60% to pass. Try again!`,
+        duration: 4000,
+      });
+    });
+
+    // Wire listening comprehension prompt augmentation into chat panel
+    this.chatPanel?.setSystemPromptAugmentation((npcId: string) => {
+      return this.listeningComprehensionManager?.getPromptAugmentation(npcId) ?? null;
+    });
+
+    // Wire chat exchange to listening comprehension manager
+    this.chatPanel?.setOnChatExchange((npcId: string, playerMessage: string, npcResponse: string) => {
+      this.listeningComprehensionManager?.handleChatExchange(npcId, playerMessage, npcResponse);
     });
 
     // Initialize quest indicator manager
@@ -1793,6 +1838,21 @@ export class BabylonGame {
         quests: quests?.length || 0,
         assets: assets?.length || 0
       });
+
+      // Register active listening comprehension quests
+      if (this.listeningComprehensionManager && quests) {
+        for (const quest of quests) {
+          if (quest.status === 'active' && quest.completionCriteria?.type === 'listening_comprehension') {
+            this.listeningComprehensionManager.registerQuest(
+              quest.id,
+              quest.completionCriteria.storyNpcId || quest.assignedByCharacterId,
+              quest.completionCriteria.answerNpcId,
+              quest.completionCriteria.questions || [],
+              world?.targetLanguage,
+            );
+          }
+        }
+      }
 
       // Initialize Prolog engine with world data
       if (this.prologEngine) {

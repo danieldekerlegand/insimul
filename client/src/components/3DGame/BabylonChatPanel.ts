@@ -130,6 +130,8 @@ export class BabylonChatPanel {
   private onFluencyGain: ((fluency: number, gain: number) => void) | null = null;
   private onConversationSummary: ((result: any) => void) | null = null;
   private onDialogueRating: ((messageIndex: number, rating: number) => void) | null = null;
+  private onChatExchange: ((npcId: string, playerMessage: string, npcResponse: string) => void) | null = null;
+  private systemPromptAugmentation: ((npcId: string) => string | null) | null = null;
   private pendingTurnInQuests: any[] = [];
 
   // Expose advancedTexture for debugging
@@ -836,6 +838,11 @@ export class BabylonChatPanel {
       // Track vocabulary usage for quests
       this.trackQuestProgress(userMessage, cleanedResponse);
 
+      // Notify listeners of the chat exchange (used by listening comprehension)
+      if (this.onChatExchange && this.character?.id) {
+        this.onChatExchange(this.character.id, userMessage, cleanedResponse);
+      }
+
       // Play queued sentence audio, or fall back to full TTS
       if (this.audioQueue.length > 0) {
         await this.playAudioQueue();
@@ -1228,8 +1235,8 @@ export class BabylonChatPanel {
     if (!this.character) return '';
     // Return cached prompt if character hasn't changed
     if (this._cachedSystemPrompt && this._systemPromptCharId === this.character.id) {
-      // Rebuild if inventory context or proficiency data changed
-      if (!this.playerInventoryContext && !this._proficiencyDirty) return this._cachedSystemPrompt;
+      // Rebuild if inventory context, proficiency data, or prompt augmentation changed
+      if (!this.playerInventoryContext && !this._proficiencyDirty && !this.systemPromptAugmentation) return this._cachedSystemPrompt;
     }
     this._proficiencyDirty = false;
     const proficiency = this.languageTracker?.getPlayerProficiency() || undefined;
@@ -1249,6 +1256,13 @@ export class BabylonChatPanel {
     );
     if (this.playerInventoryContext) {
       prompt += this.playerInventoryContext;
+    }
+    // Inject listening comprehension or other quest-specific augmentation
+    if (this.systemPromptAugmentation && this.character.id) {
+      const augmentation = this.systemPromptAugmentation(this.character.id);
+      if (augmentation) {
+        prompt += augmentation;
+      }
     }
     this._cachedSystemPrompt = prompt;
     this._systemPromptCharId = this.character.id as string;
@@ -1805,6 +1819,16 @@ export class BabylonChatPanel {
   /** Set callback for when the player rates an NPC dialogue response (1-5 stars). */
   public setOnDialogueRating(callback: (messageIndex: number, rating: number) => void) {
     this.onDialogueRating = callback;
+  }
+
+  /** Set callback invoked after each player↔NPC message exchange. */
+  public setOnChatExchange(callback: (npcId: string, playerMessage: string, npcResponse: string) => void) {
+    this.onChatExchange = callback;
+  }
+
+  /** Set a function that provides additional system prompt text for specific NPCs. */
+  public setSystemPromptAugmentation(fn: (npcId: string) => string | null) {
+    this.systemPromptAugmentation = fn;
   }
 
   private _onExternalNewWord: ((entry: any) => void) | null = null;
