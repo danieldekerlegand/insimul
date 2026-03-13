@@ -26,6 +26,7 @@ export class ProceduralNatureGenerator {
   private treeMeshes: AbstractMesh[] = [];
   private rockMeshes: AbstractMesh[] = [];
   private vegetationMeshes: AbstractMesh[] = [];
+  private lakeMeshes: AbstractMesh[] = [];
 
   // Optional world-level asset overrides
   private treeOverrideTemplate: Mesh | null = null;
@@ -1149,6 +1150,141 @@ export class ProceduralNatureGenerator {
     }
   }
 
+  /**
+   * Generate lakes in terrain basins.
+   * Samples the heightmap to find local minima, then places water disc meshes
+   * at those positions. Only generates in biomes with hasWater === true.
+   */
+  public generateLakes(
+    biome: BiomeStyle,
+    bounds: { minX: number; maxX: number; minZ: number; maxZ: number },
+    heightSampler?: (x: number, z: number) => number,
+    avoidPositions: Vector3[] = [],
+    avoidRadius: number = 20
+  ): void {
+    if (!biome.hasWater || !heightSampler) return;
+
+    const width = bounds.maxX - bounds.minX;
+    const depth = bounds.maxZ - bounds.minZ;
+    const area = width * depth;
+
+    // Determine lake count based on area — roughly 1 lake per 10000 sq units, min 1 max 5
+    const lakeCount = Math.max(1, Math.min(5, Math.floor(area / 10000)));
+
+    // Grid-sample the terrain to find basins (local height minima)
+    const gridRes = 12; // sample grid resolution
+    const cellW = width / gridRes;
+    const cellD = depth / gridRes;
+
+    // Sample heights on the grid
+    const heights: { x: number; z: number; h: number }[] = [];
+    for (let gx = 0; gx < gridRes; gx++) {
+      for (let gz = 0; gz < gridRes; gz++) {
+        const x = bounds.minX + (gx + 0.5) * cellW;
+        const z = bounds.minZ + (gz + 0.5) * cellD;
+        const h = heightSampler(x, z);
+        heights.push({ x, z, h });
+      }
+    }
+
+    // Sort by height ascending — lowest points are basin candidates
+    heights.sort((a, b) => a.h - b.h);
+
+    // Pick basin positions, ensuring minimum spacing between lakes
+    const minLakeSpacing = 40;
+    const basinPositions: { x: number; z: number; h: number }[] = [];
+
+    for (const candidate of heights) {
+      if (basinPositions.length >= lakeCount) break;
+
+      // Check spacing from other lakes
+      const tooCloseToLake = basinPositions.some(
+        bp => Math.hypot(bp.x - candidate.x, bp.z - candidate.z) < minLakeSpacing
+      );
+      if (tooCloseToLake) continue;
+
+      // Check spacing from buildings/roads
+      const tooCloseToBuilding = avoidPositions.some(
+        av => Math.hypot(av.x - candidate.x, av.z - candidate.z) < avoidRadius
+      );
+      if (tooCloseToBuilding) continue;
+
+      basinPositions.push(candidate);
+    }
+
+    // Create water material
+    const waterMat = new StandardMaterial('lake_water_mat', this.scene);
+    waterMat.diffuseColor = new Color3(0.15, 0.35, 0.55);
+    waterMat.emissiveColor = new Color3(0.05, 0.12, 0.2);
+    waterMat.specularColor = new Color3(0.4, 0.4, 0.5);
+    waterMat.specularPower = 64;
+    waterMat.alpha = 0.75;
+    waterMat.backFaceCulling = false;
+
+    for (let i = 0; i < basinPositions.length; i++) {
+      const basin = basinPositions[i];
+
+      // Lake radius varies by how low the basin is relative to surroundings
+      // Sample surrounding heights to determine extent
+      const sampleDist = 15;
+      const surroundHeights: number[] = [];
+      for (let a = 0; a < 8; a++) {
+        const angle = (a / 8) * Math.PI * 2;
+        const sx = basin.x + Math.cos(angle) * sampleDist;
+        const sz = basin.z + Math.sin(angle) * sampleDist;
+        // Clamp to bounds
+        if (sx >= bounds.minX && sx <= bounds.maxX && sz >= bounds.minZ && sz <= bounds.maxZ) {
+          surroundHeights.push(heightSampler(sx, sz));
+        }
+      }
+      const avgSurround = surroundHeights.length > 0
+        ? surroundHeights.reduce((s, h) => s + h, 0) / surroundHeights.length
+        : basin.h + 1;
+      const heightDiff = Math.max(0.2, avgSurround - basin.h);
+
+      // Radius proportional to height difference, clamped between 8 and 25
+      const lakeRadius = Math.max(8, Math.min(25, heightDiff * 8 + 6));
+
+      // Water surface sits slightly above the basin floor
+      const waterY = basin.h + 0.15;
+
+      // Create disc mesh for the lake surface
+      const lake = MeshBuilder.CreateDisc(
+        `lake_${i}`,
+        { radius: lakeRadius, tessellation: 32 },
+        this.scene
+      );
+      lake.rotation.x = Math.PI / 2; // Lay flat
+      lake.position = new Vector3(basin.x, waterY, basin.z);
+      lake.material = waterMat;
+      lake.isPickable = false;
+      lake.checkCollisions = false;
+      lake.freezeWorldMatrix();
+      // LOD: hide lakes at distance
+      lake.addLODLevel(150, null);
+      this.lakeMeshes.push(lake);
+
+      // Collision plane to prevent walking through water
+      const collider = MeshBuilder.CreateDisc(
+        `lake_collider_${i}`,
+        { radius: lakeRadius * 0.9, tessellation: 8 },
+        this.scene
+      );
+      collider.rotation.x = Math.PI / 2;
+      collider.position = new Vector3(basin.x, waterY + 0.01, basin.z);
+      collider.isVisible = false;
+      collider.isPickable = false;
+      collider.checkCollisions = true;
+      collider.freezeWorldMatrix();
+      this.lakeMeshes.push(collider);
+    }
+  }
+
+  /** Return all lake meshes for distance culling */
+  public getLakeMeshes(): AbstractMesh[] {
+    return this.lakeMeshes;
+  }
+
   /** Return all tree meshes for distance culling */
   public getTreeMeshes(): AbstractMesh[] {
     return this.treeMeshes;
@@ -1171,9 +1307,11 @@ export class ProceduralNatureGenerator {
     this.treeMeshes.forEach(mesh => mesh.dispose());
     this.rockMeshes.forEach(mesh => mesh.dispose());
     this.vegetationMeshes.forEach(mesh => mesh.dispose());
+    this.lakeMeshes.forEach(mesh => mesh.dispose());
 
     this.treeMeshes = [];
     this.rockMeshes = [];
     this.vegetationMeshes = [];
+    this.lakeMeshes = [];
   }
 }

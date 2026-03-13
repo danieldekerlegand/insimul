@@ -2734,6 +2734,11 @@ export class BabylonGame {
       natureGenerator.generateFlowers(biome, worldBounds, flowerCount, sampleHeight);
     }
 
+    // Lakes — generate in water-capable biomes, avoiding buildings/roads
+    if (biome.hasWater) {
+      natureGenerator.generateLakes(biome, worldBounds, sampleHeight, avoidPositions, 25);
+    }
+
     // Generate wilderness props (camps, ruins, landmarks) between settlements
     this.generateWildernessProps(
       worldBounds,
