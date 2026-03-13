@@ -376,3 +376,22 @@
   - Tests use the npx tsx runner (not vitest) for street-generator.test.ts — it's a standalone script with its own assert function
   - curvePath interpolation uses linear segment interpolation along the path array
 ---
+
+## 2026-03-12 - US-012 (naturalized-procgen)
+- Added `generateHillside(config, heightmap)` method to StreetGenerator
+- 3-5 contour-following roads traced at even elevation intervals within settlement radius
+- Contour roads traced by marching at 16-24 angles, finding points near target elevation (8% tolerance)
+- Adjacent contour levels connected with 2-4 switchback ramps (zigzag lane segments)
+- Switchback nodes offset perpendicular to direct path for natural zigzag feel
+- Contour roads are residential type; switchback connectors are lane type
+- Falls back to organic pattern if no heightmap or flat terrain provided
+- Slope map avoidance reused from existing infrastructure
+- 2603 total test assertions pass (all patterns), typecheck unchanged at 459
+- Files changed: server/generators/street-generator.ts, server/generators/street-generator.test.ts
+- **Learnings for future iterations:**
+  - Heightmap sampling helper maps world coords to heightmap indices: `((wx - center.x) / radius + 1) / 2 * (hmCols - 1)`
+  - Contour tracing works by walking outward from center at multiple angles, finding first point within elevation tolerance
+  - Flat terrain detection (elevRange < 0.01) needed to avoid degenerate contour tracing
+  - Test heightmap with linear z-gradient makes contour structure easy to verify (contour nodes cluster at similar z-values)
+  - TypeScript error count unchanged at 459
+---
