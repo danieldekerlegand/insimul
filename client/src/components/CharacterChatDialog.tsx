@@ -223,6 +223,38 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
     return fullResponse;
   };
 
+  /** Single-call native audio chat: sends audio/text to Gemini, gets text + audio back */
+  const sendNativeAudioChat = async (
+    options: { audioData?: string; textMessage?: string }
+  ): Promise<{ response: string; cleanedResponse: string; audio?: string; audioMimeType?: string }> => {
+    const systemPrompt = buildSystemPrompt();
+    const history = messages.map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.content }]
+    }));
+
+    const response = await fetch('/api/gemini/native-audio-chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...options,
+        systemPrompt,
+        history,
+        voice: character?.gender === 'female' ? 'Kore' : 'Charon',
+        temperature: 0.8,
+        maxTokens: 2048,
+        returnAudio: true,
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(errorData.error || `Native audio chat failed (${response.status})`);
+    }
+
+    return response.json();
+  };
+
   const textToSpeech = async (text: string): Promise<Blob> => {
     try {
       const response = await fetch('/api/tts', {
@@ -785,6 +817,70 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
   const handleStopRecording = () => {
     stopListening();
   };
+
+  /** Handle native audio I/O: sends raw audio blob to Gemini, gets text + audio back */
+  const handleNativeAudioSend = useCallback(async (audioBlob: Blob) => {
+    setIsProcessing(true);
+    try {
+      // Convert blob to base64 for the native audio API
+      const base64Audio = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          const base64 = result.includes(',') ? result.split(',')[1] : result;
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(audioBlob);
+      });
+
+      // Single native audio call: audio in → text + audio out
+      const result = await sendNativeAudioChat({
+        audioData: base64Audio,
+      });
+
+      // Use the cleaned response for display
+      const isNativeLangLearning = worldLangContext?.gameType === 'language-learning' ||
+                                    worldLangContext?.gameType === 'educational';
+      const { cleanedResponse: nativeDisplayResponse } = isNativeLangLearning
+        ? parseGrammarFeedbackBlock(result.cleanedResponse || result.response)
+        : { cleanedResponse: result.cleanedResponse || result.response };
+
+      // Add a placeholder for the user message (Gemini transcribed internally)
+      const userMsg: Message = {
+        role: 'user',
+        content: '[Voice message]',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, userMsg]);
+
+      const aiMessage: Message = {
+        role: 'assistant',
+        content: nativeDisplayResponse,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, aiMessage]);
+
+      // Play audio response if available
+      if (result.audio) {
+        const audioBytes = Uint8Array.from(atob(result.audio), c => c.charCodeAt(0));
+        const responseBlob = new Blob([audioBytes], { type: result.audioMimeType || 'audio/wav' });
+        await playAudio(responseBlob);
+      } else {
+        // Fallback to TTS if native audio not available
+        const responseAudioBlob = await textToSpeech(nativeDisplayResponse);
+        await playAudio(responseAudioBlob);
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to process native audio',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [worldLangContext, toast]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

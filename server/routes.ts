@@ -5790,6 +5790,88 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
     }
   });
 
+  // Gemini Native Audio Chat — single-call voice I/O
+  // Audio goes in, text + audio come out via Gemini's native audio capabilities
+  app.post("/api/gemini/native-audio-chat", async (req, res) => {
+    try {
+      const {
+        audioData, // Base64-encoded audio (required for voice mode)
+        mimeType = 'audio/webm',
+        textMessage, // Text input (alternative to audio)
+        systemPrompt,
+        history = [],
+        voice = 'Kore',
+        temperature = 0.7,
+        maxTokens = 1000,
+        returnAudio = true,
+        worldId,
+        npcId,
+        playerId,
+      } = req.body;
+
+      if (!audioData && !textMessage) {
+        return res.status(400).json({ error: "Either audioData or textMessage is required" });
+      }
+
+      if (!systemPrompt) {
+        return res.status(400).json({ error: "systemPrompt is required" });
+      }
+
+      if (!isGeminiConfigured()) {
+        return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
+      }
+
+      const { nativeAudioChat, nativeTextToAudioChat } = await import("./services/gemini-native-audio.js");
+
+      let result;
+
+      if (audioData) {
+        // Voice mode: audio in → text + audio out
+        const base64Data = audioData.includes(',') ? audioData.split(',')[1] : audioData;
+        result = await nativeAudioChat({
+          audioData: base64Data,
+          mimeType,
+          systemPrompt,
+          history,
+          voice,
+          temperature,
+          maxTokens,
+        });
+      } else {
+        // Text mode with audio response
+        result = await nativeTextToAudioChat(
+          textMessage,
+          systemPrompt,
+          history,
+          voice,
+          temperature,
+          maxTokens,
+        );
+      }
+
+      // Strip system markers for display
+      const cleanedResponse = result.text
+        .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+        .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+        .trim();
+
+      const responseData: any = {
+        response: result.text,
+        cleanedResponse,
+      };
+
+      if (returnAudio && result.audioData) {
+        responseData.audio = result.audioData;
+        responseData.audioMimeType = result.audioMimeType;
+      }
+
+      res.json(responseData);
+    } catch (error) {
+      console.error("Native audio chat error:", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to process native audio chat" });
+    }
+  });
+
   // Grammar Analysis Endpoint — separate from dialogue to keep NPC responses clean
   app.post("/api/gemini/grammar-analysis", async (req, res) => {
     try {
