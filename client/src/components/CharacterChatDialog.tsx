@@ -95,18 +95,31 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
     return buildLanguageAwareSystemPrompt(character, truths, worldLangContext || undefined);
   };
 
-  const sendMessageToGemini = async (userMessage: string): Promise<string> => {
+  interface VoiceChatResponse {
+    response: string;
+    cleanedResponse?: string;
+    userTranscript?: string;
+    audio?: string;
+  }
+
+  const sendVoiceChat = async (options: {
+    text?: string;
+    audioInput?: string;
+  }): Promise<VoiceChatResponse> => {
     const systemPrompt = buildSystemPrompt();
-    
+    const voice = character?.gender === 'female' ? 'Kore' : 'Charon';
+
     const conversationHistory = messages.map(msg => ({
       role: msg.role === 'user' ? 'user' : 'model',
       parts: [{ text: msg.content }]
     }));
 
-    conversationHistory.push({
-      role: 'user',
-      parts: [{ text: userMessage }]
-    });
+    if (options.text) {
+      conversationHistory.push({
+        role: 'user',
+        parts: [{ text: options.text }]
+      });
+    }
 
     const response = await fetch('/api/gemini/chat', {
       method: 'POST',
@@ -115,7 +128,10 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
         systemPrompt,
         messages: conversationHistory,
         temperature: 0.8,
-        maxTokens: 2048  // Increased from 500 to allow for full responses
+        maxTokens: 2048,
+        returnAudio: true,
+        voice,
+        ...(options.audioInput ? { audioInput: options.audioInput } : {})
       })
     });
 
@@ -124,88 +140,34 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
       throw new Error(errorData.error || `Failed to get response from Gemini (${response.status})`);
     }
 
-    const data = await response.json();
-    return data.response;
+    return await response.json();
   };
 
-  const textToSpeech = async (text: string): Promise<Blob> => {
-    try {
-      const response = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text,
-          voice: character?.gender === 'female' ? 'Kore' : 'Charon',
-          gender: character?.gender || 'neutral'
-        })
-      });
-
-      if (!response.ok) {
-        console.warn('Server TTS failed, falling back to browser TTS');
-        // Fallback to browser's Web Speech API
-        return await browserTextToSpeech(text);
-      }
-
-      return await response.blob();
-    } catch (error) {
-      console.warn('TTS error, using browser fallback:', error);
-      return await browserTextToSpeech(text);
-    }
+  const playBase64Audio = async (base64Audio: string) => {
+    // Handle both bare base64 and data URI formats
+    const dataUri = base64Audio.startsWith('data:')
+      ? base64Audio
+      : `data:audio/mp3;base64,${base64Audio}`;
+    const resp = await fetch(dataUri);
+    const blob = await resp.blob();
+    await playAudio(blob);
   };
 
-  const browserTextToSpeech = async (text: string): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      if (!('speechSynthesis' in window)) {
-        reject(new Error('Browser does not support speech synthesis'));
-        return;
-      }
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      
-      // Dynamically detect the character's dominant language for TTS
-      const fluencies = extractLanguageFluencies(truths);
-      const dominantLang = fluencies[0]?.language || 'English';
-      const langCode = getLanguageBCP47(dominantLang);
-      utterance.lang = langCode;
-      utterance.rate = 0.9;
-      
-      // Try to find a voice matching the dominant language
-      const voices = speechSynthesis.getVoices();
-      const langPrefix = langCode.split('-')[0];
-      const matchedVoice = voices.find(v => v.lang.startsWith(langPrefix));
-      if (matchedVoice) {
-        utterance.voice = matchedVoice;
-      }
-
-      utterance.onend = () => {
-        // Create a silent audio blob as placeholder
-        const silence = new Blob([], { type: 'audio/wav' });
-        resolve(silence);
-      };
-
-      utterance.onerror = (error) => {
-        reject(error);
-      };
-
-      speechSynthesis.speak(utterance);
-    });
-  };
-
-  const speechToText = async (audioBlob: Blob): Promise<string> => {
-    const formData = new FormData();
-    formData.append('audio', audioBlob, 'recording.webm');
-
-    const response = await fetch('/api/stt', {
-      method: 'POST',
-      body: formData
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to convert speech to text');
-    }
-
-    const data = await response.json();
-    return data.transcript;
+  const browserTextToSpeech = (text: string) => {
+    if (!('speechSynthesis' in window)) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+    const fluencies = extractLanguageFluencies(truths);
+    const dominantLang = fluencies[0]?.language || 'English';
+    const langCode = getLanguageBCP47(dominantLang);
+    utterance.lang = langCode;
+    utterance.rate = 0.9;
+    const voices = speechSynthesis.getVoices();
+    const langPrefix = langCode.split('-')[0];
+    const matchedVoice = voices.find(v => v.lang.startsWith(langPrefix));
+    if (matchedVoice) utterance.voice = matchedVoice;
+    setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    speechSynthesis.speak(utterance);
   };
 
   const playAudio = async (audioBlob: Blob) => {
@@ -577,11 +539,11 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
       // Update quest progress based on user message
       await updateQuestProgress(userMessage);
 
-      // Get AI response
-      const aiResponse = await sendMessageToGemini(userMessage);
+      // Get AI response + audio in a single call
+      const data = await sendVoiceChat({ text: userMessage });
 
       // Parse and create quest if present
-      const afterQuestClean = await parseAndCreateQuest(aiResponse);
+      const afterQuestClean = await parseAndCreateQuest(data.response);
 
       // Strip grammar feedback markers for language-learning games
       const isLangLearning = worldLangContext?.gameType === 'language-learning' ||
@@ -598,9 +560,12 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
       };
       setMessages(prev => [...prev, newAiMessage]);
 
-      // Convert to speech and play (without markers)
-      const audioBlob = await textToSpeech(displayResponse);
-      await playAudio(audioBlob);
+      // Play audio from combined response, fallback to browser TTS
+      if (data.audio) {
+        await playBase64Audio(data.audio);
+      } else {
+        browserTextToSpeech(displayResponse);
+      }
 
       // Automatically create a quest based on the conversation
       await createAutomaticQuest(userMessage, displayResponse);
@@ -635,12 +600,21 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
 
         setIsProcessing(true);
         try {
-          // Convert speech to text
-          const transcript = await speechToText(audioBlob);
-          setInputText(transcript);
+          // Convert audio blob to base64 for the combined endpoint
+          const reader = new FileReader();
+          const base64Audio = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(audioBlob);
+          });
 
-          // Automatically send the message
+          // Send audio to combined voice-chat endpoint (STT + Gemini + TTS in one call)
+          const data = await sendVoiceChat({ audioInput: base64Audio });
+          const transcript = data.userTranscript || '';
+
           if (transcript.trim()) {
+            setInputText(transcript);
+
             const userMessage: Message = {
               role: 'user',
               content: transcript,
@@ -648,15 +622,12 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
             };
             setMessages(prev => [...prev, userMessage]);
 
-            // Get AI response
-            const aiResponse = await sendMessageToGemini(transcript);
-
             // Strip grammar feedback markers for language-learning games
             const isVoiceLangLearning = worldLangContext?.gameType === 'language-learning' ||
                                         worldLangContext?.gameType === 'educational';
             const { cleanedResponse: voiceDisplayResponse } = isVoiceLangLearning
-              ? parseGrammarFeedbackBlock(aiResponse)
-              : { cleanedResponse: aiResponse };
+              ? parseGrammarFeedbackBlock(data.response)
+              : { cleanedResponse: data.response };
 
             const aiMessage: Message = {
               role: 'assistant',
@@ -665,9 +636,12 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
             };
             setMessages(prev => [...prev, aiMessage]);
 
-            // Convert to speech and play (without markers)
-            const responseAudioBlob = await textToSpeech(voiceDisplayResponse);
-            await playAudio(responseAudioBlob);
+            // Play audio from combined response, fallback to browser TTS
+            if (data.audio) {
+              await playBase64Audio(data.audio);
+            } else {
+              browserTextToSpeech(voiceDisplayResponse);
+            }
           }
         } catch (error) {
           toast({
