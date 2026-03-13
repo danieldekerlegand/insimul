@@ -748,6 +748,230 @@ export class StreetGenerator {
     return this.toStreetNetwork(nodes, edges);
   }
 
+  /**
+   * Generate a hillside/terraced street layout for mountain settlements.
+   * Roads follow elevation contour lines with switchback ramps connecting levels.
+   * Algorithm:
+   * 1. Compute elevation range within settlement boundary
+   * 2. Define 3-5 contour levels at even elevation intervals
+   * 3. For each level, trace a contour-following road (march around at that elevation)
+   * 4. Connect adjacent contour levels with switchback ramp segments
+   * 5. Falls back to organic pattern if no heightmap provided
+   * 6. Ensure connectivity
+   */
+  generateHillside(config: StreetGenConfig, heightmap: number[][]): StreetNetwork {
+    // Fallback to organic if no heightmap
+    if (!heightmap || heightmap.length === 0 || (heightmap[0]?.length ?? 0) === 0) {
+      return this.generateOrganic(config);
+    }
+
+    this.nodeCounter = 0;
+    this.edgeCounter = 0;
+
+    const rng = seededRandom(config.seed);
+    const noise = createNoise2D(config.seed + '_hillside');
+    const { center, radius } = config;
+
+    const nodes: InternalNode[] = [];
+    const edges: InternalEdge[] = [];
+
+    const hmRows = heightmap.length;
+    const hmCols = heightmap[0].length;
+
+    // Helper: sample heightmap at world coords
+    const sampleHeight = (wx: number, wz: number): number => {
+      const col = ((wx - center.x) / radius + 1) / 2 * (hmCols - 1);
+      const row = ((wz - center.z) / radius + 1) / 2 * (hmRows - 1);
+      const r = Math.max(0, Math.min(hmRows - 1, Math.round(row)));
+      const c = Math.max(0, Math.min(hmCols - 1, Math.round(col)));
+      return heightmap[r][c];
+    };
+
+    // 1. Compute elevation range within settlement boundary
+    let minElev = Infinity, maxElev = -Infinity;
+    const sampleStep = Math.max(1, Math.floor(radius / 20));
+    for (let dz = -radius; dz <= radius; dz += sampleStep) {
+      for (let dx = -radius; dx <= radius; dx += sampleStep) {
+        if (dx * dx + dz * dz > radius * radius) continue;
+        const h = sampleHeight(center.x + dx, center.z + dz);
+        if (h < minElev) minElev = h;
+        if (h > maxElev) maxElev = h;
+      }
+    }
+
+    const elevRange = maxElev - minElev;
+    if (elevRange < 0.01) {
+      // Flat terrain — fall back to organic
+      return this.generateOrganic(config);
+    }
+
+    // 2. Define contour levels (3-5 levels)
+    const levelCount = 3 + Math.floor(rng() * 3); // 3-5
+    const contourLevels: number[] = [];
+    for (let i = 0; i < levelCount; i++) {
+      // Evenly spaced from 10% to 90% of elevation range
+      const t = (i + 1) / (levelCount + 1);
+      contourLevels.push(minElev + elevRange * t);
+    }
+
+    // 3. Trace contour-following roads at each level
+    // For each level, sample points around the settlement at that elevation
+    const contourNodes: InternalNode[][] = []; // contourNodes[level][nodeIdx]
+
+    for (let li = 0; li < levelCount; li++) {
+      const targetElev = contourLevels[li];
+      const levelNodes: InternalNode[] = [];
+      contourNodes.push(levelNodes);
+
+      // March around the settlement at angles, find points near target elevation
+      const angleCount = 16 + Math.floor(rng() * 8); // 16-24 sample directions
+      const candidates: { x: number; z: number; angle: number }[] = [];
+
+      for (let ai = 0; ai < angleCount; ai++) {
+        const angle = (ai / angleCount) * Math.PI * 2;
+
+        // Walk outward from center along this angle to find elevation match
+        for (let r = radius * 0.1; r < radius * 0.9; r += sampleStep) {
+          const wx = center.x + Math.cos(angle) * r;
+          const wz = center.z + Math.sin(angle) * r;
+          const h = sampleHeight(wx, wz);
+          const tolerance = elevRange * 0.08; // 8% tolerance
+
+          if (Math.abs(h - targetElev) < tolerance) {
+            // Add noise displacement for natural feel
+            const displace = noise(wx * 0.03, wz * 0.03) * radius * 0.03;
+            const perpAngle = angle + Math.PI / 2;
+            candidates.push({
+              x: wx + Math.cos(perpAngle) * displace,
+              z: wz + Math.sin(perpAngle) * displace,
+              angle,
+            });
+            break; // One point per direction
+          }
+        }
+      }
+
+      // Sort candidates by angle for contour ordering
+      candidates.sort((a, b) => a.angle - b.angle);
+
+      // Create nodes from candidates (skip if too few points for a road)
+      if (candidates.length < 3) continue;
+
+      for (const c of candidates) {
+        let nx = c.x;
+        let nz = c.z;
+
+        if (config.slopeMap) {
+          const nudged = this.avoidSteepTerrain(nx, nz, config.slopeMap, radius, rng);
+          nx = nudged.x;
+          nz = nudged.z;
+        }
+
+        const node: InternalNode = {
+          id: this.nextNodeId(),
+          x: nx,
+          z: nz,
+          type: 'intersection',
+          tier: 'secondary', // Contour roads are residential
+        };
+        nodes.push(node);
+        levelNodes.push(node);
+      }
+
+      // Create edges along the contour (connect sequential nodes)
+      for (let i = 0; i < levelNodes.length - 1; i++) {
+        edges.push(this.createEdge(levelNodes[i], levelNodes[i + 1], 'secondary'));
+      }
+      // Optionally close the contour loop if first and last are near enough
+      if (levelNodes.length >= 4) {
+        const first = levelNodes[0];
+        const last = levelNodes[levelNodes.length - 1];
+        const d = dist(first.x, first.z, last.x, last.z);
+        if (d < radius * 0.5) {
+          edges.push(this.createEdge(last, first, 'secondary'));
+        }
+      }
+    }
+
+    // 4. Connect adjacent contour levels with switchback ramps
+    for (let li = 0; li < contourNodes.length - 1; li++) {
+      const lowerNodes = contourNodes[li];
+      const upperNodes = contourNodes[li + 1];
+      if (lowerNodes.length === 0 || upperNodes.length === 0) continue;
+
+      // Pick 2-4 connection points between adjacent levels
+      const connectionCount = 2 + Math.floor(rng() * 3); // 2-4
+      const usedLower = new Set<number>();
+      const usedUpper = new Set<number>();
+
+      for (let ci = 0; ci < connectionCount; ci++) {
+        // Find closest pair not yet used
+        let bestDist = Infinity;
+        let bestLi = 0, bestUi = 0;
+
+        for (let lo = 0; lo < lowerNodes.length; lo++) {
+          if (usedLower.has(lo)) continue;
+          for (let up = 0; up < upperNodes.length; up++) {
+            if (usedUpper.has(up)) continue;
+            const d = dist(lowerNodes[lo].x, lowerNodes[lo].z, upperNodes[up].x, upperNodes[up].z);
+            if (d < bestDist) {
+              bestDist = d;
+              bestLi = lo;
+              bestUi = up;
+            }
+          }
+        }
+
+        if (bestDist === Infinity) break;
+        usedLower.add(bestLi);
+        usedUpper.add(bestUi);
+
+        const lower = lowerNodes[bestLi];
+        const upper = upperNodes[bestUi];
+
+        // Create switchback: zigzag intermediate node(s) between the two levels
+        const midX = (lower.x + upper.x) / 2;
+        const midZ = (lower.z + upper.z) / 2;
+
+        // Offset the mid-node perpendicular to the direct path for zigzag
+        const dirX = upper.x - lower.x;
+        const dirZ = upper.z - lower.z;
+        const dirLen = Math.sqrt(dirX * dirX + dirZ * dirZ) || 1;
+        const zigOffset = dirLen * 0.3 * (rng() > 0.5 ? 1 : -1);
+
+        let zigX = midX + (-dirZ / dirLen) * zigOffset;
+        let zigZ = midZ + (dirX / dirLen) * zigOffset;
+
+        // Add noise for natural variation
+        zigX += noise(zigX * 0.03, zigZ * 0.03) * radius * 0.02;
+        zigZ += noise(zigZ * 0.03, zigX * 0.03) * radius * 0.02;
+
+        if (config.slopeMap) {
+          const nudged = this.avoidSteepTerrain(zigX, zigZ, config.slopeMap, radius, rng);
+          zigX = nudged.x;
+          zigZ = nudged.z;
+        }
+
+        const switchbackNode: InternalNode = {
+          id: this.nextNodeId(),
+          x: zigX,
+          z: zigZ,
+          type: 'curve_point',
+          tier: 'tertiary', // Switchbacks are lane type
+        };
+        nodes.push(switchbackNode);
+
+        edges.push(this.createEdge(lower, switchbackNode, 'tertiary'));
+        edges.push(this.createEdge(switchbackNode, upper, 'tertiary'));
+      }
+    }
+
+    // 5. Ensure full connectivity
+    this.ensureConnectivity(nodes, edges);
+
+    return this.toStreetNetwork(nodes, edges);
+  }
+
   /** Create an internal edge with waypoints */
   private createEdge(from: InternalNode, to: InternalNode, tier: 'main' | 'secondary' | 'tertiary'): InternalEdge {
     // Generate intermediate waypoints for curved edges

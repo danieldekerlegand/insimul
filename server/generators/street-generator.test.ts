@@ -881,6 +881,206 @@ console.log('\n--- Different axis ---');
   assert(axisDiff, `Different axis directions produce different networks`);
 }
 
+// ── Hillside/terraced pattern tests ──
+
+console.log('\n=== StreetGenerator: Hillside Pattern ===\n');
+
+// Create a sloped heightmap (gradient from low to high along z-axis)
+const hmSize = 64;
+const slopedHeightmap: number[][] = [];
+for (let row = 0; row < hmSize; row++) {
+  slopedHeightmap[row] = [];
+  for (let col = 0; col < hmSize; col++) {
+    // Elevation increases with row (z-axis): 0.1 to 0.9
+    slopedHeightmap[row][col] = 0.1 + (row / (hmSize - 1)) * 0.8;
+  }
+}
+
+const hillsideConfig: StreetGenConfig = {
+  center: { x: 0, z: 0 },
+  radius: 100,
+  settlementType: 'village',
+  seed: 'test-hillside-42',
+};
+
+const genH = new StreetGenerator();
+const hillNetwork = genH.generateHillside(hillsideConfig, slopedHeightmap);
+
+console.log('--- Basic structure ---');
+assert(hillNetwork.nodes.length > 0, `Hillside has nodes (got ${hillNetwork.nodes.length})`);
+assert(hillNetwork.edges.length > 0, `Hillside has edges (got ${hillNetwork.edges.length})`);
+assert(hillNetwork.nodes.length >= 5, `At least 5 nodes (got ${hillNetwork.nodes.length})`);
+assert(hillNetwork.edges.length >= 4, `At least 4 edges (got ${hillNetwork.edges.length})`);
+
+// Node validity
+console.log('\n--- Node validity ---');
+const hillNodeIds = new Set(hillNetwork.nodes.map(n => n.id));
+for (const node of hillNetwork.nodes) {
+  assert(typeof node.id === 'string' && node.id.length > 0, `Node ${node.id} has valid id`);
+  assert(typeof node.position.x === 'number' && !isNaN(node.position.x), `Node ${node.id} has valid x`);
+  assert(typeof node.position.z === 'number' && !isNaN(node.position.z), `Node ${node.id} has valid z`);
+  assert(
+    ['intersection', 'dead_end', 'T_junction', 'curve_point'].includes(node.type),
+    `Node ${node.id} has valid type: ${node.type}`
+  );
+}
+
+// Edge validity
+console.log('\n--- Edge validity ---');
+for (const edge of hillNetwork.edges) {
+  assert(typeof edge.id === 'string' && edge.id.length > 0, `Edge ${edge.id} has valid id`);
+  assert(hillNodeIds.has(edge.fromNodeId), `Edge ${edge.id} fromNodeId references existing node`);
+  assert(hillNodeIds.has(edge.toNodeId), `Edge ${edge.id} toNodeId references existing node`);
+  assert(edge.waypoints.length >= 2, `Edge ${edge.id} has at least 2 waypoints`);
+  assert(edge.length > 0, `Edge ${edge.id} has non-zero length`);
+}
+
+// Connectivity
+console.log('\n--- Connectivity ---');
+{
+  const adj = new Map<string, Set<string>>();
+  for (const n of hillNetwork.nodes) adj.set(n.id, new Set());
+  for (const e of hillNetwork.edges) {
+    adj.get(e.fromNodeId)!.add(e.toNodeId);
+    adj.get(e.toNodeId)!.add(e.fromNodeId);
+  }
+  const visited = new Set<string>();
+  const queue = [hillNetwork.nodes[0].id];
+  visited.add(queue[0]);
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    for (const nb of Array.from(adj.get(cur)!)) {
+      if (!visited.has(nb)) {
+        visited.add(nb);
+        queue.push(nb);
+      }
+    }
+  }
+  assert(visited.size === hillNetwork.nodes.length, `Hillside network is fully connected (${visited.size}/${hillNetwork.nodes.length})`);
+}
+
+// Street types: should have both residential (contour) and lane (switchback) types
+console.log('\n--- Street types ---');
+{
+  const types = new Set(hillNetwork.edges.map(e => e.streetType));
+  assert(types.has('residential'), `Has residential (contour) streets`);
+  assert(types.has('lane'), `Has lane (switchback) streets`);
+}
+
+// Determinism
+console.log('\n--- Determinism ---');
+{
+  const genH2 = new StreetGenerator();
+  const network2 = genH2.generateHillside(hillsideConfig, slopedHeightmap);
+  assert(network2.nodes.length === hillNetwork.nodes.length, `Same seed produces same node count`);
+  assert(network2.edges.length === hillNetwork.edges.length, `Same seed produces same edge count`);
+  if (network2.nodes.length === hillNetwork.nodes.length) {
+    let posMatch = true;
+    for (let i = 0; i < hillNetwork.nodes.length; i++) {
+      if (
+        Math.abs(hillNetwork.nodes[i].position.x - network2.nodes[i].position.x) > 0.001 ||
+        Math.abs(hillNetwork.nodes[i].position.z - network2.nodes[i].position.z) > 0.001
+      ) {
+        posMatch = false;
+        break;
+      }
+    }
+    assert(posMatch, `Same seed produces identical node positions`);
+  }
+}
+
+// Different seed produces different results
+console.log('\n--- Different seeds ---');
+{
+  const genH3 = new StreetGenerator();
+  const diffNetwork = genH3.generateHillside({ ...hillsideConfig, seed: 'different-seed-99' }, slopedHeightmap);
+  let differs = false;
+  for (let i = 0; i < Math.min(hillNetwork.nodes.length, diffNetwork.nodes.length); i++) {
+    if (
+      Math.abs(hillNetwork.nodes[i].position.x - diffNetwork.nodes[i].position.x) > 0.1 ||
+      Math.abs(hillNetwork.nodes[i].position.z - diffNetwork.nodes[i].position.z) > 0.1
+    ) {
+      differs = true;
+      break;
+    }
+  }
+  assert(differs, `Different seeds produce different networks`);
+}
+
+// Fallback: no heightmap → organic
+console.log('\n--- Fallback to organic ---');
+{
+  const genH4 = new StreetGenerator();
+  const fallbackNetwork = genH4.generateHillside(hillsideConfig, []);
+  assert(fallbackNetwork.nodes.length > 0, `Fallback (empty heightmap) produces nodes`);
+  assert(fallbackNetwork.edges.length > 0, `Fallback (empty heightmap) produces edges`);
+}
+
+// Fallback: flat heightmap → organic
+{
+  const flatHm: number[][] = [];
+  for (let r = 0; r < 32; r++) {
+    flatHm[r] = [];
+    for (let c = 0; c < 32; c++) flatHm[r][c] = 0.5;
+  }
+  const genH5 = new StreetGenerator();
+  const flatNetwork = genH5.generateHillside(hillsideConfig, flatHm);
+  assert(flatNetwork.nodes.length > 0, `Fallback (flat heightmap) produces nodes`);
+  assert(flatNetwork.edges.length > 0, `Fallback (flat heightmap) produces edges`);
+}
+
+// Terrace structure: contour nodes at similar z-values (since elevation = f(z) in our test heightmap)
+console.log('\n--- Terrace structure ---');
+{
+  // Residential edges (contour roads) should have nodes at roughly similar z positions
+  // because our heightmap elevation varies along z
+  const residentialEdges = hillNetwork.edges.filter(e => e.streetType === 'residential');
+  assert(residentialEdges.length >= 3, `Has enough contour road edges (got ${residentialEdges.length})`);
+
+  // Lane edges (switchbacks) should connect different elevation levels
+  const laneEdges = hillNetwork.edges.filter(e => e.streetType === 'lane');
+  assert(laneEdges.length >= 2, `Has switchback ramp edges (got ${laneEdges.length})`);
+}
+
+// Slope map avoidance
+console.log('\n--- Slope map avoidance ---');
+{
+  // Create a slope map with a steep zone
+  const slopeMap: number[][] = [];
+  for (let r = 0; r < hmSize; r++) {
+    slopeMap[r] = [];
+    for (let c = 0; c < hmSize; c++) {
+      // Steep only in center-right quadrant
+      slopeMap[r][c] = (c > hmSize / 2 && r > hmSize / 4 && r < hmSize * 3 / 4) ? 2.0 : 0.05;
+    }
+  }
+  const genH6 = new StreetGenerator();
+  const slopeNetwork = genH6.generateHillside({ ...hillsideConfig, slopeMap }, slopedHeightmap);
+  assert(slopeNetwork.nodes.length > 0, `Slope-aware hillside produces nodes`);
+  assert(slopeNetwork.edges.length > 0, `Slope-aware hillside produces edges`);
+
+  // Verify connectivity even with slope avoidance
+  const adj2 = new Map<string, Set<string>>();
+  for (const n of slopeNetwork.nodes) adj2.set(n.id, new Set());
+  for (const e of slopeNetwork.edges) {
+    adj2.get(e.fromNodeId)!.add(e.toNodeId);
+    adj2.get(e.toNodeId)!.add(e.fromNodeId);
+  }
+  const visited2 = new Set<string>();
+  const queue2 = [slopeNetwork.nodes[0].id];
+  visited2.add(queue2[0]);
+  while (queue2.length > 0) {
+    const cur = queue2.shift()!;
+    for (const nb of Array.from(adj2.get(cur)!)) {
+      if (!visited2.has(nb)) {
+        visited2.add(nb);
+        queue2.push(nb);
+      }
+    }
+  }
+  assert(visited2.size === slopeNetwork.nodes.length, `Slope-aware hillside is fully connected`);
+}
+
 // Summary
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
 if (failed > 0) process.exit(1);
