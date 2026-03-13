@@ -173,6 +173,10 @@ public:
 
     // ── Assets ─────────────────────────────────────────────────────────
 
+    /** Load geography.json (terrain heightmap, features, etc.). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadGeography();
+
     /** Load asset-manifest.json (exported asset registry). */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadAssetManifest();

@@ -264,3 +264,23 @@
   - TerrainFeature CRUD follows same pattern as Item CRUD (simple findById, find by worldId)
   - TypeScript error count unchanged at 459
 ---
+
+## 2026-03-12 - US-006 (naturalized-procgen)
+- Created client/src/components/3DGame/TerrainRenderer.ts with class TerrainRenderer
+- createTerrainMesh(heightmap, terrainSize, scene, maxHeight) generates subdivided ground mesh with vertex Y from heightmap
+- Biome-specific vertex coloring: green (low) → brown (mid) → gray (high) → white (peaks)
+- Terrain mesh has receiveShadows=true, checkCollisions=true, isPickable=true
+- Added loadGeography() to DataSource interface, ApiDataSource, and FileDataSource
+- Integrated into BabylonGame.ts: tryApplyTerrainHeightmap() called after loadWorldData, replaces flat ground when heightmap available
+- Added 'terrain' to SettlementSceneManager globalNames set for visibility
+- Flat ground fallback preserved — terrain only applied when heightmap data exists
+- Files changed: client/src/components/3DGame/TerrainRenderer.ts (new), client/src/components/3DGame/BabylonGame.ts, client/src/components/3DGame/DataSource.ts, ralph/prd.json
+- **Learnings for future iterations:**
+  - Babylon.js CreateGround produces (subdivisions+1)^2 vertices in a grid — map world coords to heightmap via (pos/size + 0.5)
+  - VertexData.ComputeNormals must be called after modifying vertex positions for correct lighting
+  - StandardMaterial automatically uses vertex colors when vertex color buffer is present
+  - Ground mesh is registered as global in SettlementSceneManager via name matching ('ground' in globalNames set)
+  - DataSource interface must be updated in all 3 places: interface, ApiDataSource, FileDataSource
+  - BabylonGame flow: initializeScene → createGround (flat) → loadWorldData → tryApplyTerrainHeightmap (replaces if heightmap available)
+  - TypeScript error count unchanged at 459
+---

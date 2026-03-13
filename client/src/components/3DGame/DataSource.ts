@@ -43,6 +43,7 @@ export interface DataSource {
   getMerchantInventory(worldId: string, merchantId: string): Promise<any>;
   loadPrologContent(worldId: string): Promise<string | null>;
   loadWorldItems(worldId: string): Promise<any[]>;
+  loadGeography(worldId: string): Promise<{ heightmap?: number[][]; terrainSize?: number } | null>;
 }
 
 /**
@@ -211,6 +212,17 @@ export class ApiDataSource implements DataSource {
         return data.content || null;
       }
     } catch { /* Prolog not available */ }
+    return null;
+  }
+
+  async loadGeography(worldId: string): Promise<{ heightmap?: number[][]; terrainSize?: number } | null> {
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/geography`, { headers: this.getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        return data || null;
+      }
+    } catch { /* Geography not available */ }
     return null;
   }
 }
@@ -564,6 +576,13 @@ export class FileDataSource implements DataSource {
     } catch {
       return [];
     }
+  }
+
+  async loadGeography(worldId: string): Promise<{ heightmap?: number[][]; terrainSize?: number } | null> {
+    await this.waitForData();
+    const geo = this.worldData?.geography;
+    if (!geo) return null;
+    return { heightmap: geo.heightmap, terrainSize: geo.terrainSize };
   }
 }
 

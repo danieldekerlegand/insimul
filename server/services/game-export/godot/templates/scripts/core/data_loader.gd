@@ -211,6 +211,10 @@ func load_prolog_knowledge_base() -> String:
 func load_prolog_content() -> String:
 	return load_prolog_knowledge_base()
 
+## Load geography data (heightmap, terrain features). Returns empty dict if not found.
+func load_geography() -> Dictionary:
+	return _load_json("geography.json")
+
 # ── Internal caching ──────────────────────────────────────────
 
 func _ensure_world_ir() -> void:

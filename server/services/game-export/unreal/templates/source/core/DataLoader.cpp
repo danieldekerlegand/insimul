@@ -232,6 +232,13 @@ FString UDataLoader::LoadDialogueContexts()
     return LoadDataFile(TEXT("dialogue-contexts.json"));
 }
 
+// ── Geography ──────────────────────────────────────────────────────────
+
+FString UDataLoader::LoadGeography()
+{
+    return LoadDataFile(TEXT("geography.json"));
+}
+
 // ── Assets ─────────────────────────────────────────────────────────────
 
 FString UDataLoader::LoadAssetManifest()
