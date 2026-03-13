@@ -210,3 +210,19 @@ Helper functions:
   - Unreal EventBus.h: enum values + struct fields
 - Wrote 10 tests covering taxonomy, categories, events, Prolog predicates, telemetry fields, helpers, and aliases
 - All tests pass, no TypeScript errors in changed files
+
+## CEFR Score Mapping
+
+### Completed
+- Created `shared/assessment/cefr-mapping.ts` with:
+  - `mapScoreToCEFR(score, maxScore)` — maps raw assessment scores to CEFR levels (A1–B2) with configurable thresholds at 0/25/50/75%
+  - `mapScoreToLevel<T>(score, thresholds)` — generic threshold mapper reusable for any level system
+  - `getCEFRDescription(level)` — returns human-readable CEFR level descriptions
+  - `CEFRLevel` and `CEFRResult` types
+- Created `shared/assessment/index.ts` barrel export
+- Created `shared/__tests__/cefr-mapping.test.ts` with 25 tests (all passing) covering:
+  - Score-to-level mapping across all CEFR levels
+  - Boundary conditions at exact thresholds
+  - Edge cases (negative scores, overflow, zero maxScore)
+  - Generic `mapScoreToLevel` with custom thresholds
+  - Description correctness for all levels
