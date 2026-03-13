@@ -187,3 +187,18 @@
   - TelemetryMonitorDashboard has 6 tabs total (overview, API keys, live sessions, activity, errors, players) — more than the 3 checked
   - BabylonChatPanel star ratings use callback pattern: setOnDialogueRating(callback) to register handler
 ---
+
+## 2026-03-12 - US-001 (naturalized-procgen)
+- Created shared/procedural/noise.ts with seeded 2D Simplex noise implementation
+- Created shared/procedural/noise.test.ts with 18 unit tests
+- Implementation: createNoise2D(seed: string) => (x, y) => number in [-1, 1]
+- fractalNoise(noise, x, y, octaves, lacunarity, persistence) => normalized fBm value
+- Seeding uses string hash → xorshift32 PRNG → Fisher-Yates shuffle permutation table
+- All tests pass: determinism (same seed = same values), different seeds diverge, output range [-1,1], fractal noise
+- Files changed: shared/procedural/noise.ts (new), shared/procedural/noise.test.ts (new)
+- **Learnings for future iterations:**
+  - Project uses simple assert-based test pattern (not vitest) for shared/ modules — see tau-engine.test.ts pattern
+  - `npx tsx` runs TypeScript directly; `npx tsc --noEmit` for typecheck
+  - Simplex noise scaling factor of 70 keeps output within [-1, 1]
+  - fractalNoise normalizes by dividing by sum of amplitudes to keep output near [-1, 1]
+---
