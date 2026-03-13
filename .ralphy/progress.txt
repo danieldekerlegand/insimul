@@ -62,3 +62,18 @@
   - `unlockAvailableSteps()`: unlock steps with satisfied prerequisites
 - Created `shared/onboarding/index.ts` barrel export
 - Created `shared/__tests__/onboarding-types.test.ts` with 14 passing tests
+
+## Assessment Writing Task Handler
+
+### Completed
+- Created `client/assessment/AssessmentWritingTask.ts`
+  - Task 3A: Form completion handler (/5 points) with LLM scoring callback
+  - Task 3B: Brief message handler (/6 points) scored on taskCompletion + vocabulary + grammar
+  - Combined max: /11 points
+  - Stores player text verbatim (formSubmission, messageSubmission)
+  - State machine: idle → form_active → form_scored → message_active → message_scored → completed
+  - Graceful fallback when LLM returns invalid response
+  - LLM prompt builders: buildFormScoringPrompt(), buildMessageScoringPrompt()
+  - Response parsers: parseFormEvalBlock(), parseMessageEvalBlock()
+- Created `client/__tests__/assessment-writing-task.test.ts` (29 tests, all passing)
+- Updated `vitest.config.ts` to include client/__tests__ in test discovery
