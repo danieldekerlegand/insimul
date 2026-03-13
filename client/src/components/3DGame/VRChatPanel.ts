@@ -19,6 +19,7 @@ import { Color3 } from '@babylonjs/core';
 import * as GUI from '@babylonjs/gui';
 import { VRUIPanel } from './VRUIPanel';
 import { VRManager } from './VRManager';
+import { processRecordedAudio } from '@/lib/audio-utils';
 
 interface VRChatMessage {
   role: 'user' | 'assistant';
@@ -409,9 +410,20 @@ export class VRChatPanel {
     this.isProcessing = true;
 
     try {
-      // Send to STT endpoint
+      // Trim silence and check for speech
+      const processed = await processRecordedAudio(audioBlob);
+      if (processed.silent) {
+        console.log('[VRChatPanel] No speech detected, skipping');
+        if (this.statusText) {
+          this.statusText.text = 'No speech detected. Try again.';
+          this.statusText.color = '#ff6b6b';
+        }
+        return;
+      }
+
+      // Send trimmed audio to STT endpoint
       const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.webm');
+      formData.append('audio', processed.trimmedBlob, 'recording.wav');
 
       const response = await fetch('/api/stt', {
         method: 'POST',

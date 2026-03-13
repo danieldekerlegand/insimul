@@ -9,6 +9,7 @@ import { buildGreeting, buildLanguageAwareSystemPrompt, extractLanguageFluencies
 import type { WorldLanguageContext } from '@shared/language/language-utils';
 import { buildWorldLanguageContext } from '@shared/language/language-utils';
 import { parseGrammarFeedbackBlock } from '@shared/language/language-progress';
+import { processRecordedAudio } from '@/lib/audio-utils';
 
 export interface Character {
   id: string;
@@ -635,8 +636,16 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
 
         setIsProcessing(true);
         try {
-          // Convert speech to text
-          const transcript = await speechToText(audioBlob);
+          // Trim silence and check for speech
+          const result = await processRecordedAudio(audioBlob);
+          if (result.silent) {
+            toast({ title: 'No speech detected', description: 'Please try speaking louder or closer to the microphone.' });
+            setIsProcessing(false);
+            return;
+          }
+
+          // Convert trimmed speech to text
+          const transcript = await speechToText(result.trimmedBlob);
           setInputText(transcript);
 
           // Automatically send the message

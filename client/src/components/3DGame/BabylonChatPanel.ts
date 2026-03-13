@@ -18,6 +18,7 @@ import { buildGreeting, buildLanguageAwareSystemPrompt, buildWorldLanguageContex
 import type { WorldLanguageContext } from "@shared/language/language-utils";
 import { LanguageProgressTracker } from "./LanguageProgressTracker";
 import { scorePronunciation, formatPronunciationFeedback } from "@shared/language/pronunciation-scoring";
+import { processRecordedAudio } from "@/lib/audio-utils";
 
 interface Message {
   role: 'user' | 'assistant';
@@ -1417,26 +1418,40 @@ export class BabylonChatPanel {
         stream.getTracks().forEach(track => track.stop());
 
         this.isProcessing = true;
-        
+
         // Update input text to show processing
         if (this.inputText) {
-          this.inputText.text = "🔄 Transcribing audio...";
+          this.inputText.text = "🔄 Processing audio...";
           this.inputText.color = "#ffd93d";
         }
-        
+
         // Show thinking indicator
         if (this.loadingIndicator) {
           this.loadingIndicator.isVisible = true;
         }
-        
+
         try {
+          // Trim silence and check for speech
+          const processed = await processRecordedAudio(audioBlob);
+          if (processed.silent) {
+            console.log('[BabylonChatPanel] No speech detected, skipping');
+            if (this.inputText) {
+              this.inputText.text = "No speech detected. Try again.";
+              this.inputText.color = "#ff6b6b";
+            }
+            this.isProcessing = false;
+            if (this.loadingIndicator) this.loadingIndicator.isVisible = false;
+            return;
+          }
+          const trimmedBlob = processed.trimmedBlob;
+
           // First try to send audio directly to Gemini
           let response: { text: string; audio?: string; userTranscript?: string };
           let userTranscript: string;
-          
+
           try {
             // Get transcript first so we can show it immediately
-            userTranscript = await this.speechToText(audioBlob);
+            userTranscript = await this.speechToText(trimmedBlob);
             
             // Show user message right away
             this.messages.push({
@@ -1461,7 +1476,7 @@ export class BabylonChatPanel {
           } catch (e) {
             console.log('Direct audio API failed, falling back to speech-to-text');
             // Fallback to speech-to-text then text chat
-            userTranscript = await this.speechToText(audioBlob);
+            userTranscript = await this.speechToText(trimmedBlob);
             
             // Show user message right away
             this.messages.push({
