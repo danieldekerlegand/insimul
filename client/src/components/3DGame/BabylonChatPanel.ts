@@ -1219,6 +1219,49 @@ export class BabylonChatPanel {
     };
   }
 
+  /**
+   * Combined voice-chat: sends audio to /api/gemini/voice-chat which performs
+   * STT → LLM → TTS in a single server round-trip.
+   */
+  private async sendVoiceChat(audioBlob: Blob): Promise<{
+    transcript: string;
+    response: string;
+    cleanedResponse: string;
+    audio?: string;
+  }> {
+    if (!this.character) throw new Error('No character selected');
+
+    const systemPrompt = this.buildSystemPrompt();
+    const conversationHistory = this.messages.map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.content }]
+    }));
+
+    const metadata = JSON.stringify({
+      systemPrompt,
+      messages: conversationHistory,
+      voice: this.character?.gender === 'female' ? 'Kore' : 'Charon',
+      temperature: 0.8,
+      maxTokens: 2048,
+    });
+
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.webm');
+    formData.append('metadata', metadata);
+
+    const response = await fetch('/api/gemini/voice-chat', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || 'Voice chat request failed');
+    }
+
+    return response.json();
+  }
+
   private _cachedSystemPrompt: string | null = null;
   private _systemPromptCharId: string | null = null;
   private _proficiencyDirty = false;
@@ -1417,87 +1460,59 @@ export class BabylonChatPanel {
         stream.getTracks().forEach(track => track.stop());
 
         this.isProcessing = true;
-        
+
         // Update input text to show processing
         if (this.inputText) {
-          this.inputText.text = "🔄 Transcribing audio...";
+          this.inputText.text = "Processing voice...";
           this.inputText.color = "#ffd93d";
         }
-        
+
         // Show thinking indicator
         if (this.loadingIndicator) {
           this.loadingIndicator.isVisible = true;
         }
-        
-        try {
-          // First try to send audio directly to Gemini
-          let response: { text: string; audio?: string; userTranscript?: string };
-          let userTranscript: string;
-          
-          try {
-            // Get transcript first so we can show it immediately
-            userTranscript = await this.speechToText(audioBlob);
-            
-            // Show user message right away
-            this.messages.push({
-              role: 'user',
-              content: userTranscript,
-              timestamp: new Date()
-            });
-            this.updateMessagesDisplay();
-            
-            // Update input to show thinking status
-            if (this.inputText) {
-              this.inputText.text = "NPC is thinking...";
-              this.inputText.color = "#ffd93d";
-            }
-            
-            // Now send to Gemini
-            const textResponse = await this.sendToGemini(userTranscript);
-            response = {
-              ...textResponse,
-              userTranscript: userTranscript
-            };
-          } catch (e) {
-            console.log('Direct audio API failed, falling back to speech-to-text');
-            // Fallback to speech-to-text then text chat
-            userTranscript = await this.speechToText(audioBlob);
-            
-            // Show user message right away
-            this.messages.push({
-              role: 'user',
-              content: userTranscript,
-              timestamp: new Date()
-            });
-            this.updateMessagesDisplay();
-            
-            // Update input to show thinking status
-            if (this.inputText) {
-              this.inputText.text = "NPC is thinking...";
-              this.inputText.color = "#ffd93d";
-            }
-            
-            const textResponse = await this.sendToGemini(userTranscript);
-            response = {
-              ...textResponse,
-              userTranscript: userTranscript
-            };
-          }
-          
-          // NPC response is now pure dialogue (no embedded markers)
-          const voiceCleanedResponse = response.text;
 
-          // Add AI response
-          this.messages.push({
-            role: 'assistant',
-            content: voiceCleanedResponse,
-            timestamp: new Date()
-          });
+        try {
+          let userTranscript: string;
+          let voiceCleanedResponse: string;
+          let responseAudioBase64: string | undefined;
+
+          try {
+            // Combined voice-chat: STT → LLM → TTS in one request
+            const result = await this.sendVoiceChat(audioBlob);
+            userTranscript = result.transcript;
+            voiceCleanedResponse = result.cleanedResponse;
+            responseAudioBase64 = result.audio;
+          } catch (e) {
+            console.log('Combined voice-chat failed, falling back to separate calls:', e);
+            // Fallback: STT then LLM (with TTS)
+            userTranscript = await this.speechToText(audioBlob);
+
+            this.messages.push({ role: 'user', content: userTranscript, timestamp: new Date() });
+            this.updateMessagesDisplay();
+
+            if (this.inputText) {
+              this.inputText.text = "NPC is thinking...";
+              this.inputText.color = "#ffd93d";
+            }
+
+            const textResponse = await this.sendToGemini(userTranscript);
+            voiceCleanedResponse = textResponse.text;
+            responseAudioBase64 = textResponse.audio;
+          }
+
+          // Show user message (skip if already added in fallback path)
+          if (!this.messages.some(m => m.role === 'user' && m.content === userTranscript)) {
+            this.messages.push({ role: 'user', content: userTranscript, timestamp: new Date() });
+            this.updateMessagesDisplay();
+          }
+
+          // Show NPC response
+          this.messages.push({ role: 'assistant', content: voiceCleanedResponse, timestamp: new Date() });
           this.updateMessagesDisplay();
-          // Notify speech bubble overlay of NPC's words
           this.onNPCSpeechUpdate?.(voiceCleanedResponse);
 
-          // Request grammar analysis asynchronously (separate LLM call)
+          // Request grammar analysis asynchronously
           const isLangLearning = this.world?.gameType === 'language-learning' ||
                                  this.world?.gameType === 'educational' ||
                                  this.world?.worldType === 'language-learning' ||
@@ -1506,42 +1521,25 @@ export class BabylonChatPanel {
             this.requestGrammarAnalysis(userTranscript, voiceCleanedResponse);
           }
 
-          // Play audio if available
-          if (response.audio) {
-            const audioBytes = Uint8Array.from(atob(response.audio), c => c.charCodeAt(0));
-            const audioBlob = new Blob([audioBytes], { type: 'audio/mp3' });
-            await this.playAudio(audioBlob);
+          // Play audio
+          if (responseAudioBase64) {
+            const audioBytes = Uint8Array.from(atob(responseAudioBase64), c => c.charCodeAt(0));
+            const responseBlob = new Blob([audioBytes], { type: 'audio/mp3' });
+            await this.playAudio(responseBlob);
           } else {
-            // Fallback to TTS
             await this.textToSpeech(voiceCleanedResponse);
           }
-          
-          // Hide thinking indicator
-          if (this.loadingIndicator) {
-            this.loadingIndicator.isVisible = false;
-          }
-          
-          // Reset input
-          if (this.inputText) {
-            this.inputText.text = "Type your message...";
-            this.inputText.color = "white";
-          }
-          
         } catch (error) {
           console.error('Audio processing error:', error);
-          
-          // Hide thinking indicator on error
+        } finally {
+          this.isProcessing = false;
           if (this.loadingIndicator) {
             this.loadingIndicator.isVisible = false;
           }
-          
-          // Reset input on error
           if (this.inputText) {
             this.inputText.text = "Type your message...";
             this.inputText.color = "white";
           }
-        } finally {
-          this.isProcessing = false;
         }
       };
 

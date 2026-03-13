@@ -1,3 +1,24 @@
+## Wire BabylonChatPanel to combined voice-chat endpoint
+
+- Created `/api/gemini/voice-chat` endpoint in `server/routes.ts`
+  - Accepts multipart audio upload + JSON metadata (systemPrompt, messages, voice, temperature, maxTokens)
+  - Performs STT → LLM → TTS all server-side in a single request
+  - Returns JSON with {transcript, response, cleanedResponse, audio (base64)}
+  - Strips GRAMMAR_FEEDBACK/QUEST_ASSIGN markers from cleanedResponse
+  - Gracefully handles TTS failure (returns response without audio)
+- Updated `client/src/components/3DGame/BabylonChatPanel.ts`
+  - Added `sendVoiceChat()` method that POSTs FormData to `/api/gemini/voice-chat`
+  - Rewired `mediaRecorder.onstop` to use combined endpoint first
+  - Falls back to separate STT → chat calls if voice-chat endpoint fails
+  - Preserves grammar analysis, vocabulary tracking, and TTS fallback behavior
+- Created `client/__tests__/babylon-chat-voice.test.ts` with 6 tests covering:
+  - FormData construction and endpoint contract
+  - Response field validation (transcript, cleanedResponse, audio)
+  - Fallback path on endpoint failure
+  - Graceful handling of missing audio in response
+  - Metadata format validation
+  - Voice selection by character gender
+
 ## Assessment Results Summary Panel
 
 - Created `client/src/components/3DGame/AssessmentResultsPanel.ts`
