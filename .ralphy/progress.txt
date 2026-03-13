@@ -414,3 +414,19 @@ All tests pass. No type errors.
 - Added transcript and recordings-list retrieval endpoints to assessment routes
 - Created client/src/components/AssessmentTranscriptViewer.tsx - admin UI component displaying phase transcripts and recordings with expandable sections
 - Created server/__tests__/recording-transcript-storage.test.ts - 18 tests covering serializer, API routes, and full integration flow
+
+## Wire QuestIndicatorManager to show indicators on quest-relevant NPCs
+
+### Completed
+- Wired QuestIndicatorManager to GameEventBus quest-relevant events in BabylonGame.ts:
+  - quest_failed, quest_abandoned — refresh indicators when quests end
+  - utterance_quest_completed, utterance_quest_progress — refresh on language quest progress
+  - item_collected, item_delivered, location_visited, npc_talked — refresh when objective-progressing actions occur (may change quest from in_progress to turn_in)
+- Added questIndicatorManager dispose + null cleanup in disposeSystems()
+- Created client/src/components/3DGame/__tests__/QuestIndicatorManager.test.ts with 33 tests covering:
+  - Indicator type logic (available, in_progress, turn_in, null states)
+  - Priority ordering (turn_in > in_progress > available)
+  - Completion criteria types (objectives, vocabulary_usage, conversation_turns)
+  - canGiveQuests flag and occupation matching (15 occupations + case-insensitive)
+  - Lifecycle (removeIndicator, clearAll, dispose, refreshIndicator, type transitions)
+  - Multiple NPCs with different states
