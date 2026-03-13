@@ -1,0 +1,12 @@
+## Assessment Results Summary Panel
+
+- Created `client/src/components/3DGame/AssessmentResultsPanel.ts`
+  - @babylonjs/gui panel matching BabylonSkillTreePanel.ts style
+  - Overall score percentage display (large, color-coded by CEFR level)
+  - CEFR badge (A1/A2/B1/B2) with colored background and description text
+  - 5-dimension horizontal progress bars (Vocabulary, Grammar, Fluency, Pronunciation, Comprehension) with color-coded 1-5 scoring
+  - "Your adventure begins!" CTA button with onAdventureStart callback
+  - Public API: showResults(), show(), hide(), toggle(), getIsVisible(), setOnClose(), setOnAdventureStart(), dispose()
+- Created `shared/__tests__/assessment-results-panel.test.ts`
+  - 14 tests covering visibility, callbacks, content rendering, CEFR levels, score clamping, disposal, and content refresh
+  - All tests passing
