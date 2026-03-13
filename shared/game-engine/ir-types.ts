@@ -334,6 +334,12 @@ export interface NatureObjectIR {
   biome: string;
   /** Model asset override key (if any) */
   modelAssetKey: string | null;
+  /** Elevation zone (lowland/midland/highland/alpine) */
+  elevationZone?: string;
+  /** Moisture level (arid/dry/moderate/wet/saturated) */
+  moistureLevel?: string;
+  /** Plant species ID from the vegetation zone system */
+  plantSpeciesId?: string;
 }
 
 export interface DungeonIR {
