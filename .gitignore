@@ -8,3 +8,5 @@ editor-repo/
 
 *.DS_Store
 */.DS_Store
+
+.ralphy-worktrees
