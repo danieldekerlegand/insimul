@@ -10,6 +10,7 @@ import type { WorldLanguageContext } from '@shared/language/language-utils';
 import { buildWorldLanguageContext } from '@shared/language/language-utils';
 import { parseGrammarFeedbackBlock } from '@shared/language/language-progress';
 import { useSpeechRecognition } from '@/hooks/use-speech-recognition';
+import { processRecordedAudio } from '@/lib/audio-utils';
 
 export interface Character {
   id: string;

@@ -20,6 +20,7 @@ import * as GUI from '@babylonjs/gui';
 import { VRUIPanel } from './VRUIPanel';
 import { VRManager } from './VRManager';
 import { SpeechRecognitionService, isSpeechRecognitionSupported, serverSideSTT } from '@/lib/speech-recognition';
+import { processRecordedAudio } from '@/lib/audio-utils';
 
 interface VRChatMessage {
   role: 'user' | 'assistant';

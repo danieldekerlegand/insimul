@@ -19,6 +19,7 @@ import type { WorldLanguageContext } from "@shared/language/language-utils";
 import { LanguageProgressTracker } from "./LanguageProgressTracker";
 import { scorePronunciation, formatPronunciationFeedback } from "@shared/language/pronunciation-scoring";
 import { SpeechRecognitionService, isSpeechRecognitionSupported, serverSideSTT } from "@/lib/speech-recognition";
+import { processRecordedAudio } from "@/lib/audio-utils";
 
 interface Message {
   role: 'user' | 'assistant';
