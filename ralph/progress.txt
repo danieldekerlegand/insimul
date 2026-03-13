@@ -19,3 +19,17 @@ Started: Thu Mar 12 23:35:20 CDT 2026
   - Selection priority: terrain-based rules (coast/river/mountains) take precedence over settlement type rules
   - All 2728 tests pass including new pattern selection and dispatch tests
 ---
+
+## 2026-03-12 - US-015
+- Implemented `assignStreetNames(network: StreetNetwork, seed: string): void` on StreetGenerator
+- Groups edges into continuous chains by shared nodes + directional alignment (within 30°)
+- Grid layout detection: if both axes have ≥3 chains, one axis gets numbered streets (1st, 2nd…), the other gets named streets
+- Suffix selection by type: Boulevard/Avenue for main_road, Street for residential through-roads, Drive/Way for curved residential, Lane/Court for dead-ends, Alley for alleys
+- Name pools: 80 names across tree, landmark, geographic, and historical categories, shuffled by seed
+- Files changed: `server/generators/street-generator.ts`, `server/generators/street-generator.test.ts`
+- **Learnings for future iterations:**
+  - Chain grouping uses angle alignment modulo π (direction-agnostic) — edges at 0° and 180° are considered the same street direction
+  - The `seededRandom` function from the generator can be reused for deterministic naming by appending a suffix to the seed
+  - Grid detection threshold of 3 chains per axis works well for the grid generator's output
+  - All 2859 tests pass including new naming tests
+---
