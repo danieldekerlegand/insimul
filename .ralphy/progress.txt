@@ -1,0 +1,14 @@
+Task: Language learning onboarding definition
+
+Status: Complete
+
+Changes:
+- Created shared/onboarding/onboarding-types.ts: Generic onboarding framework types (OnboardingDefinition, OnboardingStep, OnboardingState, StepProgress, StepState)
+- Created shared/onboarding/language-onboarding.ts: LANGUAGE_LEARNING_ONBOARDING constant with 10 steps interleaving tutorial and assessment phases, referencing ARRIVAL_ENCOUNTER phase IDs
+- Created shared/onboarding/index.ts: Barrel export
+- Created shared/__tests__/onboarding.test.ts: 17 tests covering types, definition structure, step ordering, prerequisites, helper functions
+
+Helper functions:
+- getAssessmentStepIds(): Returns IDs of the 4 assessment steps
+- getSkippableStepIds(): Returns IDs of skippable tutorial steps
+- getAssessmentPhaseMap(): Maps onboarding step IDs to arrival encounter phase IDs
