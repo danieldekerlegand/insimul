@@ -434,3 +434,21 @@ All tests pass. No type errors.
   - Parameter resolution (defaults, overrides, missing)
   - Quest instantiation (all fields, Prolog generation, XP scaling, dynamic counts, extra fields)
   - Starter quest batch generation
+
+## Poisson Disc Sampling Module
+
+### Completed
+- Created `shared/procedural/poisson-disc-sampling.ts` implementing Bridson's algorithm:
+  - `poissonDiscSampling()` — generates points with guaranteed minimum distance for natural-looking distributions
+  - Configurable: width, height, minDistance, maxAttempts, optional seeded RNG
+  - Uses spatial grid for O(1) neighbor lookup (5x5 cell neighborhood check)
+  - Returns empty array for invalid dimensions
+  - `createSeededRng()` — mulberry32 PRNG for deterministic, reproducible sampling
+  - `Point2D` and `PoissonDiscOptions` types exported
+- Created `shared/__tests__/poisson-disc-sampling.test.ts` — 12 tests covering:
+  - Points within bounds, minimum distance guarantee (brute-force verified)
+  - Deterministic output with seeded RNG, different seeds produce different output
+  - Reasonable point count for area/distance ratio
+  - Edge cases: invalid dimensions, large minDistance, rectangular areas
+  - maxAttempts parameter effect on density
+  - createSeededRng range [0,1), determinism, seed independence
