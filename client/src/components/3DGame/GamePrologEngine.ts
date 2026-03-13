@@ -282,6 +282,23 @@ export class GamePrologEngine {
           );
         } catch { /* may not exist */ }
         break;
+      // Follow directions step completed
+      case 'direction_step_completed': {
+        const questId = this.sanitize(event.questId);
+        // Retract previous progress, assert updated count
+        try {
+          await this.engine.retractFact(
+            `quest_progress(player, ${questId}, _)`
+          );
+        } catch { /* may not exist */ }
+        await this.engine.assertFact(
+          `quest_progress(player, ${questId}, ${event.stepsCompleted})`
+        );
+        await this.engine.assertFact(
+          `direction_step_done(player, ${questId}, ${event.stepIndex})`
+        );
+        break;
+      }
       default:
         return; // No re-evaluation needed for unhandled events
     }

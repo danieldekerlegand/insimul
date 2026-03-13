@@ -635,6 +635,11 @@ func _handle_game_event(event: Dictionary) -> void:
 			var qid: String = _sanitize(str(event.get("quest_id", "")))
 			_assert_internal("quest_abandoned(player, %s)" % qid)
 			_retract_pattern("quest_active(player, %s" % qid)
+		"direction_step_completed":
+			var dqid: String = _sanitize(str(event.get("quest_id", "")))
+			_retract_pattern("quest_progress(player, %s" % dqid)
+			_assert_internal("quest_progress(player, %s, %s)" % [dqid, str(event.get("steps_completed", 0))])
+			_assert_internal("direction_step_done(player, %s, %s)" % [dqid, str(event.get("step_index", 0))])
 		_:
 			return  # No re-evaluation for unhandled events
 	_reevaluate_quests()

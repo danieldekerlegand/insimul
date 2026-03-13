@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-13T11:13:13.361Z",
+  "lastUpdated": "2026-03-13T12:59:55.759Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -262,7 +262,7 @@
     {
       "path": "client/src/components/3DGame/GameEventBus.ts",
       "description": "Centralized typed event bus (20 event types). Exported engines need equivalent event routing for gameplay actions.",
-      "hash": "b900d6da221f7be1b84829d8f2a7a6905723292aa4a5cf7c69cbbb0f23287a65",
+      "hash": "686cd9860d703cb3b021b926ab044b306f832d66ac396c912d3901b523342c42",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -289,7 +289,7 @@
     {
       "path": "client/src/components/3DGame/GamePrologEngine.ts",
       "description": "Client-side Prolog runtime: KB initialization, event-to-fact pipeline, quest/action queries. Exported engines need equivalent Prolog query logic.",
-      "hash": "56e8af9d656bf469d70ca571e6f2302fe576d9a9de15f2b43761ec5801b2eb0a",
+      "hash": "ee142312163134b4163b6c98c97ea405dd5c24ac5d2ac3d007c9959f3a56c0c0",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -419,7 +419,7 @@
     {
       "path": "shared/prolog/quest-converter.ts",
       "description": "Converts quests to Prolog predicates for knowledge-base.pl. Format changes affect all exported engines that load the KB.",
-      "hash": "d421660bd03d4149b4965cc2051b726da2aa090b1f070ac8f80dc18690244c22",
+      "hash": "60fc831c1143f4af08ffe30d44dc12727bec02de71fb950fe27d46636110a690",
       "engineMappings": [
         {
           "engine": "unreal",

@@ -877,6 +877,11 @@ void UPrologEngine::HandleGameEvent(const FInsimulGameEvent& Event)
             AssertFact(FString::Printf(TEXT("quest_abandoned(player, %s)"), *Sanitize(Event.QuestId)));
             RetractPattern(TEXT("quest_active"), TEXT("player"), Sanitize(Event.QuestId));
             break;
+        case EInsimulEventType::DirectionStepCompleted:
+            RetractPattern(TEXT("quest_progress"), TEXT("player"), Sanitize(Event.QuestId), TEXT("_"));
+            AssertFact(FString::Printf(TEXT("quest_progress(player, %s, %d)"), *Sanitize(Event.QuestId), Event.StepsCompleted));
+            AssertFact(FString::Printf(TEXT("direction_step_done(player, %s, %d)"), *Sanitize(Event.QuestId), Event.StepIndex));
+            break;
         default:
             return; // No re-evaluation needed
     }

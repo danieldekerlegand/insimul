@@ -405,6 +405,14 @@ export class BabylonQuestTracker {
           return Math.min(progress.waypointsReached / criteria.waypoints.length, 1);
         }
         break;
+
+      case 'follow_directions': {
+        const required = criteria.stepsRequired || criteria.requiredCount || 1;
+        if (progress.stepsCompleted !== undefined) {
+          return Math.min(progress.stepsCompleted / required, 1);
+        }
+        break;
+      }
     }
 
     return null;

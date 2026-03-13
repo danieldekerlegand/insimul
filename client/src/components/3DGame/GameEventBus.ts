@@ -74,7 +74,9 @@ export type GameEvent =
   // Periodic assessment trigger (emitted when a level-up milestone requires a proficiency check)
   | { type: 'periodic_assessment_triggered'; level: number; tier: string }
   // Assessment conversation completed (player finished talking to NPC during assessment)
-  | { type: 'assessment_conversation_completed'; npcId: string };
+  | { type: 'assessment_conversation_completed'; npcId: string }
+  // Follow directions quest events
+  | { type: 'direction_step_completed'; questId: string; objectiveId: string; stepIndex: number; stepsCompleted: number; stepsRequired: number };
 
 export type GameEventType = GameEvent['type'];
 

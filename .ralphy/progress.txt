@@ -1,3 +1,23 @@
+## Follow Instructions Quest Completion Detection
+
+### Completed
+- Added `direction_step_completed` event to `GameEventBus.ts` (questId, objectiveId, stepIndex, stepsCompleted, stepsRequired)
+- Added `direction_step_completed` handler in `GamePrologEngine.ts`: retracts old progress, asserts updated `quest_progress/3` and `direction_step_done/3` facts, triggers quest re-evaluation
+- Added `follow_directions` case to `convertCompletionCheck()` in `shared/prolog/quest-converter.ts`: generates `quest_progress(Player, QuestId, Steps), Steps >= N` with stepsRequired/requiredCount/1 fallback
+- Added `follow_directions` case to `BabylonChatPanel.isQuestComplete()`: checks `progress.stepsCompleted >= criteria.stepsRequired`
+- Added `follow_directions` case to `QuestIndicatorManager.isQuestReadyToTurnIn()`: same logic for NPC turn-in indicators
+- Added `follow_directions` case to `BabylonQuestTracker.calculateProgress()`: returns `stepsCompleted / stepsRequired` capped at 1.0
+- Created `shared/__tests__/follow-directions-completion.test.ts` with 19 tests covering Prolog conversion, progress-based completion, progress calculation, and event type validation
+
+### Files modified
+- `client/src/components/3DGame/GameEventBus.ts` (new event type)
+- `client/src/components/3DGame/GamePrologEngine.ts` (event handler)
+- `shared/prolog/quest-converter.ts` (completion check case)
+- `client/src/components/3DGame/BabylonChatPanel.ts` (completion check case)
+- `client/src/components/3DGame/QuestIndicatorManager.ts` (turn-in check case)
+- `client/src/components/3DGame/BabylonQuestTracker.ts` (progress calculation case)
+- `shared/__tests__/follow-directions-completion.test.ts` (new, 19 tests)
+
 ## Assessment Results Summary Panel
 
 - Created `client/src/components/3DGame/AssessmentResultsPanel.ts`
