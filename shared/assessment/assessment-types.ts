@@ -48,14 +48,13 @@ export type ScoringMethod = 'llm' | 'automated' | 'position_tracking' | 'multipl
 // ───────────────────────────────────────────────────────────────────────────
 
 export interface ScoringDimension {
-  id?: string;
+  id: string;
   name: string;
-  score?: number;       // 1-5 scale
-  maxScore?: number;
-  /** Description shown in results UI */
-  description?: string;
+  description: string;
   /** Min score for this dimension (typically 1) */
-  minScore?: number;
+  minScore: number;
+  /** Max score for this dimension (typically 5) */
+  maxScore: number;
 }
 
 export interface AssessmentDimensionScores {
@@ -72,18 +71,13 @@ export interface AssessmentDimensionScores {
 
 export interface AssessmentTask {
   id: string;
-  type?: TaskType;
-  title?: string;
+  type: TaskType;
   /** Template prompt — may contain {{targetLanguage}}, {{cityName}} placeholders */
-  prompt?: string;
-  description?: string;
+  prompt: string;
   /** Max points for this task */
-  maxPoints?: number;
-  maxScore?: number;
-  /** Dimension this task contributes to */
-  dimensionId?: string;
+  maxPoints: number;
   /** How this task is scored */
-  scoringMethod?: ScoringMethod;
+  scoringMethod: ScoringMethod;
   /** Time limit in seconds (optional) */
   timeLimitSeconds?: number;
   /** Multiple-choice options (for MC tasks) */
@@ -94,14 +88,12 @@ export interface AssessmentTask {
 
 export interface AssessmentPhase {
   id: string;
-  type?: PhaseType;
+  type: PhaseType;
   name: string;
-  description?: string;
-  order?: number;
+  description: string;
   tasks: AssessmentTask[];
   /** Max points for the entire phase (sum of task maxPoints) */
-  maxPoints?: number;
-  maxScore?: number;
+  maxPoints: number;
   /** Time limit for the entire phase in seconds (optional) */
   timeLimitSeconds?: number;
   /** Scoring dimensions evaluated during this phase */
@@ -112,19 +104,18 @@ export interface AssessmentPhase {
 
 export interface AssessmentDefinition {
   id: string;
-  type?: AssessmentType;
+  type: AssessmentType;
   name: string;
   description: string;
   /** Target language placeholder — replaced at runtime */
-  targetLanguage?: string;
+  targetLanguage: string;
   phases: AssessmentPhase[];
   /** Total max points across all phases */
-  totalMaxPoints?: number;
-  totalMaxScore?: number;
+  totalMaxPoints: number;
   /** Scoring dimensions used in this assessment */
-  scoringDimensions?: ScoringDimension[];
+  scoringDimensions: ScoringDimension[];
   /** Estimated duration in minutes */
-  estimatedMinutes?: number;
+  estimatedMinutes: number;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -133,36 +124,32 @@ export interface AssessmentDefinition {
 
 export interface RecordingReference {
   /** Storage key or URL for the recording */
-  storageKey?: string;
-  url?: string;
+  storageKey: string;
   /** MIME type (e.g., 'audio/webm', 'text/plain') */
   mimeType: string;
   /** Duration in seconds (for audio/video) */
   durationSeconds?: number;
-  durationMs?: number;
   /** Phase this recording belongs to */
   phaseId: string;
   /** Task this recording belongs to (optional) */
   taskId?: string;
   /** Timestamp when recorded */
-  recordedAt?: string;
+  recordedAt: string;
 }
 
 export interface AutomatedMetrics {
   /** Words per minute */
-  wpm?: number;
+  wpm: number;
   /** Type-token ratio (vocabulary diversity) */
-  ttr?: number;
+  ttr: number;
   /** Mean length of utterance in words */
-  mlu?: number;
+  mlu: number;
   /** Average response latency in milliseconds */
-  avgLatencyMs?: number;
-  latencyMs?: number;
+  avgLatencyMs: number;
   /** Number of self-repairs/corrections */
-  repairs?: number;
+  repairs: number;
   /** Number of code-switching instances (falling back to L1) */
-  codeSwitchingCount?: number;
-  codeSwitchCount?: number;
+  codeSwitchingCount: number;
 }
 
 export interface TaskResult {
@@ -170,12 +157,9 @@ export interface TaskResult {
   /** Points earned */
   score: number;
   /** Max possible points */
-  maxPoints?: number;
-  maxScore?: number;
+  maxPoints: number;
   /** Player's raw response (text input, selection, etc.) */
   playerResponse?: string;
-  /** Raw player response data */
-  responseData?: Record<string, unknown>;
   /** Scoring rationale (from LLM or auto-scorer) */
   rationale?: string;
 }
@@ -185,14 +169,11 @@ export interface PhaseResult {
   /** Total score for this phase */
   score: number;
   /** Max possible score for this phase */
-  maxPoints?: number;
-  maxScore?: number;
+  maxPoints: number;
   /** Individual task results */
-  taskResults?: TaskResult[];
+  taskResults: TaskResult[];
   /** Per-dimension scores (dimension id -> score) */
   dimensionScores?: Record<string, number>;
-  /** Scoring dimensions for this phase */
-  dimensions?: ScoringDimension[];
   /** Automated metrics collected during this phase */
   automatedMetrics?: AutomatedMetrics;
   /** Full transcript of the phase interaction */
@@ -200,9 +181,9 @@ export interface PhaseResult {
   /** Recording references for this phase */
   recordings?: RecordingReference[];
   /** When this phase started */
-  startedAt?: string | Date;
+  startedAt?: string;
   /** When this phase completed */
-  completedAt?: string | Date | number;
+  completedAt?: string;
 }
 
 export interface AssessmentResult {
@@ -221,18 +202,17 @@ export interface AssessmentSession {
   playerId: string;
   worldId: string;
   /** Which assessment definition was used */
-  assessmentDefinitionId?: string;
+  assessmentDefinitionId: string;
   assessmentType: AssessmentType;
   /** Target language being assessed */
-  targetLanguage?: string;
+  targetLanguage: string;
   status: AssessmentStatus;
   /** Results per phase */
   phaseResults: PhaseResult[];
   /** Total score across all phases */
   totalScore?: number;
   /** Total max possible score */
-  totalMaxPoints?: number;
-  totalMaxScore?: number;
+  totalMaxPoints: number;
   /** Overall CEFR level determined from scores */
   cefrLevel?: CEFRLevel;
   /** Aggregate dimension scores (dimension id -> score) */
@@ -244,9 +224,9 @@ export interface AssessmentSession {
   /** Full conversation transcript */
   transcript?: Array<{ role: 'player' | 'npc'; text: string; timestamp: number }>;
   /** When the session was created */
-  createdAt?: string;
+  createdAt: string;
   /** When the session started (first phase began) */
-  startedAt?: string | Date;
+  startedAt?: string;
   /** When the session completed */
-  completedAt?: string | Date;
+  completedAt?: string;
 }
