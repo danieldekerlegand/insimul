@@ -186,6 +186,24 @@ export function calculateFluencyGain(
 }
 
 /**
+ * Strip all system marker blocks from text.
+ * Handles complete blocks, partial/incomplete blocks (mid-stream), and orphaned markers.
+ */
+export function stripSystemMarkers(text: string): string {
+  return text
+    // Complete blocks
+    .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+    .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+    // Partial/incomplete blocks (opening marker without closing, e.g. during streaming)
+    .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*/g, '')
+    .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*/g, '')
+    // Orphaned closing markers
+    .replace(/\*\*END_GRAMMAR\*\*/g, '')
+    .replace(/\*\*END_QUEST\*\*/g, '')
+    .trim();
+}
+
+/**
  * Parse a grammar feedback block from an NPC response string.
  * Returns the parsed feedback and the response with the block removed.
  */
