@@ -52,6 +52,7 @@ import { QuestIndicatorManager } from "@/components/3DGame/QuestIndicatorManager
 import { ProceduralBuildingGenerator, BuildingStyle } from "@/components/3DGame/ProceduralBuildingGenerator.ts";
 import { ProceduralNatureGenerator, BiomeStyle } from "@/components/3DGame/ProceduralNatureGenerator.ts";
 import { RoadGenerator } from "@/components/3DGame/RoadGenerator.ts";
+import { RiverGenerator } from "@/components/3DGame/RiverGenerator.ts";
 import { WorldScaleManager, ScaledSettlement } from "@/components/3DGame/WorldScaleManager.ts";
 import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay.ts";
 import { ChunkManager } from "@/components/3DGame/ChunkManager.ts";
@@ -340,6 +341,7 @@ export class BabylonGame {
   private buildingGenerator: ProceduralBuildingGenerator | null = null;
   private natureGenerator: ProceduralNatureGenerator | null = null;
   private roadGenerator: RoadGenerator | null = null;
+  private riverGenerator: RiverGenerator | null = null;
   private worldScaleManager: WorldScaleManager | null = null;
   private buildingInfoDisplay: BuildingInfoDisplay | null = null;
   private minimap: BabylonMinimap | null = null;
@@ -1621,6 +1623,7 @@ export class BabylonGame {
     this.buildingGenerator = new ProceduralBuildingGenerator(scene);
     this.natureGenerator = new ProceduralNatureGenerator(scene);
     this.roadGenerator = new RoadGenerator(scene);
+    this.riverGenerator = new RiverGenerator(scene);
     this.interiorGenerator = new BuildingInteriorGenerator(scene);
     this.worldScaleManager = new WorldScaleManager(512, this.config.worldId);
 
@@ -2692,6 +2695,12 @@ export class BabylonGame {
       this.roadGenerator.generateRoads(settlementNodes, sampleHeight);
     }
 
+    // Generate rivers for biomes that have water
+    if (this.riverGenerator && biome.hasWater) {
+      const riverCount = biome.name === 'Swamp' ? 3 : biome.name === 'Tropical' ? 2 : 1;
+      this.riverGenerator.generateRivers(terrainSize, sampleHeight, riverCount);
+    }
+
     // Generate nature elements (trees, rocks, grass, flowers)
     console.log('Generating nature elements...');
 
@@ -2702,11 +2711,16 @@ export class BabylonGame {
       maxZ: terrainSize / 2 - 50
     };
 
-    // Collect road positions for avoidance (trees shouldn't grow on roads)
+    // Collect road and river positions for avoidance (trees shouldn't grow on roads or in rivers)
     const avoidPositions = [...allBuildingPositions];
     if (this.roadGenerator) {
       for (const roadMesh of this.roadGenerator.getRoadMeshes()) {
         avoidPositions.push(roadMesh.position.clone());
+      }
+    }
+    if (this.riverGenerator) {
+      for (const riverMesh of this.riverGenerator.getRiverMeshes()) {
+        avoidPositions.push(riverMesh.position.clone());
       }
     }
 
@@ -7923,6 +7937,7 @@ export class BabylonGame {
     this.buildingGenerator?.dispose();
     this.natureGenerator?.dispose();
     this.roadGenerator?.dispose();
+    this.riverGenerator?.dispose();
     this.worldScaleManager = null;
   }
 
