@@ -414,3 +414,26 @@ All tests pass. No type errors.
 - Added transcript and recordings-list retrieval endpoints to assessment routes
 - Created client/src/components/AssessmentTranscriptViewer.tsx - admin UI component displaying phase transcripts and recordings with expandable sections
 - Created server/__tests__/recording-transcript-storage.test.ts - 18 tests covering serializer, API routes, and full integration flow
+
+## [US-033] Water Feature Schema and IR Types
+
+### Completed
+- Added `WaterFeatureType` union type and `WaterFeatureStyleData` interface to `shared/game-engine/types.ts`
+  - 8 water body types: river, lake, ocean, pond, stream, waterfall, marsh, canal
+  - Style data includes color, transparency, flowSpeed, waveIntensity, optional assetSetId
+- Added `WaterFeatureIR` interface to `shared/game-engine/ir-types.ts`
+  - Full spatial data: position, waterLevel, bounds, depth, width, shorelinePoints
+  - Flow properties: flowDirection (nullable for still water), flowSpeed
+  - Attributes: isNavigable, isDrinkable, biome, settlementId
+  - Visual: color, transparency, modelAssetKey
+- Added `waterFeatures` array to `GeographyIR` interface
+- Added `waterFeatures` pgTable to `shared/schema.ts` with insert schema and types
+- Updated `ir-generator.ts` to include `waterFeatures: []` in geography output
+- Created `shared/__tests__/water-feature-types.test.ts` — 13 tests covering:
+  - WaterFeatureType union (all 8 types)
+  - WaterFeatureStyleData construction and optional fields
+  - WaterFeatureIR for river, lake, and ocean variants
+  - GeographyIR integration (waterFeatures array)
+  - Schema table column validation
+  - Insert schema validation (required fields, excluded fields)
+- All 13 tests passing

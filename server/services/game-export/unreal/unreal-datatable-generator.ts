@@ -168,6 +168,31 @@ function generateSettlementsDT(ir: WorldIR): object[] {
 }
 
 // ─────────────────────────────────────────────
+// Water Feature DataTable
+// ─────────────────────────────────────────────
+
+function generateWaterFeaturesDT(ir: WorldIR): object[] {
+  return ir.geography.waterFeatures.map(w => ({
+    Name: w.id,
+    WaterFeatureId: w.id,
+    WaterFeatureName: w.name,
+    WaterType: w.type,
+    SubType: w.subType,
+    Position: vec3Obj(w.position),
+    WaterLevel: w.waterLevel * 100,
+    Depth: w.depth * 100,
+    Width: w.width * 100,
+    FlowSpeed: w.flowSpeed,
+    bIsNavigable: w.isNavigable,
+    bIsDrinkable: w.isDrinkable,
+    SettlementId: w.settlementId || '',
+    Biome: w.biome || '',
+    Transparency: w.transparency,
+    ModelAssetKey: w.modelAssetKey || '',
+  }));
+}
+
+// ─────────────────────────────────────────────
 // Building DataTable
 // ─────────────────────────────────────────────
 
@@ -325,6 +350,7 @@ export function generateDataTableFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'DT_Rules', data: generateRulesDT(ir) },
     { name: 'DT_Quests', data: generateQuestsDT(ir) },
     { name: 'DT_Settlements', data: generateSettlementsDT(ir) },
+    { name: 'DT_WaterFeatures', data: generateWaterFeaturesDT(ir) },
     { name: 'DT_Buildings', data: generateBuildingsDT(ir) },
     { name: 'DT_Grammars', data: generateGrammarsDT(ir) },
     { name: 'DT_Truths', data: generateTruthsDT(ir) },
