@@ -93,6 +93,44 @@ export interface ScaledSettlement {
   settlementType: string;
 }
 
+// ─── Street Networks ────────────────────────────────────────────────────────
+
+/** Node type within a street network graph */
+export type StreetNodeType = 'intersection' | 'dead_end' | 'T_junction' | 'curve_point';
+
+/** Street classification determining width, traffic, and building density */
+export type StreetType = 'main_road' | 'avenue' | 'residential' | 'alley' | 'lane' | 'boulevard' | 'highway';
+
+/** A node (vertex) in the street network graph */
+export interface StreetNode {
+  id: string;
+  position: { x: number; z: number };
+  elevation: number;
+  type: StreetNodeType;
+}
+
+/** An edge in the street network graph connecting two nodes */
+export interface StreetEdge {
+  id: string;
+  name: string;
+  fromNodeId: string;
+  toNodeId: string;
+  streetType: StreetType;
+  width: number;
+  waypoints: Vec3[];
+  length: number;
+  condition: number;
+  traffic: number;
+  sidewalks: boolean;
+  hasStreetLights: boolean;
+}
+
+/** A connected graph of street nodes and edges for a settlement */
+export interface StreetNetwork {
+  nodes: StreetNode[];
+  edges: StreetEdge[];
+}
+
 // ─── Characters & NPCs ─────────────────────────────────────────────────────
 
 export interface WorldCharacter {

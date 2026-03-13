@@ -214,6 +214,11 @@ namespace Insimul.Core
         /// </summary>
         public static InsimulItemData[] LoadWorldItems() => LoadArray<InsimulItemData>(DataRoot + "items");
 
+        /// <summary>
+        /// Load geography data (heightmap, terrain features) from geography.json.
+        /// </summary>
+        public static InsimulGeographyData LoadGeography() => LoadSingle<InsimulGeographyData>(DataRoot + "geography");
+
         // ── Helpers ───────────────────────────────────────────────────────
 
         private static T[] LoadFilteredArray<T>(string resourcePath, string settlementId) where T : class

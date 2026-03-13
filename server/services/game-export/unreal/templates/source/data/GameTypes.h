@@ -34,6 +34,88 @@ struct FInsimulTerrainFeature
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Description;
 };
 
+// ─── Street Network ─────────────────────────────────────────────────────────
+
+/**
+ * Street node types.
+ * Mirrors StreetNodeType from types.ts.
+ */
+UENUM(BlueprintType)
+enum class EInsimulStreetNodeType : uint8
+{
+    Intersection UMETA(DisplayName = "Intersection"),
+    DeadEnd      UMETA(DisplayName = "Dead End"),
+    TJunction    UMETA(DisplayName = "T Junction"),
+    CurvePoint   UMETA(DisplayName = "Curve Point")
+};
+
+/**
+ * Street type classification.
+ * Mirrors StreetType from types.ts.
+ */
+UENUM(BlueprintType)
+enum class EInsimulStreetType : uint8
+{
+    MainRoad    UMETA(DisplayName = "Main Road"),
+    Avenue      UMETA(DisplayName = "Avenue"),
+    Residential UMETA(DisplayName = "Residential"),
+    Alley       UMETA(DisplayName = "Alley"),
+    Lane        UMETA(DisplayName = "Lane"),
+    Boulevard   UMETA(DisplayName = "Boulevard"),
+    Highway     UMETA(DisplayName = "Highway")
+};
+
+/**
+ * A node in the street network graph.
+ * Mirrors StreetNodeIR from ir-types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulStreetNode
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Id;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector2D Position = FVector2D::ZeroVector;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Elevation = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) EInsimulStreetNodeType NodeType = EInsimulStreetNodeType::Intersection;
+};
+
+/**
+ * An edge in the street network graph.
+ * Mirrors StreetEdgeIR from ir-types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulStreetEdge
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Id;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Name;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString FromNodeId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ToNodeId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) EInsimulStreetType StreetType = EInsimulStreetType::Residential;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Width = 6.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FVector> Waypoints;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Length = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Condition = 1.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Traffic = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bSidewalks = true;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasStreetLights = false;
+};
+
+/**
+ * A street network graph for a settlement.
+ * Mirrors StreetNetworkIR from ir-types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulStreetNetwork
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulStreetNode> Nodes;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulStreetEdge> Edges;
+};
+
 // ─── Mercantile ──────────────────────────────────────────────────────────────
 
 /**

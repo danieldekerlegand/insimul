@@ -166,6 +166,8 @@ export interface SettlementIR {
   businessIds: string[];
   /** Internal road waypoints (settlement center → buildings) */
   internalRoads: RoadIR[];
+  /** Street network graph (optional; settlements without procgen use internalRoads) */
+  streetNetwork?: StreetNetworkIR;
 }
 
 export interface LotIR {
@@ -321,6 +323,35 @@ export interface BusinessIR {
   lotId: string | null;
   vacancies: { day: string[]; night: string[] };
   businessData: Record<string, any>;
+}
+
+// ─── Street Network IR ──────────────────────────────────────────────────────
+
+export interface StreetNodeIR {
+  id: string;
+  position: { x: number; z: number };
+  elevation: number;
+  type: 'intersection' | 'dead_end' | 'T_junction' | 'curve_point';
+}
+
+export interface StreetEdgeIR {
+  id: string;
+  name: string;
+  fromNodeId: string;
+  toNodeId: string;
+  streetType: 'main_road' | 'avenue' | 'residential' | 'alley' | 'lane' | 'boulevard' | 'highway';
+  width: number;
+  waypoints: Vec3[];
+  length: number;
+  condition: number;
+  traffic: number;
+  sidewalks: boolean;
+  hasStreetLights: boolean;
+}
+
+export interface StreetNetworkIR {
+  nodes: StreetNodeIR[];
+  edges: StreetEdgeIR[];
 }
 
 export interface RoadIR {

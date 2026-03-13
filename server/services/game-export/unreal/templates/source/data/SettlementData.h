@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
+#include "GameTypes.h"
 #include "SettlementData.generated.h"
 
 USTRUCT(BlueprintType)
@@ -19,4 +20,5 @@ struct INSIMULEXPORT_API FInsimulSettlementData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString CountryId;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString StateId;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString MayorId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FInsimulStreetNetwork StreetNetwork;
 };
