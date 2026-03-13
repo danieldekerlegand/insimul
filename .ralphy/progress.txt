@@ -1,3 +1,23 @@
+## Streaming Done Event with Cleaned Response and Grammar Metadata
+
+- Modified `server/routes.ts` `/api/gemini/chat` endpoint:
+  - When `stream: true`, uses Gemini's `sendMessageStream` for real SSE streaming
+  - Streams text chunks as `data: { text }` SSE events
+  - After streaming completes, parses grammar feedback using `parseGrammarFeedbackBlock`
+  - Sends final `data: { done: true, cleanedResponse, grammarFeedback }` event
+  - Includes audio in done event when `returnAudio` is true
+  - Non-streaming path preserved unchanged
+- Modified `client/src/components/3DGame/BabylonChatPanel.ts`:
+  - `sendToGeminiStreaming` now handles `done` event from SSE stream
+  - Returns `cleanedResponse` and `grammarFeedback` from done event
+  - `sendMessage` uses server-provided grammar feedback directly, avoiding separate API call
+  - Falls back to `requestGrammarAnalysis` when no grammar feedback in stream
+- Created `shared/__tests__/streaming-done-event.test.ts` — 6 tests covering:
+  - Grammar block parsing and cleaned response extraction
+  - Correct/corrected/no_target_language status handling
+  - Multiple error patterns
+  - Done event payload structure
+
 ## Quest Turn-in and Completion Ceremony
 
 ### Completed

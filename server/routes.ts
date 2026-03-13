@@ -5734,13 +5734,18 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
             }
           }
 
+          // Parse grammar feedback from the full response
+          const { parseGrammarFeedbackBlock } = await import('../shared/language/progress.js');
+          const { feedback: grammarFeedback, cleanedResponse } = parseGrammarFeedbackBlock(fullResponse);
+
           // Send the complete response with metadata
-          const cleanedForDisplay = fullResponse
+          const cleanedForDisplay = cleanedResponse || fullResponse
             .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
             .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
             .trim();
 
-          const doneData: any = { type: 'done', response: fullResponse, cleanedResponse: cleanedForDisplay };
+          const doneData: any = { type: 'done', done: true, response: fullResponse, cleanedResponse: cleanedForDisplay };
+          if (grammarFeedback) doneData.grammarFeedback = grammarFeedback;
           if (userTranscript) doneData.userTranscript = userTranscript;
 
           res.write(`data: ${JSON.stringify(doneData)}\n\n`);
@@ -5756,7 +5761,7 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       // ── Non-streaming path ──
       const result = await chat.sendMessage(lastMessageContent.text);
 
-      // Log the full response for debugging
+
       console.log("Gemini response object:", JSON.stringify(result.response, null, 2));
 
       const response = result.response.text();
@@ -5776,7 +5781,6 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       console.log("Gemini response:", response.substring(0, 100));
 
       // Strip system markers (GRAMMAR_FEEDBACK, QUEST_ASSIGN) from displayed/spoken text
-      // The full response is still sent so the client can parse grammar feedback metadata
       const cleanedForDisplay = response
         .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
         .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
@@ -5792,22 +5796,18 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       // Prepare response object — send both raw (for parsing) and cleaned (for display)
       const responseData: any = { response, cleanedResponse: cleanedForDisplay };
 
-      // Add user transcript if we had audio input
       if (userTranscript) {
         responseData.userTranscript = userTranscript;
       }
 
-      // Generate audio if requested — use cleaned text so markers aren't spoken
       if (returnAudio) {
         try {
           const { textToSpeech } = await import("./services/tts-stt.js");
           const gender = voice === 'Kore' ? 'female' : 'male';
           const audioBuffer = await textToSpeech(cleanedForDisplay, voice, gender, "MP3");
-          // Convert to base64 for JSON response
           responseData.audio = audioBuffer.toString('base64');
         } catch (audioError) {
           console.error("Failed to generate audio:", audioError);
-          // Continue without audio
         }
       }
 
