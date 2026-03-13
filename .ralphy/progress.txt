@@ -1,0 +1,16 @@
+## Generic Onboarding Framework Types
+
+### Completed
+- Created `shared/onboarding/onboarding-types.ts` with genre-agnostic onboarding types:
+  - `OnboardingStepType`: 7 step types (narrative, movement, interaction, assessment, ui, combat, custom)
+  - `StepCompletionCondition`: flexible completion conditions (auto, event, position, interaction, timer, assessment_complete, custom)
+  - `OnboardingStep`: step definition with prerequisites, completion conditions, metadata
+  - `OnboardingDefinition`: full onboarding sequence with steps, genre tag, version
+  - `StepStatus` and `StepState`: runtime step tracking
+  - `OnboardingState`: runtime state for entire onboarding sequence
+  - `createOnboardingState()`: initialize state from definition
+  - `getNextAvailableStep()`: find next step by order
+  - `isOnboardingComplete()`: check if all steps done
+  - `unlockAvailableSteps()`: unlock steps with satisfied prerequisites
+- Created `shared/onboarding/index.ts` barrel export
+- Created `shared/__tests__/onboarding-types.test.ts` with 14 passing tests
