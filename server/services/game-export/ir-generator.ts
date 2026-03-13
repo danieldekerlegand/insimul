@@ -73,6 +73,11 @@ import type { World, Country, State, Settlement, Character, Quest } from '@share
 import { buildLanguageAwareSystemPrompt, buildWorldLanguageContext } from '@shared/language/language-utils';
 import type { CharacterInfo, Truth, WorldLanguageContext } from '@shared/language/language-utils';
 import type { WorldLanguage } from '@shared/language';
+import {
+  generateStreetNetwork,
+  placeLots,
+  type StreetNetwork,
+} from '../../generators/street-network-generator';
 
 // ─────────────────────────────────────────────
 // Constants (match client-side values exactly)
@@ -783,15 +788,27 @@ export async function generateWorldIR(
       });
     }
 
-    // Internal roads: center → each building
-    for (const pos of lotPositions) {
-      allRoadIRs.push({
-        fromId: s.id,
-        toId: `internal_${s.id}`,
-        waypoints: [placed.position, pos],
-        width: 1.5,
-        materialKey: null,
-      });
+    // Generate street network topology for this settlement
+    const streetNetwork = generateStreetNetwork({
+      centerX: placed.position.x,
+      centerZ: placed.position.z,
+      settlementType: (s.settlementType as 'village' | 'town' | 'city') || 'town',
+      foundedYear: s.foundedYear || 1900,
+      seed: `${seed}_${s.id}`,
+    });
+
+    // Convert street segments to internal road IRs (polyline waypoints)
+    const internalRoads: RoadIR[] = streetNetwork.segments.map(seg => ({
+      fromId: seg.nodeIds[0],
+      toId: seg.nodeIds[seg.nodeIds.length - 1],
+      waypoints: seg.waypoints.map(wp => ({ x: wp.x, y: 0, z: wp.z })),
+      width: seg.width,
+      materialKey: null,
+    }));
+
+    // Also add street-segment roads to the global roads list
+    for (const road of internalRoads) {
+      allRoadIRs.push(road);
     }
 
     settlementIRs.push({
@@ -811,7 +828,7 @@ export async function generateWorldIR(
       radius: placed.radius,
       lots: lotIRs,
       businessIds: settlementBusinesses.map(b => b.id),
-      internalRoads: [],
+      internalRoads,
     });
   }
 
