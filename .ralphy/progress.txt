@@ -366,3 +366,26 @@ All tests pass. No type errors.
 - Implemented all 5 methods in MongoStorage class
 - Wrote 13 unit tests covering type validation, schema shape, and compound index key logic
 - All 115 tests pass (6 test files)
+## Assessment MongoDB completion and query methods
+
+### What was done
+- Created `shared/assessment/assessment-types.ts` with AssessmentSession, PhaseResult, TaskResult, AutomatedMetrics, RecordingReference types (from unmerged parallel branch)
+- Created `shared/assessment/index.ts` barrel export
+- Added AssessmentSessionSchema to `server/db/mongo-storage.ts` with compound indexes on {playerId, worldId, assessmentType} and {worldId, status}
+- Added AssessmentSessionModel (collection: assessmentsessions)
+- Implemented 6 IStorage methods in MongoStorage:
+  - `createAssessmentSession` — creates a new session
+  - `getAssessmentSession` — fetches by ID
+  - `updateAssessmentPhaseResult` — pushes phase result and sets status to phase_transitioning
+  - `completeAssessmentSession` — sets status=complete, totalScore, cefrLevel, dimensionScores, automatedMetrics, completedAt
+  - `getPlayerAssessments` — queries by playerId with optional worldId/assessmentType filters, sorted by createdAt desc
+  - `getWorldAssessmentSummary` — aggregates completed sessions: avg score/percentage, by-type breakdown, CEFR distribution, percentage-based score buckets
+- Added all 6 methods to IStorage interface in `server/db/storage.ts`
+- Wrote 20 tests in `server/__tests__/assessment-sessions.test.ts` using mongodb-memory-server (all passing)
+
+### Files modified
+- shared/assessment/assessment-types.ts (new)
+- shared/assessment/index.ts (new)
+- server/db/mongo-storage.ts (schema + 6 methods)
+- server/db/storage.ts (IStorage interface + import)
+- server/__tests__/assessment-sessions.test.ts (new, 20 tests)

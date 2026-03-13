@@ -286,9 +286,24 @@ export interface IStorage {
   // Assessment Sessions
   createAssessmentSession(data: Omit<AssessmentSession, 'id'>): Promise<AssessmentSession>;
   getAssessmentSession(id: string): Promise<AssessmentSession | undefined>;
-  updateAssessmentPhaseResult(sessionId: string, phaseResult: PhaseResult): Promise<AssessmentSession | undefined>;
+  updateAssessmentPhaseResult(sessionId: string, phaseResult: any): Promise<AssessmentSession | undefined>;
   addAssessmentRecording(sessionId: string, recording: RecordingReference): Promise<AssessmentSession | undefined>;
-  getPlayerAssessments(playerId: string, worldId?: string): Promise<AssessmentSession[]>;
+  completeAssessmentSession(sessionId: string, results: {
+    totalScore: number;
+    cefrLevel?: string;
+    dimensionScores?: Record<string, number>;
+    automatedMetrics?: any;
+  }): Promise<AssessmentSession | undefined>;
+  getPlayerAssessments(playerId: string, worldId?: string, assessmentType?: string): Promise<AssessmentSession[]>;
+  getWorldAssessmentSummary(worldId: string): Promise<{
+    totalSessions: number;
+    completedSessions: number;
+    averageScore: number;
+    averagePercentage: number;
+    byType: Record<string, { count: number; avgScore: number; avgPercentage: number }>;
+    cefrDistribution: Record<string, number>;
+    scoreDistribution: { bucket: string; count: number }[];
+  }>;
 }
 
 // Export MongoStorage as the default storage implementation
