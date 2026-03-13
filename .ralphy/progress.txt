@@ -1,0 +1,13 @@
+Task: Assessment engine state machine
+Status: Complete
+
+What was done:
+- Created shared/assessment/assessment-types.ts with all assessment type definitions (AssessmentStatus, AssessmentSession, PhaseResult, RecordingReference, CEFRLevel, etc.)
+- Created client/assessment/AssessmentEngine.ts implementing the state machine with states: idle → initializing → phase_active ↔ phase_transitioning → scoring → complete
+- Engine orchestrates phases via PhaseHandler interface and PhaseHandlerFactory callback
+- Manages RecordingReferences across all phases
+- Computes total score, aggregates dimension scores and automated metrics, and maps to CEFR level on completion
+- Supports abort (force-return to idle) and reset for reuse
+- Error handling returns engine to idle state
+- Created shared/__tests__/assessment-engine.test.ts with 28 tests covering all states, transitions, scoring, CEFR mapping, recordings, abort, reset, and error handling
+- All 28 tests pass
