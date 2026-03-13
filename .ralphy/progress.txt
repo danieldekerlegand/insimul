@@ -723,3 +723,22 @@ All tests pass. No type errors.
   - Schema table column validation
   - Insert schema validation (required fields, excluded fields)
 - All 13 tests passing
+
+## Wire BabylonChatPanel streaming to sentence-level audio queue
+
+### Completed
+- Created `server/services/sentence-splitter.ts`: `extractSentences()` utility that splits accumulated text into complete sentences at `.!?` boundaries, handling abbreviations (Dr., Mr., etc.) and ellipses
+- Modified `/api/gemini/chat` endpoint in `server/routes.ts`:
+  - When `stream: true` and `returnAudio: true`, uses SSE with `sendMessageStream()` from @google/generative-ai
+  - Streams text tokens immediately via SSE for real-time display
+  - Splits accumulated text into sentences using `extractSentences()`
+  - Fires TTS for each sentence in parallel (non-blocking) and sends audio chunks with `sentenceIndex`
+  - Remaining text after stream ends is sent as final sentence
+  - Waits for all TTS promises before closing the SSE stream
+- Fixed `playAudio()` in `client/src/components/3DGame/BabylonChatPanel.ts`:
+  - Now returns a Promise that resolves when audio finishes playing (not just starts)
+  - Added error handler for audio playback failures
+- Adjusted post-stream audio handling in `handleSend`:
+  - When audio queue has entries, waits for queue to drain (already playing from streaming handler)
+  - Falls back to full TTS only when no audio chunks were received
+- Created `server/__tests__/sentence-splitter.test.ts` — 9 tests covering sentence splitting, abbreviations, ellipses, empty input, and incremental streaming accumulation

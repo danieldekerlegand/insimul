@@ -859,7 +859,10 @@ export class BabylonChatPanel {
 
       // Play queued sentence audio, or fall back to full TTS
       if (this.audioQueue.length > 0) {
-        await this.playAudioQueue();
+        // Audio queue playback was started during streaming; wait for it to drain
+        while (this.isPlayingQueue) {
+          await new Promise(r => setTimeout(r, 100));
+        }
       } else {
         await this.textToSpeech(cleanedResponse);
       }
@@ -1458,29 +1461,41 @@ export class BabylonChatPanel {
     speechSynthesis.speak(utterance);
   }
 
-  private async playAudio(audioBlob: Blob) {
-    const audioUrl = URL.createObjectURL(audioBlob);
-    const audio = new Audio(audioUrl);
-    this.currentAudio = audio;
+  private playAudio(audioBlob: Blob): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      this.currentAudio = audio;
 
-    this.isSpeaking = true;
+      this.isSpeaking = true;
 
-    // Show talking indicator
-    if (this.talkingIndicator && this.character && this.npcMesh) {
-      this.talkingIndicator.show(this.character.id, this.npcMesh);
-    }
-
-    audio.onended = () => {
-      this.isSpeaking = false;
-      URL.revokeObjectURL(audioUrl);
-
-      // Hide talking indicator
-      if (this.talkingIndicator && this.character) {
-        this.talkingIndicator.hide(this.character.id);
+      // Show talking indicator
+      if (this.talkingIndicator && this.character && this.npcMesh) {
+        this.talkingIndicator.show(this.character.id, this.npcMesh);
       }
-    };
 
-    await audio.play();
+      audio.onended = () => {
+        this.isSpeaking = false;
+        URL.revokeObjectURL(audioUrl);
+
+        // Hide talking indicator
+        if (this.talkingIndicator && this.character) {
+          this.talkingIndicator.hide(this.character.id);
+        }
+        resolve();
+      };
+
+      audio.onerror = (e) => {
+        this.isSpeaking = false;
+        URL.revokeObjectURL(audioUrl);
+        if (this.talkingIndicator && this.character) {
+          this.talkingIndicator.hide(this.character.id);
+        }
+        reject(e);
+      };
+
+      audio.play().catch(reject);
+    });
   }
 
   private async startRecording() {
