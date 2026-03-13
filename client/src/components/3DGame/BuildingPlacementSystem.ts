@@ -26,6 +26,7 @@ export interface BuildingDefinition {
   upgradesTo?: string;     // ID of next tier
   requiredLevel: number;
   effects?: BuildingEffect[];
+  maxSlopeAngle?: number;   // max terrain slope in radians (default: MAX_SLOPE_ANGLE)
 }
 
 export interface BuildingEffect {
@@ -222,6 +223,13 @@ const DEFAULT_BUILDINGS: BuildingDefinition[] = [
 ];
 
 const GRID_SIZE = 1; // 1 unit grid snapping
+/** Default max slope angle (radians) for building placement (~30 degrees) */
+export const MAX_SLOPE_ANGLE = Math.PI / 6;
+/** Distance between slope sample points, in world units */
+const SLOPE_SAMPLE_OFFSET = 0.5;
+
+/** Callback to sample terrain height at a given (x, z) position */
+export type HeightSampler = (x: number, z: number) => number;
 
 export class BuildingPlacementSystem {
   private scene: Scene;
@@ -238,6 +246,9 @@ export class BuildingPlacementSystem {
   private placementValid: boolean = false;
   private placementPosition: Vector3 = Vector3.Zero();
   private placementRotation: number = 0;
+
+  // Elevation
+  private heightSampler: HeightSampler | null = null;
 
   // Building materials
   private buildingMaterials: Map<string, StandardMaterial> = new Map();
@@ -292,6 +303,47 @@ export class BuildingPlacementSystem {
       mat.specularColor = new Color3(0.2, 0.2, 0.2);
       this.buildingMaterials.set(cat, mat);
     }
+  }
+
+  /**
+   * Set a height sampler for elevation-aware placement.
+   * When set, buildings snap to terrain height and slope is validated.
+   */
+  public setHeightSampler(sampler: HeightSampler): void {
+    this.heightSampler = sampler;
+  }
+
+  /**
+   * Sample terrain height at (x, z). Falls back to 0 if no sampler is set.
+   */
+  public sampleHeight(x: number, z: number): number {
+    return this.heightSampler ? this.heightSampler(x, z) : 0;
+  }
+
+  /**
+   * Compute the slope angle (radians) under a building footprint.
+   * Samples the four corners and center, returns the steepest angle found.
+   */
+  public computeSlopeAngle(x: number, z: number, width: number, depth: number): number {
+    const hw = (width / 2) - SLOPE_SAMPLE_OFFSET;
+    const hd = (depth / 2) - SLOPE_SAMPLE_OFFSET;
+
+    const centerY = this.sampleHeight(x, z);
+    const samples = [
+      this.sampleHeight(x - hw, z - hd),
+      this.sampleHeight(x + hw, z - hd),
+      this.sampleHeight(x - hw, z + hd),
+      this.sampleHeight(x + hw, z + hd),
+    ];
+
+    let maxAngle = 0;
+    for (const sy of samples) {
+      const dy = Math.abs(sy - centerY);
+      const dist = Math.sqrt(hw * hw + hd * hd);
+      const angle = Math.atan2(dy, dist);
+      if (angle > maxAngle) maxAngle = angle;
+    }
+    return maxAngle;
   }
 
   /**
@@ -389,12 +441,14 @@ export class BuildingPlacementSystem {
     if (!this.isPlacementMode || !this.ghostMesh || !this.selectedDefinition) return;
 
     // Snap to grid
+    const snappedX = Math.round(worldPosition.x / GRID_SIZE) * GRID_SIZE;
+    const snappedZ = Math.round(worldPosition.z / GRID_SIZE) * GRID_SIZE;
+    const terrainY = this.sampleHeight(snappedX, snappedZ);
     const snapped = new Vector3(
-      Math.round(worldPosition.x / GRID_SIZE) * GRID_SIZE,
-      0,
-      Math.round(worldPosition.z / GRID_SIZE) * GRID_SIZE
+      snappedX,
+      terrainY + this.selectedDefinition.height / 2,
+      snappedZ
     );
-    snapped.y = this.selectedDefinition.height / 2;
 
     this.placementPosition = snapped;
     this.ghostMesh.position = snapped;
@@ -487,7 +541,8 @@ export class BuildingPlacementSystem {
     // Apply immediate effects
     this.applyBuildingEffects(building);
 
-    console.log(`[BuildingSystem] Placed ${def.name} at (${position.x}, ${position.z})`);
+    const terrainY = this.sampleHeight(position.x, position.z);
+    console.log(`[BuildingSystem] Placed ${def.name} at (${position.x}, ${terrainY.toFixed(2)}, ${position.z})`);
     return building;
   }
 
@@ -495,6 +550,15 @@ export class BuildingPlacementSystem {
    * Check if a position is valid for placement
    */
   private isValidPlacement(position: Vector3, def: BuildingDefinition): boolean {
+    // Check slope if height sampler is available
+    if (this.heightSampler) {
+      const maxAllowed = def.maxSlopeAngle ?? MAX_SLOPE_ANGLE;
+      const slope = this.computeSlopeAngle(position.x, position.z, def.width, def.depth);
+      if (slope > maxAllowed) {
+        return false;
+      }
+    }
+
     // Check overlap with existing buildings
     const halfW = def.width / 2;
     const halfD = def.depth / 2;

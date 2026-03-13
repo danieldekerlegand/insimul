@@ -7526,6 +7526,7 @@ export class BabylonGame {
     // Building system
     if (features.building && this.resourceSystem) {
       this.buildingSystem = new BuildingPlacementSystem(this.scene, this.resourceSystem);
+      this.buildingSystem.setHeightSampler((x, z) => this.projectToGround(x, z).y);
       this.buildingSystem.setOnBuildingComplete((building) => {
         this.guiManager?.showToast({
           title: `${building.name} Complete`,
