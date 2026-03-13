@@ -1,11 +1,15 @@
-// Barrel export for shared/language module
-export * from './language';
-export * from './character-language-profile';
-export * from './language-utils';
-export * from './language-progress';
-export * from './language-gamification';
-export * from './language-skill-tree';
-export * from './language-vocabulary-corpus';
-export * from './language-quest-templates';
-export * from './bilingual-name-generation';
+/**
+ * Language Module Barrel Export
+ *
+ * All language-related types, utilities, and data consolidated under shared/language/.
+ */
+
+export * from './types';
+export * from './progress';
+export * from './gamification';
+export * from './quest-templates';
+export * from './utils';
+export * from './vocabulary-corpus';
 export * from './pronunciation-scoring';
+export * from './character-profile';
+export * from './bilingual-names';
