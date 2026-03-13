@@ -7,6 +7,8 @@ Started: Thu Mar 12 23:35:20 CDT 2026
 - Tests use custom assert/counter pattern (not a test framework): `npx tsx file.test.ts`
 - GeographyConfig is defined in `server/generators/geography-generator.ts` and contains terrain, settlementType, population, foundedYear
 - Pre-existing typecheck errors in BabylonGame files are expected; check only your changed files for errors
+- GeographyGenerator now uses StreetGenerator internally; the `streets` field in settlement DB is a StreetNetwork object (not Location[])
+- To detect old vs new street format: `Array.isArray(streets)` = old, `'nodes' in streets` = new StreetNetwork
 
 ## 2026-03-12 - US-014
 - Implemented `selectStreetPattern(config: GeographyConfig): StreetPatternType` with priority-based selection logic
@@ -32,4 +34,21 @@ Started: Thu Mar 12 23:35:20 CDT 2026
   - The `seededRandom` function from the generator can be reused for deterministic naming by appending a suffix to the seed
   - Grid detection threshold of 3 chains per axis works well for the grid generator's output
   - All 2859 tests pass including new naming tests
+---
+
+## 2026-03-12 - US-016
+- Refactored `GeographyGenerator.generate()` to use `StreetGenerator.generate()` + `assignStreetNames()` instead of random street placement
+- New generation flow: `generateStreetNetwork()` → `deriveDistricts()` → `generateBuildingsAlongStreets()`
+- Districts derived via Voronoi-like clustering: radial seed points, each street node assigned to nearest seed
+- Buildings placed along street edges at evenly spaced positions with perpendicular offset (alternate sides)
+- Building density scales by street type: main_road=1.0, avenue=0.8, residential=0.6, lane=0.3, alley=0.1
+- StreetNetwork object stored directly as `streets` JSONB in settlement DB (replaces old Location[] format)
+- Backward compat: consumers can detect format via `Array.isArray(streets)` vs `'nodes' in streets`
+- Files changed: `server/generators/geography-generator.ts`, `server/generators/geography-generator.test.ts`
+- **Learnings for future iterations:**
+  - The `generate()` return type now includes `streetNetwork: StreetNetwork` — callers in `world-generator.ts` are compatible since it's additive
+  - `interpolateWaypoints(waypoints, t)` and `edgeTangent(waypoints, t)` are useful utilities for placing objects along street edges
+  - The `__nodeDistrict` Map is attached to districts array for building→district assignment (internal implementation detail)
+  - Seed for StreetGenerator uses `${worldId}-${settlementId}` for determinism
+  - All 12,215 geography tests + 2,859 street tests pass
 ---

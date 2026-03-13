@@ -1,9 +1,12 @@
 /**
  * Procedural Geography Generator
  * Creates towns, cities, districts, streets, and buildings
+ * using StreetGenerator for connected street network graphs.
  */
 
 import { storage } from '../db/storage';
+import { StreetGenerator } from './street-generator';
+import type { StreetNetwork, StreetNode, StreetEdge } from '../../shared/game-engine/types';
 
 export interface Location {
   id: string;
@@ -30,55 +33,393 @@ export interface GeographyConfig {
 }
 
 export class GeographyGenerator {
+  private streetGenerator = new StreetGenerator();
+
   private locationNames = {
     districts: ['Downtown', 'Riverside', 'Hillside', 'Old Town', 'Market Quarter', 'Industrial District',
                'Residential Heights', 'West End', 'East Side', 'North Ward', 'South Gate'],
-    streets: ['Main St', 'Oak Ave', 'Maple Dr', 'Cedar Ln', 'Pine Rd', 'Elm St', 'Washington St',
-             'Lincoln Ave', 'Jefferson Blvd', 'Madison Way', 'Monroe Dr', 'Adams St', 'High St',
-             'Park Ave', 'Church St', 'Market St', 'Mill Rd', 'Spring St', 'River Rd', 'Hill St'],
     landmarks: ['Town Square', 'Central Park', 'Old Mill', 'Clock Tower', 'Town Hall', 'Public Library',
                'Train Station', 'Post Office', 'Fire Station', 'Police Station', 'Cemetery'],
-    businesses: ["General Store", "Hardware Store", "Grocery", "Pharmacy", "Diner", "Café", 
+    businesses: ["General Store", "Hardware Store", "Grocery", "Pharmacy", "Diner", "Café",
                 "Restaurant", "Bakery", "Barber Shop", "Salon", "Bank", "Hotel", "Theater",
                 "Bookstore", "Tailor", "Shoe Store", "Auto Repair", "Gas Station"]
   };
 
   /**
-   * Generate complete geography for a settlement
+   * Generate complete geography for a settlement.
+   * Flow: generateStreetNetwork() -> deriveDistricts() -> generateBuildings()
    */
   async generate(config: GeographyConfig): Promise<{
     districts: Location[];
     streets: Location[];
     buildings: Location[];
     landmarks: Location[];
+    streetNetwork: StreetNetwork;
     lotIds: string[];
   }> {
     console.log(`🗺️  Generating geography for ${config.settlementName} (${config.settlementType}, pop: ${config.population})...`);
 
-    const districts = this.generateDistricts(config);
-    const streets = this.generateStreets(config, districts);
-    const landmarks = this.generateLandmarks(config, districts);
-    const buildings = this.generateBuildings(config, districts, streets);
+    // Step 1: Generate street network graph
+    const { network, pattern } = this.generateStreetNetwork(config);
 
-    // Update settlement with geography metadata
+    // Step 2: Derive districts from street regions (Voronoi-like clustering)
+    const districts = this.deriveDistricts(config, network);
+
+    // Step 3: Convert street edges to Location objects for backward compat
+    const streets = this.streetEdgesToLocations(network, districts);
+
+    // Step 4: Generate landmarks within districts
+    const landmarks = this.generateLandmarks(config, districts);
+
+    // Step 5: Generate buildings along street edges
+    const buildings = this.generateBuildingsAlongStreets(config, network, districts);
+
+    // Update settlement with geography metadata + StreetNetwork as JSONB
     await storage.updateSettlement(config.settlementId, {
       districts,
-      streets,
+      streets: network as any, // Store the StreetNetwork object directly
       landmarks,
     });
 
     // Persist lots, residences, and businesses as proper database records
     const lotIds = await this.persistLotsAndBuildings(config, districts, streets, buildings);
 
-    console.log(`✅ Generated ${districts.length} districts, ${streets.length} streets, ${buildings.length} buildings (${lotIds.length} lots persisted)`);
+    console.log(`✅ Generated ${districts.length} districts, ${streets.length} streets (${pattern}), ${buildings.length} buildings (${lotIds.length} lots persisted)`);
 
-    return { districts, streets, buildings, landmarks, lotIds };
+    return { districts, streets, buildings, landmarks, streetNetwork: network, lotIds };
+  }
+
+  /**
+   * Generate the street network using StreetGenerator with auto-selected pattern.
+   * Names all streets after generation.
+   */
+  private generateStreetNetwork(config: GeographyConfig): { network: StreetNetwork; pattern: string } {
+    const mapSize = this.getMapSize(config.settlementType);
+    const center = { x: mapSize / 2, z: mapSize / 2 };
+    const radius = mapSize / 2.5;
+
+    const seed = `${config.worldId}-${config.settlementId}`;
+    const { network, pattern } = this.streetGenerator.generate(
+      { center, radius, settlementType: config.settlementType, seed },
+      config
+    );
+
+    // Name all streets
+    this.streetGenerator.assignStreetNames(network, seed);
+
+    return { network, pattern };
+  }
+
+  /**
+   * Derive districts from the street network using Voronoi-like clustering.
+   * Places seed points at intervals around the settlement center, bounded by
+   * major streets. Each street node is assigned to the nearest seed → district.
+   */
+  private deriveDistricts(config: GeographyConfig, network: StreetNetwork): Location[] {
+    const numDistricts = this.getDistrictCount(config.settlementType);
+    const mapSize = this.getMapSize(config.settlementType);
+    const centerX = mapSize / 2;
+    const centerY = mapSize / 2;
+
+    // Place district seed points in a radial pattern
+    const seedPoints: { x: number; y: number }[] = [];
+    for (let i = 0; i < numDistricts; i++) {
+      const angle = (i / numDistricts) * 2 * Math.PI;
+      const seedRadius = mapSize / 3;
+      seedPoints.push({
+        x: centerX + Math.cos(angle) * seedRadius,
+        y: centerY + Math.sin(angle) * seedRadius,
+      });
+    }
+
+    // Assign each node to nearest district seed (Voronoi assignment)
+    const nodeDistrict = new Map<string, number>();
+    for (const node of network.nodes) {
+      let bestIdx = 0;
+      let bestDist = Infinity;
+      for (let i = 0; i < seedPoints.length; i++) {
+        const dx = node.position.x - seedPoints[i].x;
+        const dz = node.position.z - seedPoints[i].y;
+        const d = dx * dx + dz * dz;
+        if (d < bestDist) {
+          bestDist = d;
+          bestIdx = i;
+        }
+      }
+      nodeDistrict.set(node.id, bestIdx);
+    }
+
+    // Compute district bounding boxes from assigned nodes
+    const districtBounds: { minX: number; maxX: number; minY: number; maxY: number; count: number }[] =
+      seedPoints.map(() => ({ minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, count: 0 }));
+
+    for (const node of network.nodes) {
+      const idx = nodeDistrict.get(node.id)!;
+      const b = districtBounds[idx];
+      b.minX = Math.min(b.minX, node.position.x);
+      b.maxX = Math.max(b.maxX, node.position.x);
+      b.minY = Math.min(b.minY, node.position.z);
+      b.maxY = Math.max(b.maxY, node.position.z);
+      b.count++;
+    }
+
+    // Build Location objects for each district
+    const districts: Location[] = [];
+    for (let i = 0; i < numDistricts; i++) {
+      const b = districtBounds[i];
+      const hasNodes = b.count > 0;
+      const cx = hasNodes ? (b.minX + b.maxX) / 2 : seedPoints[i].x;
+      const cy = hasNodes ? (b.minY + b.maxY) / 2 : seedPoints[i].y;
+      const w = hasNodes ? Math.max(b.maxX - b.minX, 50) : mapSize / 4;
+      const h = hasNodes ? Math.max(b.maxY - b.minY, 50) : mapSize / 4;
+
+      districts.push({
+        id: `district-${i}`,
+        name: this.locationNames.districts[i % this.locationNames.districts.length],
+        type: 'district',
+        x: cx,
+        y: cy,
+        width: w,
+        height: h,
+        properties: {
+          nodeCount: b.count,
+          seedX: seedPoints[i].x,
+          seedY: seedPoints[i].y,
+        },
+      });
+    }
+
+    // Store the node-to-district mapping on the districts for building assignment
+    (districts as any).__nodeDistrict = nodeDistrict;
+
+    return districts;
+  }
+
+  /**
+   * Convert street edges to Location objects for backward compatibility.
+   * Each unique-named edge chain becomes one Location.
+   */
+  private streetEdgesToLocations(network: StreetNetwork, districts: Location[]): Location[] {
+    const nodeDistrict: Map<string, number> = (districts as any).__nodeDistrict || new Map();
+    const seen = new Set<string>();
+    const locations: Location[] = [];
+    let idx = 0;
+
+    for (const edge of network.edges) {
+      const name = edge.name || `Street-${idx}`;
+      if (seen.has(name)) continue;
+      seen.add(name);
+
+      // Use the midpoint of the first waypoint
+      const midWp = edge.waypoints[Math.floor(edge.waypoints.length / 2)];
+      const districtIdx = nodeDistrict.get(edge.fromNodeId) ?? 0;
+
+      locations.push({
+        id: `street-${idx}`,
+        name,
+        type: 'street',
+        x: midWp?.x ?? 0,
+        y: midWp?.z ?? 0,
+        parentId: `district-${districtIdx}`,
+        properties: {
+          streetType: edge.streetType,
+          width: edge.width,
+          length: edge.length,
+          edgeId: edge.id,
+          condition: edge.condition > 0.7 ? 'good' : 'poor',
+          traffic: edge.traffic > 0.5 ? 'high' : 'low',
+        },
+      });
+      idx++;
+    }
+
+    return locations;
+  }
+
+  /**
+   * Generate buildings at evenly spaced positions along street edges.
+   * Building density varies by street type: main roads get more buildings.
+   */
+  private generateBuildingsAlongStreets(
+    config: GeographyConfig,
+    network: StreetNetwork,
+    districts: Location[]
+  ): Location[] {
+    const nodeDistrict: Map<string, number> = (districts as any).__nodeDistrict || new Map();
+    const buildings: Location[] = [];
+    let buildingIndex = 0;
+
+    const buildingsPerStreet = this.getBuildingsPerStreet(config.settlementType);
+
+    for (const edge of network.edges) {
+      // Scale building count by street type
+      const typeScale = this.buildingDensityByStreetType(edge.streetType);
+      const count = Math.max(1, Math.round(buildingsPerStreet * typeScale));
+      const streetName = edge.name || 'Unknown St';
+      const districtIdx = nodeDistrict.get(edge.fromNodeId) ?? 0;
+
+      for (let i = 0; i < count; i++) {
+        // Position buildings at evenly spaced points along the edge waypoints
+        const t = count === 1 ? 0.5 : i / (count - 1);
+        const pos = this.interpolateWaypoints(edge.waypoints, t);
+
+        // Offset slightly perpendicular to the street
+        const side = i % 2 === 0 ? 1 : -1;
+        const perpOffset = (edge.width / 2 + 5) * side;
+        const tangent = this.edgeTangent(edge.waypoints, t);
+        const bx = pos.x + tangent.nz * perpOffset;
+        const by = pos.z + (-tangent.nx) * perpOffset;
+
+        const isResidence = this.shouldBeResidence(edge.streetType, buildingIndex);
+        const name = isResidence
+          ? `${(buildingIndex % 200) + 1} ${streetName}`
+          : this.locationNames.businesses[buildingIndex % this.locationNames.businesses.length];
+
+        buildings.push({
+          id: `building-${buildingIndex}`,
+          name,
+          type: 'building',
+          x: bx,
+          y: by,
+          width: 15,
+          height: 15,
+          parentId: `street-${edge.id}`,
+          properties: {
+            buildingType: isResidence ? 'residence' : 'business',
+            floors: Math.floor(((buildingIndex * 7 + 3) % 5) / 2) + 1,
+            houseNumber: (buildingIndex % 200) + 1,
+            condition: buildingIndex % 5 === 0 ? 'poor' : buildingIndex % 3 === 0 ? 'average' : 'excellent',
+            built: config.foundedYear + (buildingIndex * 13) % 100,
+            occupants: isResidence ? (buildingIndex % 6) + 1 : (buildingIndex % 10),
+            streetName,
+            districtId: `district-${districtIdx}`,
+            edgeId: edge.id,
+          },
+        });
+
+        buildingIndex++;
+      }
+    }
+
+    return buildings;
+  }
+
+  /**
+   * Interpolate a position along edge waypoints at parameter t ∈ [0, 1].
+   */
+  private interpolateWaypoints(waypoints: { x: number; z: number }[], t: number): { x: number; z: number } {
+    if (waypoints.length === 0) return { x: 0, z: 0 };
+    if (waypoints.length === 1 || t <= 0) return waypoints[0];
+    if (t >= 1) return waypoints[waypoints.length - 1];
+
+    // Compute total length
+    let totalLen = 0;
+    const segLens: number[] = [];
+    for (let i = 1; i < waypoints.length; i++) {
+      const dx = waypoints[i].x - waypoints[i - 1].x;
+      const dz = waypoints[i].z - waypoints[i - 1].z;
+      const len = Math.sqrt(dx * dx + dz * dz);
+      segLens.push(len);
+      totalLen += len;
+    }
+
+    const targetDist = t * totalLen;
+    let accum = 0;
+    for (let i = 0; i < segLens.length; i++) {
+      if (accum + segLens[i] >= targetDist) {
+        const segT = segLens[i] > 0 ? (targetDist - accum) / segLens[i] : 0;
+        return {
+          x: waypoints[i].x + (waypoints[i + 1].x - waypoints[i].x) * segT,
+          z: waypoints[i].z + (waypoints[i + 1].z - waypoints[i].z) * segT,
+        };
+      }
+      accum += segLens[i];
+    }
+    return waypoints[waypoints.length - 1];
+  }
+
+  /**
+   * Compute normalized tangent direction at parameter t along waypoints.
+   * Returns { nx, nz } tangent and perpendicular can be derived as (-nz, nx).
+   */
+  private edgeTangent(waypoints: { x: number; z: number }[], t: number): { nx: number; nz: number } {
+    if (waypoints.length < 2) return { nx: 1, nz: 0 };
+
+    const idx = Math.min(Math.floor(t * (waypoints.length - 1)), waypoints.length - 2);
+    const dx = waypoints[idx + 1].x - waypoints[idx].x;
+    const dz = waypoints[idx + 1].z - waypoints[idx].z;
+    const len = Math.sqrt(dx * dx + dz * dz);
+    if (len === 0) return { nx: 1, nz: 0 };
+    return { nx: dx / len, nz: dz / len };
+  }
+
+  /**
+   * Scale building count by street type — busier streets get more buildings.
+   */
+  private buildingDensityByStreetType(streetType: string): number {
+    switch (streetType) {
+      case 'boulevard':
+      case 'main_road': return 1.0;
+      case 'avenue': return 0.8;
+      case 'residential': return 0.6;
+      case 'lane': return 0.3;
+      case 'alley': return 0.1;
+      default: return 0.5;
+    }
+  }
+
+  /**
+   * Determine if a building should be residential based on street type and index.
+   * Main roads and avenues have more businesses; residential streets are mostly homes.
+   */
+  private shouldBeResidence(streetType: string, index: number): boolean {
+    switch (streetType) {
+      case 'boulevard':
+      case 'main_road':
+      case 'avenue':
+        return index % 3 !== 0; // ~67% residential on main roads
+      case 'residential':
+        return index % 5 !== 0; // ~80% residential
+      case 'lane':
+        return index % 7 !== 0; // ~86% residential
+      default:
+        return index % 4 !== 0; // ~75% residential
+    }
+  }
+
+  /**
+   * Generate landmarks within districts
+   */
+  private generateLandmarks(config: GeographyConfig, districts: Location[]): Location[] {
+    const numLandmarks = Math.min(this.locationNames.landmarks.length, districts.length * 2);
+    const landmarks: Location[] = [];
+
+    for (let i = 0; i < numLandmarks; i++) {
+      const district = districts[i % districts.length];
+      // Deterministic offset based on index
+      const offsetX = ((i * 17 + 7) % 50) - 25;
+      const offsetY = ((i * 13 + 11) % 50) - 25;
+
+      landmarks.push({
+        id: `landmark-${i}`,
+        name: this.locationNames.landmarks[i],
+        type: 'landmark',
+        x: (district.x || 0) + offsetX,
+        y: (district.y || 0) + offsetY,
+        parentId: district.id,
+        properties: {
+          visitors: (i * 97 + 31) % 1000,
+          historical: i % 2 === 0,
+          established: config.foundedYear + (i * 23) % Math.max(1, new Date().getFullYear() - config.foundedYear),
+        }
+      });
+    }
+
+    return landmarks;
   }
 
   /**
    * Create Lot, Residence, and Business records from generated building data.
-   * Inspired by Talk of the Town's lot-based town model where each lot tracks
-   * its building history over time.
    */
   private async persistLotsAndBuildings(
     config: GeographyConfig,
@@ -86,19 +427,17 @@ export class GeographyGenerator {
     streets: Location[],
     buildings: Location[]
   ): Promise<string[]> {
-    // Build lookup maps for parent references
     const districtById = new Map(districts.map(d => [d.id, d]));
     const streetById = new Map(streets.map(s => [s.id, s]));
 
-    // Prepare bulk-insert arrays
     const lotDocs: any[] = [];
     const residenceDocs: any[] = [];
     const businessDocs: any[] = [];
 
     for (const building of buildings) {
-      const street = building.parentId ? streetById.get(building.parentId) : undefined;
-      const district = street?.parentId ? districtById.get(street.parentId) : undefined;
-      const streetName = street?.name || 'Unknown St';
+      const streetName = building.properties?.streetName || 'Unknown St';
+      const districtId = building.properties?.districtId;
+      const district = districtId ? districtById.get(districtId) : undefined;
       const districtName = district?.name || 'Unknown District';
       const houseNumber = (building.properties?.houseNumber as number) ||
         Math.floor(Math.random() * 200) + 1;
@@ -114,7 +453,6 @@ export class GeographyGenerator {
         districtName,
         buildingType: isResidence ? 'residence' : 'business',
         formerBuildingIds: [],
-        // Placeholder — buildingId will be set after residence/business creation
         _buildingIndex: lotDocs.length,
         _isResidence: isResidence,
         _buildingName: building.name,
@@ -128,7 +466,7 @@ export class GeographyGenerator {
       lotDocs.map(({ _buildingIndex, _isResidence, _buildingName, _floors, _built, ...lot }) => lot)
     );
 
-    // Now create residences and businesses referencing the lot IDs
+    // Create residences and businesses referencing the lot IDs
     for (let i = 0; i < createdLots.length; i++) {
       const lot = createdLots[i];
       const meta = lotDocs[i];
@@ -160,10 +498,8 @@ export class GeographyGenerator {
       }
     }
 
-    // Bulk-insert residences and businesses
     if (residenceDocs.length > 0) {
       const createdResidences = await (storage as any).createResidencesInBulk(residenceDocs);
-      // Update lot records with building IDs
       let resIdx = 0;
       for (let i = 0; i < createdLots.length; i++) {
         if (lotDocs[i]._isResidence) {
@@ -211,138 +547,6 @@ export class GeographyGenerator {
   }
 
   /**
-   * Generate districts/neighborhoods
-   */
-  private generateDistricts(config: GeographyConfig): Location[] {
-    const numDistricts = this.getDistrictCount(config.settlementType);
-    const districts: Location[] = [];
-    const mapSize = this.getMapSize(config.settlementType);
-    
-    for (let i = 0; i < numDistricts; i++) {
-      const angle = (i / numDistricts) * 2 * Math.PI;
-      const radius = mapSize / 3;
-      
-      districts.push({
-        id: `district-${i}`,
-        name: this.locationNames.districts[i % this.locationNames.districts.length],
-        type: 'district',
-        x: mapSize / 2 + Math.cos(angle) * radius,
-        y: mapSize / 2 + Math.sin(angle) * radius,
-        width: mapSize / 4,
-        height: mapSize / 4,
-        properties: {
-          wealth: Math.random() * 100,
-          crime: Math.random() * 50,
-          established: config.foundedYear + Math.floor(Math.random() * 50)
-        }
-      });
-    }
-    
-    return districts;
-  }
-
-  /**
-   * Generate streets
-   */
-  private generateStreets(config: GeographyConfig, districts: Location[]): Location[] {
-    const streetsPerDistrict = this.getStreetsPerDistrict(config.settlementType);
-    const streets: Location[] = [];
-    let streetIndex = 0;
-    
-    for (const district of districts) {
-      for (let i = 0; i < streetsPerDistrict; i++) {
-        const streetName = this.locationNames.streets[streetIndex % this.locationNames.streets.length];
-        
-        streets.push({
-          id: `street-${streetIndex}`,
-          name: streetName,
-          type: 'street',
-          x: (district.x || 0) + (Math.random() - 0.5) * (district.width || 100),
-          y: (district.y || 0) + (Math.random() - 0.5) * (district.height || 100),
-          parentId: district.id,
-          properties: {
-            length: 200 + Math.random() * 300,
-            condition: Math.random() > 0.7 ? 'poor' : 'good',
-            traffic: Math.random() > 0.5 ? 'high' : 'low'
-          }
-        });
-        
-        streetIndex++;
-      }
-    }
-    
-    return streets;
-  }
-
-  /**
-   * Generate landmarks
-   */
-  private generateLandmarks(config: GeographyConfig, districts: Location[]): Location[] {
-    const numLandmarks = Math.min(this.locationNames.landmarks.length, districts.length * 2);
-    const landmarks: Location[] = [];
-    
-    for (let i = 0; i < numLandmarks; i++) {
-      const district = districts[i % districts.length];
-      
-      landmarks.push({
-        id: `landmark-${i}`,
-        name: this.locationNames.landmarks[i],
-        type: 'landmark',
-        x: (district.x || 0) + (Math.random() - 0.5) * 50,
-        y: (district.y || 0) + (Math.random() - 0.5) * 50,
-        parentId: district.id,
-        properties: {
-          visitors: Math.floor(Math.random() * 1000),
-          historical: Math.random() > 0.5,
-          established: config.foundedYear + Math.floor(Math.random() * (new Date().getFullYear() - config.foundedYear))
-        }
-      });
-    }
-    
-    return landmarks;
-  }
-
-  /**
-   * Generate buildings (residences and businesses)
-   */
-  private generateBuildings(config: GeographyConfig, districts: Location[], streets: Location[]): Location[] {
-    const buildingsPerStreet = this.getBuildingsPerStreet(config.settlementType);
-    const buildings: Location[] = [];
-    let buildingIndex = 0;
-    
-    for (const street of streets) {
-      for (let i = 0; i < buildingsPerStreet; i++) {
-        const isResidence = Math.random() > 0.3; // 70% residential
-        const name = isResidence 
-          ? `${Math.floor(buildingIndex / 2) + 1} ${street.name}`
-          : this.locationNames.businesses[buildingIndex % this.locationNames.businesses.length];
-        
-        buildings.push({
-          id: `building-${buildingIndex}`,
-          name,
-          type: 'building',
-          x: (street.x || 0) + i * 20,
-          y: (street.y || 0) + (Math.random() - 0.5) * 10,
-          width: 15,
-          height: 15,
-          parentId: street.id,
-          properties: {
-            buildingType: isResidence ? 'residence' : 'business',
-            floors: Math.floor(Math.random() * 3) + 1,
-            condition: Math.random() > 0.7 ? 'poor' : Math.random() > 0.3 ? 'average' : 'excellent',
-            built: config.foundedYear + Math.floor(Math.random() * 100),
-            occupants: isResidence ? Math.floor(Math.random() * 6) + 1 : Math.floor(Math.random() * 10)
-          }
-        });
-        
-        buildingIndex++;
-      }
-    }
-    
-    return buildings;
-  }
-
-  /**
    * Get number of districts based on settlement type
    */
   private getDistrictCount(type: string): number {
@@ -363,18 +567,6 @@ export class GeographyGenerator {
       case 'town': return 1000;
       case 'city': return 2000;
       default: return 1000;
-    }
-  }
-
-  /**
-   * Get streets per district
-   */
-  private getStreetsPerDistrict(type: string): number {
-    switch (type) {
-      case 'village': return 3;
-      case 'town': return 5;
-      case 'city': return 8;
-      default: return 5;
     }
   }
 
@@ -401,10 +593,10 @@ export class GeographyGenerator {
       coast: ['Beach', 'Harbor', 'Lighthouse', 'Pier'],
       river: ['River Bend', 'Bridge', 'Falls', 'Ford']
     };
-    
+
     const names = features[terrain] || features.plains;
     const name = names[Math.floor(Math.random() * names.length)];
-    
+
     return {
       id: `natural-${Date.now()}`,
       name,
