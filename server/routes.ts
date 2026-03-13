@@ -5497,6 +5497,96 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
     }
   });
 
+  // Combined Voice-Chat Endpoint — STT → LLM → TTS in a single request
+  app.post("/api/gemini/voice-chat", upload.single('audio'), async (req, res) => {
+    try {
+      const { speechToText, textToSpeech } = await import("./services/tts-stt.js");
+
+      // Audio comes via multipart; metadata comes as a JSON string field
+      if (!req.file) {
+        return res.status(400).json({ error: "No audio file provided" });
+      }
+
+      let meta: any = {};
+      try {
+        meta = JSON.parse(req.body.metadata || '{}');
+      } catch {
+        return res.status(400).json({ error: "Invalid metadata JSON" });
+      }
+
+      const {
+        systemPrompt = '',
+        messages = [],
+        voice = 'Kore',
+        temperature = 0.8,
+        maxTokens = 2048,
+        worldId,
+        npcId,
+        playerId,
+      } = meta;
+
+      // 1. STT
+      const transcript = await speechToText(req.file.buffer, req.file.mimetype);
+      if (!transcript || transcript.trim() === '') {
+        return res.status(400).json({ error: "Could not transcribe audio" });
+      }
+
+      // 2. LLM — build conversation and send to Gemini
+      if (!isGeminiConfigured()) {
+        return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
+      }
+
+      const { GoogleGenerativeAI } = await import("@google/generative-ai");
+      const { getGeminiApiKey } = await import('./config/gemini.js');
+      const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
+
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODELS.PRO,
+        generationConfig: { temperature, maxOutputTokens: maxTokens },
+      });
+
+      const chat = model.startChat({
+        history: [
+          { role: 'user', parts: [{ text: systemPrompt }] },
+          { role: 'model', parts: [{ text: 'I understand. I will roleplay as this character.' }] },
+          ...messages,
+        ],
+      });
+
+      const result = await chat.sendMessage(transcript);
+      const rawResponse = result.response.text();
+
+      if (!rawResponse || rawResponse.trim() === '') {
+        return res.status(500).json({ error: "Gemini returned empty response", transcript });
+      }
+
+      const cleanedResponse = rawResponse
+        .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+        .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+        .trim();
+
+      // 3. TTS — generate audio from cleaned response
+      let audioBase64: string | undefined;
+      try {
+        const gender = voice === 'Kore' ? 'female' : 'male';
+        const audioBuffer = await textToSpeech(cleanedResponse, voice, gender, "MP3");
+        audioBase64 = audioBuffer.toString('base64');
+      } catch (audioErr) {
+        console.error("[voice-chat] TTS failed:", audioErr);
+      }
+
+      res.json({
+        transcript,
+        response: rawResponse,
+        cleanedResponse,
+        audio: audioBase64,
+      });
+    } catch (error) {
+      console.error("Voice-chat error:", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Voice chat failed" });
+    }
+  });
+
   // Gemini Chat Endpoint
   app.post("/api/gemini/chat", async (req, res) => {
     try {

@@ -1252,6 +1252,49 @@ export class BabylonChatPanel {
     };
   }
 
+  /**
+   * Combined voice-chat: sends audio to /api/gemini/voice-chat which performs
+   * STT → LLM → TTS in a single server round-trip.
+   */
+  private async sendVoiceChat(audioBlob: Blob): Promise<{
+    transcript: string;
+    response: string;
+    cleanedResponse: string;
+    audio?: string;
+  }> {
+    if (!this.character) throw new Error('No character selected');
+
+    const systemPrompt = this.buildSystemPrompt();
+    const conversationHistory = this.messages.map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.content }]
+    }));
+
+    const metadata = JSON.stringify({
+      systemPrompt,
+      messages: conversationHistory,
+      voice: this.character?.gender === 'female' ? 'Kore' : 'Charon',
+      temperature: 0.8,
+      maxTokens: 2048,
+    });
+
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.webm');
+    formData.append('metadata', metadata);
+
+    const response = await fetch('/api/gemini/voice-chat', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || 'Voice chat request failed');
+    }
+
+    return response.json();
+  }
+
   private _cachedSystemPrompt: string | null = null;
   private _systemPromptCharId: string | null = null;
   private _proficiencyDirty = false;
