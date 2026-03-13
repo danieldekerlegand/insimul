@@ -5559,6 +5559,21 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
       }
 
+      // Handle streaming mode with per-sentence TTS
+      if (stream && !audioInput) {
+        const { streamChatWithTTS } = await import('./services/streaming-chat.js');
+        const gender = voice === 'Kore' || voice === 'Aoede' ? 'female' : 'male';
+        return streamChatWithTTS(res, {
+          systemPrompt,
+          messages,
+          temperature,
+          maxTokens,
+          returnAudio,
+          voice,
+          gender,
+        });
+      }
+
       const { GoogleGenerativeAI } = await import("@google/generative-ai");
       const { getGeminiApiKey } = await import('./config/gemini.js');
 
