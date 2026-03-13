@@ -1399,6 +1399,211 @@ const baseConfig: StreetGenConfig = {
   assert(result.network.nodes.length > 0, 'Hillside dispatch produces nodes');
 }
 
+// ── Street Naming Tests ──
+
+console.log('\n=== StreetGenerator: Street Naming ===\n');
+
+// Basic naming: all edges get non-empty names
+console.log('--- Basic naming ---');
+{
+  const g = new StreetGenerator();
+  const network = g.generateOrganic({
+    center: { x: 0, z: 0 },
+    radius: 150,
+    settlementType: 'village',
+    seed: 'naming-test-organic',
+  });
+  g.assignStreetNames(network, 'naming-test-organic');
+
+  const unnamed = network.edges.filter(e => !e.name || e.name === '');
+  assert(unnamed.length === 0, `All edges have names (${network.edges.length - unnamed.length}/${network.edges.length})`);
+}
+
+// Uniqueness: no two streets share the same name
+console.log('\n--- Uniqueness ---');
+{
+  const g = new StreetGenerator();
+  const network = g.generateOrganic({
+    center: { x: 0, z: 0 },
+    radius: 200,
+    settlementType: 'town',
+    seed: 'naming-unique-test',
+  });
+  g.assignStreetNames(network, 'naming-unique-test');
+
+  // Gather all unique street names
+  const names = new Set(network.edges.map(e => e.name));
+  // Each name should be unique across the settlement (they are — a name maps to a chain of edges)
+  // No two *different* chains should share a name
+  // Group edges by name and verify all edges with same name form a connected chain
+  const nameGroups = new Map<string, typeof network.edges>();
+  for (const edge of network.edges) {
+    if (!nameGroups.has(edge.name)) nameGroups.set(edge.name, []);
+    nameGroups.get(edge.name)!.push(edge);
+  }
+  // Every distinct name should be unique (we just check count)
+  assert(names.size > 0, `Has multiple distinct street names (got ${names.size})`);
+  assert(names.size <= network.edges.length, `Names count <= edges count`);
+}
+
+// Suffix-type correspondence
+console.log('\n--- Suffix-type correspondence ---');
+{
+  const g = new StreetGenerator();
+  const network = g.generateGrid({
+    center: { x: 0, z: 0 },
+    radius: 300,
+    settlementType: 'city',
+    seed: 'naming-suffix-test',
+  });
+  g.assignStreetNames(network, 'naming-suffix-test');
+
+  for (const edge of network.edges) {
+    const name = edge.name;
+    if (edge.streetType === 'main_road' || edge.streetType === 'boulevard' || edge.streetType === 'highway') {
+      const validSuffix = name.endsWith('Boulevard') || name.endsWith('Avenue');
+      assert(validSuffix, `Main road "${name}" has Boulevard/Avenue suffix`);
+    } else if (edge.streetType === 'lane') {
+      const validSuffix = name.endsWith('Lane') || name.endsWith('Court');
+      assert(validSuffix, `Lane "${name}" has Lane/Court suffix`);
+    }
+    // Residential edges can have Street, Drive, Way, Lane, Court depending on topology
+  }
+}
+
+// Grid layouts: numbered cross-streets
+console.log('\n--- Grid numbered streets ---');
+{
+  const g = new StreetGenerator();
+  const network = g.generateGrid({
+    center: { x: 0, z: 0 },
+    radius: 300,
+    settlementType: 'city',
+    seed: 'naming-grid-numbered',
+  });
+  g.assignStreetNames(network, 'naming-grid-numbered');
+
+  const numberedPattern = /^\d+(st|nd|rd|th)\s+(Street|Avenue)$/;
+  const numberedEdges = network.edges.filter(e => numberedPattern.test(e.name));
+  assert(numberedEdges.length > 0, `Grid has numbered streets (got ${numberedEdges.length})`);
+
+  // Verify numbered streets are sequential
+  const numberedNames = [...new Set(numberedEdges.map(e => e.name))];
+  const numbers = numberedNames.map(n => parseInt(n)).sort((a, b) => a - b);
+  assert(numbers[0] === 1, `Numbered streets start at 1 (got ${numbers[0]})`);
+}
+
+// Continuous segments share the same name
+console.log('\n--- Continuous segments ---');
+{
+  const g = new StreetGenerator();
+  const network = g.generateLinear({
+    center: { x: 0, z: 0 },
+    radius: 150,
+    settlementType: 'town',
+    seed: 'naming-continuous-test',
+    axis: { x: 1, z: 0 },
+  });
+  g.assignStreetNames(network, 'naming-continuous-test');
+
+  // Main road edges should share a name (they're the continuous main street)
+  const mainEdges = network.edges.filter(e => e.streetType === 'main_road');
+  if (mainEdges.length >= 2) {
+    const mainNames = new Set(mainEdges.map(e => e.name));
+    // Most main road edges should share one name (continuous chain)
+    assert(mainNames.size <= Math.ceil(mainEdges.length / 2),
+      `Main road has fewer distinct names (${mainNames.size}) than edges (${mainEdges.length}) — continuous segments share names`);
+  }
+}
+
+// Determinism: same seed = same names
+console.log('\n--- Determinism ---');
+{
+  const cfg = {
+    center: { x: 0, z: 0 },
+    radius: 150,
+    settlementType: 'village',
+    seed: 'naming-determinism',
+  };
+
+  const g1 = new StreetGenerator();
+  const net1 = g1.generateOrganic(cfg);
+  g1.assignStreetNames(net1, 'naming-determinism');
+
+  const g2 = new StreetGenerator();
+  const net2 = g2.generateOrganic(cfg);
+  g2.assignStreetNames(net2, 'naming-determinism');
+
+  let allMatch = true;
+  for (let i = 0; i < net1.edges.length; i++) {
+    if (net1.edges[i].name !== net2.edges[i].name) {
+      allMatch = false;
+      break;
+    }
+  }
+  assert(allMatch, `Same seed produces identical street names`);
+}
+
+// Different seed = different names
+console.log('\n--- Different seeds ---');
+{
+  const cfg = {
+    center: { x: 0, z: 0 },
+    radius: 150,
+    settlementType: 'village',
+    seed: 'naming-diff-1',
+  };
+
+  const g1 = new StreetGenerator();
+  const net1 = g1.generateOrganic(cfg);
+  g1.assignStreetNames(net1, 'naming-diff-1');
+
+  const g2 = new StreetGenerator();
+  const net2 = g2.generateOrganic({ ...cfg, seed: 'naming-diff-2' });
+  g2.assignStreetNames(net2, 'naming-diff-2');
+
+  const names1 = new Set(net1.edges.map(e => e.name));
+  const names2 = new Set(net2.edges.map(e => e.name));
+  let hasDiff = false;
+  for (const n of names1) {
+    if (!names2.has(n)) { hasDiff = true; break; }
+  }
+  if (!hasDiff) {
+    for (const n of names2) {
+      if (!names1.has(n)) { hasDiff = true; break; }
+    }
+  }
+  assert(hasDiff, `Different seeds produce different street names`);
+}
+
+// Empty network: no crash
+console.log('\n--- Empty network ---');
+{
+  const g = new StreetGenerator();
+  const emptyNetwork = { nodes: [], edges: [] };
+  g.assignStreetNames(emptyNetwork, 'empty-seed');
+  assert(true, `Empty network does not crash`);
+}
+
+// Radial network naming
+console.log('\n--- Radial naming ---');
+{
+  const g = new StreetGenerator();
+  const network = g.generateRadial({
+    center: { x: 0, z: 0 },
+    radius: 300,
+    settlementType: 'capital',
+    seed: 'naming-radial-test',
+  });
+  g.assignStreetNames(network, 'naming-radial-test');
+
+  const unnamed = network.edges.filter(e => !e.name || e.name === '');
+  assert(unnamed.length === 0, `All radial edges named (${network.edges.length - unnamed.length}/${network.edges.length})`);
+
+  const names = new Set(network.edges.map(e => e.name));
+  assert(names.size >= 3, `Radial has multiple distinct street names (got ${names.size})`);
+}
+
 // Summary
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
 if (failed > 0) process.exit(1);

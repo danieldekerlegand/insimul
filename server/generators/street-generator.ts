@@ -1522,4 +1522,269 @@ export class StreetGenerator {
     const size = 128;
     return Array.from({ length: size }, () => Array(size).fill(0.5) as number[]);
   }
+
+  /**
+   * Assign unique, contextual names to all streets in a network.
+   * Continuous street segments (chains of edges sharing the same direction through
+   * shared nodes) receive the same name. Suffix is chosen by street type / topology.
+   * For grid layouts, one axis gets numbered streets (1st, 2nd, …) and the other
+   * gets named streets.
+   */
+  assignStreetNames(network: StreetNetwork, seed: string): void {
+    if (network.edges.length === 0) return;
+
+    const rng = seededRandom(seed + '-naming');
+
+    // ── 1. Build adjacency and edge lookup ──
+    const nodeEdges = new Map<string, StreetEdge[]>();
+    for (const edge of network.edges) {
+      if (!nodeEdges.has(edge.fromNodeId)) nodeEdges.set(edge.fromNodeId, []);
+      if (!nodeEdges.has(edge.toNodeId)) nodeEdges.set(edge.toNodeId, []);
+      nodeEdges.get(edge.fromNodeId)!.push(edge);
+      nodeEdges.get(edge.toNodeId)!.push(edge);
+    }
+
+    const nodeMap = new Map<string, StreetNode>();
+    for (const n of network.nodes) nodeMap.set(n.id, n);
+
+    // ── 2. Compute edge angles ──
+    function edgeAngle(edge: StreetEdge): number {
+      const from = nodeMap.get(edge.fromNodeId)!;
+      const to = nodeMap.get(edge.toNodeId)!;
+      return Math.atan2(to.position.z - from.position.z, to.position.x - from.position.x);
+    }
+
+    function anglesAligned(a: number, b: number): boolean {
+      let diff = Math.abs(a - b) % Math.PI; // Ignore direction (0° and 180° are same street)
+      if (diff > Math.PI / 2) diff = Math.PI - diff;
+      return diff < Math.PI / 6; // Within 30°
+    }
+
+    // ── 3. Group edges into continuous street chains ──
+    const assigned = new Set<string>();
+    const chains: StreetEdge[][] = [];
+
+    for (const startEdge of network.edges) {
+      if (assigned.has(startEdge.id)) continue;
+
+      const chain: StreetEdge[] = [startEdge];
+      assigned.add(startEdge.id);
+      const baseAngle = edgeAngle(startEdge);
+
+      // Walk in both directions from this edge
+      for (const startNodeId of [startEdge.fromNodeId, startEdge.toNodeId]) {
+        let currentNodeId = startNodeId;
+        let prevEdge = startEdge;
+
+        while (true) {
+          const candidates = (nodeEdges.get(currentNodeId) ?? []).filter(
+            e => !assigned.has(e.id) && e.streetType === startEdge.streetType
+          );
+          // Find best continuation: same direction
+          let bestEdge: StreetEdge | null = null;
+          let bestDiff = Infinity;
+          for (const c of candidates) {
+            const cAngle = edgeAngle(c);
+            if (anglesAligned(baseAngle, cAngle)) {
+              let diff = Math.abs(baseAngle - cAngle) % Math.PI;
+              if (diff > Math.PI / 2) diff = Math.PI - diff;
+              if (diff < bestDiff) {
+                bestDiff = diff;
+                bestEdge = c;
+              }
+            }
+          }
+          if (!bestEdge) break;
+
+          chain.push(bestEdge);
+          assigned.add(bestEdge.id);
+          // Move to the other end of the edge
+          currentNodeId = bestEdge.fromNodeId === currentNodeId ? bestEdge.toNodeId : bestEdge.fromNodeId;
+        }
+      }
+
+      chains.push(chain);
+    }
+
+    // ── 4. Detect grid layout (many chains at ~0° and ~90°) ──
+    const isGrid = this.detectGridLayout(chains, edgeAngle);
+
+    // ── 5. Name pools ──
+    const treeNames = [
+      'Oak', 'Elm', 'Maple', 'Pine', 'Cedar', 'Birch', 'Willow', 'Ash',
+      'Cherry', 'Walnut', 'Spruce', 'Hickory', 'Chestnut', 'Magnolia', 'Cypress',
+      'Poplar', 'Sycamore', 'Dogwood', 'Juniper', 'Redwood',
+    ];
+    const landmarkNames = [
+      'Mill', 'Church', 'Market', 'Park', 'Bridge', 'Station', 'Harbor', 'Castle',
+      'Tower', 'Square', 'Garden', 'Fountain', 'Chapel', 'Academy', 'Library',
+      'Courthouse', 'Forge', 'Brewery', 'Orchard', 'Quarry',
+    ];
+    const geoNames = [
+      'Ridge', 'Valley', 'Hill', 'Lake', 'River', 'Meadow', 'Creek', 'Summit',
+      'Glen', 'Brook', 'Spring', 'Crest', 'Hollow', 'Cliff', 'Field',
+      'Prairie', 'Canyon', 'Bluff', 'Dune', 'Shore',
+    ];
+    const historicalNames = [
+      'Washington', 'Lincoln', 'Jefferson', 'Franklin', 'Hamilton', 'Adams',
+      'Monroe', 'Jackson', 'Madison', 'Harrison', 'Grant', 'Sherman',
+      'Revere', 'Hancock', 'Whitman', 'Emerson', 'Thoreau', 'Douglass',
+      'Tubman', 'Carver',
+    ];
+
+    // Combine and shuffle all name pools
+    const allNames = [...treeNames, ...landmarkNames, ...geoNames, ...historicalNames];
+    for (let i = allNames.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [allNames[i], allNames[j]] = [allNames[j], allNames[i]];
+    }
+
+    const usedNames = new Set<string>();
+    let nameIdx = 0;
+    let numberedCounter = 1;
+
+    // ── 6. Classify grid axes ──
+    let horizontalChains: StreetEdge[][] = [];
+    let verticalChains: StreetEdge[][] = [];
+    if (isGrid) {
+      for (const chain of chains) {
+        const avg = this.averageChainAngle(chain, edgeAngle);
+        const normalized = ((avg % Math.PI) + Math.PI) % Math.PI; // [0, π)
+        if (normalized < Math.PI / 4 || normalized > (3 * Math.PI) / 4) {
+          horizontalChains.push(chain); // ~0° or ~180° → horizontal
+        } else {
+          verticalChains.push(chain); // ~90° → vertical
+        }
+      }
+      // Sort by position for numbered streets
+      const chainCenter = (chain: StreetEdge[]) => {
+        let sumX = 0, sumZ = 0, count = 0;
+        for (const e of chain) {
+          const f = nodeMap.get(e.fromNodeId)!;
+          const t = nodeMap.get(e.toNodeId)!;
+          sumX += f.position.x + t.position.x;
+          sumZ += f.position.z + t.position.z;
+          count += 2;
+        }
+        return { x: sumX / count, z: sumZ / count };
+      };
+      // Number the axis with more chains (usually cross-streets)
+      if (verticalChains.length >= horizontalChains.length) {
+        verticalChains.sort((a, b) => chainCenter(a).x - chainCenter(b).x);
+      } else {
+        horizontalChains.sort((a, b) => chainCenter(a).z - chainCenter(b).z);
+        // Swap: number horizontal, name vertical
+        [horizontalChains, verticalChains] = [verticalChains, horizontalChains];
+      }
+    }
+
+    const numberedSet = isGrid ? new Set(verticalChains.map(c => c)) : new Set<StreetEdge[]>();
+
+    // ── 7. Assign names to chains ──
+    function pickSuffix(chain: StreetEdge[]): string {
+      const type = chain[0].streetType;
+      // Check if any edge leads to a dead_end
+      const hasDeadEnd = chain.some(e => {
+        const fromNode = nodeMap.get(e.fromNodeId);
+        const toNode = nodeMap.get(e.toNodeId);
+        return fromNode?.type === 'dead_end' || toNode?.type === 'dead_end';
+      });
+      if (hasDeadEnd) {
+        return rng() < 0.5 ? 'Lane' : 'Court';
+      }
+      switch (type) {
+        case 'main_road':
+        case 'boulevard':
+          return rng() < 0.5 ? 'Boulevard' : 'Avenue';
+        case 'avenue':
+          return 'Avenue';
+        case 'highway':
+          return 'Boulevard';
+        case 'residential': {
+          // Curved streets get Drive/Way, straight get Street
+          const isCurved = chain.length >= 2 && !anglesAligned(edgeAngle(chain[0]), edgeAngle(chain[chain.length - 1]));
+          if (isCurved) return rng() < 0.5 ? 'Drive' : 'Way';
+          return 'Street';
+        }
+        case 'alley':
+          return 'Alley';
+        case 'lane':
+          return rng() < 0.5 ? 'Lane' : 'Court';
+        default:
+          return 'Street';
+      }
+    }
+
+    function ordinal(n: number): string {
+      const s = ['th', 'st', 'nd', 'rd'];
+      const v = n % 100;
+      return n + (s[(v - 20) % 10] || s[v] || s[0]);
+    }
+
+    for (const chain of chains) {
+      let name: string;
+
+      if (isGrid && numberedSet.has(chain)) {
+        // Numbered cross-street
+        const suffix = chain[0].streetType === 'main_road' ? 'Avenue' : 'Street';
+        name = `${ordinal(numberedCounter)} ${suffix}`;
+        numberedCounter++;
+      } else {
+        const suffix = pickSuffix(chain);
+        // Pick a unique name
+        let baseName: string;
+        let attempts = 0;
+        do {
+          if (nameIdx < allNames.length) {
+            baseName = allNames[nameIdx++];
+          } else {
+            // Fallback: generate a composite name
+            baseName = allNames[Math.floor(rng() * allNames.length)] + ' ' + allNames[Math.floor(rng() * allNames.length)];
+          }
+          name = `${baseName} ${suffix}`;
+          attempts++;
+        } while (usedNames.has(name) && attempts < 200);
+      }
+
+      usedNames.add(name);
+      for (const edge of chain) {
+        edge.name = name;
+      }
+    }
+  }
+
+  /** Check if the network looks like a grid (many edges at ~0° and ~90°) */
+  private detectGridLayout(
+    chains: StreetEdge[][],
+    edgeAngleFn: (e: StreetEdge) => number,
+  ): boolean {
+    let hCount = 0;
+    let vCount = 0;
+    for (const chain of chains) {
+      const avg = this.averageChainAngle(chain, edgeAngleFn);
+      const normalized = ((avg % Math.PI) + Math.PI) % Math.PI;
+      if (normalized < Math.PI / 4 || normalized > (3 * Math.PI) / 4) {
+        hCount++;
+      } else {
+        vCount++;
+      }
+    }
+    // Grid if both axes have at least 3 chains
+    return hCount >= 3 && vCount >= 3;
+  }
+
+  /** Average angle of a chain of edges */
+  private averageChainAngle(
+    chain: StreetEdge[],
+    edgeAngleFn: (e: StreetEdge) => number,
+  ): number {
+    let sinSum = 0;
+    let cosSum = 0;
+    for (const e of chain) {
+      const a = edgeAngleFn(e);
+      sinSum += Math.sin(a);
+      cosSum += Math.cos(a);
+    }
+    return Math.atan2(sinSum / chain.length, cosSum / chain.length);
+  }
 }
