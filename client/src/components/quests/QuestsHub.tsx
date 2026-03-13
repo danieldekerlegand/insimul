@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import {
-  CheckCircle2, Clock, XCircle, Trophy, Target, Plus, ChevronRight, ChevronDown, RefreshCw,
+  CheckCircle2, Clock, XCircle, Trophy, Target, Plus, ChevronRight, ChevronDown, RefreshCw, Edit, Globe,
 } from 'lucide-react';
 import { QuestCreateDialog } from '../QuestCreateDialog';
 import { PredicatePalette } from '../prolog/PredicatePalette';
@@ -72,7 +72,7 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
   const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['active']));
-  const [rightTab, setRightTab] = useState<'details' | 'predicates' | 'query'>('details');
+  const [expandedSection, setExpandedSection] = useState<'details' | 'predicates' | 'query' | null>(null);
   const queryClient = useQueryClient();
 
   const { data: quests = [] } = useQuery<Quest[]>({
@@ -281,40 +281,46 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
         )}
       </div>
 
-      {/* Right Panel - Progress & Completion, Predicates, Query */}
-      <div className="w-64 flex-shrink-0 border-l border-white/15 dark:border-white/10 flex flex-col">
-        {/* Tab switcher */}
-        <div className="flex bg-muted/30 border-b shrink-0">
-          <button
-            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'details' ? 'bg-background border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => setRightTab('details')}
-          >
-            Details
-          </button>
-          <button
-            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'predicates' ? 'bg-background border-b-2 border-purple-500 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => setRightTab('predicates')}
-          >
-            Predicates
-          </button>
-          <button
-            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'query' ? 'bg-background border-b-2 border-green-500 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => setRightTab('query')}
-          >
-            Query
-          </button>
-        </div>
+      {/* Right Panel - Collapsible Sections */}
+      <div className="w-64 flex-shrink-0 border-l border-white/15 dark:border-white/10 flex flex-col min-h-0">
+        {[
+          { id: 'details' as const, label: 'Details', icon: Target },
+          { id: 'predicates' as const, label: 'Predicates', icon: Edit },
+          { id: 'query' as const, label: 'Query', icon: Globe },
+        ].map((section, idx) => {
+          const isExpanded = expandedSection === section.id;
+          const Icon = section.icon;
 
-        {rightTab === 'predicates' && (
-          <PredicatePalette compact onInsert={(text) => navigator.clipboard.writeText(text)} />
-        )}
+          return (
+            <div
+              key={section.id}
+              className={`flex flex-col min-h-0 ${idx > 0 ? 'border-t' : ''} ${isExpanded ? 'flex-1' : ''}`}
+            >
+              {/* Section header */}
+              <button
+                className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 shrink-0 hover:bg-muted/50 transition-colors text-left"
+                onClick={() => setExpandedSection(isExpanded ? null : section.id)}
+              >
+                <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  {section.label}
+                </span>
+                <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground ml-auto transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
+              </button>
 
-        {rightTab === 'query' && (
-          <PrologQueryTester worldId={worldId} compact />
-        )}
+              {/* Section content */}
+              {isExpanded && (
+                <div className="flex-1 min-h-0 flex flex-col">
+                  {section.id === 'predicates' && (
+                    <PredicatePalette compact onInsert={(text) => navigator.clipboard.writeText(text)} />
+                  )}
 
-        {rightTab === 'details' && (
-        <ScrollArea className="flex-1">
+                  {section.id === 'query' && (
+                    <PrologQueryTester worldId={worldId} compact />
+                  )}
+
+                  {section.id === 'details' && (
+                    <ScrollArea className="flex-1">
           {selectedQuest ? (
             <div className="p-3 space-y-4">
               {/* Properties */}
@@ -520,8 +526,13 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
               Select a quest to see details
             </div>
           )}
-        </ScrollArea>
-        )}
+                    </ScrollArea>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Create Dialog */}

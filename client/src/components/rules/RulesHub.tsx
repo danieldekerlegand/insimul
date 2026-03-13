@@ -65,8 +65,8 @@ export function RulesHub({ worldId }: RulesHubProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
 
-  // Right panel tab
-  const [rightTab, setRightTab] = useState<'details' | 'predicates' | 'query'>('details');
+  // Right panel section state
+  const [expandedSection, setExpandedSection] = useState<'details' | 'predicates' | 'query' | null>(null);
 
   // Dialogs
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -81,7 +81,7 @@ export function RulesHub({ worldId }: RulesHubProps) {
     try {
       const [rulesRes, baseRes, configRes] = await Promise.all([
         fetch(`/api/rules?worldId=${worldId}`),
-        fetch(`/api/rules/base`),
+        fetch(`/api/rules/base?limit=10000`),
         fetch(`/api/worlds/${worldId}/base-resources/config`),
       ]);
 
@@ -137,12 +137,7 @@ export function RulesHub({ worldId }: RulesHubProps) {
     return groups;
   }, [baseRules]);
 
-  // Expand world rule groups by default; keep base rule categories collapsed
-  useEffect(() => {
-    const allKeys = new Set<string>();
-    worldRuleGroups.forEach((_, k) => allKeys.add(`world:${k}`));
-    setExpandedGroups(allKeys);
-  }, [worldRuleGroups]);
+  // All groups collapsed by default
 
   const toggleGroup = (key: string) => {
     setExpandedGroups(prev => {
@@ -249,134 +244,115 @@ export function RulesHub({ worldId }: RulesHubProps) {
           </Button>
         )}
       </div>
-      <ScrollArea className="flex-1">
-        <div className="p-2 space-y-0.5">
-          {/* World Rules section */}
-          <button
-            className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm font-medium text-left transition-colors ${
-              activeSection === 'world' ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
-            }`}
-            onClick={() => setActiveSection('world')}
-          >
-            <Scroll className="w-3.5 h-3.5 shrink-0 text-primary" />
-            <span>World Rules</span>
-            <span className="ml-auto text-xs text-muted-foreground">{rules.length}</span>
-          </button>
 
+      {/* Tabs for World vs Base */}
+      <div className="flex border-b">
+        <button
+          className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors ${
+            activeSection === 'world' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'
+          }`}
+          onClick={() => setActiveSection('world')}
+        >
+          World ({rules.length})
+        </button>
+        <button
+          className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors ${
+            activeSection === 'base' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'
+          }`}
+          onClick={() => setActiveSection('base')}
+        >
+          Base ({baseRulesTotal})
+        </button>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="p-2">
           {activeSection === 'world' && (
-            <div className="ml-3 space-y-0.5">
+            <div className="space-y-0.5">
               {Array.from(worldRuleGroups.entries()).map(([type, groupRules]) => {
                 const groupKey = `world:${type}`;
                 const isExpanded = expandedGroups.has(groupKey);
                 return (
                   <div key={type}>
-                    <div className="flex items-center">
+                    <button
+                      className="w-full flex items-center gap-1 px-3 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={() => toggleGroup(groupKey)}
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="h-3 w-3 flex-shrink-0" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                      )}
+                      <span className="truncate">{RULE_TYPE_LABELS[type] || (type.charAt(0).toUpperCase() + type.slice(1))}</span>
+                      <span className="ml-auto text-[10px] opacity-60">{groupRules.length}</span>
+                    </button>
+                    {isExpanded && groupRules.map(rule => (
                       <button
-                        className="p-1 hover:bg-muted rounded shrink-0"
-                        onClick={() => toggleGroup(groupKey)}
+                        key={rule.id}
+                        className={`w-full text-left px-5 py-1 text-xs rounded-sm transition-colors break-words ${
+                          selectedRule?.id === rule.id
+                            ? 'bg-primary/15 text-primary font-medium'
+                            : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                        }`}
+                        onClick={() => selectRule(rule)}
                       >
-                        {isExpanded
-                          ? <ChevronDown className="w-3 h-3 text-muted-foreground" />
-                          : <ChevronRight className="w-3 h-3 text-muted-foreground" />}
+                        {rule.name}
                       </button>
-                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1.5 py-1">
-                        {RULE_TYPE_LABELS[type] || type} ({groupRules.length})
-                      </span>
-                    </div>
-                    {isExpanded && (
-                      <div className="ml-5 space-y-0.5">
-                        {groupRules.map(rule => (
-                          <button
-                            key={rule.id}
-                            className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm text-left transition-colors ${
-                              selectedRule?.id === rule.id
-                                ? 'bg-primary/10 text-primary font-medium'
-                                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                            }`}
-                            onClick={() => selectRule(rule)}
-                          >
-                            <Code className="w-3.5 h-3.5 shrink-0" />
-                            <span className="break-words">{rule.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    ))}
                   </div>
                 );
               })}
 
               {rules.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-4">No world rules yet</p>
+                <p className="text-xs text-muted-foreground text-center py-8">No world rules yet</p>
               )}
             </div>
           )}
 
-          {/* Base Rules section */}
-          <button
-            className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm font-medium text-left transition-colors ${
-              activeSection === 'base' ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
-            }`}
-            onClick={() => setActiveSection('base')}
-          >
-            <Globe className="w-3.5 h-3.5 shrink-0 text-purple-500" />
-            <span>Base Rules</span>
-            <span className="ml-auto text-xs text-muted-foreground">
-              {baseRulesTotal}
-            </span>
-          </button>
-
           {activeSection === 'base' && (
-            <div className="ml-3 space-y-0.5">
+            <div className="space-y-0.5">
               {Array.from(baseRuleGroups.entries()).map(([category, groupRules]) => {
                 const groupKey = `base:${category}`;
                 const isExpanded = expandedGroups.has(groupKey);
                 return (
                   <div key={category}>
-                    <div className="flex items-center">
-                      <button
-                        className="p-1 hover:bg-muted rounded shrink-0"
-                        onClick={() => toggleGroup(groupKey)}
-                      >
-                        {isExpanded
-                          ? <ChevronDown className="w-3 h-3 text-muted-foreground" />
-                          : <ChevronRight className="w-3 h-3 text-muted-foreground" />}
-                      </button>
-                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1.5 py-1">
-                        {category} ({groupRules.length})
-                      </span>
-                    </div>
-                    {isExpanded && (
-                      <div className="ml-5 space-y-0.5">
-                        {groupRules.map(rule => {
-                          const isEnabled = enabledBaseRuleIds.includes(rule.id);
-                          return (
-                            <button
-                              key={rule.id}
-                              className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm text-left transition-colors ${
-                                selectedRule?.id === rule.id
-                                  ? 'bg-primary/10 text-primary font-medium'
-                                  : isEnabled
-                                    ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                                    : 'text-muted-foreground/50 hover:bg-muted'
-                              }`}
-                              onClick={() => selectRule(rule)}
-                            >
-                              <Code className="w-3.5 h-3.5 shrink-0" />
-                              <span className="break-words flex-1">{rule.name}</span>
-                              {!isEnabled && <span className="text-xs text-muted-foreground/50">off</span>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                    <button
+                      className="w-full flex items-center gap-1 px-3 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={() => toggleGroup(groupKey)}
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="h-3 w-3 flex-shrink-0" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                      )}
+                      <span className="truncate">{category.charAt(0).toUpperCase() + category.slice(1)}</span>
+                      <span className="ml-auto text-[10px] opacity-60">{groupRules.length}</span>
+                    </button>
+                    {isExpanded && groupRules.map(rule => {
+                      const isEnabled = enabledBaseRuleIds.includes(rule.id);
+                      return (
+                        <button
+                          key={rule.id}
+                          className={`w-full text-left px-5 py-1 text-xs rounded-sm transition-colors break-words ${
+                            selectedRule?.id === rule.id
+                              ? 'bg-primary/15 text-primary font-medium'
+                              : isEnabled
+                                ? 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                                : 'text-muted-foreground/50 hover:bg-muted/50'
+                          }`}
+                          onClick={() => selectRule(rule)}
+                        >
+                          {rule.name}
+                        </button>
+                      );
+                    })}
                   </div>
                 );
               })}
 
               {baseRules.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-4">No base rules</p>
+                <p className="text-xs text-muted-foreground text-center py-8">No base rules</p>
               )}
-
             </div>
           )}
         </div>
@@ -551,115 +527,127 @@ export function RulesHub({ worldId }: RulesHubProps) {
     }
   };
 
-  // ─── Right panel: triggers/conditions/predicates/query ──────────────────────
+  // ─── Right panel: collapsible sections ──────────────────────
 
   const renderRight = () => {
+    const sections = [
+      { id: 'details' as const, label: 'Details', icon: Scroll },
+      { id: 'predicates' as const, label: 'Predicates', icon: Code },
+      { id: 'query' as const, label: 'Query', icon: Globe },
+    ];
+
     return (
       <div className="w-64 shrink-0 border-l flex flex-col min-h-0">
-        {/* Tab switcher */}
-        <div className="flex bg-muted/30 border-b shrink-0">
-          <button
-            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'details' ? 'bg-background border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => setRightTab('details')}
-          >
-            Details
-          </button>
-          <button
-            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'predicates' ? 'bg-background border-b-2 border-purple-500 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => setRightTab('predicates')}
-          >
-            Predicates
-          </button>
-          <button
-            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'query' ? 'bg-background border-b-2 border-green-500 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => setRightTab('query')}
-          >
-            Query
-          </button>
-        </div>
+        {sections.map((section, idx) => {
+          const isExpanded = expandedSection === section.id;
+          const Icon = section.icon;
 
-        {/* Tab content */}
-        {rightTab === 'predicates' && (
-          <PredicatePalette compact onInsert={handlePredicateInsert} />
-        )}
+          return (
+            <div
+              key={section.id}
+              className={`flex flex-col min-h-0 ${idx > 0 ? 'border-t' : ''} ${isExpanded ? 'flex-1' : ''}`}
+            >
+              {/* Section header */}
+              <button
+                className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 shrink-0 hover:bg-muted/50 transition-colors text-left"
+                onClick={() => setExpandedSection(isExpanded ? null : section.id)}
+              >
+                <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  {section.label}
+                </span>
+                <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground ml-auto transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
+              </button>
 
-        {rightTab === 'query' && (
-          <PrologQueryTester worldId={worldId} compact />
-        )}
-
-        {rightTab === 'details' && (
-          <>
-            {!selectedRule ? (
-              <div className="flex-1 flex items-center justify-center p-4 text-center text-sm text-muted-foreground">
-                Select a rule to view details
-              </div>
-            ) : (
-              <ScrollArea className="flex-1">
-                <div className="p-3 space-y-3">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">Source Format</span>
-                      <span className="font-mono text-xs">{selectedRule.sourceFormat || 'prolog'}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">Rule Type</span>
-                      <span className="font-mono text-xs">{selectedRule.ruleType || 'none'}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">Category</span>
-                      <span className="font-mono text-xs">{selectedRule.category || 'none'}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">Priority</span>
-                      <span className="font-mono text-xs">{selectedRule.priority ?? 'none'}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">Likelihood</span>
-                      <span className="font-mono text-xs">{selectedRule.likelihood ?? 'none'}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">Active</span>
-                      <Badge variant={selectedRule.isActive !== false ? 'default' : 'secondary'} className="text-xs">
-                        {selectedRule.isActive !== false ? 'Yes' : 'No'}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {selectedRule.description && (
-                    <div className="space-y-1">
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Description</span>
-                      <p className="text-sm">{selectedRule.description}</p>
-                    </div>
+              {/* Section content */}
+              {isExpanded && (
+                <div className="flex-1 min-h-0 flex flex-col">
+                  {section.id === 'predicates' && (
+                    <PredicatePalette compact onInsert={handlePredicateInsert} />
                   )}
 
-                  <div className="space-y-1">
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tags</span>
-                    {selectedRule.tags?.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {selectedRule.tags.map((tag: string, i: number) => (
-                          <Badge key={i} variant="secondary" className="text-xs">{tag}</Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground italic">No tags</p>
-                    )}
-                  </div>
+                  {section.id === 'query' && (
+                    <PrologQueryTester worldId={worldId} compact />
+                  )}
 
-                  {selectedRule.triggers?.length > 0 && (
-                    <div className="space-y-1">
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Triggers</span>
-                      <div className="space-y-1">
-                        {selectedRule.triggers.map((t: string, i: number) => (
-                          <div key={i} className="px-2 py-1 text-sm rounded bg-muted/30">{t}</div>
-                        ))}
-                      </div>
-                    </div>
+                  {section.id === 'details' && (
+                    <>
+                      {!selectedRule ? (
+                        <div className="flex-1 flex items-center justify-center p-4 text-center text-sm text-muted-foreground">
+                          Select a rule to view details
+                        </div>
+                      ) : (
+                        <ScrollArea className="flex-1">
+                          <div className="p-3 space-y-3">
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground">Source Format</span>
+                                <span className="font-mono text-xs">{selectedRule.sourceFormat || 'prolog'}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground">Rule Type</span>
+                                <span className="font-mono text-xs">{selectedRule.ruleType || 'none'}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground">Category</span>
+                                <span className="font-mono text-xs">{selectedRule.category || 'none'}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground">Priority</span>
+                                <span className="font-mono text-xs">{selectedRule.priority ?? 'none'}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground">Likelihood</span>
+                                <span className="font-mono text-xs">{selectedRule.likelihood ?? 'none'}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground">Active</span>
+                                <Badge variant={selectedRule.isActive !== false ? 'default' : 'secondary'} className="text-xs">
+                                  {selectedRule.isActive !== false ? 'Yes' : 'No'}
+                                </Badge>
+                              </div>
+                            </div>
+
+                            {selectedRule.description && (
+                              <div className="space-y-1">
+                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Description</span>
+                                <p className="text-sm">{selectedRule.description}</p>
+                              </div>
+                            )}
+
+                            <div className="space-y-1">
+                              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tags</span>
+                              {selectedRule.tags?.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {selectedRule.tags.map((tag: string, i: number) => (
+                                    <Badge key={i} variant="secondary" className="text-xs">{tag}</Badge>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-muted-foreground italic">No tags</p>
+                              )}
+                            </div>
+
+                            {selectedRule.triggers?.length > 0 && (
+                              <div className="space-y-1">
+                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Triggers</span>
+                                <div className="space-y-1">
+                                  {selectedRule.triggers.map((t: string, i: number) => (
+                                    <div key={i} className="px-2 py-1 text-sm rounded bg-muted/30">{t}</div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </ScrollArea>
+                      )}
+                    </>
                   )}
                 </div>
-              </ScrollArea>
-            )}
-          </>
-        )}
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   };

@@ -306,12 +306,9 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
     { id: 'items', label: 'Items', icon: Package, description: 'World items, loot, and equipment', color: 'from-yellow-500/20 to-amber-500/20', iconColor: 'text-yellow-500', quickLinks: itemsLinks, totalCount: items.length, emptyHint: 'No custom items defined yet' },
     { id: 'grammars', label: 'Grammars', icon: FileText, description: 'Tracery grammars for narrative', color: 'from-emerald-500/20 to-green-500/20', iconColor: 'text-emerald-500', quickLinks: grammarsLinks, totalCount: grammars.length, emptyHint: 'No grammars defined yet' },
     { id: 'languages', label: 'Languages', icon: Sparkles, description: 'Constructed languages', color: 'from-pink-500/20 to-fuchsia-500/20', iconColor: 'text-pink-500', quickLinks: languagesLinks, totalCount: languages.length, emptyHint: 'No languages created yet' },
+    { id: 'world-intelligence', label: 'World Intelligence', icon: Brain, description: 'History, knowledge base, simulations, truths & telemetry', color: 'from-indigo-500/20 to-blue-500/20', iconColor: 'text-indigo-500', quickLinks: truthLinks, totalCount: truths.length, emptyHint: 'No truths established yet' },
   ];
 
-  const truthItems: (typeof contentItems[0])[] = [
-    { id: 'truth', label: 'Truth System', icon: BookOpen, description: 'Manage world truths and facts', color: 'from-indigo-500/20 to-blue-500/20', iconColor: 'text-indigo-500', quickLinks: truthLinks, totalCount: truths.length, emptyHint: 'No truths established yet' },
-    { id: 'prolog', label: 'Prolog KB', icon: Brain, description: 'Prolog knowledge base queries', color: 'from-teal-500/20 to-cyan-500/20', iconColor: 'text-teal-500' },
-  ];
 
   const playItems: (typeof contentItems[0])[] = [
     { id: 'simulations', label: 'Simulations', icon: Play, description: 'Run and configure simulations', color: 'from-green-500/20 to-emerald-500/20', iconColor: 'text-green-500', quickLinks: simulationLinks, totalCount: simulations.length, emptyHint: 'No simulations run yet' },
@@ -392,18 +389,6 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
         </div>
       </div>
 
-      {/* Truth Section */}
-      <div className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl shadow-lg shadow-black/5">
-        <div className="px-5 pt-4 pb-2 flex items-center gap-2">
-          <h2 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Truth</h2>
-          <Badge variant="secondary" className="text-xs px-1.5 py-0 h-5">{truthItems.length}</Badge>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 p-2">
-          {truthItems.map((item) => (
-            <SectionCard key={item.id} item={item} />
-          ))}
-        </div>
-      </div>
 
       {/* Play Section */}
       <div className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl shadow-lg shadow-black/5">

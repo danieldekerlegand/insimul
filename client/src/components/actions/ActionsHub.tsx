@@ -83,8 +83,8 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
   // Selection
   const [selectedAction, setSelectedAction] = useState<Action | null>(null);
 
-  // Right panel tab
-  const [rightTab, setRightTab] = useState<'details' | 'predicates' | 'query'>('details');
+  // Right panel section state
+  const [expandedSection, setExpandedSection] = useState<'details' | 'predicates' | 'query' | null>(null);
 
   // Dialogs
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -99,7 +99,7 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
     try {
       const [actionsRes, baseRes, configRes] = await Promise.all([
         fetch(`/api/worlds/${worldId}/actions`),
-        fetch('/api/actions/base'),
+        fetch('/api/actions/base?limit=10000'),
         fetch(`/api/worlds/${worldId}/base-resources/config`),
       ]);
 
@@ -257,19 +257,28 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
           </Button>
         </div>
 
-        <ScrollArea className="flex-1">
-          <div className="p-2 space-y-1">
-            {/* World Actions Section */}
-            <button
-              className={`w-full flex items-center gap-1.5 px-2 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                activeSection === 'world' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted/50'
-              }`}
-              onClick={() => setActiveSection('world')}
-            >
-              <Zap className="h-3.5 w-3.5" />
-              World Actions ({actions.length})
-            </button>
+        {/* Tabs for World vs Base */}
+        <div className="flex border-b">
+          <button
+            className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors ${
+              activeSection === 'world' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={() => setActiveSection('world')}
+          >
+            World ({actions.length})
+          </button>
+          <button
+            className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors ${
+              activeSection === 'base' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={() => setActiveSection('base')}
+          >
+            Base ({baseActions.length})
+          </button>
+        </div>
 
+        <ScrollArea className="flex-1">
+          <div className="p-2">
             {activeSection === 'world' && Object.entries(worldActionGroups).map(([group, groupActions]) => (
               <div key={group}>
                 <button
@@ -300,17 +309,6 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
                 ))}
               </div>
             ))}
-
-            {/* Base Actions Section */}
-            <button
-              className={`w-full flex items-center gap-1.5 px-2 py-1.5 text-xs font-semibold rounded-md transition-colors mt-2 ${
-                activeSection === 'base' ? 'bg-pink-500/10 text-pink-500' : 'text-muted-foreground hover:bg-muted/50'
-              }`}
-              onClick={() => setActiveSection('base')}
-            >
-              <Globe className="h-3.5 w-3.5" />
-              Base Actions ({baseActions.length})
-            </button>
 
             {activeSection === 'base' && Object.entries(baseActionGroups).map(([group, groupActions]) => (
               <div key={group}>
@@ -467,40 +465,46 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
         )}
       </div>
 
-      {/* Right Panel - Prerequisites, Effects, Side Effects, Predicates, Query */}
-      <div className="w-64 flex-shrink-0 border-l border-white/15 dark:border-white/10 flex flex-col">
-        {/* Tab switcher */}
-        <div className="flex bg-muted/30 border-b shrink-0">
-          <button
-            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'details' ? 'bg-background border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => setRightTab('details')}
-          >
-            Details
-          </button>
-          <button
-            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'predicates' ? 'bg-background border-b-2 border-purple-500 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => setRightTab('predicates')}
-          >
-            Predicates
-          </button>
-          <button
-            className={`flex-1 px-2 py-1.5 text-[10px] font-medium transition-colors ${rightTab === 'query' ? 'bg-background border-b-2 border-green-500 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => setRightTab('query')}
-          >
-            Query
-          </button>
-        </div>
+      {/* Right Panel - Collapsible Sections */}
+      <div className="w-64 flex-shrink-0 border-l border-white/15 dark:border-white/10 flex flex-col min-h-0">
+        {[
+          { id: 'details' as const, label: 'Details', icon: Zap },
+          { id: 'predicates' as const, label: 'Predicates', icon: Edit },
+          { id: 'query' as const, label: 'Query', icon: Globe },
+        ].map((section, idx) => {
+          const isExpanded = expandedSection === section.id;
+          const Icon = section.icon;
 
-        {rightTab === 'predicates' && (
-          <PredicatePalette compact onInsert={(text) => navigator.clipboard.writeText(text)} />
-        )}
+          return (
+            <div
+              key={section.id}
+              className={`flex flex-col min-h-0 ${idx > 0 ? 'border-t' : ''} ${isExpanded ? 'flex-1' : ''}`}
+            >
+              {/* Section header */}
+              <button
+                className="flex items-center gap-1.5 px-3 py-2 border-b bg-muted/30 shrink-0 hover:bg-muted/50 transition-colors text-left"
+                onClick={() => setExpandedSection(isExpanded ? null : section.id)}
+              >
+                <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  {section.label}
+                </span>
+                <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground ml-auto transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
+              </button>
 
-        {rightTab === 'query' && (
-          <PrologQueryTester worldId={worldId} compact />
-        )}
+              {/* Section content */}
+              {isExpanded && (
+                <div className="flex-1 min-h-0 flex flex-col">
+                  {section.id === 'predicates' && (
+                    <PredicatePalette compact onInsert={(text) => navigator.clipboard.writeText(text)} />
+                  )}
 
-        {rightTab === 'details' && (
-        <ScrollArea className="flex-1">
+                  {section.id === 'query' && (
+                    <PrologQueryTester worldId={worldId} compact />
+                  )}
+
+                  {section.id === 'details' && (
+                    <ScrollArea className="flex-1">
           {selectedAction ? (
             <div className="p-3 space-y-3">
               {/* Core Properties */}
@@ -619,8 +623,13 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
               Select an action to see details
             </div>
           )}
-        </ScrollArea>
-        )}
+                    </ScrollArea>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Create Dialog */}
