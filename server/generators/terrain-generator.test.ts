@@ -4,7 +4,7 @@
  * Run with: npx tsx server/generators/terrain-generator.test.ts
  */
 
-import { TerrainGenerator, TerrainType, TerrainConfig } from './terrain-generator';
+import { TerrainGenerator, TerrainType, TerrainConfig, TerrainFeature, FeatureType } from './terrain-generator';
 
 let passed = 0;
 let failed = 0;
@@ -185,6 +185,165 @@ function testResolutionScaling() {
   assert(TerrainGenerator.resolutionForSettlement('city') === 512, 'city → 512');
 }
 
+// ── Feature stamping ──
+
+/** Create a flat heightmap at a given elevation */
+function flatMap(res: number, elevation: number = 0.5): number[][] {
+  return Array.from({ length: res }, () => Array(res).fill(elevation));
+}
+
+function testStampPeak() {
+  console.log('\n── stampPeak ──');
+  const hm = flatMap(64, 0.5);
+  gen.stampPeak(hm, 32, 32, 10, 0.3);
+  assert(hm[32][32] > 0.5, `peak center elevated (${hm[32][32].toFixed(4)} > 0.5)`);
+  assert(hm[32][32] > hm[32][48], 'peak center higher than distant point');
+  assert(hm[0][0] === 0.5, 'far corner unchanged');
+  const s = stats(hm);
+  assert(s.max <= 1, 'peak clamped to <= 1');
+}
+
+function testStampValley() {
+  console.log('\n── stampValley ──');
+  const hm = flatMap(64, 0.5);
+  gen.stampValley(hm, 32, 32, 10, 0.25);
+  assert(hm[32][32] < 0.5, `valley center depressed (${hm[32][32].toFixed(4)} < 0.5)`);
+  assert(hm[32][32] < hm[32][48], 'valley center lower than distant point');
+  const s = stats(hm);
+  assert(s.min >= 0, 'valley clamped to >= 0');
+}
+
+function testStampCanyon() {
+  console.log('\n── stampCanyon ──');
+  const hm = flatMap(64, 0.5);
+  gen.stampCanyon(hm, 32, 32, 20, 0.35);
+  assert(hm[32][32] < 0.5, `canyon center depressed (${hm[32][32].toFixed(4)} < 0.5)`);
+  // Canyon is narrow — points far from center X should be untouched
+  assert(hm[32][0] === 0.5, 'far left untouched by canyon');
+  const s = stats(hm);
+  assert(s.min >= 0, 'canyon clamped to >= 0');
+}
+
+function testStampCliff() {
+  console.log('\n── stampCliff ──');
+  const hm = flatMap(64, 0.5);
+  gen.stampCliff(hm, 32, 32, 15, 0.2);
+  // Above cliff center should differ from below
+  const above = hm[20][32];
+  const below = hm[44][32];
+  assert(above !== below, `cliff creates elevation difference (above=${above.toFixed(4)}, below=${below.toFixed(4)})`);
+  const s = stats(hm);
+  assert(s.min >= 0 && s.max <= 1, 'cliff values in [0,1]');
+}
+
+function testStampMesa() {
+  console.log('\n── stampMesa ──');
+  const hm = flatMap(64, 0.4);
+  gen.stampMesa(hm, 32, 32, 15, 0.2);
+  assert(hm[32][32] > 0.4, `mesa center raised (${hm[32][32].toFixed(4)} > 0.4)`);
+  // Inner area should be flat (uniform elevation)
+  const inner1 = hm[32][30];
+  const inner2 = hm[30][32];
+  assertApprox(inner1, inner2, 0.01, 'mesa inner area is flat');
+  const s = stats(hm);
+  assert(s.max <= 1, 'mesa clamped to <= 1');
+}
+
+function testStampCrater() {
+  console.log('\n── stampCrater ──');
+  const hm = flatMap(64, 0.5);
+  gen.stampCrater(hm, 32, 32, 12, 0.3);
+  assert(hm[32][32] < 0.5, `crater center depressed (${hm[32][32].toFixed(4)} < 0.5)`);
+  // Rim should be near or above baseline
+  const rimRow = 32 + Math.round(12 * 0.9);
+  const rimVal = hm[rimRow][32];
+  assert(rimVal >= hm[32][32], `crater rim (${rimVal.toFixed(4)}) >= center (${hm[32][32].toFixed(4)})`);
+  const s = stats(hm);
+  assert(s.min >= 0 && s.max <= 1, 'crater values in [0,1]');
+}
+
+function testStampFeaturesCount() {
+  console.log('\n── stampFeatures count ──');
+  const hm = gen.generateHeightmap({ seed: 'feat-test', width: 100, height: 100, terrainType: 'mountains', resolution: 64 });
+  const features = gen.stampFeatures(hm, 'mountains', 'feat-test');
+  assert(features.length >= 2, `at least 2 features (got ${features.length})`);
+  assert(features.length <= 5, `at most 5 features (got ${features.length})`);
+}
+
+function testStampFeaturesProperties() {
+  console.log('\n── stampFeatures properties ──');
+  const hm = flatMap(64, 0.5);
+  const features = gen.stampFeatures(hm, 'desert', 'desert-feat');
+  for (const f of features) {
+    assert(typeof f.id === 'string' && f.id.length > 0, `feature ${f.id} has id`);
+    assert(typeof f.name === 'string' && f.name.length > 0, `feature ${f.id} has name`);
+    assert(['peak', 'valley', 'canyon', 'cliff', 'mesa', 'crater'].includes(f.type), `feature ${f.id} has valid type (${f.type})`);
+    assert(f.position.x >= 0 && f.position.x < 64, `feature ${f.id} x in bounds`);
+    assert(f.position.z >= 0 && f.position.z < 64, `feature ${f.id} z in bounds`);
+    assert(f.radius > 0, `feature ${f.id} has positive radius`);
+    assert(typeof f.elevation === 'number', `feature ${f.id} has elevation`);
+  }
+}
+
+function testStampFeaturesTerrainAppropriate() {
+  console.log('\n── stampFeatures terrain-appropriate types ──');
+  const desertTypes: FeatureType[] = ['mesa', 'canyon', 'crater'];
+  const hmD = flatMap(64, 0.5);
+  const featuresD = gen.stampFeatures(hmD, 'desert', 'desert-types');
+  for (const f of featuresD) {
+    assert(desertTypes.includes(f.type), `desert feature type ${f.type} is appropriate`);
+  }
+
+  const hillTypes: FeatureType[] = ['peak', 'valley', 'cliff'];
+  const hmH = flatMap(64, 0.5);
+  const featuresH = gen.stampFeatures(hmH, 'hills', 'hill-types');
+  for (const f of featuresH) {
+    assert(hillTypes.includes(f.type), `hills feature type ${f.type} is appropriate`);
+  }
+}
+
+function testStampFeaturesDeterminism() {
+  console.log('\n── stampFeatures determinism ──');
+  const hm1 = flatMap(64, 0.5);
+  const f1 = gen.stampFeatures(hm1, 'mountains', 'det-feat');
+  const hm2 = flatMap(64, 0.5);
+  const f2 = gen.stampFeatures(hm2, 'mountains', 'det-feat');
+  assert(f1.length === f2.length, 'same seed same count');
+  for (let i = 0; i < f1.length; i++) {
+    assert(f1[i].id === f2[i].id, `feature ${i} same id`);
+    assert(f1[i].type === f2[i].type, `feature ${i} same type`);
+    assert(f1[i].position.x === f2[i].position.x, `feature ${i} same x`);
+    assert(f1[i].position.z === f2[i].position.z, `feature ${i} same z`);
+  }
+}
+
+function testStampFeaturesModifiesHeightmap() {
+  console.log('\n── stampFeatures modifies heightmap ──');
+  const hm = flatMap(64, 0.5);
+  const before = hm.map(r => [...r]);
+  gen.stampFeatures(hm, 'mountains', 'modify-test');
+  let changed = false;
+  for (let r = 0; r < 64; r++) {
+    for (let c = 0; c < 64; c++) {
+      if (hm[r][c] !== before[r][c]) { changed = true; break; }
+    }
+    if (changed) break;
+  }
+  assert(changed, 'heightmap was modified by stampFeatures');
+}
+
+function testStampFeaturesStaysInRange() {
+  console.log('\n── stampFeatures keeps values in [0,1] ──');
+  const terrainTypes: TerrainType[] = ['plains', 'hills', 'mountains', 'coast', 'river', 'forest', 'desert'];
+  for (const tt of terrainTypes) {
+    const hm = gen.generateHeightmap({ seed: 'range-' + tt, width: 100, height: 100, terrainType: tt, resolution: 64 });
+    gen.stampFeatures(hm, tt, 'range-' + tt);
+    const s = stats(hm);
+    assert(s.min >= 0, `${tt} + features: min >= 0 (got ${s.min.toFixed(4)})`);
+    assert(s.max <= 1, `${tt} + features: max <= 1 (got ${s.max.toFixed(4)})`);
+  }
+}
+
 // ── Run all tests ──
 
 console.log('=== TerrainGenerator Tests ===');
@@ -198,6 +357,18 @@ testCoastGradient();
 testRiverChannel();
 testDeterminism();
 testResolutionScaling();
+testStampPeak();
+testStampValley();
+testStampCanyon();
+testStampCliff();
+testStampMesa();
+testStampCrater();
+testStampFeaturesCount();
+testStampFeaturesProperties();
+testStampFeaturesTerrainAppropriate();
+testStampFeaturesDeterminism();
+testStampFeaturesModifiesHeightmap();
+testStampFeaturesStaysInRange();
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
