@@ -1,0 +1,11 @@
+## Assessment EVAL block parser and system prompt builder
+
+### Completed
+- Created `shared/assessment/assessment-types.ts` — Pure type definitions (CefrLevel, AssessmentPhase, ScoringDimension, AssessmentSession, etc.)
+- Created `shared/assessment/cefr-mapping.ts` — mapScoreToCEFR(), mapScoreToLevel<T>(), getCEFRDescription()
+- Created `shared/assessment/arrival-encounter.ts` — ARRIVAL_ENCOUNTER definition (4 phases, 53pts, 5 scoring dimensions)
+- Created `shared/assessment/index.ts` — Barrel export
+- Created `client/src/assessment/assessment-prompt-utils.ts`:
+  - `parseAssessmentEvalBlock()` — Regex parser for 5 dimension scores (vocabulary, grammar, fluency, comprehension, taskCompletion) rated 1-5. Same pattern as parseGrammarFeedbackBlock().
+  - `buildAssessmentSystemPrompt()` — Tier-adaptive NPC prompts with CEFR-level-specific dialogue rules (A1-B2), template variable resolution, EVAL block instructions, phase context.
+- Created `client/src/assessment/assessment-prompt-utils.test.ts` — 42 tests, all passing
