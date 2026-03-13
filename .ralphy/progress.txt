@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 ## Assessment Results Summary Panel
 
 - Created `client/src/components/3DGame/AssessmentResultsPanel.ts`
@@ -195,3 +194,19 @@ Helper functions:
 - Error handling returns engine to idle state
 - Created shared/__tests__/assessment-engine.test.ts with 28 tests covering all states, transitions, scoring, CEFR mapping, recordings, abort, reset, and error handling
 - All 28 tests pass
+
+## GameEventBus assessment events
+
+### What was done
+- Added 8 assessment/onboarding event types to GameEventBus.ts discriminated union:
+  - assessment_started, assessment_phase_started, assessment_phase_completed
+  - assessment_tier_change, assessment_completed
+  - onboarding_step_started, onboarding_step_completed, onboarding_completed
+- Added 'assessment' category and 8 activity verbs to activity-types.ts taxonomy
+- Added legacy event aliases for backward compatibility
+- Updated all 3 export templates to maintain parity:
+  - Unity EventBus.cs: enum values + event data classes
+  - Godot event_bus.gd: constants, validation array, payload docs
+  - Unreal EventBus.h: enum values + struct fields
+- Wrote 10 tests covering taxonomy, categories, events, Prolog predicates, telemetry fields, helpers, and aliases
+- All tests pass, no TypeScript errors in changed files

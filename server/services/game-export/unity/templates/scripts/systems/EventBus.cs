@@ -44,7 +44,15 @@ namespace Insimul.Systems
         QuestFailed,
         QuestAbandoned,
         ConversationOverheard,
-        CreateTruth
+        CreateTruth,
+        AssessmentStarted,
+        AssessmentPhaseStarted,
+        AssessmentPhaseCompleted,
+        AssessmentTierChange,
+        AssessmentCompleted,
+        OnboardingStepStarted,
+        OnboardingStepCompleted,
+        OnboardingCompleted
     }
 
     /// <summary>
@@ -363,6 +371,75 @@ namespace Insimul.Systems
         public string content;
         public string entryType;
         public string category;
+    }
+
+    public class AssessmentStartedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AssessmentStarted;
+        public string sessionId;
+        public string instrumentId;
+        public string phase;
+        public string participantId;
+    }
+
+    public class AssessmentPhaseStartedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AssessmentPhaseStarted;
+        public string sessionId;
+        public string instrumentId;
+        public string phase;
+    }
+
+    public class AssessmentPhaseCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AssessmentPhaseCompleted;
+        public string sessionId;
+        public string instrumentId;
+        public string phase;
+        public float score;
+    }
+
+    public class AssessmentTierChangeEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AssessmentTierChange;
+        public string participantId;
+        public string instrumentId;
+        public string fromTier;
+        public string toTier;
+        public float score;
+    }
+
+    public class AssessmentCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AssessmentCompleted;
+        public string sessionId;
+        public string instrumentId;
+        public float totalScore;
+        public float gainScore;
+    }
+
+    public class OnboardingStepStartedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.OnboardingStepStarted;
+        public string stepId;
+        public int stepIndex;
+        public int totalSteps;
+    }
+
+    public class OnboardingStepCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.OnboardingStepCompleted;
+        public string stepId;
+        public int stepIndex;
+        public int totalSteps;
+        public int durationMs;
+    }
+
+    public class OnboardingCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.OnboardingCompleted;
+        public int totalSteps;
+        public int totalDurationMs;
     }
 
     // ── Event Bus ────────────────────────────────────────────────────────────

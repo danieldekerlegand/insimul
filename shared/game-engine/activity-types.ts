@@ -16,7 +16,8 @@ export type ActivityCategory =
   | 'romance'
   | 'puzzle'
   | 'language'
-  | 'quest';
+  | 'quest'
+  | 'assessment';
 
 export type ActivityVerb =
   // Conversation
@@ -71,7 +72,16 @@ export type ActivityVerb =
   | 'quest_accept'
   | 'quest_complete'
   | 'quest_fail'
-  | 'quest_abandon';
+  | 'quest_abandon'
+  // Assessment
+  | 'assessment_start'
+  | 'assessment_phase_start'
+  | 'assessment_phase_complete'
+  | 'assessment_tier_change'
+  | 'assessment_complete'
+  | 'onboarding_step_start'
+  | 'onboarding_step_complete'
+  | 'onboarding_complete';
 
 export interface ActivityDefinition {
   /** Category grouping */
@@ -477,6 +487,72 @@ export const ACTIVITY_TAXONOMY: Record<ActivityVerb, ActivityDefinition> = {
     prologPredicate: 'quest_abandoned(player, QuestId)',
     telemetryFields: ['questId', 'questTitle', 'reason', 'progressAtAbandonment'],
   },
+  // ── Assessment ─────────────────────────────────────────────────────────
+
+  assessment_start: {
+    category: 'assessment',
+    verb: 'assessment_start',
+    requiresTarget: false,
+    emitsEvent: 'assessment_started',
+    prologPredicate: 'assessment_started(player, SessionId, InstrumentId)',
+    telemetryFields: ['sessionId', 'instrumentId', 'phase', 'participantId'],
+  },
+  assessment_phase_start: {
+    category: 'assessment',
+    verb: 'assessment_phase_start',
+    requiresTarget: false,
+    emitsEvent: 'assessment_phase_started',
+    prologPredicate: 'assessment_phase_started(player, SessionId, Phase)',
+    telemetryFields: ['sessionId', 'instrumentId', 'phase'],
+  },
+  assessment_phase_complete: {
+    category: 'assessment',
+    verb: 'assessment_phase_complete',
+    requiresTarget: false,
+    emitsEvent: 'assessment_phase_completed',
+    prologPredicate: 'assessment_phase_completed(player, SessionId, Phase, Score)',
+    telemetryFields: ['sessionId', 'instrumentId', 'phase', 'score', 'subscaleScores'],
+  },
+  assessment_tier_change: {
+    category: 'assessment',
+    verb: 'assessment_tier_change',
+    requiresTarget: false,
+    emitsEvent: 'assessment_tier_change',
+    prologPredicate: 'assessment_tier_changed(player, InstrumentId, FromTier, ToTier)',
+    telemetryFields: ['participantId', 'instrumentId', 'fromTier', 'toTier', 'score'],
+  },
+  assessment_complete: {
+    category: 'assessment',
+    verb: 'assessment_complete',
+    requiresTarget: false,
+    emitsEvent: 'assessment_completed',
+    prologPredicate: 'assessment_completed(player, SessionId, TotalScore)',
+    telemetryFields: ['sessionId', 'instrumentId', 'totalScore', 'gainScore'],
+  },
+  onboarding_step_start: {
+    category: 'assessment',
+    verb: 'onboarding_step_start',
+    requiresTarget: false,
+    emitsEvent: 'onboarding_step_started',
+    prologPredicate: 'onboarding_step_started(player, StepId, StepIndex)',
+    telemetryFields: ['stepId', 'stepIndex', 'totalSteps'],
+  },
+  onboarding_step_complete: {
+    category: 'assessment',
+    verb: 'onboarding_step_complete',
+    requiresTarget: false,
+    emitsEvent: 'onboarding_step_completed',
+    prologPredicate: 'onboarding_step_completed(player, StepId, StepIndex, DurationMs)',
+    telemetryFields: ['stepId', 'stepIndex', 'totalSteps', 'durationMs'],
+  },
+  onboarding_complete: {
+    category: 'assessment',
+    verb: 'onboarding_complete',
+    requiresTarget: false,
+    emitsEvent: 'onboarding_completed',
+    prologPredicate: 'onboarding_completed(player, TotalSteps, TotalDurationMs)',
+    telemetryFields: ['totalSteps', 'totalDurationMs'],
+  },
 } as const satisfies Record<ActivityVerb, ActivityDefinition>;
 
 // ─── Helper Functions ───────────────────────────────────────────────────────
@@ -534,6 +610,14 @@ export const LEGACY_EVENT_ALIASES: Readonly<Record<string, ActivityVerb>> = {
   'utterance_attempted': 'utterance_attempt',
   'romance_action': 'romance_action',
   'romance_stage_changed': 'propose',
+  'assessment_started': 'assessment_start',
+  'assessment_phase_started': 'assessment_phase_start',
+  'assessment_phase_completed': 'assessment_phase_complete',
+  'assessment_tier_change': 'assessment_tier_change',
+  'assessment_completed': 'assessment_complete',
+  'onboarding_step_started': 'onboarding_step_start',
+  'onboarding_step_completed': 'onboarding_step_complete',
+  'onboarding_completed': 'onboarding_complete',
 };
 
 // ─── Deprecated Aliases (backward compat) ───────────────────────────────────
