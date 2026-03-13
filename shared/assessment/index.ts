@@ -13,6 +13,7 @@ export {
   type AssessmentPhase,
   type AssessmentDefinition,
   type RecordingReference,
+  type TranscriptEntry,
   type AutomatedMetrics,
   type TaskResult,
   type PhaseResult,

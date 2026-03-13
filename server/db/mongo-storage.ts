@@ -1052,6 +1052,17 @@ const EngagementEventModel = mongoose.model('EngagementEvent', EngagementEventSc
 const ApiKeyModel = mongoose.model('ApiKey', ApiKeySchema, 'apikeys');
 const TerrainFeatureModel = mongoose.model('TerrainFeature', TerrainFeatureSchema);
 
+function docToAssessmentSession(doc: any): AssessmentSession {
+  const obj = doc.toObject ? doc.toObject() : doc;
+  return {
+    ...obj,
+    id: (doc._id || obj._id).toString(),
+    createdAt: obj.createdAt instanceof Date ? obj.createdAt.toISOString() : obj.createdAt,
+    startedAt: obj.startedAt instanceof Date ? obj.startedAt.toISOString() : obj.startedAt,
+    completedAt: obj.completedAt instanceof Date ? obj.completedAt.toISOString() : obj.completedAt,
+  } as AssessmentSession;
+}
+
 // Helper to convert Mongoose doc to our type
 function docToRule(doc: RuleDoc | any): Rule {
   // Check if it's a lean document (plain object) or Mongoose document
@@ -2940,70 +2951,64 @@ export class MongoStorage implements IStorage {
   async createAssessmentSession(data: Omit<AssessmentSession, 'id'>): Promise<AssessmentSession> {
     await this.connect();
     const doc = await AssessmentSessionModel.create(data);
-    const obj = doc.toObject();
-    return { ...obj, id: doc._id.toString(), createdAt: obj.createdAt.toISOString(), startedAt: obj.startedAt?.toISOString(), completedAt: obj.completedAt?.toISOString() } as AssessmentSession;
+    return docToAssessmentSession(doc);
   }
 
   async getAssessmentSession(id: string): Promise<AssessmentSession | undefined> {
     await this.connect();
     const doc = await AssessmentSessionModel.findById(id);
-    if (!doc) return undefined;
-    const obj = doc.toObject();
-    return { ...obj, id: doc._id.toString(), createdAt: obj.createdAt.toISOString(), startedAt: obj.startedAt?.toISOString(), completedAt: obj.completedAt?.toISOString() } as AssessmentSession;
+    return doc ? docToAssessmentSession(doc) : undefined;
   }
 
-  async updateAssessmentPhaseResult(sessionId: string, phaseResult: any): Promise<AssessmentSession | undefined> {
+  async updateAssessmentPhaseResult(sessionId: string, phaseResult: PhaseResult): Promise<AssessmentSession | undefined> {
+    await this.connect();
+    const existing = await AssessmentSessionModel.findById(sessionId);
+    if (!existing) return undefined;
+
+    const idx = existing.phaseResults.findIndex((r: any) => r.phaseId === phaseResult.phaseId);
+    let update;
+    if (idx >= 0) {
+      update = await AssessmentSessionModel.findByIdAndUpdate(
+        sessionId,
+        { $set: { [`phaseResults.${idx}`]: phaseResult } },
+        { new: true }
+      );
+    } else {
+      update = await AssessmentSessionModel.findByIdAndUpdate(
+        sessionId,
+        { $push: { phaseResults: phaseResult } },
+        { new: true }
+      );
+    }
+    return update ? docToAssessmentSession(update) : undefined;
+  }
+
+  async addAssessmentRecording(sessionId: string, recording: RecordingReference): Promise<AssessmentSession | undefined> {
     await this.connect();
     const doc = await AssessmentSessionModel.findByIdAndUpdate(
       sessionId,
-      {
-        $push: { phaseResults: phaseResult },
-        $set: { status: 'phase_transitioning' }
-      },
+      { $push: { recordings: recording } },
       { new: true }
     );
-    if (!doc) return undefined;
-    const obj = doc.toObject();
-    return { ...obj, id: doc._id.toString(), createdAt: obj.createdAt.toISOString(), startedAt: obj.startedAt?.toISOString(), completedAt: obj.completedAt?.toISOString() } as AssessmentSession;
+    return doc ? docToAssessmentSession(doc) : undefined;
   }
 
-  async addAssessmentRecording(sessionId: string, recording: any): Promise<AssessmentSession | undefined> {
-    await this.connect();
-    const doc = await AssessmentSessionModel.findById(sessionId);
-    if (!doc) return undefined;
-    const recordings = (doc.recordings as any[]) || [];
-    recordings.push(recording);
-    doc.recordings = recordings;
-    doc.markModified('recordings');
-    await doc.save();
-    const obj = doc.toObject();
-    return { ...obj, id: doc._id.toString(), createdAt: obj.createdAt.toISOString(), startedAt: obj.startedAt?.toISOString(), completedAt: obj.completedAt?.toISOString() } as AssessmentSession;
-  }
-
-  async completeAssessmentSession(sessionId: string, results: {
-    totalScore: number;
-    cefrLevel?: string;
-    dimensionScores?: Record<string, number>;
-    automatedMetrics?: any;
-  }): Promise<AssessmentSession | undefined> {
+  async completeAssessmentSession(sessionId: string, totalScore: number, maxScore: number, cefrLevel: string): Promise<AssessmentSession | undefined> {
     await this.connect();
     const doc = await AssessmentSessionModel.findByIdAndUpdate(
       sessionId,
       {
         $set: {
           status: 'complete',
-          totalScore: results.totalScore,
-          cefrLevel: results.cefrLevel ?? null,
-          dimensionScores: results.dimensionScores ?? null,
-          automatedMetrics: results.automatedMetrics ?? null,
+          totalScore,
+          totalMaxPoints: maxScore,
+          cefrLevel,
           completedAt: new Date()
         }
       },
       { new: true }
     );
-    if (!doc) return undefined;
-    const obj = doc.toObject();
-    return { ...obj, id: doc._id.toString(), createdAt: obj.createdAt.toISOString(), startedAt: obj.startedAt?.toISOString(), completedAt: obj.completedAt?.toISOString() } as AssessmentSession;
+    return doc ? docToAssessmentSession(doc) : undefined;
   }
 
   async getPlayerAssessments(playerId: string, worldId?: string, assessmentType?: string): Promise<AssessmentSession[]> {
@@ -3012,10 +3017,7 @@ export class MongoStorage implements IStorage {
     if (worldId) query.worldId = worldId;
     if (assessmentType) query.assessmentType = assessmentType;
     const docs = await AssessmentSessionModel.find(query).sort({ createdAt: -1 });
-    return docs.map(d => {
-      const obj = d.toObject();
-      return { ...obj, id: d._id.toString(), createdAt: obj.createdAt.toISOString(), startedAt: obj.startedAt?.toISOString(), completedAt: obj.completedAt?.toISOString() } as AssessmentSession;
-    });
+    return docs.map(d => docToAssessmentSession(d));
   }
 
   async getWorldAssessmentSummary(worldId: string): Promise<{

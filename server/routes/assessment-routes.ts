@@ -3,17 +3,19 @@
  *
  * CRUD endpoints for assessment sessions: create, fetch, update phases,
  * add recordings, complete, and query by player/world.
+ * Includes transcript retrieval endpoints for admin detail views.
  */
 
 import { Router, type Request, type Response } from 'express';
+import type { IStorage } from '../db/storage';
 
-export function createAssessmentRoutes(storage: any): Router {
+export function createAssessmentRoutes(storage: IStorage): Router {
   const router = Router();
 
   // POST /api/assessments — create a new assessment session
   router.post('/assessments', async (req: Request, res: Response) => {
     try {
-      const { playerId, worldId, assessmentType } = req.body;
+      const { playerId, worldId, assessmentType, assessmentDefinitionId, targetLanguage, totalMaxPoints } = req.body;
 
       if (!playerId || !worldId || !assessmentType) {
         return res.status(400).json({ message: 'Missing required fields: playerId, worldId, assessmentType' });
@@ -22,11 +24,14 @@ export function createAssessmentRoutes(storage: any): Router {
       const session = await storage.createAssessmentSession({
         playerId,
         worldId,
+        assessmentDefinitionId: assessmentDefinitionId || assessmentType,
         assessmentType,
-        status: 'in_progress',
-        phases: [],
+        targetLanguage: targetLanguage || 'unknown',
+        status: 'initializing',
+        phaseResults: [],
+        totalMaxPoints: totalMaxPoints || 0,
         recordings: [],
-        startedAt: new Date(),
+        createdAt: new Date().toISOString(),
       });
 
       res.status(201).json(session);
@@ -63,7 +68,10 @@ export function createAssessmentRoutes(storage: any): Router {
         return res.status(400).json({ message: 'Missing phase result data' });
       }
 
-      const session = await storage.updateAssessmentPhaseResult(sessionId, phaseId, result);
+      // Ensure phaseId from URL matches body
+      result.phaseId = phaseId;
+
+      const session = await storage.updateAssessmentPhaseResult(sessionId, result);
 
       if (!session) {
         return res.status(404).json({ message: 'Assessment session not found' });
@@ -105,7 +113,12 @@ export function createAssessmentRoutes(storage: any): Router {
       const { sessionId } = req.params;
       const { totalScore, maxScore, cefrLevel } = req.body || {};
 
-      const session = await storage.completeAssessmentSession(sessionId, totalScore, maxScore, cefrLevel);
+      const session = await storage.completeAssessmentSession(
+        sessionId,
+        totalScore ?? 0,
+        maxScore ?? 0,
+        cefrLevel ?? 'A1',
+      );
 
       if (!session) {
         return res.status(404).json({ message: 'Assessment session not found' });
@@ -122,7 +135,8 @@ export function createAssessmentRoutes(storage: any): Router {
   router.get('/assessments/player/:playerId', async (req: Request, res: Response) => {
     try {
       const { playerId } = req.params;
-      const sessions = await storage.getPlayerAssessments(playerId);
+      const { worldId } = req.query;
+      const sessions = await storage.getPlayerAssessments(playerId, worldId as string | undefined);
       res.json(sessions);
     } catch (error) {
       console.error('Get player assessments error:', error);
@@ -139,6 +153,59 @@ export function createAssessmentRoutes(storage: any): Router {
     } catch (error) {
       console.error('Get world assessment summary error:', error);
       res.status(500).json({ message: 'Failed to get world assessment summary' });
+    }
+  });
+
+  // GET /api/assessments/:sessionId/transcripts — get all transcripts for a session
+  router.get('/assessments/:sessionId/transcripts', async (req: Request, res: Response) => {
+    try {
+      const { sessionId } = req.params;
+      const session = await storage.getAssessmentSession(sessionId);
+
+      if (!session) {
+        return res.status(404).json({ message: 'Assessment session not found' });
+      }
+
+      // Extract transcripts from all phase results
+      const transcripts = session.phaseResults
+        .filter(pr => pr.transcript && (typeof pr.transcript === 'string' ? pr.transcript.length > 0 : pr.transcript.length > 0))
+        .map(pr => ({
+          phaseId: pr.phaseId,
+          entries: pr.transcript,
+          startedAt: pr.startedAt,
+          completedAt: pr.completedAt,
+        }));
+
+      res.json({ sessionId, transcripts });
+    } catch (error) {
+      console.error('Get assessment transcripts error:', error);
+      res.status(500).json({ message: 'Failed to get assessment transcripts' });
+    }
+  });
+
+  // GET /api/assessments/:sessionId/recordings-list — get all recordings for a session
+  router.get('/assessments/:sessionId/recordings-list', async (req: Request, res: Response) => {
+    try {
+      const { sessionId } = req.params;
+      const session = await storage.getAssessmentSession(sessionId);
+
+      if (!session) {
+        return res.status(404).json({ message: 'Assessment session not found' });
+      }
+
+      // Collect recordings from session-level and phase-level
+      const sessionRecordings = session.recordings || [];
+      const phaseRecordings = session.phaseResults
+        .flatMap(pr => (pr.recordings || []).map(r => ({ ...r, _fromPhase: pr.phaseId })));
+
+      res.json({
+        sessionId,
+        recordings: sessionRecordings,
+        phaseRecordings,
+      });
+    } catch (error) {
+      console.error('Get assessment recordings error:', error);
+      res.status(500).json({ message: 'Failed to get assessment recordings' });
     }
   });
 

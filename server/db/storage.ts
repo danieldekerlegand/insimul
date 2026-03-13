@@ -286,14 +286,9 @@ export interface IStorage {
   // Assessment Sessions
   createAssessmentSession(data: Omit<AssessmentSession, 'id'>): Promise<AssessmentSession>;
   getAssessmentSession(id: string): Promise<AssessmentSession | undefined>;
-  updateAssessmentPhaseResult(sessionId: string, phaseResult: any): Promise<AssessmentSession | undefined>;
+  updateAssessmentPhaseResult(sessionId: string, phaseResult: PhaseResult): Promise<AssessmentSession | undefined>;
   addAssessmentRecording(sessionId: string, recording: RecordingReference): Promise<AssessmentSession | undefined>;
-  completeAssessmentSession(sessionId: string, results: {
-    totalScore: number;
-    cefrLevel?: string;
-    dimensionScores?: Record<string, number>;
-    automatedMetrics?: any;
-  }): Promise<AssessmentSession | undefined>;
+  completeAssessmentSession(sessionId: string, totalScore: number, maxScore: number, cefrLevel: string): Promise<AssessmentSession | undefined>;
   getPlayerAssessments(playerId: string, worldId?: string, assessmentType?: string): Promise<AssessmentSession[]>;
   getWorldAssessmentSummary(worldId: string): Promise<{
     totalSessions: number;

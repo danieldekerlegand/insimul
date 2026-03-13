@@ -119,7 +119,7 @@ Helper functions:
 ## Assessment API Routes - Completed
 
 ### What was done:
-- Created `server/routes/assessment-routes.ts` with 7 REST endpoints:
+- Created `server/routes/assessment-routes.ts` with 9 REST endpoints:
   - POST /api/assessments — create new assessment session
   - GET /api/assessments/:sessionId — fetch session
   - PUT /api/assessments/:sessionId/phases/:phaseId — update phase result
@@ -127,6 +127,8 @@ Helper functions:
   - PUT /api/assessments/:sessionId/complete — mark session complete
   - GET /api/assessments/player/:playerId — get all player assessments
   - GET /api/assessments/world/:worldId/summary — get world summary statistics
+  - GET /api/assessments/:sessionId/transcripts — get all transcripts for a session
+  - GET /api/assessments/:sessionId/recordings-list — get all recordings for a session
 
 - Added AssessmentSession MongoDB schema and CRUD methods to `server/db/mongo-storage.ts`:
   - AssessmentSessionSchema with compound index on {playerId, worldId, assessmentType}
@@ -403,3 +405,12 @@ All tests pass. No type errors.
   - Added `recordPeriodicAssessmentCompleted()` and `getLastPeriodicAssessmentTimestamp()` public methods
   - Persists `lastPeriodicAssessmentTimestamp` in export/import state
 - Tests: 53 tests passing (36 periodic-encounter + 17 gamification-tracker)
+
+## Recording and Transcript Storage Integration
+
+### Completed
+- Created client/assessment/transcript-serializer.ts - normalizes conversation, listening, writing, and visual phase data into PhaseResult with transcript entries and RecordingReferences
+- Created client/assessment/recording-integration.ts - RecordingIntegrationService that wires phase results to server API (create session, persist phases, push recordings, complete session)
+- Added transcript and recordings-list retrieval endpoints to assessment routes
+- Created client/src/components/AssessmentTranscriptViewer.tsx - admin UI component displaying phase transcripts and recordings with expandable sections
+- Created server/__tests__/recording-transcript-storage.test.ts - 18 tests covering serializer, API routes, and full integration flow

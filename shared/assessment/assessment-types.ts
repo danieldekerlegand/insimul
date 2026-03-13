@@ -154,6 +154,14 @@ export interface RecordingReference {
   transcript?: string;
 }
 
+export interface TranscriptEntry {
+  role: 'player' | 'npc' | 'system';
+  text: string;
+  timestamp: number;
+  phaseId: string;
+  taskId?: string;
+}
+
 export interface AutomatedMetrics {
   /** Words per minute */
   wpm?: number;
@@ -205,8 +213,8 @@ export interface PhaseResult {
   dimensionScores?: Record<string, number>;
   /** Automated metrics collected during this phase */
   automatedMetrics?: AutomatedMetrics;
-  /** Full transcript of the phase interaction */
-  transcript?: string;
+  /** Full transcript of the phase interaction (string or structured entries) */
+  transcript?: string | TranscriptEntry[];
   /** Recording references for this phase */
   recordings?: RecordingReference[];
   /** When this phase started */
