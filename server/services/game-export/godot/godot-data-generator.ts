@@ -130,6 +130,7 @@ function generateSettlements(ir: WorldIR): object[] {
     countryId: s.countryId || '',
     stateId: s.stateId || '',
     mayorId: s.mayorId || '',
+    elevationProfile: s.elevationProfile || null,
   }));
 }
 

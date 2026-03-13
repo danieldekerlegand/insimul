@@ -129,6 +129,19 @@ export interface StateIR {
   bounds: BoundsIR;
 }
 
+export interface ElevationProfileIR {
+  /** Minimum elevation within settlement bounds (world units) */
+  minElevation: number;
+  /** Maximum elevation within settlement bounds (world units) */
+  maxElevation: number;
+  /** Mean elevation within settlement bounds (world units) */
+  meanElevation: number;
+  /** Max elevation difference across the settlement (world units) */
+  elevationRange: number;
+  /** Slope classification based on elevation range relative to settlement size */
+  slopeClass: 'flat' | 'gentle' | 'moderate' | 'steep' | 'extreme';
+}
+
 export interface SettlementIR {
   id: string;
   worldId: string;
@@ -146,6 +159,8 @@ export interface SettlementIR {
   position: Vec3;
   /** Radius in world units */
   radius: number;
+  /** Elevation profile computed from heightmap */
+  elevationProfile: ElevationProfileIR | null;
   /** Building lot positions */
   lots: LotIR[];
   /** Business IDs located in this settlement */

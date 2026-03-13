@@ -34,6 +34,7 @@ import type {
   CountryIR,
   StateIR,
   SettlementIR,
+  ElevationProfileIR,
   LotIR,
   BoundsIR,
   CharacterIR,
@@ -57,6 +58,7 @@ import type {
   NPCDialogueContext,
   AIConfigIR,
 } from '@shared/game-engine/ir-types';
+import { computeElevationProfile } from '../../generators/settlement-elevation';
 import { getNPCReasoningRules } from '@shared/prolog/npc-reasoning';
 import { getTotTPredicates } from '@shared/prolog/tott-predicates';
 import { getAdvancedPredicates } from '@shared/prolog/advanced-predicates';
@@ -794,6 +796,17 @@ export async function generateWorldIR(
       });
     }
 
+    // Compute elevation profile from heightmap if available
+    const worldHeightmap = (world as any).heightmap as number[][] | undefined;
+    const elevationProfile: ElevationProfileIR | null =
+      worldHeightmap && Array.isArray(worldHeightmap) && worldHeightmap.length > 0
+        ? computeElevationProfile(
+            { centerX: placed.position.x, centerZ: placed.position.z, radius: placed.radius },
+            worldHeightmap,
+            terrainSize / 2,
+          )
+        : null;
+
     settlementIRs.push({
       id: s.id,
       worldId: s.worldId,
@@ -809,6 +822,7 @@ export async function generateWorldIR(
       mayorId: s.mayorId || null,
       position: placed.position,
       radius: placed.radius,
+      elevationProfile,
       lots: lotIRs,
       businessIds: settlementBusinesses.map(b => b.id),
       internalRoads: [],
