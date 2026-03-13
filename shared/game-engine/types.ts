@@ -131,6 +131,16 @@ export interface StreetNetwork {
   edges: StreetEdge[];
 }
 
+/** A city block — an enclosed region bounded by streets */
+export interface Block {
+  id: string;
+  boundaryStreetIds: string[];
+  polygon: { x: number; z: number }[];
+  districtId: string;
+  blockNumber: number;
+  center: Vec3;
+}
+
 // ─── Characters & NPCs ─────────────────────────────────────────────────────
 
 export interface WorldCharacter {

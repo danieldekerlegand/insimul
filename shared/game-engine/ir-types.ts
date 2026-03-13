@@ -354,6 +354,16 @@ export interface StreetNetworkIR {
   edges: StreetEdgeIR[];
 }
 
+/** IR representation of a city block */
+export interface BlockIR {
+  id: string;
+  boundaryStreetIds: string[];
+  polygon: { x: number; z: number }[];
+  districtId: string;
+  blockNumber: number;
+  center: Vec3;
+}
+
 export interface RoadIR {
   /** Start settlement or building ID */
   fromId: string;
