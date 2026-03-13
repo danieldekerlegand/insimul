@@ -209,6 +209,9 @@ interface NPCInstance {
   // Phase 4: NPC billboard LOD
   billboardLOD?: Mesh;
   isBillboardMode?: boolean;
+  // Stuck detection for wandering
+  lastWanderPosition?: Vector3;
+  stuckTicks?: number;
   // Debug
   _debugLogged?: boolean;
 }
@@ -847,7 +850,7 @@ export class BabylonGame {
     camera.lowerRadiusLimit = 10;
     camera.upperRadiusLimit = 10;
     camera.inputs.removeByType("ArcRotateCameraMouseWheelInput");
-    camera.checkCollisions = true;
+    camera.checkCollisions = false;
     camera.lowerBetaLimit = 0.3;
     camera.upperBetaLimit = Math.PI / 2.1;
     camera.keysUp = [];
@@ -5007,6 +5010,8 @@ export class BabylonGame {
         if (!this.isInsideBuilding) {
           this.npcMeshes.forEach((instance) => {
             if (!instance?.mesh) return;
+            // Skip ground snapping for NPCs in conversation (controller is stopped)
+            if (instance.isInConversation) return;
             // Phase 8: Skip ground snapping for disabled NPCs (hidden by isolation or distance)
             if (!instance.mesh.isEnabled()) return;
             const mesh = instance.mesh;
@@ -5286,6 +5291,7 @@ export class BabylonGame {
     const homePos = instance.homePosition || instance.mesh.position;
     const currentPos = instance.mesh.position;
     const wanderRadius = 8;
+    const halfTerrain = (this.terrainSize || 512) / 2 - 5;
 
     // If waiting, check if wait is over
     if (instance.wanderWaitUntil && now < instance.wanderWaitUntil) {
@@ -5294,6 +5300,27 @@ export class BabylonGame {
       instance.controller.turnRight(false);
       return;
     }
+
+    // Stuck detection: if the NPC has been walking but hasn't moved, abandon target
+    if (instance.wanderTarget && instance.lastWanderPosition) {
+      const moved = Vector3.Distance(currentPos, instance.lastWanderPosition);
+      if (moved < 0.05) {
+        instance.stuckTicks = (instance.stuckTicks || 0) + 1;
+        if (instance.stuckTicks >= 3) {
+          // Stuck for 3+ AI ticks — abandon target and idle briefly
+          instance.wanderTarget = undefined;
+          instance.stuckTicks = 0;
+          instance.wanderWaitUntil = now + 1000 + Math.random() * 2000;
+          instance.controller.walk(false);
+          instance.controller.turnLeft(false);
+          instance.controller.turnRight(false);
+          return;
+        }
+      } else {
+        instance.stuckTicks = 0;
+      }
+    }
+    instance.lastWanderPosition = currentPos.clone();
 
     // If no wander target or reached target, pick new one
     if (!instance.wanderTarget || Vector3.Distance(currentPos, instance.wanderTarget) < 2) {
@@ -5308,24 +5335,25 @@ export class BabylonGame {
       if (this._wanderRaycastsThisTick < MAX_WANDER_RAYCASTS_PER_TICK) {
         const angle = Math.random() * Math.PI * 2;
         const distance = Math.random() * wanderRadius;
-        const offsetX = Math.cos(angle) * distance;
-        const offsetZ = Math.sin(angle) * distance;
+        let tx = homePos.x + Math.cos(angle) * distance;
+        let tz = homePos.z + Math.sin(angle) * distance;
 
-        const targetPos = this.projectToGround(
-          homePos.x + offsetX,
-          homePos.z + offsetZ
-        );
+        // Clamp to world bounds so NPCs don't wander off the terrain
+        tx = Math.max(-halfTerrain, Math.min(halfTerrain, tx));
+        tz = Math.max(-halfTerrain, Math.min(halfTerrain, tz));
+
+        const targetPos = this.projectToGround(tx, tz);
         instance.wanderTarget = targetPos;
         this._wanderRaycastsThisTick++;
       } else {
         // Fallback: use flat target without raycast
         const angle = Math.random() * Math.PI * 2;
         const distance = Math.random() * wanderRadius;
-        instance.wanderTarget = new Vector3(
-          homePos.x + Math.cos(angle) * distance,
-          currentPos.y,
-          homePos.z + Math.sin(angle) * distance
-        );
+        let tx = homePos.x + Math.cos(angle) * distance;
+        let tz = homePos.z + Math.sin(angle) * distance;
+        tx = Math.max(-halfTerrain, Math.min(halfTerrain, tx));
+        tz = Math.max(-halfTerrain, Math.min(halfTerrain, tz));
+        instance.wanderTarget = new Vector3(tx, currentPos.y, tz);
       }
       return;
     }
@@ -5716,11 +5744,12 @@ export class BabylonGame {
           npcInstance.preConversationPosition = npcMesh.position.clone();
         }
 
-        // Stop NPC movement
+        // Stop NPC movement and freeze controller (prevents gravity drift during chat)
         if (npcInstance.controller) {
           npcInstance.controller.walk(false);
           npcInstance.controller.turnLeft(false);
           npcInstance.controller.turnRight(false);
+          npcInstance.controller.stop();
         }
 
         // Rotate NPC to face the player
@@ -5743,7 +5772,7 @@ export class BabylonGame {
       }
       this.conversationNPCId = npcId;
 
-      // Save current camera mode and switch to conversation mode
+      // Save current camera mode and switch to first-person conversation view
       if (this.cameraManager && this.camera && npcMesh) {
         this.preConversationCameraMode = this.cameraManager.getCurrentMode();
 
@@ -5752,17 +5781,11 @@ export class BabylonGame {
           this.playerController.stop();
         }
 
-        // Get NPC and player positions
-        const npcPos = npcMesh.position.clone();
-        const playerPos = this.playerMesh?.position || npcPos.add(new Vector3(1, 0, 0));
-
-        // Calculate direction from player to NPC
-        const playerToNPC = npcPos.subtract(playerPos).normalize();
-
-        // Position camera behind the player, looking at the NPC's face
-        const conversationDistance = 3;
-        const cameraPos = playerPos.add(playerToNPC.scale(-conversationDistance));
-        const targetPos = npcPos.add(new Vector3(0, 1.6, 0));
+        // First-person conversation camera: position at player's eyes, looking at NPC's face
+        const playerPos = this.playerMesh?.position || npcMesh.position.add(new Vector3(1, 0, 0));
+        const eyeHeight = 1.6;
+        const cameraPos = playerPos.add(new Vector3(0, eyeHeight, 0));
+        const targetPos = npcMesh.position.add(new Vector3(0, eyeHeight, 0));
 
         // Clear all angle/radius limits before setting conversation camera,
         // otherwise the previous camera mode's limits clamp the new position
@@ -5774,20 +5797,24 @@ export class BabylonGame {
         this.camera.upperRadiusLimit = 100;
 
         // Set camera position and target
-        this.camera.position = cameraPos.add(new Vector3(0, 1.6, 0));
+        this.camera.position = cameraPos;
         this.camera.setTarget(targetPos);
 
         // Sync spherical coords from the position we just set
         this.camera.rebuildAnglesAndRadius();
 
-        // Now lock the radius at whatever was computed so the camera stays put
+        // Lock the radius so the camera stays in first-person position
         this.camera.lowerRadiusLimit = this.camera.radius;
         this.camera.upperRadiusLimit = this.camera.radius;
 
-        // Make player semi-transparent during conversation
+        // Hide player mesh entirely (first-person view — looking through their eyes)
         if (this.playerMesh) {
-          this.playerMesh.visibility = 0.3;
+          this.playerMesh.visibility = 0;
         }
+
+        // Ensure NPC stays fully visible during conversation
+        npcMesh.visibility = 1;
+        npcMesh.getChildMeshes().forEach(child => { child.visibility = 1; });
 
         // Lock the camera by disabling camera controls
         this.camera.detachControl();
@@ -6070,6 +6097,11 @@ export class BabylonGame {
           if (!npcInstance.mesh.isEnabled()) {
             npcInstance.mesh.setEnabled(true);
           }
+        }
+
+        // Restart NPC controller (was stopped to prevent gravity drift during chat)
+        if (npcInstance.controller) {
+          npcInstance.controller.start();
         }
       }
       if (this.npcTalkingIndicator) {

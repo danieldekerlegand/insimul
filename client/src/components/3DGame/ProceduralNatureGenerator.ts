@@ -470,6 +470,21 @@ export class ProceduralNatureGenerator {
           continue;
         }
 
+        // Invisible collision cylinder at trunk position (instances don't support checkCollisions reliably)
+        const trunkRadius = 0.4 * scale;
+        const trunkHeight = 3.0 * scale;
+        const collider = MeshBuilder.CreateCylinder(
+          `tree_collider_${i}`,
+          { diameter: trunkRadius * 2, height: trunkHeight, tessellation: 6 },
+          this.scene
+        );
+        collider.position = new Vector3(position.x, position.y + trunkHeight / 2, position.z);
+        collider.isVisible = false;
+        collider.isPickable = false;
+        collider.checkCollisions = true;
+        collider.freezeWorldMatrix();
+        this.treeMeshes.push(collider);
+
         // Debug label on first procedural tree only
         if (isProceduralFallback && this.treeMeshes.length === 0) {
           const labelAnchor = new Mesh(`tree_label_anchor`, this.scene);
@@ -792,6 +807,19 @@ export class ProceduralNatureGenerator {
           rock.freezeWorldMatrix();
           this.rockMeshes.push(rock);
         }
+
+        // Invisible collision box at rock position
+        const rockCollider = MeshBuilder.CreateBox(
+          `rock_collider_${i}`,
+          { width: scaleVariation, height: scaleVariation * 0.7, depth: scaleVariation },
+          this.scene
+        );
+        rockCollider.position = new Vector3(x, baseHeight + scaleVariation * 0.35, z);
+        rockCollider.isVisible = false;
+        rockCollider.isPickable = false;
+        rockCollider.checkCollisions = true;
+        rockCollider.freezeWorldMatrix();
+        this.rockMeshes.push(rockCollider);
       }
       return;
     }
@@ -832,6 +860,19 @@ export class ProceduralNatureGenerator {
       rock.rotation.y = Math.random() * Math.PI * 2;
       rock.isPickable = false;
       rock.freezeWorldMatrix();
+
+      // Invisible collision box at rock position
+      const rockCollider = MeshBuilder.CreateBox(
+        `rock_collider_${i}`,
+        { width: scale * 0.8, height: scale * 0.6, depth: scale },
+        this.scene
+      );
+      rockCollider.position = new Vector3(x, baseHeight + scale / 2, z);
+      rockCollider.isVisible = false;
+      rockCollider.isPickable = false;
+      rockCollider.checkCollisions = true;
+      rockCollider.freezeWorldMatrix();
+      this.rockMeshes.push(rockCollider);
 
       // Debug label on first procedural rock only
       if (i === 0) {
