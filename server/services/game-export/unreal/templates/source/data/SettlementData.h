@@ -19,4 +19,10 @@ struct INSIMULEXPORT_API FInsimulSettlementData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString CountryId;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString StateId;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString MayorId;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float MinElevation = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float MaxElevation = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float MeanElevation = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float ElevationRange = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString SlopeClass = TEXT("flat");
 };

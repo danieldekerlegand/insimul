@@ -536,6 +536,22 @@ All tests pass. No type errors.
   - Static key builders
   - Message metadata preservation
 
+## [US-027] Settlement Elevation Profile
+
+### Completed
+- Created `shared/game-engine/ir-types.ts`: Added `ElevationProfileIR` interface (minElevation, maxElevation, meanElevation, elevationRange, slopeClass) and added `elevationProfile: ElevationProfileIR | null` to `SettlementIR`
+- Created `server/generators/settlement-elevation.ts`: Module that computes elevation profiles by sampling a heightmap within a settlement's circular footprint. Includes `sampleHeightmap()`, `computeElevationProfile()`, and slope classification (flat/gentle/moderate/steep/extreme based on elevation range relative to settlement diameter)
+- Updated `server/services/game-export/ir-generator.ts`: Wired elevation profile computation into settlement IR generation, using world heightmap when available (null otherwise)
+- Updated `server/db/mongo-storage.ts`: Added `elevationProfile` Mixed field to SettlementSchema for persistence
+- Created `server/__tests__/settlement-elevation.test.ts`: 12 tests covering flat/gradient/radial heightmaps, edge positions, small radius fallback, custom elevation scale, rounding precision
+
+### Files changed
+- shared/game-engine/ir-types.ts (modified — ElevationProfileIR type + SettlementIR field)
+- server/generators/settlement-elevation.ts (new)
+- server/services/game-export/ir-generator.ts (modified — import + elevation profile computation)
+- server/db/mongo-storage.ts (modified — elevationProfile field)
+- server/__tests__/settlement-elevation.test.ts (new, 12 tests)
+
 ## Recording and Transcript Storage Integration
 
 ### Completed

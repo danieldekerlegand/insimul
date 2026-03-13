@@ -347,6 +347,7 @@ const SettlementSchema = new Schema({
   boundaryPolygon: { type: Schema.Types.Mixed, default: null },
   elevation: { type: Number, default: 0 },
   slopeProfile: { type: String, default: null },
+  elevationProfile: { type: Schema.Types.Mixed, default: null },
   generationConfig: { type: Schema.Types.Mixed, default: null },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
