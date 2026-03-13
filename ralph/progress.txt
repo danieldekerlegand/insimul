@@ -187,3 +187,17 @@
   - TelemetryMonitorDashboard has 6 tabs total (overview, API keys, live sessions, activity, errors, players) — more than the 3 checked
   - BabylonChatPanel star ratings use callback pattern: setOnDialogueRating(callback) to register handler
 ---
+
+## 2026-03-13 - Assessment listening task handler
+- Created AssessmentListeningTask.ts in client/assessment/ with Task 2A (Following Directions, /4 via position tracking) and Task 2B (Information Extraction, 3 questions /3), combined /7
+- Task 2A: evaluatePosition() checks player position against checkpoint targets within tolerance radius, callbacks for reached/missed
+- Task 2B: submitAnswer() with case-insensitive matching and alternative answers, auto-transitions from Task 2A
+- 41 tests covering: distanceBetween, isAnswerCorrect, constructor validation, checkpoint evaluation, skip remaining, question answering, combined results, callbacks
+- Added client/__tests__/ to vitest.config.ts include paths
+- Files changed: client/assessment/AssessmentListeningTask.ts (new), client/__tests__/assessment-listening-task.test.ts (new), vitest.config.ts
+- **Learnings for future iterations:**
+  - Assessment task handlers live in client/assessment/ (not client/src/components/Assessment/)
+  - Other agent branches have prerequisite files (assessment-types.ts, arrival-encounter.ts, etc.) — check other branches for type references
+  - vitest.config.ts include paths must be updated when adding test files in new directories
+  - Position tracking uses simple Euclidean distance within tolerance radius — no pathfinding needed
+---
