@@ -44,6 +44,7 @@ const EVENT_QUEST_FAILED := "quest_failed"
 const EVENT_QUEST_ABANDONED := "quest_abandoned"
 const EVENT_CONVERSATION_OVERHEARD := "conversation_overheard"
 const EVENT_CREATE_TRUTH := "create_truth"
+# Assessment / onboarding events
 const EVENT_ASSESSMENT_STARTED := "assessment_started"
 const EVENT_ASSESSMENT_PHASE_STARTED := "assessment_phase_started"
 const EVENT_ASSESSMENT_PHASE_COMPLETED := "assessment_phase_completed"
@@ -126,11 +127,11 @@ var _global_handlers: Array[Callable] = []
 ##   quest_abandoned:     {type, quest_id}
 ##   conversation_overheard: {type, npc_id_1, npc_id_2, topic, language_used}
 ##   create_truth:        {type, character_id, title, content, entry_type, category?}
-##   assessment_started:  {type, session_id, instrument_id, phase, participant_id}
-##   assessment_phase_started: {type, session_id, instrument_id, phase}
-##   assessment_phase_completed: {type, session_id, instrument_id, phase, score, subscale_scores?}
+##   assessment_started:  {type, session_id, instrument_id, phase, participant_id, assessment_type?, player_id?}
+##   assessment_phase_started: {type, session_id, instrument_id, phase, phase_id?, phase_index?}
+##   assessment_phase_completed: {type, session_id, instrument_id, phase, score, subscale_scores?, phase_id?, max_score?}
 ##   assessment_tier_change: {type, participant_id, instrument_id, from_tier, to_tier, score}
-##   assessment_completed: {type, session_id, instrument_id, total_score, gain_score?}
+##   assessment_completed: {type, session_id, instrument_id, total_score, gain_score?, total_max_score?, cefr_level?}
 ##   onboarding_step_started: {type, step_id, step_index, total_steps}
 ##   onboarding_step_completed: {type, step_id, step_index, total_steps, duration_ms}
 ##   onboarding_completed: {type, total_steps, total_duration_ms}

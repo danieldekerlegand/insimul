@@ -45,6 +45,7 @@ namespace Insimul.Systems
         QuestAbandoned,
         ConversationOverheard,
         CreateTruth,
+        // Assessment / onboarding events
         AssessmentStarted,
         AssessmentPhaseStarted,
         AssessmentPhaseCompleted,
@@ -373,6 +374,8 @@ namespace Insimul.Systems
         public string category;
     }
 
+    // ── Assessment / Onboarding Events ───────────────────────────────────────
+
     public class AssessmentStartedEvent : GameEvent
     {
         public override GameEventType EventType => GameEventType.AssessmentStarted;
@@ -380,6 +383,8 @@ namespace Insimul.Systems
         public string instrumentId;
         public string phase;
         public string participantId;
+        public string assessmentType;
+        public string playerId;
     }
 
     public class AssessmentPhaseStartedEvent : GameEvent
@@ -388,6 +393,8 @@ namespace Insimul.Systems
         public string sessionId;
         public string instrumentId;
         public string phase;
+        public string phaseId;
+        public int phaseIndex;
     }
 
     public class AssessmentPhaseCompletedEvent : GameEvent
@@ -397,6 +404,8 @@ namespace Insimul.Systems
         public string instrumentId;
         public string phase;
         public float score;
+        public string phaseId;
+        public float maxScore;
     }
 
     public class AssessmentTierChangeEvent : GameEvent
@@ -416,6 +425,8 @@ namespace Insimul.Systems
         public string instrumentId;
         public float totalScore;
         public float gainScore;
+        public float totalMaxScore;
+        public string cefrLevel;
     }
 
     public class OnboardingStepStartedEvent : GameEvent

@@ -62,11 +62,11 @@ export type GameEvent =
   // Truth creation (emitted when game events should be recorded as world truths)
   | { type: 'create_truth'; characterId: string; title: string; content: string; entryType: 'event' | 'fact' | 'secret'; category?: string }
   // Assessment events
-  | { type: 'assessment_started'; sessionId: string; instrumentId: string; phase: string; participantId: string }
-  | { type: 'assessment_phase_started'; sessionId: string; instrumentId: string; phase: string }
-  | { type: 'assessment_phase_completed'; sessionId: string; instrumentId: string; phase: string; score: number; subscaleScores?: Record<string, number> }
+  | { type: 'assessment_started'; sessionId: string; instrumentId: string; phase: string; participantId: string; assessmentType?: string; playerId?: string }
+  | { type: 'assessment_phase_started'; sessionId: string; instrumentId: string; phase: string; phaseId?: string; phaseIndex?: number }
+  | { type: 'assessment_phase_completed'; sessionId: string; instrumentId: string; phase: string; score: number; subscaleScores?: Record<string, number>; phaseId?: string; maxScore?: number }
   | { type: 'assessment_tier_change'; participantId: string; instrumentId: string; fromTier: string; toTier: string; score: number }
-  | { type: 'assessment_completed'; sessionId: string; instrumentId: string; totalScore: number; gainScore?: number }
+  | { type: 'assessment_completed'; sessionId: string; instrumentId: string; totalScore: number; gainScore?: number; totalMaxScore?: number; cefrLevel?: string }
   // Onboarding events
   | { type: 'onboarding_step_started'; stepId: string; stepIndex: number; totalSteps: number }
   | { type: 'onboarding_step_completed'; stepId: string; stepIndex: number; totalSteps: number; durationMs: number }

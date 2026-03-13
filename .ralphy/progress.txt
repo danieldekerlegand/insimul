@@ -226,3 +226,20 @@ Helper functions:
   - Edge cases (negative scores, overflow, zero maxScore)
   - Generic `mapScoreToLevel` with custom thresholds
   - Description correctness for all levels
+
+## BabylonGame integration — onboarding launch
+
+### Completed
+- Added 8 assessment/onboarding events to GameEventBus (assessment_started, assessment_phase_started, assessment_phase_completed, assessment_completed, onboarding_step_started, onboarding_step_completed, onboarding_completed)
+- Created OnboardingLauncher.ts — integration module that:
+  - Detects first playthrough via assessment API
+  - Detects language-learning worlds from world data
+  - Dynamically imports AssessmentEngine, OnboardingManager, and UI modules
+  - Wires assessment phase events to GameEventBus and UI overlays
+  - Shows AssessmentResultsPanel on completion
+  - Stores CEFR level + effectiveFluency to server
+  - Gracefully degrades if modules aren't available yet
+- Modified BabylonGame.ts init() to call tryLaunchOnboarding() after game loop starts
+- Added tryLaunchOnboarding() method that checks world type and first-play status
+- Added onboardingResult/onboardingActive properties with cleanup in disposeSystems()
+- Wrote 23 tests (all passing): OnboardingLauncher helper functions + GameEventBus assessment events

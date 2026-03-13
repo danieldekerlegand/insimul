@@ -46,6 +46,7 @@ enum class EInsimulEventType : uint8
     QuestAbandoned          UMETA(DisplayName = "Quest Abandoned"),
     ConversationOverheard   UMETA(DisplayName = "Conversation Overheard"),
     CreateTruth             UMETA(DisplayName = "Create Truth"),
+    // Assessment / onboarding events
     AssessmentStarted       UMETA(DisplayName = "Assessment Started"),
     AssessmentPhaseStarted  UMETA(DisplayName = "Assessment Phase Started"),
     AssessmentPhaseCompleted UMETA(DisplayName = "Assessment Phase Completed"),
@@ -181,7 +182,7 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString NpcId2;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString LanguageUsed;
 
-    // ── Assessment fields ────────────────────────────────────────────
+    // ── Assessment / onboarding fields ───────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString SessionId;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString InstrumentId;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Phase;
@@ -190,8 +191,13 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float GainScore = 0.0f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString FromTier;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ToTier;
-
-    // ── Onboarding fields ───────────────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AssessmentType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PlayerId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PhaseId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 PhaseIndex = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float MaxScore = 0.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float TotalMaxScore = 0.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString CefrLevel;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString StepId;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 StepIndex = 0;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 TotalSteps = 0;
