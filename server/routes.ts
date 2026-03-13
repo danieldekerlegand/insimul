@@ -5728,6 +5728,79 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
     }
   });
 
+  // Listening comprehension evaluation via Gemini
+  app.post("/api/gemini/comprehension-evaluation", async (req, res) => {
+    try {
+      const { storyText, questions, playerAnswers, targetLanguage } = req.body;
+
+      if (!storyText || !questions || !playerAnswers) {
+        return res.status(400).json({ error: "storyText, questions, and playerAnswers are required" });
+      }
+
+      const { GoogleGenerativeAI } = await import("@google/generative-ai");
+      const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+
+      const apiKey = getGeminiApiKey();
+      if (!apiKey) {
+        return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODELS.FLASH,
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 1024,
+          responseMimeType: "application/json",
+        },
+      });
+
+      const questionsWithAnswers = (questions as Array<{ question: string; correctAnswer: string }>)
+        .map((q, i) => {
+          const answer = (playerAnswers as string[])[i] || "(no answer)";
+          return `Question: "${q.question}"\nExpected: "${q.correctAnswer}"\nPlayer said: "${answer}"`;
+        })
+        .join("\n\n");
+
+      const prompt = `You are a language learning comprehension evaluator.
+
+A student heard a story in ${targetLanguage || "the target language"} and was asked comprehension questions.
+Evaluate how well they understood the story based on their answers.
+
+STORY:
+"${storyText}"
+
+QUESTIONS AND ANSWERS:
+${questionsWithAnswers}
+
+Evaluate each answer. The player may answer in English or the target language — accept either.
+Focus on whether they understood the content, not grammar or spelling.
+
+Respond with this JSON structure:
+{
+  "score": <number 0-100, overall comprehension score>,
+  "feedback": "<brief overall feedback>",
+  "questionResults": [
+    { "question": "<the question>", "correct": <true/false>, "feedback": "<brief feedback for this question>" }
+  ]
+}`;
+
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text();
+
+      try {
+        const parsed = JSON.parse(responseText);
+        res.json(parsed);
+      } catch {
+        console.warn('[ComprehensionEval] Failed to parse JSON response:', responseText.substring(0, 200));
+        res.json({ score: 50, feedback: "Unable to evaluate", questionResults: [] });
+      }
+    } catch (error) {
+      console.error("Comprehension evaluation error:", error);
+      res.json({ score: 50, feedback: "Evaluation error", questionResults: [] });
+    }
+  });
+
   app.get("/api/tts/get_available_voices", async (req, res) => {
     try {
       const { getAvailableVoices } = await import("./services/tts-stt.js");
