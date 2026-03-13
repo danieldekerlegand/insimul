@@ -6,6 +6,13 @@
 import { storage } from '../db/storage';
 import { AgriculturalZone, AgriculturalZoneGenerator } from './agricultural-zone-generator';
 import { CrossingGenerator } from './crossing-generator';
+import {
+  generateStreetNetwork,
+  placeLots,
+  type StreetNetwork,
+  type StreetNetworkConfig,
+  type LotPlacement,
+} from './street-network-generator';
 
 export interface Location {
   id: string;
@@ -55,16 +62,43 @@ export class GeographyGenerator {
     landmarks: Location[];
     lotIds: string[];
     agriculturalZones: AgriculturalZone[];
+    streetNetwork: StreetNetwork;
   }> {
     console.log(`🗺️  Generating geography for ${config.settlementName} (${config.settlementType}, pop: ${config.population})...`);
 
     const districts = this.generateDistricts(config);
-    const streets = this.generateStreets(config, districts);
     const landmarks = this.generateLandmarks(config, districts);
+
+    // Generate street network with actual polyline geometry
+    const mapSize = this.getMapSize(config.settlementType);
+    const streetNetworkConfig: StreetNetworkConfig = {
+      centerX: mapSize / 2,
+      centerZ: mapSize / 2,
+      settlementType: config.settlementType,
+      foundedYear: config.foundedYear,
+      seed: `${config.worldId}_${config.settlementId}`,
+    };
+    const streetNetwork = generateStreetNetwork(streetNetworkConfig);
+
+    // Convert street segments to Location objects for backward compatibility
+    const streets = streetNetwork.segments.map((seg, i) => ({
+      id: seg.id,
+      name: seg.name,
+      type: 'street' as const,
+      x: seg.waypoints[0]?.x || 0,
+      y: seg.waypoints[0]?.z || 0,
+      parentId: districts[i % districts.length]?.id,
+      properties: {
+        direction: seg.direction,
+        width: seg.width,
+        waypoints: seg.waypoints,
+        nodeIds: seg.nodeIds,
+      },
+    }));
+
     const buildings = this.generateBuildings(config, districts, streets);
 
     // Generate agricultural zones around the settlement
-    const mapSize = this.getMapSize(config.settlementType);
     const agriGen = new AgriculturalZoneGenerator();
     const agriculturalZones = agriGen.generate({
       settlementType: config.settlementType,
@@ -105,19 +139,26 @@ export class GeographyGenerator {
       (config as any)._rivers = rivers;
     }
 
-    // Update settlement with geography metadata
+    // Update settlement with geography metadata including street network
     await storage.updateSettlement(config.settlementId, {
       districts,
-      streets,
+      streets: streetNetwork.segments.map(seg => ({
+        id: seg.id,
+        name: seg.name,
+        direction: seg.direction,
+        waypoints: seg.waypoints,
+        nodeIds: seg.nodeIds,
+        width: seg.width,
+      })),
       landmarks,
     });
 
     // Persist lots, residences, and businesses as proper database records
     const lotIds = await this.persistLotsAndBuildings(config, districts, streets, buildings);
 
-    console.log(`✅ Generated ${districts.length} districts, ${streets.length} streets, ${buildings.length} buildings (${lotIds.length} lots persisted), ${agriculturalZones.length} agricultural zones`);
+    console.log(`✅ Generated ${districts.length} districts, ${streetNetwork.segments.length} streets (${streetNetwork.nodes.length} nodes), ${buildings.length} buildings (${lotIds.length} lots persisted), ${agriculturalZones.length} agricultural zones`);
 
-    return { districts, streets, buildings, landmarks, lotIds, agriculturalZones };
+    return { districts, streets, buildings, landmarks, lotIds, agriculturalZones, streetNetwork };
   }
 
   /**
