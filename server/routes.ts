@@ -11,6 +11,7 @@ import { convertQuestToProlog } from '../shared/prolog/quest-converter';
 import { extractAllMetadata, extractActionMetadata } from '../shared/prolog/prolog-metadata-extractor';
 import { nameGenerator } from './generators/name-generator.js';
 import { isGeminiConfigured, getModel, GEMINI_MODELS } from './config/gemini.js';
+import { conversationContextCache, ConversationContextCache } from './services/conversation-context-cache.js';
 import {
   generateLanguage,
   getLanguageById,
@@ -5579,7 +5580,7 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       const { getGeminiApiKey } = await import('./config/gemini.js');
 
       const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-      
+
       // Use a model that supports audio if audio input is provided
       const model = genAI.getGenerativeModel({
         model: audioInput ? "gemini-2.5-pro" : GEMINI_MODELS.PRO,
@@ -5596,11 +5597,11 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       if (audioInput) {
         // Import speech-to-text
         const { speechToText } = await import("./services/tts-stt.js");
-        
+
         // Decode base64 audio
         const base64Data = audioInput.includes(',') ? audioInput.split(',')[1] : audioInput;
         const audioBuffer = Buffer.from(base64Data, 'base64');
-        
+
         // Get transcript
         userTranscript = await speechToText(audioBuffer, 'audio/webm');
         lastMessageContent = { text: userTranscript };
@@ -5608,6 +5609,29 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         // Use text from the last message
         const lastMessage = messages[messages.length - 1];
         lastMessageContent = lastMessage.parts[0];
+      }
+
+      // Build conversation history, using server-side cache when available
+      const cacheKey = (worldId && npcId && playerId)
+        ? ConversationContextCache.chatKey(worldId, npcId, playerId)
+        : null;
+
+      let historyMessages: any[];
+
+      if (cacheKey) {
+        const cached = conversationContextCache.get(cacheKey);
+        if (cached && cached.systemPrompt === systemPrompt) {
+          // Use cached history — client only needs to send the latest message
+          historyMessages = cached.messages.map(m => ({
+            role: m.role === 'assistant' ? 'model' : m.role,
+            parts: [{ text: m.content }]
+          }));
+        } else {
+          // No cache hit or system prompt changed — use client-provided history
+          historyMessages = messages.slice(0, -1);
+        }
+      } else {
+        historyMessages = messages.slice(0, -1);
       }
 
       // Build the conversation with system prompt
@@ -5621,15 +5645,15 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
             role: 'model',
             parts: [{ text: 'I understand. I will roleplay as this character.' }]
           },
-          ...messages.slice(0, -1) // All messages except the last one
+          ...historyMessages
         ]
       });
 
       // Log full prompt for debugging NPC chat
       console.log("\n========== GEMINI CHAT DEBUG ==========");
       console.log("SYSTEM PROMPT:\n", systemPrompt);
-      console.log("\nCONVERSATION HISTORY (" + (messages.length - 1) + " prior messages):");
-      for (const msg of messages.slice(0, -1)) {
+      console.log("\nCONVERSATION HISTORY (" + historyMessages.length + " prior messages" + (cacheKey ? ", cache key: " + cacheKey : "") + "):");
+      for (const msg of historyMessages) {
         const text = msg.parts?.[0]?.text || '';
         console.log(`  [${msg.role}]: ${text.substring(0, 200)}${text.length > 200 ? '...' : ''}`);
       }
@@ -5753,6 +5777,13 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
         .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
         .trim();
+
+      // Update server-side conversation cache with the new exchange
+      if (cacheKey) {
+        const userText = lastMessageContent.text || userTranscript || '';
+        conversationContextCache.append(cacheKey, { role: 'user', content: userText }, systemPrompt);
+        conversationContextCache.append(cacheKey, { role: 'model', content: response });
+      }
 
       // Prepare response object — send both raw (for parsing) and cleaned (for display)
       const responseData: any = { response, cleanedResponse: cleanedForDisplay };

@@ -462,6 +462,34 @@ All tests pass. No type errors.
   - Reward scaling, placeholder interpolation
 - All 18 tests passing
 
+## Conversation Context Caching on Server
+
+### Completed
+- Created `server/services/conversation-context-cache.ts` — LRU cache with TTL for conversation contexts:
+  - Configurable max size (default 200), TTL (default 30 min), max messages per conversation (default 50)
+  - LRU eviction: least-recently-used entries removed when cache reaches capacity
+  - TTL expiration: entries auto-expire after inactivity
+  - Static key builders: `chatKey(worldId, npcId, playerId)` and `languageKey(languageId)`
+  - Supports append (incremental message addition), set (full replace), get, delete, clear
+  - Singleton `conversationContextCache` exported for server-wide use
+- Integrated into Gemini chat endpoint (`server/routes.ts`):
+  - When worldId + npcId + playerId are provided, caches conversation history server-side
+  - On cache hit with matching systemPrompt, uses cached history instead of requiring client to resend full history
+  - After successful response, appends both user message and model response to cache
+- Integrated into language chat service (`server/services/language-service.ts`):
+  - Caches MongoDB query results for message history
+  - On cache hit, skips DB query and reconstructs history from cache
+  - On cache miss, queries DB and populates cache for future requests
+  - Updates cache incrementally on each new user/assistant message
+- Created `server/__tests__/conversation-context-cache.test.ts` — 19 tests covering:
+  - get/set/has/delete/clear operations
+  - append (create new, add to existing, system prompt handling, formatted context invalidation)
+  - TTL expiration and TTL refresh on access
+  - LRU eviction (capacity limit, recent-access preservation)
+  - Max messages truncation (on set and append overflow)
+  - Static key builders
+  - Message metadata preservation
+
 ## Recording and Transcript Storage Integration
 
 ### Completed
