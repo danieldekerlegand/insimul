@@ -24,3 +24,19 @@ Also created:
 - `shared/__tests__/assessment-types.test.ts` — 16 tests validating all type definitions
 
 All tests pass. No type errors introduced.
+
+## Departure Encounter post-test definition
+
+Created `shared/assessment/departure-encounter.ts` with DEPARTURE_ENCOUNTER data definition — parallel structure to Arrival Encounter but with departure-themed scenarios/prompts.
+
+Phases (53 pts total, same as Arrival):
+- Phase 1: Conversational (25 pts) — Farewell conversation with local friend
+- Phase 2: Listening (7 pts) — Travel announcement (4 pts) + farewell message (3 pts)
+- Phase 3: Writing (11 pts) — Guest review (5 pts) + postcard home (6 pts)
+- Phase 4: Visual Recognition (10 pts) — Transit sign reading (5 pts) + souvenir identification (5 pts)
+
+Re-exports resolveTemplate/resolveAssessment from arrival-encounter to avoid duplication.
+
+Tests: `server/__tests__/departure-encounter.test.ts` — 26 tests covering structure, scoring, template resolution, and parallel structure validation with Arrival Encounter.
+
+All tests pass. No type errors.
