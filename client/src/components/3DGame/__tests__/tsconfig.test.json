@@ -1,0 +1,10 @@
+{
+  "extends": "../../../../../tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./client/src/*"],
+      "@shared/*": ["./shared/*"],
+      "@babylonjs/core": ["./client/src/components/3DGame/__tests__/babylon-mock.ts"]
+    }
+  }
+}
