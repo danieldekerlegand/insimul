@@ -5634,44 +5634,56 @@ export class BabylonGame {
       // Save current camera mode and switch to conversation mode
       if (this.cameraManager && this.camera && npcMesh) {
         this.preConversationCameraMode = this.cameraManager.getCurrentMode();
-        
+
         // Stop the player's CharacterController to prevent camera updates
         if (this.playerController) {
           this.playerController.stop();
         }
-        
+
         // Get NPC and player positions
         const npcPos = npcMesh.position.clone();
         const playerPos = this.playerMesh?.position || npcPos.add(new Vector3(1, 0, 0));
-        
-        // DON'T switch to first-person mode - keep current mode but override position
-        // this.cameraManager.setMode('first_person', false);
-        
+
         // Calculate direction from player to NPC
         const playerToNPC = npcPos.subtract(playerPos).normalize();
-        
-        // Calculate camera position: start from player, move back along the player-to-NPC direction
-        const conversationDistance = 4;
+
+        // Position camera behind the player, looking at the NPC's face
+        const conversationDistance = 3;
         const cameraPos = playerPos.add(playerToNPC.scale(-conversationDistance));
-        
-        // Target is NPC's face
         const targetPos = npcPos.add(new Vector3(0, 1.6, 0));
-        
-        // Set camera position directly
-        this.camera.position = cameraPos.add(new Vector3(0, 1.6, 0)); // Eye level
+
+        // Clear all angle/radius limits before setting conversation camera,
+        // otherwise the previous camera mode's limits clamp the new position
+        this.camera.lowerBetaLimit = 0;
+        this.camera.upperBetaLimit = Math.PI;
+        this.camera.lowerAlphaLimit = null;
+        this.camera.upperAlphaLimit = null;
+        this.camera.lowerRadiusLimit = 0;
+        this.camera.upperRadiusLimit = 100;
+
+        // Set camera position and target
+        this.camera.position = cameraPos.add(new Vector3(0, 1.6, 0));
         this.camera.setTarget(targetPos);
-        
-        // Adjust camera settings for conversation
-        this.camera.radius = conversationDistance;
-        this.camera.beta = Math.PI / 2.2; // Looking slightly down
-        this.camera.lowerRadiusLimit = conversationDistance;
-        this.camera.upperRadiusLimit = conversationDistance;
-        
+
+        // Sync spherical coords from the position we just set
+        this.camera.rebuildAnglesAndRadius();
+
+        // Now lock the radius at whatever was computed so the camera stays put
+        this.camera.lowerRadiusLimit = this.camera.radius;
+        this.camera.upperRadiusLimit = this.camera.radius;
+
+        // Make the player semi-transparent so they don't occlude the NPC
+        if (this.playerMesh) {
+          this.playerMesh.visibility = 0.3;
+          this.playerMesh.getChildMeshes(false).forEach(child => {
+            if (child instanceof Mesh) {
+              child.visibility = 0.3;
+            }
+          });
+        }
+
         // Lock the camera by disabling camera controls
         this.camera.detachControl();
-        
-        // Force camera to update immediately
-        this.camera.rebuildAnglesAndRadius();
       }
 
       // Set player inventory context for NPC awareness
@@ -5949,30 +5961,35 @@ export class BabylonGame {
       this.conversationNPCId = null;
     }
 
-    // Restart the player's CharacterController
-    if (this.playerController) {
-      this.playerController.start();
+    // Restore player mesh visibility before restarting controller
+    if (this.playerMesh) {
+      this.playerMesh.visibility = 1;
+      this.playerMesh.getChildMeshes(false).forEach(child => {
+        if (child instanceof Mesh) {
+          child.visibility = 1;
+        }
+      });
     }
 
-    // Restore previous camera mode
+    // Restore previous camera mode (do this BEFORE restarting the controller,
+    // so limits are correct when the controller's _updateTargetValue runs)
     if (this.cameraManager && this.preConversationCameraMode && this.camera) {
-      // Restore locked camera radius
-      this.camera.lowerRadiusLimit = 10;
-      this.camera.upperRadiusLimit = 10;
-      
-      // Only switch mode if it's different from current
-      if (this.cameraManager.getCurrentMode() !== this.preConversationCameraMode) {
-        this.cameraManager.setMode(this.preConversationCameraMode, false);
-      }
+      // Re-attach camera controls first so mode switch can take effect
+      this.camera.attachControl(this.canvas, true);
+
+      // Restore camera mode (this resets radius, beta, limits, and player visibility)
+      this.cameraManager.setMode(this.preConversationCameraMode, false);
       this.preConversationCameraMode = null;
-      
+
       // Re-target camera to player if available
       if (this.playerMesh) {
         this.camera.setTarget(this.playerMesh.position.add(new Vector3(0, 1.6, 0)));
       }
-      
-      // Re-attach camera controls
-      this.camera.attachControl(this.canvas, true);
+    }
+
+    // Restart the player's CharacterController
+    if (this.playerController) {
+      this.playerController.start();
     }
   }
 
