@@ -5620,17 +5620,58 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       console.log("\nCURRENT MESSAGE:", lastMessageContent.text?.substring(0, 500) || "[Audio message]");
       console.log("========================================\n");
       
+      // Streaming mode: use SSE to send text chunks as they arrive
+      if (stream) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders();
+
+        const streamResult = await chat.sendMessageStream(lastMessageContent.text);
+        let fullResponse = '';
+
+        for await (const chunk of streamResult.stream) {
+          const chunkText = chunk.text();
+          if (chunkText) {
+            fullResponse += chunkText;
+            res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunkText })}\n\n`);
+          }
+        }
+
+        if (!fullResponse || fullResponse.trim() === '') {
+          res.write(`data: ${JSON.stringify({ type: 'error', error: 'Gemini returned empty response.' })}\n\n`);
+          res.write('data: [DONE]\n\n');
+          return res.end();
+        }
+
+        console.log("Gemini streamed response:", fullResponse.substring(0, 100));
+
+        // Send final event with full response for post-processing (quest/grammar parsing)
+        const cleanedForDisplay = fullResponse
+          .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+          .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+          .trim();
+
+        const doneData: any = { type: 'done', response: fullResponse, cleanedResponse: cleanedForDisplay };
+        if (userTranscript) {
+          doneData.userTranscript = userTranscript;
+        }
+        res.write(`data: ${JSON.stringify(doneData)}\n\n`);
+        res.write('data: [DONE]\n\n');
+        return res.end();
+      }
+
       const result = await chat.sendMessage(lastMessageContent.text);
-      
+
       // Log the full response for debugging
       console.log("Gemini response object:", JSON.stringify(result.response, null, 2));
-      
+
       const response = result.response.text();
-      
+
       if (!response || response.trim() === '') {
         console.error("Gemini returned empty response. Candidates:", result.response.candidates);
         console.error("Prompt feedback:", result.response.promptFeedback);
-        return res.status(500).json({ 
+        return res.status(500).json({
           error: "Gemini returned empty response. This may be due to safety filters.",
           details: {
             promptFeedback: result.response.promptFeedback,

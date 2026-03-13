@@ -95,27 +95,27 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
     return buildLanguageAwareSystemPrompt(character, truths, worldLangContext || undefined);
   };
 
-  const sendMessageToGemini = async (userMessage: string): Promise<string> => {
-    const systemPrompt = buildSystemPrompt();
-    
+  const buildConversationHistory = (userMessage: string) => {
     const conversationHistory = messages.map(msg => ({
       role: msg.role === 'user' ? 'user' : 'model',
       parts: [{ text: msg.content }]
     }));
-
     conversationHistory.push({
       role: 'user',
       parts: [{ text: userMessage }]
     });
+    return conversationHistory;
+  };
 
+  const sendMessageToGemini = async (userMessage: string): Promise<string> => {
     const response = await fetch('/api/gemini/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        systemPrompt,
-        messages: conversationHistory,
+        systemPrompt: buildSystemPrompt(),
+        messages: buildConversationHistory(userMessage),
         temperature: 0.8,
-        maxTokens: 2048  // Increased from 500 to allow for full responses
+        maxTokens: 2048
       })
     });
 
@@ -126,6 +126,71 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
 
     const data = await response.json();
     return data.response;
+  };
+
+  /**
+   * Stream a response from Gemini via SSE. Calls onChunk with each text chunk
+   * and returns the full raw response for post-processing.
+   */
+  const sendMessageStreaming = async (
+    userMessage: string,
+    onChunk: (chunk: string) => void
+  ): Promise<string> => {
+    const response = await fetch('/api/gemini/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemPrompt: buildSystemPrompt(),
+        messages: buildConversationHistory(userMessage),
+        temperature: 0.8,
+        maxTokens: 2048,
+        stream: true
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(errorData.error || `Failed to get response from Gemini (${response.status})`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response stream available');
+
+    const decoder = new TextDecoder();
+    let fullResponse = '';
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      // Keep the last potentially incomplete line in the buffer
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const payload = line.slice(6);
+        if (payload === '[DONE]') continue;
+
+        try {
+          const event = JSON.parse(payload);
+          if (event.type === 'chunk' && event.text) {
+            onChunk(event.text);
+          } else if (event.type === 'done') {
+            fullResponse = event.response;
+          } else if (event.type === 'error') {
+            throw new Error(event.error);
+          }
+        } catch (e) {
+          if (e instanceof SyntaxError) continue; // skip malformed JSON
+          throw e;
+        }
+      }
+    }
+
+    return fullResponse;
   };
 
   const textToSpeech = async (text: string): Promise<Blob> => {
@@ -577,8 +642,25 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
       // Update quest progress based on user message
       await updateQuestProgress(userMessage);
 
-      // Get AI response
-      const aiResponse = await sendMessageToGemini(userMessage);
+      // Add a placeholder assistant message that will be updated as chunks stream in
+      const placeholderMessage: Message = {
+        role: 'assistant',
+        content: '',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, placeholderMessage]);
+
+      // Stream the AI response, updating the placeholder message with each chunk
+      const aiResponse = await sendMessageStreaming(userMessage, (chunk) => {
+        setMessages(prev => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last && last.role === 'assistant') {
+            updated[updated.length - 1] = { ...last, content: last.content + chunk };
+          }
+          return updated;
+        });
+      });
 
       // Parse and create quest if present
       const afterQuestClean = await parseAndCreateQuest(aiResponse);
@@ -590,13 +672,15 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
         ? parseGrammarFeedbackBlock(afterQuestClean)
         : { cleanedResponse: afterQuestClean };
 
-      // Add AI message (with quest and grammar markers removed)
-      const newAiMessage: Message = {
-        role: 'assistant',
-        content: displayResponse,
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, newAiMessage]);
+      // Update the streamed message with the cleaned version (markers removed)
+      setMessages(prev => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last && last.role === 'assistant') {
+          updated[updated.length - 1] = { ...last, content: displayResponse };
+        }
+        return updated;
+      });
 
       // Convert to speech and play (without markers)
       const audioBlob = await textToSpeech(displayResponse);
@@ -606,6 +690,14 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
       await createAutomaticQuest(userMessage, displayResponse);
 
     } catch (error) {
+      // Remove empty placeholder message on error
+      setMessages(prev => {
+        const last = prev[prev.length - 1];
+        if (last && last.role === 'assistant' && !last.content) {
+          return prev.slice(0, -1);
+        }
+        return prev;
+      });
       toast({
         title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to process message',
@@ -648,8 +740,19 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
             };
             setMessages(prev => [...prev, userMessage]);
 
-            // Get AI response
-            const aiResponse = await sendMessageToGemini(transcript);
+            // Add placeholder and stream the response
+            setMessages(prev => [...prev, { role: 'assistant' as const, content: '', timestamp: new Date() }]);
+
+            const aiResponse = await sendMessageStreaming(transcript, (chunk) => {
+              setMessages(prev => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last && last.role === 'assistant') {
+                  updated[updated.length - 1] = { ...last, content: last.content + chunk };
+                }
+                return updated;
+              });
+            });
 
             // Strip grammar feedback markers for language-learning games
             const isVoiceLangLearning = worldLangContext?.gameType === 'language-learning' ||
@@ -658,12 +761,15 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
               ? parseGrammarFeedbackBlock(aiResponse)
               : { cleanedResponse: aiResponse };
 
-            const aiMessage: Message = {
-              role: 'assistant',
-              content: voiceDisplayResponse,
-              timestamp: new Date()
-            };
-            setMessages(prev => [...prev, aiMessage]);
+            // Update with cleaned version
+            setMessages(prev => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (last && last.role === 'assistant') {
+                updated[updated.length - 1] = { ...last, content: voiceDisplayResponse };
+              }
+              return updated;
+            });
 
             // Convert to speech and play (without markers)
             const responseAudioBlob = await textToSpeech(voiceDisplayResponse);
@@ -742,7 +848,7 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
                 </div>
               </div>
             ))}
-            {isProcessing && (
+            {isProcessing && (!messages.length || messages[messages.length - 1].role !== 'assistant' || !messages[messages.length - 1].content) && (
               <div className="flex justify-start">
                 <div className="bg-slate-200 dark:bg-slate-700 rounded-lg px-4 py-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
