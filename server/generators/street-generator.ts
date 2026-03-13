@@ -972,6 +972,274 @@ export class StreetGenerator {
     return this.toStreetNetwork(nodes, edges);
   }
 
+  /**
+   * Generate a waterfront street layout for port towns and lakeside villages.
+   * Algorithm:
+   * 1. Main road follows the shoreline curve, offset inland
+   * 2. Perpendicular roads extend inland from the waterfront road at regular intervals
+   * 3. A secondary parallel road runs further inland for larger settlements
+   * 4. Dock/pier stub nodes extend seaward between perpendicular streets
+   * 5. Waterfront road is boulevard; perpendicular roads are residential
+   * 6. Ensure connectivity
+   */
+  generateWaterfront(config: StreetGenConfig & {
+    shorelinePoints: { x: number; z: number }[];
+  }): StreetNetwork {
+    this.nodeCounter = 0;
+    this.edgeCounter = 0;
+
+    const rng = seededRandom(config.seed);
+    const noise = createNoise2D(config.seed + '_waterfront');
+    const { center, radius } = config;
+    const shorelinePoints = config.shorelinePoints;
+
+    // Fallback to organic if insufficient shoreline data
+    if (!shorelinePoints || shorelinePoints.length < 2) {
+      return this.generateOrganic(config);
+    }
+
+    const nodes: InternalNode[] = [];
+    const edges: InternalEdge[] = [];
+
+    // Configurable inland offset for waterfront road
+    const inlandOffset = radius * 0.12;
+    // Secondary road further inland
+    const secondaryInlandOffset = radius * 0.30;
+
+    // Helper: compute normal (inland direction) at a point on the shoreline
+    const computeInlandNormal = (idx: number): { x: number; z: number } => {
+      const prev = shorelinePoints[Math.max(0, idx - 1)];
+      const next = shorelinePoints[Math.min(shorelinePoints.length - 1, idx + 1)];
+      const tangentX = next.x - prev.x;
+      const tangentZ = next.z - prev.z;
+      const tangentLen = Math.sqrt(tangentX * tangentX + tangentZ * tangentZ) || 1;
+      // Normal perpendicular to tangent — pick direction pointing toward center
+      let normalX = -tangentZ / tangentLen;
+      let normalZ = tangentX / tangentLen;
+
+      // Ensure normal points toward settlement center
+      const shoreX = shorelinePoints[idx].x;
+      const shoreZ = shorelinePoints[idx].z;
+      const toCenterX = center.x - shoreX;
+      const toCenterZ = center.z - shoreZ;
+      const dot = normalX * toCenterX + normalZ * toCenterZ;
+      if (dot < 0) {
+        normalX = -normalX;
+        normalZ = -normalZ;
+      }
+
+      return { x: normalX, z: normalZ };
+    };
+
+    // 1. Create waterfront road nodes along shoreline, offset inland
+    const waterfrontSpacing = Math.max(1, Math.floor(shorelinePoints.length / Math.max(4, Math.round(radius / 20))));
+    const waterfrontNodes: InternalNode[] = [];
+    const waterfrontNormals: { x: number; z: number }[] = [];
+
+    for (let i = 0; i < shorelinePoints.length; i += waterfrontSpacing) {
+      const shore = shorelinePoints[i];
+      const normal = computeInlandNormal(i);
+
+      let nx = shore.x + normal.x * inlandOffset;
+      let nz = shore.z + normal.z * inlandOffset;
+
+      // Add noise displacement
+      const displace = noise(nx * 0.02, nz * 0.02) * radius * 0.02;
+      const perpAngle = Math.atan2(normal.z, normal.x) + Math.PI / 2;
+      nx += Math.cos(perpAngle) * displace;
+      nz += Math.sin(perpAngle) * displace;
+
+      // Slope avoidance
+      if (config.slopeMap) {
+        const nudged = this.avoidSteepTerrain(nx, nz, config.slopeMap, radius, rng);
+        nx = nudged.x;
+        nz = nudged.z;
+      }
+
+      const nodeType: StreetNodeType = (waterfrontNodes.length === 0 && i + waterfrontSpacing >= shorelinePoints.length) ? 'dead_end' : 'intersection';
+      const node: InternalNode = {
+        id: this.nextNodeId(),
+        x: nx,
+        z: nz,
+        type: nodeType,
+        tier: 'main',
+      };
+      nodes.push(node);
+      waterfrontNodes.push(node);
+      waterfrontNormals.push(normal);
+    }
+
+    // Create waterfront road edges
+    for (let i = 0; i < waterfrontNodes.length - 1; i++) {
+      edges.push(this.createEdge(waterfrontNodes[i], waterfrontNodes[i + 1], 'main'));
+    }
+
+    // 2. Perpendicular roads extending inland at regular intervals
+    const perpSpacing = Math.max(2, Math.floor(waterfrontNodes.length / (3 + Math.floor(rng() * 3)))); // Every 2-N nodes
+    const perpNodes: InternalNode[][] = []; // Track for secondary road connection
+
+    for (let i = 0; i < waterfrontNodes.length; i += perpSpacing) {
+      const wNode = waterfrontNodes[i];
+      const normal = waterfrontNormals[i];
+      wNode.type = 'intersection';
+
+      const perpLength = radius * (0.25 + rng() * 0.20); // 25-45% of radius inland
+      const segs = 2 + Math.floor(rng() * 2); // 2-3 segments
+
+      let prev = wNode;
+      const segmentNodes: InternalNode[] = [wNode];
+
+      for (let s = 1; s <= segs; s++) {
+        const t = s / segs;
+        let px = wNode.x + normal.x * perpLength * t;
+        let pz = wNode.z + normal.z * perpLength * t;
+
+        // Slight noise perpendicular to inland direction
+        const sDisplace = noise(px * 0.03, pz * 0.03) * radius * 0.02;
+        const spAngle = Math.atan2(normal.z, normal.x) + Math.PI / 2;
+        px += Math.cos(spAngle) * sDisplace;
+        pz += Math.sin(spAngle) * sDisplace;
+
+        if (config.slopeMap) {
+          const nudged = this.avoidSteepTerrain(px, pz, config.slopeMap, radius, rng);
+          px = nudged.x;
+          pz = nudged.z;
+        }
+
+        // Snap to nearby node
+        const nearby = this.findNearbyNode(nodes, px, pz, radius * 0.08);
+        if (nearby && nearby.id !== prev.id) {
+          edges.push(this.createEdge(prev, nearby, 'secondary'));
+          nearby.type = 'intersection';
+          segmentNodes.push(nearby);
+          break;
+        }
+
+        const nodeType: StreetNodeType = s === segs ? 'dead_end' : 'intersection';
+        const node: InternalNode = {
+          id: this.nextNodeId(),
+          x: px,
+          z: pz,
+          type: nodeType,
+          tier: 'secondary',
+        };
+        nodes.push(node);
+        edges.push(this.createEdge(prev, node, 'secondary'));
+        prev = node;
+        segmentNodes.push(node);
+      }
+
+      perpNodes.push(segmentNodes);
+    }
+
+    // 3. Secondary parallel road further inland (for larger settlements)
+    if (radius >= 80) {
+      const secondaryRoadNodes: InternalNode[] = [];
+
+      for (let i = 0; i < waterfrontNodes.length; i += waterfrontSpacing > 1 ? waterfrontSpacing : 2) {
+        const idx = Math.min(i, waterfrontNormals.length - 1);
+        const shore = shorelinePoints[Math.min(i * waterfrontSpacing, shorelinePoints.length - 1)];
+        const normal = waterfrontNormals[idx];
+
+        let nx = shore.x + normal.x * secondaryInlandOffset;
+        let nz = shore.z + normal.z * secondaryInlandOffset;
+
+        const displace = noise(nx * 0.025, nz * 0.025) * radius * 0.015;
+        const perpAngle = Math.atan2(normal.z, normal.x) + Math.PI / 2;
+        nx += Math.cos(perpAngle) * displace;
+        nz += Math.sin(perpAngle) * displace;
+
+        if (config.slopeMap) {
+          const nudged = this.avoidSteepTerrain(nx, nz, config.slopeMap, radius, rng);
+          nx = nudged.x;
+          nz = nudged.z;
+        }
+
+        // Snap to nearby existing node (from perpendicular roads)
+        const nearby = this.findNearbyNode(nodes, nx, nz, radius * 0.08);
+        if (nearby) {
+          secondaryRoadNodes.push(nearby);
+          nearby.type = 'intersection';
+        } else {
+          const node: InternalNode = {
+            id: this.nextNodeId(),
+            x: nx,
+            z: nz,
+            type: 'intersection',
+            tier: 'secondary',
+          };
+          nodes.push(node);
+          secondaryRoadNodes.push(node);
+        }
+      }
+
+      // Connect secondary road nodes sequentially
+      for (let i = 0; i < secondaryRoadNodes.length - 1; i++) {
+        const exists = edges.some(
+          e => (e.fromId === secondaryRoadNodes[i].id && e.toId === secondaryRoadNodes[i + 1].id) ||
+               (e.fromId === secondaryRoadNodes[i + 1].id && e.toId === secondaryRoadNodes[i].id)
+        );
+        if (!exists) {
+          edges.push(this.createEdge(secondaryRoadNodes[i], secondaryRoadNodes[i + 1], 'secondary'));
+        }
+      }
+
+      // Connect secondary road to nearest perpendicular road nodes
+      for (const secNode of secondaryRoadNodes) {
+        const nearest = this.findNearbyNode(
+          nodes.filter(n => n.tier === 'secondary' && n.id !== secNode.id),
+          secNode.x, secNode.z, radius * 0.2
+        );
+        if (nearest) {
+          const exists = edges.some(
+            e => (e.fromId === secNode.id && e.toId === nearest.id) ||
+                 (e.fromId === nearest.id && e.toId === secNode.id)
+          );
+          if (!exists) {
+            edges.push(this.createEdge(secNode, nearest, 'secondary'));
+            secNode.type = 'intersection';
+            nearest.type = 'intersection';
+          }
+        }
+      }
+    }
+
+    // 4. Dock/pier stub nodes extending seaward between perpendicular streets
+    let dockCount = 0;
+    const minDocks = Math.max(1, Math.floor(waterfrontNodes.length / 4));
+    for (let i = 0; i < waterfrontNodes.length; i++) {
+      // Place docks between perpendicular streets (not at every node)
+      if (i % perpSpacing === 0) continue; // Skip where perpendicular streets already are
+      // Guarantee at least minDocks, then random for rest
+      if (dockCount >= minDocks && rng() > 0.5) continue;
+
+      const wNode = waterfrontNodes[i];
+      const normal = waterfrontNormals[i];
+
+      // Dock extends seaward (opposite direction of inland normal)
+      const dockLength = radius * (0.06 + rng() * 0.06); // 6-12% of radius
+      const dockX = wNode.x - normal.x * dockLength;
+      const dockZ = wNode.z - normal.z * dockLength;
+
+      const dockNode: InternalNode = {
+        id: this.nextNodeId(),
+        x: dockX,
+        z: dockZ,
+        type: 'dead_end',
+        tier: 'tertiary',
+      };
+      nodes.push(dockNode);
+      edges.push(this.createEdge(wNode, dockNode, 'tertiary'));
+      wNode.type = 'intersection';
+      dockCount++;
+    }
+
+    // 5. Ensure full connectivity
+    this.ensureConnectivity(nodes, edges);
+
+    return this.toStreetNetwork(nodes, edges);
+  }
+
   /** Create an internal edge with waypoints */
   private createEdge(from: InternalNode, to: InternalNode, tier: 'main' | 'secondary' | 'tertiary'): InternalEdge {
     // Generate intermediate waypoints for curved edges

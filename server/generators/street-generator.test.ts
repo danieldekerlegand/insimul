@@ -1081,6 +1081,212 @@ console.log('\n--- Slope map avoidance ---');
   assert(visited2.size === slopeNetwork.nodes.length, `Slope-aware hillside is fully connected`);
 }
 
+// ── Waterfront pattern tests ──
+
+console.log('\n=== StreetGenerator: Waterfront Pattern ===\n');
+
+{
+  const gen = new StreetGenerator();
+
+  // Create a mock shoreline: a curve of points along the bottom of the settlement
+  const shorelinePoints: { x: number; z: number }[] = [];
+  for (let i = 0; i <= 20; i++) {
+    const t = i / 20;
+    shorelinePoints.push({
+      x: -100 + t * 200, // -100 to +100 along x
+      z: -80 + Math.sin(t * Math.PI) * 15, // Slight curve
+    });
+  }
+
+  const waterfrontConfig = {
+    center: { x: 0, z: 0 },
+    radius: 100,
+    settlementType: 'port_town',
+    seed: 'waterfront_test_42',
+    shorelinePoints,
+  };
+
+  const network = gen.generateWaterfront(waterfrontConfig);
+
+  // Basic structure
+  assert(network.nodes.length > 0, `Waterfront has nodes (got ${network.nodes.length})`);
+  assert(network.edges.length > 0, `Waterfront has edges (got ${network.edges.length})`);
+
+  // Nodes have valid positions
+  for (const node of network.nodes) {
+    assert(typeof node.position.x === 'number' && !isNaN(node.position.x), `Node ${node.id} has valid x`);
+    assert(typeof node.position.z === 'number' && !isNaN(node.position.z), `Node ${node.id} has valid z`);
+  }
+
+  // Edges reference valid nodes
+  const nodeIds = new Set(network.nodes.map(n => n.id));
+  for (const edge of network.edges) {
+    assert(nodeIds.has(edge.fromNodeId), `Edge ${edge.id} has valid fromNodeId`);
+    assert(nodeIds.has(edge.toNodeId), `Edge ${edge.id} has valid toNodeId`);
+  }
+
+  // Has boulevard (main_road) edges — waterfront road
+  const mainEdges = network.edges.filter(e => e.streetType === 'main_road');
+  assert(mainEdges.length > 0, `Waterfront has boulevard edges (got ${mainEdges.length})`);
+
+  // Has residential edges — perpendicular roads
+  const residentialEdges = network.edges.filter(e => e.streetType === 'residential');
+  assert(residentialEdges.length > 0, `Waterfront has residential edges (got ${residentialEdges.length})`);
+
+  // Has dock/pier nodes (dead_end nodes extending seaward)
+  const deadEnds = network.nodes.filter(n => n.type === 'dead_end');
+  assert(deadEnds.length > 0, `Waterfront has dock/pier dead-end nodes (got ${deadEnds.length})`);
+
+  // Has lane edges (dock connectors)
+  const laneEdges = network.edges.filter(e => e.streetType === 'lane');
+  assert(laneEdges.length > 0, `Waterfront has lane edges for docks (got ${laneEdges.length})`);
+
+  // Full connectivity check via BFS
+  const adj = new Map<string, Set<string>>();
+  for (const n of network.nodes) adj.set(n.id, new Set());
+  for (const e of network.edges) {
+    adj.get(e.fromNodeId)!.add(e.toNodeId);
+    adj.get(e.toNodeId)!.add(e.fromNodeId);
+  }
+  const visited = new Set<string>();
+  const queue = [network.nodes[0].id];
+  visited.add(queue[0]);
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    for (const nb of Array.from(adj.get(cur)!)) {
+      if (!visited.has(nb)) {
+        visited.add(nb);
+        queue.push(nb);
+      }
+    }
+  }
+  assert(visited.size === network.nodes.length, `Waterfront network is fully connected`);
+
+  // Determinism: same seed produces same output
+  const gen2 = new StreetGenerator();
+  const network2 = gen2.generateWaterfront(waterfrontConfig);
+  assert(network2.nodes.length === network.nodes.length, `Deterministic: same node count`);
+  assert(network2.edges.length === network.edges.length, `Deterministic: same edge count`);
+  for (let i = 0; i < network.nodes.length; i++) {
+    assert(
+      Math.abs(network2.nodes[i].position.x - network.nodes[i].position.x) < 0.001 &&
+      Math.abs(network2.nodes[i].position.z - network.nodes[i].position.z) < 0.001,
+      `Deterministic: node ${i} position matches`
+    );
+  }
+
+  // Different seed produces different output
+  const gen3 = new StreetGenerator();
+  const network3 = gen3.generateWaterfront({ ...waterfrontConfig, seed: 'different_waterfront_seed' });
+  let hasDifference = false;
+  for (let i = 0; i < Math.min(network.nodes.length, network3.nodes.length); i++) {
+    if (Math.abs(network3.nodes[i].position.x - network.nodes[i].position.x) > 0.01 ||
+        Math.abs(network3.nodes[i].position.z - network.nodes[i].position.z) > 0.01) {
+      hasDifference = true;
+      break;
+    }
+  }
+  assert(hasDifference, `Different seeds produce different waterfront networks`);
+
+  // Waterfront road nodes are offset inland from shoreline (closer to center)
+  // Main road nodes should be closer to center than the shoreline
+  const mainRoadNodes = network.nodes.filter((n, idx) => {
+    // Find edges connected to this node that are main_road
+    return network.edges.some(e =>
+      e.streetType === 'main_road' && (e.fromNodeId === n.id || e.toNodeId === n.id)
+    );
+  });
+  assert(mainRoadNodes.length > 0, `Has identifiable main road nodes (got ${mainRoadNodes.length})`);
+
+  // Dock nodes should be further from center (seaward) than the waterfront road
+  // (At least some should be in the seaward direction from their connected waterfront node)
+  const dockEdges = network.edges.filter(e => e.streetType === 'lane');
+  let dockSeawardCount = 0;
+  for (const de of dockEdges) {
+    const fromNode = network.nodes.find(n => n.id === de.fromNodeId)!;
+    const toNode = network.nodes.find(n => n.id === de.toNodeId)!;
+    // The dead_end node should be further from center
+    const dock = toNode.type === 'dead_end' ? toNode : fromNode;
+    const waterfront = toNode.type === 'dead_end' ? fromNode : toNode;
+    const dockDist = Math.sqrt(dock.position.x ** 2 + dock.position.z ** 2);
+    const wfDist = Math.sqrt(waterfront.position.x ** 2 + waterfront.position.z ** 2);
+    // Dock should be further from center than waterfront node (seaward)
+    // Due to shoreline shape this may not always hold, but should for most
+    if (dockDist > wfDist - 5) dockSeawardCount++;
+  }
+  if (dockEdges.length > 0) {
+    assert(dockSeawardCount > 0, `At least some docks extend seaward`);
+  }
+
+  // Test with smaller shoreline (2 points minimum)
+  const gen4 = new StreetGenerator();
+  const smallShore = gen4.generateWaterfront({
+    ...waterfrontConfig,
+    shorelinePoints: [{ x: -50, z: -50 }, { x: 50, z: -50 }],
+    seed: 'small_shore',
+  });
+  assert(smallShore.nodes.length > 0, `Small shoreline (2 points) still generates network`);
+  assert(smallShore.edges.length > 0, `Small shoreline (2 points) has edges`);
+
+  // Test fallback with empty shoreline
+  const gen5 = new StreetGenerator();
+  const emptyShore = gen5.generateWaterfront({
+    ...waterfrontConfig,
+    shorelinePoints: [],
+    seed: 'empty_shore',
+  });
+  assert(emptyShore.nodes.length > 0, `Empty shoreline falls back to organic (has nodes)`);
+  assert(emptyShore.edges.length > 0, `Empty shoreline falls back to organic (has edges)`);
+
+  // Test with slope map
+  const gen6 = new StreetGenerator();
+  const slopeMap: number[][] = [];
+  for (let r = 0; r < 32; r++) {
+    slopeMap[r] = [];
+    for (let c = 0; c < 32; c++) {
+      slopeMap[r][c] = 0.01; // Flat terrain
+    }
+  }
+  const slopeWaterfront = gen6.generateWaterfront({
+    ...waterfrontConfig,
+    slopeMap,
+    seed: 'slope_waterfront',
+  });
+  assert(slopeWaterfront.nodes.length > 0, `Waterfront with slope map has nodes`);
+
+  // Full connectivity with slope map
+  const adj3 = new Map<string, Set<string>>();
+  for (const n of slopeWaterfront.nodes) adj3.set(n.id, new Set());
+  for (const e of slopeWaterfront.edges) {
+    adj3.get(e.fromNodeId)!.add(e.toNodeId);
+    adj3.get(e.toNodeId)!.add(e.fromNodeId);
+  }
+  const visited3 = new Set<string>();
+  const queue3 = [slopeWaterfront.nodes[0].id];
+  visited3.add(queue3[0]);
+  while (queue3.length > 0) {
+    const cur = queue3.shift()!;
+    for (const nb of Array.from(adj3.get(cur)!)) {
+      if (!visited3.has(nb)) {
+        visited3.add(nb);
+        queue3.push(nb);
+      }
+    }
+  }
+  assert(visited3.size === slopeWaterfront.nodes.length, `Slope-aware waterfront is fully connected`);
+
+  // Width validation
+  for (const edge of network.edges) {
+    if (edge.streetType === 'main_road') {
+      assert(edge.width === 8, `Main road edge ${edge.id} has width 8`);
+    } else if (edge.streetType === 'residential') {
+      assert(edge.width === 6, `Residential edge ${edge.id} has width 6`);
+    } else if (edge.streetType === 'lane') {
+      assert(edge.width === 4, `Lane edge ${edge.id} has width 4`);
+    }
+  }
+}
+
 // Summary
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
 if (failed > 0) process.exit(1);
