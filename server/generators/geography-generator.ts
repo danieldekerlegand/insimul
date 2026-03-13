@@ -5,6 +5,7 @@
 
 import { storage } from '../db/storage';
 import { AgriculturalZone, AgriculturalZoneGenerator } from './agricultural-zone-generator';
+import { CrossingGenerator } from './crossing-generator';
 
 export interface Location {
   id: string;
@@ -73,6 +74,36 @@ export class GeographyGenerator {
       centerX: mapSize / 2,
       centerY: mapSize / 2,
     });
+
+    // Generate river crossing points for river-terrain settlements
+    if (config.terrain === 'river') {
+      const crossingGen = new CrossingGenerator({
+        seed: config.settlementName.length * 31 + config.foundedYear,
+        mapSize: this.getMapSize(config.settlementType),
+        foundedYear: config.foundedYear,
+      });
+      const { rivers, crossings } = crossingGen.generate(streets);
+
+      for (const crossing of crossings) {
+        landmarks.push({
+          id: crossing.id,
+          name: crossing.name,
+          type: 'landmark',
+          x: crossing.x,
+          y: crossing.y,
+          properties: {
+            crossingType: crossing.type,
+            riverName: crossing.riverName,
+            streetName: crossing.streetName,
+            riverWidth: crossing.riverWidth,
+            ...crossing.properties,
+          },
+        });
+      }
+
+      // Store river data on the settlement for downstream consumers
+      (config as any)._rivers = rivers;
+    }
 
     // Update settlement with geography metadata
     await storage.updateSettlement(config.settlementId, {
