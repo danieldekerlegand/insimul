@@ -7855,6 +7855,49 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
     }
   });
 
+  // Quest Assignment Engine — generates playable quests from templates using real world data
+  app.post("/api/worlds/:worldId/quests/assign", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { playerName, playerCharacterId, count = 3, proficiency, excludeTemplateIds, preferredCategories } = req.body;
+
+      if (!playerName) {
+        return res.status(400).json({ error: "playerName is required" });
+      }
+
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      const [characters, settlements, existingQuests] = await Promise.all([
+        storage.getCharactersByWorld(worldId),
+        storage.getSettlementsByWorld(worldId),
+        storage.getQuestsByWorld(worldId),
+      ]);
+
+      const { assignQuests } = await import('./services/quest-assignment-engine.js');
+
+      const assigned = assignQuests(
+        { world, characters, settlements, existingQuests },
+        { playerName, playerCharacterId, count, proficiency, excludeTemplateIds, preferredCategories },
+      );
+
+      // Save to database
+      const created = [];
+      for (const quest of assigned) {
+        const { templateId, filledParameters, ...questData } = quest;
+        const saved = await storage.createQuest(questData);
+        created.push({ ...saved, templateId, filledParameters });
+      }
+
+      res.status(201).json({ count: created.length, quests: created });
+    } catch (error) {
+      console.error('[Quest Assignment] Error:', error);
+      res.status(500).json({ error: "Failed to assign quests" });
+    }
+  });
+
   // Mystery Quest Generation (Prolog abductive reasoning)
   app.post("/api/worlds/:worldId/quests/generate-mystery", async (req, res) => {
     try {
