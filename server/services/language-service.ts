@@ -731,18 +731,8 @@ export async function sendLanguageChatMessage(
 
   const ai = getGenAI();
 
-  const historyText = history
-    .slice(-10)
-    .map((msg) => {
-      const roleLabel = msg.role === "user" ? "User" : "Assistant";
-      const base = `${roleLabel}: ${msg.content}`;
-      if (msg.inLanguage) {
-        return `${base}
-(${language.name}): ${msg.inLanguage}`;
-      }
-      return base;
-    })
-    .join("\n\n");
+  const { compressTextHistory } = await import('./conversation-compression.js');
+  const historyText = await compressTextHistory(history, language.name);
 
   const systemInstruction =
     `You are a helpful AI assistant that speaks and understands "${language.name}", ` +

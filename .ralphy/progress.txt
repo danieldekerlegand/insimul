@@ -54,6 +54,27 @@ All 17 tests passing. No TypeScript errors. Pre-existing test failures unrelated
 - `client/src/components/3DGame/BabylonGame.ts` (added J key handler + import)
 - `shared/__tests__/babylon-quest-tracker.test.ts` (new, 48 tests)
 
+## Conversation History Compression for Long Chats
+
+### Completed
+- Created `server/services/conversation-compression.ts` — compression service that:
+  - Summarizes older messages using Gemini Flash when conversation exceeds threshold (default: 20 messages)
+  - Keeps recent messages intact (default: last 10)
+  - Injects summary as a context-setting exchange at conversation start
+  - Falls back to recent-only messages if Gemini unavailable or summarization fails
+  - Exports `compressConversationHistory()` for Gemini chat format messages
+  - Exports `compressTextHistory()` for plain text language chat messages
+- Integrated into `/api/gemini/chat` endpoint (server/routes.ts) — all NPC character conversations now auto-compress
+- Integrated into language chat service (server/services/language-service.ts) — replaces hard `.slice(-10)` truncation with intelligent compression
+- Created `server/__tests__/conversation-compression.test.ts` — 9 tests covering:
+  - Below-threshold passthrough, at-threshold passthrough
+  - Above-threshold compression with summary injection
+  - Recent message preservation after compression
+  - Gemini unavailable fallback
+  - Summarization error fallback
+  - Default threshold/keepRecent values
+  - Text history formatting and compression
+
 ## Assessment Results Summary Panel
 
 - Created `client/src/components/3DGame/AssessmentResultsPanel.ts`
