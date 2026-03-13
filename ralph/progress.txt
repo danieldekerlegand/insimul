@@ -52,3 +52,21 @@ Started: Thu Mar 12 23:35:20 CDT 2026
   - Seed for StreetGenerator uses `${worldId}-${settlementId}` for determinism
   - All 12,215 geography tests + 2,859 street tests pass
 ---
+
+## 2026-03-12 - US-017
+- Added `generateStreetNetworkRoads(network: StreetNetworkIR, sampleHeight)` method to `RoadGenerator.ts`
+- Road width varies by street type: boulevard=6, avenue=5, main_road=4, residential=3, lane=2, alley=1.5
+- Road color varies by street type: main roads/boulevards darker paved, residential lighter, alleys dirt-colored
+- Added `createStreetEdgeMesh()` helper that renders edges as terrain-following ribbon meshes using waypoints
+- Updated `BabylonGame.ts` `SettlementSummary` to include optional `streets` field
+- Updated settlement rendering to detect street network graph (`streets.nodes && streets.edges`) and call `generateStreetNetworkRoads` instead of fallback hub-and-spoke `generateSettlementRoads`
+- Existing MST-based inter-settlement road generation preserved unchanged
+- Fallback: if no street network data, existing radial road generation is used
+- Files changed: `client/src/components/3DGame/RoadGenerator.ts`, `client/src/components/3DGame/BabylonGame.ts`
+- **Learnings for future iterations:**
+  - `SettlementSummary` in BabylonGame.ts is a minimal interface — settlement API returns full DB objects with `streets` field, but the interface must be extended to access it
+  - Street network detection: `!Array.isArray(streets) && streets.nodes && streets.edges` distinguishes new StreetNetwork from old Location[] format
+  - Pre-existing typecheck errors in BabylonGame-patch.ts and export templates are expected — only check your changed files for errors
+  - `createStreetEdgeMesh` uses averaged tangent directions at interior waypoints for smooth perpendicular offsets
+  - All 2,859 street generator tests pass; typecheck clean on modified files
+---

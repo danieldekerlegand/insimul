@@ -145,6 +145,7 @@ interface SettlementSummary {
   settlementType?: string;
   terrain?: string;
   population?: number;
+  streets?: any; // StreetNetwork (graph) or Location[] (legacy)
 }
 
 interface WorldData {
@@ -2373,14 +2374,28 @@ export class BabylonGame {
           sampleHeight
         );
 
-        // Generate intra-settlement streets (hub-and-spoke from center to buildings)
-        if (this.roadGenerator && settlementBuildingPositions.length > 0) {
-          this.roadGenerator.generateSettlementRoads(
-            settlement.id,
-            settlementCenterForProps,
-            settlementBuildingPositions,
-            sampleHeight
-          );
+        // Generate intra-settlement streets
+        if (this.roadGenerator) {
+          // Prefer street network graph if available (new procgen format)
+          if (
+            settlement.streets &&
+            !Array.isArray(settlement.streets) &&
+            settlement.streets.nodes &&
+            settlement.streets.edges
+          ) {
+            this.roadGenerator.generateStreetNetworkRoads(
+              settlement.streets,
+              sampleHeight
+            );
+          } else if (settlementBuildingPositions.length > 0) {
+            // Fallback: hub-and-spoke from center to buildings
+            this.roadGenerator.generateSettlementRoads(
+              settlement.id,
+              settlementCenterForProps,
+              settlementBuildingPositions,
+              sampleHeight
+            );
+          }
         }
 
         // Create a subtle ground marker and signpost for the settlement center
