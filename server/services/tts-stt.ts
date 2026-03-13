@@ -110,20 +110,23 @@ function addWavHeader(pcmData: Buffer, sampleRate: number, numChannels: number):
 /**
  * Speech-to-Text using Gemini's audio understanding
  */
-export async function speechToText(audioBuffer: Buffer, mimeType: string = 'audio/wav'): Promise<string> {
+export async function speechToText(audioBuffer: Buffer, mimeType: string = 'audio/wav', languageHint?: string): Promise<string> {
   if (!isGeminiConfigured()) {
     throw new Error("Gemini API key is not configured");
   }
 
   try {
     const client = getGenAI();
+    const prompt = languageHint
+      ? `Generate a transcript of this audio. The speaker is expected to be speaking in ${languageHint}. Transcribe in the original language.`
+      : 'Generate a transcript of this audio.';
 
     // For smaller files (< 20MB), use inline audio
     if (audioBuffer.length < 20 * 1024 * 1024) {
       const response = await client.models.generateContent({
         model: GEMINI_MODELS.PRO,
         contents: [
-          'Generate a transcript of this audio.',
+          prompt,
           {
             inlineData: {
               data: audioBuffer.toString('base64'),
@@ -153,7 +156,7 @@ export async function speechToText(audioBuffer: Buffer, mimeType: string = 'audi
         const response = await client.models.generateContent({
           model: GEMINI_MODELS.PRO,
           contents: [
-            'Generate a transcript of this audio.',
+            prompt,
             { fileData: { fileUri: uploadedFile.uri, mimeType: mimeType } }
           ]
         });

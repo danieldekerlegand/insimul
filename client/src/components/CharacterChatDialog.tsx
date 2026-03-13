@@ -280,21 +280,65 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
     }
   };
 
-  const browserTextToSpeech = (text: string) => {
-    if (!('speechSynthesis' in window)) return;
-    const utterance = new SpeechSynthesisUtterance(text);
-    const fluencies = extractLanguageFluencies(truths);
-    const dominantLang = fluencies[0]?.language || 'English';
-    const langCode = getLanguageBCP47(dominantLang);
-    utterance.lang = langCode;
-    utterance.rate = 0.9;
-    const voices = speechSynthesis.getVoices();
-    const langPrefix = langCode.split('-')[0];
-    const matchedVoice = voices.find(v => v.lang.startsWith(langPrefix));
-    if (matchedVoice) utterance.voice = matchedVoice;
-    setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    speechSynthesis.speak(utterance);
+  const browserTextToSpeech = async (text: string): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      if (!('speechSynthesis' in window)) {
+        reject(new Error('Browser does not support speech synthesis'));
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(text);
+
+      // Dynamically detect the character's dominant language for TTS
+      const fluencies = extractLanguageFluencies(truths);
+      const dominantLang = fluencies[0]?.language || 'English';
+      const langCode = getLanguageBCP47(dominantLang);
+      utterance.lang = langCode;
+      utterance.rate = 0.9;
+
+      // Try to find a voice matching the dominant language
+      const voices = speechSynthesis.getVoices();
+      const langPrefix = langCode.split('-')[0];
+      const matchedVoice = voices.find(v => v.lang.startsWith(langPrefix));
+      if (matchedVoice) {
+        utterance.voice = matchedVoice;
+      }
+
+      utterance.onend = () => {
+        // Create a silent audio blob as placeholder
+        const silence = new Blob([], { type: 'audio/wav' });
+        resolve(silence);
+      };
+
+      utterance.onerror = (error) => {
+        reject(error);
+      };
+
+      speechSynthesis.speak(utterance);
+    });
+  };
+
+  const speechToText = async (audioBlob: Blob): Promise<string> => {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.webm');
+
+    // Pass language hint for improved STT accuracy
+    const targetLang = worldLangContext?.targetLanguage;
+    if (targetLang) {
+      formData.append('languageHint', targetLang);
+    }
+
+    const response = await fetch('/api/stt', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to convert speech to text');
+    }
+
+    const data = await response.json();
+    return data.transcript;
   };
 
   const playAudio = async (audioBlob: Blob) => {
