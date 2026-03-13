@@ -1,0 +1,21 @@
+## Assessment Visual Recognition Task Handler
+
+### Completed
+- Created `server/services/visual-recognition-handler.ts` — task handler service with:
+  - Visual stimulus bank (25 items across 5 categories: objects, animals, food, colors, body parts)
+  - Built-in translations for Spanish, French, German, Japanese
+  - Task generation with configurable format (multiple_choice/free_response), direction (image_to_word/word_to_image), difficulty, categories, item count
+  - Custom vocabulary support for arbitrary languages
+  - Accent-insensitive and case-insensitive scoring
+  - Per-category subscores and aggregate accuracy/response time metrics
+  - Response validation (unknown IDs, missing responses, negative times)
+
+- Added 3 API routes in `server/routes/telemetry-routes.ts`:
+  - POST /api/assessment/:participantId/visual-recognition/generate
+  - POST /api/assessment/:participantId/visual-recognition/submit
+  - GET /api/assessment/:participantId/visual-recognition/languages
+  - Submit endpoint persists results as `visual_recognition` instrument type in EvaluationResponse collection
+
+- Created `server/__tests__/visual-recognition-handler.test.ts` — 41 tests (all passing):
+  - Unit tests for translations, stimulus bank, task generation, scoring, validation
+  - Integration tests for all 3 API endpoints with mock storage

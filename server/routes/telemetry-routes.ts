@@ -722,6 +722,104 @@ export function createTelemetryRoutes(storage: any): Router {
     }
   });
 
+  // ============= VISUAL RECOGNITION ASSESSMENT ENDPOINTS =============
+
+  // POST /api/assessment/:participantId/visual-recognition/generate — generate a task
+  router.post('/assessment/:participantId/visual-recognition/generate', async (req: Request, res: Response) => {
+    try {
+      const { participantId } = req.params;
+      const { worldId, targetLanguage, format, direction, itemCount, categories, difficulty, timeLimit, studyId, testWindow, customVocabulary } = req.body;
+
+      if (!worldId || !targetLanguage) {
+        return res.status(400).json({ message: 'Missing required fields: worldId, targetLanguage' });
+      }
+
+      const { generateTask, getSupportedLanguages } = await import('../services/visual-recognition-handler');
+
+      const supported = getSupportedLanguages();
+      if (!customVocabulary && !supported.includes(targetLanguage.toLowerCase())) {
+        return res.status(400).json({ message: `Unsupported language: ${targetLanguage}. Supported: ${supported.join(', ')}. Provide customVocabulary for other languages.` });
+      }
+
+      const task = generateTask({
+        participantId,
+        worldId,
+        targetLanguage,
+        format,
+        direction,
+        itemCount,
+        categories,
+        difficulty,
+        timeLimit,
+        studyId,
+        testWindow,
+        customVocabulary,
+      });
+
+      res.status(201).json(task);
+    } catch (error) {
+      console.error('Visual recognition generate error:', error);
+      res.status(500).json({ message: 'Failed to generate visual recognition task' });
+    }
+  });
+
+  // POST /api/assessment/:participantId/visual-recognition/submit — submit responses and get score
+  router.post('/assessment/:participantId/visual-recognition/submit', async (req: Request, res: Response) => {
+    try {
+      const { participantId } = req.params;
+      const { task, responses, studyId } = req.body;
+
+      if (!task || !responses) {
+        return res.status(400).json({ message: 'Missing required fields: task, responses' });
+      }
+
+      if (task.participantId !== participantId) {
+        return res.status(400).json({ message: 'Task participantId does not match route parameter' });
+      }
+
+      const { scoreTask, validateResponses } = await import('../services/visual-recognition-handler');
+
+      const validation = validateResponses(task, responses);
+      if (!validation.valid) {
+        return res.status(400).json({ message: 'Invalid responses', errors: validation.errors });
+      }
+
+      const result = scoreTask(task, responses);
+
+      // Persist as an evaluation response for research analysis
+      const effectiveStudyId = studyId || task.studyId;
+      if (effectiveStudyId) {
+        await storage.createEvaluationResponse({
+          studyId: effectiveStudyId,
+          participantId,
+          instrumentType: 'visual_recognition',
+          testWindow: task.testWindow || 'post',
+          targetLanguage: task.targetLanguage,
+          responses,
+          score: result.score,
+          maxScore: 100,
+          createdAt: new Date(),
+        });
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error('Visual recognition submit error:', error);
+      res.status(500).json({ message: 'Failed to score visual recognition task' });
+    }
+  });
+
+  // GET /api/assessment/:participantId/visual-recognition/languages — list supported languages
+  router.get('/assessment/:participantId/visual-recognition/languages', async (_req: Request, res: Response) => {
+    try {
+      const { getSupportedLanguages } = await import('../services/visual-recognition-handler');
+      res.json({ languages: getSupportedLanguages() });
+    } catch (error) {
+      console.error('Visual recognition languages error:', error);
+      res.status(500).json({ message: 'Failed to get supported languages' });
+    }
+  });
+
   return router;
 }
 
