@@ -5611,7 +5611,7 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
 
       // Log full prompt for debugging NPC chat
       console.log("\n========== GEMINI CHAT DEBUG ==========");
-      console.log("SYSTEM PROMPT:\n", systemPrompt);
+      console.log("SYSTEM PROMPT:\n", systemPrompt?.substring(0, 300));
       console.log("\nCONVERSATION HISTORY (" + (messages.length - 1) + " prior messages):");
       for (const msg of messages.slice(0, -1)) {
         const text = msg.parts?.[0]?.text || '';
@@ -5619,18 +5619,100 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       }
       console.log("\nCURRENT MESSAGE:", lastMessageContent.text?.substring(0, 500) || "[Audio message]");
       console.log("========================================\n");
-      
+
+      // ── SSE streaming with sentence-level TTS ──
+      if (stream && returnAudio) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders();
+
+        const { extractSentences } = await import('./services/sentence-splitter.js');
+        const { textToSpeech } = await import('./services/tts-stt.js');
+        const gender = voice === 'Kore' ? 'female' : 'male';
+
+        const streamResult = await chat.sendMessageStream(lastMessageContent.text);
+        let accumulated = '';
+        let sentenceIndex = 0;
+        // Track in-flight TTS promises so we can await them before closing
+        const ttsPromises: Promise<void>[] = [];
+
+        const sendSSE = (data: any) => {
+          res.write(`data: ${JSON.stringify(data)}\n\n`);
+        };
+
+        for await (const chunk of streamResult.stream) {
+          const text = chunk.text();
+          if (!text) continue;
+
+          accumulated += text;
+          // Send text token immediately for streaming display
+          sendSSE({ text });
+
+          // Strip system markers before sentence splitting for TTS
+          const cleanAccumulated = accumulated
+            .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+            .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+            .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*$/g, '')
+            .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*$/g, '');
+
+          const [sentences, remaining] = extractSentences(cleanAccumulated);
+
+          for (const sentence of sentences) {
+            const idx = sentenceIndex++;
+            const trimmed = sentence.trim();
+            if (!trimmed) continue;
+
+            // Fire TTS in parallel — don't block text streaming
+            const ttsPromise = textToSpeech(trimmed, voice, gender, "MP3")
+              .then(audioBuffer => {
+                sendSSE({ audio: audioBuffer.toString('base64'), sentenceIndex: idx });
+              })
+              .catch(err => {
+                console.error(`[StreamTTS] Sentence ${idx} failed:`, err);
+              });
+            ttsPromises.push(ttsPromise);
+          }
+
+          // Update accumulated to only contain the remaining (incomplete sentence) text
+          accumulated = remaining;
+        }
+
+        // Handle any remaining text as the final sentence
+        const finalText = accumulated
+          .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+          .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+          .trim();
+        if (finalText) {
+          const idx = sentenceIndex++;
+          const ttsPromise = textToSpeech(finalText, voice, gender, "MP3")
+            .then(audioBuffer => {
+              sendSSE({ audio: audioBuffer.toString('base64'), sentenceIndex: idx });
+            })
+            .catch(err => {
+              console.error(`[StreamTTS] Final sentence ${idx} failed:`, err);
+            });
+          ttsPromises.push(ttsPromise);
+        }
+
+        // Wait for all TTS to complete before closing the stream
+        await Promise.all(ttsPromises);
+        res.write('data: [DONE]\n\n');
+        res.end();
+        return;
+      }
+
       const result = await chat.sendMessage(lastMessageContent.text);
-      
+
       // Log the full response for debugging
       console.log("Gemini response object:", JSON.stringify(result.response, null, 2));
-      
+
       const response = result.response.text();
-      
+
       if (!response || response.trim() === '') {
         console.error("Gemini returned empty response. Candidates:", result.response.candidates);
         console.error("Prompt feedback:", result.response.promptFeedback);
-        return res.status(500).json({ 
+        return res.status(500).json({
           error: "Gemini returned empty response. This may be due to safety filters.",
           details: {
             promptFeedback: result.response.promptFeedback,
