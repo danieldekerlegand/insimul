@@ -6,6 +6,9 @@
 
 import { createNoise2D, fractalNoise } from '../../shared/procedural/noise';
 import type { StreetNode, StreetEdge, StreetNetwork, StreetNodeType, StreetType } from '../../shared/game-engine/types';
+import type { GeographyConfig } from './geography-generator';
+
+export type StreetPatternType = 'organic' | 'grid' | 'radial' | 'linear' | 'hillside' | 'waterfront';
 
 export interface StreetGenConfig {
   center: { x: number; z: number };
@@ -1441,5 +1444,82 @@ export class StreetGenerator {
       total += dist(waypoints[i - 1].x, waypoints[i - 1].z, waypoints[i].x, waypoints[i].z);
     }
     return total;
+  }
+
+  /**
+   * Select the appropriate street pattern based on settlement attributes.
+   * Priority order: coast -> waterfront; river -> linear; mountains+steep -> hillside;
+   * city+large pop -> grid; city+capital -> radial; village -> organic;
+   * older settlements (foundedYear < 1800) -> organic; newer -> grid
+   */
+  selectStreetPattern(config: GeographyConfig): StreetPatternType {
+    const { terrain, settlementType, population, foundedYear } = config;
+
+    if (terrain === 'coast') return 'waterfront';
+    if (terrain === 'river') return 'linear';
+    if (terrain === 'mountains') return 'hillside';
+    if (settlementType === 'city' && population >= 10000) return 'grid';
+    if (settlementType === 'city') return 'radial';
+    if (settlementType === 'village') return 'organic';
+    if (foundedYear < 1800) return 'organic';
+    return 'grid';
+  }
+
+  /**
+   * Generate a street network by auto-selecting the pattern from geography config
+   * and dispatching to the correct algorithm.
+   */
+  generate(config: StreetGenConfig, geographyConfig: GeographyConfig, heightmap?: number[][]): { network: StreetNetwork; pattern: StreetPatternType } {
+    const pattern = this.selectStreetPattern(geographyConfig);
+
+    let network: StreetNetwork;
+    switch (pattern) {
+      case 'waterfront':
+        network = this.generateWaterfront({
+          ...config,
+          shorelinePoints: this.generateDefaultShoreline(config),
+        });
+        break;
+      case 'linear':
+        network = this.generateLinear({
+          ...config,
+          axis: { x: 1, z: 0 },
+        });
+        break;
+      case 'hillside':
+        network = this.generateHillside(config, heightmap ?? this.generateFlatHeightmap());
+        break;
+      case 'grid':
+        network = this.generateGrid(config);
+        break;
+      case 'radial':
+        network = this.generateRadial(config);
+        break;
+      case 'organic':
+      default:
+        network = this.generateOrganic(config);
+        break;
+    }
+
+    return { network, pattern };
+  }
+
+  /** Generate a default shoreline for waterfront when no explicit points given */
+  private generateDefaultShoreline(config: StreetGenConfig): { x: number; z: number }[] {
+    const { center, radius } = config;
+    const points: { x: number; z: number }[] = [];
+    for (let i = 0; i <= 10; i++) {
+      points.push({
+        x: center.x - radius + (2 * radius * i) / 10,
+        z: center.z - radius,
+      });
+    }
+    return points;
+  }
+
+  /** Generate a flat heightmap fallback for hillside pattern */
+  private generateFlatHeightmap(): number[][] {
+    const size = 128;
+    return Array.from({ length: size }, () => Array(size).fill(0.5) as number[]);
   }
 }

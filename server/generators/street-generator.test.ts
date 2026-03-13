@@ -4,7 +4,8 @@
  * Run with: npx tsx server/generators/street-generator.test.ts
  */
 
-import { StreetGenerator, StreetGenConfig } from './street-generator';
+import { StreetGenerator, StreetGenConfig, StreetPatternType } from './street-generator';
+import type { GeographyConfig } from './geography-generator';
 
 let passed = 0;
 let failed = 0;
@@ -1285,6 +1286,117 @@ console.log('\n=== StreetGenerator: Waterfront Pattern ===\n');
       assert(edge.width === 4, `Lane edge ${edge.id} has width 4`);
     }
   }
+}
+
+// ── Street Pattern Selection Tests ──
+
+console.log('\n=== StreetGenerator: Pattern Selection ===\n');
+
+function makeGeoConfig(overrides: Partial<GeographyConfig>): GeographyConfig {
+  return {
+    worldId: 'w1',
+    settlementId: 's1',
+    settlementName: 'Test Town',
+    settlementType: 'town',
+    population: 5000,
+    foundedYear: 1900,
+    terrain: 'plains',
+    ...overrides,
+  };
+}
+
+// Coast -> waterfront
+assert(gen.selectStreetPattern(makeGeoConfig({ terrain: 'coast' })) === 'waterfront',
+  'Coast terrain selects waterfront pattern');
+
+// River -> linear
+assert(gen.selectStreetPattern(makeGeoConfig({ terrain: 'river' })) === 'linear',
+  'River terrain selects linear pattern');
+
+// Mountains -> hillside
+assert(gen.selectStreetPattern(makeGeoConfig({ terrain: 'mountains' })) === 'hillside',
+  'Mountains terrain selects hillside pattern');
+
+// City + large population -> grid
+assert(gen.selectStreetPattern(makeGeoConfig({ settlementType: 'city', population: 15000 })) === 'grid',
+  'City with large population selects grid pattern');
+
+// City + smaller population -> radial
+assert(gen.selectStreetPattern(makeGeoConfig({ settlementType: 'city', population: 5000 })) === 'radial',
+  'City with smaller population selects radial pattern');
+
+// Village -> organic
+assert(gen.selectStreetPattern(makeGeoConfig({ settlementType: 'village' })) === 'organic',
+  'Village selects organic pattern');
+
+// Old town (founded before 1800) -> organic
+assert(gen.selectStreetPattern(makeGeoConfig({ settlementType: 'town', foundedYear: 1750 })) === 'organic',
+  'Old settlement (pre-1800) selects organic pattern');
+
+// Newer town -> grid
+assert(gen.selectStreetPattern(makeGeoConfig({ settlementType: 'town', foundedYear: 1900 })) === 'grid',
+  'Newer settlement selects grid pattern');
+
+// Priority: coast terrain overrides city type
+assert(gen.selectStreetPattern(makeGeoConfig({ terrain: 'coast', settlementType: 'city', population: 50000 })) === 'waterfront',
+  'Coast terrain takes priority over city type');
+
+// Priority: mountains terrain overrides village type
+assert(gen.selectStreetPattern(makeGeoConfig({ terrain: 'mountains', settlementType: 'village' })) === 'hillside',
+  'Mountains terrain takes priority over village type');
+
+// ── Generate dispatch tests ──
+
+console.log('\n=== StreetGenerator: Generate Dispatch ===\n');
+
+const baseConfig: StreetGenConfig = {
+  center: { x: 0, z: 0 },
+  radius: 100,
+  settlementType: 'town',
+  seed: 'dispatch-test-42',
+};
+
+// Organic dispatch
+{
+  const result = gen.generate(baseConfig, makeGeoConfig({ settlementType: 'village' }));
+  assert(result.pattern === 'organic', 'Generate dispatches to organic for village');
+  assert(result.network.nodes.length > 0, 'Organic dispatch produces nodes');
+  assert(result.network.edges.length > 0, 'Organic dispatch produces edges');
+}
+
+// Grid dispatch
+{
+  const result = gen.generate(baseConfig, makeGeoConfig({ settlementType: 'city', population: 15000 }));
+  assert(result.pattern === 'grid', 'Generate dispatches to grid for large city');
+  assert(result.network.nodes.length > 0, 'Grid dispatch produces nodes');
+}
+
+// Radial dispatch
+{
+  const result = gen.generate(baseConfig, makeGeoConfig({ settlementType: 'city', population: 5000 }));
+  assert(result.pattern === 'radial', 'Generate dispatches to radial for smaller city');
+  assert(result.network.nodes.length > 0, 'Radial dispatch produces nodes');
+}
+
+// Linear dispatch
+{
+  const result = gen.generate(baseConfig, makeGeoConfig({ terrain: 'river' }));
+  assert(result.pattern === 'linear', 'Generate dispatches to linear for river');
+  assert(result.network.nodes.length > 0, 'Linear dispatch produces nodes');
+}
+
+// Waterfront dispatch
+{
+  const result = gen.generate(baseConfig, makeGeoConfig({ terrain: 'coast' }));
+  assert(result.pattern === 'waterfront', 'Generate dispatches to waterfront for coast');
+  assert(result.network.nodes.length > 0, 'Waterfront dispatch produces nodes');
+}
+
+// Hillside dispatch
+{
+  const result = gen.generate(baseConfig, makeGeoConfig({ terrain: 'mountains' }));
+  assert(result.pattern === 'hillside', 'Generate dispatches to hillside for mountains');
+  assert(result.network.nodes.length > 0, 'Hillside dispatch produces nodes');
 }
 
 // Summary
