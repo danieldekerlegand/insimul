@@ -44,6 +44,14 @@ const EVENT_QUEST_FAILED := "quest_failed"
 const EVENT_QUEST_ABANDONED := "quest_abandoned"
 const EVENT_CONVERSATION_OVERHEARD := "conversation_overheard"
 const EVENT_CREATE_TRUTH := "create_truth"
+const EVENT_ASSESSMENT_STARTED := "assessment_started"
+const EVENT_ASSESSMENT_PHASE_STARTED := "assessment_phase_started"
+const EVENT_ASSESSMENT_PHASE_COMPLETED := "assessment_phase_completed"
+const EVENT_ASSESSMENT_TIER_CHANGE := "assessment_tier_change"
+const EVENT_ASSESSMENT_COMPLETED := "assessment_completed"
+const EVENT_ONBOARDING_STEP_STARTED := "onboarding_step_started"
+const EVENT_ONBOARDING_STEP_COMPLETED := "onboarding_step_completed"
+const EVENT_ONBOARDING_COMPLETED := "onboarding_completed"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -62,6 +70,10 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_NPC_VOLITION_ACTION, EVENT_PUZZLE_FAILED,
 	EVENT_QUEST_FAILED, EVENT_QUEST_ABANDONED,
 	EVENT_CONVERSATION_OVERHEARD, EVENT_CREATE_TRUTH,
+	EVENT_ASSESSMENT_STARTED, EVENT_ASSESSMENT_PHASE_STARTED,
+	EVENT_ASSESSMENT_PHASE_COMPLETED, EVENT_ASSESSMENT_TIER_CHANGE,
+	EVENT_ASSESSMENT_COMPLETED, EVENT_ONBOARDING_STEP_STARTED,
+	EVENT_ONBOARDING_STEP_COMPLETED, EVENT_ONBOARDING_COMPLETED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
@@ -114,6 +126,14 @@ var _global_handlers: Array[Callable] = []
 ##   quest_abandoned:     {type, quest_id}
 ##   conversation_overheard: {type, npc_id_1, npc_id_2, topic, language_used}
 ##   create_truth:        {type, character_id, title, content, entry_type, category?}
+##   assessment_started:  {type, session_id, instrument_id, phase, participant_id}
+##   assessment_phase_started: {type, session_id, instrument_id, phase}
+##   assessment_phase_completed: {type, session_id, instrument_id, phase, score, subscale_scores?}
+##   assessment_tier_change: {type, participant_id, instrument_id, from_tier, to_tier, score}
+##   assessment_completed: {type, session_id, instrument_id, total_score, gain_score?}
+##   onboarding_step_started: {type, step_id, step_index, total_steps}
+##   onboarding_step_completed: {type, step_id, step_index, total_steps, duration_ms}
+##   onboarding_completed: {type, total_steps, total_duration_ms}
 ##
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}
 func emit_event(event: Dictionary) -> void:
