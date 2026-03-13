@@ -70,8 +70,8 @@ import type {
   CombatStyle,
 } from '@shared/game-engine/types';
 import type { World, Country, State, Settlement, Character, Quest } from '@shared/schema';
-import { buildLanguageAwareSystemPrompt, buildWorldLanguageContext } from '@shared/language-utils';
-import type { CharacterInfo, Truth, WorldLanguageContext } from '@shared/language-utils';
+import { buildLanguageAwareSystemPrompt, buildWorldLanguageContext } from '@shared/language/language-utils';
+import type { CharacterInfo, Truth, WorldLanguageContext } from '@shared/language/language-utils';
 import type { WorldLanguage } from '@shared/language';
 
 // ─────────────────────────────────────────────

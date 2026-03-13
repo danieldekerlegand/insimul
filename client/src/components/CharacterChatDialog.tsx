@@ -5,10 +5,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Mic, MicOff, Send, Volume2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { buildGreeting, buildLanguageAwareSystemPrompt, extractLanguageFluencies, getLanguageBCP47 } from '@shared/language-utils';
-import type { WorldLanguageContext } from '@shared/language-utils';
-import { buildWorldLanguageContext } from '@shared/language-utils';
-import { parseGrammarFeedbackBlock } from '@shared/language-progress';
+import { buildGreeting, buildLanguageAwareSystemPrompt, extractLanguageFluencies, getLanguageBCP47 } from '@shared/language/language-utils';
+import type { WorldLanguageContext } from '@shared/language/language-utils';
+import { buildWorldLanguageContext } from '@shared/language/language-utils';
+import { parseGrammarFeedbackBlock } from '@shared/language/language-progress';
 
 export interface Character {
   id: string;

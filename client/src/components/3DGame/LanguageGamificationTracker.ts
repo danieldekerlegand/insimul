@@ -17,9 +17,9 @@ import {
   XP_REWARDS,
   MAX_LEVEL,
   LEVEL_THRESHOLDS,
-} from '@shared/language-gamification';
-import type { Achievement, DailyChallenge } from '@shared/language-gamification';
-import type { FluencyGainResult, VocabularyEntry, GrammarFeedback } from '@shared/language-progress';
+} from '@shared/language/language-gamification';
+import type { Achievement, DailyChallenge } from '@shared/language/language-gamification';
+import type { FluencyGainResult, VocabularyEntry, GrammarFeedback } from '@shared/language/language-progress';
 
 export interface XPGainEvent {
   amount: number;

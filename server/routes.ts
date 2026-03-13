@@ -4335,7 +4335,7 @@ app.get("/api/rules", async (req, res) => {
           console.log(`🗣️ Creating world language records for target "${worldTargetLanguage}"...`);
 
           // 1) Create a "real" WorldLanguage record for the actual target language
-          const { getLanguageBCP47 } = await import("@shared/language-utils");
+          const { getLanguageBCP47 } = await import("@shared/language/language-utils");
           await storage.createWorldLanguage({
             worldId,
             scopeType: "world",
@@ -4375,7 +4375,7 @@ app.get("/api/rules", async (req, res) => {
       // Step 1c: Create WorldLanguage records for explicitly requested world languages
       if (Array.isArray(requestedWorldLanguages) && requestedWorldLanguages.length > 0) {
         try {
-          const { getLanguageBCP47: getBCP47 } = await import("@shared/language-utils");
+          const { getLanguageBCP47: getBCP47 } = await import("@shared/language/language-utils");
           // Check which languages already have records (e.g., the learning target created in step 1b)
           const existingLangs = await storage.getWorldLanguagesByWorld(worldId);
           const existingNames = new Set(existingLangs.map(l => l.name));
