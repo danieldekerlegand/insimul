@@ -44,6 +44,7 @@ const EVENT_QUEST_FAILED := "quest_failed"
 const EVENT_QUEST_ABANDONED := "quest_abandoned"
 const EVENT_CONVERSATION_OVERHEARD := "conversation_overheard"
 const EVENT_CREATE_TRUTH := "create_truth"
+const EVENT_PERIODIC_ASSESSMENT_TRIGGERED := "periodic_assessment_triggered"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -62,6 +63,7 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_NPC_VOLITION_ACTION, EVENT_PUZZLE_FAILED,
 	EVENT_QUEST_FAILED, EVENT_QUEST_ABANDONED,
 	EVENT_CONVERSATION_OVERHEARD, EVENT_CREATE_TRUTH,
+	EVENT_PERIODIC_ASSESSMENT_TRIGGERED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
@@ -114,6 +116,7 @@ var _global_handlers: Array[Callable] = []
 ##   quest_abandoned:     {type, quest_id}
 ##   conversation_overheard: {type, npc_id_1, npc_id_2, topic, language_used}
 ##   create_truth:        {type, character_id, title, content, entry_type, category?}
+##   periodic_assessment_triggered: {type, level, tier}
 ##
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}
 func emit_event(event: Dictionary) -> void:

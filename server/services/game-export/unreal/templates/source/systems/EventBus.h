@@ -45,7 +45,8 @@ enum class EInsimulEventType : uint8
     QuestFailed             UMETA(DisplayName = "Quest Failed"),
     QuestAbandoned          UMETA(DisplayName = "Quest Abandoned"),
     ConversationOverheard   UMETA(DisplayName = "Conversation Overheard"),
-    CreateTruth             UMETA(DisplayName = "Create Truth")
+    CreateTruth             UMETA(DisplayName = "Create Truth"),
+    PeriodicAssessmentTriggered UMETA(DisplayName = "Periodic Assessment Triggered")
 };
 
 /**
@@ -172,6 +173,10 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString NpcId1;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString NpcId2;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString LanguageUsed;
+
+    // ── Periodic assessment fields ────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Level = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Tier;
 };
 
 // ── Delegates ────────────────────────────────────────────────────────────────

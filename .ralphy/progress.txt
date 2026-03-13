@@ -1,0 +1,13 @@
+## Periodic Assessment Definition and Level-Up Trigger
+
+### Completed
+- Created `shared/assessment/assessment-types.ts`: Core type definitions (AssessmentDefinition, AssessmentPhase, AssessmentTask, ScoringDimension, AssessmentSession, PhaseResult, TaskResult, AutomatedMetrics, RecordingReference)
+- Created `shared/assessment/periodic-encounter.ts`: Conversational-only 5-minute assessment (/25 points) with 5 scoring dimensions (accuracy, fluency, vocabulary, comprehension, pragmatics). Includes `isPeriodicAssessmentLevel()` and `isPeriodicAssessmentCooldownMet()` helpers. Milestone levels: 5, 10, 15, 20. Cooldown: 60 minutes.
+- Created `shared/assessment/index.ts`: Barrel export
+- Added `periodic_assessment_triggered` event to `GameEventBus` (level + tier payload)
+- Modified `LanguageGamificationTracker`:
+  - Added `checkPeriodicAssessment()` called on level-up at milestone levels with cooldown check
+  - Added `setOnPeriodicAssessmentTriggered()` callback setter
+  - Added `recordPeriodicAssessmentCompleted()` and `getLastPeriodicAssessmentTimestamp()` public methods
+  - Persists `lastPeriodicAssessmentTimestamp` in export/import state
+- Tests: 53 tests passing (36 periodic-encounter + 17 gamification-tracker)

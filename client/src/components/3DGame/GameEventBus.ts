@@ -60,7 +60,9 @@ export type GameEvent =
   // Conversation eavesdrop
   | { type: 'conversation_overheard'; npcId1: string; npcId2: string; topic: string; languageUsed: string }
   // Truth creation (emitted when game events should be recorded as world truths)
-  | { type: 'create_truth'; characterId: string; title: string; content: string; entryType: 'event' | 'fact' | 'secret'; category?: string };
+  | { type: 'create_truth'; characterId: string; title: string; content: string; entryType: 'event' | 'fact' | 'secret'; category?: string }
+  // Periodic assessment trigger (emitted when a level-up milestone requires a proficiency check)
+  | { type: 'periodic_assessment_triggered'; level: number; tier: string };
 
 export type GameEventType = GameEvent['type'];
 
