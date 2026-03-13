@@ -8,6 +8,7 @@ import { storage } from '../db/storage';
 import { StreetGenerator } from './street-generator';
 import { validateBuildingAddresses } from './address-validator';
 import { generateSettlementBoundary } from './boundary-generator';
+import { inferSettlementSubtype, getSubtypeConfig } from './settlement-subtype';
 import type { StreetNetwork, StreetNode, StreetEdge } from '../../shared/game-engine/types';
 
 export interface Location {
@@ -81,7 +82,10 @@ export class GeographyGenerator {
     streetNetwork: StreetNetwork;
     lotIds: string[];
   }> {
-    console.log(`🗺️  Generating geography for ${config.settlementName} (${config.settlementType}, pop: ${config.population})...`);
+    // Step 0: Infer settlement subtype
+    const settlementSubtype = inferSettlementSubtype(config);
+    const subtypeConfig = getSubtypeConfig(settlementSubtype);
+    console.log(`🗺️  Generating geography for ${config.settlementName} (${config.settlementType}/${settlementSubtype}, pop: ${config.population})...`);
 
     // Step 1: Generate street network graph
     const { network, pattern } = this.generateStreetNetwork(config);
@@ -115,6 +119,7 @@ export class GeographyGenerator {
       streets: network as any, // Store the StreetNetwork object directly
       landmarks,
       boundaryPolygon: boundary.polygon,
+      settlementSubtype,
     });
 
     // Persist lots, residences, and businesses as proper database records

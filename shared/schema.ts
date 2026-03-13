@@ -366,6 +366,7 @@ export const settlements = pgTable("settlements", {
   
   // Settlement type and characteristics
   settlementType: text("settlement_type").notNull(), // city, town, village
+  settlementSubtype: text("settlement_subtype").default("standard"), // port_city, mountain_village, etc.
   terrain: text("terrain"), // plains, hills, mountains, coast, river, forest, desert
   
   // Demographics and founding

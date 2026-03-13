@@ -307,6 +307,7 @@ const SettlementSchema = new Schema({
   name: { type: String, required: true },
   description: { type: String, default: null },
   settlementType: { type: String, required: true },
+  settlementSubtype: { type: String, default: 'standard' },
   terrain: { type: String, default: null },
   population: { type: Number, default: 0 },
   foundedYear: { type: Number, default: null },
