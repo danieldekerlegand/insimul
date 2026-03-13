@@ -414,3 +414,23 @@ All tests pass. No type errors.
 - Added transcript and recordings-list retrieval endpoints to assessment routes
 - Created client/src/components/AssessmentTranscriptViewer.tsx - admin UI component displaying phase transcripts and recordings with expandable sections
 - Created server/__tests__/recording-transcript-storage.test.ts - 18 tests covering serializer, API routes, and full integration flow
+
+## Quest Content Seed Library with Parameterized Templates
+
+### Completed
+- Created `shared/language/quest-seed-library.ts`:
+  - 20 parameterized quest seeds across 8 categories (conversation, vocabulary, grammar, translation, navigation, cultural, time_activity, visual_vocabulary)
+  - All 3 difficulty levels covered (beginner, intermediate, advanced)
+  - `QuestSeed` type with `SeedParam` definitions (string, number, string[] types with optional defaults)
+  - `instantiateSeed()` — resolves template placeholders, builds objectives, scales XP by difficulty, generates Prolog content via `convertQuestToProlog()`
+  - `resolveTemplate()` — replaces `{{param}}` placeholders in title/description/objective strings
+  - `resolveParams()` — merges user values with seed defaults
+  - `instantiateStarterQuests()` — batch-instantiates beginner-friendly quests for new world seeding
+  - Query helpers: `getSeedById()`, `getSeedsByCategory()`, `getSeedsByDifficulty()`, `getSeedCategories()`
+  - Difficulty XP multipliers: beginner 1x, intermediate 1.5x, advanced 2.5x
+- Created `shared/__tests__/quest-seed-library.test.ts` — 25 tests covering:
+  - Seed structure validation, unique IDs, category/difficulty coverage
+  - Template resolution (placeholders, arrays, numbers, unknowns)
+  - Parameter resolution (defaults, overrides, missing)
+  - Quest instantiation (all fields, Prolog generation, XP scaling, dynamic counts, extra fields)
+  - Starter quest batch generation
