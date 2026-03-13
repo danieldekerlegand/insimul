@@ -243,3 +243,30 @@ Helper functions:
 - Added tryLaunchOnboarding() method that checks world type and first-play status
 - Added onboardingResult/onboardingActive properties with cleanup in disposeSystems()
 - Wrote 23 tests (all passing): OnboardingLauncher helper functions + GameEventBus assessment events
+
+## Assessment type definitions
+
+Created `shared/assessment/assessment-types.ts` with pure type definitions for in-game language proficiency assessments:
+
+Types created:
+- `AssessmentType` — 'arrival' | 'departure' | 'periodic'
+- `PhaseType` — 'conversational' | 'listening' | 'writing' | 'visual'
+- `TaskType` — 7 task types (conversation_tier, follow_directions, info_extraction, form_completion, brief_message, sign_reading, object_identification)
+- `CEFRLevel` — A1-B2 proficiency levels
+- `AssessmentStatus` — 6 state machine states (idle → complete)
+- `ScoringMethod` — 'llm' | 'automated' | 'position_tracking' | 'multiple_choice'
+- `ScoringDimension` — scoring dimension with id, name, description, min/max scores
+- `AssessmentTask` — task definition with prompt templates, max points, scoring method, options
+- `AssessmentPhase` — phase grouping tasks with time limits and scoring dimensions
+- `AssessmentDefinition` — full encounter definition with phases, dimensions, estimated time
+- `RecordingReference` — audio/text recording storage references
+- `AutomatedMetrics` — WPM, TTR, MLU, latency, repairs, code-switching metrics
+- `TaskResult` — individual task score with player response and rationale
+- `PhaseResult` — phase-level results with dimension scores, metrics, transcript, recordings
+- `AssessmentSession` — runtime session tracking player progress through an assessment
+
+Also created:
+- `shared/assessment/index.ts` — barrel export
+- `shared/__tests__/assessment-types.test.ts` — 16 tests validating all type definitions
+
+All tests pass. No type errors introduced.
