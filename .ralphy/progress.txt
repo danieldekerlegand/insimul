@@ -1,0 +1,13 @@
+## Player-facing RPG progress panel
+
+### Completed
+- Created `shared/assessment-types.ts`: Assessment dimension types (5 dimensions), CEFR level types/colors/descriptions, PlayerAssessmentData interface, score color mapping, improvement arrow helpers
+- Created `client/src/components/3DGame/PlayerAssessmentPanel.ts`: Babylon.js GUI panel with CEFR badge, 5 color-coded stat bars (1-5 scale), improvement arrows vs previous assessment, next assessment indicator
+- Integrated into `BabylonGame.ts`: L hotkey toggle, initialization alongside other panels, disposal cleanup
+- Created `shared/__tests__/assessment-types.test.ts`: 21 tests covering all pure logic functions, constants, and type construction
+
+### Files changed
+- `shared/assessment-types.ts` (new)
+- `client/src/components/3DGame/PlayerAssessmentPanel.ts` (new)
+- `client/src/components/3DGame/BabylonGame.ts` (modified - import, field, init, hotkey, toggle handler, dispose)
+- `shared/__tests__/assessment-types.test.ts` (new)

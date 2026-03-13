@@ -85,6 +85,7 @@ import { BuildingSignManager, BuildingSignData } from "@/components/3DGame/Build
 import { LanguageGamificationTracker } from "@/components/3DGame/LanguageGamificationTracker.ts";
 import { BabylonConversationHistoryPanel } from "@/components/3DGame/BabylonConversationHistoryPanel.ts";
 import { BabylonSkillTreePanel } from "@/components/3DGame/BabylonSkillTreePanel.ts";
+import { PlayerAssessmentPanel } from "@/components/3DGame/PlayerAssessmentPanel.ts";
 import { EnvironmentalAudioManager } from "@/components/3DGame/EnvironmentalAudioManager.ts";
 import { CulturalEventManager } from "@/components/3DGame/CulturalEventManager.ts";
 import { BabylonNoticeBoardPanel } from "@/components/3DGame/BabylonNoticeBoardPanel.ts";
@@ -328,6 +329,7 @@ export class BabylonGame {
   private vocabularyPanel: BabylonVocabularyPanel | null = null;
   private conversationHistoryPanel: BabylonConversationHistoryPanel | null = null;
   private skillTreePanel: BabylonSkillTreePanel | null = null;
+  private assessmentPanel: PlayerAssessmentPanel | null = null;
   private buildingSignManager: BuildingSignManager | null = null;
   private gamificationTracker: LanguageGamificationTracker | null = null;
   private environmentalAudio: EnvironmentalAudioManager | null = null;
@@ -1309,6 +1311,10 @@ export class BabylonGame {
         duration: 4000,
       });
     });
+
+    // Initialize assessment progress panel (L key)
+    this.assessmentPanel = new PlayerAssessmentPanel(this.guiManager.advancedTexture);
+    this.assessmentPanel.setOnClose(() => {});
 
     // Initialize environmental audio manager
     this.environmentalAudio = new EnvironmentalAudioManager(scene);
@@ -5411,6 +5417,12 @@ export class BabylonGame {
       this.handleToggleNoticeBoard();
     }
 
+    // L - Toggle assessment progress panel
+    if (event.code === 'KeyL' && !event.repeat) {
+      event.preventDefault();
+      this.handleToggleAssessmentPanel();
+    }
+
     // Shift+V - Toggle VR
     if (event.code === 'KeyV' && event.shiftKey && !event.repeat) {
       event.preventDefault();
@@ -6079,6 +6091,17 @@ export class BabylonGame {
       });
     }
     this.skillTreePanel.toggle();
+  }
+
+  private handleToggleAssessmentPanel(): void {
+    if (!this.assessmentPanel) return;
+
+    // Refresh with latest gamification data before showing
+    const gamState = this.gamificationTracker?.getState();
+    if (gamState) {
+      this.assessmentPanel.updateData(null, gamState.xp.level);
+    }
+    this.assessmentPanel.toggle();
   }
 
   private handleToggleNoticeBoard(): void {
@@ -7635,6 +7658,7 @@ export class BabylonGame {
     this.vocabularyPanel?.dispose();
     this.conversationHistoryPanel?.dispose();
     this.skillTreePanel?.dispose();
+    this.assessmentPanel?.dispose();
     this.buildingSignManager?.dispose();
     this.gamificationTracker?.dispose();
     this.environmentalAudio?.dispose();
