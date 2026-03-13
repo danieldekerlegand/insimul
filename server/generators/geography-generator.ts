@@ -264,16 +264,24 @@ export class GeographyGenerator {
         const pos = this.interpolateWaypoints(edge.waypoints, t);
 
         // Offset slightly perpendicular to the street
-        const side = i % 2 === 0 ? 1 : -1;
-        const perpOffset = (edge.width / 2 + 5) * side;
+        const sideSign = i % 2 === 0 ? 1 : -1;
+        const sideLabel = sideSign === 1 ? 'left' : 'right';
+        const perpOffset = (edge.width / 2 + 5) * sideSign;
         const tangent = this.edgeTangent(edge.waypoints, t);
         const bx = pos.x + tangent.nz * perpOffset;
         const by = pos.z + (-tangent.nx) * perpOffset;
+
+        // Compute facing angle: point from lot toward street center
+        const facingAngle = Math.atan2(pos.z - by, pos.x - bx);
 
         const isResidence = this.shouldBeResidence(edge.streetType, buildingIndex);
         const name = isResidence
           ? `${(buildingIndex % 200) + 1} ${streetName}`
           : this.locationNames.businesses[buildingIndex % this.locationNames.businesses.length];
+
+        // Lot dimensions by settlement type
+        const lotWidth = config.settlementType === 'village' ? 15 : config.settlementType === 'town' ? 12 : 10;
+        const lotDepth = config.settlementType === 'village' ? 20 : config.settlementType === 'town' ? 16 : 14;
 
         buildings.push({
           id: `building-${buildingIndex}`,
@@ -294,6 +302,13 @@ export class GeographyGenerator {
             streetName,
             districtId: `district-${districtIdx}`,
             edgeId: edge.id,
+            side: sideLabel,
+            facingAngle,
+            lotWidth,
+            lotDepth,
+            distanceAlongStreet: Math.round(t * 100),
+            elevation: 0,
+            foundationType: 'flat',
           },
         });
 
@@ -444,6 +459,17 @@ export class GeographyGenerator {
       const address = `${houseNumber} ${streetName}`;
       const isResidence = building.properties?.buildingType === 'residence';
 
+      // Extract lot geometry from building properties
+      const edgeId = building.properties?.edgeId || null;
+      const side = building.properties?.side || 'left';
+      const facingAngle = building.properties?.facingAngle || 0;
+      const lotWidth = building.properties?.lotWidth || 12;
+      const lotDepth = building.properties?.lotDepth || 16;
+      const distanceAlongStreet = building.properties?.distanceAlongStreet || 0;
+      const elevation = building.properties?.elevation || 0;
+      const foundationType = building.properties?.foundationType || 'flat';
+      const blockId = building.properties?.blockId || null;
+
       lotDocs.push({
         worldId: config.worldId,
         settlementId: config.settlementId,
@@ -452,6 +478,15 @@ export class GeographyGenerator {
         streetName,
         districtName,
         buildingType: isResidence ? 'residence' : 'business',
+        lotWidth,
+        lotDepth,
+        streetEdgeId: edgeId,
+        distanceAlongStreet,
+        side,
+        blockId,
+        facingAngle,
+        elevation,
+        foundationType,
         formerBuildingIds: [],
         _buildingIndex: lotDocs.length,
         _isResidence: isResidence,

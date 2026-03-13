@@ -784,6 +784,17 @@ export const lots = pgTable("lots", {
   buildingId: varchar("building_id"), // Can be residence or business ID
   buildingType: text("building_type"), // residence, business, vacant
   
+  // Lot geometry & street alignment
+  lotWidth: integer("lot_width").default(12),
+  lotDepth: integer("lot_depth").default(16),
+  streetEdgeId: text("street_edge_id"),
+  distanceAlongStreet: integer("distance_along_street").default(0),
+  side: text("side").default("left"), // left or right of street
+  blockId: text("block_id"),
+  facingAngle: integer("facing_angle").default(0),
+  elevation: integer("elevation").default(0),
+  foundationType: text("foundation_type").default("flat"), // flat, raised, stilted, terraced
+
   // Spatial relationships
   neighboringLotIds: jsonb("neighboring_lot_ids").$type<string[]>().default([]),
   distanceFromDowntown: integer("distance_from_downtown").default(0),

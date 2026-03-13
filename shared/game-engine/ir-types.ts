@@ -181,6 +181,15 @@ export interface LotIR {
   position: Vec3;
   buildingType: string | null;
   buildingId: string | null;
+  lotWidth: number;
+  lotDepth: number;
+  streetEdgeId: string | null;
+  distanceAlongStreet: number;
+  side: 'left' | 'right';
+  blockId: string | null;
+  facingAngle: number;
+  elevation: number;
+  foundationType: 'flat' | 'raised' | 'stilted' | 'terraced';
 }
 
 export interface BoundsIR {

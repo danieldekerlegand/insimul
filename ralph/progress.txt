@@ -12,6 +12,7 @@ Started: Thu Mar 12 23:35:20 CDT 2026
 - Use Bresenham-style fractional accumulator to distribute counts across many items (avoids rounding-to-zero with small fractions)
 - `interpolateAtDistance(waypoints, d)` in lot-generator.ts uses absolute distance (not normalized t) — better for absolute spacing
 - TypeScript target requires `Array.from()` for iterating Sets/Maps — never use `for..of` directly on Map/Set
+- When modifying `shared/game-engine/types.ts` or `ir-types.ts`, run `npm run drift:update` before committing — pre-commit hook blocks otherwise
 
 ## 2026-03-12 - US-014
 - Implemented `selectStreetPattern(config: GeographyConfig): StreetPatternType` with priority-based selection logic
@@ -107,4 +108,20 @@ Started: Thu Mar 12 23:35:20 CDT 2026
   - `computeChainOffsets` uses BFS from closest-to-center node to accumulate per-edge distance offsets for multi-edge streets
   - Corner lot detection uses `edge.width * 2` as proximity threshold to intersection nodes
   - All 32 address tests + 30 lot tests + 2,859 street tests pass; typecheck clean on modified files
+---
+
+## 2026-03-13 - US-020
+- Implemented `generateBlocks(network: StreetNetwork, centerPoint?: Vec2): Block[]` in new `server/generators/block-generator.ts`
+- Block interface: id, boundaryStreetIds, polygon (Vec2[]), districtId, blockNumber, center (Vec3)
+- Uses planar face extraction via half-edge traversal: builds sorted adjacency lists by angle, then traces minimal faces using "next CW edge after reverse" algorithm
+- Outer (unbounded) face filtered by signed area: inner faces have positive signed area (CCW winding), outer face has negative (CW)
+- Block numbers assigned by sorting blocks by centroid distance from settlement center (100, 200, 300...)
+- `assignLotsToBlocks(lots, blocks)` uses ray-casting point-in-polygon to assign each lot to its containing block
+- Added `Block` type to `shared/game-engine/types.ts` and `BlockIR` to `shared/game-engine/ir-types.ts`
+- Files changed: `server/generators/block-generator.ts` (new), `server/generators/block-generator.test.ts` (new), `shared/game-engine/types.ts`, `shared/game-engine/ir-types.ts`, `shared/game-engine/drift-manifest.json`
+- **Learnings for future iterations:**
+  - Planar face extraction uses half-edge traversal: for each directed edge u→v, the next edge in the face is the one just CW after the reverse direction v→u in v's angle-sorted adjacency list
+  - Outer face detection: inner faces have positive signed area (CCW), outer face has negative (CW) — filter by sign, not magnitude
+  - When modifying types.ts or ir-types.ts, the drift pre-commit hook blocks commits — run `npm run drift:update` to update hashes
+  - All 32 block tests + 32 address tests + 30 lot tests + 2,859 street tests pass; typecheck clean on modified files
 ---
