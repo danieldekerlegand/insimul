@@ -75,6 +75,27 @@ All 17 tests passing. No TypeScript errors. Pre-existing test failures unrelated
   - Default threshold/keepRecent values
   - Text history formatting and compression
 
+## Visual Vocabulary Quest Completion Detection
+
+### Completed
+- Created `client/src/components/3DGame/VisualVocabularyDetector.ts`:
+  - Fuzzy matching answer validation using Levenshtein distance (accent/case insensitive)
+  - Supports noun/adjective objects and verb/adverb NPC activities
+  - Vocabulary target registration, prompt triggering, answer submission
+  - Progress tracking per target (attempts, identified, bestScore)
+  - Quest-level completion queries (isQuestComplete, getIdentifiedCount)
+  - Callbacks: onIdentificationPrompt, onObjectiveCompleted
+  - Emits visual_vocab_prompted and visual_vocab_answered GameEventBus events
+- Modified `client/src/components/3DGame/QuestObjectManager.ts`:
+  - Integrated VisualVocabularyDetector into constructor with GameEventBus
+  - Changed spawnVocabularyItem from collision-based auto-collect to click-to-identify
+  - Registers vocabulary targets with detector on spawn
+  - Added triggerVocabIdentification (on mesh pick), submitVocabAnswer (public API)
+  - Added setOnIdentificationPrompt callback, getVisualVocabDetector accessor
+  - Cleanup: removeQuestTargets on quest cleanup, dispose detector on dispose
+- Added visual_vocab_prompted and visual_vocab_answered events to GameEventBus.ts
+- Created `client/src/components/3DGame/VisualVocabularyDetector.test.ts` — 49 tests (all passing)
+
 ## Assessment Results Summary Panel
 
 - Created `client/src/components/3DGame/AssessmentResultsPanel.ts`
