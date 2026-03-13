@@ -83,6 +83,7 @@ import { VRCombatAdapter } from "@/components/3DGame/VRCombatAdapter.ts";
 import { BabylonVocabularyPanel } from "@/components/3DGame/BabylonVocabularyPanel.ts";
 import { BuildingSignManager, BuildingSignData } from "@/components/3DGame/BuildingSignManager.ts";
 import { LanguageGamificationTracker } from "@/components/3DGame/LanguageGamificationTracker.ts";
+import { QuestCompletionManager } from "@/components/3DGame/QuestCompletionManager.ts";
 import { BabylonConversationHistoryPanel } from "@/components/3DGame/BabylonConversationHistoryPanel.ts";
 import { BabylonSkillTreePanel } from "@/components/3DGame/BabylonSkillTreePanel.ts";
 import { AssessmentProgressUI } from "@/components/3DGame/AssessmentProgressUI.ts";
@@ -353,6 +354,7 @@ export class BabylonGame {
   private assessmentPanel: PlayerAssessmentPanel | null = null;
   private buildingSignManager: BuildingSignManager | null = null;
   private gamificationTracker: LanguageGamificationTracker | null = null;
+  private questCompletionManager: QuestCompletionManager | null = null;
   private environmentalAudio: EnvironmentalAudioManager | null = null;
   private culturalEventManager: CulturalEventManager | null = null;
   private noticeBoardPanel: BabylonNoticeBoardPanel | null = null;
@@ -1230,10 +1232,32 @@ export class BabylonGame {
       });
       this.eventBus.emit({ type: 'quest_accepted', questId: questData.id || '', questTitle: questData.title || '' });
     });
-    this.chatPanel.setOnQuestTurnedIn((questId, rewards) => {
-      this.questTracker?.updateQuests(this.config.worldId);
-      this.updateQuestIndicators(); // Update NPC indicators
-      console.log('[BabylonGame] Quest turned in:', questId, rewards);
+    this.chatPanel.setOnQuestTurnedIn(async (questId, rewards) => {
+      // Use QuestCompletionManager for the full ceremony
+      if (this.questCompletionManager) {
+        try {
+          const resp = await fetch(`/api/quests/${questId}`);
+          if (resp.ok) {
+            const questData = await resp.json();
+            await this.questCompletionManager.completeQuest({
+              id: questData.id,
+              worldId: questData.worldId || this.config.worldId,
+              title: questData.title,
+              questType: questData.questType,
+              experienceReward: questData.experienceReward || 0,
+              itemRewards: questData.itemRewards,
+              skillRewards: questData.skillRewards,
+              unlocks: questData.unlocks,
+              questChainId: questData.questChainId,
+              questChainOrder: questData.questChainOrder,
+              assignedBy: questData.assignedBy,
+            });
+          }
+        } catch (e) {
+          console.warn('[BabylonGame] Quest completion ceremony failed:', e);
+        }
+      }
+      this.updateQuestIndicators();
     });
     this.chatPanel.setOnActionSelect((actionId: string) => {
       this.handlePerformAction(actionId);
@@ -1553,6 +1577,14 @@ export class BabylonGame {
       });
     });
 
+    // Initialize quest completion manager
+    this.questCompletionManager = new QuestCompletionManager(scene, this.guiManager.advancedTexture);
+    this.questCompletionManager.setEventBus(this.eventBus);
+    this.questCompletionManager.setGamificationTracker(this.gamificationTracker);
+    if (this.questTracker) {
+      this.questCompletionManager.setQuestTracker(this.questTracker);
+    }
+
     // Initialize rule enforcer
     this.ruleEnforcer = new RuleEnforcer(scene);
     this.ruleEnforcer.setOnViolation((violation: RuleViolation) => {
@@ -1567,9 +1599,37 @@ export class BabylonGame {
     // Initialize Prolog engine and connect to event bus
     this.prologEngine = new GamePrologEngine();
     this.prologEngine.subscribeToEventBus(this.eventBus);
-    this.prologEngine.setOnQuestCompleted((questId) => {
+    this.prologEngine.setOnQuestCompleted(async (questId) => {
       console.log('[BabylonGame] Prolog determined quest complete:', questId);
-      this.questTracker?.updateQuests(this.config.worldId);
+      if (this.questCompletionManager) {
+        try {
+          const resp = await fetch(`/api/quests/${questId}`);
+          if (resp.ok) {
+            const questData = await resp.json();
+            // Mark as completed on server
+            await fetch(`/api/quests/${questId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: 'completed', completedAt: new Date().toISOString() }),
+            });
+            await this.questCompletionManager.completeQuest({
+              id: questData.id,
+              worldId: questData.worldId || this.config.worldId,
+              title: questData.title,
+              questType: questData.questType,
+              experienceReward: questData.experienceReward || 0,
+              itemRewards: questData.itemRewards,
+              skillRewards: questData.skillRewards,
+              unlocks: questData.unlocks,
+              questChainId: questData.questChainId,
+              questChainOrder: questData.questChainOrder,
+              assignedBy: questData.assignedBy,
+            });
+          }
+        } catch (e) {
+          console.warn('[BabylonGame] Prolog quest completion ceremony failed:', e);
+        }
+      }
       this.updateQuestIndicators();
     });
 
@@ -7901,6 +7961,7 @@ export class BabylonGame {
     this.assessmentPanel?.dispose();
     this.buildingSignManager?.dispose();
     this.gamificationTracker?.dispose();
+    this.questCompletionManager?.dispose();
     this.environmentalAudio?.dispose();
     this.culturalEventManager?.dispose();
     this.noticeBoardPanel?.dispose();

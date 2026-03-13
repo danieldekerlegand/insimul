@@ -1,3 +1,34 @@
+## Quest Turn-in and Completion Ceremony
+
+### Completed
+- Created `client/src/components/3DGame/QuestCompletionManager.ts` — unified quest completion flow:
+  - Completion sound effect: ascending major chord (C5→E5→G5→C6) via AudioContext
+  - Full-screen completion overlay (3 seconds) with gold-bordered panel, quest title, assigned NPC, animated XP counter, item/skill/unlock reward lines
+  - Item reward distribution: adds to playerProgress.inventory with stacking
+  - Gamification integration: calls LanguageGamificationTracker.onQuestCompleted() for XP + achievement checks
+  - Quest chain progression: auto-fetches and activates next quest in chain
+  - Event bus: emits quest_completed and quest_accepted (for chain progression) events
+  - Player progress tracking: maintains questsCompleted array
+  - Proper cleanup via dispose()
+
+- Wired into `client/src/components/3DGame/BabylonGame.ts`:
+  - Import and field declaration
+  - Initialization after gamification tracker with event bus, tracker, and quest tracker injection
+  - chatPanel.setOnQuestTurnedIn now fetches full quest data and runs completion ceremony
+  - prologEngine.setOnQuestCompleted now marks quest complete on server and runs ceremony
+  - Added dispose() call in cleanup
+
+- Created `client/src/components/3DGame/__tests__/QuestCompletionManager.test.ts` — 17 tests covering:
+  - Event bus emission, gamification tracker integration, quest tracker refresh
+  - Player progress tracking (questsCompleted deduplication)
+  - Item reward distribution (new items, stacking, multiple items)
+  - Quest chain progression (fetch + activate next quest, quest_accepted event, skip for non-chain)
+  - Sound effects (play without errors, graceful failure)
+  - Dispose and overlay cleanup
+
+### Tests
+All 17 tests passing. No TypeScript errors. Pre-existing test failures unrelated.
+
 ## Assessment Results Summary Panel
 
 - Created `client/src/components/3DGame/AssessmentResultsPanel.ts`
