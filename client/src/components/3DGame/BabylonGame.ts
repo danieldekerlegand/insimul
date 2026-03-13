@@ -107,6 +107,7 @@ import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts"
 import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
 import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
 import { GameEventBus } from "@/components/3DGame/GameEventBus.ts";
+import { QuestNotificationManager } from "@/components/3DGame/QuestNotificationManager.ts";
 import {
   isFirstPlaythrough,
   isLanguageLearningWorld,
@@ -339,6 +340,7 @@ export class BabylonGame {
   private radialMenu: BabylonRadialMenu | null = null;
   private questObjectManager: QuestObjectManager | null = null;
   private questIndicatorManager: QuestIndicatorManager | null = null;
+  private questNotificationManager: QuestNotificationManager | null = null;
   private buildingGenerator: ProceduralBuildingGenerator | null = null;
   private natureGenerator: ProceduralNatureGenerator | null = null;
   private roadGenerator: RoadGenerator | null = null;
@@ -1259,7 +1261,9 @@ export class BabylonGame {
           console.warn('[BabylonGame] Quest completion ceremony failed:', e);
         }
       }
+      this.questTracker?.updateQuests(this.config.worldId);
       this.updateQuestIndicators();
+      this.eventBus.emit({ type: 'quest_completed', questId });
     });
     this.chatPanel.setOnActionSelect((actionId: string) => {
       this.handlePerformAction(actionId);
@@ -1366,6 +1370,12 @@ export class BabylonGame {
     if (this.prologEngine) {
       this.questTracker.setPrologEngine(this.prologEngine);
     }
+
+    // Initialize quest notification manager (toasts + HUD indicator)
+    this.questNotificationManager = new QuestNotificationManager(this.guiManager.advancedTexture, this.eventBus);
+    this.questNotificationManager.setOnHudClicked(() => {
+      this.questTracker?.toggle();
+    });
 
     // Initialize zone audio
     this.initializeZoneAudio(scene);
@@ -1757,6 +1767,15 @@ export class BabylonGame {
       this.characters = characters;
       this.actions = [...actions, ...baseActions];
       this.quests = quests;
+      // Sync active quest count to HUD indicator
+      const activeCount = quests?.filter((q: any) => q.status === 'active').length ?? 0;
+      this.questNotificationManager?.setActiveQuestCount(activeCount);
+      if (activeCount > 0) {
+        const first = quests.find((q: any) => q.status === 'active');
+        if (first) {
+          this.questNotificationManager?.setTrackedQuest({ id: first.id, title: first.title });
+        }
+      }
       this.settlements = settlements;
       this.rules = [...rules, ...baseRules];
       this.countries = countries;
@@ -7352,9 +7371,10 @@ export class BabylonGame {
         }
       }
 
-      // Apply quest rewards on completion
+      // Apply quest rewards on completion and emit event
       if (allObjectivesComplete) {
         this.applyQuestRewards(quest);
+        this.eventBus.emit({ type: 'quest_completed', questId });
       }
 
       this.guiManager?.showToast({
@@ -8013,6 +8033,8 @@ export class BabylonGame {
     this.questIndicatorManager?.dispose();
     this.questIndicatorManager = null;
     this.radialMenu?.dispose();
+    this.questNotificationManager?.dispose();
+    this.questNotificationManager = null;
     this.questTracker?.dispose();
     this.chatPanel?.dispose();
     this.gameMenuSystem?.dispose();

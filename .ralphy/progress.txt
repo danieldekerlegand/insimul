@@ -499,3 +499,27 @@ All tests pass. No type errors.
   - canGiveQuests flag and occupation matching (15 occupations + case-insensitive)
   - Lifecycle (removeIndicator, clearAll, dispose, refreshIndicator, type transitions)
   - Multiple NPCs with different states
+
+## Quest Notification Toasts and HUD Indicators
+
+### Completed
+- Created `client/src/components/3DGame/QuestNotificationManager.ts`:
+  - Subscribes to GameEventBus quest events (quest_accepted, quest_completed, quest_failed, quest_abandoned, utterance_quest_progress, utterance_quest_completed)
+  - Shows styled in-game toast notifications with event-specific icons, colors, and durations
+  - Renders a compact HUD indicator (top-left) showing active quest count, tracked quest title, and progress bar
+  - HUD indicator is clickable to toggle the quest tracker panel
+  - Auto-dismisses toasts after configurable durations
+  - Public API: setActiveQuestCount(), setTrackedQuest(), setOnHudClicked(), setHudVisible(), dispose()
+- Modified `client/src/components/3DGame/BabylonGame.ts`:
+  - Imported and initialized QuestNotificationManager after GUI manager
+  - Wired HUD click to quest tracker toggle
+  - Syncs active quest count on world data load
+  - Emits quest_completed event on quest turn-in and objective completion
+  - Disposes notification manager on cleanup
+- Created `client/src/components/3DGame/__tests__/QuestNotificationManager.test.ts` — 19 tests covering:
+  - Toast display for all 6 quest event types
+  - Auto-dismiss timing
+  - Active quest count increment/decrement
+  - Tracked quest lifecycle (set, update progress, clear on complete)
+  - HUD visibility toggle
+  - Dispose cleanup (unsubscribes events, removes UI controls)
