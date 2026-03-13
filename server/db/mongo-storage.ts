@@ -53,6 +53,11 @@ import type {
   InsertLanguageChatMessage,
   LanguageScopeType
 } from "@shared/language";
+import type {
+  AssessmentSession,
+  PhaseResult,
+  RecordingReference
+} from "@shared/assessment";
 
 // Mongoose Document interfaces
 interface RuleDoc extends Omit<Rule, 'id'>, Document {
@@ -148,6 +153,10 @@ interface WorldLanguageDoc extends Omit<WorldLanguage, 'id'>, Document {
 }
 
 interface LanguageChatMessageDoc extends Omit<LanguageChatMessage, 'id'>, Document {
+  _id: string;
+}
+
+interface AssessmentSessionDoc extends Omit<AssessmentSession, 'id'>, Document {
   _id: string;
 }
 
@@ -1137,6 +1146,10 @@ function docToWorldLanguage(doc: WorldLanguageDoc): WorldLanguage {
 }
 
 function docToLanguageChatMessage(doc: LanguageChatMessageDoc): LanguageChatMessage {
+  return { ...doc.toObject(), id: doc._id.toString() };
+}
+
+function docToAssessmentSession(doc: AssessmentSessionDoc): AssessmentSession {
   return { ...doc.toObject(), id: doc._id.toString() };
 }
 
@@ -2951,8 +2964,10 @@ export class MongoStorage implements IStorage {
     return { id: doc._id.toString(), ...doc.toObject() };
   }
 
-  async getPlayerAssessments(playerId: string): Promise<any[]> {
-    const docs = await AssessmentSessionModel.find({ playerId }).sort({ startedAt: -1 });
+  async getPlayerAssessments(playerId: string, worldId?: string): Promise<any[]> {
+    const query: any = { playerId };
+    if (worldId) query.worldId = worldId;
+    const docs = await AssessmentSessionModel.find(query).sort({ createdAt: -1 });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 

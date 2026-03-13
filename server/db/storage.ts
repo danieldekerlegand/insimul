@@ -45,6 +45,11 @@ import type {
   InsertLanguageChatMessage,
   LanguageScopeType
 } from "@shared/language";
+import type {
+  AssessmentSession,
+  PhaseResult,
+  RecordingReference
+} from "@shared/assessment";
 import { randomUUID } from "crypto";
 import * as fs from "fs/promises";
 import * as path from "path";
@@ -277,6 +282,13 @@ export interface IStorage {
   getTracesByUser(userId: string): Promise<import("@shared/schema").PlayTrace[]>;
   createPlayTrace(trace: import("@shared/schema").InsertPlayTrace): Promise<import("@shared/schema").PlayTrace>;
   deletePlayTrace(id: string): Promise<boolean>;
+
+  // Assessment Sessions
+  createAssessmentSession(data: Omit<AssessmentSession, 'id'>): Promise<AssessmentSession>;
+  getAssessmentSession(id: string): Promise<AssessmentSession | undefined>;
+  updateAssessmentPhaseResult(sessionId: string, phaseResult: PhaseResult): Promise<AssessmentSession | undefined>;
+  addAssessmentRecording(sessionId: string, recording: RecordingReference): Promise<AssessmentSession | undefined>;
+  getPlayerAssessments(playerId: string, worldId?: string): Promise<AssessmentSession[]>;
 }
 
 // Export MongoStorage as the default storage implementation
