@@ -12,7 +12,7 @@ import {
   type SkillTreeConfig,
   createSkillTreeState,
   updateSkillProgress as genericUpdateSkillProgress,
-} from './skill-tree';
+} from '../skill-tree';
 
 // --- Language-specific condition types ---
 

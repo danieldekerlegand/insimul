@@ -16,7 +16,7 @@ type AssessmentEngine = {
     worldId: string;
     targetLanguage: string;
   }): Promise<void>;
-  onPhaseStarted(cb: (phaseId: string, phaseIndex: number) => void): void;
+  onPhaseStarted(cb: (phaseId: string, phaseIndex: number, timeRemainingSeconds?: number) => void): void;
   onPhaseCompleted(cb: (phaseId: string, score: number, maxScore: number) => void): void;
   onCompleted(cb: (result: AssessmentResult) => void): void;
   dispose(): void;
@@ -170,12 +170,14 @@ export async function launchOnboarding(
   });
 
   // Wire phase events to UI + event bus
-  assessmentEngine.onPhaseStarted((phaseId, phaseIndex) => {
+  assessmentEngine.onPhaseStarted((phaseId, phaseIndex, timeRemainingSeconds) => {
     progressUI?.show();
-    progressUI?.setPhase(phaseIndex, 0);
+    progressUI?.setPhase(phaseIndex, timeRemainingSeconds ?? 0);
     eventBus.emit({
       type: 'assessment_phase_started',
       sessionId: '',
+      instrumentId: 'arrival_encounter',
+      phase: phaseId,
       phaseId,
       phaseIndex,
     });
@@ -186,6 +188,8 @@ export async function launchOnboarding(
     eventBus.emit({
       type: 'assessment_phase_completed',
       sessionId: '',
+      instrumentId: 'arrival_encounter',
+      phase: phaseId,
       phaseId,
       score,
       maxScore,
@@ -205,26 +209,28 @@ export async function launchOnboarding(
         const scorePct = result.totalMaxScore > 0
           ? Math.round((result.totalScore / result.totalMaxScore) * 100)
           : 0;
-        resultsPanel.show({
+        resultsPanel.showResults({
           overallScorePct: scorePct,
-          cefrLevel: result.cefrLevel,
+          cefrLevel: result.cefrLevel as any,
           dimensions: result.dimensionScores
             ? Object.entries(result.dimensionScores).map(([id, score]) => ({
-                id,
                 name: id.charAt(0).toUpperCase() + id.slice(1),
                 score,
-                maxScore: 5,
               }))
             : [],
         });
         resultsPanel.setOnAdventureStart(() => {
           resultsPanel.hide();
+          // Signal the onboarding manager to complete — this resolves the
+          // launchOnboarding promise and cleans up.
+          onboardingManager.completeCurrentStep();
         });
       }
 
       eventBus.emit({
         type: 'assessment_completed',
         sessionId: result.sessionId,
+        instrumentId: 'arrival_encounter',
         totalScore: result.totalScore,
         totalMaxScore: result.totalMaxScore,
         cefrLevel: result.cefrLevel,
@@ -299,6 +305,9 @@ export async function launchOnboarding(
     eventBus.emit({
       type: 'assessment_started',
       sessionId: '',
+      instrumentId: 'arrival_encounter',
+      phase: 'arrival_conversational',
+      participantId: playerId,
       assessmentType: 'arrival',
       playerId,
     });

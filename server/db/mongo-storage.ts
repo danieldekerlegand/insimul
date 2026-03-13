@@ -914,21 +914,6 @@ const LanguageAssessmentSchema = new Schema({
 });
 LanguageAssessmentSchema.index({ playerId: 1, worldId: 1 });
 
-const AssessmentSessionSchema = new Schema({
-  playerId: { type: String, required: true },
-  worldId: { type: String, required: true },
-  assessmentType: { type: String, required: true }, // arrival, departure, custom
-  status: { type: String, default: 'in_progress' }, // in_progress, completed
-  totalScore: { type: Number, default: null },
-  maxScore: { type: Number, default: null },
-  cefrLevel: { type: String, default: null },
-  phases: { type: Schema.Types.Mixed, default: [] }, // PhaseResult[]
-  recordings: { type: Schema.Types.Mixed, default: [] }, // RecordingReference[]
-  startedAt: { type: Date, default: Date.now },
-  completedAt: { type: Date, default: null },
-});
-AssessmentSessionSchema.index({ playerId: 1, worldId: 1, assessmentType: 1 });
-
 const EvaluationResponseSchema = new Schema({
   participantId: { type: String, required: true },
   studyId: { type: String, required: true },
@@ -1178,10 +1163,6 @@ function docToWorldLanguage(doc: WorldLanguageDoc): WorldLanguage {
 }
 
 function docToLanguageChatMessage(doc: LanguageChatMessageDoc): LanguageChatMessage {
-  return { ...doc.toObject(), id: doc._id.toString() };
-}
-
-function docToAssessmentSession(doc: AssessmentSessionDoc): AssessmentSession {
   return { ...doc.toObject(), id: doc._id.toString() };
 }
 

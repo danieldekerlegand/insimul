@@ -5115,21 +5115,9 @@ export class BabylonGame {
       instance.controller.turnLeft(false);
       instance.controller.turnRight(false);
 
-      // Make NPC face the player during conversation
-      if (this.playerMesh && instance.mesh) {
-        const npcPos = instance.mesh.position;
-        const pPos = this.playerMesh.position;
-        const directionToPlayer = pPos.subtract(npcPos).normalize();
-        const targetRotation = Math.atan2(directionToPlayer.x, directionToPlayer.z) + Math.PI;
-
-        instance.mesh.rotation.y = targetRotation;
-        if ((instance.controller as any)._avatar) {
-          (instance.controller as any)._avatar.rotation.y = targetRotation;
-        }
-        if (instance.mesh.parent && instance.mesh.parent instanceof Mesh) {
-          (instance.mesh.parent as Mesh).rotation.y = targetRotation;
-        }
-      }
+      // NPC rotation was already set at conversation start — no need
+      // to continuously re-apply it. The player isn't moving either,
+      // so the facing direction stays correct.
       return;
     }
 
@@ -5599,21 +5587,18 @@ export class BabylonGame {
           // Add PI to make NPC face the player instead of away
           const targetRotation = Math.atan2(directionToPlayer.x, directionToPlayer.z) + Math.PI;
           
-          // Try multiple ways to rotate the NPC
+          // Rotate the NPC mesh to face the player
           console.log(`[Conversation] Rotating NPC to face player. Target rotation: ${targetRotation}`);
-          
-          // Method 1: Direct mesh rotation
+
+          // Only rotate the mesh itself — do NOT rotate the parent,
+          // as parent rotation orbits the child around the parent origin,
+          // displacing the NPC off-screen.
           npcMesh.rotation.y = targetRotation;
-          
-          // Method 2: If CharacterController has an avatar, rotate that
+
+          // Also rotate the CharacterController avatar if it exists
           if (npcInstance.controller && (npcInstance.controller as any)._avatar) {
             (npcInstance.controller as any)._avatar.rotation.y = targetRotation;
             console.log('[Conversation] Rotated CharacterController avatar');
-          }
-          
-          // Method 3: Try rotating parent if it exists and is a Mesh
-          if (npcMesh.parent && npcMesh.parent instanceof Mesh) {
-            (npcMesh.parent as Mesh).rotation.y = targetRotation;
           }
           
           // Also stop any ongoing movement
