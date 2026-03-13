@@ -1581,6 +1581,12 @@ export class BabylonChatPanel {
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.webm');
 
+    // Pass language hint for improved STT accuracy
+    const targetLang = this.worldLanguageContext?.targetLanguage || this.world?.targetLanguage;
+    if (targetLang) {
+      formData.append('languageHint', targetLang);
+    }
+
     const response = await fetch('/api/stt', {
       method: 'POST',
       body: formData

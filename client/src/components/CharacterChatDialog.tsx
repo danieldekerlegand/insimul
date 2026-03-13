@@ -195,6 +195,12 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.webm');
 
+    // Pass language hint for improved STT accuracy
+    const targetLang = worldLangContext?.targetLanguage;
+    if (targetLang) {
+      formData.append('languageHint', targetLang);
+    }
+
     const response = await fetch('/api/stt', {
       method: 'POST',
       body: formData

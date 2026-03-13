@@ -5471,6 +5471,7 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
 
       let audioBuffer: Buffer;
       let mimeType = 'audio/wav';
+      const languageHint = req.body?.languageHint as string | undefined;
 
       // Handle file upload
       if (req.file) {
@@ -5486,7 +5487,7 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         return res.status(400).json({ error: "No audio data provided" });
       }
 
-      const transcript = await speechToText(audioBuffer, mimeType);
+      const transcript = await speechToText(audioBuffer, mimeType, languageHint);
 
       res.json({ transcript });
     } catch (error) {
