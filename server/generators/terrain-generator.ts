@@ -298,6 +298,107 @@ export class TerrainGenerator {
     }
   }
 
+  // ── Slope & aspect derivation ───────────────────────────────────
+
+  /**
+   * Derive a slope map (gradient magnitude) from a heightmap.
+   * Returns a 2D array of the same dimensions with slope values (0 = flat).
+   * Uses central differences for interior cells, forward/backward at edges.
+   */
+  deriveSlopeMap(heightmap: number[][]): number[][] {
+    const rows = heightmap.length;
+    const cols = heightmap[0].length;
+    const slope: number[][] = [];
+
+    for (let r = 0; r < rows; r++) {
+      const rowData: number[] = [];
+      for (let c = 0; c < cols; c++) {
+        // dh/dx (horizontal gradient)
+        let dx: number;
+        if (c === 0) dx = heightmap[r][c + 1] - heightmap[r][c];
+        else if (c === cols - 1) dx = heightmap[r][c] - heightmap[r][c - 1];
+        else dx = (heightmap[r][c + 1] - heightmap[r][c - 1]) / 2;
+
+        // dh/dz (vertical gradient)
+        let dz: number;
+        if (r === 0) dz = heightmap[r + 1][c] - heightmap[r][c];
+        else if (r === rows - 1) dz = heightmap[r][c] - heightmap[r - 1][c];
+        else dz = (heightmap[r + 1][c] - heightmap[r - 1][c]) / 2;
+
+        rowData.push(Math.sqrt(dx * dx + dz * dz));
+      }
+      slope.push(rowData);
+    }
+
+    return slope;
+  }
+
+  /**
+   * Derive an aspect map (direction of steepest descent) from a heightmap.
+   * Returns angles in radians [0, 2π). 0 = north (decreasing row), π/2 = east.
+   * Flat areas return 0.
+   */
+  deriveAspectMap(heightmap: number[][]): number[][] {
+    const rows = heightmap.length;
+    const cols = heightmap[0].length;
+    const aspect: number[][] = [];
+
+    for (let r = 0; r < rows; r++) {
+      const rowData: number[] = [];
+      for (let c = 0; c < cols; c++) {
+        let dx: number;
+        if (c === 0) dx = heightmap[r][c + 1] - heightmap[r][c];
+        else if (c === cols - 1) dx = heightmap[r][c] - heightmap[r][c - 1];
+        else dx = (heightmap[r][c + 1] - heightmap[r][c - 1]) / 2;
+
+        let dz: number;
+        if (r === 0) dz = heightmap[r + 1][c] - heightmap[r][c];
+        else if (r === rows - 1) dz = heightmap[r][c] - heightmap[r - 1][c];
+        else dz = (heightmap[r + 1][c] - heightmap[r - 1][c]) / 2;
+
+        if (dx === 0 && dz === 0) {
+          rowData.push(0);
+        } else {
+          // atan2(-dz, -dx) gives direction of steepest descent
+          // Shift to [0, 2π)
+          let angle = Math.atan2(-dz, -dx);
+          if (angle < 0) angle += 2 * Math.PI;
+          rowData.push(angle);
+        }
+      }
+      aspect.push(rowData);
+    }
+
+    return aspect;
+  }
+
+  /**
+   * Check if a cell is buildable (slope below threshold).
+   * Default maxSlope = 0.52 radians (~30 degrees).
+   * The slope value is a gradient magnitude; convert to angle via atan.
+   */
+  static isBuildable(slopeMap: number[][], x: number, z: number, maxSlope: number = 0.52): boolean {
+    if (z < 0 || z >= slopeMap.length || x < 0 || x >= slopeMap[0].length) return false;
+    const slopeAngle = Math.atan(slopeMap[z][x]);
+    return slopeAngle <= maxSlope;
+  }
+
+  /**
+   * Get road traversal cost for a cell.
+   * 1.0 for flat terrain, exponentially increasing with slope.
+   * Infinity above ~15 degrees (~0.26 rad).
+   */
+  static getRoadCost(slopeMap: number[][], x: number, z: number): number {
+    if (z < 0 || z >= slopeMap.length || x < 0 || x >= slopeMap[0].length) return Infinity;
+    const slopeAngle = Math.atan(slopeMap[z][x]);
+    const maxRoadSlope = 0.2618; // ~15 degrees in radians
+    if (slopeAngle > maxRoadSlope) return Infinity;
+    // Exponential cost: 1.0 at flat, rising steeply near limit
+    return Math.exp(slopeAngle * 5) - Math.exp(0) + 1; // 1.0 at 0, ~3.7 at 15°
+  }
+
+  // ── Feature stamping ──────────────────────────────────────────────
+
   /**
    * Auto-place 2-5 terrain-appropriate features onto a heightmap.
    * Returns the placed features array.

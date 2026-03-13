@@ -344,6 +344,137 @@ function testStampFeaturesStaysInRange() {
   }
 }
 
+// ── Slope & aspect tests ──
+
+function testDeriveSlopeMapFlat() {
+  console.log('\n── deriveSlopeMap flat ──');
+  const hm = flatMap(16, 0.5);
+  const slope = gen.deriveSlopeMap(hm);
+  assert(slope.length === 16, 'slope map has correct rows');
+  assert(slope[0].length === 16, 'slope map has correct cols');
+  for (let r = 0; r < 16; r++) {
+    for (let c = 0; c < 16; c++) {
+      assertApprox(slope[r][c], 0, 1e-10, `flat slope at (${r},${c}) is zero`);
+    }
+  }
+}
+
+function testDeriveSlopeMapRamp() {
+  console.log('\n── deriveSlopeMap known ramp ──');
+  // Create a linear ramp: height increases left to right (0 to 1)
+  const size = 16;
+  const hm: number[][] = [];
+  for (let r = 0; r < size; r++) {
+    const row: number[] = [];
+    for (let c = 0; c < size; c++) {
+      row.push(c / (size - 1)); // 0 at col 0, 1 at col 15
+    }
+    hm.push(row);
+  }
+  const slope = gen.deriveSlopeMap(hm);
+  const expectedGradient = 1 / (size - 1); // ~0.0667
+
+  // Interior cells should have gradient = 1/(size-1) in x direction, 0 in z
+  for (let r = 1; r < size - 1; r++) {
+    for (let c = 1; c < size - 1; c++) {
+      assertApprox(slope[r][c], expectedGradient, 1e-10, `ramp slope interior (${r},${c})`);
+    }
+  }
+}
+
+function testDeriveAspectMapFlat() {
+  console.log('\n── deriveAspectMap flat ──');
+  const hm = flatMap(8, 0.5);
+  const aspect = gen.deriveAspectMap(hm);
+  assert(aspect.length === 8, 'aspect map has correct rows');
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      assert(aspect[r][c] === 0, `flat aspect at (${r},${c}) is 0`);
+    }
+  }
+}
+
+function testDeriveAspectMapDirection() {
+  console.log('\n── deriveAspectMap direction ──');
+  // Ramp increasing left to right: steepest descent points left (π radians)
+  const size = 8;
+  const hm: number[][] = [];
+  for (let r = 0; r < size; r++) {
+    const row: number[] = [];
+    for (let c = 0; c < size; c++) {
+      row.push(c / (size - 1));
+    }
+    hm.push(row);
+  }
+  const aspect = gen.deriveAspectMap(hm);
+  // Interior cells should point in -x direction (steepest descent = toward col 0)
+  // atan2(-0, -positive) = π
+  for (let r = 1; r < size - 1; r++) {
+    for (let c = 1; c < size - 1; c++) {
+      assertApprox(aspect[r][c], Math.PI, 0.01, `ramp aspect interior (${r},${c}) points west`);
+    }
+  }
+}
+
+function testIsBuildableFlat() {
+  console.log('\n── isBuildable ──');
+  const flatSlope = flatMap(8, 0);
+  assert(TerrainGenerator.isBuildable(flatSlope, 4, 4) === true, 'flat terrain is buildable');
+
+  // Steep slope map — gradient magnitude that yields > 30° angle
+  // tan(30°) ≈ 0.577, so slope value > 0.577 should be unbuildable
+  const steepSlope: number[][] = [];
+  for (let r = 0; r < 8; r++) {
+    const row: number[] = [];
+    for (let c = 0; c < 8; c++) row.push(1.0); // atan(1.0) = 45° > 30°
+    steepSlope.push(row);
+  }
+  assert(TerrainGenerator.isBuildable(steepSlope, 4, 4) === false, 'steep terrain is not buildable');
+  assert(TerrainGenerator.isBuildable(steepSlope, -1, 0) === false, 'out of bounds returns false');
+}
+
+function testGetRoadCostFlat() {
+  console.log('\n── getRoadCost ──');
+  const flatSlope = flatMap(8, 0);
+  assertApprox(TerrainGenerator.getRoadCost(flatSlope, 4, 4), 1.0, 0.001, 'flat terrain cost is 1.0');
+
+  // Moderate slope — should be > 1.0 but not Infinity
+  const moderateSlope: number[][] = [];
+  for (let r = 0; r < 8; r++) {
+    const row: number[] = [];
+    for (let c = 0; c < 8; c++) row.push(0.1); // atan(0.1) ≈ 5.7° < 15°
+    moderateSlope.push(row);
+  }
+  const cost = TerrainGenerator.getRoadCost(moderateSlope, 4, 4);
+  assert(cost > 1.0, `moderate slope cost > 1.0 (got ${cost.toFixed(4)})`);
+  assert(cost < Infinity, `moderate slope cost < Infinity (got ${cost.toFixed(4)})`);
+
+  // Very steep slope — should be Infinity
+  const steepSlope: number[][] = [];
+  for (let r = 0; r < 8; r++) {
+    const row: number[] = [];
+    for (let c = 0; c < 8; c++) row.push(1.0); // atan(1.0) = 45° > 15°
+    steepSlope.push(row);
+  }
+  assert(TerrainGenerator.getRoadCost(steepSlope, 4, 4) === Infinity, 'steep terrain cost is Infinity');
+  assert(TerrainGenerator.getRoadCost(flatSlope, -1, 0) === Infinity, 'out of bounds returns Infinity');
+}
+
+function testSlopeFromGeneratedHeightmap() {
+  console.log('\n── slope from generated heightmap ──');
+  const hm = gen.generateHeightmap({ seed: 'slope-test', width: 100, height: 100, terrainType: 'mountains', resolution: 32 });
+  const slope = gen.deriveSlopeMap(hm);
+  const s = stats(slope);
+  assert(s.min >= 0, `slope min >= 0 (got ${s.min.toFixed(6)})`);
+  assert(s.max > 0, `mountains slope max > 0 (got ${s.max.toFixed(6)})`);
+
+  // Plains should have much lower slopes than mountains
+  const hmPlains = gen.generateHeightmap({ seed: 'slope-test', width: 100, height: 100, terrainType: 'plains', resolution: 32 });
+  const slopePlains = gen.deriveSlopeMap(hmPlains);
+  const sp = stats(slopePlains);
+  assert(sp.mean < s.mean, `plains mean slope (${sp.mean.toFixed(6)}) < mountains (${s.mean.toFixed(6)})`);
+}
+
 // ── Run all tests ──
 
 console.log('=== TerrainGenerator Tests ===');
@@ -369,6 +500,13 @@ testStampFeaturesTerrainAppropriate();
 testStampFeaturesDeterminism();
 testStampFeaturesModifiesHeightmap();
 testStampFeaturesStaysInRange();
+testDeriveSlopeMapFlat();
+testDeriveSlopeMapRamp();
+testDeriveAspectMapFlat();
+testDeriveAspectMapDirection();
+testIsBuildableFlat();
+testGetRoadCostFlat();
+testSlopeFromGeneratedHeightmap();
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
