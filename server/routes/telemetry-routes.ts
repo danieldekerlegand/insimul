@@ -635,6 +635,60 @@ export function createTelemetryRoutes(storage: any): Router {
 
   // ============= ASSESSMENT ENDPOINTS =============
 
+  // GET /api/assessment/:participantId/detail — full assessment history for a player
+  router.get('/assessment/:participantId/detail', async (req: Request, res: Response) => {
+    try {
+      const { participantId } = req.params;
+      const worldId = req.query.worldId as string | undefined;
+
+      // Get all evaluation responses for this participant
+      const evaluations = await storage.getEvaluationResponsesByParticipant(participantId);
+
+      // Get language assessments if worldId provided
+      let languageAssessments: any[] = [];
+      if (worldId) {
+        languageAssessments = await storage.getLanguageAssessments(participantId, worldId);
+      }
+
+      // Re-score evaluations with subscale breakdowns
+      const { scoreInstrument, INSTRUMENTS } = await import('../services/assessment-framework');
+      const enriched = evaluations.map((ev: any) => {
+        const instrument = INSTRUMENTS[ev.instrumentType as keyof typeof INSTRUMENTS];
+        let subscaleScores: Record<string, number> = {};
+        let totalScore = ev.score;
+
+        if (instrument && ev.responses && typeof ev.responses === 'object') {
+          try {
+            const result = scoreInstrument(ev.instrumentType, ev.responses);
+            subscaleScores = result.subscaleScores;
+            totalScore = result.totalScore;
+          } catch {
+            // Use stored score if re-scoring fails
+          }
+        }
+
+        return {
+          ...ev,
+          score: totalScore,
+          subscaleScores,
+          maxScore: instrument?.scoreRange?.max ?? ev.maxScore,
+          instrumentName: instrument?.name ?? ev.instrumentType,
+          subscales: instrument?.subscales?.map(s => ({ id: s.id, name: s.name })) ?? [],
+        };
+      });
+
+      res.json({
+        participantId,
+        evaluations: enriched,
+        languageAssessments,
+        totalAssessments: enriched.length + languageAssessments.length,
+      });
+    } catch (error) {
+      console.error('Assessment detail error:', error);
+      res.status(500).json({ message: 'Failed to get assessment detail' });
+    }
+  });
+
   // GET /api/assessment/:participantId/schedule — shows which tests are due
   router.get('/assessment/:participantId/schedule', async (req: Request, res: Response) => {
     try {

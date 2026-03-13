@@ -307,6 +307,7 @@ const SettlementSchema = new Schema({
   name: { type: String, required: true },
   description: { type: String, default: null },
   settlementType: { type: String, required: true },
+  settlementSubtype: { type: String, default: 'standard' },
   terrain: { type: String, default: null },
   population: { type: Number, default: 0 },
   foundedYear: { type: Number, default: null },
@@ -334,6 +335,9 @@ const SettlementSchema = new Schema({
   previousCountryIds: { type: Schema.Types.Mixed, default: null },
   previousStateIds: { type: Schema.Types.Mixed, default: null },
   annexationHistory: { type: Schema.Types.Mixed, default: null },
+  boundaryPolygon: { type: Schema.Types.Mixed, default: null },
+  elevation: { type: Number, default: 0 },
+  slopeProfile: { type: String, default: null },
   generationConfig: { type: Schema.Types.Mixed, default: null },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
@@ -749,6 +753,15 @@ const LotSchema = new Schema({
   districtName: { type: String, default: null },
   buildingId: { type: String, default: null },
   buildingType: { type: String, default: 'vacant' },
+  lotWidth: { type: Number, default: 12 },
+  lotDepth: { type: Number, default: 16 },
+  streetEdgeId: { type: String, default: null },
+  distanceAlongStreet: { type: Number, default: 0 },
+  side: { type: String, default: 'left' },
+  blockId: { type: String, default: null },
+  facingAngle: { type: Number, default: 0 },
+  elevation: { type: Number, default: 0 },
+  foundationType: { type: String, default: 'flat' },
   neighboringLotIds: { type: [String], default: [] },
   distanceFromDowntown: { type: Number, default: null },
   formerBuildingIds: { type: [String], default: [] },
@@ -955,6 +968,19 @@ const ApiKeySchema = new Schema({
 });
 ApiKeySchema.index({ key: 1 });
 
+const TerrainFeatureSchema = new Schema({
+  worldId: { type: String, required: true },
+  name: { type: String, required: true },
+  featureType: { type: String, required: true },
+  position: { type: Schema.Types.Mixed, required: true },
+  radius: { type: Number, required: true },
+  elevation: { type: Number, required: true },
+  description: { type: String, default: null },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+TerrainFeatureSchema.index({ worldId: 1 });
+
 // Mongoose Models
 const RuleModel = mongoose.model<RuleDoc>('Rule', RuleSchema);
 const GrammarModel = mongoose.model<GrammarDoc>('Grammar', GrammarSchema);
@@ -994,6 +1020,7 @@ const EvaluationResponseModel = mongoose.model('EvaluationResponse', EvaluationR
 const TechnicalTelemetryModel = mongoose.model('TechnicalTelemetry', TechnicalTelemetrySchema, 'technicaltelemetry');
 const EngagementEventModel = mongoose.model('EngagementEvent', EngagementEventSchema, 'engagementevents');
 const ApiKeyModel = mongoose.model('ApiKey', ApiKeySchema, 'apikeys');
+const TerrainFeatureModel = mongoose.model('TerrainFeature', TerrainFeatureSchema);
 
 // Helper to convert Mongoose doc to our type
 function docToRule(doc: RuleDoc | any): Rule {
@@ -2754,6 +2781,11 @@ export class MongoStorage implements IStorage {
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
+  async getEvaluationResponsesByParticipant(participantId: string): Promise<any[]> {
+    const docs = await EvaluationResponseModel.find({ participantId }).sort({ createdAt: -1 });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
   async getEvaluationSummary(studyId: string, targetLanguage?: string): Promise<any> {
     const query: any = { studyId };
     if (targetLanguage) query.targetLanguage = targetLanguage;
@@ -2937,6 +2969,42 @@ export class MongoStorage implements IStorage {
       summary[type] = { count: data.count, avgScore: Math.round(avg * 100) / 100, distribution: { '0-25%': buckets[0], '25-50%': buckets[1], '50-75%': buckets[2], '75-100%': buckets[3] } };
     }
     return { worldId, totalCompleted: docs.length, byType: summary };
+  }
+
+  // ============= TERRAIN FEATURES =============
+
+  async getTerrainFeature(id: string): Promise<any | undefined> {
+    await this.connect();
+    const doc = await TerrainFeatureModel.findById(id);
+    return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
+  }
+
+  async getTerrainFeaturesByWorld(worldId: string): Promise<any[]> {
+    await this.connect();
+    const docs = await TerrainFeatureModel.find({ worldId });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  async createTerrainFeature(feature: any): Promise<any> {
+    await this.connect();
+    const doc = await TerrainFeatureModel.create(feature);
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  async updateTerrainFeature(id: string, feature: any): Promise<any | undefined> {
+    await this.connect();
+    const doc = await TerrainFeatureModel.findByIdAndUpdate(
+      id,
+      { $set: { ...feature, updatedAt: new Date() } },
+      { new: true }
+    );
+    return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
+  }
+
+  async deleteTerrainFeature(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await TerrainFeatureModel.findByIdAndDelete(id);
+    return !!result;
   }
 
 }

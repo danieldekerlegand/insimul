@@ -137,3 +137,22 @@ Helper functions:
 - Registered routes in `server/routes.ts`
 
 - Added 14 tests in `server/__tests__/assessment-routes.test.ts` — all passing
+
+## Player Assessment Detail View
+
+### Completed
+- Added `getEvaluationResponsesByParticipant()` storage method to mongo-storage.ts
+- Added `GET /api/assessment/:participantId/detail` endpoint to telemetry-routes.ts
+  - Returns enriched evaluations with re-scored subscale breakdowns
+  - Includes language assessments when worldId query param provided
+- Created `PlayerAssessmentDetail.tsx` component with:
+  - Summary stat cards (total assessments, instruments used, avg score, language assessments)
+  - Per-dimension subscale bar comparison chart (latest scores per instrument)
+  - Longitudinal assessment history table with expandable rows
+  - Instrument type filter buttons
+  - Delta indicators showing score changes between assessments
+  - Expandable phase breakdown showing subscale scores and raw responses
+- Wired up routing in home.tsx (drills down from ResearcherDashboard participants tab)
+- Added `onViewPlayerDetail` prop to ResearcherDashboard with "View Full Detail" button
+- Wrote 7 API endpoint tests (all passing)
+- All 109 tests pass, no new TypeScript errors
