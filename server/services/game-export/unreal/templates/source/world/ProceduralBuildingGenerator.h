@@ -96,4 +96,12 @@ private:
     UTexture2D* RoofTextureOverride = nullptr;
 
     UMaterialInstanceDynamic* GetSharedMaterial(const FString& Key, UMaterialInterface* Parent, FLinearColor Color);
+
+    /** Create style-appropriate roof geometry. Returns the roof height for positioning. */
+    float CreateRoof(USceneComponent* Parent, const FString& ArchStyle, float Width, float Depth,
+                     int32 Floors, FLinearColor Color, UMaterialInterface* BaseMaterial);
+
+    /** Add door with frame and handle to building. */
+    void AddDoor(USceneComponent* Parent, float Width, float Depth, int32 Floors,
+                 FLinearColor DoorColor, UMaterialInterface* BaseMaterial);
 };

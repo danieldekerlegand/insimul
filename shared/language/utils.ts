@@ -395,7 +395,8 @@ export function buildConlangGreeting(
  */
 export function buildLanguageSection(
   fluencies: LanguageFluency[],
-  targetLanguage?: string
+  targetLanguage?: string,
+  isLanguageLearning?: boolean
 ): string {
   const dominant = fluencies[0];
 
@@ -406,51 +407,59 @@ export function buildLanguageSection(
   section += `- Native language: ${dominant.language}\n`;
 
   section += `\nBEHAVIOR:\n`;
-  section += `1. Speak ${dominant.language} by default.\n`;
 
-  // If there's a target language and the character knows it
-  if (targetLanguage && targetLanguage !== dominant.language) {
-    const targetFluency = fluencies.find(f =>
-      f.language.toLowerCase() === targetLanguage.toLowerCase()
-    );
+  // In language-learning worlds, the NPC should speak the TARGET language by default
+  if (isLanguageLearning && targetLanguage && targetLanguage !== 'English') {
+    section += `1. You live in a ${targetLanguage}-speaking world. Speak ${targetLanguage} by default.\n`;
+    section += `2. When the player struggles, you may include brief English translations in parentheses after key ${targetLanguage} words.\n`;
+    section += `3. Always respond primarily in ${targetLanguage} — this is a language immersion experience.\n`;
+  } else {
+    section += `1. Speak ${dominant.language} by default.\n`;
 
-    if (targetFluency) {
-      if (targetFluency.fluency < 50) {
-        section += `2. If the user speaks ${targetLanguage}, try to respond but struggle: use simple words, make grammatical errors, sometimes apologize for poor skills.\n`;
-      } else if (targetFluency.fluency < 70) {
-        section += `2. If the user speaks ${targetLanguage}, respond in ${targetLanguage} but show limitations: occasional errors, simpler grammar, sometimes search for words.\n`;
+    // If there's a target language and the character knows it
+    if (targetLanguage && targetLanguage !== dominant.language) {
+      const targetFluency = fluencies.find(f =>
+        f.language.toLowerCase() === targetLanguage.toLowerCase()
+      );
+
+      if (targetFluency) {
+        if (targetFluency.fluency < 50) {
+          section += `2. If the user speaks ${targetLanguage}, try to respond but struggle: use simple words, make grammatical errors, sometimes apologize for poor skills.\n`;
+        } else if (targetFluency.fluency < 70) {
+          section += `2. If the user speaks ${targetLanguage}, respond in ${targetLanguage} but show limitations: occasional errors, simpler grammar, sometimes search for words.\n`;
+        } else {
+          section += `2. If the user speaks ${targetLanguage}, respond fluently in ${targetLanguage}.\n`;
+        }
       } else {
-        section += `2. If the user speaks ${targetLanguage}, respond fluently in ${targetLanguage}.\n`;
+        section += `2. If the user speaks ${targetLanguage}, you don't know it — stay in ${dominant.language} and apologize.\n`;
       }
-    } else {
-      section += `2. If the user speaks ${targetLanguage}, you don't know it — stay in ${dominant.language} and apologize.\n`;
+    } else if (fluencies.length > 1) {
+      const secondary = fluencies[1];
+      if (secondary.fluency < 50) {
+        section += `2. If the user speaks ${secondary.language}, struggle with it: use simple words, make errors.\n`;
+      } else if (secondary.fluency < 70) {
+        section += `2. If the user speaks ${secondary.language}, respond with some limitations.\n`;
+      } else {
+        section += `2. If the user speaks ${secondary.language}, respond fluently.\n`;
+      }
     }
-  } else if (fluencies.length > 1) {
-    const secondary = fluencies[1];
-    if (secondary.fluency < 50) {
-      section += `2. If the user speaks ${secondary.language}, struggle with it: use simple words, make errors.\n`;
-    } else if (secondary.fluency < 70) {
-      section += `2. If the user speaks ${secondary.language}, respond with some limitations.\n`;
-    } else {
-      section += `2. If the user speaks ${secondary.language}, respond fluently.\n`;
-    }
-  }
 
-  // Code-switching behavior for multilingual characters
-  if (fluencies.length >= 2) {
-    const languages = fluencies.map(f => f.language);
-    section += `\nCODE-SWITCHING:\n`;
-    section += `- You can switch between ${languages.join(' and ')} naturally in conversation.\n`;
-    section += `- Use ${dominant.language} for emotional expressions and exclamations.\n`;
-    if (fluencies.some(f => f.fluency < 70 && f.fluency >= 30)) {
-      section += `- When struggling in a weaker language, mix in words from ${dominant.language} and apologize.\n`;
+    // Code-switching behavior for multilingual characters
+    if (fluencies.length >= 2) {
+      const languages = fluencies.map(f => f.language);
+      section += `\nCODE-SWITCHING:\n`;
+      section += `- You can switch between ${languages.join(' and ')} naturally in conversation.\n`;
+      section += `- Use ${dominant.language} for emotional expressions and exclamations.\n`;
+      if (fluencies.some(f => f.fluency < 70 && f.fluency >= 30)) {
+        section += `- When struggling in a weaker language, mix in words from ${dominant.language} and apologize.\n`;
+      }
+      section += `- Translate important terms when switching languages.\n`;
     }
-    section += `- Translate important terms when switching languages.\n`;
   }
 
   section += `\nGENERAL:\n`;
-  section += `3. Keep responses under 3 sentences unless asked for more.\n`;
-  section += `4. You can talk about your location, the world, your relationships, and your daily life.\n`;
+  section += `- Keep responses under 3 sentences unless asked for more.\n`;
+  section += `- You can talk about your location, the world, your relationships, and your daily life.\n`;
 
   return section;
 }
@@ -511,21 +520,8 @@ When the player writes in ${targetLanguage}, analyze their grammar.
 - Focus on 1-2 most important errors per message (don't overwhelm).
 - If the player's grammar is correct, you may compliment them briefly.
 
-After your dialogue response, include a structured grammar feedback block:
-
-**GRAMMAR_FEEDBACK**
-Status: [correct|corrected|no_target_language]
-Errors: [number of errors found, 0 if none]
-Pattern: [grammar pattern name] | Incorrect: "[what the player wrote]" | Corrected: "[correct form]" | Explanation: [brief explanation]
-**END_GRAMMAR**
-
-Rules for the grammar feedback block:
-- Include one "Pattern:" line per error (omit Pattern lines if Status is "correct" or "no_target_language")
-- Status "correct" = player used ${targetLanguage} with no grammar errors
-- Status "corrected" = player used ${targetLanguage} but had grammar errors
-- Status "no_target_language" = player wrote entirely in English or another non-target language
-- Pattern names should be descriptive: "verb conjugation", "article agreement", "word order", "noun case", "tense usage", "plural formation", etc.
-- Always include this block when the player sends a message.\n`;
+IMPORTANT: Do NOT include any structured data blocks, metadata, or markup in your response.
+Your response should be pure in-character dialogue only.\n`;
 
   // Add language-specific grammar hints for conlangs
   if (worldLanguage?.kind === 'constructed' && worldLanguage.grammar) {
@@ -554,15 +550,87 @@ Rules for the grammar feedback block:
 }
 
 /**
+ * Build a system prompt for the grammar analysis LLM call.
+ * This is a separate request from the dialogue — it analyzes the player's
+ * message and returns structured JSON with grammar feedback.
+ */
+export function buildGrammarAnalysisPrompt(
+  targetLanguage: string,
+  playerMessage: string,
+  npcResponse: string,
+  worldLanguage?: WorldLanguage | null
+): string {
+  let prompt = `You are a language analysis engine. Analyze the player's message written in ${targetLanguage} for grammar correctness.
+
+Player's message: "${playerMessage}"
+NPC's response: "${npcResponse}"
+
+Respond with ONLY valid JSON (no markdown, no code fences, no extra text). Use this exact schema:
+
+{
+  "status": "correct" | "corrected" | "no_target_language",
+  "errors": [
+    {
+      "pattern": "grammar pattern name (e.g. verb conjugation, article agreement, word order)",
+      "incorrect": "what the player wrote",
+      "corrected": "the correct form",
+      "explanation": "brief pedagogical explanation"
+    }
+  ]
+}
+
+Rules:
+- "status": "correct" if the player used ${targetLanguage} with no grammar errors
+- "status": "corrected" if the player used ${targetLanguage} but had grammar errors
+- "status": "no_target_language" if the player wrote entirely in English or another non-target language
+- Include one entry in "errors" per grammar mistake (empty array if status is "correct" or "no_target_language")
+- Focus on the 1-2 most important errors (don't overwhelm)
+- Pattern names should be descriptive: "verb conjugation", "article agreement", "word order", "noun case", "tense usage", "plural formation", etc.`;
+
+  // Add language-specific grammar rules for conlangs
+  if (worldLanguage?.kind === 'constructed' && worldLanguage.grammar) {
+    prompt += `\n\nGrammar rules for ${worldLanguage.name} to evaluate against:`;
+    if (worldLanguage.features?.wordOrder) {
+      prompt += `\n- Word order: ${worldLanguage.features.wordOrder}`;
+    }
+    if (worldLanguage.grammar.verbTenses) {
+      prompt += `\n- Verb tenses: ${worldLanguage.grammar.verbTenses.join(', ')}`;
+    }
+    if (worldLanguage.grammar.nounCases) {
+      prompt += `\n- Noun cases: ${worldLanguage.grammar.nounCases.join(', ')}`;
+    }
+    if (worldLanguage.grammar.verbAgreement) {
+      prompt += `\n- Verb agreement: ${worldLanguage.grammar.verbAgreement.join(', ')}`;
+    }
+    if (worldLanguage.grammar.genders) {
+      prompt += `\n- Genders: ${worldLanguage.grammar.genders.join(', ')}`;
+    }
+    if (worldLanguage.grammar.pluralization) {
+      prompt += `\n- Pluralization: ${worldLanguage.grammar.pluralization}`;
+    }
+  }
+
+  return prompt;
+}
+
+/**
  * Build the world language context section for system prompts.
  */
 export function buildWorldLanguageSection(worldContext: WorldLanguageContext): string {
   let section = '';
+  const isLanguageLearning = worldContext.gameType === 'language-learning' ||
+                             worldContext.gameType === 'educational';
 
   if (worldContext.targetLanguage && worldContext.targetLanguage !== 'English') {
     section += `\nWORLD LANGUAGE: This world's primary language is ${worldContext.targetLanguage}.\n`;
-    section += `- NPCs in this world commonly speak ${worldContext.targetLanguage}.\n`;
-    section += `- Help the player practice ${worldContext.targetLanguage} naturally in conversation.\n`;
+    if (isLanguageLearning) {
+      section += `- You MUST speak ${worldContext.targetLanguage} in your responses. This is a language immersion game.\n`;
+      section += `- The player is here to learn ${worldContext.targetLanguage} by talking to you.\n`;
+      section += `- NEVER respond entirely in English. Always use ${worldContext.targetLanguage} as your primary language.\n`;
+    } else {
+      section += `- NPCs in this world commonly speak ${worldContext.targetLanguage}.\n`;
+      section += `- Help the player practice ${worldContext.targetLanguage} naturally in conversation.\n`;
+    }
   }
 
   // Add conlang context if the primary language is constructed
@@ -642,56 +710,51 @@ export function buildPlayerProficiencySection(
   }
 
   section += `\nADAPTIVE DIALOGUE RULES:\n`;
+  section += `IMPORTANT: You must ALWAYS respond primarily in ${targetLanguage}. This is a language immersion experience.\n\n`;
 
   if (effectiveFluency < 20) {
     // Beginner tier
     section += `This player is a BEGINNER. You MUST:\n`;
-    section += `- Use 80-90% English in your responses\n`;
-    section += `- Introduce only 1-2 new ${targetLanguage} words per message\n`;
-    section += `- Always provide English translations immediately after ${targetLanguage} words\n`;
-    section += `- Use very short, simple sentences (5-7 words)\n`;
+    section += `- Speak in ${targetLanguage} using very simple words and short sentences (5-7 words)\n`;
+    section += `- Put English translations in parentheses after key ${targetLanguage} words, e.g.: "Bonjour! (Hello!) Comment (How) allez-vous? (are you?)"\n`;
+    section += `- Use only basic, high-frequency vocabulary\n`;
     section += `- Be extremely encouraging and patient — celebrate every attempt\n`;
     section += `- Repeat key vocabulary multiple times naturally\n`;
-    section += `- If the player seems confused, offer hints in English\n`;
-    section += `- Speak slowly: use short sentences separated by periods, not long compound sentences\n`;
-    section += `- Use gestures and body language descriptions (e.g., *points to the bread* "This is 'pain'!")\n`;
+    section += `- If the player writes in English, respond in ${targetLanguage} with translations and gently encourage them to try ${targetLanguage}\n`;
+    section += `- Use gestures and body language descriptions, e.g.: *points to the bread* "C'est du pain! (This is bread!)"\n`;
   } else if (effectiveFluency < 40) {
     // Elementary tier
     section += `This player is at an ELEMENTARY level. You should:\n`;
-    section += `- Use 30-40% ${targetLanguage} in your responses\n`;
-    section += `- Introduce 2-4 new words per message\n`;
-    section += `- Use short sentences in ${targetLanguage} with English translations nearby\n`;
-    section += `- Gently correct 1 grammar error per message (don't overwhelm)\n`;
+    section += `- Speak in ${targetLanguage}, using simple sentence structures\n`;
+    section += `- Provide English translations in parentheses only for new or uncommon words\n`;
+    section += `- Use common everyday vocabulary with 2-4 new words per message\n`;
+    section += `- Gently correct 1 grammar error per message in-character\n`;
     section += `- Be warm and encouraging\n`;
-    section += `- Use common everyday vocabulary\n`;
   } else if (effectiveFluency < 60) {
     // Intermediate tier
     section += `This player is at an INTERMEDIATE level. You should:\n`;
-    section += `- Use 50-70% ${targetLanguage} in your responses\n`;
-    section += `- Use full sentences in ${targetLanguage}\n`;
+    section += `- Speak entirely in ${targetLanguage} with full sentences\n`;
+    section += `- Only translate truly unusual or advanced vocabulary to English\n`;
     section += `- Introduce 3-5 new words, including some idiomatic expressions\n`;
-    section += `- Correct up to 2 grammar errors per message with brief explanations\n`;
-    section += `- Only translate unusual or new words to English\n`;
-    section += `- Begin using more complex sentence structures\n`;
+    section += `- Correct up to 2 grammar errors per message with brief in-character explanations\n`;
+    section += `- Use more complex sentence structures\n`;
   } else if (effectiveFluency < 80) {
     // Advanced tier
     section += `This player is at an ADVANCED level. You should:\n`;
-    section += `- Use 80-95% ${targetLanguage} in your responses\n`;
+    section += `- Speak 100% in ${targetLanguage} — no English at all\n`;
     section += `- Speak naturally with idioms, humor, and cultural references\n`;
-    section += `- Correct all grammar errors with detailed explanations\n`;
-    section += `- Only use English for truly complex explanations\n`;
+    section += `- Correct grammar errors with explanations in ${targetLanguage}\n`;
     section += `- Challenge the player with varied vocabulary and structures\n`;
     section += `- Speak at natural speed — use longer, complex sentences\n`;
     section += `- You may playfully challenge or tease the player about mistakes\n`;
   } else {
     // Near-native tier
     section += `This player is NEAR-NATIVE. You should:\n`;
-    section += `- Use 100% ${targetLanguage} in your responses\n`;
-    section += `- Speak at full natural complexity with slang and colloquialisms\n`;
-    section += `- Discuss nuanced topics, wordplay, and cultural subtleties\n`;
+    section += `- Speak 100% in ${targetLanguage} with full natural complexity\n`;
+    section += `- Use slang, colloquialisms, and cultural subtleties\n`;
+    section += `- Discuss nuanced topics and wordplay\n`;
     section += `- Only correct subtle errors or offer style improvements\n`;
     section += `- Treat them as a fellow speaker, not a learner\n`;
-    section += `- Speak at full natural speed with no simplification\n`;
   }
 
   // Target weak patterns
@@ -725,11 +788,15 @@ export function buildLanguageAwareSystemPrompt(
 
   const { firstName, lastName, age, gender, occupation, currentLocation, personality, friendIds, coworkerIds, spouseId } = character;
 
+  // Determine if this is a language-learning world
+  const isLanguageLearning = worldContext?.gameType === 'language-learning' ||
+                             worldContext?.gameType === 'educational';
+
   let prompt = `You are ${firstName} ${lastName} (${age || '?'} years old, ${gender || 'unknown'}, ${occupation || 'no occupation'}).
 
 CURRENT LOCATION: ${currentLocation || 'Unknown'}
 
-${buildLanguageSection(fluencies, worldContext?.targetLanguage)}
+${buildLanguageSection(fluencies, worldContext?.targetLanguage, isLanguageLearning)}
 `;
 
   // Add world language context
@@ -737,10 +804,6 @@ ${buildLanguageSection(fluencies, worldContext?.targetLanguage)}
     prompt += buildWorldLanguageSection(worldContext);
     prompt += '\n';
   }
-
-  // Add grammar correction instructions for language-learning games
-  const isLanguageLearning = worldContext?.gameType === 'language-learning' ||
-                             worldContext?.gameType === 'educational';
   if (isLanguageLearning && worldContext?.targetLanguage && worldContext.targetLanguage !== 'English') {
     prompt += buildGrammarFeedbackSection(
       worldContext.targetLanguage,

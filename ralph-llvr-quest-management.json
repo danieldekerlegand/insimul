@@ -1,0 +1,148 @@
+{
+  "tasks": [
+    {
+      "title": "Implement procedural quest object mesh generator",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Create client/src/components/3DGame/ProceduralQuestObjects.ts. Build a procedural mesh generator for quest-related objects that we don't have real assets for yet. Generate simple colored primitives: spheres for fruits/balls, boxes for packages/books, cylinders for bottles/containers, combined primitives for furniture/tools. Each object type should have a color, label billboard, and optional glow highlight. Accept parameters: objectType (from a registry of ~30 common nouns like 'apple', 'book', 'key', 'bottle', 'ball', 'chair'), color (for visual vocabulary quests), size, and interactable flag. Add a pulsing outline shader or glow layer to distinguish quest objects from environment objects. These are temporary placeholders — design the interface so real GLTF models can replace them later via an asset registry lookup."
+    },
+    {
+      "title": "Create quest content seed library with parameterized templates",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Expand shared/language/quest-templates.ts with a comprehensive seed library of 50+ parameterized quest templates organized by the user's quest categories. Templates should cover: (1) Follow Instructions — 'Have N conversations with X character', 'Go to restaurant and order food', 'Go to hotel and book a room', 'Ask for directions to X', 'Go to X place and talk to Y person about Z'; (2) Visual Vocabulary Nouns/Adjectives — 'Find the {{adjective}} {{noun}} and return it to {{npc}}' with vocabulary_set params for color+object combos; (3) Visual Vocabulary Verbs/Adverbs — 'Find the person who is {{adverb}} {{verb}}ing' with activity descriptions; (4) Listening Comprehension — 'Listen to {{npc}}'s story and report back to {{npc2}} about {{topic}}'; (5) Navigate the City — multi-waypoint chains 'Go to X, then Y, then Z'; (6) Navigate Time — 'Do X thing at Y time'; (7) Vocabulary Bank Collection — 'Find and collect N {{category}} words by interacting with objects'. Each template must specify: questType, difficulty range, objectiveTypes (from the existing 16 types in shared/quest-types/language-learning.ts), estimated XP reward, required vocabulary categories, and placeholder parameters for AI fill-in."
+    },
+    {
+      "title": "Implement quest assignment engine that generates real playable quests from templates",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Create server/services/quest-assignment-engine.ts. This is the core system that takes quest templates and the current world state (available NPCs, locations, vocabulary categories, player CEFR level) and produces concrete, playable quest instances. On world load or when a player needs new quests, the engine should: (1) query player's current CEFR level, vocabulary mastery, and completed quests; (2) select appropriate templates matching player level (A1 gets simple 'greet NPC' quests, B2 gets complex multi-stage chains); (3) fill template parameters by picking actual NPCs, locations, and vocabulary from the world data; (4) create quest records via the existing POST /api/worlds/:worldId/quests endpoint with fully populated objectives, completionCriteria, locationId, and assignedTo fields; (5) ensure variety — don't repeat the same template type consecutively. Generate 3-5 active quests at a time. Wire this into the game startup flow so players always have quests available."
+    },
+    {
+      "title": "Implement 'Follow Instructions' quest completion detection",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "Wire up end-to-end completion detection for 'Follow Instructions' quests in UtteranceQuestSystem.ts and QuestPostConditionValidator.ts. These quests require the player to perform specific actions: (1) 'Have N conversations with character X' — listen for conversation_turn events on GameEventBus, count turns with the specified NPC, mark objective complete when threshold reached; (2) 'Go to location and do action' — combine visit_location objective (detected via player proximity to locationPosition) with conversation or interaction objectives; (3) 'Ask for directions' — detect when player uses direction-related vocabulary in conversation with any NPC. For each sub-type, update quest.progress in real-time, emit quest progress events, and when all objectives are met, set quest.status='completed', fire quest_completed event, and award XP. The existing QuestPostConditionValidator already checks target_language_pct and grammar_accuracy — integrate these as bonus scoring criteria."
+    },
+    {
+      "title": "Implement 'Visual Vocabulary' quest completion detection",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "Wire up completion detection for Visual Vocabulary quests. Two sub-types: (1) Nouns/Adjectives — QuestObjectManager spawns a procedural quest object (from ProceduralQuestObjects.ts) matching the quest description (e.g., 'red bowling ball') at a random location in the settlement. Player must find it (proximity detection), interact with it (click/tap), and the system validates they can name it in the target language via a quick prompt ('What is this? Answer in [language]'). On correct answer, the object is 'collected' and player must return it to the quest-giving NPC. (2) Verbs/Adverbs — spawn an NPC performing a specific animation/activity at a location. Player must find the NPC, observe the action, and describe it in the target language ('What is this person doing?'). Validate the response contains the target verb/adverb. Use UtteranceQuestSystem's existing speak_phrase and use_vocabulary objective types. Update quest progress on each successful identification."
+    },
+    {
+      "title": "Implement 'Listening Comprehension' quest completion detection",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "Wire up completion detection for Listening Comprehension quests. Flow: (1) Player goes to NPC A (quest giver) who tells a short story in the target language via the chat system — the story is generated by Gemini with controlled vocabulary appropriate to the player's CEFR level; (2) Player must then go to NPC B and relay key facts from the story. The system should generate 2-3 comprehension check questions that NPC B asks (e.g., 'What color was the cat?', 'Where did Maria go?'). Use the existing conversation system — inject comprehension questions into NPC B's system prompt. Evaluate player responses via Gemini (send the original story + player's answers, ask Gemini to score comprehension 0-100). Mark quest complete if comprehension score >= 60%. Store the story text and comprehension score in quest.progress for review."
+    },
+    {
+      "title": "Implement 'Navigate the City' and 'Navigate Time' quest completion detection",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "Wire up completion detection for navigation quests. (1) Navigate the City — quest specifies an ordered list of 3-5 locations. QuestWaypointManager already creates waypoint beacons — extend it to show waypoints sequentially (only show the next waypoint after the current one is reached). Detect arrival via player position within 15 units of the waypoint. On arrival at each waypoint, play a completion chime, update quest.progress with the checkpoint, and reveal the next waypoint. On final waypoint, mark quest complete. (2) Navigate Time — quest specifies an action to perform at a specific in-game time. Check GameMenuSystem or add a simple day/night cycle time tracker. When the player performs the action (visits location, talks to NPC) within the correct time window, mark complete. If the player misses the window, the quest should indicate 'try again tomorrow' rather than failing. Both quest types should show remaining waypoints/time in the BabylonQuestTracker panel."
+    },
+    {
+      "title": "Implement quest turn-in and completion ceremony",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "Create a unified quest completion flow in client/src/components/3DGame/QuestCompletionManager.ts. When a quest's status changes to 'completed': (1) Play a completion sound effect (use AudioContext to generate a simple ascending tone sequence as placeholder); (2) Show a full-screen completion overlay for 3 seconds with quest title, XP earned, and any items/unlocks received — create this as a Babylon.js GUI panel with gold border, quest icon, and animated XP counter; (3) If the quest has itemRewards, add them to playerProgress.inventory; (4) Award experienceReward XP via the gamification system (shared/language/gamification.ts calculateLevel); (5) Check and trigger any achievement unlocks (e.g., 'Quest Hero' for 10 quests); (6) Update playerProgress.questsCompleted array; (7) Remove quest from BabylonQuestTracker's active list and add to completed list; (8) If the quest is part of a questChain, auto-assign the next quest in the chain. Fire all relevant GameEventBus events."
+    },
+    {
+      "title": "Enhance BabylonQuestTracker with rich quest log UI",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "Upgrade BabylonQuestTracker.ts to show a full quest log experience. Currently it shows a basic list — enhance it to: (1) Show per-objective progress bars (e.g., '2/3 conversations completed') by reading quest.progress and quest.objectives; (2) Color-code quests by type (conversation=blue, vocabulary=green, navigation=orange, listening=purple, cultural=red); (3) Show quest difficulty stars (1-3) based on quest.difficulty; (4) Add a 'Completed' tab showing finished quests with completion date and rewards earned; (5) Show quest location name and distance from player; (6) Add a 'Track' button that activates QuestWaypointManager for the selected quest; (7) Show a quest description panel when a quest is selected with full objective details. Use Babylon.js GUI AdvancedDynamicTexture. The panel should be toggleable with the J key."
+    },
+    {
+      "title": "Wire QuestIndicatorManager to show indicators on quest-relevant NPCs",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "QuestIndicatorManager.ts already has the code to show !/? indicators above NPCs but needs to be wired to actual quest data. On game load and whenever quests change: (1) Query all active quests for the current player; (2) For quests with assignedBy (quest-giving NPC), show a yellow '!' if the quest is available but not yet accepted; (3) For quests with objectives targeting specific NPCs (talk_to_npc, complete_conversation), show a blue '?' on those NPCs; (4) For completed quests that require turn-in to the assignedBy NPC, show a green checkmark; (5) Update indicators in real-time as quest progress changes — listen for quest_accepted, quest_completed, and utterance_quest_progress events on GameEventBus. The indicators should bob up and down and be visible from a distance (billboard mode, scale with distance)."
+    },
+    {
+      "title": "Add quest notification toasts and HUD indicators",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "Create client/src/components/3DGame/QuestNotificationSystem.ts. Show non-intrusive toast notifications for quest events: (1) 'New Quest Available!' when a quest is assigned — slide in from right, show quest title and type icon, auto-dismiss after 4 seconds; (2) 'Objective Complete!' when a quest objective is finished — brief flash with objective text; (3) 'Quest Complete!' with XP amount when all objectives are met; (4) 'Achievement Unlocked!' with achievement name and icon; (5) 'Level Up!' when XP crosses a level threshold. Also add a persistent HUD element in the top-right corner showing: active quest count badge, current XP/next level progress bar (thin horizontal bar), and a flashing indicator when a quest can be turned in. Use Babylon.js GUI with animations (fade in/out, slide). Integrate with GameEventBus events."
+    },
+    {
+      "title": "Implement vocabulary bank collection mechanic in 3D world",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Create client/src/components/3DGame/VocabularyCollectionSystem.ts. This system lets players collect vocabulary words by interacting with objects in the 3D world. (1) Tag world objects (buildings, trees, cars, NPCs, quest objects) with vocabulary metadata: the word in target language, category (noun/verb/adjective/adverb), and difficulty level. (2) When the player approaches a tagged object (within 5 units), show a floating label in the target language above it with a 'collect' prompt. (3) On interaction (click), show a mini-quiz: display the target language word and 3-4 multiple choice options for the meaning (or vice versa for harder difficulties). (4) On correct answer, add the word to the player's vocabulary bank (shared/language/progress.ts VocabularyEntry) with timesEncountered incremented, play a collection particle effect, and award 3 XP (vocabularyNewWord). (5) On incorrect answer, show the correct answer, still add to vocabulary bank as 'new' mastery, no XP. (6) Track which objects the player has already collected words from — don't repeat. Categories to support: nouns (building, tree, car, restaurant, hotel, park), verbs (walking, talking, dancing, eating, reading), adjectives (red, tall, round, big, small), adverbs (slowly, quickly, carefully)."
+    },
+    {
+      "title": "Create vocabulary bank quest objectives integration",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Integrate the VocabularyCollectionSystem with the quest system. (1) Add a new objective type 'collect_vocabulary' to the UtteranceQuestSystem that tracks how many words of a specific category the player has collected (e.g., 'Collect 5 food-related nouns'); (2) Create quest templates for vocabulary collection quests: 'Word Explorer: Nouns' (find and collect 5 noun words), 'Color Hunter' (find 3 objects matching color adjectives), 'Action Spotter' (find 3 NPCs doing actions and learn the verbs); (3) When a vocabulary collection quest is active, VocabularyCollectionSystem should highlight uncollected objects matching the quest's target category with a subtle glow or sparkle effect; (4) Update quest progress in real-time as words are collected; (5) On quest completion, grant bonus XP and mark words as 'learning' mastery level. Wire to BabylonVocabularyPanel.ts so collected words appear immediately in the vocabulary bank UI."
+    },
+    {
+      "title": "Implement vocabulary review and mastery reinforcement",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Enhance vocabulary mastery tracking by adding spaced repetition prompts. In VocabularyCollectionSystem.ts: (1) When a player approaches an object they've already collected the word for, occasionally (25% chance) trigger a quick recall quiz — show the object and ask the player to type/say the word in the target language. Correct answer increments timesUsedCorrectly and may upgrade mastery (new→learning after 3 correct, learning→familiar after 5, familiar→mastered after 8). (2) Add a 'Vocabulary Review' quest type that asks the player to revisit 5 previously-learned words and recall them — targets words with lowest mastery or oldest lastEncountered date. (3) In BabylonVocabularyPanel.ts, add a 'Review Due' counter showing words that haven't been reviewed recently. (4) Mastered words should have their world labels displayed in target language only (no translation), encouraging immersion."
+    },
+    {
+      "title": "Wire XP awards to all quest and learning activities",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Ensure XP is consistently awarded across all activities using the gamification system. In a new client/src/components/3DGame/XPManager.ts: (1) Listen for GameEventBus events and award XP per shared/language/gamification.ts XP_REWARDS: quest_completed→25, vocabulary_used (new word)→3, vocabulary mastered→15, grammar correct→2, conversation_turn→10, achievement_unlocked→50; (2) After awarding XP, call calculateLevel() to check for level-ups; (3) On level-up, emit a 'level_up' event for the notification system, check skill tree unlocks, and persist to playerProgress via PUT /api/player-progress/:id; (4) Track daily challenge progress — check if the day's challenge criteria are met after each XP-granting event; (5) Maintain a session XP counter for the playerSessions record. Ensure XP is persisted server-side so it survives page refreshes."
+    },
+    {
+      "title": "Wire achievement detection to gameplay events",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Create client/src/components/3DGame/AchievementManager.ts to monitor gameplay and unlock achievements. Listen to GameEventBus events and check achievement conditions from shared/language/gamification.ts ACHIEVEMENTS: (1) 'First Words' — vocabulary.length >= 10; (2) 'Chatterbox' — totalConversations >= 25; (3) 'Grammar Guru' — grammar patterns mastered >= 5; (4) 'Polyglot' — level >= 11; (5) 'Navigator' — navigation quests completed >= 5; (6) 'Streak Master' — streakDays >= 7; (7) 'Word Collector' — vocabulary.length >= 50; (8) 'Quest Hero' — questsCompleted.length >= 10; (9) 'Cultural Explorer' — cultural quests >= 5; (10) 'Bookworm' — articles read >= 10. On unlock: persist to playerProgress.achievementsUnlocked, persist to achievements collection via API, award 50 XP, fire achievement_unlocked event for the notification toast. Check conditions after every relevant event (quest_completed, vocabulary_used, conversation_turn, etc.)."
+    },
+    {
+      "title": "Enhance BabylonSkillTreePanel with interactive visualization",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Upgrade BabylonSkillTreePanel.ts from its current state to a polished skill tree visualization. Using Babylon.js GUI: (1) Render the 5 tiers from shared/language/language-skill-tree.ts as a vertical tree with connecting lines between tiers; (2) Each node shows: skill name, icon (use unicode symbols as placeholders), progress bar toward unlock condition, locked/unlocked/completed state with distinct visual treatment (greyed out / glowing border / gold fill); (3) On hover/click, show a tooltip with the unlock condition description and current progress (e.g., 'Learn 20 words — 14/20'); (4) Animate newly unlocked nodes with a burst effect; (5) Show the player's current tier prominently at the top; (6) Connect skill tree unlocks to tangible rewards — when a skill unlocks, grant the player something: new quest types available, new vocabulary categories, access to new areas, or cosmetic items. Persist unlock state in playerProgress."
+    },
+    {
+      "title": "Implement adaptive quest difficulty based on player skill level",
+      "completed": false,
+      "parallel_group": 6,
+      "description": "Enhance the quest assignment engine (server/services/quest-assignment-engine.ts) to adapt to player performance. (1) Track quest completion rate, average comprehension scores, vocabulary quiz accuracy, and time-to-complete for each quest type; (2) If a player completes 3+ quests of a type with >80% accuracy, increase difficulty: more vocabulary required, longer conversations, harder grammar patterns, tighter time windows; (3) If a player fails or abandons 2+ quests, decrease difficulty: simpler vocabulary, shorter objectives, more hints enabled; (4) Map CEFR levels to quest parameters: A1 gets single-objective quests with common vocabulary (greetings, numbers), A2 gets 2-objective quests with food/family vocab, B1 gets multi-stage chains with all categories, B2 gets quests requiring sustained target-language-only conversation; (5) Store difficulty adjustment factor in playerProgress.stats and use it when generating new quests. The system should feel like it's meeting the player where they are."
+    },
+    {
+      "title": "Implement real-time grammar and vocabulary feedback during quests",
+      "completed": false,
+      "parallel_group": 6,
+      "description": "Enhance the chat system to provide quest-relevant language feedback. In BabylonChatPanel.ts and LanguageProgressTracker.ts: (1) When a quest requires specific vocabulary usage, highlight quest-relevant words in the chat input suggestions (e.g., if the quest says 'order food at restaurant', suggest food vocabulary the player knows); (2) After each player message during a quest conversation, parse the Gemini response for GRAMMAR_FEEDBACK markers and display inline corrections below the chat — green for correct usage of target patterns, orange for minor errors with corrections, red for major errors; (3) Track grammar pattern usage per quest and include it in quest completion scoring via QuestPostConditionValidator; (4) Show a small 'language score' indicator in the quest tracker that updates in real-time based on target language percentage and grammar accuracy during the quest; (5) On quest completion, include a language performance summary in the completion overlay (words used, grammar accuracy %, new words learned during quest)."
+    },
+    {
+      "title": "Implement pronunciation feedback integration with quests",
+      "completed": false,
+      "parallel_group": 6,
+      "description": "Wire pronunciation scoring into quest objectives for voice-based quests. In UtteranceQuestSystem.ts: (1) For speak_phrase and pronunciation_check objectives, use the existing pronunciation scoring (shared/pronunciation-scoring.ts) to evaluate player speech; (2) Show per-word pronunciation feedback inline: green=good, yellow=acceptable, red=needs work, using BabylonChatPanel's existing practicePronunciation flow; (3) Allow retry — if pronunciation score < 60%, prompt 'Try saying it again' without penalizing quest progress; (4) For conversation quests, track overall pronunciation quality as a bonus metric (doesn't block completion but affects XP reward — up to 25% bonus XP for excellent pronunciation); (5) Add a 'Pronunciation Challenge' quest template: player must correctly pronounce 5 phrases with >70% accuracy. Feed pronunciation scores into the Assessment dimension scores for the next periodic assessment."
+    },
+    {
+      "title": "Implement quest auto-generation on quest depletion",
+      "completed": false,
+      "parallel_group": 7,
+      "description": "Ensure players never run out of quests. In the game client, create a QuestRefillManager in client/src/components/3DGame/QuestRefillManager.ts: (1) Monitor active quest count — when it drops below 2, trigger the quest assignment engine to generate new quests; (2) Use DynamicQuestBoard.ts's existing weak-area detection to prioritize quest types the player needs most (e.g., if vocabulary is weak, generate more vocab quests; if grammar is weak, generate conversation quests with grammar focus); (3) Ensure at least one quest of each major category is available: one conversation quest, one vocabulary quest, one navigation quest; (4) Rate-limit generation to prevent quest spam — max 5 active quests, generate at most 3 new quests per trigger; (5) On world load, check if the player has any active quests — if not, generate an initial batch of 3 quests appropriate to their level. Wire to the game initialization flow in BabylonGame.ts."
+    },
+    {
+      "title": "Implement quest chain progression for multi-stage learning arcs",
+      "completed": false,
+      "parallel_group": 7,
+      "description": "Build out quest chains that create structured learning progressions. In server/services/quest-chain-generator.ts (enhance existing): (1) Define 5 pre-built quest chain templates: 'Welcome to Town' (5 quests: greet NPCs → navigate to key locations → order food → book hotel → ask for directions), 'Word Collector' (3 quests: collect 5 nouns → collect 5 adjectives → collect 5 verbs), 'The Town Mystery' (4 quests: listen to story → find clues by talking to NPCs → report findings → solve mystery with vocabulary), 'Market Day' (3 quests: learn food words → go shopping with vocab requirements → describe purchases to NPC), 'Time Traveler' (3 quests: morning routine → afternoon errands → evening social event, each at specific times); (2) Each quest in a chain unlocks the next via prerequisiteQuestIds; (3) Chain completion awards bonus XP (sum of individual quest XP × 1.5) and a special achievement; (4) Show chain progress in BabylonQuestTracker as a progress bar across the chain."
+    },
+    {
+      "title": "Implement NPC activity system for verb/adverb visual vocabulary quests",
+      "completed": false,
+      "parallel_group": 7,
+      "description": "Create client/src/components/3DGame/NPCActivitySystem.ts to make NPCs perform observable activities for visual vocabulary quests. Since we lack animation assets, represent activities with: (1) Positional context — NPC stands near relevant objects (chef near kitchen counter, reader near bookshelf); (2) Floating activity icon above NPC — use unicode/emoji text billboards as placeholders (knife icon for 'cutting', book icon for 'reading', musical note for 'singing'); (3) Activity description text visible on approach — '[NPC name] appears to be doing something...'; (4) When player interacts during a verb/adverb quest, prompt: 'What is this person doing? Describe in [target language]'; (5) Define 15 base activities with vocabulary: cooking/cutting/eating (kitchen), reading/writing/studying (library), walking/running/dancing (park), talking/singing/laughing (plaza), buying/selling/counting (market); (6) Each activity has an adverb modifier: slowly, quickly, carefully, loudly, quietly. Assign activities to NPCs based on their occupation and current location."
+    },
+    {
+      "title": "Add quest-related world object interactivity and labels",
+      "completed": false,
+      "parallel_group": 7,
+      "description": "Enhance the 3D world to support quest interactions with existing environment objects. In BabylonGame.ts and the building/object systems: (1) Add clickable interaction zones to building entrances — when player clicks a restaurant door, open the chat with a contextual prompt ('You enter the restaurant. A waiter greets you.'); (2) Add target-language labels to key buildings (restaurant, hotel, park, market, school, hospital) as floating text billboards, initially showing both languages, switching to target-language-only as the player's vocabulary grows; (3) Add interactable props near buildings: menu boards outside restaurants, room rate signs outside hotels, directional signs at intersections — each labeled in the target language and collectible for vocabulary; (4) Create a simple interaction system: player approaches object → 'E to interact' prompt → triggers quest-relevant action (start conversation, collect vocab word, read sign). Use the existing ProceduralBuildingGenerator.ts building types to determine what labels and props to spawn."
+    }
+  ]
+}

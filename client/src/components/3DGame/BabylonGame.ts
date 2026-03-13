@@ -89,7 +89,7 @@ import { AssessmentProgressUI } from "@/components/3DGame/AssessmentProgressUI.t
 import { PlayerAssessmentPanel } from "@/components/3DGame/PlayerAssessmentPanel.ts";
 import { EnvironmentalAudioManager } from "@/components/3DGame/EnvironmentalAudioManager.ts";
 import { CulturalEventManager } from "@/components/3DGame/CulturalEventManager.ts";
-import { BabylonNoticeBoardPanel } from "@/components/3DGame/BabylonNoticeBoardPanel.ts";
+import { BabylonNoticeBoardPanel, SAMPLE_ARTICLES } from "@/components/3DGame/BabylonNoticeBoardPanel.ts";
 import { ContentGatingManager } from "@/components/3DGame/ContentGatingManager.ts";
 import { generateQuestSuggestions, selectQuestForNPC } from "@/components/3DGame/DynamicQuestBoard.ts";
 import { VRChatPanel } from "@/components/3DGame/VRChatPanel.ts";
@@ -112,6 +112,14 @@ import {
   launchOnboarding,
 } from "@/components/3DGame/OnboardingLauncher.ts";
 import type { OnboardingLaunchResult } from "@/components/3DGame/OnboardingLauncher.ts";
+import {
+  KEY_NPC_INTERACT,
+  KEY_BUILDING_INTERACT,
+  KEY_ATTACK,
+  KEY_TARGET_ENEMY,
+  KEY_TOGGLE_VR,
+  KEY_GAME_MENU,
+} from "@/components/3DGame/KeyboardMap.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 
 // Constants
@@ -191,6 +199,7 @@ interface NPCInstance {
   wanderTarget?: Vector3;
   wanderWaitUntil?: number;
   isInConversation?: boolean;
+  preConversationPosition?: Vector3;
   // Animation tracking
   animationGroups?: any[];
   currentAnimation?: any;
@@ -1106,6 +1115,73 @@ export class BabylonGame {
           worldSize: this.terrainSize || 512,
         };
       },
+      // Language learning panel data callbacks
+      getVocabularyData: () => {
+        const tracker = this.chatPanel?.getLanguageTracker();
+        if (!tracker) return null;
+        const progress = tracker.getProgress();
+        return {
+          vocabulary: tracker.getVocabulary(),
+          grammarPatterns: tracker.getGrammarPatterns(),
+          overallFluency: progress.overallFluency,
+          totalCorrectUsages: progress.totalCorrectUsages,
+          dueForReview: tracker.getWordsDueForReview(),
+        };
+      },
+      getConversationHistory: () => {
+        const tracker = this.chatPanel?.getLanguageTracker();
+        return tracker ? tracker.getRecentConversations(20) : [];
+      },
+      getSkillTreeStats: () => {
+        const tracker = this.chatPanel?.getLanguageTracker();
+        if (!tracker) return null;
+        const progress = tracker.getProgress();
+        const conversations = progress.conversations || [];
+        const avgTLPct = conversations.length > 0
+          ? conversations.reduce((s, c) => s + c.targetLanguagePercentage, 0) / conversations.length
+          : 0;
+        const maxTurns = conversations.length > 0
+          ? Math.max(...conversations.map(c => c.turns))
+          : 0;
+        return {
+          wordsLearned: progress.totalWordsLearned,
+          wordsMastered: progress.vocabulary.filter(v => v.masteryLevel === 'mastered').length,
+          conversations: progress.totalConversations,
+          grammarPatterns: progress.grammarPatterns.length,
+          avgTargetLanguagePct: avgTLPct,
+          fluency: progress.overallFluency,
+          maxSustainedTurns: maxTurns,
+          questsCompleted: this.gamificationTracker?.getState().questsCompleted || 0,
+        };
+      },
+      getNoticeArticles: () => {
+        const tracker = this.chatPanel?.getLanguageTracker();
+        return {
+          articles: SAMPLE_ARTICLES,
+          playerFluency: tracker ? tracker.getFluency() : 0,
+        };
+      },
+      getAssessmentData: () => {
+        const gamState = this.gamificationTracker?.getState();
+        return {
+          data: null as any, // Assessment data comes from server
+          playerLevel: gamState?.xp?.level || 1,
+        };
+      },
+      onNoticeWordClicked: (word: string, meaning: string) => {
+        this.guiManager?.showToast({
+          title: `${word}`,
+          description: meaning,
+          duration: 3000,
+        });
+      },
+      onNoticeQuestionAnswered: (correct: boolean, _articleId: string) => {
+        this.guiManager?.showToast({
+          title: correct ? "Correct!" : "Not quite...",
+          description: correct ? "Great job!" : "Try again next time",
+          duration: 2000,
+        });
+      },
       onNPCSelected: (npcId: string) => this.setSelectedNPC(npcId),
       onPayFines: () => this.handlePayFines(),
       onBackToEditor: () => this.config.onBack?.(),
@@ -1225,6 +1301,14 @@ export class BabylonGame {
             questsCompleted: gState.questsCompleted,
           });
         }
+      }
+
+      // If assessment is active, signal that a conversation was completed
+      if (this.onboardingActive) {
+        this.eventBus.emit({
+          type: 'assessment_conversation_completed',
+          npcId: this.conversationNPCId || '',
+        });
       }
 
       this.guiManager?.showToast({
@@ -4362,6 +4446,65 @@ export class BabylonGame {
   }
 
   /**
+   * Handle E-key building interaction: enter the nearest building or exit
+   * the current interior.
+   */
+  private async handleBuildingInteraction(): Promise<void> {
+    // If already inside a building, exit
+    if (this.isInsideBuilding) {
+      await this.exitBuilding();
+      return;
+    }
+
+    if (!this.playerMesh) return;
+
+    const playerPos = this.playerMesh.position;
+    const maxDist = 8;
+    let nearestBuilding: Mesh | null = null;
+    let nearestDist = maxDist;
+
+    // Search buildingData map (populated when buildings are placed in the world)
+    this.buildingData.forEach((data) => {
+      const meta = data.metadata;
+      if (!meta?.buildingId || !meta?.buildingType) return;
+      const dist = Vector3.Distance(playerPos, data.position);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestBuilding = data.mesh;
+      }
+    });
+
+    // Fallback: scan all scene meshes for any building with metadata
+    if (!nearestBuilding && this.scene) {
+      for (const mesh of this.scene.meshes) {
+        const meta = mesh.metadata;
+        if (!meta?.buildingId || !meta?.buildingType) continue;
+        const dist = Vector3.Distance(playerPos, mesh.position);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearestBuilding = mesh as Mesh;
+        }
+      }
+    }
+
+    if (nearestBuilding) {
+      const meta = nearestBuilding.metadata;
+      await this.enterBuilding(
+        meta.buildingId || meta.businessId || meta.residenceId,
+        meta.buildingType,
+        meta.businessType,
+        nearestBuilding.position.clone()
+      );
+    } else {
+      this.guiManager?.showToast({
+        title: 'No building nearby',
+        description: 'Walk closer to a building and press E to enter.',
+        duration: 2000,
+      });
+    }
+  }
+
+  /**
    * Phase 4B: Enter a building interior. Generates the interior if needed,
    * performs a fade-to-black transition, and teleports the player inside.
    */
@@ -4512,8 +4655,9 @@ export class BabylonGame {
       this.questObjectManager?.trackLocationDiscovery(zone.id);
       this.eventBus.emit({ type: 'settlement_entered', settlementId: zone.id, settlementName: zone.name || zone.id });
 
-      // Hide NPCs not in this settlement
+      // Hide NPCs not in this settlement (skip NPCs in active conversation)
       this.npcMeshes.forEach((instance, npcId) => {
+        if (instance.isInConversation) return;
         if (!this.settlementSceneManager!.isNPCInActiveSettlement(npcId)) {
           if (instance.mesh && instance.mesh.isEnabled()) {
             instance.mesh.setEnabled(false);
@@ -4984,6 +5128,17 @@ export class BabylonGame {
       const { npcId, instance, dist } = npcList[i];
       if (!instance.mesh || !instance.controller) continue;
 
+      // Never cull the NPC the player is currently talking to
+      if (instance.isInConversation) {
+        if (!instance.mesh.isEnabled()) {
+          console.warn(`[NPC Culling] Conversation NPC ${npcId} was disabled by something! Re-enabling.`);
+          instance.mesh.setEnabled(true);
+        }
+        if (instance.billboardLOD?.isEnabled()) instance.billboardLOD.setEnabled(false);
+        instance.isBillboardMode = false;
+        continue;
+      }
+
       // Phase 8: Hide NPCs not in active settlement during isolation
       if (this.settlementSceneManager?.isIsolated &&
           !this.settlementSceneManager.isNPCInActiveSettlement(npcId)) {
@@ -5414,7 +5569,7 @@ export class BabylonGame {
     }
 
     // ESC - Toggle unified game menu (or close it if open)
-    if (event.code === 'Escape' && !event.repeat) {
+    if (event.code === KEY_GAME_MENU && !event.repeat) {
       event.preventDefault();
       if (this.gameMenuSystem) {
         this.gameMenuSystem.toggle();
@@ -5428,7 +5583,7 @@ export class BabylonGame {
     }
 
     // G - Interact with nearest NPC (selects + opens chat) or exit conversation
-    if (event.code === 'KeyG' && !event.repeat) {
+    if (event.code === KEY_NPC_INTERACT && !event.repeat) {
       event.preventDefault();
       if (this.conversationNPCId) {
         // If in conversation, exit it
@@ -5444,50 +5599,26 @@ export class BabylonGame {
       }
     }
 
+    // Enter - Enter/exit nearest building
+    if (event.code === KEY_BUILDING_INTERACT && !event.repeat) {
+      event.preventDefault();
+      await this.handleBuildingInteraction();
+    }
+
     // F - Attack/Respawn
-    if (event.code === 'KeyF' && !event.repeat) {
+    if (event.code === KEY_ATTACK && !event.repeat) {
       event.preventDefault();
       this.handleAttack();
     }
 
     // T - Target nearest enemy
-    if (event.code === 'KeyT' && !event.repeat) {
+    if (event.code === KEY_TARGET_ENEMY && !event.repeat) {
       event.preventDefault();
       this.handleTargetEnemy();
     }
 
-    // V - Toggle vocabulary/grammar panel
-    if (event.code === 'KeyV' && !event.shiftKey && !event.repeat) {
-      event.preventDefault();
-      this.handleToggleVocabularyPanel();
-    }
-
-    // H - Toggle conversation history panel
-    if (event.code === 'KeyH' && !event.repeat) {
-      event.preventDefault();
-      this.handleToggleConversationHistory();
-    }
-
-    // K - Toggle skill tree panel
-    if (event.code === 'KeyK' && !event.repeat) {
-      event.preventDefault();
-      this.handleToggleSkillTree();
-    }
-
-    // N - Toggle notice board
-    if (event.code === 'KeyN' && !event.repeat) {
-      event.preventDefault();
-      this.handleToggleNoticeBoard();
-    }
-
-    // L - Toggle assessment progress panel
-    if (event.code === 'KeyL' && !event.repeat) {
-      event.preventDefault();
-      this.handleToggleAssessmentPanel();
-    }
-
     // Shift+V - Toggle VR
-    if (event.code === 'KeyV' && event.shiftKey && !event.repeat) {
+    if (event.code === KEY_TOGGLE_VR && event.shiftKey && !event.repeat) {
       event.preventDefault();
       await this.handleToggleVR();
     }
@@ -5559,7 +5690,7 @@ export class BabylonGame {
         worldId: this.config.worldId
       } as any;
 
-      // Try to fetch truths for conversation context (optional - fallback to empty array)
+      // Fetch truths first (before NPC setup)
       let truths: any[] = [];
       try {
         truths = await this.dataSource.loadTruths(this.config.worldId);
@@ -5570,42 +5701,32 @@ export class BabylonGame {
       const npcInstance = this.npcMeshes.get(npcId);
       const npcMesh = npcInstance?.mesh;
 
-      // Mark NPC as in conversation (stops their wandering)
+      // Mark NPC as in conversation to protect from culling
       if (npcInstance) {
         npcInstance.isInConversation = true;
-        
-        // Make NPC turn to face the player
+
+        // Save the NPC's position so we can restore it after conversation
+        if (npcMesh) {
+          npcInstance.preConversationPosition = npcMesh.position.clone();
+        }
+
+        // Stop NPC movement
+        if (npcInstance.controller) {
+          npcInstance.controller.walk(false);
+          npcInstance.controller.turnLeft(false);
+          npcInstance.controller.turnRight(false);
+        }
+
+        // Rotate NPC to face the player
         if (npcMesh && this.playerMesh) {
           const npcPos = npcMesh.position;
           const playerPos = this.playerMesh.position;
-          
-          // Calculate direction from NPC to player
           const directionToPlayer = playerPos.subtract(npcPos).normalize();
-          
-          // Calculate the rotation angle (in radians)
-          // Note: Babylon.js uses Y rotation, where 0 = facing +Z, PI/2 = facing +X
-          // Add PI to make NPC face the player instead of away
           const targetRotation = Math.atan2(directionToPlayer.x, directionToPlayer.z) + Math.PI;
-          
-          // Rotate the NPC mesh to face the player
-          console.log(`[Conversation] Rotating NPC to face player. Target rotation: ${targetRotation}`);
 
-          // Only rotate the mesh itself — do NOT rotate the parent,
-          // as parent rotation orbits the child around the parent origin,
-          // displacing the NPC off-screen.
           npcMesh.rotation.y = targetRotation;
-
-          // Also rotate the CharacterController avatar if it exists
           if (npcInstance.controller && (npcInstance.controller as any)._avatar) {
             (npcInstance.controller as any)._avatar.rotation.y = targetRotation;
-            console.log('[Conversation] Rotated CharacterController avatar');
-          }
-          
-          // Also stop any ongoing movement
-          if (npcInstance.controller) {
-            npcInstance.controller.walk(false);
-            npcInstance.controller.turnLeft(false);
-            npcInstance.controller.turnRight(false);
           }
 
           // Show conversation indicator (speech bubble + body sway)
@@ -5657,14 +5778,9 @@ export class BabylonGame {
         this.camera.lowerRadiusLimit = this.camera.radius;
         this.camera.upperRadiusLimit = this.camera.radius;
 
-        // Make the player semi-transparent so they don't occlude the NPC
+        // Make player semi-transparent during conversation
         if (this.playerMesh) {
           this.playerMesh.visibility = 0.3;
-          this.playerMesh.getChildMeshes(false).forEach(child => {
-            if (child instanceof Mesh) {
-              child.visibility = 0.3;
-            }
-          });
         }
 
         // Lock the camera by disabling camera controls
@@ -5939,6 +6055,16 @@ export class BabylonGame {
       const npcInstance = this.npcMeshes.get(this.conversationNPCId);
       if (npcInstance) {
         npcInstance.isInConversation = false;
+
+        // Restore the NPC's position to where they were before conversation
+        if (npcInstance.preConversationPosition && npcInstance.mesh) {
+          npcInstance.mesh.position.copyFrom(npcInstance.preConversationPosition);
+          npcInstance.preConversationPosition = undefined;
+          // Re-enable mesh if it was disabled by distance culling during conversation
+          if (!npcInstance.mesh.isEnabled()) {
+            npcInstance.mesh.setEnabled(true);
+          }
+        }
       }
       if (this.npcTalkingIndicator) {
         this.npcTalkingIndicator.hide(this.conversationNPCId);
@@ -5946,14 +6072,9 @@ export class BabylonGame {
       this.conversationNPCId = null;
     }
 
-    // Restore player mesh visibility before restarting controller
+    // Restore player mesh visibility
     if (this.playerMesh) {
       this.playerMesh.visibility = 1;
-      this.playerMesh.getChildMeshes(false).forEach(child => {
-        if (child instanceof Mesh) {
-          child.visibility = 1;
-        }
-      });
     }
 
     // Restore previous camera mode (do this BEFORE restarting the controller,

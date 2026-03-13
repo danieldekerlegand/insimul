@@ -456,8 +456,27 @@ export class ProceduralBuildingGenerator {
     createDebugLabel(this.scene, parent, `BUILDING: ${label}`, (spec.floors * 4) + 6);
 
     // Phase 2: Merge all procedural building sub-meshes that share the same
-    // material into fewer meshes to reduce draw calls. Group by material.
-    const childMeshes = parent.getChildMeshes(false).filter(m => m instanceof Mesh) as Mesh[];
+    // material into fewer meshes to reduce draw calls.
+    //
+    // First, flatten the hierarchy: reparent all descendant meshes directly
+    // to `parent` so the merge step doesn't lose intermediate transforms
+    // (e.g. building box is centered at totalHeight/2, and door parts are
+    // children of that box).
+    const allDescendants = parent.getChildMeshes(false).filter(m => m instanceof Mesh) as Mesh[];
+    for (const m of allDescendants) {
+      if (m.parent && m.parent !== parent) {
+        // Accumulate the intermediate parent's position into the mesh
+        const intermediateParent = m.parent as Mesh;
+        if (intermediateParent.position) {
+          m.position.addInPlace(intermediateParent.position);
+        }
+        m.parent = parent;
+      }
+    }
+
+    // Group by material, skipping interactive meshes (e.g. the door panel)
+    const childMeshes = parent.getChildMeshes(false)
+      .filter(m => m instanceof Mesh && !m.metadata?.skipMerge) as Mesh[];
     const materialGroups = new Map<string, Mesh[]>();
     for (const child of childMeshes) {
       const matId = child.material?.uniqueId?.toString() ?? 'none';
@@ -608,18 +627,20 @@ export class ProceduralBuildingGenerator {
   private createRoof(spec: BuildingSpec): Mesh {
     const floorHeight = 4;
     const totalHeight = spec.floors * floorHeight;
-    const roofHeight = 3;
+    const peakedRoofHeight = 3;
 
     let roof: Mesh;
+    let actualRoofHeight: number;
 
     if (spec.style.architectureStyle === 'medieval' || spec.style.architectureStyle === 'rustic') {
       // Peaked hip roof
+      actualRoofHeight = peakedRoofHeight;
       roof = MeshBuilder.CreateCylinder(
         `roof_${spec.id}`,
         {
           diameterTop: 0,
           diameterBottom: Math.max(spec.width, spec.depth) * 1.2,
-          height: roofHeight,
+          height: actualRoofHeight,
           tessellation: 5
         },
         this.scene
@@ -634,30 +655,34 @@ export class ProceduralBuildingGenerator {
       }
     } else if (spec.style.architectureStyle === 'modern' || spec.style.architectureStyle === 'futuristic') {
       // Flat roof
+      actualRoofHeight = 0.5;
       roof = MeshBuilder.CreateBox(
         `roof_${spec.id}`,
         {
           width: spec.width + 0.5,
-          height: 0.5,
+          height: actualRoofHeight,
           depth: spec.depth + 0.5
         },
         this.scene
       );
     } else {
       // Cone roof
+      actualRoofHeight = peakedRoofHeight;
       roof = MeshBuilder.CreateCylinder(
         `roof_${spec.id}`,
         {
           diameterTop: 1,
           diameterBottom: Math.max(spec.width, spec.depth) * 1.1,
-          height: roofHeight,
+          height: actualRoofHeight,
           tessellation: 5
         },
         this.scene
       );
     }
 
-    roof.position.y = totalHeight + roofHeight / 2;
+    // Babylon meshes are centered at their origin, so offset by half the
+    // roof's own height to sit flush on top of the building walls.
+    roof.position.y = totalHeight + actualRoofHeight / 2;
 
     // Shared roof material
     const roofMatKey = `roof_${spec.style.name}_${this.roofTexture ? 'tex' : 'notex'}`;
@@ -735,21 +760,57 @@ export class ProceduralBuildingGenerator {
   }
 
   /**
-   * Add door to building
+   * Add door with frame and handle to building
    */
   private addDoor(spec: BuildingSpec, building: Mesh): void {
-    const doorWidth = 2;
-    const doorHeight = 3;
+    // Characters are ~2 units tall; door should be slightly taller
+    const doorWidth = 1.2;
+    const doorHeight = 2.2;
+    const doorDepth = 0.15;
+    const frameThickness = 0.12;
+    const frameDepth = 0.18;
+    const frontZ = spec.depth / 2;
+    // Door parts are parented to `building` whose local origin is centered
+    // vertically (building.position.y = totalHeight/2). Ground level in
+    // the building's local space is at -totalHeight/2.
+    const floorHeight = 4;
+    const totalHeight = spec.floors * floorHeight;
+    const groundY = -totalHeight / 2;
 
-    const door = MeshBuilder.CreatePlane(
-      `door_${spec.id}`,
-      { width: doorWidth, height: doorHeight },
-      this.scene
-    );
+    // --- Door frame (darker border around the door) ---
+    const frameMatKey = `doorframe_${spec.style.name}`;
+    const frameMat = this.getSharedMaterial(frameMatKey, () => {
+      const m = new StandardMaterial(frameMatKey, this.scene);
+      m.diffuseColor = spec.style.doorColor.scale(0.5);
+      m.specularColor = new Color3(0.1, 0.1, 0.1);
+      return m;
+    });
 
-    door.position = new Vector3(0, doorHeight / 2, spec.depth / 2 + 0.06);
-    door.parent = building;
+    // Left frame post
+    const leftPost = MeshBuilder.CreateBox(`doorframe_l_${spec.id}`, {
+      width: frameThickness, height: doorHeight + frameThickness, depth: frameDepth
+    }, this.scene);
+    leftPost.position = new Vector3(-doorWidth / 2 - frameThickness / 2, groundY + (doorHeight + frameThickness) / 2, frontZ + frameDepth / 2);
+    leftPost.parent = building;
+    leftPost.material = frameMat;
 
+    // Right frame post
+    const rightPost = MeshBuilder.CreateBox(`doorframe_r_${spec.id}`, {
+      width: frameThickness, height: doorHeight + frameThickness, depth: frameDepth
+    }, this.scene);
+    rightPost.position = new Vector3(doorWidth / 2 + frameThickness / 2, groundY + (doorHeight + frameThickness) / 2, frontZ + frameDepth / 2);
+    rightPost.parent = building;
+    rightPost.material = frameMat;
+
+    // Top frame (lintel) sits on top of the door opening
+    const lintel = MeshBuilder.CreateBox(`doorframe_t_${spec.id}`, {
+      width: doorWidth + frameThickness * 2, height: frameThickness, depth: frameDepth
+    }, this.scene);
+    lintel.position = new Vector3(0, groundY + doorHeight + frameThickness / 2, frontZ + frameDepth / 2);
+    lintel.parent = building;
+    lintel.material = frameMat;
+
+    // --- Door panel (recessed box instead of flat plane) ---
     const doorMatKey = `door_${spec.style.name}`;
     const doorMat = this.getSharedMaterial(doorMatKey, () => {
       const m = new StandardMaterial(doorMatKey, this.scene);
@@ -757,7 +818,37 @@ export class ProceduralBuildingGenerator {
       m.specularColor = new Color3(0.2, 0.2, 0.2);
       return m;
     });
+
+    const door = MeshBuilder.CreateBox(
+      `door_${spec.id}`,
+      { width: doorWidth, height: doorHeight, depth: doorDepth },
+      this.scene
+    );
+    door.position = new Vector3(0, groundY + doorHeight / 2, frontZ + doorDepth / 2);
+    door.parent = building;
     door.material = doorMat;
+    // Mark the door as pickable so the click handler can detect it and
+    // walk up the parent chain to find the building metadata.
+    door.isPickable = true;
+    // Tag to exclude from the merge pass (merged meshes lose pickability)
+    door.metadata = { ...door.metadata, skipMerge: true };
+
+    // --- Door handle (small metallic cylinder) ---
+    const handleMatKey = 'door_handle';
+    const handleMat = this.getSharedMaterial(handleMatKey, () => {
+      const m = new StandardMaterial(handleMatKey, this.scene);
+      m.diffuseColor = new Color3(0.7, 0.65, 0.4);
+      m.specularColor = new Color3(0.5, 0.5, 0.4);
+      return m;
+    });
+
+    const handle = MeshBuilder.CreateBox(`doorhandle_${spec.id}`, {
+      width: 0.06, height: 0.2, depth: 0.06
+    }, this.scene);
+    // Handle at ~waist height (1 unit from ground)
+    handle.position = new Vector3(doorWidth / 2 - 0.2, groundY + 1.0, frontZ + doorDepth + 0.03);
+    handle.parent = building;
+    handle.material = handleMat;
   }
 
   /**

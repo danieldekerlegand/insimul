@@ -163,6 +163,36 @@
       "description": "Enhance TTS to convey NPC emotion. In the Gemini system prompt, ask the model to include a short emotion tag at the start of each sentence (e.g., [happy], [curious], [stern]). Parse these tags server-side before TTS and map them to SSML prosody parameters (pitch, rate, volume adjustments). Strip the tags from display text. This makes NPC speech more expressive and natural-sounding."
     },
     {
+      "title": "[US-067] Intra-settlement street network topology generation",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "As a developer, I need the geography generator (server/generators/geography-generator.ts) to produce actual street segments with start/end world-space coordinates within each settlement, replacing the current metadata-only street entries. Use a configurable layout algorithm (grid for planned towns, organic/radial for older villages) seeded by settlement type and founding era. Store street segments as polylines with intersection nodes so downstream systems can render roads and place buildings along them. This is a prerequisite for US-035, US-036, US-040, US-045, US-048, and US-056."
+    },
+    {
+      "title": "[US-068] Intra-settlement street rendering in 3D",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "As a developer, I need the Babylon.js game to render street geometry within settlements as proper roads. Currently RoadGenerator.ts only generates inter-settlement MST roads, and generateSettlementRoads() creates narrow 1.5-unit paths from center to buildings. Replace this with a system that reads the street segment topology from US-067 and renders multi-lane, terrain-following road meshes within the settlement, including intersections, sidewalks, and street name signs at key points."
+    },
+    {
+      "title": "[US-069] Street-aligned building placement",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "As a developer, I need buildings placed along street edges instead of on a jittered grid from settlement center. Replace the current WorldScaleManager.generateLotPositions() grid approach in BabylonGame.ts with a system that distributes lots along both sides of each street segment from US-067. House numbers should map to position along the street (odd on one side, even on the other). Commercial buildings cluster near intersections and along main streets; residential buildings fill side streets. This bridges the gap between the backend address model (district→street→lot) and the 3D layout."
+    },
+    {
+      "title": "[US-070] Address-to-position mapping and lot coordinate persistence",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "As a developer, I need each Lot record to store its resolved 3D coordinates (positionX, positionY, positionZ) and street-facing rotation so that addresses correspond to physical locations. Add these fields to the lots schema in shared/schema.ts and the Mongo storage layer. Provide a lookup function addressToVector3(settlementId, streetName, houseNumber) that returns the world-space position. This enables NPCs to navigate to addresses, the UI to show 'go to address' waypoints, and ensures consistency between the data model and the visual world."
+    },
+    {
+      "title": "[US-071] Society editor map consistency with 3D game layout",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "As a developer, I need the Society editor's settlement map preview (GeographyMap.tsx / LocationMapPreview.tsx) to render using the same street layout data produced by US-067, so the 2D editor map matches what the player sees in the 3D game. Extract the street-segment-to-canvas rendering into a shared utility that both the editor and the minimap (US-048) can consume. Display streets, lot positions, building footprints, and address labels so world authors can verify layout correctness before entering the game."
+    },
+    {
       "title": "[US-026] Elevation-aware building placement",
       "completed": false,
       "parallel_group": 5,

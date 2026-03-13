@@ -72,7 +72,9 @@ export type GameEvent =
   | { type: 'onboarding_step_completed'; stepId: string; stepIndex: number; totalSteps: number; durationMs: number }
   | { type: 'onboarding_completed'; totalSteps: number; totalDurationMs: number }
   // Periodic assessment trigger (emitted when a level-up milestone requires a proficiency check)
-  | { type: 'periodic_assessment_triggered'; level: number; tier: string };
+  | { type: 'periodic_assessment_triggered'; level: number; tier: string }
+  // Assessment conversation completed (player finished talking to NPC during assessment)
+  | { type: 'assessment_conversation_completed'; npcId: string };
 
 export type GameEventType = GameEvent['type'];
 

@@ -54,6 +54,7 @@ const EVENT_ONBOARDING_STEP_STARTED := "onboarding_step_started"
 const EVENT_ONBOARDING_STEP_COMPLETED := "onboarding_step_completed"
 const EVENT_ONBOARDING_COMPLETED := "onboarding_completed"
 const EVENT_PERIODIC_ASSESSMENT_TRIGGERED := "periodic_assessment_triggered"
+const EVENT_ASSESSMENT_CONVERSATION_COMPLETED := "assessment_conversation_completed"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -77,6 +78,7 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_ASSESSMENT_COMPLETED, EVENT_ONBOARDING_STEP_STARTED,
 	EVENT_ONBOARDING_STEP_COMPLETED, EVENT_ONBOARDING_COMPLETED,
 	EVENT_PERIODIC_ASSESSMENT_TRIGGERED,
+	EVENT_ASSESSMENT_CONVERSATION_COMPLETED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
@@ -138,6 +140,7 @@ var _global_handlers: Array[Callable] = []
 ##   onboarding_step_completed: {type, step_id, step_index, total_steps, duration_ms}
 ##   onboarding_completed: {type, total_steps, total_duration_ms}
 ##   periodic_assessment_triggered: {type, level, tier}
+##   assessment_conversation_completed: {type, npc_id}
 ##
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}
 func emit_event(event: Dictionary) -> void:

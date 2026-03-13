@@ -5443,7 +5443,13 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         return res.status(400).json({ error: "No text provided" });
       }
 
-      const audioBuffer = await textToSpeech(textToConvert, voice, gender, encoding);
+      // Strip any system markers that shouldn't be spoken
+      const cleanText = textToConvert
+        .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+        .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+        .trim();
+
+      const audioBuffer = await textToSpeech(cleanText || textToConvert, voice, gender, encoding);
 
       // Set appropriate content type based on encoding
       const contentType = encoding === "WAV" ? 'audio/wav' : 'audio/mpeg';
@@ -5603,8 +5609,16 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         ]
       });
 
-      // Send the message
-      console.log("Sending to Gemini:", lastMessageContent.text?.substring(0, 100) || "[Audio message]");
+      // Log full prompt for debugging NPC chat
+      console.log("\n========== GEMINI CHAT DEBUG ==========");
+      console.log("SYSTEM PROMPT:\n", systemPrompt);
+      console.log("\nCONVERSATION HISTORY (" + (messages.length - 1) + " prior messages):");
+      for (const msg of messages.slice(0, -1)) {
+        const text = msg.parts?.[0]?.text || '';
+        console.log(`  [${msg.role}]: ${text.substring(0, 200)}${text.length > 200 ? '...' : ''}`);
+      }
+      console.log("\nCURRENT MESSAGE:", lastMessageContent.text?.substring(0, 500) || "[Audio message]");
+      console.log("========================================\n");
       
       const result = await chat.sendMessage(lastMessageContent.text);
       
@@ -5627,20 +5641,27 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
 
       console.log("Gemini response:", response.substring(0, 100));
 
-      // Prepare response object
-      const responseData: any = { response };
+      // Strip system markers (GRAMMAR_FEEDBACK, QUEST_ASSIGN) from displayed/spoken text
+      // The full response is still sent so the client can parse grammar feedback metadata
+      const cleanedForDisplay = response
+        .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+        .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+        .trim();
+
+      // Prepare response object — send both raw (for parsing) and cleaned (for display)
+      const responseData: any = { response, cleanedResponse: cleanedForDisplay };
 
       // Add user transcript if we had audio input
       if (userTranscript) {
         responseData.userTranscript = userTranscript;
       }
 
-      // Generate audio if requested
+      // Generate audio if requested — use cleaned text so markers aren't spoken
       if (returnAudio) {
         try {
           const { textToSpeech } = await import("./services/tts-stt.js");
           const gender = voice === 'Kore' ? 'female' : 'male';
-          const audioBuffer = await textToSpeech(response, voice, gender, "MP3");
+          const audioBuffer = await textToSpeech(cleanedForDisplay, voice, gender, "MP3");
           // Convert to base64 for JSON response
           responseData.audio = audioBuffer.toString('base64');
         } catch (audioError) {
@@ -5653,6 +5674,57 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
     } catch (error) {
       console.error("Gemini chat error:", error);
       res.status(500).json({ error: error instanceof Error ? error.message : "Failed to get chat response" });
+    }
+  });
+
+  // Grammar Analysis Endpoint — separate from dialogue to keep NPC responses clean
+  app.post("/api/gemini/grammar-analysis", async (req, res) => {
+    try {
+      const { playerMessage, npcResponse, targetLanguage, worldLanguage } = req.body;
+
+      if (!playerMessage || !targetLanguage) {
+        return res.status(400).json({ error: "playerMessage and targetLanguage are required" });
+      }
+
+      const { GoogleGenerativeAI } = await import("@google/generative-ai");
+      const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+      const { buildGrammarAnalysisPrompt } = await import("../shared/language/utils.js");
+
+      const apiKey = getGeminiApiKey();
+      if (!apiKey) {
+        return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODELS.FLASH,
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 512,
+          responseMimeType: "application/json",
+        },
+      });
+
+      const prompt = buildGrammarAnalysisPrompt(
+        targetLanguage,
+        playerMessage,
+        npcResponse || '',
+        worldLanguage || null,
+      );
+
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text();
+
+      try {
+        const parsed = JSON.parse(responseText);
+        res.json(parsed);
+      } catch {
+        console.warn('[GrammarAnalysis] Failed to parse JSON response:', responseText.substring(0, 200));
+        res.json({ status: 'no_target_language', errors: [] });
+      }
+    } catch (error) {
+      console.error("Grammar analysis error:", error);
+      res.json({ status: 'no_target_language', errors: [] });
     }
   });
 

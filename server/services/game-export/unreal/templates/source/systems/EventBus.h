@@ -55,7 +55,8 @@ enum class EInsimulEventType : uint8
     OnboardingStepStarted   UMETA(DisplayName = "Onboarding Step Started"),
     OnboardingStepCompleted UMETA(DisplayName = "Onboarding Step Completed"),
     OnboardingCompleted     UMETA(DisplayName = "Onboarding Completed"),
-    PeriodicAssessmentTriggered UMETA(DisplayName = "Periodic Assessment Triggered")
+    PeriodicAssessmentTriggered UMETA(DisplayName = "Periodic Assessment Triggered"),
+    AssessmentConversationCompleted UMETA(DisplayName = "Assessment Conversation Completed")
 };
 
 /**

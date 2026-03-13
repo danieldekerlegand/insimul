@@ -1,8 +1,8 @@
 /**
  * AssessmentProgressUI — Babylon.js GUI overlay for assessment progress.
  *
- * Displays phase dots (4 phases), countdown timer with color-coded warnings
- * (amber ≤2min, red ≤1min), and phase transition fade overlay.
+ * Displays phase dots (4 phases), a status message or countdown timer,
+ * and smooth phase transition fade overlays.
  * Style matches BabylonQuestTracker.ts.
  */
 
@@ -29,9 +29,9 @@ const TOTAL_PHASES = 4;
 const AMBER_THRESHOLD = 120; // 2 minutes
 const RED_THRESHOLD = 60;    // 1 minute
 
-// Fade overlay duration (ms)
-const FADE_DURATION = 600;
-const FADE_HOLD = 800;
+// Fade overlay duration (ms) — softened from original values
+const FADE_DURATION = 500;
+const FADE_HOLD = 400;
 
 export class AssessmentProgressUI {
   private advancedTexture: AdvancedDynamicTexture;
@@ -42,9 +42,11 @@ export class AssessmentProgressUI {
   private timerInterval: ReturnType<typeof setInterval> | null = null;
   private fadeOverlay: Rectangle | null = null;
   private fadeTimeout: ReturnType<typeof setTimeout> | null = null;
+  private fadeAnimInterval: ReturnType<typeof setInterval> | null = null;
   private currentPhase = 0;
   private _isVisible = false;
   private _timeRemaining = 0;
+  private _statusMode = false;
 
   constructor(advancedTexture: AdvancedDynamicTexture) {
     this.advancedTexture = advancedTexture;
@@ -74,14 +76,34 @@ export class AssessmentProgressUI {
     return this._isVisible;
   }
 
-  /** Set the active phase (0-based index) and start the timer. */
+  /** Set the active phase (0-based index) and start the timer or show status. */
   public setPhase(phaseIndex: number, timeRemainingSeconds: number): void {
     this.currentPhase = Math.max(0, Math.min(phaseIndex, TOTAL_PHASES - 1));
     this._timeRemaining = timeRemainingSeconds;
     this.updatePhaseDots();
     this.updatePhaseLabel();
-    this.updateTimerDisplay();
-    this.startTimer();
+
+    if (timeRemainingSeconds <= 0) {
+      // Interactive mode — show status text instead of countdown
+      this._statusMode = true;
+      this.stopTimer();
+      this.setStatusText('Complete the task to continue');
+    } else {
+      this._statusMode = false;
+      this.updateTimerDisplay();
+      this.startTimer();
+    }
+  }
+
+  /** Set a custom status message in the timer area. */
+  public setStatusText(text: string): void {
+    this._statusMode = true;
+    this.stopTimer();
+    if (this.timerText) {
+      this.timerText.text = text;
+      this.timerText.color = '#22c55e';
+      this.timerText.fontSize = 13;
+    }
   }
 
   /** Mark a phase as completed and show the transition fade overlay. */
@@ -94,7 +116,9 @@ export class AssessmentProgressUI {
   /** Update the timer externally (e.g. from server sync). */
   public updateTimer(secondsRemaining: number): void {
     this._timeRemaining = secondsRemaining;
-    this.updateTimerDisplay();
+    if (!this._statusMode) {
+      this.updateTimerDisplay();
+    }
   }
 
   /** Get the current time remaining in seconds. */
@@ -107,6 +131,10 @@ export class AssessmentProgressUI {
     if (this.fadeTimeout) {
       clearTimeout(this.fadeTimeout);
       this.fadeTimeout = null;
+    }
+    if (this.fadeAnimInterval) {
+      clearInterval(this.fadeAnimInterval);
+      this.fadeAnimInterval = null;
     }
     if (this.fadeOverlay) {
       this.fadeOverlay.dispose();
@@ -182,7 +210,7 @@ export class AssessmentProgressUI {
       this.phaseDots.push(dot);
     }
 
-    // Row 3: Timer
+    // Row 3: Timer / Status
     const timer = new TextBlock('assessmentTimer', '--:--');
     timer.fontSize = 16;
     timer.fontWeight = 'bold';
@@ -246,11 +274,12 @@ export class AssessmentProgressUI {
   }
 
   private updateTimerDisplay(): void {
-    if (!this.timerText) return;
+    if (!this.timerText || this._statusMode) return;
     const secs = Math.ceil(this._timeRemaining);
     const min = Math.floor(secs / 60);
     const sec = secs % 60;
     this.timerText.text = `${min}:${sec.toString().padStart(2, '0')}`;
+    this.timerText.fontSize = 16;
 
     if (secs <= RED_THRESHOLD) {
       this.timerText.color = '#ef4444';
@@ -262,7 +291,7 @@ export class AssessmentProgressUI {
   }
 
   // ---------------------------------------------------------------------------
-  // Phase transition fade overlay
+  // Phase transition fade overlay — smooth, eased
   // ---------------------------------------------------------------------------
 
   public showFadeOverlay(phaseName: string, onMidpoint?: () => void): void {
@@ -271,7 +300,7 @@ export class AssessmentProgressUI {
     const overlay = new Rectangle('assessmentFadeOverlay');
     overlay.width = '100%';
     overlay.height = '100%';
-    overlay.background = 'rgba(0, 0, 0, 0.85)';
+    overlay.background = 'rgba(0, 0, 0, 0.6)';
     overlay.thickness = 0;
     overlay.alpha = 0;
     overlay.isPointerBlocker = true;
@@ -287,9 +316,8 @@ export class AssessmentProgressUI {
     text.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
     overlay.addControl(text);
 
-    // Fade in
-    const fadeIn = this.animateAlpha(overlay, 0, 1, FADE_DURATION);
-    fadeIn.then(() => {
+    // Fade in with easing
+    this.animateAlpha(overlay, 0, 1, FADE_DURATION).then(() => {
       onMidpoint?.();
       // Hold, then fade out
       this.fadeTimeout = setTimeout(() => {
@@ -305,6 +333,10 @@ export class AssessmentProgressUI {
       clearTimeout(this.fadeTimeout);
       this.fadeTimeout = null;
     }
+    if (this.fadeAnimInterval) {
+      clearInterval(this.fadeAnimInterval);
+      this.fadeAnimInterval = null;
+    }
     if (this.fadeOverlay) {
       this.fadeOverlay.dispose();
       this.fadeOverlay = null;
@@ -314,16 +346,26 @@ export class AssessmentProgressUI {
   private animateAlpha(control: Rectangle, from: number, to: number, durationMs: number): Promise<void> {
     return new Promise((resolve) => {
       const steps = Math.max(1, Math.floor(durationMs / 16));
-      const delta = (to - from) / steps;
       let step = 0;
       control.alpha = from;
 
-      const interval = setInterval(() => {
+      // Clear any previous animation interval
+      if (this.fadeAnimInterval) {
+        clearInterval(this.fadeAnimInterval);
+      }
+
+      this.fadeAnimInterval = setInterval(() => {
         step++;
-        control.alpha = from + delta * step;
+        // Ease-in-out curve for smoother transition
+        const t = step / steps;
+        const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+        control.alpha = from + (to - from) * eased;
         if (step >= steps) {
           control.alpha = to;
-          clearInterval(interval);
+          if (this.fadeAnimInterval) {
+            clearInterval(this.fadeAnimInterval);
+            this.fadeAnimInterval = null;
+          }
           resolve();
         }
       }, 16);

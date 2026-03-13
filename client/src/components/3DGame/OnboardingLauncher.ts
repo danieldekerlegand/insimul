@@ -19,6 +19,17 @@ type AssessmentEngine = {
   onPhaseStarted(cb: (phaseId: string, phaseIndex: number, timeRemainingSeconds?: number) => void): void;
   onPhaseCompleted(cb: (phaseId: string, score: number, maxScore: number) => void): void;
   onCompleted(cb: (result: AssessmentResult) => void): void;
+  onShowInstruction(cb: (config: {
+    phaseId: string;
+    phaseName: string;
+    phaseIndex: number;
+    totalPhases: number;
+    description: string;
+    isConversational: boolean;
+    onContinue: () => void;
+  }) => void): void;
+  onHideInstruction(cb: () => void): void;
+  resolveCurrentPhase(): void;
   dispose(): void;
 };
 
@@ -127,6 +138,7 @@ export async function launchOnboarding(
   let OnboardingManagerClass: any;
   let AssessmentProgressUIClass: any;
   let AssessmentResultsPanelClass: any;
+  let AssessmentInstructionOverlayClass: any;
   let languageOnboarding: any;
 
   try {
@@ -135,12 +147,14 @@ export async function launchOnboarding(
       { OnboardingManager: OnboardingManagerClass },
       { AssessmentProgressUI: AssessmentProgressUIClass },
       { AssessmentResultsPanel: AssessmentResultsPanelClass },
+      { AssessmentInstructionOverlay: AssessmentInstructionOverlayClass },
       { LANGUAGE_LEARNING_ONBOARDING: languageOnboarding },
     ] = await Promise.all([
       import('@/components/3DGame/AssessmentEngine.ts'),
       import('@/components/3DGame/OnboardingManager.ts'),
       import('@/components/3DGame/AssessmentProgressUI.ts'),
       import('@/components/3DGame/AssessmentResultsPanel.ts'),
+      import('@/components/3DGame/AssessmentInstructionOverlay.ts'),
       import('@shared/onboarding/language-onboarding.ts'),
     ]);
   } catch (err) {
@@ -156,17 +170,20 @@ export async function launchOnboarding(
   // Create UI overlays
   let progressUI: any = null;
   let resultsPanel: any = null;
+  let instructionOverlay: any = null;
   try {
     progressUI = new AssessmentProgressUIClass(guiManager.advancedTexture);
     resultsPanel = new AssessmentResultsPanelClass(guiManager.advancedTexture);
+    instructionOverlay = new AssessmentInstructionOverlayClass(guiManager.advancedTexture);
   } catch (err) {
     console.warn('[OnboardingLauncher] Failed to create assessment UI:', err);
   }
 
-  // Create assessment engine
+  // Create assessment engine with event bus for conversation detection
   const assessmentEngine: AssessmentEngine = new AssessmentEngineClass({
     authToken,
     targetLanguage,
+    eventBus,
   });
 
   // Wire phase events to UI + event bus
@@ -194,6 +211,31 @@ export async function launchOnboarding(
       score,
       maxScore,
     });
+  });
+
+  // Wire instruction overlay
+  assessmentEngine.onShowInstruction((config) => {
+    if (instructionOverlay) {
+      instructionOverlay.show({
+        phaseName: config.phaseName,
+        phaseIndex: config.phaseIndex,
+        totalPhases: config.totalPhases,
+        instruction: config.description,
+        isConversational: config.isConversational,
+        onContinue: config.onContinue,
+      });
+    }
+
+    // Update progress UI status text based on phase type
+    if (config.isConversational) {
+      progressUI?.setStatusText('Talk to an NPC');
+    } else {
+      progressUI?.setStatusText('Read instructions');
+    }
+  });
+
+  assessmentEngine.onHideInstruction(() => {
+    instructionOverlay?.hide();
   });
 
   // Return a promise that resolves when the full onboarding completes
@@ -274,6 +316,7 @@ export async function launchOnboarding(
         assessmentEngine.dispose();
         onboardingManager.dispose();
         progressUI?.dispose();
+        instructionOverlay?.dispose();
 
         if (assessmentResult) {
           resolve({
@@ -299,6 +342,7 @@ export async function launchOnboarding(
       assessmentEngine.dispose();
       onboardingManager.dispose();
       progressUI?.dispose();
+      instructionOverlay?.dispose();
       resolve(null);
     });
 

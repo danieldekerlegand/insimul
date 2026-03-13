@@ -811,50 +811,21 @@ export class BabylonChatPanel {
       }
 
       // Parse and create quest if present in response
-      let cleanedResponse = await this.parseAndCreateQuest(aiResponse.text);
+      const cleanedResponse = await this.parseAndCreateQuest(aiResponse.text);
 
-      // Parse grammar feedback for language-learning games only
+      // Analyze vocabulary usage
+      if (this.languageTracker) {
+        this.languageTracker.analyzePlayerMessage(userMessage);
+        this.languageTracker.analyzeNPCResponse(cleanedResponse);
+      }
+
+      // Request grammar analysis asynchronously (separate LLM call, doesn't block dialogue)
       const isLanguageLearning = this.world?.gameType === 'language-learning' ||
                                  this.world?.gameType === 'educational' ||
                                  this.world?.worldType === 'language-learning' ||
                                  this.world?.worldType === 'educational';
-
-      if (this.languageTracker) {
-        if (isLanguageLearning) {
-          const { feedback, cleanedResponse: afterGrammarClean } =
-            this.languageTracker.parseGrammarFeedback(cleanedResponse);
-          cleanedResponse = afterGrammarClean;
-
-          if (feedback) {
-            this.languageTracker.recordGrammarFeedback(feedback);
-
-            if (feedback.status === 'corrected' && feedback.errors.length > 0) {
-              console.log(`[LanguageTracker] Grammar corrections: ${feedback.errors.length}`);
-              // Display grammar corrections as a special message
-              const corrections = feedback.errors.map(err =>
-                `"${err.incorrect}" → "${err.corrected}" (${err.explanation})`
-              ).join('\n');
-              this.displayGrammarFeedback(corrections, false);
-
-              // Track repeated grammar errors — show focus popup after 3 errors of same type
-              for (const err of feedback.errors) {
-                const count = (this._sessionGrammarErrors.get(err.pattern) || 0) + 1;
-                this._sessionGrammarErrors.set(err.pattern, count);
-                if (count >= 3 && !this._grammarFocusShown.has(err.pattern)) {
-                  this._grammarFocusShown.add(err.pattern);
-                  this.showGrammarFocusPopup(err.pattern, err.explanation, err.corrected);
-                }
-              }
-            } else if (feedback.status === 'correct') {
-              console.log('[LanguageTracker] Grammar: correct!');
-              this.displayGrammarFeedback('Great grammar!', true);
-            }
-          }
-        }
-
-        // Analyze vocabulary usage
-        this.languageTracker.analyzePlayerMessage(userMessage);
-        this.languageTracker.analyzeNPCResponse(cleanedResponse);
+      if (isLanguageLearning && this.languageTracker && this.worldLanguageContext?.targetLanguage) {
+        this.requestGrammarAnalysis(userMessage, cleanedResponse);
       }
 
       // Update final cleaned message content and do full display rebuild
@@ -1022,7 +993,15 @@ export class BabylonChatPanel {
           const parsed = JSON.parse(data);
           if (parsed.text) {
             fullText += parsed.text;
-            onChunk(fullText);
+            // Strip system markers before displaying to the player
+            const displayText = fullText
+              .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+              .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+              // Also strip partial/incomplete marker blocks mid-stream
+              .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*$/g, '')
+              .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*$/g, '')
+              .trim();
+            onChunk(displayText);
           }
           if (parsed.audio) {
             // Sentence-level audio chunk — queue for sequential playback
@@ -1275,6 +1254,66 @@ export class BabylonChatPanel {
     return prompt;
   }
 
+  /**
+   * Request grammar analysis from a separate LLM call.
+   * Runs in the background — doesn't block dialogue display or TTS.
+   */
+  private async requestGrammarAnalysis(playerMessage: string, npcResponse: string): Promise<void> {
+    try {
+      const res = await fetch('/api/gemini/grammar-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerMessage,
+          npcResponse,
+          targetLanguage: this.worldLanguageContext?.targetLanguage || 'Spanish',
+        }),
+      });
+
+      if (!res.ok) return;
+      const data = await res.json();
+
+      if (!data || !this.languageTracker) return;
+
+      const feedback = {
+        status: data.status as 'correct' | 'corrected' | 'no_target_language',
+        errors: (data.errors || []).map((e: any) => ({
+          pattern: e.pattern || 'unknown',
+          incorrect: e.incorrect || '',
+          corrected: e.corrected || '',
+          explanation: e.explanation || '',
+        })),
+        errorCount: data.errors?.length || 0,
+        timestamp: Date.now(),
+      };
+
+      this.languageTracker.recordGrammarFeedback(feedback);
+
+      if (feedback.status === 'corrected' && feedback.errors.length > 0) {
+        console.log(`[GrammarAnalysis] Grammar corrections: ${feedback.errors.length}`);
+        const corrections = feedback.errors.map((err: any) =>
+          `"${err.incorrect}" → "${err.corrected}" (${err.explanation})`
+        ).join('\n');
+        this.displayGrammarFeedback(corrections, false);
+
+        // Track repeated grammar errors — show focus popup after 3 errors of same type
+        for (const err of feedback.errors) {
+          const count = (this._sessionGrammarErrors.get(err.pattern) || 0) + 1;
+          this._sessionGrammarErrors.set(err.pattern, count);
+          if (count >= 3 && !this._grammarFocusShown.has(err.pattern)) {
+            this._grammarFocusShown.add(err.pattern);
+            this.showGrammarFocusPopup(err.pattern, err.explanation, err.corrected);
+          }
+        }
+      } else if (feedback.status === 'correct') {
+        console.log('[GrammarAnalysis] Grammar: correct!');
+        this.displayGrammarFeedback('Great grammar!', true);
+      }
+    } catch (err) {
+      console.warn('[GrammarAnalysis] Failed:', err);
+    }
+  }
+
   private async textToSpeech(text: string) {
     try {
       const response = await fetch('/api/tts', {
@@ -1445,15 +1484,27 @@ export class BabylonChatPanel {
             };
           }
           
+          // NPC response is now pure dialogue (no embedded markers)
+          const voiceCleanedResponse = response.text;
+
           // Add AI response
           this.messages.push({
             role: 'assistant',
-            content: response.text,
+            content: voiceCleanedResponse,
             timestamp: new Date()
           });
           this.updateMessagesDisplay();
           // Notify speech bubble overlay of NPC's words
-          this.onNPCSpeechUpdate?.(response.text);
+          this.onNPCSpeechUpdate?.(voiceCleanedResponse);
+
+          // Request grammar analysis asynchronously (separate LLM call)
+          const isLangLearning = this.world?.gameType === 'language-learning' ||
+                                 this.world?.gameType === 'educational' ||
+                                 this.world?.worldType === 'language-learning' ||
+                                 this.world?.worldType === 'educational';
+          if (isLangLearning && this.languageTracker && this.worldLanguageContext?.targetLanguage) {
+            this.requestGrammarAnalysis(userTranscript, voiceCleanedResponse);
+          }
 
           // Play audio if available
           if (response.audio) {
@@ -1462,7 +1513,7 @@ export class BabylonChatPanel {
             await this.playAudio(audioBlob);
           } else {
             // Fallback to TTS
-            await this.textToSpeech(response.text);
+            await this.textToSpeech(voiceCleanedResponse);
           }
           
           // Hide thinking indicator

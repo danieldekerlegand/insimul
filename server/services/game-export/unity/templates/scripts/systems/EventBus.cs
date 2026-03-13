@@ -53,7 +53,9 @@ namespace Insimul.Systems
         AssessmentCompleted,
         OnboardingStepStarted,
         OnboardingStepCompleted,
-        OnboardingCompleted
+        OnboardingCompleted,
+        PeriodicAssessmentTriggered,
+        AssessmentConversationCompleted
     }
 
     /// <summary>
@@ -451,6 +453,19 @@ namespace Insimul.Systems
         public override GameEventType EventType => GameEventType.OnboardingCompleted;
         public int totalSteps;
         public int totalDurationMs;
+    }
+
+    public class PeriodicAssessmentTriggeredEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.PeriodicAssessmentTriggered;
+        public int level;
+        public string tier;
+    }
+
+    public class AssessmentConversationCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AssessmentConversationCompleted;
+        public string npcId;
     }
 
     // ── Event Bus ────────────────────────────────────────────────────────────

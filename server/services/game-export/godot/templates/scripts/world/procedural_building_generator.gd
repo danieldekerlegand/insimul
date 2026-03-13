@@ -190,13 +190,23 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 	body.add_child(col)
 	building.add_child(body)
 
-	# Roof
+	# Determine style-aware roof height
+	var peaked_roof_height := 3.0
+	var actual_roof_height: float
+	# TODO: pass architecture_style from world data for proper selection
+	var arch_style := "medieval"
+	if arch_style == "modern" or arch_style == "futuristic":
+		actual_roof_height = 0.5
+	else:
+		actual_roof_height = peaked_roof_height
+
+	# Roof — positioned flush on top of building walls
 	var roof := MeshInstance3D.new()
 	var roof_box := BoxMesh.new()
-	roof_box.size = Vector3(width + 1.0, 1.0, depth + 1.0)
+	roof_box.size = Vector3(width + 1.0, actual_roof_height, depth + 1.0)
 	roof.mesh = roof_box
 	roof.name = "Roof"
-	roof.position = Vector3(0, total_height / 2.0 + 0.5, 0)
+	roof.position = Vector3(0, total_height / 2.0 + actual_roof_height / 2.0, 0)
 
 	# Apply roof texture override or shared color material
 	if _roof_texture != null:
@@ -207,6 +217,9 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 		roof.material_override = _get_shared_material("roof", roof_color)
 	building.add_child(roof)
 
+	# Door with frame, panel, and handle
+	_add_door(building, width, depth, floors, total_height)
+
 	# LOD: add VisibilityNotifier to cull at distance
 	var notifier := VisibleOnScreenNotifier3D.new()
 	notifier.aabb = AABB(Vector3(-width / 2, 0, -depth / 2), Vector3(width, total_height + 1.0, depth))
@@ -214,3 +227,78 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 
 	# Freeze transforms — buildings are static geometry
 	building.set_notify_transform(false)
+
+
+## Add door with frame, panel, and handle to a building.
+func _add_door(building: MeshInstance3D, width: float, depth: float,
+		floors: int, total_height: float) -> void:
+	var door_width := 1.2
+	var door_height := 2.2
+	var door_depth := 0.15
+	var frame_thickness := 0.12
+	var frame_depth := 0.18
+	var front_z := depth / 2.0
+	# Ground level in building's local space (building is centered vertically)
+	var ground_y := -total_height / 2.0
+
+	# Door frame material (darker than door color)
+	var style := get_style_for_world("", "")
+	var frame_color: Color = style.get("door_color", Color(0.4, 0.25, 0.15)) * 0.5
+	var frame_mat := _get_shared_material("doorframe", frame_color)
+
+	# Left frame post
+	var left_post := MeshInstance3D.new()
+	var left_box := BoxMesh.new()
+	left_box.size = Vector3(frame_thickness, door_height + frame_thickness, frame_depth)
+	left_post.mesh = left_box
+	left_post.name = "DoorFrame_L"
+	left_post.position = Vector3(-door_width / 2.0 - frame_thickness / 2.0,
+		ground_y + (door_height + frame_thickness) / 2.0, front_z + frame_depth / 2.0)
+	left_post.material_override = frame_mat
+	building.add_child(left_post)
+
+	# Right frame post
+	var right_post := MeshInstance3D.new()
+	var right_box := BoxMesh.new()
+	right_box.size = Vector3(frame_thickness, door_height + frame_thickness, frame_depth)
+	right_post.mesh = right_box
+	right_post.name = "DoorFrame_R"
+	right_post.position = Vector3(door_width / 2.0 + frame_thickness / 2.0,
+		ground_y + (door_height + frame_thickness) / 2.0, front_z + frame_depth / 2.0)
+	right_post.material_override = frame_mat
+	building.add_child(right_post)
+
+	# Top frame (lintel)
+	var lintel := MeshInstance3D.new()
+	var lintel_box := BoxMesh.new()
+	lintel_box.size = Vector3(door_width + frame_thickness * 2.0, frame_thickness, frame_depth)
+	lintel.mesh = lintel_box
+	lintel.name = "DoorFrame_T"
+	lintel.position = Vector3(0, ground_y + door_height + frame_thickness / 2.0,
+		front_z + frame_depth / 2.0)
+	lintel.material_override = frame_mat
+	building.add_child(lintel)
+
+	# Door panel
+	var door_color: Color = style.get("door_color", Color(0.4, 0.25, 0.15))
+	var door_mat := _get_shared_material("door", door_color)
+	var door := MeshInstance3D.new()
+	var door_box := BoxMesh.new()
+	door_box.size = Vector3(door_width, door_height, door_depth)
+	door.mesh = door_box
+	door.name = "Door"
+	door.position = Vector3(0, ground_y + door_height / 2.0, front_z + door_depth / 2.0)
+	door.material_override = door_mat
+	building.add_child(door)
+
+	# Door handle (metallic brass)
+	var handle_mat := _get_shared_material("door_handle", Color(0.7, 0.65, 0.4))
+	var handle := MeshInstance3D.new()
+	var handle_box := BoxMesh.new()
+	handle_box.size = Vector3(0.06, 0.2, 0.06)
+	handle.mesh = handle_box
+	handle.name = "DoorHandle"
+	handle.position = Vector3(door_width / 2.0 - 0.2, ground_y + 1.0,
+		front_z + door_depth + 0.03)
+	handle.material_override = handle_mat
+	building.add_child(handle)

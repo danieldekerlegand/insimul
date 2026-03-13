@@ -25,7 +25,7 @@ export interface NoticeArticle {
 }
 
 // Sample articles by difficulty (would be AI-generated in production)
-const SAMPLE_ARTICLES: NoticeArticle[] = [
+export const SAMPLE_ARTICLES: NoticeArticle[] = [
   {
     id: 'notice_1',
     title: 'Le Marché du Village',

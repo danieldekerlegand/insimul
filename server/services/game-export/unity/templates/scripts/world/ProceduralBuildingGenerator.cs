@@ -261,11 +261,21 @@ namespace Insimul.World
                 }
             }
 
-            // Roof
+            // Determine style for roof height
+            string archStyle = "medieval"; // default; real style comes from world data
+            float peakedRoofHeight = 3f;
+            float actualRoofHeight;
+
+            if (archStyle == "modern" || archStyle == "futuristic")
+                actualRoofHeight = 0.5f;
+            else
+                actualRoofHeight = peakedRoofHeight;
+
+            // Roof — positioned flush on top of building walls
             var roof = GameObject.CreatePrimitive(PrimitiveType.Cube);
             roof.name = "Roof";
-            roof.transform.position = position + Vector3.up * (totalHeight + 0.5f);
-            roof.transform.localScale = new Vector3(width + 1f, 1f, depth + 1f);
+            roof.transform.position = position + Vector3.up * (totalHeight + actualRoofHeight / 2f);
+            roof.transform.localScale = new Vector3(width + 1f, actualRoofHeight, depth + 1f);
             roof.transform.rotation = Quaternion.Euler(0, rotation, 0);
             roof.transform.SetParent(building.transform);
 
@@ -284,6 +294,9 @@ namespace Insimul.World
                 }
             }
 
+            // Door with frame and handle
+            AddDoor(building, width, depth, floors, totalHeight, rotation, position);
+
             // Mark as static for batching and add LOD culling
             building.isStatic = true;
             roof.isStatic = true;
@@ -295,6 +308,73 @@ namespace Insimul.World
                 new LOD(0, new Renderer[0])
             });
             lodGroup.RecalculateBounds();
+        }
+
+        private void AddDoor(GameObject building, float width, float depth, int floors,
+            float totalHeight, float rotation, Vector3 position)
+        {
+            float doorWidth = 1.2f;
+            float doorHeight = 2.2f;
+            float doorDepth = 0.15f;
+            float frameThickness = 0.12f;
+            float frameDepth = 0.18f;
+            float frontZ = depth / 2f;
+            // Ground level in building's local space (building is centered vertically)
+            float groundY = -totalHeight / 2f;
+
+            // Door frame material (darker than door)
+            var style = GetStyleForWorld("", ""); // default style
+            var frameMat = GetSharedMaterial("doorframe", style.doorColor * 0.5f);
+
+            // Left frame post
+            var leftPost = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            leftPost.name = "DoorFrame_L";
+            leftPost.transform.localScale = new Vector3(frameThickness, doorHeight + frameThickness, frameDepth);
+            leftPost.transform.localPosition = new Vector3(-doorWidth / 2f - frameThickness / 2f,
+                groundY + (doorHeight + frameThickness) / 2f, frontZ + frameDepth / 2f);
+            leftPost.transform.SetParent(building.transform, false);
+            leftPost.GetComponent<Renderer>().sharedMaterial = frameMat;
+            leftPost.isStatic = true;
+
+            // Right frame post
+            var rightPost = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            rightPost.name = "DoorFrame_R";
+            rightPost.transform.localScale = new Vector3(frameThickness, doorHeight + frameThickness, frameDepth);
+            rightPost.transform.localPosition = new Vector3(doorWidth / 2f + frameThickness / 2f,
+                groundY + (doorHeight + frameThickness) / 2f, frontZ + frameDepth / 2f);
+            rightPost.transform.SetParent(building.transform, false);
+            rightPost.GetComponent<Renderer>().sharedMaterial = frameMat;
+            rightPost.isStatic = true;
+
+            // Top frame (lintel)
+            var lintel = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            lintel.name = "DoorFrame_T";
+            lintel.transform.localScale = new Vector3(doorWidth + frameThickness * 2f, frameThickness, frameDepth);
+            lintel.transform.localPosition = new Vector3(0, groundY + doorHeight + frameThickness / 2f,
+                frontZ + frameDepth / 2f);
+            lintel.transform.SetParent(building.transform, false);
+            lintel.GetComponent<Renderer>().sharedMaterial = frameMat;
+            lintel.isStatic = true;
+
+            // Door panel
+            var doorMat = GetSharedMaterial("door", style.doorColor);
+            var door = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            door.name = "Door";
+            door.transform.localScale = new Vector3(doorWidth, doorHeight, doorDepth);
+            door.transform.localPosition = new Vector3(0, groundY + doorHeight / 2f, frontZ + doorDepth / 2f);
+            door.transform.SetParent(building.transform, false);
+            door.GetComponent<Renderer>().sharedMaterial = doorMat;
+
+            // Door handle
+            var handleMat = GetSharedMaterial("door_handle", new Color(0.7f, 0.65f, 0.4f));
+            var handle = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            handle.name = "DoorHandle";
+            handle.transform.localScale = new Vector3(0.06f, 0.2f, 0.06f);
+            handle.transform.localPosition = new Vector3(doorWidth / 2f - 0.2f,
+                groundY + 1.0f, frontZ + doorDepth + 0.03f);
+            handle.transform.SetParent(building.transform, false);
+            handle.GetComponent<Renderer>().sharedMaterial = handleMat;
+            handle.isStatic = true;
         }
     }
 }
