@@ -5620,17 +5620,73 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       console.log("\nCURRENT MESSAGE:", lastMessageContent.text?.substring(0, 500) || "[Audio message]");
       console.log("========================================\n");
       
+      // --- Streaming path: send SSE events with a final done event ---
+      if (stream) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders();
+
+        const streamResult = await chat.sendMessageStream(lastMessageContent.text);
+        let fullText = '';
+
+        for await (const chunk of streamResult.stream) {
+          const chunkText = chunk.text();
+          if (chunkText) {
+            fullText += chunkText;
+            res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
+          }
+        }
+
+        if (!fullText || fullText.trim() === '') {
+          res.write(`data: ${JSON.stringify({ error: "Gemini returned empty response." })}\n\n`);
+          res.write('data: [DONE]\n\n');
+          return res.end();
+        }
+
+        console.log("Gemini streamed response:", fullText.substring(0, 100));
+
+        // Parse grammar feedback from the full response
+        const { parseGrammarFeedbackBlock } = await import('../shared/language/progress.js');
+        const { feedback: grammarFeedback, cleanedResponse } = parseGrammarFeedbackBlock(fullText);
+
+        // Build done event payload with cleaned response and grammar metadata
+        const donePayload: any = { cleanedResponse };
+        if (grammarFeedback) {
+          donePayload.grammarFeedback = grammarFeedback;
+        }
+        if (userTranscript) {
+          donePayload.userTranscript = userTranscript;
+        }
+
+        // Generate audio from cleaned text if requested
+        if (returnAudio) {
+          try {
+            const { textToSpeech } = await import("./services/tts-stt.js");
+            const gender = voice === 'Kore' ? 'female' : 'male';
+            const audioBuffer = await textToSpeech(cleanedResponse, voice, gender, "MP3");
+            donePayload.audio = audioBuffer.toString('base64');
+          } catch (audioError) {
+            console.error("Failed to generate audio:", audioError);
+          }
+        }
+
+        res.write(`data: ${JSON.stringify({ done: true, ...donePayload })}\n\n`);
+        res.write('data: [DONE]\n\n');
+        return res.end();
+      }
+
+      // --- Non-streaming path: return full JSON response ---
       const result = await chat.sendMessage(lastMessageContent.text);
-      
-      // Log the full response for debugging
+
       console.log("Gemini response object:", JSON.stringify(result.response, null, 2));
-      
+
       const response = result.response.text();
-      
+
       if (!response || response.trim() === '') {
         console.error("Gemini returned empty response. Candidates:", result.response.candidates);
         console.error("Prompt feedback:", result.response.promptFeedback);
-        return res.status(500).json({ 
+        return res.status(500).json({
           error: "Gemini returned empty response. This may be due to safety filters.",
           details: {
             promptFeedback: result.response.promptFeedback,
@@ -5642,31 +5698,25 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       console.log("Gemini response:", response.substring(0, 100));
 
       // Strip system markers (GRAMMAR_FEEDBACK, QUEST_ASSIGN) from displayed/spoken text
-      // The full response is still sent so the client can parse grammar feedback metadata
       const cleanedForDisplay = response
         .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
         .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
         .trim();
 
-      // Prepare response object — send both raw (for parsing) and cleaned (for display)
       const responseData: any = { response, cleanedResponse: cleanedForDisplay };
 
-      // Add user transcript if we had audio input
       if (userTranscript) {
         responseData.userTranscript = userTranscript;
       }
 
-      // Generate audio if requested — use cleaned text so markers aren't spoken
       if (returnAudio) {
         try {
           const { textToSpeech } = await import("./services/tts-stt.js");
           const gender = voice === 'Kore' ? 'female' : 'male';
           const audioBuffer = await textToSpeech(cleanedForDisplay, voice, gender, "MP3");
-          // Convert to base64 for JSON response
           responseData.audio = audioBuffer.toString('base64');
         } catch (audioError) {
           console.error("Failed to generate audio:", audioError);
-          // Continue without audio
         }
       }
 

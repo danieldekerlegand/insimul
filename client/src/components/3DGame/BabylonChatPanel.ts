@@ -810,8 +810,10 @@ export class BabylonChatPanel {
         this.loadingIndicator.isVisible = false;
       }
 
-      // Parse and create quest if present in response
-      const cleanedResponse = await this.parseAndCreateQuest(aiResponse.text);
+      // Use server-provided cleaned response if available, otherwise parse locally
+      const cleanedResponse = aiResponse.cleanedResponse
+        ? await this.parseAndCreateQuest(aiResponse.cleanedResponse)
+        : await this.parseAndCreateQuest(aiResponse.text);
 
       // Analyze vocabulary usage
       if (this.languageTracker) {
@@ -819,13 +821,25 @@ export class BabylonChatPanel {
         this.languageTracker.analyzeNPCResponse(cleanedResponse);
       }
 
-      // Request grammar analysis asynchronously (separate LLM call, doesn't block dialogue)
+      // Use grammar feedback from streaming done event, or fall back to separate API call
       const isLanguageLearning = this.world?.gameType === 'language-learning' ||
                                  this.world?.gameType === 'educational' ||
                                  this.world?.worldType === 'language-learning' ||
                                  this.world?.worldType === 'educational';
       if (isLanguageLearning && this.languageTracker && this.worldLanguageContext?.targetLanguage) {
-        this.requestGrammarAnalysis(userMessage, cleanedResponse);
+        if (aiResponse.grammarFeedback) {
+          this.languageTracker.recordGrammarFeedback(aiResponse.grammarFeedback);
+          if (aiResponse.grammarFeedback.errors?.length > 0) {
+            const corrections = aiResponse.grammarFeedback.errors
+              .map((e: any) => `"${e.incorrect}" → "${e.corrected}" (${e.explanation})`)
+              .join('\n');
+            this.displayGrammarFeedback(corrections, false);
+          } else if (aiResponse.grammarFeedback.status === 'correct') {
+            this.displayGrammarFeedback('Great grammar!', true);
+          }
+        } else {
+          this.requestGrammarAnalysis(userMessage, cleanedResponse);
+        }
       }
 
       // Update final cleaned message content and do full display rebuild
@@ -935,7 +949,7 @@ export class BabylonChatPanel {
   private async sendToGeminiStreaming(
     userMessage: string,
     onChunk: (partialText: string) => void
-  ): Promise<{text: string, audio?: string}> {
+  ): Promise<{text: string, audio?: string, cleanedResponse?: string, grammarFeedback?: any}> {
     if (!this.character) throw new Error('No character selected');
 
     const systemPrompt = this.buildSystemPrompt();
@@ -974,6 +988,7 @@ export class BabylonChatPanel {
 
     const decoder = new TextDecoder();
     let fullText = '';
+    let doneData: any = null;
     // Reset audio queue for this response
     this.audioQueue = [];
 
@@ -991,6 +1006,22 @@ export class BabylonChatPanel {
 
         try {
           const parsed = JSON.parse(data);
+          // Handle the final done event with cleaned response and grammar metadata
+          if (parsed.done) {
+            doneData = parsed;
+            if (parsed.cleanedResponse) {
+              onChunk(parsed.cleanedResponse);
+            }
+            if (parsed.audio) {
+              const audioBytes = Uint8Array.from(atob(parsed.audio), c => c.charCodeAt(0));
+              const audioBlob = new Blob([audioBytes], { type: 'audio/mp3' });
+              this.audioQueue.push({ index: this.audioQueue.length, blob: audioBlob });
+              if (!this.isPlayingQueue) {
+                this.playAudioQueue();
+              }
+            }
+            continue;
+          }
           if (parsed.text) {
             fullText += parsed.text;
             // Strip system markers before displaying to the player
@@ -1003,17 +1034,6 @@ export class BabylonChatPanel {
               .trim();
             onChunk(displayText);
           }
-          if (parsed.audio) {
-            // Sentence-level audio chunk — queue for sequential playback
-            const audioBytes = Uint8Array.from(atob(parsed.audio), c => c.charCodeAt(0));
-            const audioBlob = new Blob([audioBytes], { type: 'audio/mp3' });
-            const idx = parsed.sentenceIndex ?? this.audioQueue.length;
-            this.audioQueue.push({ index: idx, blob: audioBlob });
-            // Start playing immediately if this is the first chunk
-            if (!this.isPlayingQueue) {
-              this.playAudioQueue();
-            }
-          }
           if (parsed.error) {
             console.error('[ChatPanel] Stream error:', parsed.error);
           }
@@ -1023,7 +1043,12 @@ export class BabylonChatPanel {
       }
     }
 
-    return { text: fullText };
+    return {
+      text: fullText,
+      cleanedResponse: doneData?.cleanedResponse,
+      grammarFeedback: doneData?.grammarFeedback,
+      audio: doneData?.audio,
+    };
   }
 
   /**
