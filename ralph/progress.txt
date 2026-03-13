@@ -361,3 +361,18 @@
   - radialCount (6-8) and ringCount (2-4) produce 19-41 nodes total including endpoints
   - TypeScript error count unchanged at 459
 ---
+
+## 2026-03-12 - US-011
+- Implemented `generateLinear()` method on StreetGenerator class
+- One main street along a configurable axis direction through settlement center
+- Short perpendicular side streets branching at semi-regular intervals, alternating left/right or both sides
+- Main street is main_road type; side streets are residential or lane based on length
+- Optional curvePath parameter allows main street to follow a river centerline or similar path
+- Local tangent computation ensures side streets are perpendicular even on curves
+- Files changed: server/generators/street-generator.ts, server/generators/street-generator.test.ts
+- **Learnings for future iterations:**
+  - generateLinear follows same patterns as generateOrganic/generateGrid/generateRadial: reset counters, use seededRandom + noise, internal nodes/edges, call ensureConnectivity, then toStreetNetwork
+  - Side street tier mapping: 'secondary' → 'residential', 'tertiary' → 'lane' in toStreetNetwork
+  - Tests use the npx tsx runner (not vitest) for street-generator.test.ts — it's a standalone script with its own assert function
+  - curvePath interpolation uses linear segment interpolation along the path array
+---

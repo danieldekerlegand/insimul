@@ -1,7 +1,7 @@
 {
   "project": "Insimul",
   "branchName": "ralph/naturalized-procgen",
-  "description": "Naturalized Procedural Generation — realistic terrain, street networks, water systems, address coherence, vegetation, minimap/editor overhaul, export pipeline, and dynamic settlement evolution",
+  "description": "Naturalized Procedural Generation \u2014 realistic terrain, street networks, water systems, address coherence, vegetation, minimap/editor overhaul, export pipeline, and dynamic settlement evolution",
   "userStories": [
     {
       "id": "US-001",
@@ -59,10 +59,10 @@
       "title": "Slope and aspect map derivation",
       "description": "As a developer, I need slope and aspect maps derived from the heightmap so that building placement and road routing can check terrain steepness.",
       "acceptanceCriteria": [
-        "Add method deriveSlopeMap(heightmap: number[][]): number[][] to TerrainGenerator — returns gradient magnitude at each cell",
-        "Add method deriveAspectMap(heightmap: number[][]): number[][] — returns angle in radians of steepest descent",
+        "Add method deriveSlopeMap(heightmap: number[][]): number[][] to TerrainGenerator \u2014 returns gradient magnitude at each cell",
+        "Add method deriveAspectMap(heightmap: number[][]): number[][] \u2014 returns angle in radians of steepest descent",
         "Add helper isBuildable(slopeMap, x, z, maxSlope = 0.52): boolean (0.52 rad = 30 degrees)",
-        "Add helper getRoadCost(slopeMap, x, z): number — returns traversal cost (1.0 flat, exponentially increasing, Infinity above ~15 degrees)",
+        "Add helper getRoadCost(slopeMap, x, z): number \u2014 returns traversal cost (1.0 flat, exponentially increasing, Infinity above ~15 degrees)",
         "Unit tests verify: flat heightmap produces zero slope; a known ramp produces correct slope value",
         "Typecheck passes"
       ],
@@ -191,7 +191,7 @@
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -271,7 +271,7 @@
         "Refactor geography-generator.ts: replace generateStreets() with a call to StreetGenerator.generate()",
         "New generation flow: generateStreetNetwork() -> deriveDistricts() -> generateBuildings()",
         "Districts derived from street regions using Voronoi-like clustering around seed points bounded by major streets",
-        "Buildings generated along street edges (evenly spaced positions — proper lot placement comes in US-018)",
+        "Buildings generated along street edges (evenly spaced positions \u2014 proper lot placement comes in US-018)",
         "Settlement streets field in DB stores the StreetNetwork object as JSONB",
         "Existing settlement data still loads without errors (backward compat)",
         "Integration test: GeographyGenerator.generate() produces settlement with connected street network, unique names, buildings assigned to streets",
