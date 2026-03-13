@@ -1,0 +1,17 @@
+## Assessment MongoDB Schema and Basic CRUD
+
+### What was done:
+- Created `shared/assessment/assessment-types.ts` with all assessment type definitions (AssessmentSession, PhaseResult, TaskResult, RecordingReference, AutomatedMetrics, etc.)
+- Created `shared/assessment/index.ts` barrel export
+- Added AssessmentSessionSchema to `server/db/mongo-storage.ts` with compound index on {playerId, worldId, assessmentType}
+- Added AssessmentSessionDoc interface and docToAssessmentSession converter
+- Added AssessmentSessionModel (collection: assessmentsessions)
+- Added 5 IStorage interface methods in `server/db/storage.ts`:
+  - createAssessmentSession
+  - getAssessmentSession
+  - updateAssessmentPhaseResult (upserts by phaseId)
+  - addAssessmentRecording
+  - getPlayerAssessments (with optional worldId filter)
+- Implemented all 5 methods in MongoStorage class
+- Wrote 13 unit tests covering type validation, schema shape, and compound index key logic
+- All 115 tests pass (6 test files)
