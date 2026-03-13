@@ -310,6 +310,46 @@ Rocks use similar placement with different scale ranges (0.5–2.0).
 
 If asset collection provides model overrides, instanced meshes are used.
 
+### Lake Generation (Basin Detection)
+
+Lakes are placed at terrain basins — local height minima found by grid-sampling the heightmap.
+
+```
+For a region with bounds (minX, minZ, maxX, maxZ) and biome B:
+  if !B.hasWater: skip
+
+  area = (maxX - minX) * (maxZ - minZ)
+  lakeCount = clamp(floor(area / 10000), 1, 5)
+
+  // Grid-sample terrain heights
+  gridRes = 12
+  For each grid cell (gx, gz):
+    x = minX + (gx + 0.5) * cellWidth
+    z = minZ + (gz + 0.5) * cellDepth
+    h = sampleTerrainHeight(x, z)
+
+  // Sort samples by height ascending — lowest = basin candidates
+  Sort samples by h
+
+  // Select basins with minimum spacing
+  minLakeSpacing = 40
+  For each candidate (lowest first):
+    if spacing from existing lakes >= minLakeSpacing
+       AND spacing from buildings/roads >= avoidRadius (25):
+      accept as basin position
+
+  // Determine lake radius from surrounding terrain
+  For each basin:
+    Sample 8 heights at distance 15 around basin center
+    heightDiff = max(0.2, avgSurroundHeight - basinHeight)
+    lakeRadius = clamp(heightDiff * 8 + 6, 8, 25)
+    waterY = basinHeight + 0.15
+
+    Place disc mesh at (basin.x, waterY, basin.z) with radius lakeRadius
+```
+
+Biomes with `hasWater: true`: forest, mountains, coast, tundra, tropical, swamp.
+
 ---
 
 ## 7. Dungeon Generation
