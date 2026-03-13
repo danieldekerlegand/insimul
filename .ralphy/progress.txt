@@ -1,0 +1,21 @@
+## Assessment API Routes - Completed
+
+### What was done:
+- Created `server/routes/assessment-routes.ts` with 7 REST endpoints:
+  - POST /api/assessments — create new assessment session
+  - GET /api/assessments/:sessionId — fetch session
+  - PUT /api/assessments/:sessionId/phases/:phaseId — update phase result
+  - PUT /api/assessments/:sessionId/recordings — add recording reference
+  - PUT /api/assessments/:sessionId/complete — mark session complete
+  - GET /api/assessments/player/:playerId — get all player assessments
+  - GET /api/assessments/world/:worldId/summary — get world summary statistics
+
+- Added AssessmentSession MongoDB schema and CRUD methods to `server/db/mongo-storage.ts`:
+  - AssessmentSessionSchema with compound index on {playerId, worldId, assessmentType}
+  - createAssessmentSession, getAssessmentSession, updateAssessmentPhaseResult
+  - addAssessmentRecording, completeAssessmentSession
+  - getPlayerAssessments, getWorldAssessmentSummary (with aggregation/distribution buckets)
+
+- Registered routes in `server/routes.ts`
+
+- Added 14 tests in `server/__tests__/assessment-routes.test.ts` — all passing
