@@ -431,6 +431,7 @@ export interface PlacedBuildingData {
 // ─── Nature / Biomes ────────────────────────────────────────────────────────
 
 export type TreeType = 'pine' | 'oak' | 'palm' | 'dead' | 'none';
+export type GeologicalFeatureType = 'boulder' | 'rock_cluster' | 'stone_pillar' | 'rock_outcrop' | 'crystal_formation';
 
 export interface BiomeStyleData {
   name: string;
@@ -442,6 +443,8 @@ export interface BiomeStyleData {
   hasFlowers: boolean;
   flowerColors: Color3[];
   treeAssetSetId?: string;
+  geologicalDensity: number;
+  geologicalFeatures: GeologicalFeatureType[];
 }
 
 // ─── Water Features ─────────────────────────────────────────────────────────

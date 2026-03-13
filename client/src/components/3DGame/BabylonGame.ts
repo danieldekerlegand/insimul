@@ -2906,6 +2906,10 @@ export class BabylonGame {
     const rockCount = Math.floor((terrainSize / 20) * (biome.treeType === 'dead' ? 2 : 1));
     natureGenerator.generateRocks(biome, worldBounds, rockCount, sampleHeight);
 
+    // Geological features — boulders, rock clusters, pillars, outcrops, crystals
+    const geoBaseCount = Math.floor(terrainSize / 30);
+    natureGenerator.generateGeologicalFeatures(biome, worldBounds, geoBaseCount, sampleHeight);
+
     // Shrubs/bushes — scale with vegetation richness
     const shrubCount = Math.floor(30 * vegetationScale);
     natureGenerator.generateShrubs(biome, worldBounds, shrubCount, sampleHeight);
