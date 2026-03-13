@@ -1,0 +1,17 @@
+Task: Backward-compatible re-export files for moved language files
+
+Completed:
+- Moved 9 language files from shared/ to shared/language/ with cleaner names:
+  - language-progress.ts -> language/progress.ts
+  - language-gamification.ts -> language/gamification.ts
+  - language-quest-templates.ts -> language/quest-templates.ts
+  - language-utils.ts -> language/utils.ts (fixed internal import: ./language -> ./types, ./quest-types -> ../quest-types)
+  - language-vocabulary-corpus.ts -> language/vocabulary-corpus.ts
+  - language.ts -> language/types.ts
+  - pronunciation-scoring.ts -> language/pronunciation-scoring.ts
+  - character-language-profile.ts -> language/character-profile.ts
+  - bilingual-name-generation.ts -> language/bilingual-names.ts
+- Created shared/language/index.ts barrel export
+- Replaced all 9 original files with single-line re-export stubs for zero-breakage backward compatibility
+- Added language-reexport.test.ts verifying all 9 re-exports + barrel (22 assertions, all pass)
+- Verified no TypeScript errors introduced
