@@ -51,17 +51,23 @@
 ### Completed
 - Created `shared/onboarding/onboarding-types.ts` with genre-agnostic onboarding types:
   - `OnboardingStepType`: 7 step types (narrative, movement, interaction, assessment, ui, combat, custom)
-  - `StepCompletionCondition`: flexible completion conditions (auto, event, position, interaction, timer, assessment_complete, custom)
-  - `OnboardingStep`: step definition with prerequisites, completion conditions, metadata
-  - `OnboardingDefinition`: full onboarding sequence with steps, genre tag, version
-  - `StepStatus` and `StepState`: runtime step tracking
+  - `StepState`: step lifecycle states (locked, active, completed, skipped)
+  - `OnboardingStep`: step definition with prerequisites, completion conditions, config
+  - `OnboardingDefinition`: full onboarding sequence with steps, genre tag, estimated duration
+  - `StepProgress`: runtime step tracking with state, timestamps, results
   - `OnboardingState`: runtime state for entire onboarding sequence
-  - `createOnboardingState()`: initialize state from definition
-  - `getNextAvailableStep()`: find next step by order
-  - `isOnboardingComplete()`: check if all steps done
-  - `unlockAvailableSteps()`: unlock steps with satisfied prerequisites
 - Created `shared/onboarding/index.ts` barrel export
-- Created `shared/__tests__/onboarding-types.test.ts` with 14 passing tests
+
+## Language Learning Onboarding Definition
+
+### Completed
+- Created `shared/onboarding/language-onboarding.ts`: LANGUAGE_LEARNING_ONBOARDING constant with 10 steps interleaving tutorial and assessment phases, referencing ARRIVAL_ENCOUNTER phase IDs
+- Created `shared/__tests__/onboarding.test.ts`: 17 tests covering types, definition structure, step ordering, prerequisites, helper functions
+
+Helper functions:
+- getAssessmentStepIds(): Returns IDs of the 4 assessment steps
+- getSkippableStepIds(): Returns IDs of skippable tutorial steps
+- getAssessmentPhaseMap(): Maps onboarding step IDs to arrival encounter phase IDs
 
 ## Assessment Writing Task Handler
 
