@@ -213,4 +213,17 @@
   - Step handlers are registered per OnboardingStepType (narrative, assessment, movement, etc.) — BabylonGame integration (Task 23) will register Babylon-specific handlers
   - Language onboarding has 4 assessment steps (not skippable) and 5 tutorial steps (skippable) plus 1 final narrative step
   - Test files must go in shared/__tests__/ or server/__tests__/ to match vitest.config.ts include patterns
+
+## 2026-03-13 - Assessment Progress UI Overlay
+- Created AssessmentProgressUI.ts (@babylonjs/gui): phase dots (4 phases), countdown timer (amber ≤2min, red ≤1min), phase transition fade overlay
+- Style matches BabylonQuestTracker.ts (dark bg rgba(0,0,0,0.85), golden #FFD700 border/accent, cornerRadius 10)
+- Wired into BabylonGame.ts: import, field declaration, construction in GUI setup, dispose in cleanup
+- Added vitest test config to include client/src/**/__tests__/**/*.test.ts
+- Created 11 unit tests mocking @babylonjs/gui classes
+- Files changed: client/src/components/3DGame/AssessmentProgressUI.ts (new), client/src/components/3DGame/__tests__/AssessmentProgressUI.test.ts (new), client/src/components/3DGame/BabylonGame.ts, vitest.config.ts
+- **Learnings for future iterations:**
+  - Babylon.js GUI components need full mock classes in vitest (no canvas/WebGL in Node)
+  - Promise-based animations (animateAlpha) don't work well with vi.useFakeTimers — use real timers for transition tests
+  - GUI panels are integrated in BabylonGame.ts at 3 points: import, field declaration, construction + dispose
+  - vitest.config.ts include pattern must be extended for client-side test directories
 ---
