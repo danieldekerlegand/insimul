@@ -4,6 +4,7 @@
  */
 
 import { storage } from '../db/storage';
+import { CrossingGenerator } from './crossing-generator';
 
 export interface Location {
   id: string;
@@ -59,6 +60,36 @@ export class GeographyGenerator {
     const streets = this.generateStreets(config, districts);
     const landmarks = this.generateLandmarks(config, districts);
     const buildings = this.generateBuildings(config, districts, streets);
+
+    // Generate river crossing points for river-terrain settlements
+    if (config.terrain === 'river') {
+      const crossingGen = new CrossingGenerator({
+        seed: config.settlementName.length * 31 + config.foundedYear,
+        mapSize: this.getMapSize(config.settlementType),
+        foundedYear: config.foundedYear,
+      });
+      const { rivers, crossings } = crossingGen.generate(streets);
+
+      for (const crossing of crossings) {
+        landmarks.push({
+          id: crossing.id,
+          name: crossing.name,
+          type: 'landmark',
+          x: crossing.x,
+          y: crossing.y,
+          properties: {
+            crossingType: crossing.type,
+            riverName: crossing.riverName,
+            streetName: crossing.streetName,
+            riverWidth: crossing.riverWidth,
+            ...crossing.properties,
+          },
+        });
+      }
+
+      // Store river data on the settlement for downstream consumers
+      (config as any)._rivers = rivers;
+    }
 
     // Update settlement with geography metadata
     await storage.updateSettlement(config.settlementId, {
