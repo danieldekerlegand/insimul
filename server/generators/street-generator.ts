@@ -256,6 +256,158 @@ export class StreetGenerator {
     return this.toStreetNetwork(nodes, edges);
   }
 
+  /**
+   * Generate a grid/planned street layout.
+   * Algorithm:
+   * 1. Compute grid dimensions N x M from settlement radius
+   * 2. Place intersection nodes at grid positions, perturbed by noise
+   * 3. Optionally rotate grid axis to align with a direction vector
+   * 4. Mark every Nth row/column as main (boulevard); others residential
+   * 5. Optionally add diagonal avenues for larger populations
+   * 6. Ensure connectivity
+   */
+  generateGrid(config: StreetGenConfig & {
+    population?: number;
+    gridRotation?: { x: number; z: number };
+    mainInterval?: number;
+  }): StreetNetwork {
+    this.nodeCounter = 0;
+    this.edgeCounter = 0;
+
+    const rng = seededRandom(config.seed);
+    const noise = createNoise2D(config.seed + '_grid');
+    const { center, radius } = config;
+    const population = config.population ?? 500;
+    const mainInterval = config.mainInterval ?? 4; // Every 4th row/col is boulevard
+
+    // Compute grid dimensions from radius
+    const blockSize = 40; // ~40 unit blocks
+    const gridN = Math.max(3, Math.round((radius * 2) / blockSize));
+    const gridM = Math.max(3, Math.round((radius * 2) / blockSize));
+
+    // Compute rotation angle from direction vector
+    let rotAngle = 0;
+    if (config.gridRotation) {
+      rotAngle = Math.atan2(config.gridRotation.z, config.gridRotation.x);
+    }
+    const cosR = Math.cos(rotAngle);
+    const sinR = Math.sin(rotAngle);
+
+    const nodes: InternalNode[] = [];
+    const edges: InternalEdge[] = [];
+    const nodeGrid: (InternalNode | null)[][] = [];
+
+    // Perturbation amplitude: 2-5% of block size
+    const perturbAmp = blockSize * 0.035; // ~3.5% average
+
+    // 1. Place grid intersection nodes
+    for (let row = 0; row <= gridN; row++) {
+      nodeGrid[row] = [];
+      for (let col = 0; col <= gridM; col++) {
+        // Raw grid position centered on origin
+        const rawX = (col - gridM / 2) * blockSize;
+        const rawZ = (row - gridN / 2) * blockSize;
+
+        // Apply rotation
+        const rotX = rawX * cosR - rawZ * sinR;
+        const rotZ = rawX * sinR + rawZ * cosR;
+
+        // Apply noise perturbation for imperfection
+        const pertX = noise(col * 0.5, row * 0.5) * perturbAmp;
+        const pertZ = noise(row * 0.5 + 100, col * 0.5 + 100) * perturbAmp;
+
+        let nx = center.x + rotX + pertX;
+        let nz = center.z + rotZ + pertZ;
+
+        // Slope avoidance
+        if (config.slopeMap) {
+          const nudged = this.avoidSteepTerrain(nx, nz, config.slopeMap, radius, rng);
+          nx = nudged.x;
+          nz = nudged.z;
+        }
+
+        // Determine tier: main if on mainInterval boundary
+        const isMainRow = row % mainInterval === 0;
+        const isMainCol = col % mainInterval === 0;
+        const tier: 'main' | 'secondary' = (isMainRow || isMainCol) ? 'main' : 'secondary';
+
+        const node: InternalNode = {
+          id: this.nextNodeId(),
+          x: nx,
+          z: nz,
+          type: 'intersection',
+          tier,
+        };
+        nodes.push(node);
+        nodeGrid[row][col] = node;
+      }
+    }
+
+    // 2. Create horizontal edges (along rows)
+    for (let row = 0; row <= gridN; row++) {
+      for (let col = 0; col < gridM; col++) {
+        const from = nodeGrid[row][col]!;
+        const to = nodeGrid[row][col + 1]!;
+        const isMainRow = row % mainInterval === 0;
+        const tier: 'main' | 'secondary' = isMainRow ? 'main' : 'secondary';
+        edges.push(this.createEdge(from, to, tier));
+      }
+    }
+
+    // 3. Create vertical edges (along columns)
+    for (let row = 0; row < gridN; row++) {
+      for (let col = 0; col <= gridM; col++) {
+        const from = nodeGrid[row][col]!;
+        const to = nodeGrid[row + 1][col]!;
+        const isMainCol = col % mainInterval === 0;
+        const tier: 'main' | 'secondary' = isMainCol ? 'main' : 'secondary';
+        edges.push(this.createEdge(from, to, tier));
+      }
+    }
+
+    // 4. Optionally add diagonal avenues for cities (pop > 3000)
+    if (population > 3000) {
+      const diagCount = population > 8000 ? 2 : 1;
+      for (let d = 0; d < diagCount; d++) {
+        // Diagonal from corner-ish to opposite corner-ish
+        const startRow = d === 0 ? 0 : 0;
+        const startCol = d === 0 ? 0 : gridM;
+        const endRow = gridN;
+        const endCol = d === 0 ? gridM : 0;
+
+        const steps = Math.min(gridN, gridM);
+        let prevNode: InternalNode | null = null;
+
+        for (let s = 0; s <= steps; s++) {
+          const t = s / steps;
+          const row = Math.round(startRow + (endRow - startRow) * t);
+          const col = Math.round(startCol + (endCol - startCol) * t);
+          const clampedRow = Math.max(0, Math.min(gridN, row));
+          const clampedCol = Math.max(0, Math.min(gridM, col));
+
+          const node = nodeGrid[clampedRow][clampedCol]!;
+          node.tier = 'main'; // Diagonal avenues are main streets
+          if (prevNode && prevNode.id !== node.id) {
+            // Check no duplicate edge
+            const exists = edges.some(
+              e => (e.fromId === prevNode!.id && e.toId === node.id) ||
+                   (e.fromId === node.id && e.toId === prevNode!.id)
+            );
+            if (!exists) {
+              edges.push(this.createEdge(prevNode, node, 'main'));
+            }
+          }
+          prevNode = node;
+        }
+      }
+    }
+
+    // 5. Ensure connectivity (should already be connected for grid, but safety)
+    this.ensureConnectivity(nodes, edges);
+
+    return this.toStreetNetwork(nodes, edges);
+  }
+
   /** Create an internal edge with waypoints */
   private createEdge(from: InternalNode, to: InternalNode, tier: 'main' | 'secondary' | 'tertiary'): InternalEdge {
     // Generate intermediate waypoints for curved edges
