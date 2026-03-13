@@ -156,3 +156,28 @@ Helper functions:
 - Added `onViewPlayerDetail` prop to ResearcherDashboard with "View Full Detail" button
 - Wrote 7 API endpoint tests (all passing)
 - All 109 tests pass, no new TypeScript errors
+
+## Admin Assessment Dashboard
+
+### Completed
+- Added getLanguageAssessmentsByWorld storage method (mongo-storage.ts) with date/type filters
+- Added GET /api/assessment/dashboard/:worldId endpoint (telemetry-routes.ts) that returns:
+  - Score distribution histogram (10-point buckets)
+  - CEFR level distribution (A1-C2 mapped from percentage scores)
+  - Per-type averages (vocabulary, grammar, pronunciation, listening, pragmatic, cultural)
+  - Per-phase averages (pre/post/delayed test windows)
+  - Player list with assessment counts, avg scores, and last assessment dates
+- Created AssessmentDashboard.tsx component with:
+  - 4 tabs: Overview, Scores, Phases, Players
+  - Score distribution histogram with div bars
+  - CEFR distribution badges with color coding
+  - Per-phase averages table
+  - Automated metrics table
+  - Filters: assessment type dropdown, date range (from/to)
+  - Player list with search and drill-down chevrons
+  - Style matches ResearcherDashboard.tsx (glass-morphism, stat cards, tabbed nav)
+- Integrated into home.tsx as 'assessments' tab
+- Added to WorldManagementTab.tsx play items section
+- Added to ModernNavbar.tsx tabMeta for breadcrumb display
+- Wrote 5 backend tests (assessment-dashboard.test.ts) - all passing
+- All 107 tests pass, no new type errors

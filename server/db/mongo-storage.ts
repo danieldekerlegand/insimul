@@ -2766,6 +2766,18 @@ export class MongoStorage implements IStorage {
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
+  async getLanguageAssessmentsByWorld(worldId: string, filters?: { assessmentType?: string; dateFrom?: string; dateTo?: string }): Promise<any[]> {
+    const query: any = { worldId };
+    if (filters?.assessmentType) query.assessmentType = filters.assessmentType;
+    if (filters?.dateFrom || filters?.dateTo) {
+      query.createdAt = {};
+      if (filters.dateFrom) query.createdAt.$gte = new Date(filters.dateFrom);
+      if (filters.dateTo) query.createdAt.$lte = new Date(filters.dateTo);
+    }
+    const docs = await LanguageAssessmentModel.find(query).sort({ createdAt: -1 });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
   // ============= EVALUATION RESPONSES =============
 
   async createEvaluationResponse(data: any): Promise<any> {
