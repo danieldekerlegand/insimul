@@ -1578,6 +1578,16 @@ export class BabylonGame {
     // Wire Prolog engine into rule enforcer
     this.ruleEnforcer.setPrologEngine(this.prologEngine);
 
+    // Subscribe to quest-relevant events to refresh NPC indicators
+    this.eventBus.on('quest_failed', () => this.updateQuestIndicators());
+    this.eventBus.on('quest_abandoned', () => this.updateQuestIndicators());
+    this.eventBus.on('utterance_quest_completed', () => this.updateQuestIndicators());
+    this.eventBus.on('utterance_quest_progress', () => this.updateQuestIndicators());
+    this.eventBus.on('item_collected', () => this.updateQuestIndicators());
+    this.eventBus.on('item_delivered', () => this.updateQuestIndicators());
+    this.eventBus.on('location_visited', () => this.updateQuestIndicators());
+    this.eventBus.on('npc_talked', () => this.updateQuestIndicators());
+
     // Initialize combat system
     this.combatSystem = new CombatSystem(scene);
     this.combatSystem.setOnDamageDealt((result: DamageResult) => {
@@ -7939,6 +7949,8 @@ export class BabylonGame {
     this.prologEngine = null;
     this.eventBus.dispose();
     this.questObjectManager?.dispose();
+    this.questIndicatorManager?.dispose();
+    this.questIndicatorManager = null;
     this.radialMenu?.dispose();
     this.questTracker?.dispose();
     this.chatPanel?.dispose();
