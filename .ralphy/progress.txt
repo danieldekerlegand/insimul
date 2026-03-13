@@ -1,0 +1,24 @@
+## Assessment Conversation Controller
+
+### Completed
+- Created `shared/assessment/assessment-types.ts` — pure type definitions (CefrLevel, AssessmentSession, AutomatedMetrics, etc.)
+- Created `shared/assessment/index.ts` — barrel export
+- Created `client/assessment/assessment-prompt-utils.ts` — buildAssessmentSystemPrompt() with tier-adaptive NPC guidelines, parseAssessmentEvalBlock() regex parser for 5-dimension scores
+- Created `client/assessment/AssessmentConversationController.ts` — main controller with:
+  - Tier tracking: advance after 3 consecutive good exchanges (avg score >= 3.5/5), drop on struggle (avg <= 2.0/5)
+  - 8-10 minute configurable timer with time warnings
+  - Real-time automated metrics: WPM, TTR, MLU, latency, repairs, code-switching
+  - Full transcript storage with per-entry metrics and dimension scores
+  - Pause/resume support
+  - Callbacks: onTierChange, onTranscriptUpdate, onTimeWarning, onComplete, onSystemPromptUpdate
+- Created `client/assessment/index.ts` — barrel export
+- Created `client/__tests__/assessment-conversation-controller.test.ts` — 39 tests covering:
+  - EVAL block parsing (valid, missing, clamping, incomplete)
+  - System prompt builder (tier guidelines, character profile, EVAL instructions)
+  - Controller lifecycle (start, pause, resume, complete, timeout)
+  - Tier advancement (3 good → advance, struggle → drop, neutral preserves streak)
+  - Timer/warnings, aggregate metrics, dimension averages, repair detection, code-switch detection
+- Updated `vitest.config.ts` — added client/__tests__ to test include paths
+
+### Tests
+All 39 tests passing.
