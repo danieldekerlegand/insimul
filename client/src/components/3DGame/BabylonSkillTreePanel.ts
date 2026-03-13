@@ -167,7 +167,7 @@ export class BabylonSkillTreePanel {
 
     // Tier header
     const tierHeader = new GUI.TextBlock(`tierHeader_${tierDef.tier}`);
-    tierHeader.text = `Tier ${tierDef.tier}: ${tierDef.name}  (${tierDef.fluencyRange[0]}-${tierDef.fluencyRange[1]}% fluency)`;
+    tierHeader.text = `Tier ${tierDef.tier}: ${tierDef.name}  (${tierDef.range[0]}-${tierDef.range[1]}% fluency)`;
     tierHeader.fontSize = 13;
     tierHeader.fontWeight = 'bold';
     tierHeader.color = allUnlocked ? tierDef.color : 'rgba(180, 180, 180, 0.9)';
