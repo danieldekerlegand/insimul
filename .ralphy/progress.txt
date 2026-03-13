@@ -406,6 +406,31 @@ All tests pass. No type errors.
   - Persists `lastPeriodicAssessmentTimestamp` in export/import state
 - Tests: 53 tests passing (36 periodic-encounter + 17 gamification-tracker)
 
+## Quest Assignment Engine
+
+### Completed
+- Created `server/services/quest-assignment-engine.ts` — generates playable quests from templates using real world data:
+  - `assignQuests(ctx, options)` — main entry point that takes world context and player options
+  - Template selection based on player proficiency (fluency → difficulty mapping: <30=beginner, <60=intermediate, 60+=advanced)
+  - Variety enforcement: no consecutive same-category quests, no duplicate templates per batch
+  - Parameter filling with real world data: NPCs (firstName/lastName), settlements, vocabulary categories, grammar patterns
+  - Reward scaling by difficulty (1x beginner, 1.5x intermediate, 2x advanced)
+  - NPC quest-giver selection with occupation-based matching (e.g., teachers for grammar quests)
+  - Prolog content auto-generation via convertQuestToProlog
+  - Supports: excludeTemplateIds, preferredCategories, existing quest dedup via tags
+- Added `POST /api/worlds/:worldId/quests/assign` endpoint in `server/routes.ts`:
+  - Fetches characters, settlements, existing quests in parallel
+  - Saves generated quests to database
+  - Returns created quests with templateId and filledParameters
+- Created `server/__tests__/quest-assignment-engine.test.ts` — 18 tests covering:
+  - Quest count, field completeness, NPC assignment, player exclusion
+  - Difficulty selection by proficiency level
+  - Variety (no duplicate templates, category diversity)
+  - Preferred categories, template exclusion
+  - Edge cases (zero NPCs, zero settlements)
+  - Reward scaling, placeholder interpolation
+- All 18 tests passing
+
 ## Recording and Transcript Storage Integration
 
 ### Completed
