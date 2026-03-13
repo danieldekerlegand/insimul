@@ -5,9 +5,10 @@
  * proficiency levels (A1–B2) and provides a generic level-mapping utility.
  */
 
-// ── CEFR types ──────────────────────────────────────────────────────────────
+import type { CEFRLevel } from './assessment-types';
 
-export type CEFRLevel = 'A1' | 'A2' | 'B1' | 'B2';
+// Re-export for convenience
+export type { CEFRLevel };
 
 export interface CEFRResult {
   level: CEFRLevel;
@@ -16,26 +17,21 @@ export interface CEFRResult {
   score: number;
 }
 
-// ── Thresholds ──────────────────────────────────────────────────────────────
+export interface CefrThreshold {
+  level: CEFRLevel;
+  /** Minimum percentage (0–100) to reach this level */
+  min: number;
+  minPercent: number;
+  description: string;
+}
 
 /** Minimum normalized score (0–100) required for each CEFR level. */
-const CEFR_THRESHOLDS: { min: number; level: CEFRLevel }[] = [
-  { min: 75, level: 'B2' },
-  { min: 50, level: 'B1' },
-  { min: 25, level: 'A2' },
-  { min: 0, level: 'A1' },
+export const CEFR_THRESHOLDS: CefrThreshold[] = [
+  { level: 'B2', min: 75, minPercent: 75, description: 'Upper-Intermediate — Can interact with a degree of fluency and spontaneity with native speakers.' },
+  { level: 'B1', min: 50, minPercent: 50, description: 'Intermediate — Can deal with most situations likely to arise while travelling in the target language area.' },
+  { level: 'A2', min: 25, minPercent: 25, description: 'Elementary — Can communicate in simple, routine tasks requiring a direct exchange of information.' },
+  { level: 'A1', min: 0,  minPercent: 0,  description: 'Beginner — Can understand and use familiar everyday expressions and very basic phrases.' },
 ];
-
-// ── Descriptions ────────────────────────────────────────────────────────────
-
-const CEFR_DESCRIPTIONS: Record<CEFRLevel, string> = {
-  A1: 'Beginner — Can understand and use familiar everyday expressions and very basic phrases.',
-  A2: 'Elementary — Can communicate in simple, routine tasks requiring a direct exchange of information.',
-  B1: 'Intermediate — Can deal with most situations likely to arise while travelling in the target language area.',
-  B2: 'Upper-Intermediate — Can interact with a degree of fluency and spontaneity with native speakers.',
-};
-
-// ── Public API ──────────────────────────────────────────────────────────────
 
 /**
  * Map a raw assessment score to a CEFR level.
@@ -49,7 +45,7 @@ export function mapScoreToCEFR(score: number, maxScore: number): CEFRResult {
     throw new Error('maxScore must be greater than 0');
   }
   const normalized = Math.max(0, Math.min(100, (score / maxScore) * 100));
-  const level = mapScoreToLevel(normalized, CEFR_THRESHOLDS);
+  const level = mapScoreToLevel(normalized, CEFR_THRESHOLDS.map(t => ({ min: t.min, level: t.level })));
   return {
     level,
     description: getCEFRDescription(level),
@@ -82,5 +78,6 @@ export function mapScoreToLevel<T>(
  * Return the human-readable description for a CEFR level.
  */
 export function getCEFRDescription(level: CEFRLevel): string {
-  return CEFR_DESCRIPTIONS[level];
+  const threshold = CEFR_THRESHOLDS.find(t => t.level === level);
+  return threshold?.description ?? '';
 }

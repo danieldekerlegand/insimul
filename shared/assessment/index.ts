@@ -19,7 +19,15 @@ export {
 
 export {
   type CEFRResult,
+  type CefrThreshold,
+  CEFR_THRESHOLDS,
   mapScoreToCEFR,
   mapScoreToLevel,
   getCEFRDescription,
 } from './cefr-mapping';
+
+export {
+  ARRIVAL_ENCOUNTER,
+  resolveTemplate,
+  resolveAssessment,
+} from './arrival-encounter';

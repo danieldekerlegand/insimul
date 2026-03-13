@@ -295,3 +295,11 @@ All tests pass. No type errors introduced.
 
 ### Tests
 All 39 tests passing.
+
+## Assessment EVAL block parser and system prompt builder
+
+### Completed
+- Created `client/src/assessment/assessment-prompt-utils.ts`:
+  - `parseAssessmentEvalBlock()` — Regex parser for 5 dimension scores (vocabulary, grammar, fluency, comprehension, taskCompletion) rated 1-5. Same pattern as parseGrammarFeedbackBlock().
+  - `buildAssessmentSystemPrompt()` — Tier-adaptive NPC prompts with CEFR-level-specific dialogue rules (A1-B2), template variable resolution, EVAL block instructions, phase context.
+- Created `client/src/assessment/assessment-prompt-utils.test.ts` — 42 tests, all passing

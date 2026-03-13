@@ -50,11 +50,11 @@ export type ScoringMethod = 'llm' | 'automated' | 'position_tracking' | 'multipl
 export interface ScoringDimension {
   id: string;
   name: string;
+  maxScore: number;
+  /** Description shown in results UI */
   description?: string;
   /** Min score for this dimension (typically 1) */
   minScore?: number;
-  /** Max score for this dimension (typically 5) */
-  maxScore: number;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -103,7 +103,7 @@ export interface AssessmentPhase {
 
 export interface AssessmentDefinition {
   id: string;
-  type: AssessmentType;
+  type?: AssessmentType;
   name: string;
   description: string;
   /** Target language placeholder — replaced at runtime */
@@ -113,7 +113,7 @@ export interface AssessmentDefinition {
   totalMaxPoints?: number;
   totalMaxScore?: number;
   /** Scoring dimensions used in this assessment */
-  scoringDimensions: ScoringDimension[];
+  scoringDimensions?: ScoringDimension[];
   /** Estimated duration in minutes */
   estimatedMinutes?: number;
 }
