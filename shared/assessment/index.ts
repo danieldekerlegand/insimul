@@ -3,6 +3,7 @@ export {
   type PhaseType,
   type TaskType,
   type CEFRLevel,
+  type CefrLevel,
   type AssessmentStatus,
   type ScoringMethod,
   type ScoringDimension,
