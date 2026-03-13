@@ -119,6 +119,7 @@ import {
   KEY_TARGET_ENEMY,
   KEY_TOGGLE_VR,
   KEY_GAME_MENU,
+  KEY_QUEST_LOG,
 } from "@/components/3DGame/KeyboardMap.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 
@@ -5649,6 +5650,12 @@ export class BabylonGame {
     if (event.code === KEY_TARGET_ENEMY && !event.repeat) {
       event.preventDefault();
       this.handleTargetEnemy();
+    }
+
+    // J - Toggle quest log
+    if (event.code === KEY_QUEST_LOG && !event.repeat) {
+      event.preventDefault();
+      this.questTracker?.toggle();
     }
 
     // Shift+V - Toggle VR
