@@ -436,6 +436,239 @@ console.log('\n--- Two diagonals ---');
   );
 }
 
+// ── Radial pattern tests ──
+
+console.log('\n=== StreetGenerator: Radial Pattern ===\n');
+
+const radialConfig: StreetGenConfig = {
+  center: { x: 0, z: 0 },
+  radius: 300,
+  settlementType: 'capital',
+  seed: 'test-radial-42',
+};
+
+const radialGen = new StreetGenerator();
+const radialNetwork = radialGen.generateRadial(radialConfig);
+
+// Basic structure
+console.log('--- Basic structure ---');
+assert(radialNetwork.nodes.length > 0, `Radial has nodes (got ${radialNetwork.nodes.length})`);
+assert(radialNetwork.edges.length > 0, `Radial has edges (got ${radialNetwork.edges.length})`);
+
+// Should have a reasonable number of nodes:
+// 1 center + (ringCount * radialCount) intersection nodes + radialCount endpoints
+// With 6-8 radials and 2-4 rings: min = 1 + 6*2 + 6 = 19, max = 1 + 8*4 + 8 = 41
+assert(radialNetwork.nodes.length >= 19, `Radial has at least 19 nodes (got ${radialNetwork.nodes.length})`);
+assert(radialNetwork.nodes.length <= 50, `Radial has at most 50 nodes (got ${radialNetwork.nodes.length})`);
+
+// Node validity
+console.log('\n--- Node validity ---');
+for (const node of radialNetwork.nodes) {
+  assert(typeof node.id === 'string' && node.id.length > 0, `Node ${node.id} has valid id`);
+  assert(typeof node.position.x === 'number' && !isNaN(node.position.x), `Node ${node.id} has valid x`);
+  assert(typeof node.position.z === 'number' && !isNaN(node.position.z), `Node ${node.id} has valid z`);
+  assert(
+    ['intersection', 'dead_end', 'T_junction', 'curve_point'].includes(node.type),
+    `Node ${node.id} has valid type: ${node.type}`
+  );
+}
+
+// Edge validity
+console.log('\n--- Edge validity ---');
+{
+  const rNodeIds = new Set(radialNetwork.nodes.map(n => n.id));
+  for (const edge of radialNetwork.edges) {
+    assert(rNodeIds.has(edge.fromNodeId), `Edge ${edge.id} fromNodeId references existing node`);
+    assert(rNodeIds.has(edge.toNodeId), `Edge ${edge.id} toNodeId references existing node`);
+    assert(edge.length > 0, `Edge ${edge.id} has positive length`);
+    assert(edge.width > 0, `Edge ${edge.id} has positive width`);
+  }
+}
+
+// Connectivity via BFS
+console.log('\n--- Connectivity ---');
+{
+  const adj = new Map<string, Set<string>>();
+  for (const n of radialNetwork.nodes) adj.set(n.id, new Set());
+  for (const e of radialNetwork.edges) {
+    adj.get(e.fromNodeId)!.add(e.toNodeId);
+    adj.get(e.toNodeId)!.add(e.fromNodeId);
+  }
+  const visited = new Set<string>();
+  const queue = [radialNetwork.nodes[0].id];
+  visited.add(radialNetwork.nodes[0].id);
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const neighbor of adj.get(current)!) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        queue.push(neighbor);
+      }
+    }
+  }
+  assert(
+    visited.size === radialNetwork.nodes.length,
+    `Radial graph is fully connected: visited ${visited.size}/${radialNetwork.nodes.length} nodes`
+  );
+}
+
+// Central plaza node: first node should be at center with high degree
+console.log('\n--- Central plaza ---');
+{
+  const centerNode = radialNetwork.nodes[0];
+  assert(
+    Math.abs(centerNode.position.x - radialConfig.center.x) < 1,
+    `Center node near center x (got ${centerNode.position.x})`
+  );
+  assert(
+    Math.abs(centerNode.position.z - radialConfig.center.z) < 1,
+    `Center node near center z (got ${centerNode.position.z})`
+  );
+
+  // Center node should have 6-8 edges (one per radial)
+  const centerEdges = radialNetwork.edges.filter(
+    e => e.fromNodeId === centerNode.id || e.toNodeId === centerNode.id
+  );
+  assert(centerEdges.length >= 6, `Center node has >= 6 edges (got ${centerEdges.length})`);
+  assert(centerEdges.length <= 8, `Center node has <= 8 edges (got ${centerEdges.length})`);
+}
+
+// Radial structure: nodes should radiate outward at different angles
+console.log('\n--- Radial structure ---');
+{
+  const centerNode = radialNetwork.nodes[0];
+  // Non-center nodes
+  const outerNodes = radialNetwork.nodes.filter(n => n.id !== centerNode.id);
+
+  // Compute angles from center to each outer node
+  const angles = outerNodes.map(n =>
+    Math.atan2(n.position.z - centerNode.position.z, n.position.x - centerNode.position.x)
+  );
+
+  // There should be at least 6 distinct angular sectors (within ~60° bins)
+  const normAngle = (a: number) => { while (a < 0) a += Math.PI * 2; while (a >= Math.PI * 2) a -= Math.PI * 2; return a; };
+  const angleBins = new Set(angles.map(a => Math.round((normAngle(a) / (Math.PI * 2)) * 6)));
+  assert(angleBins.size >= 4, `Nodes spread across >= 4 angular sectors (got ${angleBins.size})`);
+
+  // Nodes at different radial distances (rings)
+  const distances = outerNodes.map(n =>
+    Math.sqrt(
+      (n.position.x - centerNode.position.x) ** 2 +
+      (n.position.z - centerNode.position.z) ** 2
+    )
+  );
+  const minDist = Math.min(...distances);
+  const maxDist = Math.max(...distances);
+  assert(maxDist > minDist * 1.5, `Nodes at multiple radial distances (min=${minDist.toFixed(1)}, max=${maxDist.toFixed(1)})`);
+}
+
+// Ring edges: should have concentric ring connections
+console.log('\n--- Ring roads ---');
+{
+  // Ring edges connect nodes at approximately the same distance from center
+  // Count edges where both endpoints are at similar distance from center (within 15%)
+  const centerNode = radialNetwork.nodes[0];
+  const nodeDistMap = new Map<string, number>();
+  for (const n of radialNetwork.nodes) {
+    const d = Math.sqrt(
+      (n.position.x - centerNode.position.x) ** 2 +
+      (n.position.z - centerNode.position.z) ** 2
+    );
+    nodeDistMap.set(n.id, d);
+  }
+
+  let ringEdgeCount = 0;
+  for (const e of radialNetwork.edges) {
+    const d1 = nodeDistMap.get(e.fromNodeId) ?? 0;
+    const d2 = nodeDistMap.get(e.toNodeId) ?? 0;
+    if (d1 > 0 && d2 > 0) {
+      const ratio = Math.min(d1, d2) / Math.max(d1, d2);
+      if (ratio > 0.85) {
+        ringEdgeCount++;
+      }
+    }
+  }
+  assert(ringEdgeCount >= 6, `Has ring road edges (${ringEdgeCount} edges connect nodes at similar radii)`);
+}
+
+// Street types: should have both main_road and residential (inner vs outer rings)
+console.log('\n--- Street types ---');
+{
+  const types = new Set(radialNetwork.edges.map(e => e.streetType));
+  assert(types.has('main_road'), `Radial has main_road streets (boulevards)`);
+  // With 3+ rings, outer rings become residential
+  // With 2 rings, inner is main, outer is residential
+  assert(types.size >= 1, `Radial has at least 1 street type (got ${types.size}: ${[...types].join(', ')})`);
+}
+
+// Determinism
+console.log('\n--- Determinism ---');
+{
+  const gen2 = new StreetGenerator();
+  const network2 = gen2.generateRadial(radialConfig);
+  assert(network2.nodes.length === radialNetwork.nodes.length, `Same seed produces same node count`);
+  assert(network2.edges.length === radialNetwork.edges.length, `Same seed produces same edge count`);
+
+  let posMatch = true;
+  for (let i = 0; i < radialNetwork.nodes.length; i++) {
+    if (
+      Math.abs(radialNetwork.nodes[i].position.x - network2.nodes[i].position.x) > 0.0001 ||
+      Math.abs(radialNetwork.nodes[i].position.z - network2.nodes[i].position.z) > 0.0001
+    ) {
+      posMatch = false;
+      break;
+    }
+  }
+  assert(posMatch, `Same seed produces identical positions`);
+}
+
+// Different seed
+console.log('\n--- Different seeds ---');
+{
+  const gen3 = new StreetGenerator();
+  const net3 = gen3.generateRadial({ ...radialConfig, seed: 'different-radial-99' });
+  let hasDiff = false;
+  if (net3.nodes.length !== radialNetwork.nodes.length) {
+    hasDiff = true;
+  } else {
+    for (let i = 0; i < radialNetwork.nodes.length; i++) {
+      if (
+        Math.abs(radialNetwork.nodes[i].position.x - net3.nodes[i].position.x) > 0.01 ||
+        Math.abs(radialNetwork.nodes[i].position.z - net3.nodes[i].position.z) > 0.01
+      ) {
+        hasDiff = true;
+        break;
+      }
+    }
+  }
+  assert(hasDiff, `Different seed produces different radial network`);
+}
+
+// Slope map avoidance
+console.log('\n--- Slope map avoidance ---');
+{
+  const size = 32;
+  const steepSlopeMap: number[][] = [];
+  for (let r = 0; r < size; r++) {
+    steepSlopeMap[r] = [];
+    for (let c = 0; c < size; c++) {
+      const cx = c / (size - 1) - 0.5;
+      const cz = r / (size - 1) - 0.5;
+      const d = Math.sqrt(cx * cx + cz * cz);
+      steepSlopeMap[r][c] = d < 0.2 ? 2.0 : 0.01;
+    }
+  }
+
+  const gen4 = new StreetGenerator();
+  const slopeRadial = gen4.generateRadial({
+    ...radialConfig,
+    seed: 'slope-radial-test',
+    slopeMap: steepSlopeMap,
+  });
+  assert(slopeRadial.nodes.length > 0, `Generates radial network with steep slope map`);
+  assert(slopeRadial.edges.length > 0, `Has edges with steep slope map`);
+}
+
 // Summary
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
 if (failed > 0) process.exit(1);

@@ -408,6 +408,159 @@ export class StreetGenerator {
     return this.toStreetNetwork(nodes, edges);
   }
 
+  /**
+   * Generate a radial/concentric street layout for capitals and fortress towns.
+   * Algorithm:
+   * 1. Place central plaza node
+   * 2. Radiate 6-8 boulevard edges outward at evenly-spaced angles (with slight noise)
+   * 3. Add 2-4 concentric ring roads at increasing radii connecting the radials
+   * 4. Apply noise-based lateral displacement to radial road waypoints
+   * 5. Inner rings are boulevard type; outer rings are residential
+   * 6. Ensure connectivity
+   */
+  generateRadial(config: StreetGenConfig): StreetNetwork {
+    this.nodeCounter = 0;
+    this.edgeCounter = 0;
+
+    const rng = seededRandom(config.seed);
+    const noise = createNoise2D(config.seed + '_radial');
+    const { center, radius } = config;
+
+    const nodes: InternalNode[] = [];
+    const edges: InternalEdge[] = [];
+
+    // 1. Central plaza node
+    const plazaNode: InternalNode = {
+      id: this.nextNodeId(),
+      x: center.x,
+      z: center.z,
+      type: 'intersection',
+      tier: 'main',
+    };
+    nodes.push(plazaNode);
+
+    // 2. Radial boulevard count: 6-8
+    const radialCount = 6 + Math.floor(rng() * 3); // 6, 7, or 8
+    const baseAngle = rng() * Math.PI * 2;
+
+    // 3. Ring count: 2-4
+    const ringCount = 2 + Math.floor(rng() * 3); // 2, 3, or 4
+
+    // Ring radii evenly spaced from ~20% to ~90% of settlement radius
+    const ringRadii: number[] = [];
+    for (let r = 0; r < ringCount; r++) {
+      const t = (r + 1) / (ringCount + 1); // 0.33, 0.67 for 2 rings; 0.25, 0.5, 0.75 for 3, etc.
+      ringRadii.push(radius * (0.15 + t * 0.75));
+    }
+
+    // Build a 2D array of nodes: radialNodes[ringIndex][radialIndex]
+    // ringIndex 0 = innermost ring, ringCount-1 = outermost
+    // Plus radial endpoints beyond the last ring
+    const radialNodes: InternalNode[][] = [];
+
+    for (let ri = 0; ri < ringCount; ri++) {
+      radialNodes[ri] = [];
+    }
+    // Extra row for radial endpoints beyond last ring
+    const radialEndNodes: InternalNode[] = [];
+
+    // 4. Create radial roads from center outward, placing intersection nodes at each ring
+    for (let i = 0; i < radialCount; i++) {
+      const angleSpread = (Math.PI * 2) / radialCount;
+      const angle = baseAngle + i * angleSpread + (rng() - 0.5) * angleSpread * 0.15;
+
+      let prevNode = plazaNode;
+
+      for (let ri = 0; ri < ringCount; ri++) {
+        const ringR = ringRadii[ri];
+        const rawX = center.x + Math.cos(angle) * ringR;
+        const rawZ = center.z + Math.sin(angle) * ringR;
+
+        // Apply noise-based lateral displacement for slight curves
+        const displace = noise(rawX * 0.02, rawZ * 0.02) * radius * 0.04;
+        const perpAngle = angle + Math.PI / 2;
+        let nx = rawX + Math.cos(perpAngle) * displace;
+        let nz = rawZ + Math.sin(perpAngle) * displace;
+
+        // Slope avoidance
+        if (config.slopeMap) {
+          const nudged = this.avoidSteepTerrain(nx, nz, config.slopeMap, radius, rng);
+          nx = nudged.x;
+          nz = nudged.z;
+        }
+
+        const node: InternalNode = {
+          id: this.nextNodeId(),
+          x: nx,
+          z: nz,
+          type: 'intersection',
+          tier: 'main',
+        };
+        nodes.push(node);
+        radialNodes[ri][i] = node;
+
+        // Edge from previous node along this radial
+        edges.push(this.createEdge(prevNode, node, 'main'));
+        prevNode = node;
+      }
+
+      // Radial endpoint beyond outermost ring
+      const endR = radius * 0.92;
+      const endRawX = center.x + Math.cos(angle) * endR;
+      const endRawZ = center.z + Math.sin(angle) * endR;
+      const endDisplace = noise(endRawX * 0.02, endRawZ * 0.02) * radius * 0.03;
+      const endPerpAngle = angle + Math.PI / 2;
+      let endX = endRawX + Math.cos(endPerpAngle) * endDisplace;
+      let endZ = endRawZ + Math.sin(endPerpAngle) * endDisplace;
+
+      if (config.slopeMap) {
+        const nudged = this.avoidSteepTerrain(endX, endZ, config.slopeMap, radius, rng);
+        endX = nudged.x;
+        endZ = nudged.z;
+      }
+
+      const endNode: InternalNode = {
+        id: this.nextNodeId(),
+        x: endX,
+        z: endZ,
+        type: 'dead_end',
+        tier: 'main',
+      };
+      nodes.push(endNode);
+      radialEndNodes.push(endNode);
+      edges.push(this.createEdge(prevNode, endNode, 'main'));
+    }
+
+    // 5. Create concentric ring road edges connecting radial intersection nodes
+    for (let ri = 0; ri < ringCount; ri++) {
+      // Inner half of rings are boulevard (main); outer half are residential (secondary)
+      const tier: 'main' | 'secondary' = ri < ringCount / 2 ? 'main' : 'secondary';
+
+      for (let i = 0; i < radialCount; i++) {
+        const nextI = (i + 1) % radialCount;
+        const fromNode = radialNodes[ri][i];
+        const toNode = radialNodes[ri][nextI];
+        edges.push(this.createEdge(fromNode, toNode, tier));
+      }
+    }
+
+    // 6. Ensure full connectivity
+    this.ensureConnectivity(nodes, edges);
+
+    // 7. Apply final noise displacement to edge waypoints (midpoints)
+    for (const edge of edges) {
+      for (let w = 1; w < edge.waypoints.length - 1; w++) {
+        const wp = edge.waypoints[w];
+        const dx = noise(wp.x * 0.04, wp.z * 0.04) * radius * 0.015;
+        const dz = noise(wp.z * 0.04, wp.x * 0.04) * radius * 0.015;
+        wp.x += dx;
+        wp.z += dz;
+      }
+    }
+
+    return this.toStreetNetwork(nodes, edges);
+  }
+
   /** Create an internal edge with waypoints */
   private createEdge(from: InternalNode, to: InternalNode, tier: 'main' | 'secondary' | 'tertiary'): InternalEdge {
     // Generate intermediate waypoints for curved edges

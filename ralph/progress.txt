@@ -325,3 +325,39 @@
   - ensureConnectivity must also update adjacency list when adding bridge edges for multi-component graphs
   - TypeScript error count unchanged at 459
 ---
+
+## 2026-03-12 - US-009 (naturalized-procgen)
+- Added generateGrid() method to StreetGenerator for planned/grid-based street layouts
+- Grid dimensions computed from settlement radius (blockSize=40 units)
+- Noise perturbation (+/-3.5% of block size) applied to each intersection for imperfection
+- Every Nth row/column (default 4th) marked as main boulevard (wider streets)
+- Diagonal avenues: 1 diagonal for pop > 3000, 2 diagonals for pop > 8000
+- Grid axis rotation via optional gridRotation direction vector
+- Slope map avoidance reused from organic generator
+- 1581 total test assertions pass (organic + grid), typecheck unchanged at 459
+- Files changed: server/generators/street-generator.ts, server/generators/street-generator.test.ts
+- **Learnings for future iterations:**
+  - generateGrid accepts extended config: population, gridRotation, mainInterval — uses intersection type for config extension
+  - Grid (N+1)*(M+1) nodes with N*M blocks; edges = horizontal rows + vertical columns + optional diagonals
+  - Perturbation uses noise() not rng() — ensures deterministic perturbation independent of node processing order
+  - Diagonal avenues reuse existing grid nodes (no new nodes), just add connecting edges between them
+  - TypeScript error count unchanged at 459
+---
+
+## 2026-03-12 - US-010 (naturalized-procgen)
+- Added generateRadial() method to StreetGenerator for capital cities and fortress towns
+- Central plaza node with 6-8 radial boulevards (seeded random count) emanating outward at evenly-spaced angles
+- 2-4 concentric ring roads at increasing radii (15%-90% of settlement radius) connecting radials
+- Noise-based lateral displacement on radial road waypoints for slight curves
+- Inner ring edges are boulevard (main_road); outer ring edges are residential
+- Radial endpoints beyond outermost ring for edge-of-settlement roads
+- Slope map avoidance reused from existing infrastructure
+- 1997 total test assertions pass (organic + grid + radial), typecheck unchanged at 459
+- Files changed: server/generators/street-generator.ts, server/generators/street-generator.test.ts
+- **Learnings for future iterations:**
+  - Radial pattern creates nodes in a 2D grid: radialNodes[ringIndex][radialIndex] for easy ring edge creation
+  - Ring road tier assignment: `ri < ringCount / 2 ? 'main' : 'secondary'` splits inner/outer rings
+  - Ring radii formula: `radius * (0.15 + ((r+1)/(ringCount+1)) * 0.75)` gives even spacing from 15% to 90% of radius
+  - radialCount (6-8) and ringCount (2-4) produce 19-41 nodes total including endpoints
+  - TypeScript error count unchanged at 459
+---
