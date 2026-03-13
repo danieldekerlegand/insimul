@@ -56,7 +56,10 @@ enum class EInsimulEventType : uint8
     OnboardingStepCompleted UMETA(DisplayName = "Onboarding Step Completed"),
     OnboardingCompleted     UMETA(DisplayName = "Onboarding Completed"),
     PeriodicAssessmentTriggered UMETA(DisplayName = "Periodic Assessment Triggered"),
-    AssessmentConversationCompleted UMETA(DisplayName = "Assessment Conversation Completed")
+    AssessmentConversationCompleted UMETA(DisplayName = "Assessment Conversation Completed"),
+    // Visual vocabulary quest events
+    VisualVocabPrompted     UMETA(DisplayName = "Visual Vocab Prompted"),
+    VisualVocabAnswered     UMETA(DisplayName = "Visual Vocab Answered")
 };
 
 /**
