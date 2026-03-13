@@ -4,6 +4,7 @@
  */
 
 import { storage } from '../db/storage';
+import { AgriculturalZone, AgriculturalZoneGenerator } from './agricultural-zone-generator';
 
 export interface Location {
   id: string;
@@ -52,6 +53,7 @@ export class GeographyGenerator {
     buildings: Location[];
     landmarks: Location[];
     lotIds: string[];
+    agriculturalZones: AgriculturalZone[];
   }> {
     console.log(`🗺️  Generating geography for ${config.settlementName} (${config.settlementType}, pop: ${config.population})...`);
 
@@ -59,6 +61,18 @@ export class GeographyGenerator {
     const streets = this.generateStreets(config, districts);
     const landmarks = this.generateLandmarks(config, districts);
     const buildings = this.generateBuildings(config, districts, streets);
+
+    // Generate agricultural zones around the settlement
+    const mapSize = this.getMapSize(config.settlementType);
+    const agriGen = new AgriculturalZoneGenerator();
+    const agriculturalZones = agriGen.generate({
+      settlementType: config.settlementType,
+      terrain: config.terrain,
+      foundedYear: config.foundedYear,
+      mapSize,
+      centerX: mapSize / 2,
+      centerY: mapSize / 2,
+    });
 
     // Update settlement with geography metadata
     await storage.updateSettlement(config.settlementId, {
@@ -70,9 +84,9 @@ export class GeographyGenerator {
     // Persist lots, residences, and businesses as proper database records
     const lotIds = await this.persistLotsAndBuildings(config, districts, streets, buildings);
 
-    console.log(`✅ Generated ${districts.length} districts, ${streets.length} streets, ${buildings.length} buildings (${lotIds.length} lots persisted)`);
+    console.log(`✅ Generated ${districts.length} districts, ${streets.length} streets, ${buildings.length} buildings (${lotIds.length} lots persisted), ${agriculturalZones.length} agricultural zones`);
 
-    return { districts, streets, buildings, landmarks, lotIds };
+    return { districts, streets, buildings, landmarks, lotIds, agriculturalZones };
   }
 
   /**
