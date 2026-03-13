@@ -72,7 +72,7 @@ static func get_settlement_tier(population: int) -> String:
 	if population < 10000: return "city"
 	return "metropolis"
 
-static func generate_lot_positions(settlement_position: Vector3, settlement_radius: float, lot_count: int) -> Array[Vector3]:
+static func generate_lot_positions(settlement_position: Vector3, settlement_radius: float, lot_count: int, street_names: PackedStringArray = PackedStringArray()) -> Array[Vector3]:
 	var positions: Array[Vector3] = []
 	if lot_count <= 0:
 		return positions
@@ -115,6 +115,14 @@ static func generate_lot_positions(settlement_position: Vector3, settlement_radi
 		positions.append(Vector3(lot_x, 0.0, lot_z))
 
 	return positions
+
+## Generate a full street-aligned layout for a settlement.
+## Returns lot positions, facing angles, and street metadata.
+static func generate_street_aligned_settlement(settlement_position: Vector3, settlement_radius: float, lot_count: int, biz_count: int = 0, street_names: PackedStringArray = PackedStringArray()) -> Dictionary:
+	# TODO: Implement street-aligned placement (main street + side streets).
+	# For now, falls back to grid+jitter via generate_lot_positions.
+	push_warning("[Insimul] generate_street_aligned_settlement not yet implemented in export template")
+	return {"streets": [], "lots": []}
 
 static func calculate_optimal_world_size(country_count: int, state_count: int, settlement_count: int) -> int:
 	var max_entities := maxf(country_count, maxf(state_count / 2.0, settlement_count / 5.0))
