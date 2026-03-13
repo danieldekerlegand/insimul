@@ -11,6 +11,7 @@ Started: Thu Mar 12 23:35:20 CDT 2026
 - To detect old vs new street format: `Array.isArray(streets)` = old, `'nodes' in streets` = new StreetNetwork
 - Use Bresenham-style fractional accumulator to distribute counts across many items (avoids rounding-to-zero with small fractions)
 - `interpolateAtDistance(waypoints, d)` in lot-generator.ts uses absolute distance (not normalized t) — better for absolute spacing
+- TypeScript target requires `Array.from()` for iterating Sets/Maps — never use `for..of` directly on Map/Set
 
 ## 2026-03-12 - US-014
 - Implemented `selectStreetPattern(config: GeographyConfig): StreetPatternType` with priority-based selection logic
@@ -88,4 +89,22 @@ Started: Thu Mar 12 23:35:20 CDT 2026
   - `lotDensityByStreetType` is separate from `buildingDensityByStreetType` in geography-generator — alleys get 0.15 (almost no lots) vs 0.1 (almost no buildings)
   - Tangent perpendicular convention: left = (nz, -nx), right = (-nz, nx) — consistent with geography-generator
   - All 30 lot tests + 2,859 street tests pass; typecheck clean on modified files
+---
+
+## 2026-03-13 - US-019
+- Implemented `assignAddresses(lots, network, centerPoint)` in new `server/generators/address-generator.ts`
+- Left side (relative to direction away from center) gets odd numbers; right side gets even
+- Numbers increase monotonically away from settlement center along each street chain
+- Grid layouts detected automatically and use block-based numbering (100s, 200s, etc.)
+- Distance-proportional gaps between house numbers
+- Corner lots reassigned to higher-priority street (by street type hierarchy)
+- Full address format: `houseNumber streetName` (e.g. "42 Oak Ave")
+- Multi-edge street chains handled via cumulative distance offsets from closest-to-center node
+- Files changed: `server/generators/address-generator.ts` (new), `server/generators/address-generator.test.ts` (new)
+- **Learnings for future iterations:**
+  - TypeScript target requires `Array.from()` for iterating Sets and Maps — use `Array.from(map)` instead of `for..of map`
+  - Edge direction relative to center determines odd/even side mapping: if fromNode is closer to center, lot.side maps directly; if toNode is closer, sides flip
+  - `computeChainOffsets` uses BFS from closest-to-center node to accumulate per-edge distance offsets for multi-edge streets
+  - Corner lot detection uses `edge.width * 2` as proximity threshold to intersection nodes
+  - All 32 address tests + 30 lot tests + 2,859 street tests pass; typecheck clean on modified files
 ---
