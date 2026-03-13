@@ -1,16 +1,24 @@
 import { getGenAI, isGeminiConfigured, getGeminiApiKey, GEMINI_MODELS } from "../config/gemini.js";
+import { ttsCache, TTSCache } from "./tts-cache.js";
 
 /**
- * Text-to-Speech using Google Cloud Text-to-Speech with gemini-2.5-pro-tts
+ * Text-to-Speech using Google Cloud Text-to-Speech with gemini-2.5-pro-tts.
+ * Results are cached using an LRU cache to avoid redundant API calls.
  */
 export async function textToSpeech(
-  text: string, 
-  voiceName: string = "Kore", 
+  text: string,
+  voiceName: string = "Kore",
   gender: string = "neutral",
   encoding: "MP3" | "WAV" = "MP3"
 ): Promise<Buffer> {
   if (!isGeminiConfigured()) {
     throw new Error("Gemini API key is not configured");
+  }
+
+  const cacheKey = TTSCache.makeKey(text, voiceName, gender, encoding);
+  const cached = ttsCache.get(cacheKey);
+  if (cached) {
+    return cached;
   }
 
   try {
@@ -54,11 +62,12 @@ export async function textToSpeech(
     const audioBuffer = Buffer.from(response.audioContent as Uint8Array);
 
     // If WAV format, we need to add WAV header since LINEAR16 is raw PCM
-    if (encoding === "WAV") {
-      return addWavHeader(audioBuffer, 24000, 1); // 24kHz, mono
-    }
+    const result = encoding === "WAV"
+      ? addWavHeader(audioBuffer, 24000, 1)
+      : audioBuffer;
 
-    return audioBuffer;
+    ttsCache.set(cacheKey, result);
+    return result;
   } catch (error) {
     console.error("TTS error:", error);
     throw new Error(`TTS failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
