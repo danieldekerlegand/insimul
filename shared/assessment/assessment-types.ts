@@ -48,13 +48,22 @@ export type ScoringMethod = 'llm' | 'automated' | 'position_tracking' | 'multipl
 // ───────────────────────────────────────────────────────────────────────────
 
 export interface ScoringDimension {
-  id: string;
+  id?: string;
   name: string;
-  maxScore: number;
+  score?: number;       // 1-5 scale
+  maxScore?: number;
   /** Description shown in results UI */
   description?: string;
   /** Min score for this dimension (typically 1) */
   minScore?: number;
+}
+
+export interface AssessmentDimensionScores {
+  comprehension: number;   // 1-5
+  fluency: number;         // 1-5
+  vocabulary: number;      // 1-5
+  grammar: number;         // 1-5
+  pronunciation: number;   // 1-5
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -179,9 +188,11 @@ export interface PhaseResult {
   maxPoints?: number;
   maxScore?: number;
   /** Individual task results */
-  taskResults: TaskResult[];
+  taskResults?: TaskResult[];
   /** Per-dimension scores (dimension id -> score) */
   dimensionScores?: Record<string, number>;
+  /** Scoring dimensions for this phase */
+  dimensions?: ScoringDimension[];
   /** Automated metrics collected during this phase */
   automatedMetrics?: AutomatedMetrics;
   /** Full transcript of the phase interaction */
@@ -191,7 +202,18 @@ export interface PhaseResult {
   /** When this phase started */
   startedAt?: string | Date;
   /** When this phase completed */
-  completedAt?: string | Date;
+  completedAt?: string | Date | number;
+}
+
+export interface AssessmentResult {
+  sessionId: string;
+  assessmentType: AssessmentType;
+  totalScore: number;
+  maxScore: number;
+  cefrLevel: CEFRLevel;
+  phaseResults: PhaseResult[];
+  dimensionScores?: AssessmentDimensionScores;
+  completedAt: number;
 }
 
 export interface AssessmentSession {

@@ -81,3 +81,16 @@ export function getCEFRDescription(level: CEFRLevel): string {
   const threshold = CEFR_THRESHOLDS.find(t => t.level === level);
   return threshold?.description ?? '';
 }
+
+/**
+ * Map a CEFR level to the fluency tier range used by buildPlayerProficiencySection.
+ * This allows CEFR assessment results to override the fluency-based tier selection.
+ */
+export function cefrToFluencyTier(level: CEFRLevel): { min: number; effective: number } {
+  switch (level) {
+    case 'A1': return { min: 0, effective: 10 };
+    case 'A2': return { min: 20, effective: 30 };
+    case 'B1': return { min: 40, effective: 50 };
+    case 'B2': return { min: 60, effective: 70 };
+  }
+}

@@ -303,3 +303,32 @@ All 39 tests passing.
   - `parseAssessmentEvalBlock()` — Regex parser for 5 dimension scores (vocabulary, grammar, fluency, comprehension, taskCompletion) rated 1-5. Same pattern as parseGrammarFeedbackBlock().
   - `buildAssessmentSystemPrompt()` — Tier-adaptive NPC prompts with CEFR-level-specific dialogue rules (A1-B2), template variable resolution, EVAL block instructions, phase context.
 - Created `client/src/assessment/assessment-prompt-utils.test.ts` — 42 tests, all passing
+
+## Integrate assessment CEFR with existing systems
+
+### What was done:
+1. Created `shared/assessment/` directory with CEFR mapping types and assessment type definitions:
+   - `cefr-mapping.ts`: CEFRLevel type, mapScoreToCEFR(), mapScoreToLevel<T>(), getCEFRDescription(), cefrToFluencyTier()
+   - `assessment-types.ts`: AssessmentDimensionScores, PhaseResult, AssessmentResult types
+   - `index.ts`: barrel export
+
+2. Modified `buildPlayerProficiencySection()` in `shared/language/utils.ts`:
+   - Added optional `cefrLevel` parameter that overrides fluency-based tier selection
+   - CEFR level maps to an effective fluency value via cefrToFluencyTier()
+   - Occupation modifier still applies on top of the CEFR-derived tier
+   - Updated `buildLanguageAwareSystemPrompt()` to pass through cefrLevel
+
+3. Modified `ContentGatingManager` in `client/src/components/3DGame/ContentGatingManager.ts`:
+   - Added 'cefr' gate requirement type with cefrMinLevel field
+   - Added 3 CEFR-gated content gates (debate quests at B1, professional NPCs at A2, university district at B1)
+   - Updated `updatePlayerProgress()` to accept optional cefrLevel and evaluate CEFR gates
+
+4. Added CEFR fields to `LanguageProgress` in `shared/language/progress.ts`:
+   - `cefrLevel?: CEFRLevel` — from most recent assessment
+   - `assessmentDimensions?: AssessmentDimensionScores` — Phase 1 dimension scores (1-5 each)
+   - `lastAssessmentAt?: number` — timestamp of last assessment
+   - All fields optional for backward compatibility
+
+### Tests:
+- 20 tests in `shared/__tests__/assessment-cefr-integration.test.ts` — all passing
+- Covers: CEFR mapping, proficiency section override, CEFR content gating, LanguageProgress type shape

@@ -5,6 +5,9 @@
  * and language learning progress data structures used across client and server.
  */
 
+import type { CEFRLevel } from './assessment/cefr-mapping';
+import type { AssessmentDimensionScores } from './assessment/assessment-types';
+
 export type MasteryLevel = 'new' | 'learning' | 'familiar' | 'mastered';
 
 export interface VocabularyEntry {
@@ -63,6 +66,9 @@ export interface LanguageProgress {
   worldId: string;
   language: string;
   overallFluency: number;           // 0-100
+  cefrLevel?: CEFRLevel;            // from most recent assessment
+  assessmentDimensions?: AssessmentDimensionScores; // Phase 1 dimension scores (1-5 each)
+  lastAssessmentAt?: number;        // timestamp of last assessment
   vocabulary: VocabularyEntry[];
   grammarPatterns: GrammarPattern[];
   conversations: ConversationRecord[];

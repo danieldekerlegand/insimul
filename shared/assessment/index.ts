@@ -7,6 +7,7 @@ export {
   type AssessmentStatus,
   type ScoringMethod,
   type ScoringDimension,
+  type AssessmentDimensionScores,
   type AssessmentTask,
   type AssessmentPhase,
   type AssessmentDefinition,
@@ -14,6 +15,7 @@ export {
   type AutomatedMetrics,
   type TaskResult,
   type PhaseResult,
+  type AssessmentResult,
   type AssessmentSession,
 } from './assessment-types';
 
@@ -24,6 +26,7 @@ export {
   mapScoreToCEFR,
   mapScoreToLevel,
   getCEFRDescription,
+  cefrToFluencyTier,
 } from './cefr-mapping';
 
 export {

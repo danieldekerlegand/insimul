@@ -8,6 +8,8 @@
 
 import type { WorldLanguage } from './types';
 import { getQuestTypeForWorld, type QuestTypeDefinition } from '../quest-types';
+import type { CEFRLevel } from '../assessment/cefr-mapping';
+import { cefrToFluencyTier } from '../assessment/cefr-mapping';
 
 // ==========================================
 // Types
@@ -610,13 +612,15 @@ export function getOccupationDifficultyModifier(occupation?: string | null): num
 export function buildPlayerProficiencySection(
   proficiency: PlayerProficiency,
   targetLanguage: string,
-  npcOccupation?: string | null
+  npcOccupation?: string | null,
+  cefrLevel?: CEFRLevel | null
 ): string {
   const { overallFluency, vocabularyCount, masteredWordCount, weakGrammarPatterns, strongGrammarPatterns, conversationCount } = proficiency;
 
-  // Compute effective difficulty: player fluency adjusted by NPC occupation
+  // Compute effective difficulty: CEFR level overrides fluency-based tier if provided
   const occupationMod = getOccupationDifficultyModifier(npcOccupation);
-  const effectiveFluency = Math.max(0, Math.min(100, overallFluency + occupationMod));
+  const baseFluency = cefrLevel ? cefrToFluencyTier(cefrLevel).effective : overallFluency;
+  const effectiveFluency = Math.max(0, Math.min(100, baseFluency + occupationMod));
 
   let section = `\nPLAYER LANGUAGE PROFICIENCY (${targetLanguage}):\n`;
   section += `- Fluency: ${overallFluency.toFixed(0)}/100\n`;
@@ -713,7 +717,8 @@ export function buildLanguageAwareSystemPrompt(
   truths: Truth[],
   worldContext?: WorldLanguageContext,
   worldInfo?: { id: string; name: string; worldType?: string; gameType?: string; description?: string; targetLanguage?: string },
-  playerProficiency?: PlayerProficiency
+  playerProficiency?: PlayerProficiency,
+  cefrLevel?: CEFRLevel | null
 ): string {
   const presentTruths = truths.filter(t => t.timestep === 0);
   const fluencies = extractLanguageFluencies(truths);
@@ -746,7 +751,7 @@ ${buildLanguageSection(fluencies, worldContext?.targetLanguage)}
 
   // Add player proficiency section for language-learning games
   if (isLanguageLearning && playerProficiency && worldContext?.targetLanguage && worldContext.targetLanguage !== 'English') {
-    prompt += buildPlayerProficiencySection(playerProficiency, worldContext.targetLanguage, occupation);
+    prompt += buildPlayerProficiencySection(playerProficiency, worldContext.targetLanguage, occupation, cefrLevel);
     prompt += '\n';
   }
 
