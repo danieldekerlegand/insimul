@@ -1,3 +1,34 @@
+## [US-053] Rock and Geological Feature Placement
+
+### Completed
+- Extended `BiomeStyle` interface with `geologicalDensity` (0-1) and `geologicalFeatures` (array of feature types)
+- Added `GeologicalFeatureType` type: 'boulder' | 'rock_cluster' | 'stone_pillar' | 'rock_outcrop' | 'crystal_formation'
+- Updated all 9 biome presets with biome-appropriate geological configurations:
+  - Mountains: highest density (0.8), all 5 feature types
+  - Wasteland: high density (0.6), 4 types including crystals
+  - Desert: medium density (0.5), 3 types
+  - Tundra: medium density (0.4), 3 types
+  - Forest: low-medium (0.3), 2 types
+  - Urban: minimal (0.05), boulders only
+- Added `generateGeologicalFeatures()` method to ProceduralNatureGenerator with:
+  - Density-scaled feature count
+  - 5 procedural feature builders (boulder, rock cluster, stone pillar, rock outcrop, crystal formation)
+  - Collision boxes for each feature
+  - LOD culling at 100 units
+  - Debug labels
+- Added `getGeologicalMeshes()` getter and updated `dispose()` to clean up geological meshes
+- Wired into BabylonGame.ts world generation pipeline (after rocks, before shrubs)
+- Updated shared `BiomeStyleData` in `shared/game-engine/types.ts` to match
+
+### Files changed
+- `client/src/components/3DGame/ProceduralNatureGenerator.ts` (BiomeStyle + geological methods)
+- `client/src/components/3DGame/BabylonGame.ts` (generation pipeline)
+- `shared/game-engine/types.ts` (BiomeStyleData + GeologicalFeatureType)
+- `client/src/components/3DGame/__tests__/GeologicalFeatures.test.ts` (new, 21 tests)
+
+### Tests
+21 tests passing covering generation, density scaling, all feature types, colliders, disposal, biome presets
+
 ## Assessment Results Summary Panel
 
 - Created `client/src/components/3DGame/AssessmentResultsPanel.ts`

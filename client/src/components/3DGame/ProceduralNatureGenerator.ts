@@ -9,6 +9,8 @@ import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3, InstancedM
 import { createDebugLabel } from './DebugLabelUtils';
 import "@babylonjs/loaders/glTF";
 
+export type GeologicalFeatureType = 'boulder' | 'rock_cluster' | 'stone_pillar' | 'rock_outcrop' | 'crystal_formation';
+
 export interface BiomeStyle {
   name: string;
   treeType: 'pine' | 'oak' | 'palm' | 'dead' | 'none';
@@ -19,6 +21,8 @@ export interface BiomeStyle {
   hasFlowers: boolean;
   flowerColors: Color3[];
   treeAssetSetId?: string;
+  geologicalDensity: number; // 0-1, controls how many geological features spawn
+  geologicalFeatures: GeologicalFeatureType[]; // which feature types appear in this biome
 }
 
 export class ProceduralNatureGenerator {
@@ -26,6 +30,7 @@ export class ProceduralNatureGenerator {
   private treeMeshes: AbstractMesh[] = [];
   private rockMeshes: AbstractMesh[] = [];
   private vegetationMeshes: AbstractMesh[] = [];
+  private geologicalMeshes: AbstractMesh[] = [];
 
   // Optional world-level asset overrides
   private treeOverrideTemplate: Mesh | null = null;
@@ -48,7 +53,9 @@ export class ProceduralNatureGenerator {
       hasWater: true,
       hasFlowers: true,
       flowerColors: [new Color3(1, 0.3, 0.3), new Color3(1, 1, 0.4), new Color3(0.5, 0.3, 0.8)],
-      treeAssetSetId: 'temperate_forest'
+      treeAssetSetId: 'temperate_forest',
+      geologicalDensity: 0.3,
+      geologicalFeatures: ['boulder', 'rock_cluster']
     },
     'plains': {
       name: 'Plains',
@@ -59,7 +66,9 @@ export class ProceduralNatureGenerator {
       hasWater: false,
       hasFlowers: true,
       flowerColors: [new Color3(1, 0.8, 0.2), new Color3(1, 1, 0.5)],
-      treeAssetSetId: 'temperate_forest'
+      treeAssetSetId: 'temperate_forest',
+      geologicalDensity: 0.15,
+      geologicalFeatures: ['boulder', 'rock_outcrop']
     },
     'mountains': {
       name: 'Mountains',
@@ -70,7 +79,9 @@ export class ProceduralNatureGenerator {
       hasWater: true,
       hasFlowers: false,
       flowerColors: [],
-      treeAssetSetId: 'temperate_forest'
+      treeAssetSetId: 'temperate_forest',
+      geologicalDensity: 0.8,
+      geologicalFeatures: ['boulder', 'rock_cluster', 'stone_pillar', 'rock_outcrop', 'crystal_formation']
     },
     'desert': {
       name: 'Desert',
@@ -81,7 +92,9 @@ export class ProceduralNatureGenerator {
       hasWater: false,
       hasFlowers: false,
       flowerColors: [],
-      treeAssetSetId: 'desert'
+      treeAssetSetId: 'desert',
+      geologicalDensity: 0.5,
+      geologicalFeatures: ['boulder', 'rock_outcrop', 'stone_pillar']
     },
     'tundra': {
       name: 'Tundra',
@@ -92,7 +105,9 @@ export class ProceduralNatureGenerator {
       hasWater: true,
       hasFlowers: false,
       flowerColors: [],
-      treeAssetSetId: 'tundra_forest'
+      treeAssetSetId: 'tundra_forest',
+      geologicalDensity: 0.4,
+      geologicalFeatures: ['boulder', 'rock_cluster', 'rock_outcrop']
     },
     'wasteland': {
       name: 'Wasteland',
@@ -103,7 +118,9 @@ export class ProceduralNatureGenerator {
       hasWater: false,
       hasFlowers: false,
       flowerColors: [],
-      treeAssetSetId: 'wasteland_dead'
+      treeAssetSetId: 'wasteland_dead',
+      geologicalDensity: 0.6,
+      geologicalFeatures: ['boulder', 'rock_cluster', 'rock_outcrop', 'crystal_formation']
     },
     'tropical': {
       name: 'Tropical',
@@ -114,7 +131,9 @@ export class ProceduralNatureGenerator {
       hasWater: true,
       hasFlowers: true,
       flowerColors: [new Color3(1, 0.2, 0.5), new Color3(1, 0.6, 0.1), new Color3(0.9, 0.2, 0.9)],
-      treeAssetSetId: 'tropical'
+      treeAssetSetId: 'tropical',
+      geologicalDensity: 0.25,
+      geologicalFeatures: ['boulder', 'rock_cluster']
     },
     'swamp': {
       name: 'Swamp',
@@ -125,7 +144,9 @@ export class ProceduralNatureGenerator {
       hasWater: true,
       hasFlowers: false,
       flowerColors: [],
-      treeAssetSetId: 'swamp'
+      treeAssetSetId: 'swamp',
+      geologicalDensity: 0.2,
+      geologicalFeatures: ['boulder', 'rock_outcrop']
     },
     'urban': {
       name: 'Urban',
@@ -136,7 +157,9 @@ export class ProceduralNatureGenerator {
       hasWater: false,
       hasFlowers: true,
       flowerColors: [new Color3(1, 0.3, 0.3), new Color3(1, 1, 0.5)],
-      treeAssetSetId: 'urban'
+      treeAssetSetId: 'urban',
+      geologicalDensity: 0.05,
+      geologicalFeatures: ['boulder']
     }
   };
 
@@ -1149,6 +1172,253 @@ export class ProceduralNatureGenerator {
     }
   }
 
+  /**
+   * Generate geological features (boulders, rock clusters, pillars, outcrops, crystals)
+   * based on biome configuration.
+   */
+  public generateGeologicalFeatures(
+    biome: BiomeStyle,
+    bounds: { minX: number; maxX: number; minZ: number; maxZ: number },
+    count: number = 10,
+    heightSampler?: (x: number, z: number) => number
+  ): void {
+    if (!biome.geologicalFeatures || biome.geologicalFeatures.length === 0) return;
+
+    const adjustedCount = Math.max(1, Math.floor(count * biome.geologicalDensity));
+
+    for (let i = 0; i < adjustedCount; i++) {
+      const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
+      const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
+      const baseHeight = heightSampler ? heightSampler(x, z) : 0;
+
+      const featureType = biome.geologicalFeatures[
+        Math.floor(Math.random() * biome.geologicalFeatures.length)
+      ];
+
+      const mesh = this.createGeologicalFeature(featureType, `geo_${featureType}_${i}`, biome, baseHeight);
+      if (!mesh) continue;
+
+      mesh.position = new Vector3(x, baseHeight, z);
+      mesh.rotation.y = Math.random() * Math.PI * 2;
+      mesh.isPickable = false;
+      mesh.freezeWorldMatrix();
+      mesh.getChildMeshes().forEach(child => {
+        child.isPickable = false;
+        child.freezeWorldMatrix();
+        if (child instanceof Mesh) child.addLODLevel(100, null);
+      });
+      if (mesh instanceof Mesh) mesh.addLODLevel(100, null);
+
+      // Collision box around the feature
+      const featureBounds = mesh.getHierarchyBoundingVectors(true);
+      const size = featureBounds.max.subtract(featureBounds.min);
+      const collider = MeshBuilder.CreateBox(
+        `geo_collider_${i}`,
+        { width: Math.max(1, size.x), height: Math.max(1, size.y), depth: Math.max(1, size.z) },
+        this.scene
+      );
+      const center = featureBounds.min.add(size.scale(0.5));
+      collider.position = center;
+      collider.isVisible = false;
+      collider.isPickable = false;
+      collider.checkCollisions = true;
+      collider.freezeWorldMatrix();
+      this.geologicalMeshes.push(collider);
+
+      if (i === 0) {
+        const labelAnchor = new Mesh(`geo_label_anchor`, this.scene);
+        labelAnchor.position = mesh.position.clone();
+        createDebugLabel(this.scene, labelAnchor, `GEO: ${featureType}`, 6);
+        this.geologicalMeshes.push(labelAnchor);
+      }
+
+      this.geologicalMeshes.push(mesh);
+    }
+  }
+
+  /**
+   * Create a single procedural geological feature mesh.
+   */
+  private createGeologicalFeature(
+    type: GeologicalFeatureType,
+    name: string,
+    biome: BiomeStyle,
+    _baseHeight: number
+  ): Mesh | null {
+    switch (type) {
+      case 'boulder': return this.createBoulder(name, biome);
+      case 'rock_cluster': return this.createRockCluster(name, biome);
+      case 'stone_pillar': return this.createStonePillar(name, biome);
+      case 'rock_outcrop': return this.createRockOutcrop(name, biome);
+      case 'crystal_formation': return this.createCrystalFormation(name, biome);
+      default: return null;
+    }
+  }
+
+  private createBoulder(name: string, biome: BiomeStyle): Mesh {
+    const mat = new StandardMaterial(`${name}_mat`, this.scene);
+    mat.diffuseColor = biome.rockColor.scale(0.9 + Math.random() * 0.2);
+    mat.specularColor = new Color3(0.05, 0.05, 0.05);
+
+    const scale = 2 + Math.random() * 3;
+    const boulder = MeshBuilder.CreateSphere(
+      name,
+      { diameter: scale, segments: 5 },
+      this.scene
+    );
+    boulder.scaling = new Vector3(
+      1 + Math.random() * 0.3,
+      0.6 + Math.random() * 0.4,
+      1 + Math.random() * 0.3
+    );
+    boulder.position.y = scale * 0.25;
+    boulder.material = mat;
+    return boulder;
+  }
+
+  private createRockCluster(name: string, biome: BiomeStyle): Mesh {
+    const parent = new Mesh(name, this.scene);
+    const mat = new StandardMaterial(`${name}_mat`, this.scene);
+    mat.diffuseColor = biome.rockColor;
+    mat.specularColor = new Color3(0.08, 0.08, 0.08);
+
+    const rockCount = 3 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < rockCount; i++) {
+      const size = 0.8 + Math.random() * 1.5;
+      const rock = MeshBuilder.CreateSphere(
+        `${name}_rock_${i}`,
+        { diameter: size, segments: 4 },
+        this.scene
+      );
+      rock.scaling = new Vector3(
+        0.8 + Math.random() * 0.4,
+        0.5 + Math.random() * 0.5,
+        0.8 + Math.random() * 0.4
+      );
+      // Scatter rocks in a small cluster radius
+      rock.position = new Vector3(
+        (Math.random() - 0.5) * 3,
+        size * 0.2,
+        (Math.random() - 0.5) * 3
+      );
+      rock.rotation.y = Math.random() * Math.PI * 2;
+      rock.material = mat;
+      rock.parent = parent;
+    }
+    return parent;
+  }
+
+  private createStonePillar(name: string, biome: BiomeStyle): Mesh {
+    const mat = new StandardMaterial(`${name}_mat`, this.scene);
+    mat.diffuseColor = biome.rockColor.scale(0.85);
+    mat.specularColor = new Color3(0.1, 0.1, 0.1);
+
+    const height = 3 + Math.random() * 5;
+    const radius = 0.5 + Math.random() * 0.8;
+
+    const pillar = MeshBuilder.CreateCylinder(
+      name,
+      { height, diameterTop: radius * 0.7, diameterBottom: radius * 2, tessellation: 6 },
+      this.scene
+    );
+    pillar.position.y = height / 2;
+    pillar.material = mat;
+    // Slight tilt for natural look
+    pillar.rotation.x = (Math.random() - 0.5) * 0.15;
+    pillar.rotation.z = (Math.random() - 0.5) * 0.15;
+    return pillar;
+  }
+
+  private createRockOutcrop(name: string, biome: BiomeStyle): Mesh {
+    const parent = new Mesh(name, this.scene);
+    const mat = new StandardMaterial(`${name}_mat`, this.scene);
+    mat.diffuseColor = biome.rockColor.scale(0.8 + Math.random() * 0.2);
+    mat.specularColor = new Color3(0.06, 0.06, 0.06);
+
+    // Base slab — wide and flat
+    const base = MeshBuilder.CreateBox(
+      `${name}_base`,
+      { width: 4 + Math.random() * 3, height: 1.5 + Math.random(), depth: 3 + Math.random() * 2 },
+      this.scene
+    );
+    base.position.y = 0.75;
+    base.material = mat;
+    base.parent = parent;
+
+    // Stacked layers for a layered rock look
+    const layers = 1 + Math.floor(Math.random() * 3);
+    let yOffset = 1.5;
+    for (let i = 0; i < layers; i++) {
+      const shrink = 0.7 - i * 0.15;
+      const layer = MeshBuilder.CreateBox(
+        `${name}_layer_${i}`,
+        {
+          width: (3 + Math.random() * 2) * shrink,
+          height: 0.8 + Math.random() * 0.5,
+          depth: (2.5 + Math.random() * 1.5) * shrink
+        },
+        this.scene
+      );
+      layer.position.y = yOffset + 0.4;
+      layer.position.x = (Math.random() - 0.5) * 0.5;
+      layer.position.z = (Math.random() - 0.5) * 0.5;
+      layer.material = mat;
+      layer.parent = parent;
+      yOffset += 0.8;
+    }
+    return parent;
+  }
+
+  private createCrystalFormation(name: string, biome: BiomeStyle): Mesh {
+    const parent = new Mesh(name, this.scene);
+
+    const crystalMat = new StandardMaterial(`${name}_mat`, this.scene);
+    // Tinted crystal color based on biome rock color with added saturation
+    const r = Math.min(1, biome.rockColor.r * 0.5 + 0.3);
+    const g = Math.min(1, biome.rockColor.g * 0.3 + 0.2);
+    const b = Math.min(1, biome.rockColor.b * 0.5 + 0.5);
+    crystalMat.diffuseColor = new Color3(r, g, b);
+    crystalMat.specularColor = new Color3(0.4, 0.4, 0.5);
+    crystalMat.alpha = 0.85;
+    crystalMat.emissiveColor = new Color3(r * 0.15, g * 0.15, b * 0.15);
+
+    const crystalCount = 3 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < crystalCount; i++) {
+      const height = 1 + Math.random() * 2.5;
+      const diameter = 0.3 + Math.random() * 0.5;
+      const crystal = MeshBuilder.CreateCylinder(
+        `${name}_crystal_${i}`,
+        { height, diameterTop: 0, diameterBottom: diameter, tessellation: 6 },
+        this.scene
+      );
+      crystal.position = new Vector3(
+        (Math.random() - 0.5) * 1.5,
+        height / 2,
+        (Math.random() - 0.5) * 1.5
+      );
+      // Crystals jut out at angles
+      crystal.rotation.x = (Math.random() - 0.5) * 0.5;
+      crystal.rotation.z = (Math.random() - 0.5) * 0.5;
+      crystal.material = crystalMat;
+      crystal.parent = parent;
+    }
+
+    // Small rock base
+    const baseMat = new StandardMaterial(`${name}_base_mat`, this.scene);
+    baseMat.diffuseColor = biome.rockColor;
+    const base = MeshBuilder.CreateSphere(
+      `${name}_base`,
+      { diameter: 1.5, segments: 4 },
+      this.scene
+    );
+    base.scaling = new Vector3(1.2, 0.5, 1.2);
+    base.position.y = 0.2;
+    base.material = baseMat;
+    base.parent = parent;
+
+    return parent;
+  }
+
   /** Return all tree meshes for distance culling */
   public getTreeMeshes(): AbstractMesh[] {
     return this.treeMeshes;
@@ -1164,6 +1434,11 @@ export class ProceduralNatureGenerator {
     return this.vegetationMeshes;
   }
 
+  /** Return all geological feature meshes for distance culling */
+  public getGeologicalMeshes(): AbstractMesh[] {
+    return this.geologicalMeshes;
+  }
+
   /**
    * Dispose all nature elements
    */
@@ -1171,9 +1446,11 @@ export class ProceduralNatureGenerator {
     this.treeMeshes.forEach(mesh => mesh.dispose());
     this.rockMeshes.forEach(mesh => mesh.dispose());
     this.vegetationMeshes.forEach(mesh => mesh.dispose());
+    this.geologicalMeshes.forEach(mesh => mesh.dispose());
 
     this.treeMeshes = [];
     this.rockMeshes = [];
     this.vegetationMeshes = [];
+    this.geologicalMeshes = [];
   }
 }
