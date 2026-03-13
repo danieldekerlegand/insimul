@@ -5619,18 +5619,71 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       }
       console.log("\nCURRENT MESSAGE:", lastMessageContent.text?.substring(0, 500) || "[Audio message]");
       console.log("========================================\n");
-      
+
+      // Streaming mode: use SSE with sentence boundary detection
+      if (stream) {
+        const { SentenceBuffer } = await import('./services/sentence-boundary.js');
+
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders();
+
+        const sentenceBuffer = new SentenceBuffer();
+        let fullResponse = '';
+
+        try {
+          const streamResult = await chat.sendMessageStream(lastMessageContent.text);
+
+          for await (const chunk of streamResult.stream) {
+            const chunkText = chunk.text();
+            if (!chunkText) continue;
+
+            fullResponse += chunkText;
+            const sentences = sentenceBuffer.push(chunkText);
+
+            for (const sentence of sentences) {
+              res.write(`data: ${JSON.stringify({ type: 'sentence', text: sentence })}\n\n`);
+            }
+          }
+
+          // Flush any remaining buffered text
+          const remaining = sentenceBuffer.flush();
+          if (remaining) {
+            res.write(`data: ${JSON.stringify({ type: 'sentence', text: remaining })}\n\n`);
+          }
+
+          // Send the complete response with metadata
+          const cleanedForDisplay = fullResponse
+            .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+            .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+            .trim();
+
+          const doneData: any = { type: 'done', response: fullResponse, cleanedResponse: cleanedForDisplay };
+          if (userTranscript) doneData.userTranscript = userTranscript;
+
+          res.write(`data: ${JSON.stringify(doneData)}\n\n`);
+          res.end();
+        } catch (streamError) {
+          console.error("Streaming error:", streamError);
+          res.write(`data: ${JSON.stringify({ type: 'error', error: streamError instanceof Error ? streamError.message : 'Streaming failed' })}\n\n`);
+          res.end();
+        }
+        return;
+      }
+
+      // Non-streaming mode: return full response at once
       const result = await chat.sendMessage(lastMessageContent.text);
-      
+
       // Log the full response for debugging
       console.log("Gemini response object:", JSON.stringify(result.response, null, 2));
-      
+
       const response = result.response.text();
-      
+
       if (!response || response.trim() === '') {
         console.error("Gemini returned empty response. Candidates:", result.response.candidates);
         console.error("Prompt feedback:", result.response.promptFeedback);
-        return res.status(500).json({ 
+        return res.status(500).json({
           error: "Gemini returned empty response. This may be due to safety filters.",
           details: {
             promptFeedback: result.response.promptFeedback,
