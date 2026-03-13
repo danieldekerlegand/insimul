@@ -8,6 +8,7 @@
 import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3, Animation, ActionManager, ExecuteCodeAction } from '@babylonjs/core';
 import { createDebugLabel } from './DebugLabelUtils';
 import * as GUI from '@babylonjs/gui';
+import { ProceduralQuestObjects } from './ProceduralQuestObjects';
 
 // Quest objective types that can be spawned/tracked in the world
 export type QuestObjectiveType =
@@ -159,6 +160,9 @@ export class QuestObjectManager {
   // Quest object model templates loaded from asset collection
   private questModelTemplates: Map<string, Mesh> = new Map();
 
+  // Procedural mesh generator for quest objects
+  private proceduralObjects: ProceduralQuestObjects;
+
   // Callbacks
   private onObjectCollected?: (questId: string, objectiveId: string) => void;
   private onLocationVisited?: (questId: string, objectiveId: string) => void;
@@ -167,6 +171,7 @@ export class QuestObjectManager {
 
   constructor(scene: Scene) {
     this.scene = scene;
+    this.proceduralObjects = new ProceduralQuestObjects(scene);
   }
 
   /**
@@ -726,14 +731,11 @@ export class QuestObjectManager {
         item.position = position;
         console.log(`[QuestObjectManager] Using collectible model from asset collection`);
       } else {
-        // Fallback: Create glowing collectible sphere
-        item = MeshBuilder.CreateSphere(
-          `quest_item_${itemId}`,
-          { diameter: 0.8, segments: 16 },
-          this.scene
-        );
+        // Fallback: Use procedural mesh generator for contextual shape
+        const objectType = objective.itemName?.toLowerCase() || 'gem';
+        const result = this.proceduralObjects.generate(`item_${itemId}`, { objectType });
+        item = result.mesh;
         item.position = position;
-        createDebugLabel(this.scene, item, 'QUEST ITEM (collectible)', 2);
       }
 
       // Create material with quest color (golden yellow)
@@ -907,34 +909,17 @@ export class QuestObjectManager {
     positions.forEach((position, index) => {
       const itemId = `${objective.id}_vocabitem_${index}`;
 
-      // Create a glowing sphere with vocabulary label
-      const item = MeshBuilder.CreateSphere(
-        `vocab_item_${itemId}`,
-        { diameter: 0.7, segments: 16 },
-        this.scene
-      );
+      // Use procedural mesh generator for contextual vocabulary object shape
+      const objectType = meaning.toLowerCase() || objective.itemName?.toLowerCase() || 'orb';
+      const vocabColor = ProceduralQuestObjects.getColor(meaning.toLowerCase());
+      const result = this.proceduralObjects.generate(`vocab_${itemId}`, {
+        objectType,
+        color: vocabColor,
+        label: word,
+        interactable: true,
+      });
+      const item = result.mesh;
       item.position = position;
-
-      // Purple-ish material for vocabulary items (distinct from golden quest items)
-      const material = new StandardMaterial(`vocab_item_mat_${itemId}`, this.scene);
-      material.diffuseColor = new Color3(0.6, 0.3, 0.9);
-      material.emissiveColor = new Color3(0.3, 0.15, 0.45);
-      material.alpha = 0.9;
-      item.material = material;
-
-      // Floating animation
-      const floatAnim = new Animation(
-        `vocab_float_${itemId}`, 'position.y', 30,
-        Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CYCLE
-      );
-      const baseY = position.y;
-      floatAnim.setKeys([
-        { frame: 0, value: baseY },
-        { frame: 30, value: baseY + 0.25 },
-        { frame: 60, value: baseY }
-      ]);
-      item.animations.push(floatAnim);
-      this.scene.beginAnimation(item, 0, 60, true);
 
       // Collision-based collection
       item.actionManager = new ActionManager(this.scene);
@@ -1727,6 +1712,8 @@ export class QuestObjectManager {
 
     this.locationMarkers.forEach(marker => marker.dispose());
     this.locationMarkers.clear();
+
+    this.proceduralObjects.dispose();
 
     this.activeQuests = [];
   }
