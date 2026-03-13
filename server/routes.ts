@@ -5594,6 +5594,11 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         lastMessageContent = lastMessage.parts[0];
       }
 
+      // Compress conversation history if it's too long
+      const { compressConversationHistory } = await import('./services/conversation-compression.js');
+      const priorMessages = messages.slice(0, -1);
+      const compressedHistory = await compressConversationHistory(priorMessages);
+
       // Build the conversation with system prompt
       const chat = model.startChat({
         history: [
@@ -5605,15 +5610,15 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
             role: 'model',
             parts: [{ text: 'I understand. I will roleplay as this character.' }]
           },
-          ...messages.slice(0, -1) // All messages except the last one
+          ...compressedHistory
         ]
       });
 
       // Log full prompt for debugging NPC chat
       console.log("\n========== GEMINI CHAT DEBUG ==========");
       console.log("SYSTEM PROMPT:\n", systemPrompt);
-      console.log("\nCONVERSATION HISTORY (" + (messages.length - 1) + " prior messages):");
-      for (const msg of messages.slice(0, -1)) {
+      console.log(`\nCONVERSATION HISTORY (${priorMessages.length} original → ${compressedHistory.length} compressed):`);
+      for (const msg of compressedHistory) {
         const text = msg.parts?.[0]?.text || '';
         console.log(`  [${msg.role}]: ${text.substring(0, 200)}${text.length > 200 ? '...' : ''}`);
       }
