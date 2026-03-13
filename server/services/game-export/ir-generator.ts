@@ -750,7 +750,7 @@ export async function generateWorldIR(
     const settlementBusinesses = allBusinesses.filter((b: any) => b.settlementId === s.id);
 
     // Map lots to positions
-    const lotIRs: LotIR[] = lots.map((lot, i) => ({
+    const lotIRs: LotIR[] = lots.map((lot: any, i) => ({
       id: lot.id,
       address: lot.address || '',
       houseNumber: lot.houseNumber || i + 1,
@@ -760,6 +760,15 @@ export async function generateWorldIR(
       position: lotPositions[i] || { x: placed.position.x, y: 0, z: placed.position.z },
       buildingType: lot.buildingType || null,
       buildingId: lot.buildingId || null,
+      lotWidth: lot.lotWidth ?? 12,
+      lotDepth: lot.lotDepth ?? 16,
+      streetEdgeId: lot.streetEdgeId || null,
+      distanceAlongStreet: lot.distanceAlongStreet ?? 0,
+      side: lot.side === 'right' ? 'right' as const : 'left' as const,
+      blockId: lot.blockId || null,
+      facingAngle: lot.facingAngle ?? 0,
+      elevation: lot.elevation ?? 0,
+      foundationType: lot.foundationType || 'flat',
     }));
 
     // Generate buildings for businesses + residences
