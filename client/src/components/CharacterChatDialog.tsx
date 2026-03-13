@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,6 +9,7 @@ import { buildGreeting, buildLanguageAwareSystemPrompt, extractLanguageFluencies
 import type { WorldLanguageContext } from '@shared/language/language-utils';
 import { buildWorldLanguageContext } from '@shared/language/language-utils';
 import { parseGrammarFeedbackBlock } from '@shared/language/language-progress';
+import { useSpeechRecognition } from '@/hooks/use-speech-recognition';
 
 export interface Character {
   id: string;
@@ -46,15 +47,42 @@ interface CharacterChatDialogProps {
 export function CharacterChatDialog({ character, truths, open, onOpenChange }: CharacterChatDialogProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [worldLangContext, setWorldLangContext] = useState<WorldLanguageContext | null>(null);
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const pendingSendRef = useRef(false);
+
+  // Determine speech recognition language from world context
+  const sttLang = worldLangContext?.targetLanguage
+    ? getLanguageBCP47(worldLangContext.targetLanguage)
+    : 'en-US';
+
+  const {
+    isListening: isRecording,
+    interimTranscript,
+    finalTranscript,
+    startListening,
+    stopListening,
+    resetTranscript,
+  } = useSpeechRecognition({ lang: sttLang });
+
+  // When final transcript arrives, populate input and auto-send
+  useEffect(() => {
+    if (finalTranscript && !pendingSendRef.current) {
+      setInputText(finalTranscript);
+      pendingSendRef.current = true;
+    }
+  }, [finalTranscript]);
+
+  // Show interim results while speaking
+  useEffect(() => {
+    if (isRecording && interimTranscript) {
+      setInputText(interimTranscript);
+    }
+  }, [isRecording, interimTranscript]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -581,96 +609,70 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
     }
   };
 
-  const startRecording = async () => {
+  // Auto-send once speech recognition produces a final transcript
+  const handleVoiceSend = useCallback(async (transcript: string) => {
+    if (!transcript.trim()) return;
+
+    setIsProcessing(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
+      const userMessage: Message = {
+        role: 'user',
+        content: transcript,
+        timestamp: new Date()
       };
+      setMessages(prev => [...prev, userMessage]);
 
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        stream.getTracks().forEach(track => track.stop());
+      const data = await sendVoiceChat({ text: transcript });
 
-        setIsProcessing(true);
-        try {
-          // Convert audio blob to base64 for the combined endpoint
-          const reader = new FileReader();
-          const base64Audio = await new Promise<string>((resolve, reject) => {
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(audioBlob);
-          });
+      // Strip grammar feedback markers for language-learning games
+      const isVoiceLangLearning = worldLangContext?.gameType === 'language-learning' ||
+                                  worldLangContext?.gameType === 'educational';
+      const { cleanedResponse: voiceDisplayResponse } = isVoiceLangLearning
+        ? parseGrammarFeedbackBlock(data.response)
+        : { cleanedResponse: data.response };
 
-          // Send audio to combined voice-chat endpoint (STT + Gemini + TTS in one call)
-          const data = await sendVoiceChat({ audioInput: base64Audio });
-          const transcript = data.userTranscript || '';
-
-          if (transcript.trim()) {
-            setInputText(transcript);
-
-            const userMessage: Message = {
-              role: 'user',
-              content: transcript,
-              timestamp: new Date()
-            };
-            setMessages(prev => [...prev, userMessage]);
-
-            // Strip grammar feedback markers for language-learning games
-            const isVoiceLangLearning = worldLangContext?.gameType === 'language-learning' ||
-                                        worldLangContext?.gameType === 'educational';
-            const { cleanedResponse: voiceDisplayResponse } = isVoiceLangLearning
-              ? parseGrammarFeedbackBlock(data.response)
-              : { cleanedResponse: data.response };
-
-            const aiMessage: Message = {
-              role: 'assistant',
-              content: voiceDisplayResponse,
-              timestamp: new Date()
-            };
-            setMessages(prev => [...prev, aiMessage]);
-
-            // Play audio from combined response, fallback to browser TTS
-            if (data.audio) {
-              await playBase64Audio(data.audio);
-            } else {
-              browserTextToSpeech(voiceDisplayResponse);
-            }
-          }
-        } catch (error) {
-          toast({
-            title: 'Error',
-            description: error instanceof Error ? error.message : 'Failed to process speech',
-            variant: 'destructive'
-          });
-        } finally {
-          setIsProcessing(false);
-          setInputText('');
-        }
+      const aiMessage: Message = {
+        role: 'assistant',
+        content: voiceDisplayResponse,
+        timestamp: new Date()
       };
+      setMessages(prev => [...prev, aiMessage]);
 
-      mediaRecorder.start();
-      setIsRecording(true);
+      // Play audio from combined response, fallback to browser TTS
+      if (data.audio) {
+        await playBase64Audio(data.audio);
+      } else {
+        browserTextToSpeech(voiceDisplayResponse);
+      }
     } catch (error) {
       toast({
-        title: 'Microphone Error',
-        description: 'Failed to access microphone. Please check permissions.',
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to process speech',
         variant: 'destructive'
       });
+    } finally {
+      setIsProcessing(false);
+      setInputText('');
     }
+  }, [worldLangContext, toast]);
+
+  // Trigger auto-send when pending
+  useEffect(() => {
+    if (pendingSendRef.current && finalTranscript.trim() && !isRecording) {
+      pendingSendRef.current = false;
+      handleVoiceSend(finalTranscript);
+      resetTranscript();
+    }
+  }, [finalTranscript, isRecording, handleVoiceSend, resetTranscript]);
+
+  const handleStartRecording = () => {
+    resetTranscript();
+    setInputText('');
+    startListening();
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
+  const handleStopRecording = () => {
+    stopListening();
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -740,7 +742,7 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
             <Button
               size="icon"
               variant={isRecording ? 'destructive' : 'outline'}
-              onClick={isRecording ? stopRecording : startRecording}
+              onClick={isRecording ? handleStopRecording : handleStartRecording}
               disabled={isProcessing}
             >
               {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
