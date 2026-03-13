@@ -9,6 +9,8 @@ Started: Thu Mar 12 23:35:20 CDT 2026
 - Pre-existing typecheck errors in BabylonGame files are expected; check only your changed files for errors
 - GeographyGenerator now uses StreetGenerator internally; the `streets` field in settlement DB is a StreetNetwork object (not Location[])
 - To detect old vs new street format: `Array.isArray(streets)` = old, `'nodes' in streets` = new StreetNetwork
+- Use Bresenham-style fractional accumulator to distribute counts across many items (avoids rounding-to-zero with small fractions)
+- `interpolateAtDistance(waypoints, d)` in lot-generator.ts uses absolute distance (not normalized t) — better for absolute spacing
 
 ## 2026-03-12 - US-014
 - Implemented `selectStreetPattern(config: GeographyConfig): StreetPatternType` with priority-based selection logic
@@ -69,4 +71,21 @@ Started: Thu Mar 12 23:35:20 CDT 2026
   - Pre-existing typecheck errors in BabylonGame-patch.ts and export templates are expected — only check your changed files for errors
   - `createStreetEdgeMesh` uses averaged tangent directions at interior waypoints for smooth perpendicular offsets
   - All 2,859 street generator tests pass; typecheck clean on modified files
+---
+
+## 2026-03-12 - US-018
+- Implemented `generateLotsAlongStreets(network: StreetNetwork, config: GeographyConfig): LotPosition[]` in new `lot-generator.ts`
+- LotPosition type includes: position (Vec3), facingAngle, width, depth, side (left/right), distanceAlongStreet, streetEdgeId
+- Lot width by settlement type: village=15, town=12, city=10
+- Bresenham-style fractional accumulator distributes lots proportionally across edges by density-weighted capacity
+- Lots placed on both sides of each street edge with perpendicular setback (street width/2 + lot depth/2)
+- Facing angle computed as atan2 pointing from lot toward street center
+- Guaranteed at least 1 lot when population > 0 and edges exist
+- Files changed: `server/generators/lot-generator.ts` (new), `server/generators/lot-generator.test.ts` (new)
+- **Learnings for future iterations:**
+  - Bresenham accumulator pattern works well for distributing fractional counts across many edges — avoids rounding-to-zero problem with simple `Math.round(fraction)`
+  - `interpolateAtDistance` (absolute distance) is more useful than normalized `t ∈ [0,1]` for lot placement since lot widths are absolute
+  - `lotDensityByStreetType` is separate from `buildingDensityByStreetType` in geography-generator — alleys get 0.15 (almost no lots) vs 0.1 (almost no buildings)
+  - Tangent perpendicular convention: left = (nz, -nx), right = (-nz, nx) — consistent with geography-generator
+  - All 30 lot tests + 2,859 street tests pass; typecheck clean on modified files
 ---
