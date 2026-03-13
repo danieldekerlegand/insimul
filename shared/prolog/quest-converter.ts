@@ -673,6 +673,11 @@ function convertCompletionCheck(criteria: Record<string, any>, questId: string, 
     return `quest_progress(Player, ${questId}, Msgs), Msgs >= ${messages}`;
   }
 
+  if (type === 'follow_directions') {
+    const steps = criteria.stepsRequired || criteria.requiredCount || 1;
+    return `quest_progress(Player, ${questId}, Steps), Steps >= ${steps}`;
+  }
+
   if (type === 'all_objectives') {
     return `\\+ (quest_objective(${questId}, Idx, _), \\+ objective_complete(Player, ${questId}, Idx))`;
   }

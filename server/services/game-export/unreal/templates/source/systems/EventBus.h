@@ -59,7 +59,9 @@ enum class EInsimulEventType : uint8
     AssessmentConversationCompleted UMETA(DisplayName = "Assessment Conversation Completed"),
     // Visual vocabulary quest events
     VisualVocabPrompted     UMETA(DisplayName = "Visual Vocab Prompted"),
-    VisualVocabAnswered     UMETA(DisplayName = "Visual Vocab Answered")
+    VisualVocabAnswered     UMETA(DisplayName = "Visual Vocab Answered"),
+    // Follow directions quest events
+    DirectionStepCompleted UMETA(DisplayName = "Direction Step Completed")
 };
 
 /**
@@ -207,6 +209,11 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 StepIndex = 0;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 TotalSteps = 0;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 TotalDurationMs = 0;
+
+    // ── Follow directions fields ───────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ObjectiveId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 StepsCompleted = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 StepsRequired = 0;
 
     // ── Periodic assessment fields ────────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Level = 0;

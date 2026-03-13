@@ -77,7 +77,9 @@ export type GameEvent =
   | { type: 'assessment_conversation_completed'; npcId: string }
   // Visual vocabulary events
   | { type: 'visual_vocab_prompted'; targetId: string; questId: string; objectiveId: string; isActivity: boolean }
-  | { type: 'visual_vocab_answered'; targetId: string; questId: string; passed: boolean; score: number; playerAnswer: string };
+  | { type: 'visual_vocab_answered'; targetId: string; questId: string; passed: boolean; score: number; playerAnswer: string }
+  // Follow directions quest events
+  | { type: 'direction_step_completed'; questId: string; objectiveId: string; stepIndex: number; stepsCompleted: number; stepsRequired: number };
 
 export type GameEventType = GameEvent['type'];
 

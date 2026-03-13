@@ -104,6 +104,8 @@ export class QuestIndicatorManager {
           return (progress.currentCount || 0) >= (criteria.requiredCount || 5);
         case 'conversation_engagement':
           return (progress.messagesCount || 0) >= (criteria.requiredMessages || 8);
+        case 'follow_directions':
+          return (progress.stepsCompleted || 0) >= (criteria.stepsRequired || criteria.requiredCount || 1);
       }
     }
     

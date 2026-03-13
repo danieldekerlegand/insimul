@@ -150,6 +150,13 @@ export function calculateCriteriaProgress(criteria: Record<string, any>, progres
         return Math.min(progress.waypointsReached / criteria.waypoints.length, 1);
       }
       break;
+    case 'follow_directions': {
+      const required = criteria.stepsRequired || criteria.requiredCount || 1;
+      if (progress.stepsCompleted !== undefined) {
+        return Math.min(progress.stepsCompleted / required, 1);
+      }
+      break;
+    }
   }
   return null;
 }
@@ -957,6 +964,48 @@ export class BabylonQuestTracker {
     }
 
     return calculateCriteriaProgress(quest.completionCriteria, quest.progress);
+  }
+
+  private getQuestIcon(questType: string): string {
+    switch (questType) {
+      // Language learning
+      case 'conversation': return '💬';
+      case 'translation': return '🔄';
+      case 'vocabulary': return '📚';
+      case 'grammar': return '📝';
+      case 'cultural': return '🌍';
+      case 'listening_comprehension': return '🎧';
+      case 'translation_challenge': return '🔄';
+      case 'navigation': return '🧭';
+
+      // RPG
+      case 'combat': return '⚔️';
+      case 'collection': return '📦';
+      case 'exploration': return '🗺️';
+      case 'escort': return '🛡️';
+      case 'delivery': return '📨';
+      case 'crafting': return '🔨';
+      case 'social': return '🤝';
+
+      default: return '🎯';
+    }
+  }
+
+  private getDifficultyColor(difficulty: string): string {
+    switch (difficulty) {
+      // Language learning
+      case 'beginner': return '#4CAF50';
+      case 'intermediate': return '#FFC107';
+      case 'advanced': return '#F44336';
+
+      // RPG
+      case 'easy': return '#4CAF50';
+      case 'normal': return '#FFC107';
+      case 'hard': return '#F44336';
+      case 'legendary': return '#9C27B0'; // Purple
+
+      default: return '#888';
+    }
   }
 
   public show() {
