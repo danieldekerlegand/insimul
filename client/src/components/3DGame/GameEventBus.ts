@@ -60,7 +60,16 @@ export type GameEvent =
   // Conversation eavesdrop
   | { type: 'conversation_overheard'; npcId1: string; npcId2: string; topic: string; languageUsed: string }
   // Truth creation (emitted when game events should be recorded as world truths)
-  | { type: 'create_truth'; characterId: string; title: string; content: string; entryType: 'event' | 'fact' | 'secret'; category?: string };
+  | { type: 'create_truth'; characterId: string; title: string; content: string; entryType: 'event' | 'fact' | 'secret'; category?: string }
+  // Assessment events
+  | { type: 'assessment_started'; sessionId: string; assessmentType: string; playerId: string }
+  | { type: 'assessment_phase_started'; sessionId: string; phaseId: string; phaseIndex: number }
+  | { type: 'assessment_phase_completed'; sessionId: string; phaseId: string; score: number; maxScore: number }
+  | { type: 'assessment_completed'; sessionId: string; totalScore: number; totalMaxScore: number; cefrLevel: string }
+  // Onboarding events
+  | { type: 'onboarding_step_started'; stepId: string; stepIndex: number; totalSteps: number }
+  | { type: 'onboarding_step_completed'; stepId: string; stepIndex: number; totalSteps: number; durationMs: number }
+  | { type: 'onboarding_completed'; totalSteps: number; totalDurationMs: number };
 
 export type GameEventType = GameEvent['type'];
 

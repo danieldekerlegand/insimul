@@ -103,6 +103,13 @@ import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts"
 import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
 import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
 import { GameEventBus } from "@/components/3DGame/GameEventBus.ts";
+import {
+  isFirstPlaythrough,
+  isLanguageLearningWorld,
+  getTargetLanguage,
+  launchOnboarding,
+} from "@/components/3DGame/OnboardingLauncher.ts";
+import type { OnboardingLaunchResult } from "@/components/3DGame/OnboardingLauncher.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 
 // Constants
@@ -354,6 +361,10 @@ export class BabylonGame {
   private ambientConversationManager: NPCAmbientConversationManager | null = null;
   private vrManager: VRManager | null = null;
   private gameMenuSystem: GameMenuSystem | null = null;
+
+  // Onboarding / assessment
+  private onboardingResult: OnboardingLaunchResult | null = null;
+  private onboardingActive: boolean = false;
 
   // Player
   private playerController: CharacterController | null = null;
@@ -619,6 +630,9 @@ export class BabylonGame {
 
       console.log('[BabylonGame] Init complete! Scene meshes:', this.scene?.meshes.length,
         'Active meshes:', this.scene?.getActiveMeshes().length);
+
+      // Launch onboarding for first-time language-learning playthroughs
+      this.tryLaunchOnboarding();
     } catch (error) {
       console.error('[BabylonGame] Failed to initialize game:', error);
       this.hideLoadingScreen();
@@ -3634,6 +3648,62 @@ export class BabylonGame {
     } catch (error) {
       console.error('Error starting playthrough:', error);
       // Continue without playthrough for development/testing
+    }
+  }
+
+  /**
+   * Detect first playthrough in a language-learning world and launch onboarding.
+   * Runs asynchronously after the game loop starts so the world is visible.
+   */
+  private async tryLaunchOnboarding(): Promise<void> {
+    if (!this.worldData || !this.guiManager) return;
+    if (!isLanguageLearningWorld(this.worldData)) return;
+
+    const playerId = this.config.userId || DEFAULT_PLAYER_ID;
+    const authToken = this.config.authToken || '';
+
+    const firstPlay = await isFirstPlaythrough(
+      this.config.worldId,
+      playerId,
+      authToken,
+    );
+    if (!firstPlay) {
+      console.log('[BabylonGame] Returning player — skipping onboarding');
+      return;
+    }
+
+    console.log('[BabylonGame] First playthrough detected — launching onboarding');
+    this.onboardingActive = true;
+
+    const result = await launchOnboarding({
+      eventBus: this.eventBus,
+      worldId: this.config.worldId,
+      playerId,
+      authToken,
+      targetLanguage: getTargetLanguage(this.worldData),
+      guiManager: this.guiManager,
+    });
+
+    this.onboardingActive = false;
+
+    if (result) {
+      this.onboardingResult = result;
+      console.log('[BabylonGame] Onboarding complete — CEFR:', result.cefrLevel);
+
+      // Apply CEFR-based content gating if available
+      if (this.contentGatingManager) {
+        try {
+          (this.contentGatingManager as any).setCefrLevel?.(result.cefrLevel);
+        } catch {
+          // Content gating may not support setCefrLevel yet
+        }
+      }
+
+      this.guiManager?.showToast({
+        title: `Language Level: ${result.cefrLevel}`,
+        description: 'Your adventure begins! Talk to NPCs to practice.',
+        duration: 5000,
+      });
     }
   }
 
@@ -7623,6 +7693,8 @@ export class BabylonGame {
   }
 
   private disposeSystems(): void {
+    this.onboardingActive = false;
+    this.onboardingResult = null;
     this.ambientConversationManager?.dispose();
     this.ambientConversationManager = null;
     this.npcTalkingIndicator?.dispose();

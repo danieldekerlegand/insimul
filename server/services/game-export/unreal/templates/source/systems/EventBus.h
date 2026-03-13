@@ -45,7 +45,15 @@ enum class EInsimulEventType : uint8
     QuestFailed             UMETA(DisplayName = "Quest Failed"),
     QuestAbandoned          UMETA(DisplayName = "Quest Abandoned"),
     ConversationOverheard   UMETA(DisplayName = "Conversation Overheard"),
-    CreateTruth             UMETA(DisplayName = "Create Truth")
+    CreateTruth             UMETA(DisplayName = "Create Truth"),
+    // Assessment / onboarding events
+    AssessmentStarted           UMETA(DisplayName = "Assessment Started"),
+    AssessmentPhaseStarted      UMETA(DisplayName = "Assessment Phase Started"),
+    AssessmentPhaseCompleted    UMETA(DisplayName = "Assessment Phase Completed"),
+    AssessmentCompleted         UMETA(DisplayName = "Assessment Completed"),
+    OnboardingStepStarted       UMETA(DisplayName = "Onboarding Step Started"),
+    OnboardingStepCompleted     UMETA(DisplayName = "Onboarding Step Completed"),
+    OnboardingCompleted         UMETA(DisplayName = "Onboarding Completed")
 };
 
 /**
@@ -172,6 +180,21 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString NpcId1;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString NpcId2;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString LanguageUsed;
+
+    // ── Assessment / onboarding fields ───────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString SessionId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AssessmentType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PlayerId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PhaseId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 PhaseIndex = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float MaxScore = 0.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float TotalScore = 0.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float TotalMaxScore = 0.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString CefrLevel;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString StepId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 StepIndex = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 TotalSteps = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 TotalDurationMs = 0;
 };
 
 // ── Delegates ────────────────────────────────────────────────────────────────
