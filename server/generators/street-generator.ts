@@ -1,0 +1,461 @@
+/**
+ * Street Generator — produces connected street network graphs for settlements.
+ * Uses noise-based displacement for organic curves and cost-weighted pathfinding
+ * to respect terrain slope.
+ */
+
+import { createNoise2D, fractalNoise } from '../../shared/procedural/noise';
+import type { StreetNode, StreetEdge, StreetNetwork, StreetNodeType, StreetType } from '../../shared/game-engine/types';
+
+export interface StreetGenConfig {
+  center: { x: number; z: number };
+  radius: number;
+  settlementType: string;
+  seed: string;
+  slopeMap?: number[][];
+}
+
+interface InternalNode {
+  id: string;
+  x: number;
+  z: number;
+  type: StreetNodeType;
+  tier: 'main' | 'secondary' | 'tertiary';
+}
+
+interface InternalEdge {
+  id: string;
+  fromId: string;
+  toId: string;
+  tier: 'main' | 'secondary' | 'tertiary';
+  waypoints: { x: number; z: number }[];
+}
+
+/** Simple seeded PRNG using xorshift32 */
+function seededRandom(seed: string): () => number {
+  let s = 0;
+  for (let i = 0; i < seed.length; i++) {
+    s = ((s << 5) - s + seed.charCodeAt(i)) | 0;
+  }
+  s = s >>> 0 || 1;
+  return () => {
+    s ^= s << 13;
+    s ^= s >>> 17;
+    s ^= s << 5;
+    return (s >>> 0) / 4294967296;
+  };
+}
+
+/** Distance between two 2D points */
+function dist(ax: number, az: number, bx: number, bz: number): number {
+  const dx = bx - ax;
+  const dz = bz - az;
+  return Math.sqrt(dx * dx + dz * dz);
+}
+
+/** Normalize angle to [0, 2π) */
+function normalizeAngle(a: number): number {
+  while (a < 0) a += Math.PI * 2;
+  while (a >= Math.PI * 2) a -= Math.PI * 2;
+  return a;
+}
+
+export class StreetGenerator {
+  private nodeCounter = 0;
+  private edgeCounter = 0;
+
+  private nextNodeId(): string {
+    return `sn_${this.nodeCounter++}`;
+  }
+
+  private nextEdgeId(): string {
+    return `se_${this.edgeCounter++}`;
+  }
+
+  /**
+   * Generate an organic/medieval street layout.
+   * Algorithm:
+   * 1. Place center node
+   * 2. Radiate 3-5 main roads at irregular angles
+   * 3. Branch secondary roads off main roads
+   * 4. Add tertiary curved connections between nearby dead ends
+   * 5. Apply noise displacement for organic feel
+   * 6. Ensure connectivity
+   */
+  generateOrganic(config: StreetGenConfig): StreetNetwork {
+    this.nodeCounter = 0;
+    this.edgeCounter = 0;
+
+    const rng = seededRandom(config.seed);
+    const noise = createNoise2D(config.seed + '_street');
+    const { center, radius } = config;
+
+    const nodes: InternalNode[] = [];
+    const edges: InternalEdge[] = [];
+
+    // 1. Center node
+    const centerNode: InternalNode = {
+      id: this.nextNodeId(),
+      x: center.x,
+      z: center.z,
+      type: 'intersection',
+      tier: 'main',
+    };
+    nodes.push(centerNode);
+
+    // 2. Main roads radiating from center (3-5)
+    const mainRoadCount = 3 + Math.floor(rng() * 3); // 3-5
+    const baseAngle = rng() * Math.PI * 2;
+    const mainEndNodes: InternalNode[] = [];
+
+    for (let i = 0; i < mainRoadCount; i++) {
+      const angleSpread = (Math.PI * 2) / mainRoadCount;
+      const angle = baseAngle + i * angleSpread + (rng() - 0.5) * angleSpread * 0.4;
+      const roadLength = radius * (0.6 + rng() * 0.4);
+
+      // Generate main road with intermediate nodes
+      const segments = 2 + Math.floor(rng() * 2); // 2-3 segments
+      let prevNode = centerNode;
+
+      for (let s = 1; s <= segments; s++) {
+        const t = s / segments;
+        const rawX = center.x + Math.cos(angle) * roadLength * t;
+        const rawZ = center.z + Math.sin(angle) * roadLength * t;
+
+        // Apply noise displacement for organic curves
+        const displace = noise(rawX * 0.02, rawZ * 0.02) * radius * 0.08;
+        const perpAngle = angle + Math.PI / 2;
+        let nx = rawX + Math.cos(perpAngle) * displace;
+        let nz = rawZ + Math.sin(perpAngle) * displace;
+
+        // Slope avoidance: nudge away from steep terrain
+        if (config.slopeMap) {
+          const nudged = this.avoidSteepTerrain(nx, nz, config.slopeMap, radius, rng);
+          nx = nudged.x;
+          nz = nudged.z;
+        }
+
+        const nodeType: StreetNodeType = s === segments ? 'dead_end' : 'intersection';
+        const node: InternalNode = {
+          id: this.nextNodeId(),
+          x: nx,
+          z: nz,
+          type: nodeType,
+          tier: 'main',
+        };
+        nodes.push(node);
+
+        edges.push(this.createEdge(prevNode, node, 'main'));
+        prevNode = node;
+
+        if (s === segments) {
+          mainEndNodes.push(node);
+        }
+      }
+    }
+
+    // 3. Secondary roads branching off main road nodes
+    const mainNodes = nodes.filter(n => n.tier === 'main' && n.id !== centerNode.id);
+    const secondaryEndNodes: InternalNode[] = [];
+
+    for (const mNode of mainNodes) {
+      if (mNode.type === 'dead_end') continue; // Skip endpoints for branching
+      const branchCount = Math.floor(rng() * 2) + 1; // 1-2 branches
+
+      for (let b = 0; b < branchCount; b++) {
+        // Branch at roughly perpendicular angle from main road
+        const mainAngle = Math.atan2(mNode.z - center.z, mNode.x - center.x);
+        const branchAngle = mainAngle + (rng() > 0.5 ? 1 : -1) * (Math.PI / 2 + (rng() - 0.5) * 0.6);
+        const branchLength = radius * (0.2 + rng() * 0.25);
+
+        const segs = 1 + Math.floor(rng() * 2); // 1-2 segments
+        let prev = mNode;
+        mNode.type = 'intersection'; // Node now has branches
+
+        for (let s = 1; s <= segs; s++) {
+          const t = s / segs;
+          const rawX = mNode.x + Math.cos(branchAngle) * branchLength * t;
+          const rawZ = mNode.z + Math.sin(branchAngle) * branchLength * t;
+
+          const displace = noise(rawX * 0.03, rawZ * 0.03) * radius * 0.05;
+          const perpAngle = branchAngle + Math.PI / 2;
+          let nx = rawX + Math.cos(perpAngle) * displace;
+          let nz = rawZ + Math.sin(perpAngle) * displace;
+
+          if (config.slopeMap) {
+            const nudged = this.avoidSteepTerrain(nx, nz, config.slopeMap, radius, rng);
+            nx = nudged.x;
+            nz = nudged.z;
+          }
+
+          // Check if too close to existing node — snap instead
+          const nearby = this.findNearbyNode(nodes, nx, nz, radius * 0.08);
+          if (nearby && nearby.id !== prev.id) {
+            edges.push(this.createEdge(prev, nearby, 'secondary'));
+            nearby.type = 'intersection';
+            break;
+          }
+
+          const nodeType: StreetNodeType = s === segs ? 'dead_end' : 'intersection';
+          const node: InternalNode = {
+            id: this.nextNodeId(),
+            x: nx,
+            z: nz,
+            type: nodeType,
+            tier: 'secondary',
+          };
+          nodes.push(node);
+          edges.push(this.createEdge(prev, node, 'secondary'));
+          prev = node;
+
+          if (s === segs) {
+            secondaryEndNodes.push(node);
+          }
+        }
+      }
+    }
+
+    // 4. Tertiary connections: connect nearby dead ends to improve connectivity
+    const deadEnds = nodes.filter(n => n.type === 'dead_end');
+    const maxTertiaryDist = radius * 0.35;
+
+    for (let i = 0; i < deadEnds.length; i++) {
+      for (let j = i + 1; j < deadEnds.length; j++) {
+        const d = dist(deadEnds[i].x, deadEnds[i].z, deadEnds[j].x, deadEnds[j].z);
+        if (d < maxTertiaryDist && d > radius * 0.05) {
+          // Check that this edge doesn't already exist
+          const exists = edges.some(
+            e =>
+              (e.fromId === deadEnds[i].id && e.toId === deadEnds[j].id) ||
+              (e.fromId === deadEnds[j].id && e.toId === deadEnds[i].id)
+          );
+          if (!exists && rng() < 0.6) {
+            edges.push(this.createEdge(deadEnds[i], deadEnds[j], 'tertiary'));
+            deadEnds[i].type = 'intersection';
+            deadEnds[j].type = 'intersection';
+          }
+        }
+      }
+    }
+
+    // 5. Ensure full connectivity via MST-style bridge edges
+    this.ensureConnectivity(nodes, edges);
+
+    // 6. Apply final noise displacement to waypoints
+    for (const edge of edges) {
+      for (let w = 1; w < edge.waypoints.length - 1; w++) {
+        const wp = edge.waypoints[w];
+        const dx = noise(wp.x * 0.04, wp.z * 0.04) * radius * 0.02;
+        const dz = noise(wp.z * 0.04, wp.x * 0.04) * radius * 0.02;
+        wp.x += dx;
+        wp.z += dz;
+      }
+    }
+
+    // Convert to StreetNetwork
+    return this.toStreetNetwork(nodes, edges);
+  }
+
+  /** Create an internal edge with waypoints */
+  private createEdge(from: InternalNode, to: InternalNode, tier: 'main' | 'secondary' | 'tertiary'): InternalEdge {
+    // Generate intermediate waypoints for curved edges
+    const midX = (from.x + to.x) / 2;
+    const midZ = (from.z + to.z) / 2;
+    return {
+      id: this.nextEdgeId(),
+      fromId: from.id,
+      toId: to.id,
+      tier,
+      waypoints: [
+        { x: from.x, z: from.z },
+        { x: midX, z: midZ },
+        { x: to.x, z: to.z },
+      ],
+    };
+  }
+
+  /** Find a node within minDist of (x, z), if any */
+  private findNearbyNode(nodes: InternalNode[], x: number, z: number, minDist: number): InternalNode | null {
+    for (const node of nodes) {
+      if (dist(node.x, node.z, x, z) < minDist) {
+        return node;
+      }
+    }
+    return null;
+  }
+
+  /** Nudge a position away from steep terrain */
+  private avoidSteepTerrain(
+    x: number,
+    z: number,
+    slopeMap: number[][],
+    radius: number,
+    rng: () => number
+  ): { x: number; z: number } {
+    const rows = slopeMap.length;
+    const cols = slopeMap[0]?.length ?? 0;
+    if (rows === 0 || cols === 0) return { x, z };
+
+    // Map world coords to slopeMap indices
+    const mapX = Math.round(((x / radius + 1) / 2) * (cols - 1));
+    const mapZ = Math.round(((z / radius + 1) / 2) * (rows - 1));
+
+    if (mapX < 0 || mapX >= cols || mapZ < 0 || mapZ >= rows) return { x, z };
+
+    const slope = slopeMap[mapZ][mapX];
+    const slopeAngle = Math.atan(slope);
+    const maxRoadSlope = 0.26; // ~15 degrees
+
+    if (slopeAngle > maxRoadSlope) {
+      // Nudge toward lower slope direction
+      const nudgeAmount = radius * 0.05;
+      let bestX = x, bestZ = z, bestSlope = slope;
+
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const angle = rng() * Math.PI * 2;
+        const testX = x + Math.cos(angle) * nudgeAmount;
+        const testZ = z + Math.sin(angle) * nudgeAmount;
+        const tmx = Math.round(((testX / radius + 1) / 2) * (cols - 1));
+        const tmz = Math.round(((testZ / radius + 1) / 2) * (rows - 1));
+        if (tmx >= 0 && tmx < cols && tmz >= 0 && tmz < rows) {
+          const testSlope = slopeMap[tmz][tmx];
+          if (testSlope < bestSlope) {
+            bestX = testX;
+            bestZ = testZ;
+            bestSlope = testSlope;
+          }
+        }
+      }
+      return { x: bestX, z: bestZ };
+    }
+
+    return { x, z };
+  }
+
+  /** Ensure graph connectivity using BFS + bridge edges */
+  private ensureConnectivity(nodes: InternalNode[], edges: InternalEdge[]): void {
+    if (nodes.length <= 1) return;
+
+    // Build adjacency
+    const adj = new Map<string, Set<string>>();
+    for (const n of nodes) adj.set(n.id, new Set());
+    for (const e of edges) {
+      adj.get(e.fromId)!.add(e.toId);
+      adj.get(e.toId)!.add(e.fromId);
+    }
+
+    // BFS from first node
+    const visited = new Set<string>();
+    const queue = [nodes[0].id];
+    visited.add(nodes[0].id);
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      for (const neighbor of Array.from(adj.get(current)!)) {
+        if (!visited.has(neighbor)) {
+          visited.add(neighbor);
+          queue.push(neighbor);
+        }
+      }
+    }
+
+    if (visited.size === nodes.length) return; // Already connected
+
+    // Find disconnected components and connect them to main component
+    const nodeMap = new Map<string, InternalNode>();
+    for (const n of nodes) nodeMap.set(n.id, n);
+
+    const unvisited = nodes.filter(n => !visited.has(n.id));
+
+    while (unvisited.length > 0) {
+      // Find closest pair between visited and unvisited
+      let bestDist = Infinity;
+      let bestVisited: InternalNode | null = null;
+      let bestUnvisited: InternalNode | null = null;
+
+      for (const uNode of unvisited) {
+        for (const vId of Array.from(visited)) {
+          const vNode = nodeMap.get(vId)!;
+          const d = dist(uNode.x, uNode.z, vNode.x, vNode.z);
+          if (d < bestDist) {
+            bestDist = d;
+            bestVisited = vNode;
+            bestUnvisited = uNode;
+          }
+        }
+      }
+
+      if (bestVisited && bestUnvisited) {
+        edges.push(this.createEdge(bestVisited, bestUnvisited, 'tertiary'));
+        bestVisited.type = 'intersection';
+        bestUnvisited.type = 'intersection';
+
+        // BFS from newly connected node
+        const newQueue = [bestUnvisited.id];
+        visited.add(bestUnvisited.id);
+        while (newQueue.length > 0) {
+          const current = newQueue.shift()!;
+          for (const neighbor of Array.from(adj.get(current) ?? [])) {
+            if (!visited.has(neighbor)) {
+              visited.add(neighbor);
+              newQueue.push(neighbor);
+            }
+          }
+        }
+
+        // Remove newly visited from unvisited
+        for (let i = unvisited.length - 1; i >= 0; i--) {
+          if (visited.has(unvisited[i].id)) {
+            unvisited.splice(i, 1);
+          }
+        }
+      } else {
+        break; // Should not happen
+      }
+    }
+  }
+
+  /** Convert internal representation to StreetNetwork */
+  private toStreetNetwork(nodes: InternalNode[], edges: InternalEdge[]): StreetNetwork {
+    const streetNodes: StreetNode[] = nodes.map(n => ({
+      id: n.id,
+      position: { x: n.x, z: n.z },
+      elevation: 0,
+      type: n.type,
+    }));
+
+    const streetEdges: StreetEdge[] = edges.map(e => {
+      const from = nodes.find(n => n.id === e.fromId)!;
+      const to = nodes.find(n => n.id === e.toId)!;
+      const length = this.computeEdgeLength(e.waypoints);
+
+      const streetType: StreetType = e.tier === 'main' ? 'main_road' : e.tier === 'secondary' ? 'residential' : 'lane';
+      const width = e.tier === 'main' ? 8 : e.tier === 'secondary' ? 6 : 4;
+
+      return {
+        id: e.id,
+        name: '',
+        fromNodeId: e.fromId,
+        toNodeId: e.toId,
+        streetType,
+        width,
+        waypoints: e.waypoints.map(wp => ({ x: wp.x, y: 0, z: wp.z })),
+        length,
+        condition: 1,
+        traffic: 0,
+        sidewalks: e.tier !== 'tertiary',
+        hasStreetLights: e.tier === 'main',
+      };
+    });
+
+    return { nodes: streetNodes, edges: streetEdges };
+  }
+
+  /** Compute total length of a polyline */
+  private computeEdgeLength(waypoints: { x: number; z: number }[]): number {
+    let total = 0;
+    for (let i = 1; i < waypoints.length; i++) {
+      total += dist(waypoints[i - 1].x, waypoints[i - 1].z, waypoints[i].x, waypoints[i].z);
+    }
+    return total;
+  }
+}

@@ -20,6 +20,8 @@
 - The merged lifecycle functions have different signatures than the old simplified ones (e.g., constructBuilding takes worldId/lotId/businessId instead of commissionerId/settlementId)
 - For simulation integration tests: mock storage singleton via `vi.mock('../db/storage')`, mock Prolog modules, and mock TotT extension modules (lazy-imported via dynamic import)
 - PrologManager mock must use `function` keyword (not arrow fn) for `new` to work in vitest
+- Changing ir-types.ts or types.ts triggers pre-commit drift check — update all 4 export templates + `npm run drift:update` before commit
+- Unity template file paths use lowercase: scripts/data/ and scripts/core/ (not Scripts/Data/)
 ---
 
 ## 2026-03-11 - US-001
@@ -282,5 +284,44 @@
   - Ground mesh is registered as global in SettlementSceneManager via name matching ('ground' in globalNames set)
   - DataSource interface must be updated in all 3 places: interface, ApiDataSource, FileDataSource
   - BabylonGame flow: initializeScene → createGround (flat) → loadWorldData → tryApplyTerrainHeightmap (replaces if heightmap available)
+  - TypeScript error count unchanged at 459
+---
+
+## 2026-03-12 - US-007 (naturalized-procgen)
+- Added StreetNode, StreetEdge, StreetNetwork interfaces to shared/game-engine/types.ts
+- Added StreetNodeIR, StreetEdgeIR, StreetNetworkIR interfaces to shared/game-engine/ir-types.ts
+- Added optional streetNetwork field to SettlementIR
+- Updated all 4 export data generators (Babylon, Godot, Unity, Unreal) to pass streetNetwork data
+- Added InsimulStreetNetworkData/NodeData/EdgeData C# classes to Unity InsimulSettlementData.cs
+- Added FInsimulStreetNode/Edge/Network USTRUCTs + EInsimulStreetNodeType/StreetType enums to Unreal GameTypes.h
+- Added FInsimulStreetNetwork field to Unreal SettlementData.h
+- Updated drift manifest to match new hashes
+- Files changed: shared/game-engine/types.ts, shared/game-engine/ir-types.ts, godot-data-generator.ts, unity-data-generator.ts, unreal-datatable-generator.ts, InsimulSettlementData.cs, GameTypes.h, SettlementData.h, drift-manifest.json
+- **Learnings for future iterations:**
+  - Changing ir-types.ts or types.ts triggers pre-commit drift check — must update all 4 export templates + run `npm run drift:update`
+  - Unity template files are at lowercase paths: scripts/data/ and scripts/core/ (not Scripts/Data/) — macOS case-insensitive FS masks this
+  - Godot/Babylon generators pass raw dictionaries so new optional fields flow through automatically
+  - Unity needs explicit C# [Serializable] classes; Unreal needs USTRUCT(BlueprintType) with GENERATED_BODY()
+  - SettlementData.h needs #include "GameTypes.h" to use FInsimulStreetNetwork
+  - TypeScript error count unchanged at 459
+---
+
+## 2026-03-12 - US-008 (naturalized-procgen)
+- Created server/generators/street-generator.ts with class StreetGenerator
+- Method generateOrganic(config: StreetGenConfig): StreetNetwork generates connected organic/medieval street graphs
+- Algorithm: center node → 3-5 main roads at irregular angles → secondary branches → tertiary dead-end connections → connectivity enforcement
+- Perlin noise displacement applied to waypoints for organic curves
+- Slope map avoidance: nudges road nodes away from steep terrain (>15°) via random sampling
+- Connectivity guaranteed via BFS + MST-style bridge edges for disconnected components
+- Street types: main_road (width 8), residential (width 6), lane (width 4)
+- Created server/generators/street-generator.test.ts with 320 assertions
+- Tests cover: basic structure, node/edge validity, full connectivity (BFS), determinism, different seeds, street types, slope map avoidance, larger settlements
+- Files changed: server/generators/street-generator.ts (new), server/generators/street-generator.test.ts (new)
+- **Learnings for future iterations:**
+  - Set iteration requires `Array.from()` wrapper (same as Map iteration) when target < es2015
+  - StreetGenerator is a pure class with no storage dependencies — easy to test without mocks
+  - Organic pattern: main roads radiate from center, secondary branch perpendicular, tertiary connect nearby dead ends
+  - findNearbyNode snapping (radius * 0.08 threshold) prevents duplicate nodes at intersections
+  - ensureConnectivity must also update adjacency list when adding bridge edges for multi-component graphs
   - TypeScript error count unchanged at 459
 ---
