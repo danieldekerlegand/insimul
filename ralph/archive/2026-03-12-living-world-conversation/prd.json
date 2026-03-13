@@ -1,0 +1,763 @@
+{
+  "project": "Insimul",
+  "branchName": "ralph/living-world-conversation",
+  "description": "Living World & Real-Time Conversation Engine \u2014 gRPC streaming conversation microservice, full voice pipeline, autonomous NPC behavior, pathfinding, building collision/interiors, language-integrated commerce, and plugin SDKs for JS/Unreal/Unity/Godot",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Protobuf schema for conversation service",
+      "description": "As a developer, I need protobuf service definitions so that all clients share a single conversation contract.",
+      "acceptanceCriteria": [
+        "Create proto/conversation.proto with service InsimulConversation",
+        "Define ConversationStream RPC: bidirectional streaming (stream ConversationRequest <-> stream ConversationResponse)",
+        "ConversationRequest supports oneof: TextInput (text, session_id, character_id, language_code), AudioChunk (data bytes, encoding, sample_rate, session_id, character_id), SystemCommand",
+        "ConversationResponse supports oneof: TextChunk (text, is_final, language_code, session_id), AudioChunk (data, encoding, sample_rate, duration_ms), FacialData (repeated Viseme with phoneme/weight/duration_ms), ActionTrigger (action_type, target_id, parameters map), ConversationMeta (session_id, state enum)",
+        "Define NpcToNpcStream RPC for autonomous NPC-NPC conversations",
+        "Install @grpc/proto-loader and @grpc/grpc-js as dependencies",
+        "Compile protobuf to TypeScript types using ts-proto or proto-loader",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "LLM provider interface and Gemini streaming implementation",
+      "description": "As a developer, I need a pluggable LLM provider so the conversation service can use Gemini with streaming and swap providers.",
+      "acceptanceCriteria": [
+        "Create server/services/conversation/providers/llm-provider.ts with ILLMProvider interface",
+        "Interface has streamCompletion(prompt, context, options) returning AsyncIterable<string> for token-by-token delivery",
+        "Options include: temperature, maxTokens, languageCode, characterPersonality, conversationHistory",
+        "Create server/services/conversation/providers/gemini-provider.ts implementing ILLMProvider",
+        "Gemini provider uses generateContentStream for streaming tokens",
+        "Create provider registry with registerProvider(name, factory) and getProvider(name)",
+        "Configuration via env vars: LLM_PROVIDER, GEMINI_API_KEY",
+        "Typecheck passes",
+        "Unit test: provider registry resolves correctly, Gemini provider instantiates"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Conversation context manager",
+      "description": "As a developer, I need a context manager that builds rich NPC context from world state so NPCs respond in-character.",
+      "acceptanceCriteria": [
+        "Create server/services/conversation/context-manager.ts",
+        "buildContext(characterId, playerId, worldId, sessionId) returns full conversation context object",
+        "Context includes character data: name, Big Five personality traits, occupation, workplace, family, romantic status, friendships/enemies, current emotional state, current location, time of day",
+        "Context includes world data: name, era, language(s), cultural setting",
+        "Context includes relationship with player: friendship level, romance stage, trust, previous conversation topics",
+        "Context includes language-learning directives: target language, player proficiency, learned vocabulary list",
+        "Context serializes to under 4000 tokens",
+        "Typecheck passes",
+        "Unit test: context builder produces correct structure from mock world data"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "gRPC server \u2014 text streaming endpoint",
+      "description": "As a developer, I need a gRPC server that handles text-based conversation streams with sub-500ms first-token latency.",
+      "acceptanceCriteria": [
+        "Create server/services/conversation/grpc-server.ts using @grpc/grpc-js",
+        "Server listens on configurable port (default 50051), separate from Express HTTP server",
+        "Implement ConversationStream handler for text input: receives TextInput messages, streams back TextChunk responses",
+        "Text response chunks stream token-by-token from LLM provider (not buffered until complete)",
+        "Session management: create/resume/end conversation sessions with persistent context (using context-manager)",
+        "Graceful stream termination on client disconnect",
+        "Health check RPC for monitoring",
+        "Server starts alongside Express server in server/index.ts",
+        "Typecheck passes",
+        "Unit test: mock LLM provider, verify streaming text chunks arrive incrementally"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "gRPC server \u2014 session management and concurrency",
+      "description": "As a developer, I need the gRPC server to handle concurrent sessions with conversation history.",
+      "acceptanceCriteria": [
+        "Session store: in-memory map of session_id to conversation state (history, character context, active status)",
+        "Session creation: auto-create on first message with new session_id",
+        "Session resume: restore conversation history when same session_id reconnects",
+        "Session end: cleanup on SystemCommand.END or client disconnect",
+        "Session timeout: auto-cleanup sessions idle for >30 minutes",
+        "Concurrent session support: handle 50+ simultaneous conversation streams without blocking",
+        "Conversation history: maintain last 20 messages per session for context window",
+        "Typecheck passes",
+        "Unit test: concurrent sessions operate independently, session timeout works"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "NPC conversation memory service",
+      "description": "As a developer, I need NPCs to remember previous conversations so relationships feel meaningful.",
+      "acceptanceCriteria": [
+        "Create server/services/conversation/npc-memory.ts",
+        "Store conversation summaries per NPC-player pair in MongoDB (not full transcripts \u2014 key points only)",
+        "Summary includes: topics discussed, promises made, questions asked, emotional tone, language used",
+        "Conversation count tracking per NPC-player pair",
+        "Key fact extraction: store player-shared information (name, origin, quest details)",
+        "Memory retrieval: getMemory(npcId, playerId) returns summary for context-manager to include",
+        "Memory update: after conversation ends, auto-summarize and store (using LLM provider with short prompt)",
+        "Typecheck passes",
+        "Unit test: memory stores, retrieves, and updates correctly"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "NPC-to-NPC conversation engine",
+      "description": "As a developer, I need NPCs to autonomously converse with each other so the world feels alive.",
+      "acceptanceCriteria": [
+        "Create server/services/conversation/npc-conversation-engine.ts",
+        "initiateConversation(npc1Id, npc2Id, worldId, topic?) starts NPC-NPC conversation",
+        "Topic selection driven by: shared location, relationship history, personality compatibility, recent events",
+        "Conversation uses LLM with both NPC personalities in system prompt (alternating speakers)",
+        "Conversations run 3-8 exchanges based on personality (extroverts talk longer)",
+        "NPCs speak in the world's language(s)",
+        "Conversation results update relationship values between the two NPCs",
+        "Rate limiting: max 3 concurrent NPC-NPC conversations per world",
+        "Fallback to template-based conversations (existing AmbientConversationSystem) when LLM unavailable",
+        "Emit events to GameEventBus: ambient_conversation_started, ambient_conversation_ended",
+        "Typecheck passes",
+        "Unit test: conversation respects personality weights, rate limiting works"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "STT provider interface and implementation",
+      "description": "As a developer, I need a speech-to-text provider so players can speak to NPCs via microphone.",
+      "acceptanceCriteria": [
+        "Create server/services/conversation/stt/stt-provider.ts with ISTTProvider interface",
+        "Interface: streamTranscription(audioStream) returns AsyncIterable<TranscriptionResult>",
+        "TranscriptionResult includes: text, isFinal, confidence, languageDetected",
+        "Create Google Cloud Speech-to-Text provider as default implementation",
+        "Streaming transcription: partial results arrive as player speaks (not waiting for silence)",
+        "Integrate into gRPC server: AudioChunk input \u2192 STT \u2192 text \u2192 LLM \u2192 response",
+        "Typecheck passes",
+        "Unit test: mock STT provider returns streaming transcription results"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "TTS provider interface and implementation",
+      "description": "As a developer, I need a text-to-speech provider so NPCs can speak their dialogue aloud.",
+      "acceptanceCriteria": [
+        "Create server/services/conversation/tts/tts-provider.ts with ITTSProvider interface",
+        "Interface: synthesize(text, voice, options) returns AsyncIterable<AudioChunk>",
+        "Options include: languageCode, speakingRate, pitch, encoding (opus/pcm)",
+        "Create Google Cloud TTS provider as default implementation",
+        "Sentence boundary detection: split LLM output at sentence boundaries for TTS pipelining",
+        "Voice assignment: map character attributes (gender, age, personality) to voice profiles",
+        "Minimum 8 distinct voice profiles (4 male, 4 female)",
+        "Language-correct voices: use native voices for world's language",
+        "Typecheck passes",
+        "Unit test: TTS provider returns streaming audio chunks, voice assignment maps correctly"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "gRPC server \u2014 audio streaming integration",
+      "description": "As a developer, I need the gRPC server to handle full audio pipeline: STT input, LLM processing, TTS output.",
+      "acceptanceCriteria": [
+        "Extend ConversationStream handler to accept AudioChunk input",
+        "Pipeline: AudioChunk \u2192 STT (streaming) \u2192 text \u2192 LLM (streaming) \u2192 TTS (streaming) \u2192 AudioChunk + TextChunk response",
+        "Pipeline parallelism: while LLM generates sentence N+1, TTS synthesizes sentence N",
+        "Stream TextChunk and AudioChunk responses concurrently (text arrives before audio)",
+        "First audio playback target: within 1 second of player finishing input",
+        "Connection pooling: keep gRPC channels warm between conversations",
+        "Typecheck passes",
+        "Integration test: send mock audio, receive streaming text + audio response"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Viseme generation for lip sync",
+      "description": "As a developer, I need viseme data generated from TTS output so NPC mouths move when speaking.",
+      "acceptanceCriteria": [
+        "Create server/services/conversation/viseme/viseme-generator.ts",
+        "Generate viseme data from text input (phoneme-to-viseme mapping)",
+        "Support Oculus OVR viseme format (15 visemes: sil, PP, FF, TH, DD, kk, CH, SS, nn, RR, aa, E, ih, oh, ou)",
+        "Viseme timing synchronized with TTS audio chunk timestamps",
+        "Stream FacialData messages in gRPC response alongside corresponding AudioChunks",
+        "Configurable quality: full viseme (15 phonemes), simplified (5 mouth shapes), disabled",
+        "Graceful fallback: return simple open/close timing when full viseme unavailable",
+        "Typecheck passes",
+        "Unit test: text input produces correctly timed viseme sequence"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Client-side streaming audio player",
+      "description": "As a developer, I need a streaming audio player in Babylon.js that plays gRPC audio chunks smoothly.",
+      "acceptanceCriteria": [
+        "Create client/src/components/3DGame/StreamingAudioPlayer.ts",
+        "Receives audio chunks, decodes via Web Audio API (AudioContext, AudioBufferSourceNode)",
+        "Pre-buffer 2-3 chunks before starting playback to prevent stuttering",
+        "Seamless chunk concatenation: no audible gaps between chunks",
+        "Spatial audio: NPC voice volume attenuates with distance from player camera",
+        "Interrupt handling: stop current audio when new conversation starts or player walks away",
+        "Audio ducking: reduce ambient/music volume during NPC speech (integrate with AudioManager)",
+        "Playback state events: onStart, onChunkPlayed, onComplete callbacks",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Client-side lip sync controller",
+      "description": "As a developer, I need a lip sync controller that applies viseme data to NPC face meshes.",
+      "acceptanceCriteria": [
+        "Create client/src/components/3DGame/LipSyncController.ts",
+        "Receives FacialData from gRPC stream, applies viseme weights to character mesh morph targets",
+        "Smooth interpolation between viseme poses (not snapping)",
+        "Synchronized with StreamingAudioPlayer playback timing",
+        "Fallback: simple open/close mouth animation when no morph targets available on mesh",
+        "Start/stop lip sync on conversation begin/end",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Integrate streaming conversation into BabylonChatPanel",
+      "description": "As a player, I want the chat panel to use the new gRPC streaming service for real-time conversation.",
+      "acceptanceCriteria": [
+        "Update BabylonChatPanel.ts to connect to gRPC-Web endpoint instead of direct Gemini API calls",
+        "Text streams token-by-token into chat panel (typewriter effect)",
+        "Audio playback begins automatically when audio chunks arrive (using StreamingAudioPlayer)",
+        "Lip sync activates on NPC mesh during audio playback (using LipSyncController)",
+        "Microphone input: push-to-talk button sends AudioChunk stream to gRPC",
+        "Fallback: if gRPC unavailable, fall back to existing direct Gemini API flow",
+        "Show visual indicators: thinking (dots), speaking (audio wave icon), listening (mic active)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Navigation mesh generation",
+      "description": "As a developer, I need a navigation mesh generated from the world so NPCs can pathfind between locations.",
+      "acceptanceCriteria": [
+        "Create client/src/components/3DGame/NavigationSystem.ts",
+        "Generate navigation mesh from world terrain and building footprints at world load time",
+        "Use Babylon.js RecastJSPlugin (or recast-navigation WASM) for navmesh generation",
+        "NavMesh excludes building interiors (solid walls), water bodies, impassable terrain",
+        "NavMesh includes roads, paths, open ground, building doorway entry points",
+        "findPath(startPos, endPos) returns Vector3[] waypoint array",
+        "Path smoothing: remove unnecessary waypoints for natural movement",
+        "Debug visualization: toggle-able navmesh overlay (wireframe mesh)",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "A* pathfinding on navigation mesh",
+      "description": "As a developer, I need pathfinding that finds optimal routes and handles dynamic obstacles.",
+      "acceptanceCriteria": [
+        "Implement A* pathfinding on the navigation mesh (or use RecastJS crowd/query API)",
+        "getReachableLocations(fromPos, maxDistance) returns reachable Location[] for NPC decision-making",
+        "Dynamic obstacle avoidance: NPCs steer around other NPCs and the player",
+        "Path invalidation: recalculate if obstacle appears on current path",
+        "Performance: pathfinding budget of 5 calculations per frame, queue remainder",
+        "Pathfinding for 50 NPCs completes within 16ms frame budget",
+        "Debug visualization: toggle-able path lines for selected NPC",
+        "Typecheck passes",
+        "Unit test: pathfinding finds valid routes between known positions, avoids obstacles"
+      ],
+      "priority": 16,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "NPC movement controller",
+      "description": "As a developer, I need NPCs to physically walk along pathfinding routes with natural movement.",
+      "acceptanceCriteria": [
+        "Create client/src/components/3DGame/NPCMovementController.ts",
+        "moveTo(targetPosition, speed?, callback?) initiates movement along pathfinding route",
+        "Walking speed varies: stroll (1.5 m/s), walk (3 m/s), hurry (5 m/s)",
+        "NPCs rotate to face movement direction with smooth turning (slerp, not snapping)",
+        "Animation integration: play walk animation during movement, idle when stopped (use existing animation groups on mesh)",
+        "Arrival detection: trigger callback when NPC reaches destination (within 0.5m tolerance)",
+        "Queue system: NPCs can queue sequential movement commands",
+        "Interrupt: new moveTo cancels current movement and reroutes",
+        "NPC stops and faces player when player initiates conversation",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Daily schedule execution engine",
+      "description": "As a developer, I need the existing routine system to drive actual NPC movement through their daily schedules.",
+      "acceptanceCriteria": [
+        "Create client/src/components/3DGame/ScheduleExecutor.ts",
+        "Reads NPC routine data (from routine-system.ts TimeBlocks) and converts to movement commands",
+        "Game time system: configurable day/night cycle (default 1 real minute = 1 game hour)",
+        "Schedule phases: sleep (22-06), morning (06-07), commute to work (07-08), work (08-17), commute home (17-18), evening (18-22)",
+        "Personality-modified schedules: high conscientiousness = early riser (05:00), low = night owl (23:00)",
+        "NPCs walk to correct location at each schedule transition via NPCMovementController",
+        "Work-shift awareness: day-shift 08-17, night-shift 20-05",
+        "Interruption handling: player conversation pauses schedule, resumes after",
+        "Schedule catch-up: if NPC is late, skip to current phase rather than replaying past phases",
+        "Typecheck passes"
+      ],
+      "priority": 18,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Jobsite validation and auto-generation",
+      "description": "As a developer, I need every employed NPC to have a valid workplace building so schedules don't break.",
+      "acceptanceCriteria": [
+        "Create validation in world generation: verify each NPC's currentOccupationId \u2192 occupation.businessId \u2192 business.lotId \u2192 lot has a building",
+        "Business-to-building-type mapping: Bakery \u2192 bakery, LawFirm \u2192 office, Restaurant \u2192 restaurant, Hospital \u2192 hospital, etc.",
+        "If NPC has occupation but no corresponding business exists, auto-generate business and building on available lot",
+        "If no lots available, create new lot for the auto-generated building",
+        "Validation report: log warnings for any broken NPC-occupation-business-building chain",
+        "Expose endpoint: GET /api/worlds/:worldId/validate/occupations returning chain status",
+        "Typecheck passes",
+        "Unit test: world with employed NPCs validates all chains; broken chain triggers auto-generation"
+      ],
+      "priority": 19,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "NPC animation controller and state machine",
+      "description": "As a developer, I need an animation controller for NPCs with smooth state transitions.",
+      "acceptanceCriteria": [
+        "Create client/src/components/3DGame/NPCAnimationController.ts",
+        "Animation state machine with states: idle, walk, run, talk, listen, work, sit, eat, wave, sleep",
+        "Smooth blending between states via crossfade (0.2-0.5 second transition)",
+        "Animation speed scaling: walk animation speed matches NPC movement speed",
+        "Idle variation: random sub-animations (weight-shift, look-around) on timer so NPCs don't all idle identically",
+        "Directional facing: NPC faces conversation partner during dialogue",
+        "Animation events: callback system for animation milestones",
+        "Use existing animation groups loaded on NPC meshes; fallback to idle if specific animation missing",
+        "Typecheck passes"
+      ],
+      "priority": 20,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Animation asset manifest and lazy loading",
+      "description": "As a developer, I need a pipeline for loading and managing NPC animations with lazy loading.",
+      "acceptanceCriteria": [
+        "Create client/src/components/3DGame/AnimationAssetManager.ts",
+        "Define animation manifest: JSON mapping animation names to asset paths and metadata",
+        "Lazy loading: animations load on first use, not at world start",
+        "Animation sharing: same animation data shared across NPCs with same skeleton type",
+        "Fallback: if specific animation missing, fall back to category default (e.g., missing knead_dough \u2192 work_standing)",
+        "Minimum animation set defined: idle, walk, run, talk, listen, wave, work_standing, work_sitting, sit, eat, drink, sleep",
+        "Support Mixamo GLB animation import format",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Occupation activity system",
+      "description": "As a developer, I need NPCs to perform visible work activities at their job sites.",
+      "acceptanceCriteria": [
+        "Create client/src/components/3DGame/OccupationActivitySystem.ts",
+        "Map occupation types to activity animation sequences: Baker (work_standing), Bartender (work_standing, pour), Blacksmith (work_standing, hammer), Shopkeeper (work_standing, idle), Guard (walk patrol waypoints), Teacher (talk, gesture), Generic (work_standing)",
+        "Activity cycle: NPCs rotate between 2-3 work activities every 30-120 game-minutes",
+        "Break behavior: 1-2 breaks during work shift (sit, eat animation)",
+        "Customer interaction: shopkeeper NPCs can be interrupted by player for commerce",
+        "NPCs positioned at appropriate work locations within building bounds",
+        "Typecheck passes"
+      ],
+      "priority": 22,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Building wall collision system",
+      "description": "As a player, I expect I can't walk through building walls and must use doors.",
+      "acceptanceCriteria": [
+        "Create client/src/components/3DGame/BuildingCollisionSystem.ts",
+        "Generate simplified box collision meshes for all building walls at building creation time",
+        "Door openings: collision mesh has gaps at door positions (one door per building minimum)",
+        "Player character blocked by wall colliders (Babylon.js physics impostor or moveWithCollisions)",
+        "NPC characters also blocked by wall colliders",
+        "Collision uses simplified geometry (boxes), not full building visual mesh",
+        "Collision meshes set to invisible (not rendered, only physics)",
+        "Buildings on dedicated collision group so raycasts can distinguish building hits",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 23,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "Building entry and interior loading with transitions",
+      "description": "As a player, I want to enter buildings through doors with a loading-screen transition to interior scenes.",
+      "acceptanceCriteria": [
+        "Create client/src/components/3DGame/BuildingEntrySystem.ts",
+        "Door detection: when player within 2m of building door, show 'Enter [Building Name]' prompt (floating UI)",
+        "Entry trigger: player presses E key or clicks prompt",
+        "Loading transition: fade-to-black (0.5s) \u2192 load interior (using existing BuildingInteriorGenerator) \u2192 fade-from-black (0.5s)",
+        "Player spawns at interior door position facing into room",
+        "Exit: door inside interior returns player to overworld at building exterior door position",
+        "UI indicator: show current building name while inside",
+        "Pause overworld NPC movement while player is in interior (performance optimization)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 24,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-025",
+      "title": "Interior NPC placement and behavior",
+      "description": "As a developer, I need NPCs to appear inside buildings when the player enters.",
+      "acceptanceCriteria": [
+        "Create client/src/components/3DGame/InteriorNPCManager.ts",
+        "When interior loads, query which NPCs should be present: employees during work hours, owner during business hours, visitors per schedule",
+        "Position NPCs at role-appropriate furniture: shopkeeper behind counter, bartender behind bar, patron at table",
+        "NPCs inside perform occupation activities (from OccupationActivitySystem)",
+        "Player can initiate conversation with interior NPCs",
+        "Interior NPCs react to player entry: shopkeeper greets, bartender asks order",
+        "NPC count cap: max 6 per interior for performance (prioritize employees, then visitors by relationship)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 25,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-026",
+      "title": "NPC socialization controller",
+      "description": "As a developer, I need NPCs to autonomously socialize with each other based on personality.",
+      "acceptanceCriteria": [
+        "Create client/src/components/3DGame/NPCSocializationController.ts",
+        "NPCs at the same location evaluate socialization every 5 game-minutes",
+        "Socialization probability based on: extroversion, relationship level, mood, time of day",
+        "When socializing: NPCs walk toward each other, face each other, play talk/listen animations",
+        "Trigger NPC-NPC conversation (server-side engine) when socialization starts",
+        "Post-conversation: relationship values update (friendship, trust, romance spark if applicable)",
+        "Personality-driven behavior: introverts seek quiet corners, extroverts gather in groups",
+        "If player is within overhearing range (25 units), conversation text streams to client with vocabulary highlighting",
+        "Typecheck passes"
+      ],
+      "priority": 26,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "TotT-style dynamic decision making \u2014 action grammar hierarchy",
+      "description": "As a developer, I need NPCs to make dynamic decisions via Ensemble-style action grammar rather than rigid schedules.",
+      "acceptanceCriteria": [
+        "Enhance VolitionSystem.ts with action grammar hierarchy: start (high-level goals) \u2192 non-terminal (strategies) \u2192 terminal (concrete actions)",
+        "Example: be_social (start) \u2192 find_friend (non-terminal) \u2192 walk_to_tavern + greet_friend (terminal)",
+        "Each terminal action uses existing softmax personality-weighted selection",
+        "Situational modifiers: health (rest if injured), emotional state (avoid social if angry), recent events",
+        "Schedule override: high-priority volition fires override routine (e.g., angry NPC confronts rival instead of going to work)",
+        "Return-to-schedule: after volition detour, NPC resumes normal schedule",
+        "Goal persistence: unfinished goals carry to next evaluation cycle",
+        "Typecheck passes",
+        "Unit test: high-neuroticism NPC chooses different actions than low-neuroticism NPC given same situation"
+      ],
+      "priority": 27,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-028",
+      "title": "Merchant inventory auto-generation by business type",
+      "description": "As a developer, I need merchant NPCs to have auto-generated inventories matching their business type.",
+      "acceptanceCriteria": [
+        "Create server/services/merchant-inventory.ts",
+        "Map business types to inventory categories: Bakery \u2192 food items, Blacksmith \u2192 weapons/tools/materials, Tavern \u2192 drinks/food, General Store \u2192 mixed, Apothecary \u2192 potions/herbs, Clothier \u2192 armor/fabric, Bookshop \u2192 collectibles",
+        "Auto-generate 8-15 items per merchant at world creation based on business type",
+        "Item names and descriptions generated in world's language if language-learning world",
+        "Price variation: \u00b120% from base, influenced by merchant personality (agreeable \u2192 lower)",
+        "Merchant gold reserve: 200-1000 based on business size",
+        "Inventory refresh: merchants restock daily (game-time)",
+        "Typecheck passes",
+        "Unit test: bakery merchant gets food items, blacksmith gets weapons/tools"
+      ],
+      "priority": 28,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-029",
+      "title": "Buy/sell transaction system",
+      "description": "As a player, I want to buy and sell items with merchant NPCs using gold currency.",
+      "acceptanceCriteria": [
+        "Enhance BabylonShopPanel.ts with proper transaction flow",
+        "Player gold tracked and displayed; merchant gold reserve tracked",
+        "Buy: player pays price, item added to inventory, merchant gold increases",
+        "Sell: player receives sell price (50% of base), item removed, merchant gold decreases",
+        "Sell modifier: merchant personality affects sell multiplier (agreeable pay more)",
+        "Item rarity price multipliers: common 1x, uncommon 3x, rare 10x, epic 50x, legendary 200x",
+        "Quantity support: buy/sell multiple stackable items",
+        "Gray out items player can't afford; show insufficient funds message",
+        "Merchant refuses items they don't deal in (blacksmith won't buy food)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 29,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-030",
+      "title": "Language-integrated purchase flow",
+      "description": "As a language learner, I want purchasing items to require target-language interaction to reinforce vocabulary.",
+      "acceptanceCriteria": [
+        "Enhance BabylonShopPanel.ts with language-learning mode (activated when world has target language)",
+        "NPC greets in target language when shop opens",
+        "Item names displayed in target language with native-language tooltip on hover",
+        "Beginner mode: point-and-click with vocabulary display ('You bought pain (bread)')",
+        "Intermediate mode: player types item name in target language to purchase (fuzzy match, accept minor errors)",
+        "Difficulty auto-scales based on player proficiency level from LanguageProgressTracker",
+        "Pronunciation practice: click item name to hear TTS pronunciation",
+        "Vocabulary tracking: purchased items added to player learned vocabulary list",
+        "Merchant responds in target language (Voil\u00e0!, Merci!, Vous n'avez pas assez d'or)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 30,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-031",
+      "title": "NPC simulation LOD and performance optimization",
+      "description": "As a developer, I need NPC simulation to scale to 50+ characters without frame drops.",
+      "acceptanceCriteria": [
+        "Create client/src/components/3DGame/NPCSimulationLOD.ts",
+        "LOD tiers: Near (<30m) full animation/pathfinding/lip sync; Medium (30-100m) simplified walk/idle only; Far (>100m) position-only teleport to schedule location; Off-screen position update on schedule transition only",
+        "Staggered updates: spread NPC evaluations across 10-frame window (not all on same frame)",
+        "Object pooling: reuse NPC mesh instances for characters entering/leaving player area",
+        "Animation instancing: share animation evaluation across NPCs playing same animation",
+        "Frame budget monitor: if frame time exceeds 16ms, reduce NPC update frequency",
+        "Typecheck passes",
+        "Performance test: 50 NPCs in world maintain 60fps (verify no frame drops in browser dev tools)"
+      ],
+      "priority": 31,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-032",
+      "title": "World state serialization \u2014 save and load",
+      "description": "As a player, I want NPC positions, inventories, and relationship changes to persist across sessions.",
+      "acceptanceCriteria": [
+        "Create client/src/components/3DGame/WorldStateManager.ts",
+        "Save state includes: NPC positions, current schedule phase, player inventory, player gold, player position, relationship values, romance stages, emotional states, merchant inventories",
+        "Auto-save every 5 minutes and on game exit",
+        "Save via API: POST /api/worlds/:worldId/game-state with JSON body",
+        "Load on game start: restore all state from last save",
+        "Support 3 save slots per world",
+        "Incremental saves: only transmit changed data (diff against last save)",
+        "Typecheck passes",
+        "Integration test: save state, reload, verify NPC positions and inventory match"
+      ],
+      "priority": 32,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-033",
+      "title": "Insimul JavaScript/TypeScript SDK package",
+      "description": "As a web game developer, I want a JS SDK that connects to the Insimul conversation service for any web game.",
+      "acceptanceCriteria": [
+        "Create packages/insimul-sdk-js/ as standalone npm package",
+        "InsimulClient class: connects to Insimul gRPC-Web endpoint",
+        "Methods: startConversation(characterId, options), sendText(text), sendAudio(audioChunk), endConversation()",
+        "Event callbacks: onTextChunk, onAudioChunk, onVisemeData, onActionTrigger, onError",
+        "Session management: automatic session_id tracking, resume after disconnect",
+        "Audio utilities: startMicCapture(), stopMicCapture() with Opus encoding",
+        "StreamingAudioPlayer class for chunk-based playback (Web Audio API)",
+        "API key authentication with world ID scoping",
+        "Full TypeScript type definitions",
+        "Bundle size target: <50KB minified+gzipped",
+        "README with quickstart guide",
+        "Typecheck passes",
+        "Unit test: mock gRPC connection, verify event callbacks fire"
+      ],
+      "priority": 33,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-034",
+      "title": "Insimul Unreal Engine plugin",
+      "description": "As an Unreal developer, I want a plugin that connects to the Insimul conversation service.",
+      "acceptanceCriteria": [
+        "Create packages/insimul-plugin-unreal/ with standard UE plugin structure",
+        "UInsimulSubsystem (GameInstanceSubsystem): manages gRPC connection",
+        "UInsimulChatbotComponent (ActorComponent): attach to any NPC for conversation",
+        "gRPC client using UE async task system (no main thread blocking)",
+        "UInsimulAudioCaptureComponent: wraps platform microphone APIs",
+        "UInsimulAudioStreamer: streaming TTS playback via UAudioComponent",
+        "UInsimulFaceSync: applies viseme data to morph targets on skeletal mesh",
+        "All key functions exposed as BlueprintCallable/BlueprintAssignable",
+        "Configuration: API key, server URL via editor details panel",
+        "Supported UE versions: 5.3+",
+        "README with setup guide",
+        "Compiles without errors on target UE version"
+      ],
+      "priority": 34,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-035",
+      "title": "Insimul Unity plugin",
+      "description": "As a Unity developer, I want a plugin that connects to the Insimul conversation service.",
+      "acceptanceCriteria": [
+        "Create packages/insimul-plugin-unity/ as Unity Package Manager (UPM) package",
+        "InsimulManager MonoBehaviour singleton: manages gRPC connection and session state",
+        "InsimulNPC MonoBehaviour: attach to any GameObject for conversation",
+        "gRPC client using grpc-dotnet for native builds, gRPC-Web for WebGL",
+        "InsimulMicrophone: wraps Unity Microphone class with Opus encoding",
+        "InsimulAudioPlayer: streams TTS to AudioSource component",
+        "InsimulLipSync: applies viseme weights to SkinnedMeshRenderer blend shapes",
+        "Inspector UI: custom editor for API key, server URL, character mappings",
+        "UnityEvents for onTextReceived, onConversationStarted, onConversationEnded",
+        "Supported Unity versions: 2022.3 LTS+",
+        "README with setup guide and sample scene",
+        "Compiles without errors; passes package validation"
+      ],
+      "priority": 35,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-036",
+      "title": "Insimul Godot plugin",
+      "description": "As a Godot developer, I want a plugin that connects to the Insimul conversation service.",
+      "acceptanceCriteria": [
+        "Create packages/insimul-plugin-godot/ as Godot addon (res://addons/insimul/)",
+        "InsimulClient Node: autoloaded singleton managing server connection",
+        "InsimulNPC Node: attach as child of CharacterBody3D for conversation",
+        "Transport: WebSocket-based with server-side gRPC-to-WebSocket bridge (Godot lacks native gRPC)",
+        "Audio capture: wrap AudioEffectCapture for microphone input",
+        "InsimulAudioPlayer: streams TTS to AudioStreamPlayer3D",
+        "InsimulLipSync: applies viseme data to BlendShape on MeshInstance3D",
+        "Signals: text_received, audio_chunk_received, conversation_started, conversation_ended",
+        "Export variables: API key, server URL, character ID in Inspector",
+        "GDScript API: all public methods callable from GDScript",
+        "Supported Godot versions: 4.2+",
+        "README with setup guide",
+        "Plugin passes Godot addon validation"
+      ],
+      "priority": 36,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-037",
+      "title": "gRPC-to-WebSocket bridge for Godot and browser fallback",
+      "description": "As a developer, I need a WebSocket bridge so that clients without gRPC support can use the conversation service.",
+      "acceptanceCriteria": [
+        "Create server/services/conversation/ws-bridge.ts",
+        "WebSocket server (on configurable port, default 50052) that proxies to internal gRPC conversation service",
+        "Client sends JSON messages over WebSocket, bridge translates to gRPC ConversationRequest protobuf",
+        "Bridge translates gRPC ConversationResponse back to JSON and sends over WebSocket",
+        "Audio data sent as binary WebSocket frames (not base64 JSON)",
+        "Session management: WebSocket connection maps 1:1 to gRPC stream",
+        "Reconnection: if WebSocket drops, client can reconnect and resume session",
+        "Used by Godot plugin and as browser fallback when gRPC-Web proxy unavailable",
+        "Typecheck passes",
+        "Unit test: WebSocket message round-trips correctly through bridge"
+      ],
+      "priority": 37,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-038",
+      "title": "Export pipeline \u2014 bundle Insimul plugins into exported games",
+      "description": "As a developer, I need the export pipeline to automatically include and configure Insimul plugins.",
+      "acceptanceCriteria": [
+        "Babylon.js exporter: bundle @insimul/sdk into exported project, configure with world API key and character IDs",
+        "Unreal exporter: include insimul-plugin-unreal in Plugins folder, pre-configure character mappings in DefaultGame.ini",
+        "Unity exporter: include insimul-plugin-unity as UPM package, pre-configure InsimulManager",
+        "Godot exporter: include insimul-plugin-godot in addons folder, pre-configure autoload",
+        "All exporters: embed character-to-NPC mapping (game character \u2192 Insimul character ID)",
+        "All exporters: include conversation service URL configuration",
+        "Typecheck passes",
+        "Integration test: export Babylon.js project, verify SDK is included and configured"
+      ],
+      "priority": 38,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-039",
+      "title": "Response latency metrics and adaptive quality",
+      "description": "As a developer, I need latency metrics across the conversation pipeline to monitor and optimize performance.",
+      "acceptanceCriteria": [
+        "Add timing instrumentation to each pipeline stage: STT duration, LLM first-token, LLM total, TTS first-chunk, TTS total, total end-to-end",
+        "Log p50/p95/p99 latencies per stage (rolling window of last 100 conversations)",
+        "Expose metrics via API: GET /api/metrics/conversation returns latency percentiles",
+        "Adaptive quality: if end-to-end latency exceeds 2 seconds, automatically reduce TTS quality or skip visemes",
+        "Client-side prediction: show typing indicator immediately on send (before server responds)",
+        "Typecheck passes",
+        "Unit test: metrics collection calculates percentiles correctly"
+      ],
+      "priority": 39,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}

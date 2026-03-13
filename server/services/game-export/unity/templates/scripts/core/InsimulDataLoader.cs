@@ -214,6 +214,62 @@ namespace Insimul.Core
         /// </summary>
         public static InsimulItemData[] LoadWorldItems() => LoadArray<InsimulItemData>(DataRoot + "items");
 
+        // ── Save / Load ──────────────────────────────────────────────────
+
+        /// <summary>
+        /// Save game state to a numbered slot (0-2).
+        /// Writes to Application.persistentDataPath/insimul_save_{slotIndex}.json.
+        /// </summary>
+        public static bool SaveGameState(int slotIndex, string gameStateJSON)
+        {
+            if (slotIndex < 0 || slotIndex > 2)
+            {
+                Debug.LogWarning($"[Insimul] SaveGameState: invalid slot {slotIndex} (must be 0-2)");
+                return false;
+            }
+            try
+            {
+                string savePath = Application.persistentDataPath + $"/insimul_save_{slotIndex}.json";
+                System.IO.File.WriteAllText(savePath, gameStateJSON);
+                Debug.Log($"[Insimul] SaveGameState: saved to slot {slotIndex}");
+                return true;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[Insimul] SaveGameState failed: {e.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Load game state from a numbered slot (0-2).
+        /// Returns null if no save exists in that slot.
+        /// </summary>
+        public static string LoadGameState(int slotIndex)
+        {
+            if (slotIndex < 0 || slotIndex > 2)
+            {
+                Debug.LogWarning($"[Insimul] LoadGameState: invalid slot {slotIndex} (must be 0-2)");
+                return null;
+            }
+            string savePath = Application.persistentDataPath + $"/insimul_save_{slotIndex}.json";
+            if (!System.IO.File.Exists(savePath))
+            {
+                return null;
+            }
+            try
+            {
+                string json = System.IO.File.ReadAllText(savePath);
+                Debug.Log($"[Insimul] LoadGameState: loaded slot {slotIndex}");
+                return json;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[Insimul] LoadGameState failed: {e.Message}");
+                return null;
+            }
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────
 
         private static T[] LoadFilteredArray<T>(string resourcePath, string settlementId) where T : class
