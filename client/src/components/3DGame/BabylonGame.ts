@@ -2145,10 +2145,20 @@ export class BabylonGame {
           terrain: settlement.terrain
         });
 
-        // Generate lot positions
-        const lotPositions = worldScaleManager
-          .generateLotPositions(scaledSettlement, buildingCount)
-          .map((pos) => this.projectToGround(pos.x, pos.z));
+        // Extract street names from lot data for street-aligned placement
+        const lotStreetNames = Array.from(new Set(lots.map((l: any) => l.streetName).filter(Boolean)));
+
+        // Generate street-aligned lot layout (commercial-friendly positions first)
+        const streetLayout = worldScaleManager.generateStreetAlignedSettlement(
+          scaledSettlement,
+          buildingCount,
+          businesses.length,
+          lotStreetNames.length > 0 ? lotStreetNames : undefined,
+        );
+
+        const lotPositions = streetLayout.lots.map((l) =>
+          this.projectToGround(l.position.x, l.position.z)
+        );
 
         // Spawn buildings (track per-settlement positions for street furniture)
         const settlementBuildingPositions: Vector3[] = [];
@@ -2452,13 +2462,12 @@ export class BabylonGame {
           sampleHeight
         );
 
-        // Generate intra-settlement streets (hub-and-spoke from center to buildings)
-        if (this.roadGenerator && settlementBuildingPositions.length > 0) {
-          this.roadGenerator.generateSettlementRoads(
+        // Generate intra-settlement streets along the street network
+        if (this.roadGenerator && streetLayout.streets.length > 0) {
+          this.roadGenerator.generateSettlementStreetNetwork(
             settlement.id,
-            settlementCenterForProps,
-            settlementBuildingPositions,
-            sampleHeight
+            streetLayout.streets,
+            sampleHeight,
           );
         }
 

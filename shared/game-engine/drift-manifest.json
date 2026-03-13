@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-13T12:48:19.864Z",
+  "lastUpdated": "2026-03-13T13:11:57.792Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -217,7 +217,7 @@
     {
       "path": "client/src/components/3DGame/WorldScaleManager.ts",
       "description": "World-to-scene coordinate scaling, biome setup, terrain parameters.",
-      "hash": "7123ecd290e767d7b4db2535347513776bbfef11eeef06e1ff010a794082959b",
+      "hash": "66b52d95b1856b8ad57da42f79e22242a7343388db384bae4b888db7dad24b77",
       "engineMappings": [
         {
           "engine": "unreal",

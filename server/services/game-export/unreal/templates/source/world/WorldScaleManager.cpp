@@ -30,7 +30,7 @@ FString UWorldScaleManager::GetSettlementTier(int32 Population)
     return TEXT("metropolis");
 }
 
-TArray<FVector> UWorldScaleManager::GenerateLotPositions(FVector SettlementPosition, float SettlementRadius, int32 LotCount)
+TArray<FVector> UWorldScaleManager::GenerateLotPositions(FVector SettlementPosition, float SettlementRadius, int32 LotCount, const TArray<FString>& StreetNames)
 {
     TArray<FVector> Positions;
     if (LotCount <= 0) return Positions;
@@ -72,6 +72,13 @@ TArray<FVector> UWorldScaleManager::GenerateLotPositions(FVector SettlementPosit
     }
 
     return Positions;
+}
+
+void UWorldScaleManager::GenerateStreetAlignedSettlement(FVector SettlementPosition, float SettlementRadius, int32 LotCount, int32 BizCount, const TArray<FString>& StreetNames)
+{
+    // TODO: Implement street-aligned placement (main street + side streets).
+    // For now, falls back to grid+jitter via GenerateLotPositions.
+    UE_LOG(LogTemp, Warning, TEXT("[Insimul] GenerateStreetAlignedSettlement not yet implemented in export template"));
 }
 
 int32 UWorldScaleManager::CalculateOptimalWorldSize(int32 CountryCount, int32 StateCount, int32 SettlementCount)

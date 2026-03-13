@@ -13,6 +13,7 @@ import {
   Texture,
   Vector3,
 } from '@babylonjs/core';
+import type { StreetSegment } from './StreetAlignedPlacement';
 
 export interface RoadSegment {
   from: Vector3;
@@ -112,6 +113,25 @@ export class RoadGenerator {
     for (let i = 0; i < buildingPositions.length; i++) {
       const segId = `road_internal_${settlementId}_${i}`;
       const mesh = this.createRoadSegment(segId, center, buildingPositions[i], sampleHeight, 1.5);
+      if (mesh) {
+        this.roadMeshes.push(mesh);
+      }
+    }
+  }
+
+  /**
+   * Generate roads along a street network (from StreetAlignedPlacement).
+   * Main streets get standard width; side streets are narrower.
+   */
+  public generateSettlementStreetNetwork(
+    settlementId: string,
+    streets: StreetSegment[],
+    sampleHeight: (x: number, z: number) => number,
+  ): void {
+    for (const street of streets) {
+      const segId = `road_street_${settlementId}_${street.id}`;
+      const width = street.isMainStreet ? this.roadWidth : this.roadWidth * 0.6;
+      const mesh = this.createRoadSegment(segId, street.from, street.to, sampleHeight, width);
       if (mesh) {
         this.roadMeshes.push(mesh);
       }
