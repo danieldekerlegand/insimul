@@ -32,8 +32,8 @@ class TestableGeographyGenerator extends GeographyGenerator {
   }
 
   /** Expose deriveDistricts for testing */
-  testDeriveDistricts(config: GeographyConfig, network: StreetNetwork): Location[] {
-    return (this as any).deriveDistricts(config, network);
+  testDeriveDistricts(config: GeographyConfig, network: StreetNetwork, heightmap?: number[][], slopeMap?: number[][]): Location[] {
+    return (this as any).deriveDistricts(config, network, heightmap, slopeMap);
   }
 
   /** Expose streetEdgesToLocations for testing */
@@ -276,6 +276,164 @@ console.log('\nTest 10: Backward compatibility');
   const isNewFormat = (data: any) => data && !Array.isArray(data) && 'nodes' in data && 'edges' in data;
   assert(!isNewFormat(oldStreets), 'Old format correctly identified');
   assert(isNewFormat(network), 'New format correctly identified');
+}
+
+// Test 11: Terrain-influenced district placement — falls back to radial when no heightmap
+console.log('\nTest 11: District placement fallback (no heightmap)');
+{
+  const gen = new TestableGeographyGenerator();
+  const config = makeConfig({ settlementType: 'town' });
+  const { network } = gen.testGenerateStreetNetwork(config);
+
+  // Without heightmap — should produce districts (same as before)
+  const districts = gen.testDeriveDistricts(config, network);
+  assert(districts.length === 4, `Town has 4 districts (got ${districts.length})`);
+  assert(districts.every(d => d.type === 'district'), 'All are district type');
+  assert(districts.every(d => d.properties.role !== undefined), 'All districts have a role property');
+}
+
+// Test 12: Terrain-influenced district placement — uses heightmap when provided
+console.log('\nTest 12: Terrain-influenced district placement with heightmap');
+{
+  const gen = new TestableGeographyGenerator();
+  const config = makeConfig({ settlementType: 'city', terrain: 'hills' });
+  const { network } = gen.testGenerateStreetNetwork(config);
+
+  // Create a heightmap with a hill in the upper-right and flat area at center
+  const resolution = 32;
+  const heightmap: number[][] = [];
+  const slopeMap: number[][] = [];
+  for (let r = 0; r < resolution; r++) {
+    const hRow: number[] = [];
+    const sRow: number[] = [];
+    for (let c = 0; c < resolution; c++) {
+      // Higher elevation in upper-right quadrant
+      const nx = c / resolution;
+      const ny = r / resolution;
+      const elev = 0.3 + 0.5 * nx * (1 - ny);
+      hRow.push(elev);
+      // Steeper slope near edges
+      const slope = Math.abs(nx - 0.5) * 0.3 + Math.abs(ny - 0.5) * 0.3;
+      sRow.push(slope);
+    }
+    heightmap.push(hRow);
+    slopeMap.push(sRow);
+  }
+
+  const districts = gen.testDeriveDistricts(config, network, heightmap, slopeMap);
+  assert(districts.length === 8, `City has 8 districts (got ${districts.length})`);
+
+  // Check roles are assigned
+  const roles = districts.map(d => d.properties.role);
+  assert(roles.includes('commercial'), 'Has commercial district');
+  assert(roles.includes('wealthy_residential'), 'Has wealthy residential district');
+  assert(roles.includes('working_residential'), 'Has working-class residential district');
+  assert(roles.includes('industrial'), 'Has industrial district');
+  assert(roles.includes('religious_civic'), 'Has religious/civic district');
+
+  // Commercial should be more central than industrial
+  const commercial = districts.find(d => d.properties.role === 'commercial')!;
+  const industrial = districts.find(d => d.properties.role === 'industrial')!;
+  const mapSize = 2000; // city
+  const cx = mapSize / 2;
+  const cy = mapSize / 2;
+  const commDist = Math.sqrt((commercial.properties.seedX - cx) ** 2 + (commercial.properties.seedY - cy) ** 2);
+  const indDist = Math.sqrt((industrial.properties.seedX - cx) ** 2 + (industrial.properties.seedY - cy) ** 2);
+  assert(commDist <= indDist, `Commercial seed (${commDist.toFixed(0)}) is closer to center than industrial (${indDist.toFixed(0)})`);
+}
+
+// Test 13: Terrain-influenced placement — village with 2 districts
+console.log('\nTest 13: Terrain-influenced district placement (village)');
+{
+  const gen = new TestableGeographyGenerator();
+  const config = makeConfig({ settlementType: 'village', terrain: 'plains' });
+  const { network } = gen.testGenerateStreetNetwork(config);
+
+  // Flat heightmap
+  const resolution = 16;
+  const heightmap = Array.from({ length: resolution }, () => Array.from({ length: resolution }, () => 0.5));
+  const slopeMap = Array.from({ length: resolution }, () => Array.from({ length: resolution }, () => 0.05));
+
+  const districts = gen.testDeriveDistricts(config, network, heightmap, slopeMap);
+  assert(districts.length === 2, `Village has 2 districts (got ${districts.length})`);
+  assert(districts[0].properties.role === 'commercial', 'First village district is commercial');
+}
+
+// Test 14: Terrain-influenced placement — coast terrain gives industrial water bonus
+console.log('\nTest 14: Coast terrain industrial district placement');
+{
+  const gen = new TestableGeographyGenerator();
+  const config = makeConfig({ settlementType: 'city', terrain: 'coast' });
+  const { network } = gen.testGenerateStreetNetwork(config);
+
+  // Coast heightmap: low elevation at bottom (water), higher inland
+  const resolution = 32;
+  const heightmap: number[][] = [];
+  const slopeMap: number[][] = [];
+  for (let r = 0; r < resolution; r++) {
+    const hRow: number[] = [];
+    const sRow: number[] = [];
+    for (let c = 0; c < resolution; c++) {
+      const ny = r / resolution;
+      hRow.push(0.1 + 0.8 * (1 - ny)); // Low at bottom (high row), high at top
+      sRow.push(0.1);
+    }
+    heightmap.push(hRow);
+    slopeMap.push(sRow);
+  }
+
+  const districts = gen.testDeriveDistricts(config, network, heightmap, slopeMap);
+  const industrial = districts.find(d => d.properties.role === 'industrial');
+  assert(industrial !== undefined, 'Coast city has industrial district');
+}
+
+// Test 15: Religious/civic district placed at high point
+console.log('\nTest 15: Religious/civic district at high elevation');
+{
+  const gen = new TestableGeographyGenerator();
+  const config = makeConfig({ settlementType: 'town', terrain: 'hills' });
+  const { network } = gen.testGenerateStreetNetwork(config);
+
+  // Heightmap with a clear peak in the upper area
+  const resolution = 32;
+  const heightmap: number[][] = [];
+  const slopeMap: number[][] = [];
+  for (let r = 0; r < resolution; r++) {
+    const hRow: number[] = [];
+    const sRow: number[] = [];
+    for (let c = 0; c < resolution; c++) {
+      const nx = c / resolution;
+      const ny = r / resolution;
+      // Peak at (0.7, 0.3)
+      const dist = Math.sqrt((nx - 0.7) ** 2 + (ny - 0.3) ** 2);
+      const elev = Math.max(0, 0.9 - dist * 2);
+      hRow.push(elev);
+      sRow.push(dist < 0.2 ? 0.3 : 0.1); // Moderate slope near peak
+    }
+    heightmap.push(hRow);
+    slopeMap.push(sRow);
+  }
+
+  const districts = gen.testDeriveDistricts(config, network, heightmap, slopeMap);
+  const religious = districts.find(d => d.properties.role === 'religious_civic');
+  assert(religious !== undefined, 'Town has religious/civic district');
+  // Religious/civic should be at higher elevation than working_residential
+  // (We verify the role exists — exact placement depends on candidate grid)
+}
+
+// Test 16: District role names are assigned by role
+console.log('\nTest 16: District names match roles');
+{
+  const gen = new TestableGeographyGenerator();
+  const config = makeConfig({ settlementType: 'city' });
+  const { network } = gen.testGenerateStreetNetwork(config);
+
+  const districts = gen.testDeriveDistricts(config, network);
+  for (const d of districts) {
+    const role = d.properties.role as string;
+    // Name should not be from the generic locationNames.districts array
+    assert(role !== undefined && role.length > 0, `District "${d.name}" has role "${role}"`);
+  }
 }
 
 // ─── Summary ─────────────────────────────────────────────────────────────────

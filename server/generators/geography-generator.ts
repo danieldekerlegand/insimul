@@ -34,6 +34,26 @@ export interface GeographyConfig {
   stateId?: string;
 }
 
+/** District role types for terrain-influenced placement */
+export type DistrictRole = 'commercial' | 'wealthy_residential' | 'working_residential' | 'industrial' | 'religious_civic' | 'general';
+
+/** District role assignments ordered by priority for each settlement size */
+const DISTRICT_ROLES: Record<string, DistrictRole[]> = {
+  village: ['commercial', 'general'],
+  town: ['commercial', 'wealthy_residential', 'working_residential', 'religious_civic'],
+  city: ['commercial', 'wealthy_residential', 'wealthy_residential', 'working_residential', 'working_residential', 'industrial', 'religious_civic', 'general'],
+};
+
+/** District names mapped to roles */
+const ROLE_NAMES: Record<DistrictRole, string[]> = {
+  commercial: ['Market Quarter', 'Downtown', 'Trade District'],
+  wealthy_residential: ['Residential Heights', 'Hillside', 'Upper Town'],
+  working_residential: ['Old Town', 'East Side', 'South Gate', 'West End'],
+  industrial: ['Industrial District', 'Dockside', 'Mill Quarter'],
+  religious_civic: ['Temple Hill', 'Cathedral Square', 'Civic Center'],
+  general: ['North Ward', 'Riverside', 'Central Ward'],
+};
+
 export class GeographyGenerator {
   private streetGenerator = new StreetGenerator();
 
@@ -50,8 +70,10 @@ export class GeographyGenerator {
   /**
    * Generate complete geography for a settlement.
    * Flow: generateStreetNetwork() -> deriveDistricts() -> generateBuildings()
+   * @param heightmap Optional heightmap for terrain-influenced district placement
+   * @param slopeMap Optional slope map for terrain-influenced district placement
    */
-  async generate(config: GeographyConfig): Promise<{
+  async generate(config: GeographyConfig, heightmap?: number[][], slopeMap?: number[][]): Promise<{
     districts: Location[];
     streets: Location[];
     buildings: Location[];
@@ -64,8 +86,8 @@ export class GeographyGenerator {
     // Step 1: Generate street network graph
     const { network, pattern } = this.generateStreetNetwork(config);
 
-    // Step 2: Derive districts from street regions (Voronoi-like clustering)
-    const districts = this.deriveDistricts(config, network);
+    // Step 2: Derive districts from street regions (terrain-influenced when data available)
+    const districts = this.deriveDistricts(config, network, heightmap, slopeMap);
 
     // Step 3: Convert street edges to Location objects for backward compat
     const streets = this.streetEdgesToLocations(network, districts);
@@ -126,24 +148,46 @@ export class GeographyGenerator {
 
   /**
    * Derive districts from the street network using Voronoi-like clustering.
-   * Places seed points at intervals around the settlement center, bounded by
-   * major streets. Each street node is assigned to the nearest seed → district.
+   * When heightmap/slopeMap provided, places district seeds based on terrain
+   * suitability (commercial at flat center, wealthy at overlooks, etc.).
+   * Falls back to radial placement when no heightmap available.
    */
-  private deriveDistricts(config: GeographyConfig, network: StreetNetwork): Location[] {
+  private deriveDistricts(
+    config: GeographyConfig,
+    network: StreetNetwork,
+    heightmap?: number[][],
+    slopeMap?: number[][],
+  ): Location[] {
     const numDistricts = this.getDistrictCount(config.settlementType);
     const mapSize = this.getMapSize(config.settlementType);
     const centerX = mapSize / 2;
     const centerY = mapSize / 2;
 
-    // Place district seed points in a radial pattern
-    const seedPoints: { x: number; y: number }[] = [];
+    // Assign roles for this settlement size
+    const roleList = DISTRICT_ROLES[config.settlementType] || DISTRICT_ROLES.town;
+    const roles: DistrictRole[] = [];
     for (let i = 0; i < numDistricts; i++) {
-      const angle = (i / numDistricts) * 2 * Math.PI;
-      const seedRadius = mapSize / 3;
-      seedPoints.push({
-        x: centerX + Math.cos(angle) * seedRadius,
-        y: centerY + Math.sin(angle) * seedRadius,
-      });
+      roles.push(roleList[i % roleList.length]);
+    }
+
+    let seedPoints: { x: number; y: number }[];
+
+    if (heightmap && slopeMap && heightmap.length > 0 && slopeMap.length > 0) {
+      // Terrain-influenced placement
+      seedPoints = this.placeDistrictSeedsByTerrain(
+        roles, mapSize, centerX, centerY, heightmap, slopeMap, network, config,
+      );
+    } else {
+      // Fallback: radial placement
+      seedPoints = [];
+      for (let i = 0; i < numDistricts; i++) {
+        const angle = (i / numDistricts) * 2 * Math.PI;
+        const seedRadius = mapSize / 3;
+        seedPoints.push({
+          x: centerX + Math.cos(angle) * seedRadius,
+          y: centerY + Math.sin(angle) * seedRadius,
+        });
+      }
     }
 
     // Assign each node to nearest district seed (Voronoi assignment)
@@ -187,9 +231,13 @@ export class GeographyGenerator {
       const w = hasNodes ? Math.max(b.maxX - b.minX, 50) : mapSize / 4;
       const h = hasNodes ? Math.max(b.maxY - b.minY, 50) : mapSize / 4;
 
+      const role = roles[i];
+      const roleNames = ROLE_NAMES[role];
+      const districtName = roleNames[i % roleNames.length];
+
       districts.push({
         id: `district-${i}`,
-        name: this.locationNames.districts[i % this.locationNames.districts.length],
+        name: districtName,
         type: 'district',
         x: cx,
         y: cy,
@@ -199,6 +247,7 @@ export class GeographyGenerator {
           nodeCount: b.count,
           seedX: seedPoints[i].x,
           seedY: seedPoints[i].y,
+          role,
         },
       });
     }
@@ -207,6 +256,151 @@ export class GeographyGenerator {
     (districts as any).__nodeDistrict = nodeDistrict;
 
     return districts;
+  }
+
+  /**
+   * Place district seed points based on terrain suitability.
+   * Each role has specific terrain preferences:
+   * - commercial: flattest, most central
+   * - wealthy_residential: moderate elevation with views
+   * - working_residential: lower-lying, less desirable
+   * - industrial: near periphery or water
+   * - religious_civic: highest accessible point
+   */
+  private placeDistrictSeedsByTerrain(
+    roles: DistrictRole[],
+    mapSize: number,
+    centerX: number,
+    centerY: number,
+    heightmap: number[][],
+    slopeMap: number[][],
+    network: StreetNetwork,
+    config: GeographyConfig,
+  ): { x: number; y: number }[] {
+    const resolution = heightmap.length;
+    const seedRadius = mapSize / 3;
+
+    // Generate candidate positions from network nodes spread around
+    const candidates: { x: number; y: number; elevation: number; slope: number; distToCenter: number }[] = [];
+
+    // Sample a grid of candidate points across the settlement area
+    const gridSteps = 8;
+    for (let gx = 0; gx < gridSteps; gx++) {
+      for (let gy = 0; gy < gridSteps; gy++) {
+        const px = (mapSize * (gx + 0.5)) / gridSteps;
+        const py = (mapSize * (gy + 0.5)) / gridSteps;
+        const distToCenter = Math.sqrt((px - centerX) ** 2 + (py - centerY) ** 2);
+
+        // Skip points too far from center
+        if (distToCenter > seedRadius * 1.5) continue;
+
+        const hCol = Math.min(resolution - 1, Math.max(0, Math.round((px / mapSize) * (resolution - 1))));
+        const hRow = Math.min(resolution - 1, Math.max(0, Math.round((py / mapSize) * (resolution - 1))));
+        const elevation = heightmap[hRow][hCol];
+        const slope = slopeMap[hRow][hCol];
+
+        candidates.push({ x: px, y: py, elevation, slope, distToCenter });
+      }
+    }
+
+    if (candidates.length === 0) {
+      // No valid candidates — fallback to radial
+      return roles.map((_, i) => ({
+        x: centerX + Math.cos((i / roles.length) * 2 * Math.PI) * seedRadius,
+        y: centerY + Math.sin((i / roles.length) * 2 * Math.PI) * seedRadius,
+      }));
+    }
+
+    const usedIndices = new Set<number>();
+    const seedPoints: { x: number; y: number }[] = [];
+    const minSeedDist = seedRadius * 0.4; // Minimum distance between seeds
+
+    for (const role of roles) {
+      // Score each candidate for this role
+      let bestIdx = -1;
+      let bestScore = -Infinity;
+
+      for (let c = 0; c < candidates.length; c++) {
+        if (usedIndices.has(c)) continue;
+
+        // Check minimum distance to already-placed seeds
+        const cand = candidates[c];
+        let tooClose = false;
+        for (const sp of seedPoints) {
+          const d = Math.sqrt((cand.x - sp.x) ** 2 + (cand.y - sp.y) ** 2);
+          if (d < minSeedDist) { tooClose = true; break; }
+        }
+        if (tooClose) continue;
+
+        const score = this.scoreCandidate(role, cand, mapSize, config);
+        if (score > bestScore) {
+          bestScore = score;
+          bestIdx = c;
+        }
+      }
+
+      if (bestIdx >= 0) {
+        usedIndices.add(bestIdx);
+        seedPoints.push({ x: candidates[bestIdx].x, y: candidates[bestIdx].y });
+      } else {
+        // All candidates taken or too close — use radial fallback for this seed
+        const angle = (seedPoints.length / roles.length) * 2 * Math.PI;
+        seedPoints.push({
+          x: centerX + Math.cos(angle) * seedRadius,
+          y: centerY + Math.sin(angle) * seedRadius,
+        });
+      }
+    }
+
+    return seedPoints;
+  }
+
+  /**
+   * Score a candidate position for a given district role.
+   * Higher is better.
+   */
+  private scoreCandidate(
+    role: DistrictRole,
+    cand: { elevation: number; slope: number; distToCenter: number },
+    mapSize: number,
+    config: GeographyConfig,
+  ): number {
+    const maxDist = mapSize / 2;
+    const centralityNorm = 1 - Math.min(cand.distToCenter / maxDist, 1); // 1=center, 0=edge
+    const flatnessNorm = 1 - Math.min(cand.slope, 1); // 1=flat, 0=steep
+    const peripheryNorm = Math.min(cand.distToCenter / maxDist, 1); // 1=edge, 0=center
+
+    switch (role) {
+      case 'commercial':
+        // Flattest + most central
+        return centralityNorm * 3 + flatnessNorm * 2;
+
+      case 'wealthy_residential':
+        // Moderate elevation with good views (higher elevation, moderate slope OK)
+        return cand.elevation * 3 + flatnessNorm * 0.5 + centralityNorm * 0.3;
+
+      case 'working_residential':
+        // Lower-lying, less desirable terrain
+        return (1 - cand.elevation) * 2 + flatnessNorm * 1.5;
+
+      case 'industrial':
+        // Near periphery; near water if coast/river terrain
+        let waterBonus = 0;
+        if (config.terrain === 'coast' || config.terrain === 'river') {
+          // Lower elevation = closer to water
+          waterBonus = (1 - cand.elevation) * 2;
+        }
+        return peripheryNorm * 3 + flatnessNorm * 1 + waterBonus;
+
+      case 'religious_civic':
+        // Highest accessible point (high elevation but not too steep to build on)
+        return cand.elevation * 4 + flatnessNorm * 1.5 - (cand.slope > 0.5 ? 3 : 0);
+
+      case 'general':
+      default:
+        // General purpose — moderate everything
+        return flatnessNorm * 1 + centralityNorm * 1;
+    }
   }
 
   /**
