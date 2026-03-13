@@ -465,6 +465,32 @@ export interface RoadSegmentData {
   to: Vec3;
 }
 
+// ─── Street Networks ────────────────────────────────────────────────────────
+
+/** A point where two or more streets meet */
+export interface StreetNode {
+  id: string;
+  x: number;
+  z: number;
+  intersectionOf: string[]; // IDs of StreetSegments that meet here
+}
+
+/** A single street defined by a polyline of waypoints */
+export interface StreetSegment {
+  id: string;
+  name: string;
+  direction: 'NS' | 'EW' | 'radial' | 'ring';
+  nodeIds: string[];                        // Ordered intersection node IDs
+  waypoints: { x: number; z: number }[];    // Ordered centerline polyline
+  width: number;                            // Road width in world units
+}
+
+/** Complete street network for a settlement */
+export interface StreetNetwork {
+  nodes: StreetNode[];
+  segments: StreetSegment[];
+}
+
 // ─── Dungeons ───────────────────────────────────────────────────────────────
 
 export type RoomType = 'start' | 'normal' | 'treasure' | 'shop' | 'boss' | 'secret' | 'rest';

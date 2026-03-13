@@ -385,4 +385,40 @@ namespace Insimul.Data
     {
         Footstep, Ambient, Combat, Interact, Music
     }
+
+    // ── Street Networks ─────────────────────────────────────────────────
+
+    [Serializable]
+    public class StreetNode
+    {
+        public string id;
+        public float x;
+        public float z;
+        public string[] intersectionOf;
+    }
+
+    [Serializable]
+    public class StreetWaypoint
+    {
+        public float x;
+        public float z;
+    }
+
+    [Serializable]
+    public class StreetSegment
+    {
+        public string id;
+        public string name;
+        public string direction; // "NS", "EW", "radial", "ring"
+        public string[] nodeIds;
+        public StreetWaypoint[] waypoints;
+        public float width;
+    }
+
+    [Serializable]
+    public class StreetNetwork
+    {
+        public StreetNode[] nodes;
+        public StreetSegment[] segments;
+    }
 }

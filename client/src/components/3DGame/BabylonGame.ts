@@ -54,6 +54,7 @@ import { ProceduralBuildingGenerator, BuildingStyle } from "@/components/3DGame/
 import { ProceduralNatureGenerator, BiomeStyle } from "@/components/3DGame/ProceduralNatureGenerator.ts";
 import { RoadGenerator } from "@/components/3DGame/RoadGenerator.ts";
 import { RiverGenerator } from "@/components/3DGame/RiverGenerator.ts";
+import { buildStreetNetwork } from "@/components/3DGame/StreetNetworkLayout.ts";
 import { WorldScaleManager, ScaledSettlement } from "@/components/3DGame/WorldScaleManager.ts";
 import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay.ts";
 import { ChunkManager } from "@/components/3DGame/ChunkManager.ts";
@@ -2612,12 +2613,24 @@ export class BabylonGame {
           sampleHeight
         );
 
-        // Generate intra-settlement streets along the street network
-        if (this.roadGenerator && streetLayout.streets.length > 0) {
-          this.roadGenerator.generateSettlementStreetNetwork(
+        // Generate intra-settlement streets using street network topology
+        if (this.roadGenerator) {
+          const streetNetwork = buildStreetNetwork(
+            {
+              settlementId: settlement.id,
+              centerX: settlementCenterForProps.x,
+              centerZ: settlementCenterForProps.z,
+              radius: scaledSettlement.radius,
+              population: scaledSettlement.population,
+              settlementType: settlement.settlementType || scaledSettlement.settlementType || 'town',
+              streetNames: (settlement.streets || []).map((s: any) => s.name).filter(Boolean),
+            },
+            (settlement as any).streetNetwork ?? null
+          );
+          this.roadGenerator.generateSettlementStreets(
             settlement.id,
-            streetLayout.streets,
-            sampleHeight,
+            streetNetwork,
+            sampleHeight
           );
         }
 

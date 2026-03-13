@@ -742,3 +742,33 @@ All tests pass. No type errors.
   - When audio queue has entries, waits for queue to drain (already playing from streaming handler)
   - Falls back to full TTS only when no audio chunks were received
 - Created `server/__tests__/sentence-splitter.test.ts` — 9 tests covering sentence splitting, abbreviations, ellipses, empty input, and incremental streaming accumulation
+
+## [US-068] Intra-settlement street rendering in 3D
+
+### Completed
+- Added StreetNetwork, StreetNode, StreetSegment types to `shared/game-engine/types.ts`
+- Created `client/src/components/3DGame/StreetNetworkLayout.ts`:
+  - `buildStreetNetwork()` — generates or passes through street network data
+  - Grid layout for towns/cities (3×3 to 5×5 depending on radius)
+  - Organic layout for villages (radial spokes + concentric ring roads)
+  - Accepts server-provided StreetNetwork data with world-position offsetting
+  - Uses settlement street name metadata when available
+- Extended `client/src/components/3DGame/RoadGenerator.ts`:
+  - `generateSettlementStreets()` — renders full street network with road meshes, intersection discs, sidewalks, and street name signs
+  - `createPolylineRoad()` — multi-waypoint terrain-following ribbon mesh creation with subdivision for smooth terrain following
+  - `offsetPolyline()` — lateral offset for sidewalk generation
+  - `placeStreetSigns()` — billboard street name signs at intersections (pole + dynamic texture)
+  - `createStreetSign()` — pole mesh + text plane with DynamicTexture
+  - Replaced old hub-and-spoke `generateSettlementRoads()` with topology-based rendering
+- Updated `client/src/components/3DGame/BabylonGame.ts`:
+  - Imports buildStreetNetwork and calls generateSettlementStreets with settlement data
+  - Passes settlement type, radius, population, and street names to layout generator
+  - Supports future server-side StreetNetwork data via streetNetwork field
+- Created `client/src/components/3DGame/__tests__/StreetNetworkLayout.test.ts` — 13 tests covering:
+  - Grid layout generation (node/segment creation, centering, intersections, waypoint matching)
+  - Organic layout generation (radial spokes from center, ring loop closure)
+  - Server data passthrough with offset, fallback on empty/null data
+  - Street name usage, radius-based scaling
+
+### Tests
+All 13 tests passing.
