@@ -125,3 +125,35 @@ Started: Thu Mar 12 23:35:20 CDT 2026
   - When modifying types.ts or ir-types.ts, the drift pre-commit hook blocks commits — run `npm run drift:update` to update hashes
   - All 32 block tests + 32 address tests + 30 lot tests + 2,859 street tests pass; typecheck clean on modified files
 ---
+
+## 2026-03-13 - US-021
+- Added 9 new fields to lot schema across all 3 layers: Drizzle (`shared/schema.ts`), Mongoose (`server/db/mongo-storage.ts`), and IR (`shared/game-engine/ir-types.ts`)
+- New fields: lotWidth, lotDepth, streetEdgeId, distanceAlongStreet, side, blockId, facingAngle, elevation, foundationType
+- All fields have sensible defaults for existing lots: lotWidth=12, lotDepth=16, side='left', facingAngle=0, elevation=0, foundationType='flat'
+- Updated `generateBuildingsAlongStreets()` to compute and attach lot geometry data (facingAngle, side, lotWidth/lotDepth by settlement type, distanceAlongStreet)
+- Updated `persistLotsAndBuildings()` to extract and persist all new fields from building properties
+- Updated `ir-generator.ts` to populate all new LotIR fields from stored lot data with defaults
+- Files changed: `shared/schema.ts`, `shared/game-engine/ir-types.ts`, `shared/game-engine/drift-manifest.json`, `server/db/mongo-storage.ts`, `server/generators/geography-generator.ts`, `server/services/game-export/ir-generator.ts`
+- **Learnings for future iterations:**
+  - The geography-generator `generateBuildingsAlongStreets()` creates Location objects with `properties` bag — new lot fields must be added there first, then extracted in `persistLotsAndBuildings()`
+  - ir-generator.ts must be kept in sync with LotIR — when adding fields to LotIR, also update the lot mapping in `ir-generator.ts`
+  - Lot dimensions vary by settlement type: village=15x20, town=12x16, city=10x14
+  - All 12,215 geography tests + 30 lot tests + 2,859 street tests pass; typecheck clean on modified files
+---
+
+## 2026-03-13 - US-022
+- Implemented `validateAddresses(lots, streetNetwork): ValidationResult` in new `server/generators/address-validator.ts`
+- ValidationResult includes: valid, errors[], warnings[], fixesApplied[]
+- Checks: no duplicate addresses, monotonic house numbers per street/side, valid street edge references, street name matches network
+- Auto-fix: duplicate addresses get letter suffixes (e.g. "42A Oak Ave") with collision avoidance
+- Corner lot reassignment (from address-generator) handled gracefully — validated against all edges in network
+- Added `validateBuildingAddresses()` wrapper for Location-based buildings from GeographyGenerator
+- Integrated into GeographyGenerator.generate() as Step 6 after building generation
+- Errors/warnings logged to console with settlement ID
+- Files changed: `server/generators/address-validator.ts` (new), `server/generators/address-validator.test.ts` (new), `server/generators/geography-generator.ts`
+- **Learnings for future iterations:**
+  - GeographyGenerator buildings use Location objects with `properties` bag, not LotPosition — need adapter when reusing lot-based utilities
+  - Building address is constructed from `properties.houseNumber` + `properties.streetName`, not stored as a single field
+  - Residence building names are set to the address string — validation fixes must update both `properties.address` and `name`
+  - All 30 validator tests + 32 address tests + 12,215 geography tests pass; typecheck clean on modified files
+---

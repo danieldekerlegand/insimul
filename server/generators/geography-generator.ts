@@ -6,6 +6,7 @@
 
 import { storage } from '../db/storage';
 import { StreetGenerator } from './street-generator';
+import { validateBuildingAddresses } from './address-validator';
 import type { StreetNetwork, StreetNode, StreetEdge } from '../../shared/game-engine/types';
 
 export interface Location {
@@ -73,6 +74,9 @@ export class GeographyGenerator {
 
     // Step 5: Generate buildings along street edges
     const buildings = this.generateBuildingsAlongStreets(config, network, districts);
+
+    // Step 6: Validate addresses and auto-fix duplicates
+    validateBuildingAddresses(buildings, network, config.settlementId);
 
     // Update settlement with geography metadata + StreetNetwork as JSONB
     await storage.updateSettlement(config.settlementId, {
