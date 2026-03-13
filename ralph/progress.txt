@@ -395,3 +395,23 @@
   - Test heightmap with linear z-gradient makes contour structure easy to verify (contour nodes cluster at similar z-values)
   - TypeScript error count unchanged at 459
 ---
+
+## 2026-03-12 - US-013 (naturalized-procgen)
+- Added `generateWaterfront(config & { shorelinePoints: Vec2[] })` method to StreetGenerator
+- Main road follows provided shoreline curve, offset inland by configurable distance (12% of radius)
+- Perpendicular roads extend inland from waterfront road at regular intervals (residential type)
+- Secondary parallel road runs further inland for settlements with radius >= 80 (30% offset)
+- Dock/pier stub nodes extend seaward from waterfront road between perpendicular streets (lane type)
+- Waterfront road is boulevard (main_road, width 8); perpendicular roads are residential (width 6); docks are lane (width 4)
+- Falls back to organic pattern if insufficient shoreline data (< 2 points)
+- Inland normal computation ensures roads always offset toward settlement center
+- Minimum dock count guaranteed (at least 1 per 4 waterfront nodes)
+- 2705 total test assertions pass (all patterns), typecheck unchanged at 459
+- Files changed: server/generators/street-generator.ts, server/generators/street-generator.test.ts
+- **Learnings for future iterations:**
+  - Inland normal computed from shoreline tangent + dot product check against center direction — ensures consistent offset regardless of shoreline orientation
+  - Dock generation needs minimum guarantee — pure random filtering can produce zero docks with small waterfront node counts
+  - Secondary parallel road uses node snapping to connect with perpendicular road nodes where they intersect
+  - waterfrontSpacing calculation depends on shoreline point count and radius — use Math.max to prevent zero spacing
+  - TypeScript error count unchanged at 459
+---
