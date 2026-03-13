@@ -1,0 +1,18 @@
+Task: Recording and transcript storage integration
+Status: Complete
+
+What was done:
+1. Created shared/assessment/assessment-types.ts with RecordingReference, TranscriptEntry, PhaseResult, AssessmentSession types
+2. Created shared/assessment/index.ts barrel export
+3. Created client/assessment/transcript-serializer.ts - normalizes conversation, listening, writing, and visual phase data into PhaseResult with transcript entries and RecordingReferences
+4. Created client/assessment/recording-integration.ts - RecordingIntegrationService that wires phase results to server API (create session, persist phases, push recordings, complete session)
+5. Added AssessmentSession Mongoose schema, document interface, and model to server/db/mongo-storage.ts
+6. Added assessment CRUD methods to MongoStorage: createAssessmentSession, getAssessmentSession, updateAssessmentPhaseResult, addAssessmentRecording, completeAssessmentSession, getPlayerAssessments
+7. Added assessment methods to IStorage interface in server/db/storage.ts
+8. Created server/routes/assessment-routes.ts with 8 endpoints including transcript and recordings-list retrieval
+9. Registered assessment routes in server/routes.ts
+10. Created client/src/components/AssessmentTranscriptViewer.tsx - admin UI component displaying phase transcripts and recordings with expandable sections
+11. Created server/__tests__/recording-transcript-storage.test.ts - 18 tests covering serializer, API routes, and full integration flow
+
+All 120 tests pass (18 new + 102 existing).
+No TypeScript errors in new files.

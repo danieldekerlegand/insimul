@@ -53,6 +53,11 @@ import type {
   InsertLanguageChatMessage,
   LanguageScopeType
 } from "@shared/language";
+import type {
+  AssessmentSession,
+  PhaseResult,
+  RecordingReference
+} from "@shared/assessment";
 
 // Mongoose Document interfaces
 interface RuleDoc extends Omit<Rule, 'id'>, Document {
@@ -148,6 +153,10 @@ interface WorldLanguageDoc extends Omit<WorldLanguage, 'id'>, Document {
 }
 
 interface LanguageChatMessageDoc extends Omit<LanguageChatMessage, 'id'>, Document {
+  _id: string;
+}
+
+interface AssessmentSessionDoc extends Omit<AssessmentSession, 'id'>, Document {
   _id: string;
 }
 
@@ -940,6 +949,26 @@ const ApiKeySchema = new Schema({
 });
 ApiKeySchema.index({ key: 1 });
 
+const AssessmentSessionSchema = new Schema({
+  playerId: { type: String, required: true },
+  worldId: { type: String, required: true },
+  assessmentDefinitionId: { type: String, required: true },
+  assessmentType: { type: String, required: true },
+  targetLanguage: { type: String, required: true },
+  status: { type: String, default: 'idle' },
+  phaseResults: { type: [Schema.Types.Mixed], default: [] },
+  totalScore: { type: Number, default: null },
+  totalMaxPoints: { type: Number, required: true },
+  cefrLevel: { type: String, default: null },
+  dimensionScores: { type: Schema.Types.Mixed, default: null },
+  automatedMetrics: { type: Schema.Types.Mixed, default: null },
+  recordings: { type: [Schema.Types.Mixed], default: [] },
+  createdAt: { type: String, default: () => new Date().toISOString() },
+  startedAt: { type: String, default: null },
+  completedAt: { type: String, default: null }
+});
+AssessmentSessionSchema.index({ playerId: 1, worldId: 1, assessmentType: 1 });
+
 // Mongoose Models
 const RuleModel = mongoose.model<RuleDoc>('Rule', RuleSchema);
 const GrammarModel = mongoose.model<GrammarDoc>('Grammar', GrammarSchema);
@@ -978,6 +1007,11 @@ const EvaluationResponseModel = mongoose.model('EvaluationResponse', EvaluationR
 const TechnicalTelemetryModel = mongoose.model('TechnicalTelemetry', TechnicalTelemetrySchema, 'technicaltelemetry');
 const EngagementEventModel = mongoose.model('EngagementEvent', EngagementEventSchema, 'engagementevents');
 const ApiKeyModel = mongoose.model('ApiKey', ApiKeySchema, 'apikeys');
+const AssessmentSessionModel = mongoose.model<AssessmentSessionDoc>('AssessmentSession', AssessmentSessionSchema, 'assessmentsessions');
+
+function docToAssessmentSession(doc: AssessmentSessionDoc): AssessmentSession {
+  return { ...doc.toObject(), id: doc._id.toString() };
+}
 
 // Helper to convert Mongoose doc to our type
 function docToRule(doc: RuleDoc | any): Rule {
@@ -2839,6 +2873,79 @@ export class MongoStorage implements IStorage {
   async getApiKeysByWorld(worldId: string): Promise<any[]> {
     const docs = await ApiKeyModel.find({ worldId });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  // ============= ASSESSMENT SESSIONS =============
+
+  async createAssessmentSession(data: Omit<AssessmentSession, 'id'>): Promise<AssessmentSession> {
+    await this.connect();
+    const doc = await AssessmentSessionModel.create(data);
+    return docToAssessmentSession(doc);
+  }
+
+  async getAssessmentSession(id: string): Promise<AssessmentSession | undefined> {
+    await this.connect();
+    const doc = await AssessmentSessionModel.findById(id);
+    return doc ? docToAssessmentSession(doc) : undefined;
+  }
+
+  async updateAssessmentPhaseResult(sessionId: string, phaseResult: PhaseResult): Promise<AssessmentSession | undefined> {
+    await this.connect();
+    const existing = await AssessmentSessionModel.findById(sessionId);
+    if (!existing) return undefined;
+
+    const idx = existing.phaseResults.findIndex((r: any) => r.phaseId === phaseResult.phaseId);
+    let update;
+    if (idx >= 0) {
+      update = await AssessmentSessionModel.findByIdAndUpdate(
+        sessionId,
+        { $set: { [`phaseResults.${idx}`]: phaseResult } },
+        { new: true }
+      );
+    } else {
+      update = await AssessmentSessionModel.findByIdAndUpdate(
+        sessionId,
+        { $push: { phaseResults: phaseResult } },
+        { new: true }
+      );
+    }
+    return update ? docToAssessmentSession(update) : undefined;
+  }
+
+  async addAssessmentRecording(sessionId: string, recording: RecordingReference): Promise<AssessmentSession | undefined> {
+    await this.connect();
+    const doc = await AssessmentSessionModel.findByIdAndUpdate(
+      sessionId,
+      { $push: { recordings: recording } },
+      { new: true }
+    );
+    return doc ? docToAssessmentSession(doc) : undefined;
+  }
+
+  async completeAssessmentSession(sessionId: string, totalScore: number, maxScore: number, cefrLevel: string): Promise<AssessmentSession | undefined> {
+    await this.connect();
+    const doc = await AssessmentSessionModel.findByIdAndUpdate(
+      sessionId,
+      {
+        $set: {
+          status: 'complete',
+          totalScore,
+          totalMaxPoints: maxScore,
+          cefrLevel,
+          completedAt: new Date().toISOString(),
+        }
+      },
+      { new: true }
+    );
+    return doc ? docToAssessmentSession(doc) : undefined;
+  }
+
+  async getPlayerAssessments(playerId: string, worldId?: string): Promise<AssessmentSession[]> {
+    await this.connect();
+    const query: any = { playerId };
+    if (worldId) query.worldId = worldId;
+    const docs = await AssessmentSessionModel.find(query).sort({ createdAt: -1 });
+    return docs.map(docToAssessmentSession);
   }
 
 }

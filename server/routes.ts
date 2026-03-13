@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from './db/storage';
 import { createTelemetryRoutes } from './routes/telemetry-routes';
 import { createHistoryRoutes } from './routes/history-routes';
+import { createAssessmentRoutes } from './routes/assessment-routes';
 import { enrichHistoricalEvents, type WorldContext } from './services/llm-event-enrichment.js';
 import { prologAutoSync } from './engines/prolog/prolog-auto-sync';
 import { convertActionToProlog } from '../shared/prolog/action-converter';
@@ -10542,6 +10543,9 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
 
   // Register history import/export routes
   app.use('/api', createHistoryRoutes(storage));
+
+  // Register assessment session routes
+  app.use('/api', createAssessmentRoutes(storage));
 
   const httpServer = createServer(app);
   return httpServer;
