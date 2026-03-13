@@ -162,6 +162,7 @@ export interface GameMenuCallbacks {
   getAssessmentData?: () => { data: PlayerAssessmentData | null; playerLevel: number };
   onNoticeWordClicked?: (word: string, meaning: string) => void;
   onNoticeQuestionAnswered?: (correct: boolean, articleId: string) => void;
+  onVocabWordSpeak?: (word: string) => void;
   onNPCSelected?: (npcId: string) => void;
   onPayFines?: () => void;
   onBackToEditor?: () => void;
@@ -248,6 +249,11 @@ export class GameMenuSystem {
   private skillTreeState: SkillTreeState = createDefaultSkillTreeState();
   private answeredNoticeQuestions: Set<string> = new Set();
   private noticeShowTranslations: boolean = true;
+
+  // Vocabulary tab state
+  private vocabSubTab: 'vocabulary' | 'grammar' = 'vocabulary';
+  private vocabSortMode: 'mastery' | 'alpha' | 'recent' | 'used' | 'review' = 'mastery';
+  private vocabCategoryFilter: string = 'all';
 
   // Callbacks for game state management
   private onMenuOpened: (() => void) | null = null;
@@ -1359,9 +1365,52 @@ export class GameMenuSystem {
     const data = this.callbacks.getVocabularyData?.();
 
     this.addSectionHeader(stack, "Language Progress");
-    this.addSubHeader(stack, "Vocabulary bank and grammar patterns");
 
-    if (!data || data.vocabulary.length === 0) {
+    // ── Sub-tab buttons (Vocabulary / Grammar) ──
+    const subTabRow = new Rectangle();
+    subTabRow.width = 1;
+    subTabRow.height = "36px";
+    subTabRow.thickness = 0;
+    subTabRow.background = "transparent";
+    stack.addControl(subTabRow);
+
+    const vocSubBtn = Button.CreateSimpleButton("vocSubTab_vocab", "Vocabulary");
+    vocSubBtn.width = "140px";
+    vocSubBtn.height = "30px";
+    vocSubBtn.fontSize = 13;
+    vocSubBtn.fontWeight = "bold";
+    vocSubBtn.color = COLORS.textPrimary;
+    vocSubBtn.cornerRadius = 6;
+    vocSubBtn.background = this.vocabSubTab === 'vocabulary' ? COLORS.tabActive : COLORS.cardBg;
+    vocSubBtn.thickness = 1;
+    (vocSubBtn as any).borderColor = this.vocabSubTab === 'vocabulary' ? COLORS.tabActiveBorder : COLORS.cardBorder;
+    vocSubBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    vocSubBtn.left = "4px";
+    vocSubBtn.onPointerClickObservable.add(() => {
+      this.vocabSubTab = 'vocabulary';
+      this.refreshActiveTab();
+    });
+    subTabRow.addControl(vocSubBtn);
+
+    const gramSubBtn = Button.CreateSimpleButton("vocSubTab_gram", "Grammar");
+    gramSubBtn.width = "140px";
+    gramSubBtn.height = "30px";
+    gramSubBtn.fontSize = 13;
+    gramSubBtn.fontWeight = "bold";
+    gramSubBtn.color = COLORS.textPrimary;
+    gramSubBtn.cornerRadius = 6;
+    gramSubBtn.background = this.vocabSubTab === 'grammar' ? COLORS.tabActive : COLORS.cardBg;
+    gramSubBtn.thickness = 1;
+    (gramSubBtn as any).borderColor = this.vocabSubTab === 'grammar' ? COLORS.tabActiveBorder : COLORS.cardBorder;
+    gramSubBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    gramSubBtn.left = "152px";
+    gramSubBtn.onPointerClickObservable.add(() => {
+      this.vocabSubTab = 'grammar';
+      this.refreshActiveTab();
+    });
+    subTabRow.addControl(gramSubBtn);
+
+    if (!data || (data.vocabulary.length === 0 && data.grammarPatterns.length === 0)) {
       const noData = new TextBlock();
       noData.text = "No vocabulary learned yet.\nTalk to NPCs to learn new words!";
       noData.color = COLORS.textMuted;
@@ -1372,7 +1421,7 @@ export class GameMenuSystem {
       return;
     }
 
-    // Stats summary
+    // Stats summary (always visible)
     const mastered = data.vocabulary.filter(v => v.masteryLevel === 'mastered').length;
     const totalAttempts = data.totalCorrectUsages +
       data.vocabulary.reduce((sum, v) => sum + v.timesUsedIncorrectly, 0);
@@ -1383,10 +1432,116 @@ export class GameMenuSystem {
     this.addStatRow(statsCard, "Words Mastered", `${mastered}`, COLORS.gold);
     this.addStatRow(statsCard, "Accuracy", `${accuracy}%`, accuracy >= 80 ? COLORS.accentGreen : COLORS.accentYellow);
     this.addStatRow(statsCard, "Fluency", `${Math.round(data.overallFluency)}%`, COLORS.accent);
-
     this.addProgressBar(statsCard, data.overallFluency, 100, COLORS.accent, `${Math.round(data.overallFluency)}% fluency`);
 
-    // Due for review
+    if (this.vocabSubTab === 'vocabulary') {
+      this.renderVocabularySubTab(stack, data);
+    } else {
+      this.renderGrammarSubTab(stack, data);
+    }
+  }
+
+  private renderVocabularySubTab(stack: StackPanel, data: NonNullable<ReturnType<NonNullable<GameMenuCallbacks['getVocabularyData']>>>): void {
+    const CATEGORIES = [
+      'all', 'greetings', 'numbers', 'food', 'family', 'nature',
+      'body', 'emotions', 'actions', 'colors', 'time', 'general',
+    ];
+
+    // ── Category filter row ──
+    this.addDivider(stack);
+    const filterLabel = new TextBlock();
+    filterLabel.text = "Category";
+    filterLabel.color = COLORS.textSecondary;
+    filterLabel.fontSize = 12;
+    filterLabel.height = "20px";
+    filterLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    stack.addControl(filterLabel);
+
+    // Two rows of category buttons (6 per row to fit)
+    for (let rowIdx = 0; rowIdx < 2; rowIdx++) {
+      const catRow = new Rectangle();
+      catRow.width = 1;
+      catRow.height = "30px";
+      catRow.thickness = 0;
+      catRow.background = "transparent";
+      stack.addControl(catRow);
+
+      const rowCats = CATEGORIES.slice(rowIdx * 6, (rowIdx + 1) * 6);
+      let xOff = 4;
+      for (const cat of rowCats) {
+        const label = cat === 'all' ? 'All' : cat.charAt(0).toUpperCase() + cat.slice(1);
+        const isActive = this.vocabCategoryFilter === cat;
+        const btn = Button.CreateSimpleButton(`catBtn_${cat}`, label);
+        const btnWidth = Math.max(44, label.length * 8 + 14);
+        btn.width = `${btnWidth}px`;
+        btn.height = "26px";
+        btn.fontSize = 11;
+        btn.color = COLORS.textPrimary;
+        btn.cornerRadius = 4;
+        btn.thickness = 1;
+        (btn as any).borderColor = isActive ? COLORS.tabActiveBorder : COLORS.cardBorder;
+        btn.background = isActive ? COLORS.tabActive : COLORS.cardBg;
+        btn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        btn.left = `${xOff}px`;
+        btn.onPointerClickObservable.add(() => {
+          this.vocabCategoryFilter = cat;
+          this.refreshActiveTab();
+        });
+        catRow.addControl(btn);
+        xOff += btnWidth + 4;
+      }
+    }
+
+    // ── Sort row ──
+    const sortRow = new Rectangle();
+    sortRow.width = 1;
+    sortRow.height = "30px";
+    sortRow.thickness = 0;
+    sortRow.background = "transparent";
+    stack.addControl(sortRow);
+
+    const sortLabel = new TextBlock();
+    sortLabel.text = "Sort:";
+    sortLabel.fontSize = 11;
+    sortLabel.color = COLORS.textSecondary;
+    sortLabel.width = "30px";
+    sortLabel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    sortLabel.left = "4px";
+    sortRow.addControl(sortLabel);
+
+    const sortOptions: { key: 'mastery' | 'alpha' | 'recent' | 'used' | 'review'; label: string }[] = [
+      { key: 'mastery', label: 'Mastery' },
+      { key: 'alpha', label: 'A-Z' },
+      { key: 'recent', label: 'Recent' },
+      { key: 'used', label: 'Most Used' },
+      { key: 'review', label: 'Due' },
+    ];
+
+    let sortX = 38;
+    for (const opt of sortOptions) {
+      const isActive = this.vocabSortMode === opt.key;
+      const btn = Button.CreateSimpleButton(`sortBtn_${opt.key}`, opt.label);
+      const btnW = opt.label.length * 8 + 16;
+      btn.width = `${btnW}px`;
+      btn.height = "24px";
+      btn.fontSize = 11;
+      btn.color = COLORS.textPrimary;
+      btn.cornerRadius = 4;
+      btn.thickness = 1;
+      (btn as any).borderColor = isActive ? COLORS.tabActiveBorder : COLORS.cardBorder;
+      btn.background = isActive ? COLORS.tabActive : COLORS.cardBg;
+      btn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      btn.left = `${sortX}px`;
+      btn.onPointerClickObservable.add(() => {
+        this.vocabSortMode = opt.key;
+        this.refreshActiveTab();
+      });
+      sortRow.addControl(btn);
+      sortX += btnW + 4;
+    }
+
+    // ── Due for review ──
+    const dueSet = new Set((data.dueForReview || []).map(v => v.word));
     if (data.dueForReview.length > 0) {
       this.addDivider(stack);
       const reviewTitle = new TextBlock();
@@ -1404,10 +1559,42 @@ export class GameMenuSystem {
       }
     }
 
-    // Vocabulary list by mastery
+    // ── Apply filter and sort ──
+    let filtered = [...data.vocabulary];
+    if (this.vocabCategoryFilter !== 'all') {
+      filtered = filtered.filter(v => (v.category || 'general') === this.vocabCategoryFilter);
+    }
+
+    const masteryOrder: Record<string, number> = { mastered: 0, familiar: 1, learning: 2, new: 3 };
+    switch (this.vocabSortMode) {
+      case 'mastery':
+        filtered.sort((a, b) => masteryOrder[a.masteryLevel] - masteryOrder[b.masteryLevel]);
+        break;
+      case 'alpha':
+        filtered.sort((a, b) => a.word.localeCompare(b.word));
+        break;
+      case 'recent':
+        filtered.sort((a, b) => b.lastEncountered - a.lastEncountered);
+        break;
+      case 'used':
+        filtered.sort((a, b) => (b.timesUsedCorrectly + b.timesEncountered) - (a.timesUsedCorrectly + a.timesEncountered));
+        break;
+      case 'review':
+        filtered.sort((a, b) => {
+          const aDue = dueSet.has(a.word) ? 0 : 1;
+          const bDue = dueSet.has(b.word) ? 0 : 1;
+          if (aDue !== bDue) return aDue - bDue;
+          return a.lastEncountered - b.lastEncountered;
+        });
+        break;
+    }
+
+    // ── Word list ──
     this.addDivider(stack);
     const vocabTitle = new TextBlock();
-    vocabTitle.text = "All Words";
+    vocabTitle.text = this.vocabCategoryFilter === 'all'
+      ? `All Words (${filtered.length})`
+      : `${this.vocabCategoryFilter.charAt(0).toUpperCase() + this.vocabCategoryFilter.slice(1)} (${filtered.length})`;
     vocabTitle.color = COLORS.textPrimary;
     vocabTitle.fontSize = 18;
     vocabTitle.fontWeight = "bold";
@@ -1415,69 +1602,233 @@ export class GameMenuSystem {
     vocabTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     stack.addControl(vocabTitle);
 
-    const masteryOrder: Record<string, number> = { mastered: 0, familiar: 1, learning: 2, new: 3 };
-    const masteryColors: Record<string, string> = { mastered: '#f1c40f', familiar: '#2ecc71', learning: '#f39c12', new: '#e74c3c' };
-    const sorted = [...data.vocabulary].sort((a, b) => masteryOrder[a.masteryLevel] - masteryOrder[b.masteryLevel]);
+    if (filtered.length === 0) {
+      const emptyText = new TextBlock();
+      emptyText.text = data.vocabulary.length === 0
+        ? "No vocabulary learned yet.\nTalk to NPCs to learn new words!"
+        : "No words in this category.";
+      emptyText.color = COLORS.textMuted;
+      emptyText.fontSize = 14;
+      emptyText.height = "50px";
+      emptyText.textWrapping = true;
+      stack.addControl(emptyText);
+      return;
+    }
 
-    for (const entry of sorted) {
+    // Header row
+    const headerRow = new Rectangle();
+    headerRow.width = 1;
+    headerRow.height = "26px";
+    headerRow.thickness = 0;
+    headerRow.background = COLORS.headerBg;
+    headerRow.cornerRadius = 4;
+    stack.addControl(headerRow);
+
+    const hWord = new TextBlock();
+    hWord.text = "WORD";
+    hWord.color = COLORS.textMuted;
+    hWord.fontSize = 10;
+    hWord.fontWeight = "bold";
+    hWord.width = "28%";
+    hWord.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    hWord.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    hWord.paddingLeft = "4px";
+    headerRow.addControl(hWord);
+
+    const hMeaning = new TextBlock();
+    hMeaning.text = "MEANING";
+    hMeaning.color = COLORS.textMuted;
+    hMeaning.fontSize = 10;
+    hMeaning.fontWeight = "bold";
+    hMeaning.width = "30%";
+    hMeaning.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    hMeaning.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    hMeaning.left = "28%";
+    headerRow.addControl(hMeaning);
+
+    const hMastery = new TextBlock();
+    hMastery.text = "MASTERY";
+    hMastery.color = COLORS.textMuted;
+    hMastery.fontSize = 10;
+    hMastery.fontWeight = "bold";
+    hMastery.width = "16%";
+    hMastery.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    hMastery.left = "58%";
+    headerRow.addControl(hMastery);
+
+    const hUsed = new TextBlock();
+    hUsed.text = "USED";
+    hUsed.color = COLORS.textMuted;
+    hUsed.fontSize = 10;
+    hUsed.fontWeight = "bold";
+    hUsed.width = "10%";
+    hUsed.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    hUsed.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    hUsed.left = "-30px";
+    headerRow.addControl(hUsed);
+
+    const masteryColors: Record<string, string> = { mastered: '#f1c40f', familiar: '#2ecc71', learning: '#f39c12', new: '#e74c3c' };
+    const masteryLabels: Record<string, string> = { new: 'New', learning: 'Learning', familiar: 'Familiar', mastered: 'Mastered' };
+
+    for (const entry of filtered) {
+      const isDue = dueSet.has(entry.word);
       const row = new Rectangle();
       row.width = 1;
       row.height = "32px";
       row.thickness = 0;
-      row.background = "transparent";
-      row.paddingBottom = "2px";
+      row.background = isDue ? "rgba(251, 188, 4, 0.06)" : "transparent";
+      row.paddingBottom = "1px";
       stack.addControl(row);
 
       const wordText = new TextBlock();
       wordText.text = entry.word;
       wordText.color = COLORS.textPrimary;
-      wordText.fontSize = 14;
+      wordText.fontSize = 13;
       wordText.fontWeight = "bold";
       wordText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      wordText.paddingLeft = "4px";
-      wordText.width = "35%";
       wordText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      wordText.paddingLeft = "4px";
+      wordText.width = "28%";
       row.addControl(wordText);
 
       const meaningText = new TextBlock();
       meaningText.text = entry.meaning;
       meaningText.color = COLORS.textSecondary;
-      meaningText.fontSize = 13;
+      meaningText.fontSize = 12;
       meaningText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       meaningText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      meaningText.left = "36%";
-      meaningText.width = "40%";
+      meaningText.left = "28%";
+      meaningText.width = "30%";
       row.addControl(meaningText);
 
       const masteryText = new TextBlock();
-      masteryText.text = entry.masteryLevel.charAt(0).toUpperCase() + entry.masteryLevel.slice(1);
-      masteryText.color = masteryColors[entry.masteryLevel] || COLORS.textMuted;
-      masteryText.fontSize = 12;
+      masteryText.text = isDue ? 'Review!' : (masteryLabels[entry.masteryLevel] || entry.masteryLevel);
+      masteryText.color = isDue ? COLORS.accentYellow : (masteryColors[entry.masteryLevel] || COLORS.textMuted);
+      masteryText.fontSize = 11;
       masteryText.fontWeight = "bold";
-      masteryText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      masteryText.paddingRight = "4px";
+      masteryText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      masteryText.left = "58%";
+      masteryText.width = "16%";
       row.addControl(masteryText);
+
+      const usedText = new TextBlock();
+      usedText.text = `${entry.timesUsedCorrectly}/${entry.timesEncountered}`;
+      usedText.color = COLORS.textMuted;
+      usedText.fontSize = 11;
+      usedText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      usedText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      usedText.left = "-30px";
+      usedText.width = "10%";
+      row.addControl(usedText);
+
+      // TTS speaker button
+      const speakBtn = Button.CreateSimpleButton(`speak_${entry.word}`, "\u{1F50A}");
+      speakBtn.width = "26px";
+      speakBtn.height = "26px";
+      speakBtn.fontSize = 13;
+      speakBtn.color = COLORS.accent;
+      speakBtn.background = "transparent";
+      speakBtn.thickness = 0;
+      speakBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      speakBtn.left = "-2px";
+      speakBtn.onPointerClickObservable.add(() => {
+        this.callbacks.onVocabWordSpeak?.(entry.word);
+      });
+      speakBtn.onPointerEnterObservable.add(() => { speakBtn.color = COLORS.accentGreen; });
+      speakBtn.onPointerOutObservable.add(() => { speakBtn.color = COLORS.accent; });
+      row.addControl(speakBtn);
+    }
+  }
+
+  private renderGrammarSubTab(stack: StackPanel, data: NonNullable<ReturnType<NonNullable<GameMenuCallbacks['getVocabularyData']>>>): void {
+    this.addDivider(stack);
+    const gramTitle = new TextBlock();
+    gramTitle.text = `Grammar Patterns (${data.grammarPatterns.length})`;
+    gramTitle.color = COLORS.textPrimary;
+    gramTitle.fontSize = 18;
+    gramTitle.fontWeight = "bold";
+    gramTitle.height = "34px";
+    gramTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    stack.addControl(gramTitle);
+
+    if (data.grammarPatterns.length === 0) {
+      const emptyText = new TextBlock();
+      emptyText.text = "No grammar patterns tracked yet.\nConverse with NPCs to practice grammar!";
+      emptyText.color = COLORS.textMuted;
+      emptyText.fontSize = 14;
+      emptyText.height = "50px";
+      emptyText.textWrapping = true;
+      stack.addControl(emptyText);
+      return;
     }
 
-    // Grammar patterns
-    if (data.grammarPatterns.length > 0) {
-      this.addDivider(stack);
-      const gramTitle = new TextBlock();
-      gramTitle.text = "Grammar Patterns";
-      gramTitle.color = COLORS.textPrimary;
-      gramTitle.fontSize = 18;
-      gramTitle.fontWeight = "bold";
-      gramTitle.height = "34px";
-      gramTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      stack.addControl(gramTitle);
+    // Sort: weak patterns first, then by total usage
+    const sorted = [...data.grammarPatterns].sort((a, b) => {
+      const aWeak = !a.mastered && a.timesUsedIncorrectly > 0;
+      const bWeak = !b.mastered && b.timesUsedIncorrectly > 0;
+      if (aWeak && !bWeak) return -1;
+      if (!aWeak && bWeak) return 1;
+      return (b.timesUsedCorrectly + b.timesUsedIncorrectly) - (a.timesUsedCorrectly + a.timesUsedIncorrectly);
+    });
 
-      for (const pattern of data.grammarPatterns) {
-        const total = pattern.timesUsedCorrectly + pattern.timesUsedIncorrectly;
-        const acc = total > 0 ? Math.round((pattern.timesUsedCorrectly / total) * 100) : 0;
-        const card = this.makeCard(stack);
-        this.addStatRow(card, pattern.pattern, pattern.mastered ? "Mastered" : `${acc}% accuracy`,
-          pattern.mastered ? COLORS.gold : (acc >= 80 ? COLORS.accentGreen : COLORS.accentYellow));
-        this.addProgressBar(card, acc, 100, acc >= 80 ? COLORS.accentGreen : COLORS.accentYellow);
+    for (const pattern of sorted) {
+      const total = pattern.timesUsedCorrectly + pattern.timesUsedIncorrectly;
+      const acc = total > 0 ? Math.round((pattern.timesUsedCorrectly / total) * 100) : 0;
+      const isWeak = !pattern.mastered && pattern.timesUsedIncorrectly > 0;
+
+      const card = this.makeCard(stack);
+
+      // Pattern name row with status badge
+      const nameRow = new Rectangle();
+      nameRow.width = 1;
+      nameRow.height = "24px";
+      nameRow.thickness = 0;
+      card.addControl(nameRow);
+
+      const nameText = new TextBlock();
+      nameText.text = pattern.pattern;
+      nameText.color = COLORS.textPrimary;
+      nameText.fontSize = 15;
+      nameText.fontWeight = "bold";
+      nameText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      nameRow.addControl(nameText);
+
+      const badgeText = new TextBlock();
+      badgeText.text = pattern.mastered ? "Mastered" : (isWeak ? "Practice this!" : "Learning");
+      badgeText.color = pattern.mastered ? COLORS.gold : (isWeak ? COLORS.accentRed : COLORS.textMuted);
+      badgeText.fontSize = 11;
+      badgeText.fontWeight = "bold";
+      badgeText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      nameRow.addControl(badgeText);
+
+      // Accuracy
+      this.addStatRow(card, "Accuracy", `${acc}% (${pattern.timesUsedCorrectly}/${total})`,
+        pattern.mastered ? COLORS.gold : (acc >= 80 ? COLORS.accentGreen : (acc >= 50 ? COLORS.accentYellow : COLORS.accentRed)));
+      this.addProgressBar(card, acc, 100, acc >= 80 ? COLORS.accentGreen : (acc >= 50 ? COLORS.accentYellow : COLORS.accentRed));
+
+      // Example correction (most recent)
+      if (pattern.examples && pattern.examples.length > 0) {
+        const exText = new TextBlock();
+        exText.text = `Example: "${pattern.examples[pattern.examples.length - 1]}"`;
+        exText.color = COLORS.textMuted;
+        exText.fontSize = 11;
+        exText.fontStyle = "italic";
+        exText.height = "20px";
+        exText.textWrapping = true;
+        exText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        card.addControl(exText);
+      }
+
+      // Pattern explanation (most recent)
+      if (pattern.explanations && pattern.explanations.length > 0) {
+        const explainText = new TextBlock();
+        explainText.text = `Rule: ${pattern.explanations[pattern.explanations.length - 1]}`;
+        explainText.color = COLORS.textSecondary;
+        explainText.fontSize = 11;
+        explainText.height = "20px";
+        explainText.textWrapping = true;
+        explainText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        card.addControl(explainText);
       }
     }
   }

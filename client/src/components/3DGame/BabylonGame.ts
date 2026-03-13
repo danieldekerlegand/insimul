@@ -378,6 +378,7 @@ export class BabylonGame {
   // Onboarding / assessment
   private onboardingResult: OnboardingLaunchResult | null = null;
   private onboardingActive: boolean = false;
+  private assessmentActive: boolean = false;
 
   // Player
   private playerController: CharacterController | null = null;
@@ -1182,6 +1183,9 @@ export class BabylonGame {
           duration: 2000,
         });
       },
+      onVocabWordSpeak: (word: string) => {
+        this.chatPanel?.speakWord(word);
+      },
       onNPCSelected: (npcId: string) => this.setSelectedNPC(npcId),
       onPayFines: () => this.handlePayFines(),
       onBackToEditor: () => this.config.onBack?.(),
@@ -1304,7 +1308,7 @@ export class BabylonGame {
       }
 
       // If assessment is active, signal that a conversation was completed
-      if (this.onboardingActive) {
+      if (this.assessmentActive) {
         this.eventBus.emit({
           type: 'assessment_conversation_completed',
           npcId: this.conversationNPCId || '',
@@ -3769,6 +3773,7 @@ export class BabylonGame {
 
     console.log('[BabylonGame] First playthrough detected — launching onboarding');
     this.onboardingActive = true;
+    this.assessmentActive = true;
 
     const result = await launchOnboarding({
       eventBus: this.eventBus,
@@ -3780,6 +3785,7 @@ export class BabylonGame {
     });
 
     this.onboardingActive = false;
+    this.assessmentActive = false;
 
     if (result) {
       this.onboardingResult = result;
@@ -7845,6 +7851,7 @@ export class BabylonGame {
 
   private disposeSystems(): void {
     this.onboardingActive = false;
+    this.assessmentActive = false;
     this.onboardingResult = null;
     this.ambientConversationManager?.dispose();
     this.ambientConversationManager = null;
