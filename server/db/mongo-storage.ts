@@ -53,6 +53,7 @@ import type {
   InsertLanguageChatMessage,
   LanguageScopeType
 } from "@shared/language";
+import type { AssessmentSession } from "@shared/assessment";
 
 // Mongoose Document interfaces
 interface RuleDoc extends Omit<Rule, 'id'>, Document {
@@ -940,6 +941,27 @@ const ApiKeySchema = new Schema({
 });
 ApiKeySchema.index({ key: 1 });
 
+const AssessmentSessionSchema = new Schema({
+  playerId: { type: String, required: true },
+  worldId: { type: String, required: true },
+  assessmentDefinitionId: { type: String, required: true },
+  assessmentType: { type: String, required: true }, // arrival, departure, periodic
+  targetLanguage: { type: String, required: true },
+  status: { type: String, required: true, default: 'idle' }, // idle, initializing, phase_active, phase_transitioning, scoring, complete
+  phaseResults: { type: [Schema.Types.Mixed], default: [] },
+  totalScore: { type: Number, default: null },
+  totalMaxPoints: { type: Number, required: true },
+  cefrLevel: { type: String, default: null }, // A1, A2, B1, B2
+  dimensionScores: { type: Schema.Types.Mixed, default: null },
+  automatedMetrics: { type: Schema.Types.Mixed, default: null },
+  recordings: { type: [Schema.Types.Mixed], default: [] },
+  startedAt: { type: Date, default: null },
+  completedAt: { type: Date, default: null },
+  createdAt: { type: Date, default: Date.now }
+});
+AssessmentSessionSchema.index({ playerId: 1, worldId: 1, assessmentType: 1 });
+AssessmentSessionSchema.index({ worldId: 1, status: 1 });
+
 // Mongoose Models
 const RuleModel = mongoose.model<RuleDoc>('Rule', RuleSchema);
 const GrammarModel = mongoose.model<GrammarDoc>('Grammar', GrammarSchema);
@@ -978,6 +1000,7 @@ const EvaluationResponseModel = mongoose.model('EvaluationResponse', EvaluationR
 const TechnicalTelemetryModel = mongoose.model('TechnicalTelemetry', TechnicalTelemetrySchema, 'technicaltelemetry');
 const EngagementEventModel = mongoose.model('EngagementEvent', EngagementEventSchema, 'engagementevents');
 const ApiKeyModel = mongoose.model('ApiKey', ApiKeySchema, 'apikeys');
+const AssessmentSessionModel = mongoose.model('AssessmentSession', AssessmentSessionSchema, 'assessmentsessions');
 
 // Helper to convert Mongoose doc to our type
 function docToRule(doc: RuleDoc | any): Rule {
@@ -2839,6 +2862,147 @@ export class MongoStorage implements IStorage {
   async getApiKeysByWorld(worldId: string): Promise<any[]> {
     const docs = await ApiKeyModel.find({ worldId });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  // ============= ASSESSMENT SESSIONS =============
+
+  async createAssessmentSession(data: Omit<AssessmentSession, 'id'>): Promise<AssessmentSession> {
+    await this.connect();
+    const doc = await AssessmentSessionModel.create(data);
+    const obj = doc.toObject();
+    return { ...obj, id: doc._id.toString(), createdAt: obj.createdAt.toISOString(), startedAt: obj.startedAt?.toISOString(), completedAt: obj.completedAt?.toISOString() } as AssessmentSession;
+  }
+
+  async getAssessmentSession(id: string): Promise<AssessmentSession | undefined> {
+    await this.connect();
+    const doc = await AssessmentSessionModel.findById(id);
+    if (!doc) return undefined;
+    const obj = doc.toObject();
+    return { ...obj, id: doc._id.toString(), createdAt: obj.createdAt.toISOString(), startedAt: obj.startedAt?.toISOString(), completedAt: obj.completedAt?.toISOString() } as AssessmentSession;
+  }
+
+  async updateAssessmentPhaseResult(sessionId: string, phaseResult: any): Promise<AssessmentSession | undefined> {
+    await this.connect();
+    const doc = await AssessmentSessionModel.findByIdAndUpdate(
+      sessionId,
+      {
+        $push: { phaseResults: phaseResult },
+        $set: { status: 'phase_transitioning' }
+      },
+      { new: true }
+    );
+    if (!doc) return undefined;
+    const obj = doc.toObject();
+    return { ...obj, id: doc._id.toString(), createdAt: obj.createdAt.toISOString(), startedAt: obj.startedAt?.toISOString(), completedAt: obj.completedAt?.toISOString() } as AssessmentSession;
+  }
+
+  async completeAssessmentSession(sessionId: string, results: {
+    totalScore: number;
+    cefrLevel?: string;
+    dimensionScores?: Record<string, number>;
+    automatedMetrics?: any;
+  }): Promise<AssessmentSession | undefined> {
+    await this.connect();
+    const doc = await AssessmentSessionModel.findByIdAndUpdate(
+      sessionId,
+      {
+        $set: {
+          status: 'complete',
+          totalScore: results.totalScore,
+          cefrLevel: results.cefrLevel ?? null,
+          dimensionScores: results.dimensionScores ?? null,
+          automatedMetrics: results.automatedMetrics ?? null,
+          completedAt: new Date()
+        }
+      },
+      { new: true }
+    );
+    if (!doc) return undefined;
+    const obj = doc.toObject();
+    return { ...obj, id: doc._id.toString(), createdAt: obj.createdAt.toISOString(), startedAt: obj.startedAt?.toISOString(), completedAt: obj.completedAt?.toISOString() } as AssessmentSession;
+  }
+
+  async getPlayerAssessments(playerId: string, worldId?: string, assessmentType?: string): Promise<AssessmentSession[]> {
+    await this.connect();
+    const query: any = { playerId };
+    if (worldId) query.worldId = worldId;
+    if (assessmentType) query.assessmentType = assessmentType;
+    const docs = await AssessmentSessionModel.find(query).sort({ createdAt: -1 });
+    return docs.map(d => {
+      const obj = d.toObject();
+      return { ...obj, id: d._id.toString(), createdAt: obj.createdAt.toISOString(), startedAt: obj.startedAt?.toISOString(), completedAt: obj.completedAt?.toISOString() } as AssessmentSession;
+    });
+  }
+
+  async getWorldAssessmentSummary(worldId: string): Promise<{
+    totalSessions: number;
+    completedSessions: number;
+    averageScore: number;
+    averagePercentage: number;
+    byType: Record<string, { count: number; avgScore: number; avgPercentage: number }>;
+    cefrDistribution: Record<string, number>;
+    scoreDistribution: { bucket: string; count: number }[];
+  }> {
+    await this.connect();
+    const docs = await AssessmentSessionModel.find({ worldId, status: 'complete' });
+    const totalSessions = await AssessmentSessionModel.countDocuments({ worldId });
+
+    const byType: Record<string, { count: number; scores: number[]; percentages: number[] }> = {};
+    const cefrDistribution: Record<string, number> = { A1: 0, A2: 0, B1: 0, B2: 0 };
+    const allScores: number[] = [];
+    const allPercentages: number[] = [];
+
+    for (const doc of docs) {
+      const score = doc.totalScore ?? 0;
+      const maxPoints = doc.totalMaxPoints || 1;
+      const pct = (score / maxPoints) * 100;
+      allScores.push(score);
+      allPercentages.push(pct);
+
+      const type = doc.assessmentType;
+      if (!byType[type]) byType[type] = { count: 0, scores: [], percentages: [] };
+      byType[type].count++;
+      byType[type].scores.push(score);
+      byType[type].percentages.push(pct);
+
+      if (doc.cefrLevel && doc.cefrLevel in cefrDistribution) {
+        cefrDistribution[doc.cefrLevel]++;
+      }
+    }
+
+    const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+
+    const byTypeResult: Record<string, { count: number; avgScore: number; avgPercentage: number }> = {};
+    for (const [type, data] of Object.entries(byType)) {
+      byTypeResult[type] = {
+        count: data.count,
+        avgScore: Math.round(avg(data.scores) * 100) / 100,
+        avgPercentage: Math.round(avg(data.percentages) * 100) / 100,
+      };
+    }
+
+    // Score distribution buckets (percentage-based)
+    const buckets = [
+      { label: '0-20%', min: 0, max: 20 },
+      { label: '21-40%', min: 21, max: 40 },
+      { label: '41-60%', min: 41, max: 60 },
+      { label: '61-80%', min: 61, max: 80 },
+      { label: '81-100%', min: 81, max: 100 },
+    ];
+    const scoreDistribution = buckets.map(b => ({
+      bucket: b.label,
+      count: allPercentages.filter(p => p >= b.min && p <= b.max).length,
+    }));
+
+    return {
+      totalSessions,
+      completedSessions: docs.length,
+      averageScore: Math.round(avg(allScores) * 100) / 100,
+      averagePercentage: Math.round(avg(allPercentages) * 100) / 100,
+      byType: byTypeResult,
+      cefrDistribution,
+      scoreDistribution,
+    };
   }
 
 }

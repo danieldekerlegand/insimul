@@ -45,6 +45,7 @@ import type {
   InsertLanguageChatMessage,
   LanguageScopeType
 } from "@shared/language";
+import type { AssessmentSession } from "@shared/assessment";
 import { randomUUID } from "crypto";
 import * as fs from "fs/promises";
 import * as path from "path";
@@ -277,6 +278,27 @@ export interface IStorage {
   getTracesByUser(userId: string): Promise<import("@shared/schema").PlayTrace[]>;
   createPlayTrace(trace: import("@shared/schema").InsertPlayTrace): Promise<import("@shared/schema").PlayTrace>;
   deletePlayTrace(id: string): Promise<boolean>;
+
+  // Assessment Sessions
+  createAssessmentSession(data: Omit<AssessmentSession, 'id'>): Promise<AssessmentSession>;
+  getAssessmentSession(id: string): Promise<AssessmentSession | undefined>;
+  updateAssessmentPhaseResult(sessionId: string, phaseResult: any): Promise<AssessmentSession | undefined>;
+  completeAssessmentSession(sessionId: string, results: {
+    totalScore: number;
+    cefrLevel?: string;
+    dimensionScores?: Record<string, number>;
+    automatedMetrics?: any;
+  }): Promise<AssessmentSession | undefined>;
+  getPlayerAssessments(playerId: string, worldId?: string, assessmentType?: string): Promise<AssessmentSession[]>;
+  getWorldAssessmentSummary(worldId: string): Promise<{
+    totalSessions: number;
+    completedSessions: number;
+    averageScore: number;
+    averagePercentage: number;
+    byType: Record<string, { count: number; avgScore: number; avgPercentage: number }>;
+    cefrDistribution: Record<string, number>;
+    scoreDistribution: { bucket: string; count: number }[];
+  }>;
 }
 
 // Export MongoStorage as the default storage implementation
