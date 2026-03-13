@@ -18,6 +18,7 @@ import { buildGreeting, buildLanguageAwareSystemPrompt, buildWorldLanguageContex
 import type { WorldLanguageContext } from "@shared/language/language-utils";
 import { LanguageProgressTracker } from "./LanguageProgressTracker";
 import { scorePronunciation, formatPronunciationFeedback } from "@shared/language/pronunciation-scoring";
+import { SpeechRecognitionService, isSpeechRecognitionSupported, serverSideSTT } from "@/lib/speech-recognition";
 
 interface Message {
   role: 'user' | 'assistant';
@@ -99,9 +100,9 @@ export class BabylonChatPanel {
   private audioQueue: { index: number; blob: Blob }[] = [];
   private isPlayingQueue = false;
 
-  // Audio
-  private mediaRecorder: MediaRecorder | null = null;
-  private audioChunks: Blob[] = [];
+  // Audio / Speech Recognition
+  private speechService: SpeechRecognitionService | null = null;
+  private serverSTTHandle: { stop: () => void } | null = null;
   private currentAudio: HTMLAudioElement | null = null;
   private isRecording = false;
   private isSpeaking = false;
@@ -273,9 +274,8 @@ export class BabylonChatPanel {
       this.currentAudio.pause();
       this.currentAudio = null;
     }
-    if (this.mediaRecorder && this.isRecording) {
-      this.mediaRecorder.stop();
-      this.isRecording = false;
+    if (this.isRecording) {
+      this.stopRecording();
     }
     this.isSpeaking = false;
   }
@@ -1401,197 +1401,177 @@ export class BabylonChatPanel {
   }
 
   private async startRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      this.mediaRecorder = new MediaRecorder(stream);
-      this.audioChunks = [];
+    if (this.isRecording || this.isProcessing) return;
 
-      this.mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          this.audioChunks.push(event.data);
-        }
-      };
+    // Determine language for recognition
+    const lang = this.worldLanguageContext?.targetLanguage
+      ? getLanguageBCP47(this.worldLanguageContext.targetLanguage)
+      : 'en-US';
 
-      this.mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
-        stream.getTracks().forEach(track => track.stop());
+    this.isRecording = true;
 
-        this.isProcessing = true;
-        
-        // Update input text to show processing
-        if (this.inputText) {
-          this.inputText.text = "🔄 Transcribing audio...";
-          this.inputText.color = "#ffd93d";
-        }
-        
-        // Show thinking indicator
-        if (this.loadingIndicator) {
-          this.loadingIndicator.isVisible = true;
-        }
-        
-        try {
-          // First try to send audio directly to Gemini
-          let response: { text: string; audio?: string; userTranscript?: string };
-          let userTranscript: string;
-          
-          try {
-            // Get transcript first so we can show it immediately
-            userTranscript = await this.speechToText(audioBlob);
-            
-            // Show user message right away
-            this.messages.push({
-              role: 'user',
-              content: userTranscript,
-              timestamp: new Date()
-            });
-            this.updateMessagesDisplay();
-            
-            // Update input to show thinking status
-            if (this.inputText) {
-              this.inputText.text = "NPC is thinking...";
-              this.inputText.color = "#ffd93d";
-            }
-            
-            // Now send to Gemini
-            const textResponse = await this.sendToGemini(userTranscript);
-            response = {
-              ...textResponse,
-              userTranscript: userTranscript
-            };
-          } catch (e) {
-            console.log('Direct audio API failed, falling back to speech-to-text');
-            // Fallback to speech-to-text then text chat
-            userTranscript = await this.speechToText(audioBlob);
-            
-            // Show user message right away
-            this.messages.push({
-              role: 'user',
-              content: userTranscript,
-              timestamp: new Date()
-            });
-            this.updateMessagesDisplay();
-            
-            // Update input to show thinking status
-            if (this.inputText) {
-              this.inputText.text = "NPC is thinking...";
-              this.inputText.color = "#ffd93d";
-            }
-            
-            const textResponse = await this.sendToGemini(userTranscript);
-            response = {
-              ...textResponse,
-              userTranscript: userTranscript
-            };
-          }
-          
-          // NPC response is now pure dialogue (no embedded markers)
-          const voiceCleanedResponse = response.text;
+    // Update mic button appearance
+    if (this.micButton) {
+      this.micButton.background = "rgba(255, 50, 50, 0.8)";
+      this.micButton.color = "white";
+    }
 
-          // Add AI response
-          this.messages.push({
-            role: 'assistant',
-            content: voiceCleanedResponse,
-            timestamp: new Date()
-          });
-          this.updateMessagesDisplay();
-          // Notify speech bubble overlay of NPC's words
-          this.onNPCSpeechUpdate?.(voiceCleanedResponse);
+    // Update input text to show recording
+    if (this.inputText) {
+      this.inputText.text = "🎤 Listening...";
+      this.inputText.color = "#ff6b6b";
+    }
 
-          // Request grammar analysis asynchronously (separate LLM call)
-          const isLangLearning = this.world?.gameType === 'language-learning' ||
-                                 this.world?.gameType === 'educational' ||
-                                 this.world?.worldType === 'language-learning' ||
-                                 this.world?.worldType === 'educational';
-          if (isLangLearning && this.languageTracker && this.worldLanguageContext?.targetLanguage) {
-            this.requestGrammarAnalysis(userTranscript, voiceCleanedResponse);
-          }
-
-          // Play audio if available
-          if (response.audio) {
-            const audioBytes = Uint8Array.from(atob(response.audio), c => c.charCodeAt(0));
-            const audioBlob = new Blob([audioBytes], { type: 'audio/mp3' });
-            await this.playAudio(audioBlob);
-          } else {
-            // Fallback to TTS
-            await this.textToSpeech(voiceCleanedResponse);
-          }
-          
-          // Hide thinking indicator
-          if (this.loadingIndicator) {
-            this.loadingIndicator.isVisible = false;
-          }
-          
-          // Reset input
+    if (isSpeechRecognitionSupported()) {
+      this.speechService = new SpeechRecognitionService({
+        lang,
+        interimResults: true,
+        continuous: false,
+        onInterimResult: (text) => {
           if (this.inputText) {
-            this.inputText.text = "Type your message...";
-            this.inputText.color = "white";
+            this.inputText.text = text;
+            this.inputText.color = "#ffd93d";
           }
-          
-        } catch (error) {
-          console.error('Audio processing error:', error);
-          
-          // Hide thinking indicator on error
-          if (this.loadingIndicator) {
-            this.loadingIndicator.isVisible = false;
+        },
+        onFinalResult: (transcript) => {
+          this.handleVoiceTranscript(transcript);
+        },
+        onError: (err) => {
+          console.warn('[BabylonChatPanel] Speech recognition error:', err);
+          this.resetRecordingUI();
+        },
+        onEnd: () => {
+          this.isRecording = false;
+          if (this.micButton) {
+            this.micButton.background = "rgba(60, 60, 60, 0.8)";
+            this.micButton.color = "white";
           }
-          
-          // Reset input on error
-          if (this.inputText) {
-            this.inputText.text = "Type your message...";
-            this.inputText.color = "white";
-          }
-        } finally {
-          this.isProcessing = false;
-        }
-      };
-
-      this.mediaRecorder.start();
-      this.isRecording = true;
-      
-      // Update mic button appearance
-      if (this.micButton) {
-        this.micButton.background = "rgba(255, 50, 50, 0.8)";
-        this.micButton.color = "white";
-      }
-      
-      // Update input text to show recording
+        },
+      });
+      this.speechService.start();
+    } else {
+      // Fallback to server-side STT
       if (this.inputText) {
         this.inputText.text = "🎤 Recording...";
         this.inputText.color = "#ff6b6b";
       }
-    } catch (error) {
-      console.error('Microphone error:', error);
-    }
-  }
-
-  private stopRecording() {
-    if (this.mediaRecorder && this.isRecording) {
-      this.mediaRecorder.stop();
-      this.isRecording = false;
-      
-      // Update mic button appearance
-      if (this.micButton) {
-        this.micButton.background = "rgba(60, 60, 60, 0.8)";
-        this.micButton.color = "white";
+      try {
+        this.serverSTTHandle = await serverSideSTT(
+          (transcript) => this.handleVoiceTranscript(transcript),
+          (err) => {
+            console.error('[BabylonChatPanel] Server STT error:', err);
+            this.resetRecordingUI();
+          },
+        );
+      } catch (err) {
+        console.error('Microphone error:', err);
+        this.resetRecordingUI();
       }
     }
   }
 
-  private async speechToText(audioBlob: Blob): Promise<string> {
-    const formData = new FormData();
-    formData.append('audio', audioBlob, 'recording.webm');
+  private stopRecording() {
+    if (!this.isRecording) return;
 
-    const response = await fetch('/api/stt', {
-      method: 'POST',
-      body: formData
-    });
+    this.isRecording = false;
 
-    if (!response.ok) {
-      throw new Error('Failed to convert speech to text');
+    if (this.speechService) {
+      this.speechService.stop();
+    }
+    if (this.serverSTTHandle) {
+      this.serverSTTHandle.stop();
+      this.serverSTTHandle = null;
     }
 
-    const data = await response.json();
-    return data.transcript;
+    // Update mic button appearance
+    if (this.micButton) {
+      this.micButton.background = "rgba(60, 60, 60, 0.8)";
+      this.micButton.color = "white";
+    }
+  }
+
+  private resetRecordingUI() {
+    this.isRecording = false;
+    this.isProcessing = false;
+    if (this.micButton) {
+      this.micButton.background = "rgba(60, 60, 60, 0.8)";
+      this.micButton.color = "white";
+    }
+    if (this.inputText) {
+      this.inputText.text = "Type your message...";
+      this.inputText.color = "white";
+    }
+    if (this.loadingIndicator) {
+      this.loadingIndicator.isVisible = false;
+    }
+  }
+
+  private async handleVoiceTranscript(userTranscript: string) {
+    if (!userTranscript.trim()) {
+      this.resetRecordingUI();
+      return;
+    }
+
+    this.isProcessing = true;
+
+    // Show thinking indicator
+    if (this.loadingIndicator) {
+      this.loadingIndicator.isVisible = true;
+    }
+
+    try {
+      // Show user message right away
+      this.messages.push({
+        role: 'user',
+        content: userTranscript,
+        timestamp: new Date()
+      });
+      this.updateMessagesDisplay();
+
+      // Update input to show thinking status
+      if (this.inputText) {
+        this.inputText.text = "NPC is thinking...";
+        this.inputText.color = "#ffd93d";
+      }
+
+      // Send to Gemini
+      const response = await this.sendToGemini(userTranscript);
+      const voiceCleanedResponse = response.text;
+
+      // Add AI response
+      this.messages.push({
+        role: 'assistant',
+        content: voiceCleanedResponse,
+        timestamp: new Date()
+      });
+      this.updateMessagesDisplay();
+      this.onNPCSpeechUpdate?.(voiceCleanedResponse);
+
+      // Request grammar analysis asynchronously
+      const isLangLearning = this.world?.gameType === 'language-learning' ||
+                             this.world?.gameType === 'educational' ||
+                             this.world?.worldType === 'language-learning' ||
+                             this.world?.worldType === 'educational';
+      if (isLangLearning && this.languageTracker && this.worldLanguageContext?.targetLanguage) {
+        this.requestGrammarAnalysis(userTranscript, voiceCleanedResponse);
+      }
+
+      // Play audio if available
+      if (response.audio) {
+        const audioBytes = Uint8Array.from(atob(response.audio), c => c.charCodeAt(0));
+        const audioBlob = new Blob([audioBytes], { type: 'audio/mp3' });
+        await this.playAudio(audioBlob);
+      } else {
+        await this.textToSpeech(voiceCleanedResponse);
+      }
+
+      this.resetRecordingUI();
+    } catch (error) {
+      console.error('Audio processing error:', error);
+      this.resetRecordingUI();
+    } finally {
+      this.isProcessing = false;
+    }
   }
 
   /**
@@ -1623,7 +1603,7 @@ export class BabylonChatPanel {
     // Record player's attempt
     try {
       const audioBlob = await this.recordPronunciationAttempt(5000); // 5 second max
-      const transcript = await this.speechToText(audioBlob);
+      const transcript = await this.serverSpeechToText(audioBlob);
 
       // Score the pronunciation
       const result = scorePronunciation(phrase, transcript);
@@ -1665,6 +1645,16 @@ export class BabylonChatPanel {
       });
       this.updateMessagesDisplay();
     }
+  }
+
+  /** Server-side STT for pronunciation scoring (needs full audio for accuracy). */
+  private async serverSpeechToText(audioBlob: Blob): Promise<string> {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.webm');
+    const response = await fetch('/api/stt', { method: 'POST', body: formData });
+    if (!response.ok) throw new Error('Failed to convert speech to text');
+    const data = await response.json();
+    return data.transcript;
   }
 
   /**

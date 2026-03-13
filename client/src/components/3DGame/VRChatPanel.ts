@@ -19,6 +19,7 @@ import { Color3 } from '@babylonjs/core';
 import * as GUI from '@babylonjs/gui';
 import { VRUIPanel } from './VRUIPanel';
 import { VRManager } from './VRManager';
+import { SpeechRecognitionService, isSpeechRecognitionSupported, serverSideSTT } from '@/lib/speech-recognition';
 
 interface VRChatMessage {
   role: 'user' | 'assistant';
@@ -67,8 +68,8 @@ export class VRChatPanel {
   private isRecording: boolean = false;
 
   // Speech-to-text
-  private mediaRecorder: MediaRecorder | null = null;
-  private audioChunks: Blob[] = [];
+  private speechService: SpeechRecognitionService | null = null;
+  private serverSTTHandle: { stop: () => void } | null = null;
   private currentAudio: HTMLAudioElement | null = null;
 
   // Render observer for panel positioning
@@ -365,39 +366,66 @@ export class VRChatPanel {
   private async startRecording(): Promise<void> {
     if (this.isRecording || this.isProcessing) return;
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      this.mediaRecorder = new MediaRecorder(stream);
-      this.audioChunks = [];
+    this.isRecording = true;
+    this.vrManager.triggerHapticPulse('right', 0.2, 50);
 
-      this.mediaRecorder.ondataavailable = (event) => {
-        this.audioChunks.push(event.data);
-      };
+    if (this.statusText) {
+      this.statusText.text = 'Listening... Release to send';
+      this.statusText.color = '#ff4444';
+    }
 
-      this.mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
-        stream.getTracks().forEach(track => track.stop());
-        this.processAudio(audioBlob);
-      };
-
-      this.mediaRecorder.start();
-      this.isRecording = true;
-      this.vrManager.triggerHapticPulse('right', 0.2, 50);
-
-      if (this.statusText) {
-        this.statusText.text = 'Recording... Release to send';
-        this.statusText.color = '#ff4444';
+    if (isSpeechRecognitionSupported()) {
+      this.speechService = new SpeechRecognitionService({
+        lang: 'en-US',
+        interimResults: true,
+        continuous: false,
+        onInterimResult: (text) => {
+          if (this.statusText) {
+            this.statusText.text = text;
+            this.statusText.color = '#ffcc44';
+          }
+        },
+        onFinalResult: (transcript) => {
+          this.handleVoiceResult(transcript);
+        },
+        onError: (err) => {
+          console.warn('[VRChatPanel] Speech recognition error:', err);
+          this.resetVRRecordingState();
+        },
+        onEnd: () => {
+          this.isRecording = false;
+        },
+      });
+      this.speechService.start();
+    } else {
+      // Fallback to server-side STT
+      try {
+        this.serverSTTHandle = await serverSideSTT(
+          (transcript) => this.handleVoiceResult(transcript),
+          (err) => {
+            console.error('[VRChatPanel] Server STT error:', err);
+            this.resetVRRecordingState();
+          },
+        );
+      } catch (err) {
+        console.error('[VRChatPanel] Failed to start recording:', err);
+        this.resetVRRecordingState();
       }
-    } catch (err) {
-      console.error('[VRChatPanel] Failed to start recording:', err);
     }
   }
 
   private stopRecording(): void {
-    if (!this.isRecording || !this.mediaRecorder) return;
+    if (!this.isRecording) return;
 
-    this.mediaRecorder.stop();
     this.isRecording = false;
+
+    if (this.speechService) {
+      this.speechService.stop();
+    }
+    if (this.serverSTTHandle) {
+      this.serverSTTHandle.stop();
+      this.serverSTTHandle = null;
+    }
 
     if (this.statusText) {
       this.statusText.text = 'Processing...';
@@ -405,28 +433,26 @@ export class VRChatPanel {
     }
   }
 
-  private async processAudio(audioBlob: Blob): Promise<void> {
+  private resetVRRecordingState(): void {
+    this.isRecording = false;
+    this.isProcessing = false;
+    if (this.statusText && this.isVisible) {
+      this.statusText.text = 'Press trigger to speak';
+      this.statusText.color = '#888888';
+    }
+  }
+
+  private async handleVoiceResult(transcript: string): Promise<void> {
+    if (!transcript.trim()) {
+      this.resetVRRecordingState();
+      return;
+    }
+
     this.isProcessing = true;
 
     try {
-      // Send to STT endpoint
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.webm');
-
-      const response = await fetch('/api/stt', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('STT failed');
-
-      const result = await response.json();
-      const transcript = result.text || result.transcript || '';
-
-      if (transcript.trim()) {
-        this.addUserMessage(transcript);
-        await this.sendMessageToNPC(transcript);
-      }
+      this.addUserMessage(transcript);
+      await this.sendMessageToNPC(transcript);
     } catch (err) {
       console.error('[VRChatPanel] STT error:', err);
       if (this.statusText) {
@@ -434,11 +460,7 @@ export class VRChatPanel {
         this.statusText.color = '#ff4444';
       }
     } finally {
-      this.isProcessing = false;
-      if (this.statusText && this.isVisible) {
-        this.statusText.text = 'Press trigger to speak';
-        this.statusText.color = '#888888';
-      }
+      this.resetVRRecordingState();
     }
   }
 
