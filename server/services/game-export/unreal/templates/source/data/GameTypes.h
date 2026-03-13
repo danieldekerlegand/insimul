@@ -14,6 +14,26 @@
  * defined in InventorySystem.h to avoid circular includes.
  */
 
+// ─── Terrain ─────────────────────────────────────────────────────────────────
+
+/**
+ * Terrain feature data (mountain, valley, canyon, etc.).
+ * Mirrors TerrainFeatureIR from ir-types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulTerrainFeature
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Id;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Name;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString FeatureType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector Position = FVector::ZeroVector;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Radius = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Elevation = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Description;
+};
+
 // ─── Mercantile ──────────────────────────────────────────────────────────────
 
 /**

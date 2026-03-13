@@ -95,9 +95,23 @@ export interface GeographyIR {
   terrainSize: number;
   /** Optional heightmap as row-major 2D array of normalised heights [0,1] */
   heightmap?: number[][];
+  /** Optional slope map derived from heightmap (gradient magnitudes) */
+  slopeMap?: number[][];
+  /** Terrain features (mountains, valleys, canyons, etc.) */
+  terrainFeatures: TerrainFeatureIR[];
   countries: CountryIR[];
   states: StateIR[];
   settlements: SettlementIR[];
+}
+
+export interface TerrainFeatureIR {
+  id: string;
+  name: string;
+  featureType: 'mountain' | 'hill' | 'valley' | 'canyon' | 'cliff' | 'mesa' | 'plateau' | 'crater' | 'ridge' | 'pass';
+  position: Vec3;
+  radius: number;
+  elevation: number;
+  description: string | null;
 }
 
 export interface CountryIR {

@@ -218,3 +218,49 @@
   - Test pattern for generators: use stats helper (min/max/mean/stddev) to verify distribution properties
   - TerrainGenerator is a pure class with no storage dependencies — easy to test without mocks
 ---
+
+## 2026-03-12 - US-003 (naturalized-procgen)
+- Added 6 stamp methods to TerrainGenerator: stampPeak (Gaussian bump), stampValley (inverse Gaussian), stampCanyon (narrow deep cut), stampCliff (sigmoid step), stampMesa (flat-topped plateau), stampCrater (bowl + rim)
+- Added stampFeatures(heightmap, terrainType, seed) auto-placement: places 2-5 terrain-appropriate features with generated names
+- Added TerrainFeature interface and FeatureType type, FEATURE_NAMES and FEATURES_BY_TERRAIN lookup tables
+- 72 new test assertions (103 total) covering all 6 stamp methods, feature count/properties/terrain-appropriateness/determinism/range
+- Files changed: server/generators/terrain-generator.ts, server/generators/terrain-generator.test.ts
+- **Learnings for future iterations:**
+  - Cliff sigmoid needs `exp(dz * sharpness)` (positive sign) for "high above, low below" — negative sign makes both sides equal at test points
+  - stampFeatures uses noise-based deterministic random for count/type/position/name selection — no Math.random needed
+  - Each stamp method clamps output to [0,1] via Math.max(0, Math.min(1, ...))
+  - Feature types per terrain: plains=[valley,mesa], hills=[peak,valley,cliff], mountains=[peak,canyon,cliff,crater], coast=[cliff,valley], river=[canyon,valley], forest=[valley,peak], desert=[mesa,canyon,crater]
+  - TypeScript error count unchanged at 459
+---
+
+## 2026-03-12 - US-004 (naturalized-procgen)
+- Added deriveSlopeMap(heightmap): gradient magnitude at each cell using central differences (forward/backward at edges)
+- Added deriveAspectMap(heightmap): angle of steepest descent in radians [0, 2π)
+- Added static isBuildable(slopeMap, x, z, maxSlope=0.52): checks slope angle < 30°
+- Added static getRoadCost(slopeMap, x, z): 1.0 flat, exponential increase, Infinity above ~15°
+- 7 new test functions covering flat/ramp slopes, aspect directions, buildability, road cost, generated heightmap comparison
+- All 669 tests pass, typecheck unchanged at 459
+- Files changed: server/generators/terrain-generator.ts, server/generators/terrain-generator.test.ts
+- **Learnings for future iterations:**
+  - Slope map stores gradient magnitude (not angle) — convert via Math.atan() when comparing to angle thresholds
+  - Central differences: (f[i+1] - f[i-1]) / 2 for interior, forward/backward difference at edges
+  - isBuildable and getRoadCost are static methods since they don't use generator state
+  - Plains mean slope (~0.015) vs mountains (~0.103) — useful for validating terrain type differentiation
+---
+
+## 2026-03-12 - US-005 (naturalized-procgen)
+- Added TerrainFeatureIR interface to ir-types.ts with 10 feature types, position Vec3, radius, elevation, description
+- Added terrainFeatures[] and slopeMap? fields to GeographyIR
+- Added elevation (integer) and slopeProfile (text) to settlements table in shared/schema.ts
+- Created terrain_features table in shared/schema.ts with full Drizzle definition + insert schema + types
+- Added TerrainFeatureSchema/Model to mongo-storage.ts with worldId index
+- Added elevation/slopeProfile to SettlementSchema in mongo-storage.ts
+- Added 5 CRUD methods to IStorage and MongoStorage: get, getByWorld, create, update, delete
+- Fixed ir-generator.ts to include terrainFeatures: [] in geography output
+- Files changed: shared/game-engine/ir-types.ts, shared/schema.ts, server/db/storage.ts, server/db/mongo-storage.ts, server/services/game-export/ir-generator.ts
+- **Learnings for future iterations:**
+  - Adding required fields to IR interfaces breaks ir-generator.ts — always provide defaults there
+  - Mongoose schemas use Schema.Types.Mixed for JSONB-like position objects
+  - TerrainFeature CRUD follows same pattern as Item CRUD (simple findById, find by worldId)
+  - TypeScript error count unchanged at 459
+---

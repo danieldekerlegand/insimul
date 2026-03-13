@@ -79,6 +79,9 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     path: 'public/data/geography.json',
     content: JSON.stringify({
       terrainSize: ir.geography.terrainSize,
+      heightmap: ir.geography.heightmap,
+      slopeMap: ir.geography.slopeMap,
+      terrainFeatures: ir.geography.terrainFeatures,
       countries: ir.geography.countries,
       states: ir.geography.states,
       settlements: ir.geography.settlements,

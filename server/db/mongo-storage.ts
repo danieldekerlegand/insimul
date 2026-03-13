@@ -334,6 +334,8 @@ const SettlementSchema = new Schema({
   previousCountryIds: { type: Schema.Types.Mixed, default: null },
   previousStateIds: { type: Schema.Types.Mixed, default: null },
   annexationHistory: { type: Schema.Types.Mixed, default: null },
+  elevation: { type: Number, default: 0 },
+  slopeProfile: { type: String, default: null },
   generationConfig: { type: Schema.Types.Mixed, default: null },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
@@ -940,6 +942,19 @@ const ApiKeySchema = new Schema({
 });
 ApiKeySchema.index({ key: 1 });
 
+const TerrainFeatureSchema = new Schema({
+  worldId: { type: String, required: true },
+  name: { type: String, required: true },
+  featureType: { type: String, required: true },
+  position: { type: Schema.Types.Mixed, required: true },
+  radius: { type: Number, required: true },
+  elevation: { type: Number, required: true },
+  description: { type: String, default: null },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+TerrainFeatureSchema.index({ worldId: 1 });
+
 // Mongoose Models
 const RuleModel = mongoose.model<RuleDoc>('Rule', RuleSchema);
 const GrammarModel = mongoose.model<GrammarDoc>('Grammar', GrammarSchema);
@@ -978,6 +993,7 @@ const EvaluationResponseModel = mongoose.model('EvaluationResponse', EvaluationR
 const TechnicalTelemetryModel = mongoose.model('TechnicalTelemetry', TechnicalTelemetrySchema, 'technicaltelemetry');
 const EngagementEventModel = mongoose.model('EngagementEvent', EngagementEventSchema, 'engagementevents');
 const ApiKeyModel = mongoose.model('ApiKey', ApiKeySchema, 'apikeys');
+const TerrainFeatureModel = mongoose.model('TerrainFeature', TerrainFeatureSchema);
 
 // Helper to convert Mongoose doc to our type
 function docToRule(doc: RuleDoc | any): Rule {
@@ -2839,6 +2855,42 @@ export class MongoStorage implements IStorage {
   async getApiKeysByWorld(worldId: string): Promise<any[]> {
     const docs = await ApiKeyModel.find({ worldId });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  // ============= TERRAIN FEATURES =============
+
+  async getTerrainFeature(id: string): Promise<any | undefined> {
+    await this.connect();
+    const doc = await TerrainFeatureModel.findById(id);
+    return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
+  }
+
+  async getTerrainFeaturesByWorld(worldId: string): Promise<any[]> {
+    await this.connect();
+    const docs = await TerrainFeatureModel.find({ worldId });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  async createTerrainFeature(feature: any): Promise<any> {
+    await this.connect();
+    const doc = await TerrainFeatureModel.create(feature);
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  async updateTerrainFeature(id: string, feature: any): Promise<any | undefined> {
+    await this.connect();
+    const doc = await TerrainFeatureModel.findByIdAndUpdate(
+      id,
+      { $set: { ...feature, updatedAt: new Date() } },
+      { new: true }
+    );
+    return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
+  }
+
+  async deleteTerrainFeature(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await TerrainFeatureModel.findByIdAndDelete(id);
+    return !!result;
   }
 
 }

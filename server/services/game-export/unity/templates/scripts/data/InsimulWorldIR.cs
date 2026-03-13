@@ -35,9 +35,23 @@ namespace Insimul.Data
     [Serializable] public class GeographyData
     {
         public int terrainSize;
+        public float[][] heightmap;
+        public float[][] slopeMap;
+        public InsimulTerrainFeatureData[] terrainFeatures;
         public InsimulSettlementData[] settlements;
         public InsimulCountryData[] countries;
         public InsimulStateData[] states;
+    }
+
+    [Serializable] public class InsimulTerrainFeatureData
+    {
+        public string id;
+        public string name;
+        public string featureType;
+        public Vec3Data position;
+        public float radius;
+        public float elevation;
+        public string description;
     }
 
     [Serializable] public class EntitiesData

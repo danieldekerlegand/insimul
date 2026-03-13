@@ -36,7 +36,9 @@ import {
   type GenerationJob,
   type InsertGenerationJob,
   type Item,
-  type InsertItem
+  type InsertItem,
+  type TerrainFeature,
+  type InsertTerrainFeature
 } from "@shared/schema";
 import type {
   WorldLanguage,
@@ -277,6 +279,13 @@ export interface IStorage {
   getTracesByUser(userId: string): Promise<import("@shared/schema").PlayTrace[]>;
   createPlayTrace(trace: import("@shared/schema").InsertPlayTrace): Promise<import("@shared/schema").PlayTrace>;
   deletePlayTrace(id: string): Promise<boolean>;
+
+  // Terrain Features
+  getTerrainFeature(id: string): Promise<TerrainFeature | undefined>;
+  getTerrainFeaturesByWorld(worldId: string): Promise<TerrainFeature[]>;
+  createTerrainFeature(feature: InsertTerrainFeature): Promise<TerrainFeature>;
+  updateTerrainFeature(id: string, feature: Partial<InsertTerrainFeature>): Promise<TerrainFeature | undefined>;
+  deleteTerrainFeature(id: string): Promise<boolean>;
 }
 
 // Export MongoStorage as the default storage implementation

@@ -403,9 +403,27 @@ export const settlements = pgTable("settlements", {
   previousStateIds: jsonb("previous_state_ids").$type<string[]>().default([]),
   annexationHistory: jsonb("annexation_history").$type<any[]>().default([]),
   
+  // Terrain data
+  elevation: integer("elevation").default(0),
+  slopeProfile: text("slope_profile"), // flat, gentle, moderate, steep, terraced
+
   // Generation config specific to this settlement
   generationConfig: jsonb("generation_config").$type<Record<string, any>>().default({}),
   
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Terrain features - mountains, valleys, canyons, etc.
+export const terrainFeatures = pgTable("terrain_features", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worldId: varchar("world_id").notNull(),
+  name: text("name").notNull(),
+  featureType: text("feature_type").notNull(), // mountain, hill, valley, canyon, cliff, mesa, plateau, crater, ridge, pass
+  position: jsonb("position").$type<{ x: number; y: number; z: number }>().notNull(),
+  radius: integer("radius").notNull(),
+  elevation: integer("elevation").notNull(),
+  description: text("description"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -873,6 +891,12 @@ export const insertStateSchema = createInsertSchema(states).omit({
 });
 
 export const insertSettlementSchema = createInsertSchema(settlements).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertTerrainFeatureSchema = createInsertSchema(terrainFeatures).omit({
   id: true,
   createdAt: true,
   updatedAt: true
@@ -1348,6 +1372,9 @@ export type InsertState = z.infer<typeof insertStateSchema>;
 
 export type Settlement = typeof settlements.$inferSelect;
 export type InsertSettlement = z.infer<typeof insertSettlementSchema>;
+
+export type TerrainFeature = typeof terrainFeatures.$inferSelect;
+export type InsertTerrainFeature = z.infer<typeof insertTerrainFeatureSchema>;
 
 export type Simulation = typeof simulations.$inferSelect;
 export type InsertSimulation = z.infer<typeof insertSimulationSchema>;

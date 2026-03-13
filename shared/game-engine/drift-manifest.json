@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-12T04:17:54.820Z",
+  "lastUpdated": "2026-03-13T00:47:39.659Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -343,7 +343,7 @@
     {
       "path": "shared/game-engine/ir-types.ts",
       "description": "WorldIR intermediate representation: the single source of truth consumed by all 4 engine generators. New IR fields not reflected in generators cause silent data loss.",
-      "hash": "aad728fa9744a8ffb1b4f842fbe5858ada6a3b812ad85632d75205e8847125b4",
+      "hash": "2d27d1819970fd1aee6233ba90d0dc85e9121d707e491c891c5c8b701332f709",
       "engineMappings": [
         {
           "engine": "babylon",

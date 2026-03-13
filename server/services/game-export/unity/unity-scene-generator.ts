@@ -28,6 +28,9 @@ interface SceneDescriptor {
 
 interface TerrainDesc {
   size: number;
+  heightmap: number[][] | null;
+  slopeMap: number[][] | null;
+  terrainFeatures: any[];
   groundColor: [number, number, number];
 }
 
@@ -92,6 +95,9 @@ function buildSceneDescriptor(ir: WorldIR): SceneDescriptor {
 
     terrain: {
       size: ir.geography.terrainSize,
+      heightmap: ir.geography.heightmap ?? null,
+      slopeMap: ir.geography.slopeMap ?? null,
+      terrainFeatures: ir.geography.terrainFeatures,
       groundColor: [v.groundColor.r, v.groundColor.g, v.groundColor.b],
     },
 

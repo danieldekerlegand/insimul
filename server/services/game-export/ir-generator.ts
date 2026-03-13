@@ -1146,6 +1146,7 @@ export async function generateWorldIR(
 
     geography: {
       terrainSize,
+      terrainFeatures: [],
       countries: countryIRs,
       states: stateIRs,
       settlements: settlementIRs,
