@@ -200,4 +200,17 @@
   - Other agent branches have prerequisite files (assessment-types.ts, arrival-encounter.ts, etc.) — check other branches for type references
   - vitest.config.ts include paths must be updated when adding test files in new directories
   - Position tracking uses simple Euclidean distance within tolerance radius — no pathfinding needed
+
+## 2026-03-13 - Task 22: Onboarding Manager
+- Created shared/onboarding/onboarding-types.ts: generic framework types (OnboardingStepType, StepState, OnboardingStep, OnboardingDefinition, StepProgress, OnboardingState)
+- Created shared/onboarding/OnboardingManager.ts: orchestrates step progression, dispatches by type via registered handlers, manages state, persists via callback, fires lifecycle events (onStepStarted, onStepCompleted, onStepSkipped, onOnboardingCompleted)
+- Created shared/onboarding/language-onboarding.ts: 10-step language learning onboarding definition with helper functions (getAssessmentStepIds, getSkippableStepIds, getAssessmentPhaseMap)
+- Created shared/__tests__/onboarding-manager.test.ts: 27 tests covering initialization, step progression, skipping, step handlers, event listeners, completeStep by ID, persistence, and language onboarding definition validation
+- All 27 tests pass, no new TypeScript errors
+- Files changed: shared/onboarding/onboarding-types.ts (new), shared/onboarding/OnboardingManager.ts (new), shared/onboarding/language-onboarding.ts (new), shared/__tests__/onboarding-manager.test.ts (new)
+- **Learnings for future iterations:**
+  - OnboardingManager is decoupled from Babylon.js — uses callback-based persistence and step handler registration
+  - Step handlers are registered per OnboardingStepType (narrative, assessment, movement, etc.) — BabylonGame integration (Task 23) will register Babylon-specific handlers
+  - Language onboarding has 4 assessment steps (not skippable) and 5 tutorial steps (skippable) plus 1 final narrative step
+  - Test files must go in shared/__tests__/ or server/__tests__/ to match vitest.config.ts include patterns
 ---
