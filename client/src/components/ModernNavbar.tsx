@@ -70,6 +70,7 @@ const tabMeta: Record<string, { label: string; icon: any }> = {
   "3d-game": { label: "Explore World", icon: Gamepad2 },
   analytics: { label: "Analytics", icon: BarChart3 },
   research: { label: "Research", icon: FlaskConical },
+  assessments: { label: "Assessments", icon: BarChart3 },
   "my-playthroughs": { label: "My Playthroughs", icon: History },
 };
 

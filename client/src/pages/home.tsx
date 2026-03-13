@@ -20,6 +20,7 @@ import { AdminPanel } from '@/components/AdminPanel';
 import { PlaythroughsList } from '@/components/PlaythroughsList';
 import { PlaythroughAnalytics } from '@/components/PlaythroughAnalytics';
 import { ResearcherDashboard } from '@/components/ResearcherDashboard';
+import { AssessmentDashboard } from '@/components/AssessmentDashboard';
 import { WorldBrowser } from '@/components/WorldBrowser';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -201,6 +202,11 @@ export default function Home() {
         {/* Research Dashboard Tab */}
         {activeTab === 'research' && selectedWorld && (
           <ResearcherDashboard worldId={selectedWorld} />
+        )}
+
+        {/* Assessment Dashboard Tab */}
+        {activeTab === 'assessments' && selectedWorld && (
+          <AssessmentDashboard worldId={selectedWorld} />
         )}
 
         {/* My Playthroughs Tab */}
