@@ -1,0 +1,21 @@
+# Ralph Progress Log
+Started: Thu Mar 12 23:35:20 CDT 2026
+---
+
+## Codebase Patterns
+- Street generator methods follow pattern: `generateX(config: StreetGenConfig & { extraFields }): StreetNetwork`
+- Tests use custom assert/counter pattern (not a test framework): `npx tsx file.test.ts`
+- GeographyConfig is defined in `server/generators/geography-generator.ts` and contains terrain, settlementType, population, foundedYear
+- Pre-existing typecheck errors in BabylonGame files are expected; check only your changed files for errors
+
+## 2026-03-12 - US-014
+- Implemented `selectStreetPattern(config: GeographyConfig): StreetPatternType` with priority-based selection logic
+- Implemented `generate(config, geographyConfig, heightmap?)` dispatch method that auto-selects pattern and calls correct algorithm
+- Added `StreetPatternType` export type: 'organic' | 'grid' | 'radial' | 'linear' | 'hillside' | 'waterfront'
+- Added helper methods `generateDefaultShoreline` and `generateFlatHeightmap` for dispatch fallbacks
+- Files changed: `server/generators/street-generator.ts`, `server/generators/street-generator.test.ts`
+- **Learnings for future iterations:**
+  - `generateLinear` requires an `axis` param, `generateWaterfront` requires `shorelinePoints`, `generateHillside` requires a heightmap — dispatch needs defaults for these
+  - Selection priority: terrain-based rules (coast/river/mountains) take precedence over settlement type rules
+  - All 2728 tests pass including new pattern selection and dispatch tests
+---
