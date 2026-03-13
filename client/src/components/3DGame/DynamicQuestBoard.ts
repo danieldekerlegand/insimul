@@ -5,8 +5,8 @@
  * conversation history, quest type variety, and overall fluency.
  */
 
-import type { LanguageProgress, GrammarPattern } from '@shared/language-progress';
-import { QUEST_TEMPLATES, type QuestTemplate } from '@shared/language-quest-templates';
+import type { LanguageProgress, GrammarPattern } from '@shared/language/language-progress';
+import { QUEST_TEMPLATES, type QuestTemplate } from '@shared/language/language-quest-templates';
 
 export interface QuestSuggestion {
   template: QuestTemplate;

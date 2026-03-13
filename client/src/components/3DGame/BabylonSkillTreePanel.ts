@@ -13,7 +13,7 @@ import {
   type SkillTreeState,
   type SkillNode,
   type SkillTier,
-} from '@shared/language-skill-tree';
+} from '@shared/language/language-skill-tree';
 
 export interface SkillTreeStats {
   wordsLearned: number;

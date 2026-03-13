@@ -7,7 +7,7 @@
  */
 
 import type { WorldLanguage } from './language';
-import { getQuestTypeForWorld, type QuestTypeDefinition } from './quest-types';
+import { getQuestTypeForWorld, type QuestTypeDefinition } from '../quest-types';
 
 // ==========================================
 // Types

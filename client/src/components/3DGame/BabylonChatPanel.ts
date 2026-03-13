@@ -14,10 +14,10 @@ import { Scene, Mesh } from "@babylonjs/core";
 import { BabylonDialogueActions } from "./BabylonDialogueActions.ts";
 import { Action } from "./types/actions";
 import { NPCTalkingIndicator } from "./NPCTalkingIndicator";
-import { buildGreeting, buildLanguageAwareSystemPrompt, buildWorldLanguageContext, extractLanguageFluencies, getLanguageBCP47 } from "@shared/language-utils";
-import type { WorldLanguageContext } from "@shared/language-utils";
+import { buildGreeting, buildLanguageAwareSystemPrompt, buildWorldLanguageContext, extractLanguageFluencies, getLanguageBCP47 } from "@shared/language/language-utils";
+import type { WorldLanguageContext } from "@shared/language/language-utils";
 import { LanguageProgressTracker } from "./LanguageProgressTracker";
-import { scorePronunciation, formatPronunciationFeedback } from "@shared/pronunciation-scoring";
+import { scorePronunciation, formatPronunciationFeedback } from "@shared/language/pronunciation-scoring";
 
 interface Message {
   role: 'user' | 'assistant';

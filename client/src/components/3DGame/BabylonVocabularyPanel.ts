@@ -6,7 +6,7 @@
  */
 
 import * as GUI from '@babylonjs/gui';
-import type { VocabularyEntry, GrammarPattern } from '@shared/language-progress';
+import type { VocabularyEntry, GrammarPattern } from '@shared/language/language-progress';
 
 type TabMode = 'vocabulary' | 'grammar';
 type SortMode = 'mastery' | 'alpha' | 'recent' | 'used' | 'review';

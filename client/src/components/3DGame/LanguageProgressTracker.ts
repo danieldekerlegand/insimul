@@ -7,7 +7,7 @@
  */
 
 import type { WorldLanguage } from '@shared/language';
-import type { WorldLanguageContext, PlayerProficiency } from '@shared/language-utils';
+import type { WorldLanguageContext, PlayerProficiency } from '@shared/language/language-utils';
 import {
   LanguageProgress,
   VocabularyEntry,
@@ -19,7 +19,7 @@ import {
   calculateMasteryLevel,
   calculateFluencyGain,
   parseGrammarFeedbackBlock,
-} from '@shared/language-progress';
+} from '@shared/language/language-progress';
 
 export class LanguageProgressTracker {
   private progress: LanguageProgress;
