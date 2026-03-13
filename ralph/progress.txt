@@ -202,3 +202,19 @@
   - Simplex noise scaling factor of 70 keeps output within [-1, 1]
   - fractalNoise normalizes by dividing by sum of amplitudes to keep output near [-1, 1]
 ---
+
+## 2026-03-12 - US-002 (naturalized-procgen)
+- Created server/generators/terrain-generator.ts with TerrainGenerator class
+- Created server/generators/terrain-generator.test.ts with 31 unit tests
+- TerrainConfig: seed, width, height, terrainType (7 types), resolution (default 128)
+- Terrain noise params: plains (0.05/3oct), hills (0.15/4oct), mountains (0.40/6oct), coast (0.08/3oct), river (0.10/4oct), forest (0.08/3oct), desert (0.12/2oct)
+- Resolution by settlement size: village=128, town=256, city=512
+- Post-processing: coast gets land-to-sea gradient, river gets meandering center channel
+- All tests pass, typecheck unchanged at 459 pre-existing errors
+- Files changed: server/generators/terrain-generator.ts (new), server/generators/terrain-generator.test.ts (new)
+- **Learnings for future iterations:**
+  - Heightmap normalization: base elevation 0.5 ± amplitude keeps values in [0,1] after clamping
+  - Coast/river terrain types need post-processing modifiers beyond base noise
+  - Test pattern for generators: use stats helper (min/max/mean/stddev) to verify distribution properties
+  - TerrainGenerator is a pure class with no storage dependencies — easy to test without mocks
+---
