@@ -157,3 +157,19 @@ Started: Thu Mar 12 23:35:20 CDT 2026
   - Residence building names are set to the address string — validation fixes must update both `properties.address` and `name`
   - All 30 validator tests + 32 address tests + 12,215 geography tests pass; typecheck clean on modified files
 ---
+
+## 2026-03-13 - US-023
+- Implemented `generateSettlementBoundary(config: BoundaryConfig, heightmap?: number[][]): SettlementBoundary` in new `server/generators/boundary-generator.ts`
+- SettlementBoundary interface: `polygon: Vec2[], area: number, perimeterType: 'natural' | 'walled' | 'open'`
+- Terrain-specific boundary shapes: plains/forest/hills (noise-perturbed circle), coast (semi-circular with flattened coastline side), mountains (elongated along valley with slope avoidance), river (elongated along river axis), desert (compact circle)
+- Population scales base radius (0.8x–1.5x via sqrt scaling)
+- Perimeter type: village=open, city(pop>1000)=walled, else=natural
+- Added `boundaryPolygon` JSONB field to settlement schema (Drizzle + Mongoose)
+- Integrated into GeographyGenerator.generate() as Step 7, stored on settlement record
+- Files changed: `server/generators/boundary-generator.ts` (new), `server/generators/boundary-generator.test.ts` (new), `server/generators/geography-generator.ts`, `shared/schema.ts`, `server/db/mongo-storage.ts`
+- **Learnings for future iterations:**
+  - `sampleSlope` maps world coords to heightmap grid using the boundary radius as extent — `halfExtent = radius * 2` centers the heightmap around the settlement
+  - Noise perturbation on boundary uses unit-circle sampling (`noise(cos(θ)*2, sin(θ)*2)`) for smooth, tileable results
+  - Coast boundary uses `coastDot > 0.3` threshold to flatten the coastline side — this produces a natural-looking semi-circular shape
+  - All 37 boundary tests + 12,215 geography tests pass; typecheck clean on modified files
+---

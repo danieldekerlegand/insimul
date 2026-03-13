@@ -403,6 +403,9 @@ export const settlements = pgTable("settlements", {
   previousStateIds: jsonb("previous_state_ids").$type<string[]>().default([]),
   annexationHistory: jsonb("annexation_history").$type<any[]>().default([]),
   
+  // Settlement boundary (terrain-aware polygon)
+  boundaryPolygon: jsonb("boundary_polygon").$type<{ x: number; z: number }[]>().default([]),
+
   // Terrain data
   elevation: integer("elevation").default(0),
   slopeProfile: text("slope_profile"), // flat, gentle, moderate, steep, terraced

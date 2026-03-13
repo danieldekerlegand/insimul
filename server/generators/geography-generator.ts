@@ -7,6 +7,7 @@
 import { storage } from '../db/storage';
 import { StreetGenerator } from './street-generator';
 import { validateBuildingAddresses } from './address-validator';
+import { generateSettlementBoundary } from './boundary-generator';
 import type { StreetNetwork, StreetNode, StreetEdge } from '../../shared/game-engine/types';
 
 export interface Location {
@@ -78,11 +79,20 @@ export class GeographyGenerator {
     // Step 6: Validate addresses and auto-fix duplicates
     validateBuildingAddresses(buildings, network, config.settlementId);
 
+    // Step 7: Generate settlement boundary polygon
+    const boundary = generateSettlementBoundary({
+      seed: `${config.worldId}-${config.settlementId}`,
+      terrain: config.terrain,
+      settlementType: config.settlementType,
+      population: config.population,
+    });
+
     // Update settlement with geography metadata + StreetNetwork as JSONB
     await storage.updateSettlement(config.settlementId, {
       districts,
       streets: network as any, // Store the StreetNetwork object directly
       landmarks,
+      boundaryPolygon: boundary.polygon,
     });
 
     // Persist lots, residences, and businesses as proper database records

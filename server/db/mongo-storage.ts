@@ -334,6 +334,7 @@ const SettlementSchema = new Schema({
   previousCountryIds: { type: Schema.Types.Mixed, default: null },
   previousStateIds: { type: Schema.Types.Mixed, default: null },
   annexationHistory: { type: Schema.Types.Mixed, default: null },
+  boundaryPolygon: { type: Schema.Types.Mixed, default: null },
   elevation: { type: Number, default: 0 },
   slopeProfile: { type: String, default: null },
   generationConfig: { type: Schema.Types.Mixed, default: null },
