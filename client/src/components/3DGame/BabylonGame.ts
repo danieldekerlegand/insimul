@@ -85,6 +85,7 @@ import { BuildingSignManager, BuildingSignData } from "@/components/3DGame/Build
 import { LanguageGamificationTracker } from "@/components/3DGame/LanguageGamificationTracker.ts";
 import { BabylonConversationHistoryPanel } from "@/components/3DGame/BabylonConversationHistoryPanel.ts";
 import { BabylonSkillTreePanel } from "@/components/3DGame/BabylonSkillTreePanel.ts";
+import { AssessmentProgressUI } from "@/components/3DGame/AssessmentProgressUI.ts";
 import { EnvironmentalAudioManager } from "@/components/3DGame/EnvironmentalAudioManager.ts";
 import { CulturalEventManager } from "@/components/3DGame/CulturalEventManager.ts";
 import { BabylonNoticeBoardPanel } from "@/components/3DGame/BabylonNoticeBoardPanel.ts";
@@ -328,6 +329,7 @@ export class BabylonGame {
   private vocabularyPanel: BabylonVocabularyPanel | null = null;
   private conversationHistoryPanel: BabylonConversationHistoryPanel | null = null;
   private skillTreePanel: BabylonSkillTreePanel | null = null;
+  private assessmentProgressUI: AssessmentProgressUI | null = null;
   private buildingSignManager: BuildingSignManager | null = null;
   private gamificationTracker: LanguageGamificationTracker | null = null;
   private environmentalAudio: EnvironmentalAudioManager | null = null;
@@ -1298,6 +1300,9 @@ export class BabylonGame {
     // Initialize conversation history panel (H key)
     this.conversationHistoryPanel = new BabylonConversationHistoryPanel(this.guiManager.advancedTexture);
     this.conversationHistoryPanel.setOnClose(() => {});
+
+    // Initialize assessment progress UI overlay
+    this.assessmentProgressUI = new AssessmentProgressUI(this.guiManager.advancedTexture);
 
     // Initialize skill tree panel (K key)
     this.skillTreePanel = new BabylonSkillTreePanel(this.guiManager.advancedTexture);
@@ -7635,6 +7640,7 @@ export class BabylonGame {
     this.vocabularyPanel?.dispose();
     this.conversationHistoryPanel?.dispose();
     this.skillTreePanel?.dispose();
+    this.assessmentProgressUI?.dispose();
     this.buildingSignManager?.dispose();
     this.gamificationTracker?.dispose();
     this.environmentalAudio?.dispose();

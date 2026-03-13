@@ -11,7 +11,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['server/__tests__/**/*.test.ts', 'shared/__tests__/**/*.test.ts'],
+    include: ['server/__tests__/**/*.test.ts', 'shared/__tests__/**/*.test.ts', 'client/src/**/__tests__/**/*.test.ts'],
     testTimeout: 30000,
   },
 });
