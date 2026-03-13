@@ -5620,17 +5620,103 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       console.log("\nCURRENT MESSAGE:", lastMessageContent.text?.substring(0, 500) || "[Audio message]");
       console.log("========================================\n");
       
+      // ── SSE streaming path ──
+      if (stream) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders();
+
+        const streamResult = await chat.sendMessageStream(lastMessageContent.text);
+
+        let fullText = '';
+        let sentenceBuffer = '';
+        let sentenceIndex = 0;
+
+        // Helper: split buffer on sentence boundaries, return [completeSentences[], remainder]
+        const extractSentences = (buf: string): [string[], string] => {
+          const sentences: string[] = [];
+          // Match sentence-ending punctuation followed by whitespace or end-of-string
+          const re = /[.!?]+(?:\s|$)/g;
+          let lastEnd = 0;
+          let m: RegExpExecArray | null;
+          while ((m = re.exec(buf)) !== null) {
+            sentences.push(buf.slice(lastEnd, m.index + m[0].length).trim());
+            lastEnd = m.index + m[0].length;
+          }
+          return [sentences, buf.slice(lastEnd)];
+        };
+
+        for await (const chunk of streamResult.stream) {
+          const text = chunk.text();
+          if (!text) continue;
+
+          fullText += text;
+          res.write(`data: ${JSON.stringify({ text })}\n\n`);
+
+          // Accumulate for sentence-level TTS
+          if (returnAudio) {
+            sentenceBuffer += text;
+            const [sentences, remainder] = extractSentences(sentenceBuffer);
+            sentenceBuffer = remainder;
+
+            for (const sentence of sentences) {
+              const cleaned = sentence
+                .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+                .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+                .trim();
+              if (!cleaned) continue;
+              try {
+                const { textToSpeech } = await import("./services/tts-stt.js");
+                const gender = voice === 'Kore' ? 'female' : 'male';
+                const audioBuffer = await textToSpeech(cleaned, voice, gender, "MP3");
+                res.write(`data: ${JSON.stringify({ audio: audioBuffer.toString('base64'), sentenceIndex })}\n\n`);
+                sentenceIndex++;
+              } catch (audioErr) {
+                console.error("TTS error for sentence chunk:", audioErr);
+              }
+            }
+          }
+        }
+
+        // Flush any remaining sentence buffer as final audio chunk
+        if (returnAudio && sentenceBuffer.trim()) {
+          const cleaned = sentenceBuffer
+            .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+            .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+            .trim();
+          if (cleaned) {
+            try {
+              const { textToSpeech } = await import("./services/tts-stt.js");
+              const gender = voice === 'Kore' ? 'female' : 'male';
+              const audioBuffer = await textToSpeech(cleaned, voice, gender, "MP3");
+              res.write(`data: ${JSON.stringify({ audio: audioBuffer.toString('base64'), sentenceIndex })}\n\n`);
+            } catch (audioErr) {
+              console.error("TTS error for final sentence chunk:", audioErr);
+            }
+          }
+        }
+
+        if (userTranscript) {
+          res.write(`data: ${JSON.stringify({ userTranscript })}\n\n`);
+        }
+
+        res.write('data: [DONE]\n\n');
+        res.end();
+        return;
+      }
+
+      // ── Non-streaming path ──
       const result = await chat.sendMessage(lastMessageContent.text);
-      
-      // Log the full response for debugging
+
       console.log("Gemini response object:", JSON.stringify(result.response, null, 2));
-      
+
       const response = result.response.text();
-      
+
       if (!response || response.trim() === '') {
         console.error("Gemini returned empty response. Candidates:", result.response.candidates);
         console.error("Prompt feedback:", result.response.promptFeedback);
-        return res.status(500).json({ 
+        return res.status(500).json({
           error: "Gemini returned empty response. This may be due to safety filters.",
           details: {
             promptFeedback: result.response.promptFeedback,
@@ -5673,7 +5759,15 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       res.json(responseData);
     } catch (error) {
       console.error("Gemini chat error:", error);
-      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to get chat response" });
+      const errMsg = error instanceof Error ? error.message : "Failed to get chat response";
+      if (res.headersSent) {
+        // Already streaming — send error as SSE event and close
+        res.write(`data: ${JSON.stringify({ error: errMsg })}\n\n`);
+        res.write('data: [DONE]\n\n');
+        res.end();
+      } else {
+        res.status(500).json({ error: errMsg });
+      }
     }
   });
 
