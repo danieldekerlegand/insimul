@@ -8,6 +8,7 @@
 import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3, InstancedMesh, Matrix, AbstractMesh, SceneLoader, Quaternion } from '@babylonjs/core';
 import { createDebugLabel } from './DebugLabelUtils';
 import "@babylonjs/loaders/glTF";
+import { generateTerrainAwarePlacements, type HeightSampler, type PlacementBounds, type TerrainSample } from './TerrainVegetationPlacer';
 
 export interface BiomeStyle {
   name: string;
@@ -415,10 +416,18 @@ export class ProceduralNatureGenerator {
       allTreeTemplates.push(variant);
     }
 
-    for (let i = 0; i < treeCount; i++) {
-      const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
-      const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
-      const baseHeight = heightSampler ? heightSampler(x, z) : 0;
+    // Terrain-aware placement: filter candidates by slope/elevation suitability
+    const placements = heightSampler
+      ? generateTerrainAwarePlacements('tree', treeCount, bounds, heightSampler)
+      : Array.from({ length: treeCount }, () => ({
+          x: bounds.minX + Math.random() * (bounds.maxX - bounds.minX),
+          z: bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ),
+          height: 0,
+          slope: 0,
+        }));
+
+    for (let i = 0; i < placements.length; i++) {
+      const { x, z, height: baseHeight } = placements[i];
       const position = new Vector3(x, baseHeight, z);
 
       // Check if too close to settlements/NPCs
@@ -755,6 +764,16 @@ export class ProceduralNatureGenerator {
     count: number = 20,
     heightSampler?: (x: number, z: number) => number
   ): void {
+    // Terrain-aware placement for rocks (prefer steep/high terrain)
+    const rockPlacements = heightSampler
+      ? generateTerrainAwarePlacements('rock', count, bounds, heightSampler)
+      : Array.from({ length: count }, () => ({
+          x: bounds.minX + Math.random() * (bounds.maxX - bounds.minX),
+          z: bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ),
+          height: 0,
+          slope: 0,
+        }));
+
     // Use asset-based rock if available
     if (this.rockOverrideTemplate) {
       // Build pool of all available rock templates (primary + variants)
@@ -764,10 +783,8 @@ export class ProceduralNatureGenerator {
         allRockTemplates.push(variant);
       }
 
-      for (let i = 0; i < count; i++) {
-        const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
-        const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
-        const baseHeight = heightSampler ? heightSampler(x, z) : 0;
+      for (let i = 0; i < rockPlacements.length; i++) {
+        const { x, z, height: baseHeight } = rockPlacements[i];
 
         // Pick randomly from all available rock templates for variety
         const chosenTemplate = allRockTemplates[Math.floor(Math.random() * allRockTemplates.length)];
@@ -841,11 +858,8 @@ export class ProceduralNatureGenerator {
     // LOD: hide rocks entirely at 80+ units (instances inherit)
     rockTemplate.addLODLevel(80, null);
 
-    for (let i = 0; i < count; i++) {
-      const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
-      const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
-
-      const baseHeight = heightSampler ? heightSampler(x, z) : 0;
+    for (let i = 0; i < rockPlacements.length; i++) {
+      const { x, z, height: baseHeight } = rockPlacements[i];
 
       // Random rock size
       const scale = 1 + Math.random() * 3;
@@ -895,14 +909,22 @@ export class ProceduralNatureGenerator {
     count: number = 30,
     heightSampler?: (x: number, z: number) => number
   ): void {
+    // Terrain-aware placement for shrubs
+    const shrubPlacements = heightSampler
+      ? generateTerrainAwarePlacements('shrub', count, bounds, heightSampler)
+      : Array.from({ length: count }, () => ({
+          x: bounds.minX + Math.random() * (bounds.maxX - bounds.minX),
+          z: bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ),
+          height: 0,
+          slope: 0,
+        }));
+
     // Use asset-based shrub/bush if available
     const template = this.shrubOverrideTemplate || this.bushOverrideTemplate;
 
     if (template) {
-      for (let i = 0; i < count; i++) {
-        const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
-        const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
-        const baseHeight = heightSampler ? heightSampler(x, z) : 0;
+      for (let i = 0; i < shrubPlacements.length; i++) {
+        const { x, z, height: baseHeight } = shrubPlacements[i];
         const scaleVariation = 0.7 + Math.random() * 0.6;
 
         // glTF root nodes have 0 vertices — use instantiateHierarchy
@@ -959,10 +981,8 @@ export class ProceduralNatureGenerator {
     // LOD: hide bushes at 60+ units (instances inherit)
     bushTemplate.addLODLevel(60, null);
 
-    for (let i = 0; i < count; i++) {
-      const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
-      const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
-      const baseHeight = heightSampler ? heightSampler(x, z) : 0;
+    for (let i = 0; i < shrubPlacements.length; i++) {
+      const { x, z, height: baseHeight } = shrubPlacements[i];
 
       const size = 1 + Math.random() * 2;
       const bush = bushTemplate.createInstance(`bush_${i}`);
@@ -1033,18 +1053,26 @@ export class ProceduralNatureGenerator {
     // LOD: hide grass at 30+ units
     grassTemplate.addLODLevel(30, null);
 
+    // Terrain-aware placement for grass
+    const grassPlacements = heightSampler
+      ? generateTerrainAwarePlacements('grass', adjustedDensity, bounds, heightSampler)
+      : Array.from({ length: adjustedDensity }, () => ({
+          x: bounds.minX + Math.random() * (bounds.maxX - bounds.minX),
+          z: bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ),
+          height: 0,
+          slope: 0,
+        }));
+
     // Phase 2: Use ThinInstances for ultra-dense grass — single draw call
     // Build a Float32Array of 4x4 world matrices for all grass patches
-    const matrices = new Float32Array(adjustedDensity * 16);
+    const matrices = new Float32Array(grassPlacements.length * 16);
     const tmpMatrix = Matrix.Identity();
     const tmpRotation = Quaternion.Identity();
     const tmpScaling = Vector3.Zero();
     const tmpPosition = Vector3.Zero();
 
-    for (let i = 0; i < adjustedDensity; i++) {
-      const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
-      const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
-      const baseHeight = heightSampler ? heightSampler(x, z) : 0;
+    for (let i = 0; i < grassPlacements.length; i++) {
+      const { x, z, height: baseHeight } = grassPlacements[i];
 
       const rotY = Math.random() * Math.PI * 2;
       const scaleVar = 0.3 + Math.random() * 0.3;
@@ -1112,10 +1140,18 @@ export class ProceduralNatureGenerator {
     const positionsPerColor: { x: number; z: number; y: number; s: number }[][] =
       flowerTemplates.map(() => []);
 
-    for (let i = 0; i < count; i++) {
-      const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
-      const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
-      const baseHeight = heightSampler ? heightSampler(x, z) : 0;
+    // Terrain-aware placement for flowers
+    const flowerPlacements = heightSampler
+      ? generateTerrainAwarePlacements('flower', count, bounds, heightSampler)
+      : Array.from({ length: count }, () => ({
+          x: bounds.minX + Math.random() * (bounds.maxX - bounds.minX),
+          z: bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ),
+          height: 0,
+          slope: 0,
+        }));
+
+    for (let i = 0; i < flowerPlacements.length; i++) {
+      const { x, z, height: baseHeight } = flowerPlacements[i];
       const colorIdx = Math.floor(Math.random() * flowerTemplates.length);
       const s = 0.8 + Math.random() * 0.5;
       positionsPerColor[colorIdx].push({ x, z, y: baseHeight, s });
