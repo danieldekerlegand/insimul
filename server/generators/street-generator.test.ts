@@ -669,6 +669,218 @@ console.log('\n--- Slope map avoidance ---');
   assert(slopeRadial.edges.length > 0, `Has edges with steep slope map`);
 }
 
+// ── Linear pattern tests ──
+
+console.log('\n=== StreetGenerator: Linear Pattern ===\n');
+
+const linearConfig = {
+  center: { x: 0, z: 0 },
+  radius: 150,
+  settlementType: 'mining_town',
+  seed: 'test-linear-42',
+  axis: { x: 1, z: 0 }, // Main street runs along X axis
+};
+
+const linearGen = new StreetGenerator();
+const linearNetwork = linearGen.generateLinear(linearConfig);
+
+// Basic structure
+console.log('--- Basic structure ---');
+assert(linearNetwork.nodes.length > 0, `Linear has nodes (got ${linearNetwork.nodes.length})`);
+assert(linearNetwork.edges.length > 0, `Linear has edges (got ${linearNetwork.edges.length})`);
+assert(linearNetwork.nodes.length >= 5, `Linear has at least 5 nodes (got ${linearNetwork.nodes.length})`);
+assert(linearNetwork.edges.length >= 4, `Linear has at least 4 edges (got ${linearNetwork.edges.length})`);
+
+// Node validity
+console.log('\n--- Node validity ---');
+for (const node of linearNetwork.nodes) {
+  assert(typeof node.id === 'string' && node.id.length > 0, `Node ${node.id} has valid id`);
+  assert(typeof node.position.x === 'number' && !isNaN(node.position.x), `Node ${node.id} has valid x`);
+  assert(typeof node.position.z === 'number' && !isNaN(node.position.z), `Node ${node.id} has valid z`);
+  assert(
+    ['intersection', 'dead_end', 'T_junction', 'curve_point'].includes(node.type),
+    `Node ${node.id} has valid type: ${node.type}`
+  );
+}
+
+// Edge validity
+console.log('\n--- Edge validity ---');
+{
+  const lNodeIds = new Set(linearNetwork.nodes.map(n => n.id));
+  for (const edge of linearNetwork.edges) {
+    assert(lNodeIds.has(edge.fromNodeId), `Edge ${edge.id} fromNodeId references existing node`);
+    assert(lNodeIds.has(edge.toNodeId), `Edge ${edge.id} toNodeId references existing node`);
+    assert(edge.length > 0, `Edge ${edge.id} has positive length`);
+    assert(edge.width > 0, `Edge ${edge.id} has positive width`);
+  }
+}
+
+// Connectivity via BFS
+console.log('\n--- Connectivity ---');
+{
+  const adj = new Map<string, Set<string>>();
+  for (const n of linearNetwork.nodes) adj.set(n.id, new Set());
+  for (const e of linearNetwork.edges) {
+    adj.get(e.fromNodeId)!.add(e.toNodeId);
+    adj.get(e.toNodeId)!.add(e.fromNodeId);
+  }
+  const visited = new Set<string>();
+  const queue = [linearNetwork.nodes[0].id];
+  visited.add(linearNetwork.nodes[0].id);
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const neighbor of adj.get(current)!) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        queue.push(neighbor);
+      }
+    }
+  }
+  assert(
+    visited.size === linearNetwork.nodes.length,
+    `Linear graph is fully connected: visited ${visited.size}/${linearNetwork.nodes.length} nodes`
+  );
+}
+
+// Linear topology: main street nodes should be roughly collinear along the axis
+console.log('\n--- Linear topology ---');
+{
+  // Main road edges should form a chain along the axis direction
+  const mainEdges = linearNetwork.edges.filter(e => e.streetType === 'main_road');
+  assert(mainEdges.length >= 3, `Has at least 3 main road edges (got ${mainEdges.length})`);
+
+  // Side streets should exist as residential or lane
+  const sideEdges = linearNetwork.edges.filter(e => e.streetType === 'residential' || e.streetType === 'lane');
+  assert(sideEdges.length >= 1, `Has side street edges (got ${sideEdges.length})`);
+}
+
+// Street types: main_road for main street, residential/lane for side streets
+console.log('\n--- Street types ---');
+{
+  const types = new Set(linearNetwork.edges.map(e => e.streetType));
+  assert(types.has('main_road'), `Linear has main_road street type`);
+  assert(types.size >= 2, `Linear has at least 2 street types (got ${types.size}: ${[...types].join(', ')})`);
+}
+
+// Side streets: should branch roughly perpendicular to main axis
+console.log('\n--- Side streets perpendicular ---');
+{
+  const sideEdges = linearNetwork.edges.filter(e => e.streetType === 'residential' || e.streetType === 'lane');
+  let perpendicularCount = 0;
+  for (const edge of sideEdges) {
+    const from = linearNetwork.nodes.find(n => n.id === edge.fromNodeId)!;
+    const to = linearNetwork.nodes.find(n => n.id === edge.toNodeId)!;
+    const dx = to.position.x - from.position.x;
+    const dz = to.position.z - from.position.z;
+    const edgeAngle = Math.atan2(dz, dx);
+    // Axis angle is 0 (along X). Perpendicular would be ~±90° (±π/2)
+    const angleDiff = Math.abs(Math.abs(edgeAngle) - Math.PI / 2);
+    if (angleDiff < Math.PI / 4) { // Within 45° of perpendicular
+      perpendicularCount++;
+    }
+  }
+  assert(
+    perpendicularCount > 0,
+    `Some side streets are roughly perpendicular to main axis (${perpendicularCount}/${sideEdges.length})`
+  );
+}
+
+// Determinism
+console.log('\n--- Determinism ---');
+{
+  const gen2 = new StreetGenerator();
+  const network2 = gen2.generateLinear(linearConfig);
+  assert(network2.nodes.length === linearNetwork.nodes.length, `Same seed produces same node count`);
+  assert(network2.edges.length === linearNetwork.edges.length, `Same seed produces same edge count`);
+
+  let posMatch = true;
+  for (let i = 0; i < linearNetwork.nodes.length; i++) {
+    if (
+      Math.abs(linearNetwork.nodes[i].position.x - network2.nodes[i].position.x) > 0.0001 ||
+      Math.abs(linearNetwork.nodes[i].position.z - network2.nodes[i].position.z) > 0.0001
+    ) {
+      posMatch = false;
+      break;
+    }
+  }
+  assert(posMatch, `Same seed produces identical positions`);
+}
+
+// Different seed
+console.log('\n--- Different seeds ---');
+{
+  const gen3 = new StreetGenerator();
+  const net3 = gen3.generateLinear({ ...linearConfig, seed: 'different-linear-99' });
+  let hasDiff = false;
+  if (net3.nodes.length !== linearNetwork.nodes.length) {
+    hasDiff = true;
+  } else {
+    for (let i = 0; i < linearNetwork.nodes.length; i++) {
+      if (
+        Math.abs(linearNetwork.nodes[i].position.x - net3.nodes[i].position.x) > 0.01 ||
+        Math.abs(linearNetwork.nodes[i].position.z - net3.nodes[i].position.z) > 0.01
+      ) {
+        hasDiff = true;
+        break;
+      }
+    }
+  }
+  assert(hasDiff, `Different seed produces different linear network`);
+}
+
+// Curve path: main street follows a provided path
+console.log('\n--- Curve path ---');
+{
+  const curvePath = [
+    { x: -100, z: -20 },
+    { x: -50, z: -10 },
+    { x: 0, z: 0 },
+    { x: 50, z: 15 },
+    { x: 100, z: 10 },
+  ];
+  const gen4 = new StreetGenerator();
+  const curvedNetwork = gen4.generateLinear({
+    ...linearConfig,
+    seed: 'curved-linear',
+    curvePath,
+  });
+  assert(curvedNetwork.nodes.length > 0, `Curved linear has nodes`);
+  assert(curvedNetwork.edges.length > 0, `Curved linear has edges`);
+
+  // Main street nodes should roughly follow the curve (some z variation)
+  const mainRoadEdges = curvedNetwork.edges.filter(e => e.streetType === 'main_road');
+  assert(mainRoadEdges.length >= 3, `Curved linear has main road edges (got ${mainRoadEdges.length})`);
+}
+
+// Different axis direction
+console.log('\n--- Different axis ---');
+{
+  const gen5 = new StreetGenerator();
+  const diagLinear = gen5.generateLinear({
+    ...linearConfig,
+    seed: 'diag-linear',
+    axis: { x: 1, z: 1 }, // Diagonal
+  });
+  const gen6 = new StreetGenerator();
+  const horizLinear = gen6.generateLinear({
+    ...linearConfig,
+    seed: 'diag-linear',
+    axis: { x: 1, z: 0 }, // Horizontal
+  });
+
+  let axisDiff = false;
+  for (let i = 0; i < Math.min(diagLinear.nodes.length, horizLinear.nodes.length); i++) {
+    if (
+      Math.abs(diagLinear.nodes[i].position.x - horizLinear.nodes[i].position.x) > 1 ||
+      Math.abs(diagLinear.nodes[i].position.z - horizLinear.nodes[i].position.z) > 1
+    ) {
+      axisDiff = true;
+      break;
+    }
+  }
+  assert(axisDiff, `Different axis directions produce different networks`);
+}
+
 // Summary
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
 if (failed > 0) process.exit(1);

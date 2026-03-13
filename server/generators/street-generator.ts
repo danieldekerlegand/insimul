@@ -561,6 +561,193 @@ export class StreetGenerator {
     return this.toStreetNetwork(nodes, edges);
   }
 
+  /**
+   * Generate a linear/main-street layout for river towns, mining towns, highway stops.
+   * Algorithm:
+   * 1. Create one main street running along the provided axis through center
+   * 2. Branch short perpendicular side streets at semi-regular intervals
+   * 3. Side streets alternate left/right or appear on both sides
+   * 4. Main street is main_road; side streets are residential or lane
+   * 5. Optionally curve the main street to follow a path (e.g., river centerline)
+   * 6. Ensure connectivity
+   */
+  generateLinear(config: StreetGenConfig & {
+    axis: { x: number; z: number };
+    curvePath?: { x: number; z: number }[];
+  }): StreetNetwork {
+    this.nodeCounter = 0;
+    this.edgeCounter = 0;
+
+    const rng = seededRandom(config.seed);
+    const noise = createNoise2D(config.seed + '_linear');
+    const { center, radius } = config;
+
+    const nodes: InternalNode[] = [];
+    const edges: InternalEdge[] = [];
+
+    // Normalize axis direction
+    const axLen = Math.sqrt(config.axis.x * config.axis.x + config.axis.z * config.axis.z) || 1;
+    const axisX = config.axis.x / axLen;
+    const axisZ = config.axis.z / axLen;
+
+    // Perpendicular direction (rotated 90°)
+    const perpX = -axisZ;
+    const perpZ = axisX;
+
+    // Main street parameters
+    const mainLength = radius * 1.6; // Total length of main street
+    const halfLength = mainLength / 2;
+    const segmentSpacing = 25 + rng() * 10; // ~25-35 units between nodes
+    const mainSegments = Math.max(3, Math.round(mainLength / segmentSpacing));
+
+    // Build main street nodes along the axis (or along curvePath if provided)
+    const mainNodes: InternalNode[] = [];
+
+    for (let i = 0; i <= mainSegments; i++) {
+      const t = i / mainSegments; // 0..1 along main street
+      const linearT = t * mainLength - halfLength; // offset from center
+
+      let nx: number, nz: number;
+
+      if (config.curvePath && config.curvePath.length >= 2) {
+        // Interpolate along the curve path
+        const pathT = t * (config.curvePath.length - 1);
+        const pathIdx = Math.floor(pathT);
+        const pathFrac = pathT - pathIdx;
+        const p0 = config.curvePath[Math.min(pathIdx, config.curvePath.length - 1)];
+        const p1 = config.curvePath[Math.min(pathIdx + 1, config.curvePath.length - 1)];
+        nx = p0.x + (p1.x - p0.x) * pathFrac;
+        nz = p0.z + (p1.z - p0.z) * pathFrac;
+      } else {
+        // Straight line along axis through center
+        nx = center.x + axisX * linearT;
+        nz = center.z + axisZ * linearT;
+      }
+
+      // Add slight noise displacement perpendicular to axis
+      const displace = noise(nx * 0.02, nz * 0.02) * radius * 0.03;
+      nx += perpX * displace;
+      nz += perpZ * displace;
+
+      // Slope avoidance
+      if (config.slopeMap) {
+        const nudged = this.avoidSteepTerrain(nx, nz, config.slopeMap, radius, rng);
+        nx = nudged.x;
+        nz = nudged.z;
+      }
+
+      const nodeType: StreetNodeType = (i === 0 || i === mainSegments) ? 'dead_end' : 'intersection';
+      const node: InternalNode = {
+        id: this.nextNodeId(),
+        x: nx,
+        z: nz,
+        type: nodeType,
+        tier: 'main',
+      };
+      nodes.push(node);
+      mainNodes.push(node);
+
+      // Edge from previous node
+      if (i > 0) {
+        edges.push(this.createEdge(mainNodes[i - 1], node, 'main'));
+      }
+    }
+
+    // Branch side streets off interior main street nodes
+    const sideStreetSpacing = 2 + Math.floor(rng() * 2); // Every 2-3 nodes
+    let sideDirection = rng() > 0.5 ? 1 : -1; // Start left or right
+
+    for (let i = 1; i < mainNodes.length - 1; i++) {
+      if (i % sideStreetSpacing !== 0) continue;
+
+      const mNode = mainNodes[i];
+      mNode.type = 'intersection';
+
+      // Determine side: alternate, or both sides with some probability
+      const bothSides = rng() < 0.35;
+      const sides = bothSides ? [1, -1] : [sideDirection];
+      sideDirection *= -1; // Alternate for next time
+
+      for (const side of sides) {
+        // Side street length: 20-40% of radius
+        const sideLength = radius * (0.15 + rng() * 0.25);
+        const sideSegs = 1 + Math.floor(rng() * 2); // 1-2 segments
+
+        // Local perpendicular direction (may differ if following curve)
+        let localPerpX = perpX;
+        let localPerpZ = perpZ;
+        if (i > 0 && i < mainNodes.length - 1) {
+          // Compute local tangent from neighboring main nodes
+          const prev = mainNodes[i - 1];
+          const next = mainNodes[i + 1];
+          const tangentX = next.x - prev.x;
+          const tangentZ = next.z - prev.z;
+          const tangentLen = Math.sqrt(tangentX * tangentX + tangentZ * tangentZ) || 1;
+          localPerpX = -tangentZ / tangentLen;
+          localPerpZ = tangentX / tangentLen;
+        }
+
+        let prev = mNode;
+
+        // Side street tier: residential for longer streets, lane for short ones
+        const tier: 'secondary' | 'tertiary' = sideLength > radius * 0.25 ? 'secondary' : 'tertiary';
+
+        for (let s = 1; s <= sideSegs; s++) {
+          const st = s / sideSegs;
+          let sx = mNode.x + localPerpX * side * sideLength * st;
+          let sz = mNode.z + localPerpZ * side * sideLength * st;
+
+          // Add slight noise
+          const sDisplace = noise(sx * 0.03, sz * 0.03) * radius * 0.02;
+          sx += axisX * sDisplace;
+          sz += axisZ * sDisplace;
+
+          if (config.slopeMap) {
+            const nudged = this.avoidSteepTerrain(sx, sz, config.slopeMap, radius, rng);
+            sx = nudged.x;
+            sz = nudged.z;
+          }
+
+          // Check for nearby node snap
+          const nearby = this.findNearbyNode(nodes, sx, sz, radius * 0.08);
+          if (nearby && nearby.id !== prev.id) {
+            edges.push(this.createEdge(prev, nearby, tier));
+            nearby.type = 'intersection';
+            break;
+          }
+
+          const nodeType: StreetNodeType = s === sideSegs ? 'dead_end' : 'intersection';
+          const node: InternalNode = {
+            id: this.nextNodeId(),
+            x: sx,
+            z: sz,
+            type: nodeType,
+            tier: tier === 'secondary' ? 'secondary' : 'tertiary',
+          };
+          nodes.push(node);
+          edges.push(this.createEdge(prev, node, tier));
+          prev = node;
+        }
+      }
+    }
+
+    // Ensure full connectivity
+    this.ensureConnectivity(nodes, edges);
+
+    // Apply final noise displacement to waypoints
+    for (const edge of edges) {
+      for (let w = 1; w < edge.waypoints.length - 1; w++) {
+        const wp = edge.waypoints[w];
+        const dx = noise(wp.x * 0.04, wp.z * 0.04) * radius * 0.015;
+        const dz = noise(wp.z * 0.04, wp.x * 0.04) * radius * 0.015;
+        wp.x += dx;
+        wp.z += dz;
+      }
+    }
+
+    return this.toStreetNetwork(nodes, edges);
+  }
+
   /** Create an internal edge with waypoints */
   private createEdge(from: InternalNode, to: InternalNode, tier: 'main' | 'secondary' | 'tertiary'): InternalEdge {
     // Generate intermediate waypoints for curved edges
