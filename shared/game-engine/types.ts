@@ -444,6 +444,20 @@ export interface BiomeStyleData {
   treeAssetSetId?: string;
 }
 
+// ─── Water Features ─────────────────────────────────────────────────────────
+
+export type WaterFeatureType = 'river' | 'lake' | 'ocean' | 'pond' | 'stream' | 'waterfall' | 'marsh' | 'canal';
+
+export interface WaterFeatureStyleData {
+  name: string;
+  waterType: WaterFeatureType;
+  color: Color3;
+  transparency: number;
+  flowSpeed: number;
+  waveIntensity: number;
+  assetSetId?: string;
+}
+
 // ─── Roads ──────────────────────────────────────────────────────────────────
 
 export interface RoadSegmentData {

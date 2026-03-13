@@ -817,6 +817,41 @@ export const whereabouts = pgTable("whereabouts", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Water Features - rivers, lakes, oceans, ponds, streams, waterfalls, marshes, canals
+export const waterFeatures = pgTable("water_features", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worldId: varchar("world_id").notNull(),
+  settlementId: varchar("settlement_id"), // Optional: associated settlement
+
+  // Type
+  type: text("type").notNull(), // river, lake, ocean, pond, stream, waterfall, marsh, canal
+  subType: text("sub_type").notNull().default("fresh"), // fresh, salt, brackish
+  name: text("name").notNull(),
+
+  // Spatial
+  position: jsonb("position").$type<{ x: number; y: number; z: number }>(),
+  waterLevel: real("water_level").notNull().default(0),
+  bounds: jsonb("bounds").$type<{ minX: number; maxX: number; minZ: number; maxZ: number; centerX: number; centerZ: number }>(),
+  depth: real("depth").notNull().default(2),
+  width: real("width").notNull().default(10),
+  flowDirection: jsonb("flow_direction").$type<{ x: number; y: number; z: number } | null>(),
+  flowSpeed: real("flow_speed").notNull().default(0),
+  shorelinePoints: jsonb("shoreline_points").$type<{ x: number; y: number; z: number }[]>().default([]),
+
+  // Properties
+  biome: text("biome"),
+  isNavigable: boolean("is_navigable").default(true),
+  isDrinkable: boolean("is_drinkable").default(true),
+
+  // Visual
+  modelAssetKey: varchar("model_asset_key"),
+  color: jsonb("color").$type<{ r: number; g: number; b: number } | null>(),
+  transparency: real("transparency").default(0.3),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertRuleSchema = createInsertSchema(rules).pick({
   worldId: true,
@@ -1001,6 +1036,15 @@ export const insertItemSchema = createInsertSchema(items).pick({
 
 export type InsertItem = z.infer<typeof insertItemSchema>;
 export type Item = typeof items.$inferSelect;
+
+export const insertWaterFeatureSchema = createInsertSchema(waterFeatures).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertWaterFeature = z.infer<typeof insertWaterFeatureSchema>;
+export type WaterFeature = typeof waterFeatures.$inferSelect;
 
 // ============= USER AUTHENTICATION AND PLAYER PROGRESS =============
 

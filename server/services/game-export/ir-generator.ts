@@ -1180,6 +1180,7 @@ export async function generateWorldIR(
       countries: countryIRs,
       states: stateIRs,
       settlements: settlementIRs,
+      waterFeatures: [],
     },
 
     entities: {

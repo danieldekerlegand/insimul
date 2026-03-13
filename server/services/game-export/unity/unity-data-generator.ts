@@ -121,6 +121,29 @@ function generateSettlements(ir: WorldIR): object[] {
   }));
 }
 
+function generateWaterFeatures(ir: WorldIR): object[] {
+  return ir.geography.waterFeatures.map(w => ({
+    id: w.id,
+    name: w.name,
+    type: w.type,
+    subType: w.subType,
+    position: vec3(w.position),
+    waterLevel: w.waterLevel,
+    bounds: w.bounds,
+    depth: w.depth,
+    width: w.width,
+    flowDirection: w.flowDirection ? vec3(w.flowDirection) : null,
+    flowSpeed: w.flowSpeed,
+    shorelinePoints: w.shorelinePoints.map(p => vec3(p)),
+    settlementId: w.settlementId || '',
+    biome: w.biome || '',
+    isNavigable: w.isNavigable,
+    isDrinkable: w.isDrinkable,
+    modelAssetKey: w.modelAssetKey || '',
+    transparency: w.transparency,
+  }));
+}
+
 function generateBuildings(ir: WorldIR): object[] {
   return ir.entities.buildings.map(b => ({
     id: b.id,
@@ -245,6 +268,7 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'rules', data: generateRules(ir) },
     { name: 'quests', data: generateQuests(ir) },
     { name: 'settlements', data: generateSettlements(ir) },
+    { name: 'water_features', data: generateWaterFeatures(ir) },
     { name: 'buildings', data: generateBuildings(ir) },
     { name: 'roads', data: generateRoads(ir) },
     { name: 'businesses', data: generateBusinesses(ir) },

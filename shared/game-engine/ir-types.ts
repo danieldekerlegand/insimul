@@ -26,6 +26,7 @@ import type {
   TileType,
   NeedConfig,
   ResourceType,
+  WaterFeatureType,
 } from './types';
 
 // ─────────────────────────────────────────────
@@ -98,6 +99,7 @@ export interface GeographyIR {
   countries: CountryIR[];
   states: StateIR[];
   settlements: SettlementIR[];
+  waterFeatures: WaterFeatureIR[];
 }
 
 export interface CountryIR {
@@ -387,6 +389,50 @@ export interface QuestObjectIR {
   modelAssetKey: string | null;
   interactionType: string;
   metadata: Record<string, any>;
+}
+
+// ─────────────────────────────────────────────
+// Water Features
+// ─────────────────────────────────────────────
+
+export interface WaterFeatureIR {
+  id: string;
+  worldId: string;
+  /** Water body type */
+  type: WaterFeatureType;
+  /** Variant: fresh, salt, brackish, etc. */
+  subType: string;
+  name: string;
+  /** Center or entry point in world space */
+  position: Vec3;
+  /** Y-coordinate of the water surface */
+  waterLevel: number;
+  /** Spatial extent of the water body */
+  bounds: BoundsIR;
+  /** Average depth from surface in world units */
+  depth: number;
+  /** Average width in world units (for rivers/streams) */
+  width: number;
+  /** Flow direction vector (normalized); null for still water */
+  flowDirection: Vec3 | null;
+  /** Flow speed in world units per second; 0 for still water */
+  flowSpeed: number;
+  /** Ordered shoreline/path points defining the water shape */
+  shorelinePoints: Vec3[];
+  /** Settlement this water feature is associated with (if any) */
+  settlementId: string | null;
+  /** Biome context */
+  biome: string | null;
+  /** Whether the water is safe for swimming */
+  isNavigable: boolean;
+  /** Whether the water is drinkable (fresh vs salt) */
+  isDrinkable: boolean;
+  /** Model asset override key (if any) */
+  modelAssetKey: string | null;
+  /** Visual color of the water */
+  color: Color3 | null;
+  /** Visual transparency (0 = opaque, 1 = fully transparent) */
+  transparency: number;
 }
 
 // ─────────────────────────────────────────────
