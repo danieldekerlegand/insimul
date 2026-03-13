@@ -70,7 +70,9 @@ export type GameEvent =
   // Onboarding events
   | { type: 'onboarding_step_started'; stepId: string; stepIndex: number; totalSteps: number }
   | { type: 'onboarding_step_completed'; stepId: string; stepIndex: number; totalSteps: number; durationMs: number }
-  | { type: 'onboarding_completed'; totalSteps: number; totalDurationMs: number };
+  | { type: 'onboarding_completed'; totalSteps: number; totalDurationMs: number }
+  // Periodic assessment trigger (emitted when a level-up milestone requires a proficiency check)
+  | { type: 'periodic_assessment_triggered'; level: number; tier: string };
 
 export type GameEventType = GameEvent['type'];
 

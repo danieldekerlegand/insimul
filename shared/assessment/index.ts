@@ -1,6 +1,7 @@
 export {
   type AssessmentType,
   type PhaseType,
+  type AssessmentPhaseType,
   type TaskType,
   type CEFRLevel,
   type CefrLevel,
@@ -34,3 +35,5 @@ export {
   resolveTemplate,
   resolveAssessment,
 } from './arrival-encounter';
+
+export * from './periodic-encounter';
