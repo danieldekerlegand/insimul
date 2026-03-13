@@ -9,3 +9,4 @@ export * from './types';
 export * from './interfaces';
 export * from './ir-types';
 export * from './asset-pipeline';
+export * from './vegetation-zones';
