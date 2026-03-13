@@ -892,6 +892,21 @@ const LanguageAssessmentSchema = new Schema({
 });
 LanguageAssessmentSchema.index({ playerId: 1, worldId: 1 });
 
+const AssessmentSessionSchema = new Schema({
+  playerId: { type: String, required: true },
+  worldId: { type: String, required: true },
+  assessmentType: { type: String, required: true }, // arrival, departure, custom
+  status: { type: String, default: 'in_progress' }, // in_progress, completed
+  totalScore: { type: Number, default: null },
+  maxScore: { type: Number, default: null },
+  cefrLevel: { type: String, default: null },
+  phases: { type: Schema.Types.Mixed, default: [] }, // PhaseResult[]
+  recordings: { type: Schema.Types.Mixed, default: [] }, // RecordingReference[]
+  startedAt: { type: Date, default: Date.now },
+  completedAt: { type: Date, default: null },
+});
+AssessmentSessionSchema.index({ playerId: 1, worldId: 1, assessmentType: 1 });
+
 const EvaluationResponseSchema = new Schema({
   participantId: { type: String, required: true },
   studyId: { type: String, required: true },
@@ -974,6 +989,7 @@ const VocabularyEntryModel = mongoose.model('VocabularyEntry', VocabularyEntrySc
 const GrammarPatternModel = mongoose.model('GrammarPattern', GrammarPatternSchema, 'grammarpatterns');
 const ConversationRecordModel = mongoose.model('ConversationRecord', ConversationRecordSchema, 'conversationrecords');
 const LanguageAssessmentModel = mongoose.model('LanguageAssessment', LanguageAssessmentSchema, 'languageassessments');
+const AssessmentSessionModel = mongoose.model('AssessmentSession', AssessmentSessionSchema, 'assessmentsessions');
 const EvaluationResponseModel = mongoose.model('EvaluationResponse', EvaluationResponseSchema, 'evaluationresponses');
 const TechnicalTelemetryModel = mongoose.model('TechnicalTelemetry', TechnicalTelemetrySchema, 'technicaltelemetry');
 const EngagementEventModel = mongoose.model('EngagementEvent', EngagementEventSchema, 'engagementevents');
@@ -2839,6 +2855,88 @@ export class MongoStorage implements IStorage {
   async getApiKeysByWorld(worldId: string): Promise<any[]> {
     const docs = await ApiKeyModel.find({ worldId });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  // ============= ASSESSMENT SESSIONS =============
+
+  async createAssessmentSession(data: any): Promise<any> {
+    const doc = await AssessmentSessionModel.create(data);
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  async getAssessmentSession(sessionId: string): Promise<any | null> {
+    const doc = await AssessmentSessionModel.findById(sessionId);
+    if (!doc) return null;
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  async updateAssessmentPhaseResult(sessionId: string, phaseId: string, result: any): Promise<any | null> {
+    const doc = await AssessmentSessionModel.findById(sessionId);
+    if (!doc) return null;
+    const phases = (doc.phases as any[]) || [];
+    const idx = phases.findIndex((p: any) => p.phaseId === phaseId);
+    if (idx >= 0) {
+      phases[idx] = { ...phases[idx], ...result, phaseId };
+    } else {
+      phases.push({ ...result, phaseId });
+    }
+    doc.phases = phases;
+    doc.markModified('phases');
+    await doc.save();
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  async addAssessmentRecording(sessionId: string, recording: any): Promise<any | null> {
+    const doc = await AssessmentSessionModel.findById(sessionId);
+    if (!doc) return null;
+    const recordings = (doc.recordings as any[]) || [];
+    recordings.push(recording);
+    doc.recordings = recordings;
+    doc.markModified('recordings');
+    await doc.save();
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  async completeAssessmentSession(sessionId: string, totalScore?: number, maxScore?: number, cefrLevel?: string): Promise<any | null> {
+    const update: any = { status: 'completed', completedAt: new Date() };
+    if (totalScore != null) update.totalScore = totalScore;
+    if (maxScore != null) update.maxScore = maxScore;
+    if (cefrLevel) update.cefrLevel = cefrLevel;
+    const doc = await AssessmentSessionModel.findByIdAndUpdate(sessionId, { $set: update }, { new: true });
+    if (!doc) return null;
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  async getPlayerAssessments(playerId: string): Promise<any[]> {
+    const docs = await AssessmentSessionModel.find({ playerId }).sort({ startedAt: -1 });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  async getWorldAssessmentSummary(worldId: string): Promise<any> {
+    const docs = await AssessmentSessionModel.find({ worldId, status: 'completed' });
+    const byType: Record<string, { count: number; scores: number[] }> = {};
+    for (const doc of docs) {
+      const type = (doc as any).assessmentType || 'unknown';
+      if (!byType[type]) byType[type] = { count: 0, scores: [] };
+      byType[type].count++;
+      if ((doc as any).totalScore != null) byType[type].scores.push((doc as any).totalScore);
+    }
+    const summary: Record<string, any> = {};
+    for (const [type, data] of Object.entries(byType)) {
+      const scores = data.scores.sort((a, b) => a - b);
+      const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+      // Score distribution buckets: 0-25%, 25-50%, 50-75%, 75-100%
+      const buckets = [0, 0, 0, 0];
+      for (const s of scores) {
+        const pct = data.scores.length > 0 ? s / Math.max(...scores) : 0;
+        if (pct <= 0.25) buckets[0]++;
+        else if (pct <= 0.5) buckets[1]++;
+        else if (pct <= 0.75) buckets[2]++;
+        else buckets[3]++;
+      }
+      summary[type] = { count: data.count, avgScore: Math.round(avg * 100) / 100, distribution: { '0-25%': buckets[0], '25-50%': buckets[1], '50-75%': buckets[2], '75-100%': buckets[3] } };
+    }
+    return { worldId, totalCompleted: docs.length, byType: summary };
   }
 
 }
