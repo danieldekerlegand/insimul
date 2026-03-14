@@ -1,8 +1,8 @@
 /**
  * Babylon.js Scene Generator
  *
- * Generates the scene-builder.ts file that constructs the 3D world
- * from the loaded data at runtime.
+ * Generates the scene-builder.ts, world-generator.ts, and npc-spawner.ts
+ * files that construct the 3D world from the loaded IR data at runtime.
  */
 
 import type { WorldIR } from '@shared/game-engine/ir-types';
@@ -11,8 +11,32 @@ import type { GeneratedFile } from './babylon-project-generator';
 export function generateSceneFiles(ir: WorldIR): GeneratedFile[] {
   const files: GeneratedFile[] = [];
 
-  // ── scene-builder.ts ──
-  files.push({
+  files.push(generateSceneBuilder(ir));
+  files.push(generateWorldGenerator(ir));
+  files.push(generateNPCSpawner(ir));
+
+  return files;
+}
+
+// ─────────────────────────────────────────────
+// scene-builder.ts
+// ─────────────────────────────────────────────
+
+function generateSceneBuilder(ir: WorldIR): GeneratedFile {
+  const theme = ir.theme;
+  const skyR = theme.ambientLighting.color[0] ?? 0.5;
+  const skyG = theme.ambientLighting.color[1] ?? 0.7;
+  const skyB = theme.ambientLighting.color[2] ?? 1.0;
+
+  const fogBlock = theme.fog
+    ? `
+  // Fog
+  scene.fogMode = Scene.FOGMODE_EXP2;
+  scene.fogDensity = ${theme.fog.density};
+  scene.fogColor = new Color3(${theme.fog.color[0]}, ${theme.fog.color[1]}, ${theme.fog.color[2]});`
+    : '';
+
+  return {
     path: 'src/game/scene-builder.ts',
     content: `/**
  * Scene Builder
@@ -24,72 +48,466 @@ import { Scene } from '@babylonjs/core/scene';
 import { Vector3, Color3, Color4 } from '@babylonjs/core/Maths/math';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
-import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
-import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
-import type { WorldGenerator } from './world-generator';
-import type { NPCSpawner } from './npc-spawner';
+import { WorldGenerator } from './world-generator';
+import { NPCSpawner } from './npc-spawner';
 
-export interface SceneConfig {
-  terrainSize: number;
-  ambientColor: [number, number, number];
-  ambientIntensity: number;
-  sunDirection: [number, number, number];
-  sunIntensity: number;
-  fog: { mode: string; density: number; color: [number, number, number] } | null;
-  skyColor: [number, number, number];
-}
-
-export async function buildScene(
-  scene: Scene,
-  config: SceneConfig,
-  worldGenerator: WorldGenerator,
-  npcSpawner: NPCSpawner,
-): Promise<void> {
+export async function buildScene(scene: Scene): Promise<void> {
   // Sky / clear color
-  scene.clearColor = new Color4(
-    config.skyColor[0] ?? 0.5,
-    config.skyColor[1] ?? 0.7,
-    config.skyColor[2] ?? 1.0,
-    1,
-  );
+  scene.clearColor = new Color4(${skyR}, ${skyG}, ${skyB}, 1);
 
   // Ambient light
   const ambient = new HemisphericLight('ambient', new Vector3(0, 1, 0), scene);
-  ambient.diffuse = new Color3(...config.ambientColor);
-  ambient.intensity = config.ambientIntensity;
+  ambient.diffuse = new Color3(${theme.ambientLighting.color[0]}, ${theme.ambientLighting.color[1]}, ${theme.ambientLighting.color[2]});
+  ambient.intensity = ${theme.ambientLighting.intensity};
   ambient.groundColor = new Color3(0.2, 0.2, 0.25);
 
   // Directional light (sun)
   const sun = new DirectionalLight(
     'sun',
-    new Vector3(config.sunDirection[0], config.sunDirection[1], config.sunDirection[2]),
+    new Vector3(${theme.directionalLight.direction[0]}, ${theme.directionalLight.direction[1]}, ${theme.directionalLight.direction[2]}),
     scene,
   );
-  sun.intensity = config.sunIntensity;
+  sun.intensity = ${theme.directionalLight.intensity};
   sun.position = new Vector3(0, 50, 0);
 
   // Shadow generator
   const shadowGen = new ShadowGenerator(2048, sun);
   shadowGen.useBlurExponentialShadowMap = true;
   shadowGen.blurKernel = 32;
+${fogBlock}
 
-  // Fog
-  if (config.fog) {
-    scene.fogMode = Scene.FOGMODE_EXP2;
-    scene.fogDensity = config.fog.density;
-    scene.fogColor = new Color3(...config.fog.color);
-  }
-
-  // Generate world geometry (async — loads building GLB models)
+  // Generate world geometry
+  const worldGenerator = new WorldGenerator();
   await worldGenerator.generate(scene, shadowGen);
 
-  // Spawn NPCs (async — loads GLB models)
+  // Spawn NPCs
+  const npcSpawner = new NPCSpawner();
   await npcSpawner.spawn(scene, shadowGen);
 }
 `,
+  };
+}
+
+// ─────────────────────────────────────────────
+// world-generator.ts
+// ─────────────────────────────────────────────
+
+function generateWorldGenerator(ir: WorldIR): GeneratedFile {
+  const terrainSize = ir.geography.terrainSize;
+  const settlements = ir.geography.settlements;
+  const buildings = ir.entities.buildings;
+  const roads = ir.entities.roads;
+  const waterFeatures = ir.geography.waterFeatures;
+  const natureObjects = ir.entities.natureObjects;
+
+  // Pre-compute settlement data blocks
+  const settlementBlocks = settlements.map(s => {
+    const streetSegments = s.streetNetwork.segments.map(seg => ({
+      id: seg.id,
+      name: seg.name,
+      direction: seg.direction,
+      waypoints: seg.waypoints,
+      width: seg.width,
+    }));
+
+    const lots = s.lots.map(lot => ({
+      id: lot.id,
+      address: lot.address,
+      position: lot.position,
+      buildingType: lot.buildingType,
+      buildingId: lot.buildingId,
+    }));
+
+    return {
+      id: s.id,
+      name: s.name,
+      position: s.position,
+      radius: s.radius,
+      settlementType: s.settlementType,
+      terrain: s.terrain,
+      population: s.population,
+      elevationProfile: s.elevationProfile,
+      streetSegments,
+      lots,
+      infrastructure: s.infrastructure,
+    };
   });
 
-  return files;
+  const buildingData = buildings.map(b => ({
+    id: b.id,
+    settlementId: b.settlementId,
+    position: b.position,
+    rotation: b.rotation,
+    spec: b.spec,
+    style: b.style,
+    businessId: b.businessId,
+    modelAssetKey: b.modelAssetKey,
+    interior: b.interior,
+  }));
+
+  const roadData = roads.map(r => ({
+    fromId: r.fromId,
+    toId: r.toId,
+    waypoints: r.waypoints,
+    width: r.width,
+    materialKey: r.materialKey,
+  }));
+
+  const waterData = waterFeatures.map(w => ({
+    id: w.id,
+    type: w.type,
+    subType: w.subType,
+    name: w.name,
+    position: w.position,
+    waterLevel: w.waterLevel,
+    bounds: w.bounds,
+    depth: w.depth,
+    width: w.width,
+    flowDirection: w.flowDirection,
+    flowSpeed: w.flowSpeed,
+    shorelinePoints: w.shorelinePoints,
+    color: w.color,
+    transparency: w.transparency,
+  }));
+
+  const natureData = natureObjects.map(n => ({
+    type: n.type,
+    subType: n.subType,
+    position: n.position,
+    scale: n.scale,
+    rotation: n.rotation,
+    biome: n.biome,
+    modelAssetKey: n.modelAssetKey,
+  }));
+
+  return {
+    path: 'src/game/world-generator.ts',
+    content: `/**
+ * World Generator
+ * Creates terrain, buildings, roads, water features, and nature objects.
+ * Generated by Insimul — ${ir.meta.worldName}
+ */
+
+import { Scene } from '@babylonjs/core/scene';
+import { Vector3, Color3 } from '@babylonjs/core/Maths/math';
+import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
+import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
+
+const TERRAIN_SIZE = ${terrainSize};
+
+const SETTLEMENTS = ${JSON.stringify(settlementBlocks, null, 2)} as const;
+
+const BUILDINGS = ${JSON.stringify(buildingData, null, 2)} as const;
+
+const ROADS = ${JSON.stringify(roadData, null, 2)} as const;
+
+const WATER_FEATURES = ${JSON.stringify(waterData, null, 2)} as const;
+
+const NATURE_OBJECTS = ${JSON.stringify(natureData, null, 2)} as const;
+
+export class WorldGenerator {
+  async generate(scene: Scene, shadowGen: ShadowGenerator): Promise<void> {
+    this.createTerrain(scene);
+    this.createBuildings(scene, shadowGen);
+    this.createStreetNetworks(scene);
+    this.createRoads(scene);
+    this.createWaterFeatures(scene);
+    this.createNatureObjects(scene, shadowGen);
+  }
+
+  private createTerrain(scene: Scene): void {
+    const ground = MeshBuilder.CreateGround(
+      'terrain',
+      { width: TERRAIN_SIZE, height: TERRAIN_SIZE, subdivisions: 64 },
+      scene,
+    );
+    const mat = new StandardMaterial('terrainMat', scene);
+    mat.diffuseColor = new Color3(0.35, 0.55, 0.25);
+    mat.specularColor = new Color3(0.1, 0.1, 0.1);
+    ground.material = mat;
+    ground.receiveShadows = true;
+  }
+
+  private createBuildings(scene: Scene, shadowGen: ShadowGenerator): void {
+    for (const b of BUILDINGS) {
+      const width = b.spec.width;
+      const depth = b.spec.depth;
+      const height = b.spec.floors * 3;
+
+      const mesh = MeshBuilder.CreateBox(
+        \`building_\${b.id}\`,
+        { width, depth, height },
+        scene,
+      );
+      mesh.position = new Vector3(b.position.x, height / 2, b.position.z);
+      mesh.rotation.y = b.rotation;
+
+      const mat = new StandardMaterial(\`buildingMat_\${b.id}\`, scene);
+      const base = b.style?.baseColor;
+      if (base) {
+        mat.diffuseColor = new Color3(base.r, base.g, base.b);
+      } else {
+        mat.diffuseColor = new Color3(0.7, 0.65, 0.6);
+      }
+      mesh.material = mat;
+      mesh.receiveShadows = true;
+      shadowGen.addShadowCaster(mesh);
+
+      // Roof
+      if (b.spec.floors > 0) {
+        const roof = MeshBuilder.CreateBox(
+          \`roof_\${b.id}\`,
+          { width: width + 0.2, depth: depth + 0.2, height: 0.3 },
+          scene,
+        );
+        roof.position = new Vector3(b.position.x, height + 0.15, b.position.z);
+        roof.rotation.y = b.rotation;
+        const roofMat = new StandardMaterial(\`roofMat_\${b.id}\`, scene);
+        const rc = b.style?.roofColor;
+        roofMat.diffuseColor = rc
+          ? new Color3(rc.r, rc.g, rc.b)
+          : new Color3(0.5, 0.3, 0.2);
+        roof.material = roofMat;
+        shadowGen.addShadowCaster(roof);
+      }
+    }
+  }
+
+  private createStreetNetworks(scene: Scene): void {
+    const streetMat = new StandardMaterial('streetMat', scene);
+    streetMat.diffuseColor = new Color3(0.3, 0.3, 0.35);
+    streetMat.specularColor = new Color3(0.05, 0.05, 0.05);
+
+    for (const settlement of SETTLEMENTS) {
+      for (const segment of settlement.streetSegments) {
+        if (segment.waypoints.length < 2) continue;
+
+        const points = segment.waypoints.map(
+          (wp: any) => new Vector3(wp.x, 0.02, wp.z),
+        );
+
+        const path = MeshBuilder.CreateTube(
+          \`street_\${segment.id}\`,
+          { path: points, radius: segment.width / 2, tessellation: 8, cap: 2 },
+          scene,
+        );
+        path.material = streetMat;
+        path.receiveShadows = true;
+      }
+    }
+  }
+
+  private createRoads(scene: Scene): void {
+    const roadMat = new StandardMaterial('roadMat', scene);
+    roadMat.diffuseColor = new Color3(0.4, 0.35, 0.3);
+    roadMat.specularColor = new Color3(0.05, 0.05, 0.05);
+
+    for (let i = 0; i < ROADS.length; i++) {
+      const road = ROADS[i];
+      if (road.waypoints.length < 2) continue;
+
+      const points = road.waypoints.map(
+        (wp: any) => new Vector3(wp.x, 0.01, wp.z),
+      );
+
+      const mesh = MeshBuilder.CreateTube(
+        \`road_\${i}\`,
+        { path: points, radius: road.width / 2, tessellation: 8, cap: 2 },
+        scene,
+      );
+      mesh.material = roadMat;
+      mesh.receiveShadows = true;
+    }
+  }
+
+  private createWaterFeatures(scene: Scene): void {
+    for (const water of WATER_FEATURES) {
+      const waterMat = new StandardMaterial(\`waterMat_\${water.id}\`, scene);
+      if (water.color) {
+        waterMat.diffuseColor = new Color3(water.color.r, water.color.g, water.color.b);
+      } else {
+        waterMat.diffuseColor = new Color3(0.1, 0.4, 0.7);
+      }
+      waterMat.alpha = 1 - water.transparency;
+      waterMat.specularColor = new Color3(0.3, 0.3, 0.4);
+
+      if (water.shorelinePoints.length >= 3) {
+        // Create water surface from shoreline polygon
+        const shape = water.shorelinePoints.map(
+          (p: any) => new Vector3(p.x, water.waterLevel, p.z),
+        );
+        const mesh = MeshBuilder.CreatePolygon(
+          \`water_\${water.id}\`,
+          { shape, depth: 0.1 },
+          scene,
+        );
+        mesh.position.y = water.waterLevel;
+        mesh.material = waterMat;
+      } else {
+        // Fallback: create water surface from bounds
+        const w = water.bounds.maxX - water.bounds.minX;
+        const d = water.bounds.maxZ - water.bounds.minZ;
+        const mesh = MeshBuilder.CreateGround(
+          \`water_\${water.id}\`,
+          { width: w || water.width, height: d || water.width },
+          scene,
+        );
+        mesh.position = new Vector3(
+          water.position.x,
+          water.waterLevel,
+          water.position.z,
+        );
+        mesh.material = waterMat;
+      }
+    }
+  }
+
+  private createNatureObjects(scene: Scene, shadowGen: ShadowGenerator): void {
+    // Group by type for shared materials
+    const treeMat = new StandardMaterial('treeMat', scene);
+    treeMat.diffuseColor = new Color3(0.2, 0.5, 0.15);
+    const trunkMat = new StandardMaterial('trunkMat', scene);
+    trunkMat.diffuseColor = new Color3(0.4, 0.25, 0.1);
+    const rockMat = new StandardMaterial('rockMat', scene);
+    rockMat.diffuseColor = new Color3(0.5, 0.5, 0.5);
+    const bushMat = new StandardMaterial('bushMat', scene);
+    bushMat.diffuseColor = new Color3(0.15, 0.4, 0.1);
+
+    for (let i = 0; i < NATURE_OBJECTS.length; i++) {
+      const obj = NATURE_OBJECTS[i];
+      const pos = new Vector3(obj.position.x, obj.position.y, obj.position.z);
+
+      switch (obj.type) {
+        case 'tree': {
+          const trunk = MeshBuilder.CreateCylinder(
+            \`trunk_\${i}\`,
+            { diameter: 0.3 * obj.scale.x, height: 2 * obj.scale.y },
+            scene,
+          );
+          trunk.position = pos.clone();
+          trunk.position.y += obj.scale.y;
+          trunk.material = trunkMat;
+          shadowGen.addShadowCaster(trunk);
+
+          const canopy = MeshBuilder.CreateSphere(
+            \`canopy_\${i}\`,
+            { diameter: 2 * obj.scale.x },
+            scene,
+          );
+          canopy.position = pos.clone();
+          canopy.position.y += 2 * obj.scale.y + obj.scale.x * 0.5;
+          canopy.material = treeMat;
+          shadowGen.addShadowCaster(canopy);
+          break;
+        }
+        case 'rock': {
+          const rock = MeshBuilder.CreateSphere(
+            \`rock_\${i}\`,
+            { diameter: obj.scale.x },
+            scene,
+          );
+          rock.position = pos;
+          rock.scaling = new Vector3(obj.scale.x, obj.scale.y * 0.6, obj.scale.z);
+          rock.material = rockMat;
+          shadowGen.addShadowCaster(rock);
+          break;
+        }
+        case 'bush': {
+          const bush = MeshBuilder.CreateSphere(
+            \`bush_\${i}\`,
+            { diameter: obj.scale.x },
+            scene,
+          );
+          bush.position = pos;
+          bush.position.y += obj.scale.y * 0.3;
+          bush.material = bushMat;
+          shadowGen.addShadowCaster(bush);
+          break;
+        }
+      }
+    }
+  }
+}
+`,
+  };
+}
+
+// ─────────────────────────────────────────────
+// npc-spawner.ts
+// ─────────────────────────────────────────────
+
+function generateNPCSpawner(ir: WorldIR): GeneratedFile {
+  const npcsWithData = ir.entities.npcs.map(npc => {
+    const char = ir.entities.characters.find(c => c.id === npc.characterId);
+    return {
+      characterId: npc.characterId,
+      name: char ? `${char.firstName} ${char.lastName}`.trim() : npc.characterId,
+      position: npc.homePosition,
+      patrolRadius: npc.patrolRadius,
+      role: npc.role,
+      occupation: char?.occupation || null,
+      gender: char?.gender || 'unknown',
+    };
+  });
+
+  return {
+    path: 'src/game/npc-spawner.ts',
+    content: `/**
+ * NPC Spawner
+ * Spawns all NPCs at their positions with patrol routes.
+ * Generated by Insimul — ${ir.meta.worldName}
+ */
+
+import { Scene } from '@babylonjs/core/scene';
+import { Vector3 } from '@babylonjs/core/Maths/math';
+import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
+import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import { Color3 } from '@babylonjs/core/Maths/math.color';
+import type { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
+
+const NPC_DATA = ${JSON.stringify(npcsWithData, null, 2)} as const;
+
+export class NPCSpawner {
+  async spawn(scene: Scene, shadowGen: ShadowGenerator): Promise<void> {
+    const bodyMat = new StandardMaterial('npcBodyMat', scene);
+    bodyMat.diffuseColor = new Color3(0.6, 0.5, 0.4);
+    const headMat = new StandardMaterial('npcHeadMat', scene);
+    headMat.diffuseColor = new Color3(0.85, 0.7, 0.6);
+
+    for (const npc of NPC_DATA) {
+      // Body capsule
+      const body = MeshBuilder.CreateCapsule(
+        \`npc_body_\${npc.characterId}\`,
+        { height: 1.6, radius: 0.25 },
+        scene,
+      );
+      body.position = new Vector3(npc.position.x, 0.8, npc.position.z);
+      body.material = bodyMat;
+      shadowGen.addShadowCaster(body);
+
+      // Head sphere
+      const head = MeshBuilder.CreateSphere(
+        \`npc_head_\${npc.characterId}\`,
+        { diameter: 0.35 },
+        scene,
+      );
+      head.position = new Vector3(npc.position.x, 1.8, npc.position.z);
+      head.material = headMat;
+      shadowGen.addShadowCaster(head);
+
+      // Store metadata on mesh for picking
+      body.metadata = {
+        characterId: npc.characterId,
+        name: npc.name,
+        role: npc.role,
+        occupation: npc.occupation,
+      };
+    }
+  }
+}
+`,
+  };
 }
