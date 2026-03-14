@@ -9,6 +9,7 @@ import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3, InstancedM
 import { createDebugLabel } from './DebugLabelUtils';
 import "@babylonjs/loaders/glTF";
 import { generateTerrainAwarePlacements, type HeightSampler, type PlacementBounds, type TerrainSample } from './TerrainVegetationPlacer';
+import { type NatureLODProfile, type NatureObjectType, type LODStats, DEFAULT_LOD_PROFILE, getLODProfileForBiome, createLODStats } from './NatureLODConfig';
 
 export type GeologicalFeatureType = 'boulder' | 'rock_cluster' | 'stone_pillar' | 'rock_outcrop' | 'crystal_formation';
 
@@ -43,6 +44,9 @@ export class ProceduralNatureGenerator {
   // Additional variant templates for variety
   private treeVariantTemplates: Mesh[] = [];
   private rockVariantTemplates: Mesh[] = [];
+
+  // LOD configuration — set per-biome via setLODProfile()
+  private lodProfile: NatureLODProfile = DEFAULT_LOD_PROFILE;
 
   // Biome presets
   private static BIOME_PRESETS: Record<string, BiomeStyle> = {
@@ -167,6 +171,38 @@ export class ProceduralNatureGenerator {
 
   constructor(scene: Scene) {
     this.scene = scene;
+  }
+
+  /**
+   * Set the LOD profile for a specific biome. Adjusts all cull/proxy
+   * distances based on the biome's vegetation density.
+   */
+  public setLODProfileForBiome(biomeName: string): void {
+    this.lodProfile = getLODProfileForBiome(biomeName);
+  }
+
+  /** Override the LOD profile directly. */
+  public setLODProfile(profile: NatureLODProfile): void {
+    this.lodProfile = profile;
+  }
+
+  /** Get the active LOD profile. */
+  public getLODProfile(): NatureLODProfile {
+    return this.lodProfile;
+  }
+
+  /** Get LOD statistics for all nature object types. */
+  public getLODStats(): LODStats[] {
+    const counts: Record<NatureObjectType, number> = {
+      tree: this.treeMeshes.length,
+      rock: this.rockMeshes.length,
+      shrub: this.vegetationMeshes.length,
+      grass: 0, // grass uses thin instances, counted differently
+      flower: 0,
+      lake: this.lakeMeshes.length,
+      geological: this.geologicalMeshes.length,
+    };
+    return createLODStats(counts, this.lodProfile);
   }
 
   private treeModelPrototypes: Map<string, Mesh> = new Map();
@@ -475,18 +511,18 @@ export class ProceduralNatureGenerator {
             treeRoot.rotation.y = Math.random() * Math.PI * 2;
             treeRoot.scaling = new Vector3(scale, scale, scale);
             treeRoot.setEnabled(true);
+            const treeCull = this.lodProfile.tree.lodCull;
             treeRoot.getChildMeshes().forEach(m => {
               m.setEnabled(true);
               m.isPickable = false;
               m.freezeWorldMatrix();
-              // LOD: cull glTF tree child meshes at distance
               if (m instanceof Mesh) {
-                m.addLODLevel(120, null);
+                m.addLODLevel(treeCull, null);
               }
             });
             if (treeRoot instanceof Mesh) {
               treeRoot.freezeWorldMatrix();
-              treeRoot.addLODLevel(120, null);
+              treeRoot.addLODLevel(treeCull, null);
             }
             this.treeMeshes.push(treeRoot as AbstractMesh);
           }
@@ -570,14 +606,16 @@ export class ProceduralNatureGenerator {
 
     // Add LOD: at medium distance use a simple low-poly proxy,
     // at far distance hide entirely. Instances inherit LOD from source.
-    const lodMid = this.createTreeLOD(type, `${name}_lod1`);
-    if (lodMid) {
-      lodMid.setEnabled(false);
-      lodMid.isPickable = false;
-      tree.addLODLevel(50, lodMid);
+    const { lodProxy, lodCull } = this.lodProfile.tree;
+    if (lodProxy > 0) {
+      const lodMid = this.createTreeLOD(type, `${name}_lod1`);
+      if (lodMid) {
+        lodMid.setEnabled(false);
+        lodMid.isPickable = false;
+        tree.addLODLevel(lodProxy, lodMid);
+      }
     }
-    // At 120+ units, hide tree entirely (null = cull)
-    tree.addLODLevel(120, null);
+    tree.addLODLevel(lodCull, null);
 
     return tree;
   }
@@ -627,6 +665,34 @@ export class ProceduralNatureGenerator {
       lod.material = mat;
       return lod;
     }
+  }
+
+  /**
+   * Create a minimal LOD proxy for a rock — single low-poly sphere.
+   */
+  private createRockLOD(name: string): Mesh {
+    const mat = new StandardMaterial(`${name}_mat`, this.scene);
+    mat.diffuseColor = new Color3(0.4, 0.4, 0.4);
+    mat.specularColor = Color3.Black();
+    const lod = MeshBuilder.CreateSphere(name, {
+      diameter: 1, segments: 3
+    }, this.scene);
+    lod.material = mat;
+    return lod;
+  }
+
+  /**
+   * Create a minimal LOD proxy for a geological feature — flattened box.
+   */
+  private createGeologicalLOD(name: string): Mesh {
+    const mat = new StandardMaterial(`${name}_mat`, this.scene);
+    mat.diffuseColor = new Color3(0.45, 0.42, 0.38);
+    mat.specularColor = Color3.Black();
+    const lod = MeshBuilder.CreateBox(name, {
+      width: 2, height: 1.5, depth: 2
+    }, this.scene);
+    lod.material = mat;
+    return lod;
   }
 
   /**
@@ -826,15 +892,16 @@ export class ProceduralNatureGenerator {
             rockRoot.scaling = new Vector3(scaleVariation, scaleVariation, scaleVariation);
             rockRoot.rotation.y = Math.random() * Math.PI * 2;
             rockRoot.setEnabled(true);
+            const rockCull = this.lodProfile.rock.lodCull;
             rockRoot.getChildMeshes().forEach(m => {
               m.setEnabled(true);
               m.isPickable = false;
               m.freezeWorldMatrix();
-              if (m instanceof Mesh) m.addLODLevel(80, null);
+              if (m instanceof Mesh) m.addLODLevel(rockCull, null);
             });
             if (rockRoot instanceof Mesh) {
               rockRoot.freezeWorldMatrix();
-              rockRoot.addLODLevel(80, null);
+              rockRoot.addLODLevel(rockCull, null);
             }
             this.rockMeshes.push(rockRoot as AbstractMesh);
           }
@@ -879,8 +946,17 @@ export class ProceduralNatureGenerator {
     rockTemplate.material = rockMat;
     rockTemplate.setEnabled(false);
 
-    // LOD: hide rocks entirely at 80+ units (instances inherit)
-    rockTemplate.addLODLevel(80, null);
+    // LOD: add proxy at mid distance, cull at far distance (instances inherit)
+    const rockLOD = this.lodProfile.rock;
+    if (rockLOD.lodProxy > 0) {
+      const rockProxy = this.createRockLOD('rock_lod1');
+      if (rockProxy) {
+        rockProxy.setEnabled(false);
+        rockProxy.isPickable = false;
+        rockTemplate.addLODLevel(rockLOD.lodProxy, rockProxy);
+      }
+    }
+    rockTemplate.addLODLevel(rockLOD.lodCull, null);
 
     for (let i = 0; i < rockPlacements.length; i++) {
       const { x, z, height: baseHeight } = rockPlacements[i];
@@ -963,15 +1039,16 @@ export class ProceduralNatureGenerator {
             shrubRoot.scaling = new Vector3(scaleVariation, scaleVariation, scaleVariation);
             shrubRoot.rotation.y = Math.random() * Math.PI * 2;
             shrubRoot.setEnabled(true);
+            const shrubCull = this.lodProfile.shrub.lodCull;
             shrubRoot.getChildMeshes().forEach(m => {
               m.setEnabled(true);
               m.isPickable = false;
               m.freezeWorldMatrix();
-              if (m instanceof Mesh) m.addLODLevel(60, null);
+              if (m instanceof Mesh) m.addLODLevel(shrubCull, null);
             });
             if (shrubRoot instanceof Mesh) {
               shrubRoot.freezeWorldMatrix();
-              shrubRoot.addLODLevel(60, null);
+              shrubRoot.addLODLevel(shrubCull, null);
             }
             this.vegetationMeshes.push(shrubRoot as AbstractMesh);
           }
@@ -1002,8 +1079,8 @@ export class ProceduralNatureGenerator {
     );
     bushTemplate.material = bushMat;
     bushTemplate.setEnabled(false);
-    // LOD: hide bushes at 60+ units (instances inherit)
-    bushTemplate.addLODLevel(60, null);
+    // LOD: hide bushes at configured distance (instances inherit)
+    bushTemplate.addLODLevel(this.lodProfile.shrub.lodCull, null);
 
     for (let i = 0; i < shrubPlacements.length; i++) {
       const { x, z, height: baseHeight } = shrubPlacements[i];
@@ -1074,8 +1151,8 @@ export class ProceduralNatureGenerator {
     grassTemplate.material = grassMat;
     grassTemplate.isPickable = false;
 
-    // LOD: hide grass at 30+ units
-    grassTemplate.addLODLevel(30, null);
+    // LOD: hide grass at configured distance
+    grassTemplate.addLODLevel(this.lodProfile.grass.lodCull, null);
 
     // Terrain-aware placement for grass
     const grassPlacements = heightSampler
@@ -1154,8 +1231,8 @@ export class ProceduralNatureGenerator {
       // Merge with multiMaterial=false — single material so instancing works
       const merged = this.mergePartsSimple(`flower_template_${idx}`, [stem, head], flowerMat);
       merged.isPickable = false;
-      // LOD: hide flowers at 40+ units
-      merged.addLODLevel(40, null);
+      // LOD: hide flowers at configured distance
+      merged.addLODLevel(this.lodProfile.flower.lodCull, null);
       return merged;
     });
 
@@ -1319,8 +1396,8 @@ export class ProceduralNatureGenerator {
       lake.isPickable = false;
       lake.checkCollisions = false;
       lake.freezeWorldMatrix();
-      // LOD: hide lakes at distance
-      lake.addLODLevel(150, null);
+      // LOD: hide lakes at configured distance
+      lake.addLODLevel(this.lodProfile.lake.lodCull, null);
       this.lakeMeshes.push(lake);
 
       // Collision plane to prevent walking through water
@@ -1374,12 +1451,33 @@ export class ProceduralNatureGenerator {
       mesh.rotation.y = Math.random() * Math.PI * 2;
       mesh.isPickable = false;
       mesh.freezeWorldMatrix();
+      const geoLOD = this.lodProfile.geological;
       mesh.getChildMeshes().forEach(child => {
         child.isPickable = false;
         child.freezeWorldMatrix();
-        if (child instanceof Mesh) child.addLODLevel(100, null);
+        if (child instanceof Mesh) {
+          if (geoLOD.lodProxy > 0) {
+            const proxy = this.createGeologicalLOD(`${child.name}_lod1`);
+            if (proxy) {
+              proxy.setEnabled(false);
+              proxy.isPickable = false;
+              child.addLODLevel(geoLOD.lodProxy, proxy);
+            }
+          }
+          child.addLODLevel(geoLOD.lodCull, null);
+        }
       });
-      if (mesh instanceof Mesh) mesh.addLODLevel(100, null);
+      if (mesh instanceof Mesh) {
+        if (geoLOD.lodProxy > 0) {
+          const proxy = this.createGeologicalLOD(`${mesh.name}_lod1`);
+          if (proxy) {
+            proxy.setEnabled(false);
+            proxy.isPickable = false;
+            mesh.addLODLevel(geoLOD.lodProxy, proxy);
+          }
+        }
+        mesh.addLODLevel(geoLOD.lodCull, null);
+      }
 
       // Collision box around the feature
       const featureBounds = mesh.getHierarchyBoundingVectors(true);
