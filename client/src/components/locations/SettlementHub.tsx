@@ -426,6 +426,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
         lots={lots}
         businesses={businesses}
         residences={residences}
+        streets={selectedSettlement?.streets ?? []}
         selectedCountryId={selectedCountry?.id}
         worldId={worldId}
         onSettlementClick={selectSettlement}
