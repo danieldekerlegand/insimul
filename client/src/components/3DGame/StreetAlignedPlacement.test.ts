@@ -238,6 +238,82 @@ console.log('\nSmall settlement (3 lots):');
   assertGreaterThan(result.streets.length, 0, 'generates at least one street');
 }
 
+// ── Street-facing orientation ────────────────────────────────────────────────
+
+console.log('\nStreet-facing building orientation:');
+{
+  const result = makeResult(30, 'orientation_test');
+
+  // Group lots by street
+  const byStreet = new Map<string, PlacedLot[]>();
+  for (const lot of result.lots) {
+    const arr = byStreet.get(lot.streetName) || [];
+    arr.push(lot);
+    byStreet.set(lot.streetName, arr);
+  }
+
+  for (const [streetName, streetLots] of byStreet) {
+    const street = result.streets.find(s => s.streetName === streetName);
+    if (!street) continue;
+
+    const dx = street.to.x - street.from.x;
+    const dz = street.to.z - street.from.z;
+    const streetAngle = Math.atan2(dz, dx);
+
+    for (const lot of streetLots) {
+      // facingAngle should be streetAngle ± π/2 (perpendicular to street)
+      const diff = lot.facingAngle - streetAngle;
+      // Normalize to [-π, π]
+      const normalized = ((diff + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      const absDiff = Math.abs(Math.abs(normalized) - Math.PI / 2);
+      assert(
+        absDiff < 0.01,
+        `lot #${lot.houseNumber} on '${streetName}' faces perpendicular to street (off by ${(absDiff * 180 / Math.PI).toFixed(2)}°)`,
+      );
+    }
+  }
+
+  // Left-side lots (odd) should face opposite direction from right-side lots (even)
+  for (const [streetName, streetLots] of byStreet) {
+    const oddLots = streetLots.filter(l => l.houseNumber % 2 === 1);
+    const evenLots = streetLots.filter(l => l.houseNumber % 2 === 0);
+
+    if (oddLots.length > 0 && evenLots.length > 0) {
+      const angleDiff = Math.abs(oddLots[0].facingAngle - evenLots[0].facingAngle);
+      // Should differ by ~π (facing opposite directions toward the street)
+      const normalizedDiff = Math.abs(angleDiff - Math.PI);
+      assert(
+        normalizedDiff < 0.01,
+        `'${streetName}': odd/even lots face opposite directions toward street (diff: ${(angleDiff * 180 / Math.PI).toFixed(1)}°)`,
+      );
+    }
+  }
+
+  // Every lot must have a defined facingAngle (not NaN or undefined)
+  for (const lot of result.lots) {
+    assert(
+      typeof lot.facingAngle === 'number' && !isNaN(lot.facingAngle),
+      `lot #${lot.houseNumber} on '${lot.streetName}' has valid facingAngle (${lot.facingAngle})`,
+    );
+  }
+}
+
+// ── Facing angle determinism ─────────────────────────────────────────────────
+
+console.log('\nFacing angle determinism:');
+{
+  const a = makeResult(15, 'facing_determinism');
+  const b = makeResult(15, 'facing_determinism');
+
+  for (let i = 0; i < a.lots.length; i++) {
+    assertEqual(
+      a.lots[i].facingAngle,
+      b.lots[i].facingAngle,
+      `lot ${i} facingAngle is deterministic`,
+    );
+  }
+}
+
 // ── Summary ─────────────────────────────────────────────────────────────────
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
