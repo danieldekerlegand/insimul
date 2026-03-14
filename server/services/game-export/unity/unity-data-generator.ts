@@ -119,6 +119,17 @@ function generateSettlements(ir: WorldIR): object[] {
     stateId: s.stateId || '',
     mayorId: s.mayorId || '',
     infrastructure: s.infrastructure || [],
+    lots: (s.lots || []).map(l => ({
+      id: l.id,
+      address: l.address,
+      houseNumber: l.houseNumber,
+      streetName: l.streetName,
+      block: l.block || '',
+      districtName: l.districtName || '',
+      position: vec3(l.position),
+      buildingType: l.buildingType || '',
+      buildingId: l.buildingId || '',
+    })),
     streetNetwork: {
       layout: s.streetNetwork.layout,
       nodes: s.streetNetwork.nodes.map(n => ({
@@ -158,6 +169,7 @@ function generateWaterFeatures(ir: WorldIR): object[] {
     isDrinkable: w.isDrinkable,
     modelAssetKey: w.modelAssetKey || '',
     transparency: w.transparency,
+    color: w.color || null,
   }));
 }
 
