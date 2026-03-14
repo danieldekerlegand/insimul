@@ -114,6 +114,8 @@ import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/Sett
 import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
 import { GameEventBus } from "@/components/3DGame/GameEventBus.ts";
 import { QuestNotificationManager } from "@/components/3DGame/QuestNotificationManager.ts";
+import { QuestLanguageFeedbackPanel } from "@/components/3DGame/QuestLanguageFeedbackPanel.ts";
+import { QuestLanguageFeedbackTracker } from "@shared/language/quest-language-feedback";
 import {
   isFirstPlaythrough,
   isLanguageLearningWorld,
@@ -349,6 +351,8 @@ export class BabylonGame {
   private questIndicatorManager: QuestIndicatorManager | null = null;
   private questWorldObjectLinker: QuestWorldObjectLinker | null = null;
   private questNotificationManager: QuestNotificationManager | null = null;
+  private questLanguageFeedbackPanel: QuestLanguageFeedbackPanel | null = null;
+  private questLanguageFeedbackTracker: QuestLanguageFeedbackTracker | null = null;
   private listeningComprehensionManager: ListeningComprehensionManager | null = null;
   private buildingGenerator: ProceduralBuildingGenerator | null = null;
   private natureGenerator: ProceduralNatureGenerator | null = null;
@@ -1298,6 +1302,16 @@ export class BabylonGame {
     this.chatPanel.setOnVocabularyUsed((word: string) => {
       this.questObjectManager?.trackVocabularyUsage(word);
       this.eventBus.emit({ type: 'vocabulary_used', word, correct: true });
+      // Forward vocabulary usage to quest language tracker
+      if (this.questLanguageFeedbackTracker) {
+        const items = this.questLanguageFeedbackTracker.processVocabularyUsage([
+          { word, meaning: '', usedCorrectly: true },
+        ]);
+        for (const item of items) {
+          this.questLanguageFeedbackPanel?.addFeedbackItem(item);
+        }
+        this.questLanguageFeedbackPanel?.updateFromState(this.questLanguageFeedbackTracker.getState());
+      }
     });
     this.chatPanel.setOnConversationTurn((keywords: string[]) => {
       this.questObjectManager?.trackConversationTurn(keywords);
@@ -1384,6 +1398,14 @@ export class BabylonGame {
     });
     this.chatPanel.setOnGrammarFeedbackExternal((feedback: any) => {
       this.gamificationTracker?.onGrammarFeedback(feedback);
+      // Forward grammar feedback to quest language tracker
+      if (this.questLanguageFeedbackTracker) {
+        const items = this.questLanguageFeedbackTracker.processGrammarFeedback(feedback);
+        for (const item of items) {
+          this.questLanguageFeedbackPanel?.addFeedbackItem(item);
+        }
+        this.questLanguageFeedbackPanel?.updateFromState(this.questLanguageFeedbackTracker.getState());
+      }
     });
 
     // Initialize quest tracker
@@ -1397,6 +1419,9 @@ export class BabylonGame {
     this.questNotificationManager.setOnHudClicked(() => {
       this.questTracker?.toggle();
     });
+
+    // Initialize quest language feedback panel (real-time grammar/vocab overlay)
+    this.questLanguageFeedbackPanel = new QuestLanguageFeedbackPanel(this.guiManager.advancedTexture);
 
     // Initialize zone audio
     this.initializeZoneAudio(scene);
@@ -1895,6 +1920,9 @@ export class BabylonGame {
           }
         }
       }
+
+      // Initialize quest language feedback tracker for the first active language quest
+      this.initQuestLanguageFeedbackTracker(quests);
 
       // Initialize Prolog engine with world data
       if (this.prologEngine) {
@@ -7520,6 +7548,54 @@ export class BabylonGame {
     }
   }
 
+  /**
+   * Initialize the quest language feedback tracker for the first active
+   * language-learning quest that has vocabulary or grammar objectives.
+   */
+  private initQuestLanguageFeedbackTracker(quests: any[]): void {
+    if (!quests) return;
+
+    const languageQuestTypes = ['vocabulary', 'grammar', 'conversation', 'translation'];
+    const activeQuest = quests.find(
+      (q: any) => q.status === 'active' && languageQuestTypes.includes(q.questType),
+    );
+
+    if (!activeQuest || !activeQuest.objectives?.length) {
+      this.questLanguageFeedbackTracker = null;
+      this.questLanguageFeedbackPanel?.hide();
+      return;
+    }
+
+    // Build vocab meanings from world language context if available
+    const vocabMeanings: Record<string, string> = {};
+    const lang = this.chatPanel?.getLanguageTracker();
+    if (lang) {
+      for (const entry of lang.getVocabulary()) {
+        vocabMeanings[entry.word] = entry.meaning;
+      }
+    }
+
+    this.questLanguageFeedbackTracker = new QuestLanguageFeedbackTracker(
+      activeQuest.id,
+      activeQuest.title,
+      activeQuest.questType,
+      activeQuest.objectives,
+      vocabMeanings,
+    );
+
+    // Wire callbacks
+    this.questLanguageFeedbackTracker.setOnFeedbackUpdate((state) => {
+      this.questLanguageFeedbackPanel?.updateFromState(state);
+    });
+    this.questLanguageFeedbackTracker.setOnFeedbackItem((item) => {
+      this.questLanguageFeedbackPanel?.addFeedbackItem(item);
+    });
+
+    // Show panel
+    this.questLanguageFeedbackPanel?.show(activeQuest.title);
+    this.questLanguageFeedbackPanel?.updateFromState(this.questLanguageFeedbackTracker.getState());
+  }
+
   private async handleQuestObjectiveCompleted(questId: string, objectiveId: string, type: string): Promise<void> {
     try {
       const quests = await this.dataSource.loadQuests(this.config.worldId);
@@ -8251,6 +8327,9 @@ export class BabylonGame {
     this.radialMenu?.dispose();
     this.questNotificationManager?.dispose();
     this.questNotificationManager = null;
+    this.questLanguageFeedbackPanel?.dispose();
+    this.questLanguageFeedbackPanel = null;
+    this.questLanguageFeedbackTracker = null;
     this.questTracker?.dispose();
     this.chatPanel?.dispose();
     this.gameMenuSystem?.dispose();
