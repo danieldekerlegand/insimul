@@ -21,6 +21,7 @@ import { scorePronunciation, formatPronunciationFeedback } from "@shared/languag
 import { SpeechRecognitionService, isSpeechRecognitionSupported, serverSideSTT } from "@/lib/speech-recognition";
 import { processRecordedAudio } from "@/lib/audio-utils";
 import { fetchGreetingAudio } from "@/lib/greeting-audio-cache";
+import { VoiceWebSocketClient } from "@/lib/voice-websocket-client";
 
 interface Message {
   role: 'user' | 'assistant';
@@ -111,6 +112,11 @@ export class BabylonChatPanel {
   private currentAudio: HTMLAudioElement | null = null;
   private isRecording = false;
   private isSpeaking = false;
+
+  // WebSocket voice chat
+  private voiceWSClient: VoiceWebSocketClient | null = null;
+  private voiceMode: 'push-to-talk' | 'always-on' = 'push-to-talk';
+  private voiceModeButton: Button | null = null;
 
   // Dialogue Actions
   private dialogueActions: BabylonDialogueActions | null = null;
@@ -288,6 +294,10 @@ export class BabylonChatPanel {
     }
     if (this.isRecording) {
       this.stopRecording();
+    }
+    // Stop WebSocket voice capture when hiding
+    if (this.voiceWSClient) {
+      this.voiceWSClient.stopCapture();
     }
     this.isSpeaking = false;
   }
@@ -527,6 +537,21 @@ export class BabylonChatPanel {
       }
     });
     inputArea.addControl(this.micButton);
+
+    // Voice mode toggle button (push-to-talk vs always-on WebSocket)
+    this.voiceModeButton = Button.CreateSimpleButton("voiceModeBtn", "PTT");
+    this.voiceModeButton.width = "26px";
+    this.voiceModeButton.height = "26px";
+    this.voiceModeButton.color = "white";
+    this.voiceModeButton.background = "rgba(60, 60, 60, 0.5)";
+    this.voiceModeButton.cornerRadius = 4;
+    this.voiceModeButton.fontSize = 7;
+    this.voiceModeButton.left = "68%";
+    this.voiceModeButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.voiceModeButton.onPointerClickObservable.add(() => {
+      this.toggleVoiceMode();
+    });
+    inputArea.addControl(this.voiceModeButton);
 
     // Send button
     const sendBtn = Button.CreateSimpleButton("sendBtn", "Send");
@@ -1501,6 +1526,15 @@ export class BabylonChatPanel {
   private async startRecording() {
     if (this.isRecording || this.isProcessing) return;
 
+    // In always-on WebSocket mode, mic is already streaming — toggle mute instead
+    if (this.voiceMode === 'always-on' && this.voiceWSClient) {
+      this.voiceWSClient.setMuted(false);
+      if (this.micButton) {
+        this.micButton.background = "rgba(255, 50, 50, 0.8)";
+      }
+      return;
+    }
+
     // Determine language for recognition
     const lang = this.worldLanguageContext?.targetLanguage
       ? getLanguageBCP47(this.worldLanguageContext.targetLanguage)
@@ -1569,6 +1603,15 @@ export class BabylonChatPanel {
   }
 
   private stopRecording() {
+    // In always-on mode, mute instead of stopping
+    if (this.voiceMode === 'always-on' && this.voiceWSClient) {
+      this.voiceWSClient.setMuted(true);
+      if (this.micButton) {
+        this.micButton.background = "rgba(60, 60, 60, 0.8)";
+      }
+      return;
+    }
+
     if (!this.isRecording) return;
 
     this.isRecording = false;
@@ -2365,8 +2408,124 @@ export class BabylonChatPanel {
     }
   }
 
+  // ─── WebSocket voice mode ──────────────────────────────────────────
+
+  /**
+   * Toggle between push-to-talk (HTTP) and always-on (WebSocket) voice modes.
+   */
+  private toggleVoiceMode(): void {
+    if (this.voiceMode === 'push-to-talk') {
+      this.voiceMode = 'always-on';
+      this.activateWebSocketVoice();
+      if (this.voiceModeButton) {
+        this.voiceModeButton.children[0] && ((this.voiceModeButton.children[0] as TextBlock).text = "WS");
+        this.voiceModeButton.background = "rgba(50, 180, 50, 0.8)";
+      }
+    } else {
+      this.voiceMode = 'push-to-talk';
+      this.deactivateWebSocketVoice();
+      if (this.voiceModeButton) {
+        this.voiceModeButton.children[0] && ((this.voiceModeButton.children[0] as TextBlock).text = "PTT");
+        this.voiceModeButton.background = "rgba(60, 60, 60, 0.5)";
+      }
+    }
+  }
+
+  /**
+   * Activate WebSocket voice mode: connect, join room, start capture.
+   */
+  private activateWebSocketVoice(): void {
+    if (this.voiceWSClient) {
+      this.voiceWSClient.destroy();
+    }
+
+    this.voiceWSClient = new VoiceWebSocketClient(
+      {
+        onStateChange: (state) => {
+          console.log('[ChatPanel] Voice WS state:', state);
+          if (state === 'in_room' && this.voiceMode === 'always-on') {
+            this.voiceWSClient?.startCapture().catch(err => {
+              console.warn('[ChatPanel] Failed to start capture:', err);
+            });
+          }
+        },
+        onAudio: (_fromId, _audioBase64) => {
+          // Audio is played by the jitter buffer inside VoiceWebSocketClient
+        },
+        onTranscript: (text, isFinal) => {
+          if (this.inputText) {
+            this.inputText.text = text;
+            this.inputText.color = isFinal ? 'white' : '#ffd93d';
+          }
+          if (isFinal && text.trim()) {
+            this.handleVoiceTranscript(text);
+          }
+        },
+        onError: (msg) => {
+          console.warn('[ChatPanel] Voice WS error:', msg);
+        },
+        onFallbackToHTTP: () => {
+          console.log('[ChatPanel] WebSocket voice failed, falling back to push-to-talk');
+          this.voiceMode = 'push-to-talk';
+          if (this.voiceModeButton) {
+            this.voiceModeButton.children[0] && ((this.voiceModeButton.children[0] as TextBlock).text = "PTT");
+            this.voiceModeButton.background = "rgba(60, 60, 60, 0.5)";
+          }
+          if (this.inputText) {
+            this.inputText.text = "WS unavailable, using push-to-talk";
+            this.inputText.color = "#ff6b6b";
+            setTimeout(() => {
+              if (this.inputText) {
+                this.inputText.text = "Type your message...";
+                this.inputText.color = "white";
+              }
+            }, 2000);
+          }
+        },
+      },
+      { maxReconnectAttempts: 3 },
+    );
+
+    this.voiceWSClient.connect();
+
+    // Join room once connected — use character + world as room ID
+    const checkAndJoin = () => {
+      if (!this.voiceWSClient) return;
+      if (this.voiceWSClient.state === 'connected' && this.character && this.world) {
+        const roomId = `voice_${this.world.id}_${this.character.id}`;
+        this.voiceWSClient.joinRoom(roomId, this.world.id, this.character.id);
+      } else if (this.voiceWSClient.state === 'connecting') {
+        setTimeout(checkAndJoin, 200);
+      }
+    };
+    checkAndJoin();
+
+    if (this.inputText) {
+      this.inputText.text = "🎤 Always-on voice active";
+      this.inputText.color = "#50e050";
+    }
+  }
+
+  /**
+   * Deactivate WebSocket voice mode and return to push-to-talk.
+   */
+  private deactivateWebSocketVoice(): void {
+    if (this.voiceWSClient) {
+      this.voiceWSClient.destroy();
+      this.voiceWSClient = null;
+    }
+    if (this.inputText) {
+      this.inputText.text = "Type your message...";
+      this.inputText.color = "white";
+    }
+  }
+
   public dispose() {
     this.stopAllAudio();
+    if (this.voiceWSClient) {
+      this.voiceWSClient.destroy();
+      this.voiceWSClient = null;
+    }
     if (this.speechService) {
       this.speechService.dispose();
       this.speechService = null;
