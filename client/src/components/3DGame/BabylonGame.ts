@@ -61,6 +61,7 @@ import { WorldScaleManager, ScaledSettlement } from "@/components/3DGame/WorldSc
 import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay.ts";
 import { ChunkManager } from "@/components/3DGame/ChunkManager.ts";
 import { BabylonMinimap } from "@/components/3DGame/BabylonMinimap.ts";
+import { FullscreenMap } from "@/components/3DGame/FullscreenMap.ts";
 import { generateTerrainCanvas } from "@/components/3DGame/MinimapTerrainRenderer.ts";
 import { BabylonInventory, InventoryItem } from "@/components/3DGame/BabylonInventory.ts";
 import { BabylonShopPanel, ShopTransaction } from "@/components/3DGame/BabylonShopPanel.ts";
@@ -128,6 +129,7 @@ import {
   KEY_TOGGLE_VR,
   KEY_GAME_MENU,
   KEY_QUEST_LOG,
+  KEY_FULLSCREEN_MAP,
 } from "@/components/3DGame/KeyboardMap.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 
@@ -356,6 +358,7 @@ export class BabylonGame {
   private worldScaleManager: WorldScaleManager | null = null;
   private buildingInfoDisplay: BuildingInfoDisplay | null = null;
   private minimap: BabylonMinimap | null = null;
+  private fullscreenMap: FullscreenMap | null = null;
   private inventory: BabylonInventory | null = null;
   private shopPanel: BabylonShopPanel | null = null;
   private rulesPanel: BabylonRulesPanel | null = null;
@@ -1458,6 +1461,9 @@ export class BabylonGame {
 
     // Initialize minimap
     this.minimap = new BabylonMinimap(scene, this.guiManager.advancedTexture, this.terrainSize);
+
+    // Initialize full-screen map
+    this.fullscreenMap = new FullscreenMap(this.guiManager.advancedTexture);
 
     // Initialize inventory
     this.inventory = new BabylonInventory(scene, this.guiManager.advancedTexture);
@@ -5744,6 +5750,21 @@ export class BabylonGame {
         engine, snapCam, SNAPSHOT_SIZE
       );
       this.guiManager.setMinimapImage(dataUrl, worldSize);
+      // Share the snapshot with the full-screen map
+      if (this.fullscreenMap) {
+        const img = new window.Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0);
+            this.fullscreenMap?.setWorldImage(canvas, worldSize);
+          }
+        };
+        img.src = dataUrl;
+      }
     } catch (err) {
       console.error('[BabylonGame] Minimap snapshot failed:', err);
     }
@@ -5829,7 +5850,7 @@ export class BabylonGame {
       });
     });
 
-    this.guiManager.updateMinimap({
+    const minimapData = {
       settlements: settlementsData,
       buildings: this._minimapBuildings,
       streets: this._minimapStreets,
@@ -5841,7 +5862,10 @@ export class BabylonGame {
       },
       playerRotationY: this.playerMesh.rotation.y,
       worldSize: this.terrainSize || 512
-    });
+    };
+
+    this.guiManager.updateMinimap(minimapData);
+    this.fullscreenMap?.update(minimapData);
   }
 
   private _perfDiv: HTMLDivElement | null = null;
@@ -5891,9 +5915,13 @@ export class BabylonGame {
       return;
     }
 
-    // ESC - Toggle unified game menu (or close it if open)
+    // ESC - Close full-screen map first, then toggle game menu
     if (event.code === KEY_GAME_MENU && !event.repeat) {
       event.preventDefault();
+      if (this.fullscreenMap?.isOpen) {
+        this.fullscreenMap.close();
+        return;
+      }
       if (this.gameMenuSystem) {
         this.gameMenuSystem.toggle();
       }
@@ -5944,6 +5972,12 @@ export class BabylonGame {
     if (event.code === KEY_QUEST_LOG && !event.repeat) {
       event.preventDefault();
       this.questTracker?.toggle();
+    }
+
+    // M - Toggle full-screen map
+    if (event.code === KEY_FULLSCREEN_MAP && !event.repeat) {
+      event.preventDefault();
+      this.fullscreenMap?.toggle();
     }
 
     // Shift+V - Toggle VR
@@ -8188,6 +8222,7 @@ export class BabylonGame {
     this.npcTalkingIndicator = null;
     this.buildingInfoDisplay?.dispose();
     this.minimap?.dispose();
+    this.fullscreenMap?.dispose();
     this.inventory?.dispose();
     this.shopPanel?.dispose();
     this.rulesPanel?.dispose();
