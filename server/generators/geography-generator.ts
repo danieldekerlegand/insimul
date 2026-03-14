@@ -6,6 +6,8 @@
 import { storage } from '../db/storage';
 import { AgriculturalZone, AgriculturalZoneGenerator } from './agricultural-zone-generator';
 import { CrossingGenerator } from './crossing-generator';
+import { generateCoastline } from './coastline-generator';
+import { generateHarborAndDocks, type HarborZone } from './harbor-dock-generator';
 import {
   generateStreetNetwork,
   placeLots,
@@ -63,6 +65,7 @@ export class GeographyGenerator {
     lotIds: string[];
     agriculturalZones: AgriculturalZone[];
     streetNetwork: StreetNetwork;
+    harborZones?: HarborZone[];
   }> {
     console.log(`🗺️  Generating geography for ${config.settlementName} (${config.settlementType}, pop: ${config.population})...`);
 
@@ -139,6 +142,48 @@ export class GeographyGenerator {
       (config as any)._rivers = rivers;
     }
 
+    // Generate harbor and dock infrastructure for coastal settlements
+    let harborZones: HarborZone[] | undefined;
+    if (config.terrain === 'coast') {
+      const coastline = generateCoastline({
+        seed: config.settlementName.length * 37 + config.foundedYear,
+        mapSize,
+        waterSide: 'north',
+        minBays: 1,
+        maxBays: 3,
+      });
+
+      const harborResult = generateHarborAndDocks({
+        seed: config.settlementName.length * 41 + config.foundedYear,
+        coastline,
+        settlementType: config.settlementType,
+        foundedYear: config.foundedYear,
+      });
+
+      harborZones = harborResult.zones;
+
+      // Add harbor structures as landmarks
+      for (const structure of harborResult.allStructures) {
+        landmarks.push({
+          id: structure.id,
+          name: structure.name,
+          type: 'landmark',
+          x: structure.x,
+          y: structure.z,
+          width: structure.width,
+          height: structure.depth,
+          properties: {
+            harborStructureType: structure.type,
+            material: structure.properties.material,
+            condition: structure.properties.condition,
+            capacity: structure.properties.capacity,
+            builtYear: structure.properties.builtYear,
+            rotation: structure.rotation,
+          },
+        });
+      }
+    }
+
     // Update settlement with geography metadata including street network
     await storage.updateSettlement(config.settlementId, {
       districts,
@@ -156,9 +201,10 @@ export class GeographyGenerator {
     // Persist lots, residences, and businesses as proper database records
     const lotIds = await this.persistLotsAndBuildings(config, districts, streets, buildings);
 
-    console.log(`✅ Generated ${districts.length} districts, ${streetNetwork.segments.length} streets (${streetNetwork.nodes.length} nodes), ${buildings.length} buildings (${lotIds.length} lots persisted), ${agriculturalZones.length} agricultural zones`);
+    const harborMsg = harborZones ? `, ${harborZones.length} harbor zones` : '';
+    console.log(`✅ Generated ${districts.length} districts, ${streetNetwork.segments.length} streets (${streetNetwork.nodes.length} nodes), ${buildings.length} buildings (${lotIds.length} lots persisted), ${agriculturalZones.length} agricultural zones${harborMsg}`);
 
-    return { districts, streets, buildings, landmarks, lotIds, agriculturalZones, streetNetwork };
+    return { districts, streets, buildings, landmarks, lotIds, agriculturalZones, streetNetwork, harborZones };
   }
 
   /**
@@ -292,6 +338,12 @@ export class GeographyGenerator {
     if (lower.includes('grocery') || lower.includes('general store')) return 'GroceryStore';
     if (lower.includes('shoe')) return 'ShoeStore';
     if (lower.includes('auto') || lower.includes('gas station')) return 'AutoRepair';
+    if (lower.includes('harbor') || lower.includes('dock') || lower.includes('pier')) return 'Harbor';
+    if (lower.includes('boatyard')) return 'Boatyard';
+    if (lower.includes('fish market')) return 'FishMarket';
+    if (lower.includes('customs')) return 'CustomsHouse';
+    if (lower.includes('lighthouse')) return 'Lighthouse';
+    if (lower.includes('warehouse')) return 'Warehouse';
     if (lower.includes('shop') || lower.includes('store') || lower.includes('market')) return 'Shop';
     return 'Shop';
   }

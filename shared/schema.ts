@@ -27,7 +27,9 @@ export type BusinessType =
   | 'PoliceStation' | 'FireStation' | 'TownHall' | 'Church' | 'Farm' | 'Factory'
   | 'Shop' | 'Mortuary' | 'RealEstateOffice' | 'InsuranceOffice' | 'JewelryStore'
   | 'TattoParlor' | 'Brewery' | 'Pharmacy' | 'DentalOffice' | 'OptometryOffice'
-  | 'University';
+  | 'University'
+  | 'Harbor' | 'Boatyard' | 'FishMarket' | 'CustomsHouse' | 'Lighthouse'
+  | 'Warehouse';
 
 export type ShiftType = 'day' | 'night';
 
