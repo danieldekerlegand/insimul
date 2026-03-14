@@ -164,6 +164,20 @@ function generateSettlementsDT(ir: WorldIR): object[] {
     CountryId: s.countryId || '',
     StateId: s.stateId || '',
     MayorId: s.mayorId || '',
+    StreetNetworkLayout: s.streetNetwork.layout,
+    StreetNodes: s.streetNetwork.nodes.map(n => ({
+      Id: n.id,
+      Position: vec3Obj(n.position),
+      IntersectionOf: n.intersectionOf,
+    })),
+    StreetSegments: s.streetNetwork.segments.map(seg => ({
+      Id: seg.id,
+      Name: seg.name,
+      Direction: seg.direction,
+      NodeIds: seg.nodeIds,
+      Waypoints: seg.waypoints.map(w => vec3Obj(w)),
+      Width: seg.width * 100, // scale to cm
+    })),
   }));
 }
 

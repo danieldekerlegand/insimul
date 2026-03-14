@@ -43,6 +43,9 @@ import type {
   BuildingSpecIR,
   BusinessIR,
   RoadIR,
+  StreetNodeIR,
+  StreetSegmentIR,
+  StreetNetworkIR,
   NatureObjectIR,
   DungeonIR,
   QuestObjectIR,
@@ -77,6 +80,7 @@ import type { CharacterInfo, Truth, WorldLanguageContext } from '@shared/languag
 import type { WorldLanguage } from '@shared/language';
 import {
   generateStreetNetwork,
+  chooseLayout,
   placeLots,
   type StreetNetwork,
 } from '../../generators/street-network-generator';
@@ -808,6 +812,25 @@ export async function generateWorldIR(
       materialKey: null,
     }));
 
+    // Build full street network IR with topology
+    const settlementType = (s.settlementType as 'village' | 'town' | 'city') || 'town';
+    const streetNetworkIR: StreetNetworkIR = {
+      layout: chooseLayout(settlementType, s.foundedYear || 1900),
+      nodes: streetNetwork.nodes.map(n => ({
+        id: n.id,
+        position: { x: n.x, y: 0, z: n.z },
+        intersectionOf: n.intersectionOf,
+      })),
+      segments: streetNetwork.segments.map(seg => ({
+        id: seg.id,
+        name: seg.name,
+        direction: seg.direction,
+        nodeIds: seg.nodeIds,
+        waypoints: seg.waypoints.map(wp => ({ x: wp.x, y: 0, z: wp.z })),
+        width: seg.width,
+      })),
+    };
+
     // Also add street-segment roads to the global roads list
     for (const road of internalRoads) {
       allRoadIRs.push(road);
@@ -843,6 +866,7 @@ export async function generateWorldIR(
       lots: lotIRs,
       businessIds: settlementBusinesses.map(b => b.id),
       internalRoads,
+      streetNetwork: streetNetworkIR,
     });
   }
 

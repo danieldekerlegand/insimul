@@ -118,6 +118,22 @@ function generateSettlements(ir: WorldIR): object[] {
     countryId: s.countryId || '',
     stateId: s.stateId || '',
     mayorId: s.mayorId || '',
+    streetNetwork: {
+      layout: s.streetNetwork.layout,
+      nodes: s.streetNetwork.nodes.map(n => ({
+        id: n.id,
+        position: vec3(n.position),
+        intersectionOf: n.intersectionOf,
+      })),
+      segments: s.streetNetwork.segments.map(seg => ({
+        id: seg.id,
+        name: seg.name,
+        direction: seg.direction,
+        nodeIds: seg.nodeIds,
+        waypoints: seg.waypoints.map(w => vec3(w)),
+        width: seg.width,
+      })),
+    },
   }));
 }
 
