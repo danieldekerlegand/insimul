@@ -18,6 +18,7 @@ import { CharacterEditDialog } from '../CharacterEditDialog';
 import { CharacterChatDialog } from '../CharacterChatDialog';
 import { FamilyTreeFlow } from '../visualization/FamilyTreeFlow';
 import { LocationMapPreview, type ViewLevel } from './LocationMapPreview';
+import { SettlementMiniMap } from './SettlementMiniMap';
 
 interface SettlementHubProps {
   worldId: string;
@@ -427,22 +428,35 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
         </div>
       )}
 
-      {/* 3D Map */}
-      <LocationMapPreview
-        viewLevel={viewLevel}
-        countries={countries}
-        settlements={settlements}
-        lots={lots}
-        businesses={businesses}
-        residences={residences}
-        streets={selectedSettlement?.streets ?? []}
-        waterFeatures={waterFeatures}
-        selectedCountryId={selectedCountry?.id}
-        worldId={worldId}
-        onSettlementClick={selectSettlement}
-        onCountryClick={selectCountry}
-        className="flex-1 min-h-0"
-      />
+      {/* 3D Map + Mini-map overlay */}
+      <div className="flex-1 min-h-0 relative">
+        <LocationMapPreview
+          viewLevel={viewLevel}
+          countries={countries}
+          settlements={settlements}
+          lots={lots}
+          businesses={businesses}
+          residences={residences}
+          streets={selectedSettlement?.streets ?? []}
+          waterFeatures={waterFeatures}
+          selectedCountryId={selectedCountry?.id}
+          worldId={worldId}
+          onSettlementClick={selectSettlement}
+          onCountryClick={selectCountry}
+          className="w-full h-full"
+        />
+        {viewLevel === 'settlement' && selectedSettlement && (
+          <SettlementMiniMap
+            terrain={selectedSettlement.terrain}
+            streets={selectedSettlement.streets ?? []}
+            lots={lots}
+            businesses={businesses}
+            residences={residences}
+            waterFeatures={waterFeatures}
+            settlementType={selectedSettlement.settlementType}
+          />
+        )}
+      </div>
     </div>
   );
 
