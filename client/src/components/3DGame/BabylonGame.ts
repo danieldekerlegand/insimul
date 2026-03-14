@@ -61,6 +61,7 @@ import { WorldScaleManager, ScaledSettlement } from "@/components/3DGame/WorldSc
 import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay.ts";
 import { ChunkManager } from "@/components/3DGame/ChunkManager.ts";
 import { BabylonMinimap } from "@/components/3DGame/BabylonMinimap.ts";
+import { generateTerrainCanvas } from "@/components/3DGame/MinimapTerrainRenderer.ts";
 import { BabylonInventory, InventoryItem } from "@/components/3DGame/BabylonInventory.ts";
 import { BabylonShopPanel, ShopTransaction } from "@/components/3DGame/BabylonShopPanel.ts";
 import { BabylonRulesPanel, Rule } from "@/components/3DGame/BabylonRulesPanel.ts";
@@ -3021,6 +3022,9 @@ export class BabylonGame {
       }
     }
 
+    // Generate terrain background for the minimap from the heightmap
+    this.generateMinimapTerrainBackground();
+
     // Capture the minimap snapshot BEFORE hiding prototypes.
     // InstancedMesh objects require their source prototype meshes to be enabled
     // in order to render in an RTT-based screenshot. After hidePrototypes() the
@@ -5647,6 +5651,19 @@ export class BabylonGame {
    * Capture a top-down orthographic screenshot of the world for the minimap.
    * Must be called BEFORE hidePrototypes() so clone source meshes are present.
    */
+  private generateMinimapTerrainBackground(): void {
+    if (!this.guiManager) return;
+    const biome = ProceduralNatureGenerator.getBiomeFromWorldType(this.config.worldType);
+    const biomeName = biome.name.toLowerCase();
+    generateTerrainCanvas('/assets/ground/ground_heightMap.png', 256, biomeName)
+      .then((canvas) => {
+        this.guiManager?.setMinimapTerrainBackground(canvas);
+      })
+      .catch((err) => {
+        console.warn('[BabylonGame] Minimap terrain background failed:', err);
+      });
+  }
+
   private async captureMinimapSnapshot(): Promise<void> {
     if (!this.scene || !this.guiManager) return;
     const engine = this.scene.getEngine();
