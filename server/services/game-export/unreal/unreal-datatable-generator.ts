@@ -179,6 +179,24 @@ function generateSettlementsDT(ir: WorldIR): object[] {
       Waypoints: seg.waypoints.map(w => vec3Obj(w)),
       Width: seg.width * 100, // scale to cm
     })),
+    Lots: s.lots.map(l => ({
+      Id: l.id,
+      Address: l.address,
+      HouseNumber: l.houseNumber,
+      StreetName: l.streetName,
+      Block: l.block || '',
+      DistrictName: l.districtName || '',
+      Position: vec3Obj(l.position),
+      FacingAngle: l.facingAngle,
+      Elevation: l.elevation * 100, // scale to cm
+      BuildingType: l.buildingType || '',
+      BuildingId: l.buildingId || '',
+      StreetEdgeId: l.streetEdgeId || '',
+      Side: l.side || '',
+      NeighboringLotIds: l.neighboringLotIds,
+      DistanceFromDowntown: l.distanceFromDowntown,
+      FormerBuildingIds: l.formerBuildingIds,
+    })),
   }));
 }
 
@@ -216,6 +234,7 @@ function generateBuildingsDT(ir: WorldIR): object[] {
     Name: b.id,
     BuildingId: b.id,
     SettlementId: b.settlementId,
+    LotId: b.lotId || '',
     Position: vec3Obj(b.position),
     Rotation: b.rotation,
     BuildingRole: b.spec.buildingRole,

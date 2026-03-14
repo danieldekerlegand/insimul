@@ -132,6 +132,24 @@ function generateSettlements(ir: WorldIR): object[] {
     mayorId: s.mayorId || '',
     elevationProfile: s.elevationProfile || null,
     infrastructure: s.infrastructure || [],
+    lots: s.lots.map(l => ({
+      id: l.id,
+      address: l.address,
+      houseNumber: l.houseNumber,
+      streetName: l.streetName,
+      block: l.block || '',
+      districtName: l.districtName || '',
+      position: { x: l.position.x, y: l.position.y, z: l.position.z },
+      facingAngle: l.facingAngle,
+      elevation: l.elevation,
+      buildingType: l.buildingType || '',
+      buildingId: l.buildingId || '',
+      streetEdgeId: l.streetEdgeId || '',
+      side: l.side || '',
+      neighboringLotIds: l.neighboringLotIds,
+      distanceFromDowntown: l.distanceFromDowntown,
+      formerBuildingIds: l.formerBuildingIds,
+    })),
     streetNetwork: {
       layout: s.streetNetwork.layout,
       nodes: s.streetNetwork.nodes.map(n => ({
@@ -178,6 +196,7 @@ function generateBuildings(ir: WorldIR): object[] {
   return ir.entities.buildings.map(b => ({
     id: b.id,
     settlementId: b.settlementId,
+    lotId: b.lotId || '',
     position: { x: b.position.x, y: b.position.y, z: b.position.z },
     rotation: b.rotation,
     spec: {
