@@ -131,6 +131,7 @@ function generateSettlements(ir: WorldIR): object[] {
     stateId: s.stateId || '',
     mayorId: s.mayorId || '',
     elevationProfile: s.elevationProfile || null,
+    infrastructure: s.infrastructure || [],
   }));
 }
 

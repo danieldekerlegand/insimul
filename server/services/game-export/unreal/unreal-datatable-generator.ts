@@ -164,6 +164,7 @@ function generateSettlementsDT(ir: WorldIR): object[] {
     CountryId: s.countryId || '',
     StateId: s.stateId || '',
     MayorId: s.mayorId || '',
+    InfrastructureJson: JSON.stringify(s.infrastructure || []),
   }));
 }
 

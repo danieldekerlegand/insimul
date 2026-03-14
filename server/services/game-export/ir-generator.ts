@@ -843,6 +843,7 @@ export async function generateWorldIR(
       lots: lotIRs,
       businessIds: settlementBusinesses.map(b => b.id),
       internalRoads,
+      infrastructure: [],
     });
   }
 

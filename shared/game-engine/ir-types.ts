@@ -169,6 +169,18 @@ export interface SettlementIR {
   businessIds: string[];
   /** Internal road waypoints (settlement center → buildings) */
   internalRoads: RoadIR[];
+  /** Infrastructure built in this settlement */
+  infrastructure: InfrastructureItemIR[];
+}
+
+/** A single built infrastructure item in a settlement. */
+export interface InfrastructureItemIR {
+  id: string;
+  name: string;
+  category: string;
+  level: number;
+  builtYear: number;
+  description: string;
 }
 
 export interface LotIR {
