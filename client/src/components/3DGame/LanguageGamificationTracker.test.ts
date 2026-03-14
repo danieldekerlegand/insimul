@@ -5,9 +5,11 @@
  */
 
 import { LanguageGamificationTracker } from './LanguageGamificationTracker';
-import type { PeriodicAssessmentEvent } from './LanguageGamificationTracker';
-import { LEVEL_THRESHOLDS } from '@shared/language-gamification';
+import type { PeriodicAssessmentEvent, AchievementUnlockedEvent } from './LanguageGamificationTracker';
+import { LEVEL_THRESHOLDS } from '@shared/language/language-gamification';
 import { PERIODIC_ASSESSMENT_COOLDOWN_MS } from '@shared/assessment/periodic-encounter';
+import { GameEventBus } from './GameEventBus';
+import type { GameEvent } from './GameEventBus';
 
 let passed = 0;
 let failed = 0;
@@ -166,6 +168,145 @@ function testDisposeCleanup() {
   assertEqual(events.length, 0, 'no events after dispose');
 }
 
+// --- Achievement Event Bus Tests ---
+
+function testAchievementEmitsEventOnBus() {
+  console.log('\n── Achievement Unlocked Emits Event on Bus ──');
+
+  const tracker = new LanguageGamificationTracker();
+  const eventBus = new GameEventBus();
+  tracker.subscribeToEventBus(eventBus);
+
+  const busEvents: GameEvent[] = [];
+  eventBus.on('achievement_unlocked', (e) => busEvents.push(e));
+
+  // quest_hero achievement requires 10 quests completed
+  for (let i = 0; i < 10; i++) {
+    tracker.onQuestCompleted();
+  }
+
+  const achievementEvents = busEvents.filter(e => e.type === 'achievement_unlocked');
+  assert(achievementEvents.length >= 1, 'at least one achievement_unlocked event emitted on bus');
+  const questHeroEvent = achievementEvents.find(
+    e => e.type === 'achievement_unlocked' && e.achievementId === 'quest_hero'
+  );
+  assert(questHeroEvent !== undefined, 'quest_hero achievement event found');
+  if (questHeroEvent && questHeroEvent.type === 'achievement_unlocked') {
+    assertEqual(questHeroEvent.achievementName, 'Quest Hero', 'event has correct achievement name');
+  }
+}
+
+function testEventBusQuestCompletedTriggersAchievementCheck() {
+  console.log('\n── Event Bus quest_completed Triggers Achievement Check ──');
+
+  const tracker = new LanguageGamificationTracker();
+  const eventBus = new GameEventBus();
+  tracker.subscribeToEventBus(eventBus);
+
+  const achievementEvents: AchievementUnlockedEvent[] = [];
+  tracker.setOnAchievementUnlocked((e) => achievementEvents.push(e));
+
+  // Emit quest_completed events through the bus (quest_hero requires 10)
+  for (let i = 0; i < 10; i++) {
+    eventBus.emit({ type: 'quest_completed', questId: `q${i}` });
+  }
+
+  assert(achievementEvents.length >= 1, 'achievement unlocked via event bus quest_completed');
+  const questHero = achievementEvents.find(e => e.achievement.id === 'quest_hero');
+  assert(questHero !== undefined, 'quest_hero unlocked from event bus events');
+}
+
+function testEventBusUtteranceQuestCompletedTriggersAchievementCheck() {
+  console.log('\n── Event Bus utterance_quest_completed Triggers Achievement Check ──');
+
+  const tracker = new LanguageGamificationTracker();
+  const eventBus = new GameEventBus();
+  tracker.subscribeToEventBus(eventBus);
+
+  const achievementEvents: AchievementUnlockedEvent[] = [];
+  tracker.setOnAchievementUnlocked((e) => achievementEvents.push(e));
+
+  // Emit utterance_quest_completed events (also counts as quest completions)
+  for (let i = 0; i < 10; i++) {
+    eventBus.emit({
+      type: 'utterance_quest_completed',
+      questId: `uq${i}`,
+      objectiveId: `obj${i}`,
+      finalScore: 90,
+      xpAwarded: 25,
+    });
+  }
+
+  assert(achievementEvents.length >= 1, 'achievement unlocked via utterance_quest_completed');
+}
+
+function testAchievementCallbackAndBusEventBothFire() {
+  console.log('\n── Both Callback and Bus Event Fire on Achievement ──');
+
+  const tracker = new LanguageGamificationTracker();
+  const eventBus = new GameEventBus();
+  tracker.subscribeToEventBus(eventBus);
+
+  const callbackEvents: AchievementUnlockedEvent[] = [];
+  const busEvents: GameEvent[] = [];
+
+  tracker.setOnAchievementUnlocked((e) => callbackEvents.push(e));
+  eventBus.on('achievement_unlocked', (e) => busEvents.push(e));
+
+  for (let i = 0; i < 10; i++) {
+    tracker.onQuestCompleted();
+  }
+
+  assert(callbackEvents.length >= 1, 'callback fired');
+  assert(busEvents.length >= 1, 'bus event fired');
+  assertEqual(callbackEvents.length, busEvents.length, 'same number of events on both channels');
+}
+
+function testDisposeUnsubscribesFromEventBus() {
+  console.log('\n── Dispose Unsubscribes from Event Bus ──');
+
+  const tracker = new LanguageGamificationTracker();
+  const eventBus = new GameEventBus();
+  tracker.subscribeToEventBus(eventBus);
+
+  const busEvents: GameEvent[] = [];
+  eventBus.on('achievement_unlocked', (e) => busEvents.push(e));
+
+  tracker.dispose();
+
+  // After dispose, events through the bus should not trigger achievement checks
+  for (let i = 0; i < 10; i++) {
+    eventBus.emit({ type: 'quest_completed', questId: `q${i}` });
+  }
+
+  assertEqual(busEvents.length, 0, 'no achievement events after dispose');
+}
+
+function testUpdateProgressStatsEmitsOnBus() {
+  console.log('\n── updateProgressStats Emits Achievement on Bus ──');
+
+  const tracker = new LanguageGamificationTracker();
+  const eventBus = new GameEventBus();
+  tracker.subscribeToEventBus(eventBus);
+
+  const busEvents: GameEvent[] = [];
+  eventBus.on('achievement_unlocked', (e) => busEvents.push(e));
+
+  // first_words achievement: 10 words learned
+  tracker.updateProgressStats({
+    wordsLearned: 10,
+    conversations: 0,
+    grammarMastered: 0,
+    overallFluency: 0,
+    streakDays: 0,
+  });
+
+  const firstWordsEvent = busEvents.find(
+    e => e.type === 'achievement_unlocked' && e.achievementId === 'first_words'
+  );
+  assert(firstWordsEvent !== undefined, 'first_words achievement emitted on bus via updateProgressStats');
+}
+
 // --- Run all tests ---
 
 testPeriodicAssessmentTriggersAtLevel5();
@@ -175,6 +316,12 @@ testCooldownPreventsRetrigger();
 testExportImportPreservesTimestamp();
 testRecordPeriodicAssessmentCompleted();
 testDisposeCleanup();
+testAchievementEmitsEventOnBus();
+testEventBusQuestCompletedTriggersAchievementCheck();
+testEventBusUtteranceQuestCompletedTriggersAchievementCheck();
+testAchievementCallbackAndBusEventBothFire();
+testDisposeUnsubscribesFromEventBus();
+testUpdateProgressStatsEmitsOnBus();
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

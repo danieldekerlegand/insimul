@@ -60,6 +60,8 @@ const EVENT_VISUAL_VOCAB_PROMPTED := "visual_vocab_prompted"
 const EVENT_VISUAL_VOCAB_ANSWERED := "visual_vocab_answered"
 # Follow directions quest events
 const EVENT_DIRECTION_STEP_COMPLETED := "direction_step_completed"
+# Achievement events
+const EVENT_ACHIEVEMENT_UNLOCKED := "achievement_unlocked"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -87,6 +89,7 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_VISUAL_VOCAB_PROMPTED,
 	EVENT_VISUAL_VOCAB_ANSWERED,
 	EVENT_DIRECTION_STEP_COMPLETED,
+	EVENT_ACHIEVEMENT_UNLOCKED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
@@ -152,6 +155,7 @@ var _global_handlers: Array[Callable] = []
 ##   visual_vocab_prompted: {type, target_id, quest_id, objective_id, is_activity}
 ##   visual_vocab_answered: {type, target_id, quest_id, passed, score, player_answer}
 ##   direction_step_completed: {type, quest_id, objective_id, step_index, steps_completed, steps_required}
+##   achievement_unlocked: {type, achievement_id, achievement_name, description, icon}
 ##
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}
 func emit_event(event: Dictionary) -> void:

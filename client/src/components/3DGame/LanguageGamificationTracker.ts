@@ -24,6 +24,7 @@ import {
   isPeriodicAssessmentLevel,
   isPeriodicAssessmentCooldownMet,
 } from '@shared/assessment/periodic-encounter';
+import type { GameEventBus } from './GameEventBus';
 
 export interface XPGainEvent {
   amount: number;
@@ -57,6 +58,10 @@ export class LanguageGamificationTracker {
   // Periodic assessment cooldown tracking
   private lastPeriodicAssessmentTimestamp: number | null = null;
 
+  // Event bus integration
+  private eventBus: GameEventBus | null = null;
+  private eventBusUnsubscribers: (() => void)[] = [];
+
   // Callbacks
   private onXPGain: ((event: XPGainEvent) => void) | null = null;
   private onLevelUp: ((event: LevelUpEvent) => void) | null = null;
@@ -67,6 +72,48 @@ export class LanguageGamificationTracker {
   constructor() {
     this.state = createDefaultGamificationState();
     this.ensureDailyChallenge();
+  }
+
+  // --- Event Bus Integration ---
+
+  /**
+   * Subscribe to gameplay events on the event bus.
+   * Reacts to quest completions, conversations, and other events
+   * that may trigger achievement detection. Also emits achievement_unlocked
+   * events back through the bus when achievements are detected.
+   */
+  subscribeToEventBus(eventBus: GameEventBus): void {
+    this.unsubscribeFromEventBus();
+    this.eventBus = eventBus;
+
+    this.eventBusUnsubscribers.push(
+      eventBus.on('quest_completed', (event) => {
+        this.onQuestCompleted();
+      }),
+      eventBus.on('utterance_quest_completed', (_event) => {
+        this.onQuestCompleted();
+      }),
+      eventBus.on('puzzle_solved', (_event) => {
+        this.checkAchievements();
+      }),
+      eventBus.on('item_collected', (_event) => {
+        this.checkAchievements();
+      }),
+      eventBus.on('location_discovered', (_event) => {
+        this.checkAchievements();
+      }),
+      eventBus.on('enemy_defeated', (_event) => {
+        this.checkAchievements();
+      }),
+    );
+  }
+
+  private unsubscribeFromEventBus(): void {
+    for (const unsub of this.eventBusUnsubscribers) {
+      unsub();
+    }
+    this.eventBusUnsubscribers = [];
+    this.eventBus = null;
   }
 
   // --- XP System ---
@@ -212,8 +259,19 @@ export class LanguageGamificationTracker {
         achievement.unlockedAt = Date.now();
         this.addXP(XP_REWARDS.achievementUnlocked, `Achievement: ${achievement.name}`);
         this.onAchievementUnlocked?.({ achievement });
+        this.emitAchievementEvent(achievement);
       }
     }
+  }
+
+  private emitAchievementEvent(achievement: Achievement): void {
+    this.eventBus?.emit({
+      type: 'achievement_unlocked',
+      achievementId: achievement.id,
+      achievementName: achievement.name,
+      description: achievement.description,
+      icon: achievement.icon,
+    });
   }
 
   private isConditionMet(achievement: Achievement): boolean {
@@ -286,6 +344,7 @@ export class LanguageGamificationTracker {
         achievement.unlockedAt = Date.now();
         this.addXP(XP_REWARDS.achievementUnlocked, `Achievement: ${achievement.name}`);
         this.onAchievementUnlocked?.({ achievement });
+        this.emitAchievementEvent(achievement);
       }
     }
   }
@@ -408,6 +467,7 @@ export class LanguageGamificationTracker {
   public setOnPeriodicAssessmentTriggered(cb: (event: PeriodicAssessmentEvent) => void): void { this.onPeriodicAssessmentTriggered = cb; }
 
   public dispose(): void {
+    this.unsubscribeFromEventBus();
     this.onXPGain = null;
     this.onLevelUp = null;
     this.onAchievementUnlocked = null;
