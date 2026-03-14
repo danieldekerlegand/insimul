@@ -19,6 +19,7 @@ import { CharacterChatDialog } from '../CharacterChatDialog';
 import { FamilyTreeFlow } from '../visualization/FamilyTreeFlow';
 import { LocationMapPreview, type ViewLevel } from './LocationMapPreview';
 import { SettlementMiniMap } from './SettlementMiniMap';
+import { MapLayersPanel, ALL_LAYERS, type MapLayer } from './MapLayersPanel';
 
 interface SettlementHubProps {
   worldId: string;
@@ -48,6 +49,18 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
   const [allCharacters, setAllCharacters] = useState<Character[]>([]);
   const [truths, setTruths] = useState<any[]>([]);
   const [waterFeatures, setWaterFeatures] = useState<any[]>([]);
+
+  // Map layers
+  const [visibleLayers, setVisibleLayers] = useState<Set<MapLayer>>(() => new Set(ALL_LAYERS));
+
+  const toggleLayer = (layer: MapLayer) => {
+    setVisibleLayers(prev => {
+      const next = new Set(prev);
+      if (next.has(layer)) next.delete(layer);
+      else next.add(layer);
+      return next;
+    });
+  };
 
   // Character sidebar
   const [selectedChar, setSelectedChar] = useState<Character | null>(null);
@@ -428,8 +441,8 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
         </div>
       )}
 
-      {/* 3D Map + Mini-map overlay */}
-      <div className="flex-1 min-h-0 relative">
+      {/* 3D Map with mini-map and layers panel */}
+      <div className="relative flex-1 min-h-0">
         <LocationMapPreview
           viewLevel={viewLevel}
           countries={countries}
@@ -443,6 +456,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
           worldId={worldId}
           onSettlementClick={selectSettlement}
           onCountryClick={selectCountry}
+          visibleLayers={visibleLayers}
           className="w-full h-full"
         />
         {viewLevel === 'settlement' && selectedSettlement && (
@@ -456,6 +470,11 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
             settlementType={selectedSettlement.settlementType}
           />
         )}
+        <MapLayersPanel
+          viewLevel={viewLevel}
+          visibleLayers={visibleLayers}
+          onToggleLayer={toggleLayer}
+        />
       </div>
     </div>
   );
