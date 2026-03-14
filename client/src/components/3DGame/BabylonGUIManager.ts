@@ -153,6 +153,7 @@ export class BabylonGUIManager {
   private onPayFines: (() => void) | null = null;
   private onVRToggled: (() => void) | null = null;
   private onCameraModePressed: (() => void) | null = null;
+  private onMinimapNavigate: ((worldX: number, worldZ: number) => void) | null = null;
 
   constructor(scene: Scene, config: GUIConfig) {
     this.scene = scene;
@@ -670,7 +671,7 @@ export class BabylonGUIManager {
 
     const panel = new Rectangle("minimapPanel");
     panel.width = `${MAP_SIZE + 20}px`;
-    panel.height = `${MAP_SIZE + 40}px`;
+    panel.height = `${MAP_SIZE + 60}px`;
     panel.background = "rgba(0, 0, 0, 0.75)";
     panel.color = "rgba(255,255,255,0.5)";
     panel.thickness = 2;
@@ -729,8 +730,90 @@ export class BabylonGUIManager {
     mapContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     panel.addControl(mapContainer);
 
+    // Click-to-navigate: clicking on the map container navigates to that world position
+    mapContainer.isPointerBlocker = true;
+    mapContainer.onPointerClickObservable.add((eventData) => {
+      if (!this.onMinimapNavigate) return;
+      // eventData.x/y are screen coords; use the control's measured bounds to get local offset
+      const measure = (mapContainer as unknown as { _currentMeasure: { left: number; top: number } })._currentMeasure;
+      const localX = eventData.x - measure.left - MAP_SIZE / 2;
+      const localY = eventData.y - measure.top - MAP_SIZE / 2;
+      const viewRadius = this._minimapLastViewRadius || this._minimapWorldSize * 0.2;
+      const vpSize = viewRadius * 2;
+      const worldX = this._minimapLastPlayerPos.x + (localX / MAP_SIZE) * vpSize;
+      const worldZ = this._minimapLastPlayerPos.z - (localY / MAP_SIZE) * vpSize;
+      this.onMinimapNavigate(worldX, worldZ);
+    });
+
+    // Zoom controls row
+    const zoomRow = new Rectangle("minimapZoomRow");
+    zoomRow.width = `${MAP_SIZE}px`;
+    zoomRow.height = "20px";
+    zoomRow.top = `${28 + MAP_SIZE + 4}px`;
+    zoomRow.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    zoomRow.background = "transparent";
+    zoomRow.thickness = 0;
+    panel.addControl(zoomRow);
+
+    const zoomOutBtn = Button.CreateSimpleButton("minimapZoomOut", "−");
+    zoomOutBtn.width = "28px";
+    zoomOutBtn.height = "20px";
+    zoomOutBtn.color = "white";
+    zoomOutBtn.background = "rgba(80,80,80,0.8)";
+    zoomOutBtn.cornerRadius = 3;
+    zoomOutBtn.fontSize = 14;
+    zoomOutBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    zoomOutBtn.onPointerClickObservable.add(() => this.minimapZoom(-1));
+    zoomRow.addControl(zoomOutBtn);
+
+    const zoomLabel = new TextBlock("minimapZoomLabel");
+    zoomLabel.text = "1.0x";
+    zoomLabel.color = "rgba(255,255,255,0.7)";
+    zoomLabel.fontSize = 11;
+    this._minimapZoomLabel = zoomLabel;
+    zoomRow.addControl(zoomLabel);
+
+    const zoomInBtn = Button.CreateSimpleButton("minimapZoomIn", "+");
+    zoomInBtn.width = "28px";
+    zoomInBtn.height = "20px";
+    zoomInBtn.color = "white";
+    zoomInBtn.background = "rgba(80,80,80,0.8)";
+    zoomInBtn.cornerRadius = 3;
+    zoomInBtn.fontSize = 14;
+    zoomInBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    zoomInBtn.onPointerClickObservable.add(() => this.minimapZoom(1));
+    zoomRow.addControl(zoomInBtn);
+
     this.minimapPanel = panel;
     this.advancedTexture.addControl(panel);
+  }
+
+  /**
+   * Adjust the minimap zoom level by the given direction (+1 = zoom in, -1 = zoom out).
+   */
+  public minimapZoom(direction: number): void {
+    const step = BabylonGUIManager.MINIMAP_ZOOM_STEP;
+    const newZoom = Math.round((this._minimapZoomLevel + direction * step) * 10) / 10;
+    this._minimapZoomLevel = Math.max(
+      BabylonGUIManager.MINIMAP_ZOOM_MIN,
+      Math.min(BabylonGUIManager.MINIMAP_ZOOM_MAX, newZoom)
+    );
+    if (this._minimapZoomLabel) {
+      this._minimapZoomLabel.text = `${this._minimapZoomLevel.toFixed(1)}x`;
+    }
+    // Force minimap re-render by invalidating the last source position
+    this._minimapLastSrcX = -1;
+    this._minimapLastSrcY = -1;
+  }
+
+  /** Get the current minimap zoom level. */
+  public getMinimapZoomLevel(): number {
+    return this._minimapZoomLevel;
+  }
+
+  /** Set a callback for when the user clicks on the minimap to navigate. */
+  public setMinimapNavigateCallback(cb: (worldX: number, worldZ: number) => void): void {
+    this.onMinimapNavigate = cb;
   }
 
   private createReputationPanel() {
@@ -1330,6 +1413,16 @@ export class BabylonGUIManager {
   private _minimapConeSvgUrl = '';
   /** Ephemeral minimap controls that are recreated each frame (NPCs, quests). */
   private _minimapDynamicControls: Control[] = [];
+  /** Current minimap zoom level. 1.0 = default, higher = more zoomed in. */
+  private _minimapZoomLevel = 1.0;
+  private static readonly MINIMAP_ZOOM_MIN = 0.5;
+  private static readonly MINIMAP_ZOOM_MAX = 4.0;
+  private static readonly MINIMAP_ZOOM_STEP = 0.5;
+  /** Zoom level label displayed on the minimap. */
+  private _minimapZoomLabel: TextBlock | null = null;
+  /** Last player position used for click-to-navigate calculations. */
+  private _minimapLastPlayerPos: { x: number; z: number } = { x: 0, z: 0 };
+  private _minimapLastViewRadius = 0;
 
   public updateMinimap(data: MinimapData) {
     if (!this.minimapPanel) return;
@@ -1345,9 +1438,17 @@ export class BabylonGUIManager {
     const worldSize = data.worldSize;
     const worldHalf = worldSize / 2;
 
+    // Store player position for click-to-navigate calculations
+    this._minimapLastPlayerPos = { x: data.playerPosition.x, z: data.playerPosition.z };
+
+    // View radius shrinks as zoom increases (zoom in = see less area)
+    const baseViewRadius = worldSize * 0.2;
+    const viewRadiusZoomed = baseViewRadius / this._minimapZoomLevel;
+    this._minimapLastViewRadius = viewRadiusZoomed;
+
     // --- Sliding-window background: extract the area around the player ---
     if (this._minimapFullImage && this.minimapStaticImage) {
-      const viewRadius = worldSize * 0.2;
+      const viewRadius = viewRadiusZoomed;
       const px = data.playerPosition.x;
       const pz = data.playerPosition.z;
 
@@ -1406,7 +1507,7 @@ export class BabylonGUIManager {
     this._minimapDynamicControls = [];
 
     // Map world coords to minimap pixel offsets relative to the current viewport
-    const viewRadius = worldSize * 0.2;
+    const viewRadius = viewRadiusZoomed;
     const vpCx = data.playerPosition.x;
     const vpCz = data.playerPosition.z;
     const vpSize = viewRadius * 2;
