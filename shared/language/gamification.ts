@@ -63,13 +63,20 @@ export function getLevelTier(level: number): string {
 export const XP_REWARDS = {
   conversationBase: 10,
   conversationLong: 5,          // bonus per turn after 5 turns
-  questComplete: 25,
+  questComplete: 25,            // flat fallback when quest has no experienceReward
   vocabularyNewWord: 3,
   vocabularyMastered: 15,
   grammarPatternCorrect: 2,
   grammarPatternMastered: 20,
   dailyChallengeComplete: 30,
   achievementUnlocked: 50,
+  // Learning activity rewards
+  assessmentPhaseComplete: 15,
+  assessmentComplete: 40,
+  onboardingStepComplete: 10,
+  onboardingComplete: 30,
+  puzzleSolved: 20,
+  locationDiscovered: 5,
 };
 
 // --- Achievements ---

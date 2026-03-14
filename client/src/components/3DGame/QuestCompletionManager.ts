@@ -102,7 +102,7 @@ export class QuestCompletionManager {
     const rewardSummary = this.distributeRewards(quest);
 
     // 3. Update gamification tracker (XP + achievements)
-    this.gamificationTracker?.onQuestCompleted(quest.questType);
+    this.gamificationTracker?.onQuestCompleted(quest.questType, quest.experienceReward);
 
     // 4. Track completed quest
     if (!this.playerProgress.questsCompleted.includes(quest.id)) {

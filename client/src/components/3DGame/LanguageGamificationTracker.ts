@@ -168,10 +168,12 @@ export class LanguageGamificationTracker {
   }
 
   /**
-   * Called when a quest is completed
+   * Called when a quest is completed.
+   * Uses the quest's experienceReward if provided, otherwise falls back to flat XP_REWARDS.questComplete.
    */
-  public onQuestCompleted(questCategory?: string): void {
-    this.addXP(XP_REWARDS.questComplete, 'Quest complete');
+  public onQuestCompleted(questCategory?: string, experienceReward?: number): void {
+    const xp = (experienceReward && experienceReward > 0) ? experienceReward : XP_REWARDS.questComplete;
+    this.addXP(xp, 'Quest complete');
     this.state.questsCompleted++;
     this.sessionQuestsCompleted++;
 
@@ -199,6 +201,50 @@ export class LanguageGamificationTracker {
   public onArticleRead(): void {
     this.state.articlesRead = (this.state.articlesRead || 0) + 1;
     this.checkAchievements();
+  }
+
+  // --- Learning Activity Handlers ---
+
+  /**
+   * Called when an assessment phase is completed
+   */
+  public onAssessmentPhaseCompleted(): void {
+    this.addXP(XP_REWARDS.assessmentPhaseComplete, 'Assessment phase complete');
+  }
+
+  /**
+   * Called when a full assessment is completed
+   */
+  public onAssessmentCompleted(): void {
+    this.addXP(XP_REWARDS.assessmentComplete, 'Assessment complete');
+  }
+
+  /**
+   * Called when an onboarding step is completed
+   */
+  public onOnboardingStepCompleted(): void {
+    this.addXP(XP_REWARDS.onboardingStepComplete, 'Onboarding step complete');
+  }
+
+  /**
+   * Called when full onboarding is completed
+   */
+  public onOnboardingCompleted(): void {
+    this.addXP(XP_REWARDS.onboardingComplete, 'Onboarding complete');
+  }
+
+  /**
+   * Called when a puzzle is solved
+   */
+  public onPuzzleSolved(): void {
+    this.addXP(XP_REWARDS.puzzleSolved, 'Puzzle solved');
+  }
+
+  /**
+   * Called when a new location is discovered
+   */
+  public onLocationDiscovered(): void {
+    this.addXP(XP_REWARDS.locationDiscovered, 'Location discovered');
   }
 
   // --- Achievement System ---
