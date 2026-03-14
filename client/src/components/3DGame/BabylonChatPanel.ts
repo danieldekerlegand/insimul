@@ -20,6 +20,7 @@ import { LanguageProgressTracker } from "./LanguageProgressTracker";
 import { scorePronunciation, formatPronunciationFeedback } from "@shared/language/pronunciation-scoring";
 import { SpeechRecognitionService, isSpeechRecognitionSupported, serverSideSTT } from "@/lib/speech-recognition";
 import { processRecordedAudio } from "@/lib/audio-utils";
+import { fetchGreetingAudio } from "@/lib/greeting-audio-cache";
 
 interface Message {
   role: 'user' | 'assistant';
@@ -96,6 +97,9 @@ export class BabylonChatPanel {
   private _patienceTimer: ReturnType<typeof setTimeout> | null = null;
   private _sessionGrammarErrors: Map<string, number> = new Map(); // pattern -> error count this session
   private _grammarFocusShown: Set<string> = new Set(); // patterns already shown focus popup
+
+  // Precomputed greeting audio
+  private greetingAudioPromise: Promise<Blob | null> | null = null;
 
   // Audio queue for sentence-level TTS playback
   private audioQueue: { index: number; blob: Blob }[] = [];
@@ -259,6 +263,8 @@ export class BabylonChatPanel {
         this.onConversationSummary?.(result);
       }
     }
+    // Cancel any pending greeting audio
+    this.greetingAudioPromise = null;
     // Hide talking indicator
     if (this.talkingIndicator && this.character) {
       this.talkingIndicator.hide(this.character.id);
@@ -330,6 +336,9 @@ export class BabylonChatPanel {
       });
     }
 
+    // Precompute greeting audio so it's ready to play immediately
+    this.precomputeGreetingAudio(greeting);
+
     // Set up language tracker callbacks
     if (this.languageTracker) {
       if (this.worldLanguageContext) {
@@ -348,6 +357,25 @@ export class BabylonChatPanel {
     }
 
     this.updateMessagesDisplay();
+  }
+
+  private precomputeGreetingAudio(greeting: string) {
+    if (!this.character) return;
+
+    const voice = this.character.gender === 'female' ? 'Kore' : 'Charon';
+    const gender = this.character.gender || 'neutral';
+    const characterId = this.character.id;
+
+    this.greetingAudioPromise = fetchGreetingAudio(characterId, greeting, voice, gender);
+
+    // Auto-play once ready (if panel is still visible and showing this character)
+    this.greetingAudioPromise.then((blob) => {
+      if (blob && this.isVisible && this.character?.id === characterId) {
+        this.playAudio(blob).catch((err) => {
+          console.warn('[ChatPanel] Failed to play greeting audio:', err);
+        });
+      }
+    });
   }
 
   private createChatUI() {
