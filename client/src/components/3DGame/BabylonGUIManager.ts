@@ -124,6 +124,7 @@ export class BabylonGUIManager {
   private minimapPanel: Container | null = null;
   private minimapStaticRendered: boolean = false;
   private minimapStaticImage: Image | null = null;
+  private minimapTerrainImage: Image | null = null;
   private reputationPanel: Container | null = null;
   private settlementDetailsPanel: Container | null = null;
   private helpPanel: Container | null = null;
@@ -694,6 +695,16 @@ export class BabylonGUIManager {
     mapBackground.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     panel.addControl(mapBackground);
 
+    // Terrain background image (heightmap-derived coloring)
+    const terrainImage = new Image("minimapTerrainImage");
+    terrainImage.width = `${MAP_SIZE}px`;
+    terrainImage.height = `${MAP_SIZE}px`;
+    terrainImage.top = "28px";
+    terrainImage.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    terrainImage.isVisible = false;
+    panel.addControl(terrainImage);
+    this.minimapTerrainImage = terrainImage;
+
     // Static map image (rendered once with buildings/terrain)
     const staticImage = new Image("minimapStaticImage");
     staticImage.width = `${MAP_SIZE}px`;
@@ -1254,6 +1265,18 @@ export class BabylonGUIManager {
     if (this.feedbackPanel) {
       this.feedbackPanel.isVisible = false;
     }
+  }
+
+  /**
+   * Set the minimap terrain background from a canvas rendered by MinimapTerrainRenderer.
+   * This layer sits behind the 3D screenshot and provides heightmap-based coloring.
+   */
+  public setMinimapTerrainBackground(canvas: HTMLCanvasElement): void {
+    if (!this.minimapTerrainImage) return;
+    const dataUrl = canvas.toDataURL('image/png');
+    this.minimapTerrainImage.source = dataUrl;
+    this.minimapTerrainImage.isVisible = true;
+    console.log('[Insimul] Minimap terrain background set');
   }
 
   /**
