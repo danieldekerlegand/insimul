@@ -347,6 +347,15 @@ async function shutdown(signal: string): Promise<void> {
     console.error('Error stopping job queue manager:', error);
   }
 
+  // Close voice chat WebSocket server
+  try {
+    const { voiceChatManager } = await import('./services/voice-websocket.js');
+    await voiceChatManager.close();
+    console.log('✅ Voice chat WebSocket server closed');
+  } catch (error) {
+    console.error('Error closing voice chat WebSocket server:', error);
+  }
+
   if (httpServer && httpServer.listening) {
     try {
       await new Promise<void>((resolve, reject) => {
@@ -401,6 +410,11 @@ process.on('unhandledRejection', async (reason, promise) => {
     // Register API routes
     const server = await registerRoutes(app);
     httpServer = server;
+
+    // Attach WebSocket server for real-time voice chat
+    const { voiceChatManager } = await import('./services/voice-websocket.js');
+    voiceChatManager.attach(server);
+    console.log('✅ Voice chat WebSocket server attached on /ws/voice');
     
     // Additional database management endpoints
     app.get('/health', (req, res) => {
