@@ -169,7 +169,7 @@ describe('QuestCompletionManager', () => {
       const quest = createSampleQuest();
       await manager.completeQuest(quest);
 
-      expect(mockGamification.onQuestCompleted).toHaveBeenCalledWith('conversation');
+      expect(mockGamification.onQuestCompleted).toHaveBeenCalledWith('conversation', 50);
     });
 
     it('should add quest to playerProgress.questsCompleted', async () => {

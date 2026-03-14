@@ -1708,6 +1708,26 @@ export class BabylonGame {
     this.eventBus.on('location_visited', () => this.updateQuestIndicators());
     this.eventBus.on('npc_talked', () => this.updateQuestIndicators());
 
+    // Wire learning activity events to gamification tracker for XP awards
+    this.eventBus.on('assessment_phase_completed', () => {
+      this.gamificationTracker?.onAssessmentPhaseCompleted();
+    });
+    this.eventBus.on('assessment_completed', () => {
+      this.gamificationTracker?.onAssessmentCompleted();
+    });
+    this.eventBus.on('onboarding_step_completed', () => {
+      this.gamificationTracker?.onOnboardingStepCompleted();
+    });
+    this.eventBus.on('onboarding_completed', () => {
+      this.gamificationTracker?.onOnboardingCompleted();
+    });
+    this.eventBus.on('puzzle_solved', () => {
+      this.gamificationTracker?.onPuzzleSolved();
+    });
+    this.eventBus.on('location_discovered', () => {
+      this.gamificationTracker?.onLocationDiscovered();
+    });
+
     // Initialize combat system
     this.combatSystem = new CombatSystem(scene);
     this.combatSystem.setOnDamageDealt((result: DamageResult) => {
