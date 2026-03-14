@@ -20,6 +20,7 @@ import { LanguageProgressTracker } from "./LanguageProgressTracker";
 import { scorePronunciation, formatPronunciationFeedback } from "@shared/language/pronunciation-scoring";
 import { SpeechRecognitionService, isSpeechRecognitionSupported, serverSideSTT } from "@/lib/speech-recognition";
 import { processRecordedAudio } from "@/lib/audio-utils";
+import { HandsFreeController } from "@/lib/hands-free-controller";
 import { fetchGreetingAudio } from "@/lib/greeting-audio-cache";
 import { VoiceWebSocketClient } from "@/lib/voice-websocket-client";
 
@@ -117,6 +118,13 @@ export class BabylonChatPanel {
   private voiceWSClient: VoiceWebSocketClient | null = null;
   private voiceMode: 'push-to-talk' | 'always-on' = 'push-to-talk';
   private voiceModeButton: Button | null = null;
+
+  // Hands-free mode (VAD auto-start/stop)
+  private handsFreeController: HandsFreeController | null = null;
+  private isHandsFreeMode = false;
+  private handsFreeButton: Button | null = null;
+  private volumeIndicator: Rectangle | null = null;
+  private volumeBar: Rectangle | null = null;
 
   // Dialogue Actions
   private dialogueActions: BabylonDialogueActions | null = null;
@@ -245,6 +253,7 @@ export class BabylonChatPanel {
     console.log('[ChatPanel] Hide() called - was isVisible:', this.isVisible, 'userInitiated:', userInitiated);
     console.log('[ChatPanel] Call stack:', new Error().stack);
     this.clearHintTimer();
+    this.disableHandsFreeMode();
     this.isVisible = false;
     if (this.chatContainer) {
       this.chatContainer.isVisible = false;
@@ -504,17 +513,26 @@ export class BabylonChatPanel {
     this.inputText.paddingLeft = "10px";
 
     this.inputText.onFocusObservable.add(() => {
-      if (this.inputText && this.inputText.text === "Type your message...") {
+      if (this.inputText && (this.inputText.text === "Type your message..." || this.inputText.text === "Hands-free: speak to chat...")) {
         this.inputText.text = "";
       }
       this._inputFocused = true;
+      // Pause hands-free while typing
+      if (this.isHandsFreeMode && this.handsFreeController) {
+        this.handsFreeController.stop();
+      }
     });
 
     this.inputText.onBlurObservable.add(() => {
       if (this.inputText && this.inputText.text === "") {
-        this.inputText.text = "Type your message...";
+        this.inputText.text = this.isHandsFreeMode ? "Hands-free: speak to chat..." : "Type your message...";
+        if (this.isHandsFreeMode) this.inputText.color = '#88cc88';
       }
       this._inputFocused = false;
+      // Resume hands-free when leaving text input
+      if (this.isHandsFreeMode && this.handsFreeController && !this.handsFreeController.isActive) {
+        this.handsFreeController.start();
+      }
     });
 
     inputArea.addControl(this.inputText);
@@ -552,6 +570,44 @@ export class BabylonChatPanel {
       this.toggleVoiceMode();
     });
     inputArea.addControl(this.voiceModeButton);
+
+    // Hands-free toggle button (VAD auto-start/stop)
+    this.handsFreeButton = Button.CreateSimpleButton("hfBtn", "HF");
+    this.handsFreeButton.width = "26px";
+    this.handsFreeButton.height = "26px";
+    this.handsFreeButton.color = "white";
+    this.handsFreeButton.background = "rgba(60, 60, 60, 0.5)";
+    this.handsFreeButton.cornerRadius = 4;
+    this.handsFreeButton.fontSize = 8;
+    this.handsFreeButton.left = "72%";
+    this.handsFreeButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.handsFreeButton.onPointerClickObservable.add(() => {
+      this.toggleHandsFreeMode();
+    });
+    inputArea.addControl(this.handsFreeButton);
+
+    // Volume indicator (visible only in hands-free mode)
+    this.volumeIndicator = new Rectangle("volumeIndicator");
+    this.volumeIndicator.width = "40px";
+    this.volumeIndicator.height = "4px";
+    this.volumeIndicator.left = "60%";
+    this.volumeIndicator.top = "-2px";
+    this.volumeIndicator.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.volumeIndicator.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    this.volumeIndicator.background = "rgba(40, 40, 40, 0.6)";
+    this.volumeIndicator.cornerRadius = 2;
+    this.volumeIndicator.thickness = 0;
+    this.volumeIndicator.isVisible = false;
+
+    this.volumeBar = new Rectangle("volumeBar");
+    this.volumeBar.width = "0%";
+    this.volumeBar.height = "100%";
+    this.volumeBar.background = "#4CAF50";
+    this.volumeBar.cornerRadius = 2;
+    this.volumeBar.thickness = 0;
+    this.volumeBar.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.volumeIndicator.addControl(this.volumeBar);
+    inputArea.addControl(this.volumeIndicator);
 
     // Send button
     const sendBtn = Button.CreateSimpleButton("sendBtn", "Send");
@@ -2520,7 +2576,117 @@ export class BabylonChatPanel {
     }
   }
 
+  // -- Hands-free mode (VAD auto-start/stop) --
+
+  private toggleHandsFreeMode(): void {
+    if (this.isHandsFreeMode) {
+      this.disableHandsFreeMode();
+    } else {
+      this.enableHandsFreeMode();
+    }
+  }
+
+  private enableHandsFreeMode(): void {
+    if (this.isHandsFreeMode) return;
+
+    // Stop any manual recording in progress
+    if (this.isRecording) {
+      this.stopRecording();
+    }
+
+    const lang = this.worldLanguageContext?.targetLanguage
+      ? getLanguageBCP47(this.worldLanguageContext.targetLanguage)
+      : 'en-US';
+
+    this.handsFreeController = new HandsFreeController(
+      {
+        onTranscript: (transcript) => {
+          this.handleVoiceTranscript(transcript);
+        },
+        onInterimTranscript: (text) => {
+          if (this.inputText) {
+            this.inputText.text = text;
+            this.inputText.color = '#ffd93d';
+          }
+        },
+        onEnergyChange: (energy) => {
+          if (this.volumeBar) {
+            // Scale energy (typically 0-0.1) to 0-100%
+            const pct = Math.min(100, Math.round(energy * 1000));
+            this.volumeBar.width = `${pct}%`;
+            this.volumeBar.background = energy >= 0.015 ? '#4CAF50' : '#666';
+          }
+        },
+        onSpeechStart: () => {
+          if (this.micButton) {
+            this.micButton.background = 'rgba(255, 50, 50, 0.8)';
+          }
+          if (this.inputText) {
+            this.inputText.text = '🎤 Listening...';
+            this.inputText.color = '#ff6b6b';
+          }
+        },
+        onSpeechEnd: () => {
+          if (this.micButton) {
+            this.micButton.background = 'rgba(60, 60, 60, 0.8)';
+          }
+          if (this.inputText && !this.isProcessing) {
+            this.inputText.text = 'Hands-free: speak to chat...';
+            this.inputText.color = '#88cc88';
+          }
+        },
+        onError: (err) => {
+          console.error('[BabylonChatPanel] Hands-free error:', err);
+        },
+      },
+      { lang },
+    );
+
+    this.isHandsFreeMode = true;
+
+    // Update UI
+    if (this.handsFreeButton) {
+      this.handsFreeButton.background = 'rgba(50, 200, 50, 0.8)';
+    }
+    if (this.volumeIndicator) {
+      this.volumeIndicator.isVisible = true;
+    }
+    if (this.inputText) {
+      this.inputText.text = 'Hands-free: speak to chat...';
+      this.inputText.color = '#88cc88';
+    }
+
+    this.handsFreeController.start();
+  }
+
+  private disableHandsFreeMode(): void {
+    if (!this.isHandsFreeMode) return;
+
+    this.isHandsFreeMode = false;
+
+    if (this.handsFreeController) {
+      this.handsFreeController.stop();
+      this.handsFreeController = null;
+    }
+
+    // Reset UI
+    if (this.handsFreeButton) {
+      this.handsFreeButton.background = 'rgba(60, 60, 60, 0.5)';
+    }
+    if (this.volumeIndicator) {
+      this.volumeIndicator.isVisible = false;
+    }
+    if (this.volumeBar) {
+      this.volumeBar.width = '0%';
+    }
+    if (this.inputText) {
+      this.inputText.text = 'Type your message...';
+      this.inputText.color = 'white';
+    }
+  }
+
   public dispose() {
+    this.disableHandsFreeMode();
     this.stopAllAudio();
     if (this.voiceWSClient) {
       this.voiceWSClient.destroy();
