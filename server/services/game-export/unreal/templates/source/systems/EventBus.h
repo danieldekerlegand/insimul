@@ -62,6 +62,8 @@ enum class EInsimulEventType : uint8
     VisualVocabAnswered     UMETA(DisplayName = "Visual Vocab Answered"),
     // Follow directions quest events
     DirectionStepCompleted UMETA(DisplayName = "Direction Step Completed"),
+    // Pronunciation quest events
+    PronunciationAssessmentData UMETA(DisplayName = "Pronunciation Assessment Data"),
     // Achievement events
     AchievementUnlocked UMETA(DisplayName = "Achievement Unlocked")
 };

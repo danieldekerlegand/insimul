@@ -56,6 +56,7 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("visual_vocab_prompted"),             EInsimulEventType::VisualVocabPrompted },
         { TEXT("visual_vocab_answered"),             EInsimulEventType::VisualVocabAnswered },
         { TEXT("direction_step_completed"),          EInsimulEventType::DirectionStepCompleted },
+        { TEXT("pronunciation_assessment_data"),     EInsimulEventType::PronunciationAssessmentData },
         { TEXT("achievement_unlocked"),              EInsimulEventType::AchievementUnlocked },
     };
     return Map;
