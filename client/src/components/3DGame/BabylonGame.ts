@@ -5765,7 +5765,7 @@ export class BabylonGame {
   }
 
   private _minimapBuildingsCollected = false;
-  private _minimapBuildings: Array<{ position: { x: number; z: number }; type: 'business' | 'residence' | 'other' }> = [];
+  private _minimapBuildings: Array<{ position: { x: number; z: number }; type: 'business' | 'residence' | 'other'; width: number; depth: number }> = [];
   private _minimapStreets: Array<{ waypoints: Array<{ x: number; z: number }>; width: number }> = [];
 
   private updateMinimapOverlay(): void {
@@ -5797,9 +5797,22 @@ export class BabylonGame {
         const bType = data.metadata?.buildingType === 'business' ? 'business' as const
           : data.metadata?.buildingType === 'residence' ? 'residence' as const
           : 'other' as const;
+        // Extract footprint dimensions from mesh bounding box
+        let width = 6;
+        let depth = 6;
+        if (data.mesh) {
+          const bounds = data.mesh.getBoundingInfo?.()?.boundingBox;
+          if (bounds) {
+            const ext = bounds.extendSize;
+            width = ext.x * 2;
+            depth = ext.z * 2;
+          }
+        }
         this._minimapBuildings.push({
           position: { x: data.position.x, z: data.position.z },
-          type: bType
+          type: bType,
+          width,
+          depth
         });
       });
       this._minimapBuildingsCollected = true;

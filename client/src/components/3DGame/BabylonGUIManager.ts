@@ -56,6 +56,8 @@ export interface ActionFeedbackData {
 export interface MinimapBuilding {
   position: { x: number; z: number };
   type: 'business' | 'residence' | 'other';
+  width?: number;  // footprint width in world units (default 6)
+  depth?: number;  // footprint depth in world units (default 6)
 }
 
 export interface MinimapData {
@@ -1378,6 +1380,10 @@ export class BabylonGUIManager {
           if (data.streets && data.streets.length > 0) {
             this.drawMinimapStreets(this._minimapVpCtx, data.streets, viewRadius, data.playerPosition, MAP_SIZE);
           }
+          // Draw building footprints on the viewport canvas
+          if (data.buildings && data.buildings.length > 0) {
+            this.drawMinimapBuildings(this._minimapVpCtx, data.buildings, viewRadius, data.playerPosition, MAP_SIZE);
+          }
           const dataUrl = this._minimapVpCanvas.toDataURL('image/jpeg', 0.85);
           // Only assign source when the data URL actually changed, to avoid
           // triggering an image reload cycle that causes flicker.
@@ -1536,6 +1542,58 @@ export class BabylonGUIManager {
         ctx.lineTo(px, py);
       }
       ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * Draw building footprints as filled rectangles onto the minimap viewport canvas.
+   */
+  private drawMinimapBuildings(
+    ctx: CanvasRenderingContext2D,
+    buildings: MinimapBuilding[],
+    viewRadius: number,
+    playerPos: { x: number; z: number },
+    mapSize: number
+  ): void {
+    const vpSize = viewRadius * 2;
+    const half = mapSize / 2;
+
+    const toCanvas = (wx: number, wz: number): [number, number] => {
+      const cx = ((wx - playerPos.x) / vpSize) * mapSize + half;
+      const cy = (-(wz - playerPos.z) / vpSize) * mapSize + half;
+      return [cx, cy];
+    };
+
+    ctx.save();
+
+    for (const building of buildings) {
+      const [cx, cy] = toCanvas(building.position.x, building.position.z);
+      const w = Math.max(2, ((building.width ?? 6) / vpSize) * mapSize);
+      const h = Math.max(2, ((building.depth ?? 6) / vpSize) * mapSize);
+
+      // Skip buildings entirely outside the viewport
+      if (cx + w / 2 < 0 || cx - w / 2 > mapSize || cy + h / 2 < 0 || cy - h / 2 > mapSize) continue;
+
+      switch (building.type) {
+        case 'business':
+          ctx.fillStyle = 'rgba(100, 149, 237, 0.7)'; // cornflower blue
+          break;
+        case 'residence':
+          ctx.fillStyle = 'rgba(210, 180, 140, 0.7)'; // tan
+          break;
+        default:
+          ctx.fillStyle = 'rgba(169, 169, 169, 0.7)'; // dark gray
+          break;
+      }
+
+      ctx.fillRect(cx - w / 2, cy - h / 2, w, h);
+
+      // Thin outline for definition
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(cx - w / 2, cy - h / 2, w, h);
     }
 
     ctx.restore();
