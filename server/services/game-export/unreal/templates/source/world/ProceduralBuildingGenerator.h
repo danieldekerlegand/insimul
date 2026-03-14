@@ -36,6 +36,20 @@ struct FBuildingTypeDefaults
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasBalcony = false;
 };
 
+/**
+ * Zone-based scale multipliers for building dimensions.
+ * Commercial buildings are taller and wider; residential is the baseline.
+ */
+USTRUCT(BlueprintType)
+struct FZoneScale
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float FloorsMultiplier = 1.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float WidthMultiplier = 1.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float DepthMultiplier = 1.0f;
+};
+
 UCLASS()
 class INSIMULEXPORT_API AProceduralBuildingGenerator : public AActor
 {
@@ -79,6 +93,9 @@ public:
 
     /** Default building dimensions indexed by business type. */
     static const TMap<FString, FBuildingTypeDefaults>& GetBuildingTypes();
+
+    /** Zone-based scale multipliers indexed by zone name (commercial, residential). */
+    static const TMap<FString, FZoneScale>& GetZoneScale();
 
 private:
     UPROPERTY()

@@ -2307,7 +2307,8 @@ export class BabylonGame {
           lotStreetNames.length > 0 ? lotStreetNames : undefined,
         );
 
-        const lotPositions = streetLayout.lots.map((l) =>
+        const placedLots = streetLayout.lots;
+        const lotPositions = placedLots.map((l) =>
           this.projectToGround(l.position.x, l.position.z)
         );
 
@@ -2325,7 +2326,8 @@ export class BabylonGame {
             businessType: business.businessType,
             position: lotPositions[buildingIndex],
             worldStyle,
-            population: scaledSettlement.population
+            population: scaledSettlement.population,
+            zone: placedLots[buildingIndex]?.zone,
           });
 
           buildingSpec = {
@@ -2400,7 +2402,8 @@ export class BabylonGame {
             businessType: residenceType,
             position: lotPositions[buildingIndex],
             worldStyle,
-            population: occupants.length
+            population: occupants.length,
+            zone: placedLots[buildingIndex]?.zone,
           });
 
           buildingSpec = {
@@ -2512,7 +2515,8 @@ export class BabylonGame {
               businessType: biz.businessType,
               position: lotPositions[buildingIndex],
               worldStyle,
-              population: scaledSettlement.population
+              population: scaledSettlement.population,
+              zone: placedLots[buildingIndex]?.zone,
             });
 
             buildingSpec = {
@@ -2567,7 +2571,8 @@ export class BabylonGame {
             businessType: residenceType,
             position: lotPositions[buildingIndex],
             worldStyle,
-            population: Math.floor(scaledSettlement.population / buildingCount)
+            population: Math.floor(scaledSettlement.population / buildingCount),
+            zone: placedLots[buildingIndex]?.zone,
           });
 
           buildingSpec = {

@@ -18,6 +18,8 @@ import { Vector3 } from '@babylonjs/core';
 
 // ── Public types ────────────────────────────────────────────────────────────
 
+export type ZoneType = 'commercial' | 'residential';
+
 export interface StreetSegment {
   id: string;
   /** Start point (x, z) — y is always 0, set later by terrain projection */
@@ -42,6 +44,8 @@ export interface PlacedLot {
   nearIntersection: boolean;
   /** true when this lot is on the main street */
   onMainStreet: boolean;
+  /** Urban zone classification based on lot position */
+  zone: ZoneType;
 }
 
 export interface StreetAlignedResult {
@@ -269,6 +273,7 @@ export function generateStreetAlignedLots(
             streetName: street.streetName,
             nearIntersection,
             onMainStreet: street.isMainStreet,
+            zone: 'residential', // default; sortLotsForZoning assigns final zones
           });
           houseOdd += 2;
         }
@@ -291,6 +296,7 @@ export function generateStreetAlignedLots(
             streetName: street.streetName,
             nearIntersection,
             onMainStreet: street.isMainStreet,
+            zone: 'residential', // default; sortLotsForZoning assigns final zones
           });
           houseEven += 2;
         }
@@ -318,7 +324,12 @@ export function sortLotsForZoning(lots: PlacedLot[], bizCount: number): PlacedLo
     score: (lot.nearIntersection ? 2 : 0) + (lot.onMainStreet ? 1 : 0),
   }));
   scored.sort((a, b) => b.score - a.score);
-  return scored.map(s => s.lot);
+
+  // Assign zones: first bizCount lots are commercial, rest are residential
+  return scored.map((s, i) => ({
+    ...s.lot,
+    zone: (i < bizCount ? 'commercial' : 'residential') as ZoneType,
+  }));
 }
 
 // ── Utilities ───────────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@
 
 import { Scene, Mesh, AbstractMesh, MeshBuilder, Vector3, StandardMaterial, Color3, Texture, VertexData, DynamicTexture, SceneLoader } from '@babylonjs/core';
 import { createDebugLabel } from './DebugLabelUtils';
+import type { ZoneType } from './StreetAlignedPlacement';
 import "@babylonjs/loaders/glTF";
 
 export interface BuildingStyle {
@@ -53,6 +54,13 @@ export class ProceduralBuildingGenerator {
   private roleScaleHints: Map<string, number> = new Map();
   // Per-role original bounding-box heights measured at import time
   private roleOriginalHeights: Map<string, number> = new Map();
+
+  // Zone-based scale multipliers for building dimensions.
+  // Commercial buildings are taller and wider; residential are standard scale.
+  static readonly ZONE_SCALE: Record<ZoneType, { floors: number; width: number; depth: number }> = {
+    commercial: { floors: 1.3, width: 1.15, depth: 1.1 },
+    residential: { floors: 1.0, width: 1.0, depth: 1.0 },
+  };
 
   // Building type to architecture mapping
   private static BUILDING_TYPES: Record<string, Partial<BuildingSpec>> = {
@@ -919,15 +927,22 @@ export class ProceduralBuildingGenerator {
     position: Vector3;
     worldStyle: BuildingStyle;
     population?: number;
+    zone?: ZoneType;
   }): BuildingSpec {
     const defaults = data.businessType && ProceduralBuildingGenerator.BUILDING_TYPES[data.businessType]
       || ProceduralBuildingGenerator.BUILDING_TYPES['residence_medium'];
 
-    // Use defaults from BUILDING_TYPES - no population-based overrides
-    // since we're using actual 3D models with their own proportions
-    const floors = defaults.floors || 2;
-    const width = defaults.width || 10;
-    const depth = defaults.depth || 10;
+    const baseFloors = defaults.floors || 2;
+    const baseWidth = defaults.width || 10;
+    const baseDepth = defaults.depth || 10;
+
+    // Apply zone-based scale multipliers
+    const zoneScale = data.zone
+      ? ProceduralBuildingGenerator.ZONE_SCALE[data.zone]
+      : ProceduralBuildingGenerator.ZONE_SCALE.residential;
+    const floors = Math.round(baseFloors * zoneScale.floors);
+    const width = Math.round(baseWidth * zoneScale.width);
+    const depth = Math.round(baseDepth * zoneScale.depth);
 
     return {
       id: data.id,

@@ -65,6 +65,13 @@ const STYLE_PRESETS := {
 	}
 }
 
+## Zone-based scale multipliers for building dimensions.
+## Commercial buildings are taller and wider; residential is the baseline.
+const ZONE_SCALE := {
+	"commercial":  { "floors": 1.3, "width": 1.15, "depth": 1.1 },
+	"residential": { "floors": 1.0, "width": 1.0,  "depth": 1.0 }
+}
+
 ## Default building dimensions indexed by business type.
 const BUILDING_TYPES := {
 	# Businesses
