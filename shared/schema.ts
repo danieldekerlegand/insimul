@@ -768,6 +768,16 @@ export const lots = pgTable("lots", {
   buildingId: varchar("building_id"), // Can be residence or business ID
   buildingType: text("building_type"), // residence, business, vacant
   
+  // Position coordinates (world-space)
+  positionX: real("position_x"),
+  positionZ: real("position_z"),
+  facingAngle: real("facing_angle").default(0),
+  elevation: real("elevation").default(0),
+
+  // Street placement metadata
+  streetEdgeId: varchar("street_edge_id"),
+  side: text("side"), // 'left' or 'right'
+
   // Spatial relationships
   neighboringLotIds: jsonb("neighboring_lot_ids").$type<string[]>().default([]),
   distanceFromDowntown: integer("distance_from_downtown").default(0),
@@ -1347,6 +1357,12 @@ export const insertLotSchema = createInsertSchema(lots).pick({
   districtName: true,
   buildingId: true,
   buildingType: true,
+  positionX: true,
+  positionZ: true,
+  facingAngle: true,
+  elevation: true,
+  streetEdgeId: true,
+  side: true,
   neighboringLotIds: true,
   distanceFromDowntown: true,
   formerBuildingIds: true,

@@ -339,6 +339,8 @@ export interface LotPlacement {
   houseNumber: number;
   /** Which side of the street ('left' or 'right') */
   side: 'left' | 'right';
+  /** Facing angle in radians (building faces the street) */
+  facingAngle: number;
 }
 
 /**
@@ -406,6 +408,9 @@ export function placeLots(
       const nx = -tangent.z * sign;
       const nz = tangent.x * sign;
 
+      // Facing angle: building faces back toward the street (opposite of offset normal)
+      const facingAngle = Math.atan2(-nx, -nz);
+
       placements.push({
         x: pos.x + nx * LOT_OFFSET,
         z: pos.z + nz * LOT_OFFSET,
@@ -413,6 +418,7 @@ export function placeLots(
         streetName: seg.name,
         houseNumber: li + 1,
         side,
+        facingAngle,
       });
     }
   }

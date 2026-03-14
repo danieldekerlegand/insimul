@@ -763,6 +763,8 @@ const LotSchema = new Schema({
   districtName: { type: String, default: null },
   buildingId: { type: String, default: null },
   buildingType: { type: String, default: 'vacant' },
+  positionX: { type: Number, default: null },
+  positionZ: { type: Number, default: null },
   lotWidth: { type: Number, default: 12 },
   lotDepth: { type: Number, default: 16 },
   streetEdgeId: { type: String, default: null },
