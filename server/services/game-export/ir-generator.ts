@@ -46,6 +46,7 @@ import type {
   StreetNodeIR,
   StreetSegmentIR,
   StreetNetworkIR,
+  WaterFeatureIR,
   NatureObjectIR,
   DungeonIR,
   QuestObjectIR,
@@ -594,6 +595,7 @@ export async function generateWorldIR(
     grammars,
     languages,
     worldItems,
+    waterFeatures,
   ] = await Promise.all([
     storage.getWorld(worldId).then(r => { console.log(`[Export] ✓ getWorld`); return r; }),
     storage.getCountriesByWorld(worldId).then(r => { console.log(`[Export] ✓ getCountriesByWorld`); return r; }),
@@ -609,6 +611,7 @@ export async function generateWorldIR(
     storage.getGrammarsByWorld(worldId).then(r => { console.log(`[Export] ✓ getGrammarsByWorld`); return r; }),
     storage.getWorldLanguagesByWorld(worldId).then(r => { console.log(`[Export] ✓ getWorldLanguagesByWorld`); return r; }),
     storage.getItemsByWorld(worldId).then(r => { console.log(`[Export] ✓ getItemsByWorld`); return r; }),
+    storage.getWaterFeaturesByWorld(worldId).then(r => { console.log(`[Export] ✓ getWaterFeaturesByWorld`); return r; }),
   ]);
   
   const parallelTime = Date.now() - startTime;
@@ -885,6 +888,31 @@ export async function generateWorldIR(
       materialKey: null,
     });
   }
+
+  // ── 3b. Water features ──
+  const waterFeatureIRs: WaterFeatureIR[] = waterFeatures.map((wf: any) => ({
+    id: wf.id,
+    worldId: wf.worldId,
+    type: wf.type,
+    subType: wf.subType || 'fresh',
+    name: wf.name,
+    position: wf.position || { x: 0, y: 0, z: 0 },
+    waterLevel: wf.waterLevel ?? 0,
+    bounds: wf.bounds || { minX: 0, maxX: 0, minZ: 0, maxZ: 0, centerX: 0, centerZ: 0 },
+    depth: wf.depth ?? 2,
+    width: wf.width ?? 10,
+    flowDirection: wf.flowDirection || null,
+    flowSpeed: wf.flowSpeed ?? 0,
+    shorelinePoints: wf.shorelinePoints || [],
+    settlementId: wf.settlementId || null,
+    biome: wf.biome || null,
+    isNavigable: wf.isNavigable ?? true,
+    isDrinkable: wf.isDrinkable ?? true,
+    modelAssetKey: wf.modelAssetKey || null,
+    color: wf.color || null,
+    transparency: wf.transparency ?? 0.3,
+  }));
+  console.log(`[Export] ✓ ${waterFeatureIRs.length} water feature(s) converted to IR`);
 
   // ── 4. Characters & NPCs ──
   const characterIRs: CharacterIR[] = characters.map(c => ({
@@ -1205,7 +1233,7 @@ export async function generateWorldIR(
       countries: countryIRs,
       states: stateIRs,
       settlements: settlementIRs,
-      waterFeatures: [],
+      waterFeatures: waterFeatureIRs,
     },
 
     entities: {
@@ -1257,6 +1285,7 @@ export async function generateWorldIR(
         truths,
         worldItems: worldItems || [],
         languages: languages || [],
+        waterFeatures: waterFeatures || [],
       }),
     },
 
@@ -1366,6 +1395,7 @@ async function buildKnowledgeBase(
     truths?: any[];
     worldItems?: any[];
     languages?: any[];
+    waterFeatures?: any[];
   },
 ): Promise<string | null> {
   const parts: string[] = [];
@@ -1561,6 +1591,23 @@ async function buildKnowledgeBase(
       if (lang.name) parts.push(`language_name(${lId}, '${escapeAtom(lang.name)}').`);
       if (lang.nativeName) parts.push(`language_native_name(${lId}, '${escapeAtom(lang.nativeName)}').`);
       if (lang.script) parts.push(`language_script(${lId}, ${sanitizeAtom(lang.script)}).`);
+    }
+    parts.push('');
+  }
+
+  // ── Water feature facts ──
+  const waterFeats = worldData?.waterFeatures || [];
+  if (waterFeats.length > 0) {
+    parts.push('% === Water Feature Facts ===');
+    for (const wf of waterFeats) {
+      const wId = sanitizeAtom(wf.id || wf._id?.toString());
+      parts.push(`water_feature(${wId}).`);
+      if (wf.name) parts.push(`water_feature_name(${wId}, '${escapeAtom(wf.name)}').`);
+      if (wf.type) parts.push(`water_feature_type(${wId}, ${sanitizeAtom(wf.type)}).`);
+      if (wf.subType) parts.push(`water_feature_sub_type(${wId}, ${sanitizeAtom(wf.subType)}).`);
+      if (wf.settlementId) parts.push(`water_feature_settlement(${wId}, ${sanitizeAtom(wf.settlementId)}).`);
+      if (wf.isNavigable !== undefined) parts.push(`water_feature_navigable(${wId}, ${wf.isNavigable}).`);
+      if (wf.isDrinkable !== undefined) parts.push(`water_feature_drinkable(${wId}, ${wf.isDrinkable}).`);
     }
     parts.push('');
   }
