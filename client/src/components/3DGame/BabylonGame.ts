@@ -1640,6 +1640,9 @@ export class BabylonGame {
       });
     });
 
+    // Wire achievement detection to gameplay events via event bus
+    this.gamificationTracker.subscribeToEventBus(this.eventBus);
+
     // Initialize quest completion manager
     this.questCompletionManager = new QuestCompletionManager(scene, this.guiManager.advancedTexture);
     this.questCompletionManager.setEventBus(this.eventBus);

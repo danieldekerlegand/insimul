@@ -79,7 +79,9 @@ export type GameEvent =
   | { type: 'visual_vocab_prompted'; targetId: string; questId: string; objectiveId: string; isActivity: boolean }
   | { type: 'visual_vocab_answered'; targetId: string; questId: string; passed: boolean; score: number; playerAnswer: string }
   // Follow directions quest events
-  | { type: 'direction_step_completed'; questId: string; objectiveId: string; stepIndex: number; stepsCompleted: number; stepsRequired: number };
+  | { type: 'direction_step_completed'; questId: string; objectiveId: string; stepIndex: number; stepsCompleted: number; stepsRequired: number }
+  // Achievement events
+  | { type: 'achievement_unlocked'; achievementId: string; achievementName: string; description: string; icon: string };
 
 export type GameEventType = GameEvent['type'];
 

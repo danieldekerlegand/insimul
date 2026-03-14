@@ -61,7 +61,9 @@ enum class EInsimulEventType : uint8
     VisualVocabPrompted     UMETA(DisplayName = "Visual Vocab Prompted"),
     VisualVocabAnswered     UMETA(DisplayName = "Visual Vocab Answered"),
     // Follow directions quest events
-    DirectionStepCompleted UMETA(DisplayName = "Direction Step Completed")
+    DirectionStepCompleted UMETA(DisplayName = "Direction Step Completed"),
+    // Achievement events
+    AchievementUnlocked UMETA(DisplayName = "Achievement Unlocked")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────
@@ -229,6 +231,12 @@ struct FInsimulGameEvent
     // ── Periodic assessment fields ────────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Level = 0;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Tier;
+
+    // ── Achievement fields ─────────────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AchievementId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AchievementName;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Description;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Icon;
 };
 
 // ── Delegates ────────────────────────────────────────────────────────────────
