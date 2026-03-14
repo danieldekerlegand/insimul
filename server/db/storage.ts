@@ -222,6 +222,14 @@ export interface IStorage {
   updateGenerationJob(id: string, job: Partial<InsertGenerationJob>): Promise<GenerationJob | undefined>;
   deleteGenerationJob(id: string): Promise<boolean>;
 
+  // Water Features
+  getWaterFeature(id: string): Promise<any | undefined>;
+  getWaterFeaturesByWorld(worldId: string): Promise<any[]>;
+  getWaterFeaturesBySettlement(settlementId: string): Promise<any[]>;
+  createWaterFeature(feature: any): Promise<any>;
+  updateWaterFeature(id: string, feature: any): Promise<any | undefined>;
+  deleteWaterFeature(id: string): Promise<boolean>;
+
   // Languages (real and constructed)
   getWorldLanguage(id: string): Promise<WorldLanguage | undefined>;
   getWorldLanguagesByWorld(worldId: string): Promise<WorldLanguage[]>;
