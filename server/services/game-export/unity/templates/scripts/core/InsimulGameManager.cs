@@ -60,6 +60,10 @@ namespace Insimul.Core
             var rg = FindObjectOfType<Insimul.World.RoadGenerator>();
             if (rg != null) rg.GenerateFromData(WorldData);
 
+            // Water features
+            var wfg = FindObjectOfType<Insimul.World.WaterFeatureGenerator>();
+            if (wfg != null) wfg.GenerateFromData(WorldData);
+
             // NPCs
             var npcMgr = FindObjectOfType<Insimul.Characters.NPCManager>();
             if (npcMgr != null) npcMgr.SpawnNPCs(WorldData);

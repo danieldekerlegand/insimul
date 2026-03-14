@@ -24,6 +24,7 @@ interface SceneDescriptor {
   buildings: BuildingDesc[];
   npcs: NPCDesc[];
   roads: RoadDesc[];
+  waterFeatures: WaterFeatureDesc[];
 }
 
 interface TerrainDesc {
@@ -76,6 +77,21 @@ interface RoadDesc {
   toId: string;
   width: number;
   waypoints: { x: number; y: number; z: number }[];
+}
+
+interface WaterFeatureDesc {
+  id: string;
+  name: string;
+  type: string;
+  position: { x: number; y: number; z: number };
+  waterLevel: number;
+  bounds: { minX: number; maxX: number; minZ: number; maxZ: number; centerX: number; centerZ: number } | null;
+  depth: number;
+  width: number;
+  flowDirection: { x: number; y: number; z: number } | null;
+  flowSpeed: number;
+  shorelinePoints: { x: number; y: number; z: number }[];
+  transparency: number;
 }
 
 // ─────────────────────────────────────────────
@@ -144,6 +160,21 @@ function buildSceneDescriptor(ir: WorldIR): SceneDescriptor {
       toId: r.toId,
       width: r.width,
       waypoints: r.waypoints,
+    })),
+
+    waterFeatures: ir.geography.waterFeatures.map(w => ({
+      id: w.id,
+      name: w.name,
+      type: w.type,
+      position: w.position,
+      waterLevel: w.waterLevel,
+      bounds: w.bounds,
+      depth: w.depth,
+      width: w.width,
+      flowDirection: w.flowDirection,
+      flowSpeed: w.flowSpeed,
+      shorelinePoints: w.shorelinePoints,
+      transparency: w.transparency,
     })),
   };
 }

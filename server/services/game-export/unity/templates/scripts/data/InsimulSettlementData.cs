@@ -51,6 +51,7 @@ namespace Insimul.Data
         public float elevationRange;
         public string slopeClass = "flat";
 
+        public InsimulLotData[] lots;
         public InsimulStreetNetwork streetNetwork;
     }
 }

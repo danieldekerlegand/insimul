@@ -38,6 +38,7 @@ namespace Insimul.Data
         public InsimulSettlementData[] settlements;
         public InsimulCountryData[] countries;
         public InsimulStateData[] states;
+        public InsimulWaterFeatureData[] waterFeatures;
     }
 
     [Serializable] public class EntitiesData
