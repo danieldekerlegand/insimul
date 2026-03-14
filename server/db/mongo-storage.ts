@@ -15,6 +15,8 @@ import {
   type InsertState,
   type Settlement,
   type InsertSettlement,
+  type SettlementHistoryEvent,
+  type InsertSettlementHistoryEvent,
   type Simulation,
   type InsertSimulation,
   type Action,
@@ -53,6 +55,11 @@ import type {
   InsertLanguageChatMessage,
   LanguageScopeType
 } from "@shared/language";
+import type {
+  AssessmentSession,
+  PhaseResult,
+  RecordingReference
+} from "@shared/assessment";
 
 // Mongoose Document interfaces
 interface RuleDoc extends Omit<Rule, 'id'>, Document {
@@ -80,6 +87,10 @@ interface StateDoc extends Omit<State, 'id'>, Document {
 }
 
 interface SettlementDoc extends Omit<Settlement, 'id'>, Document {
+  _id: string;
+}
+
+interface SettlementHistoryEventDoc extends Omit<SettlementHistoryEvent, 'id'>, Document {
   _id: string;
 }
 
@@ -148,6 +159,10 @@ interface WorldLanguageDoc extends Omit<WorldLanguage, 'id'>, Document {
 }
 
 interface LanguageChatMessageDoc extends Omit<LanguageChatMessage, 'id'>, Document {
+  _id: string;
+}
+
+interface AssessmentSessionDoc extends Omit<AssessmentSession, 'id'>, Document {
   _id: string;
 }
 
@@ -307,6 +322,7 @@ const SettlementSchema = new Schema({
   name: { type: String, required: true },
   description: { type: String, default: null },
   settlementType: { type: String, required: true },
+  settlementSubtype: { type: String, default: 'standard' },
   terrain: { type: String, default: null },
   population: { type: Number, default: 0 },
   foundedYear: { type: Number, default: null },
@@ -334,9 +350,29 @@ const SettlementSchema = new Schema({
   previousCountryIds: { type: Schema.Types.Mixed, default: null },
   previousStateIds: { type: Schema.Types.Mixed, default: null },
   annexationHistory: { type: Schema.Types.Mixed, default: null },
+  boundaryPolygon: { type: Schema.Types.Mixed, default: null },
+  elevation: { type: Number, default: 0 },
+  slopeProfile: { type: String, default: null },
+  elevationProfile: { type: Schema.Types.Mixed, default: null },
   generationConfig: { type: Schema.Types.Mixed, default: null },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
+});
+
+const SettlementHistoryEventSchema = new Schema({
+  worldId: { type: String, required: true },
+  settlementId: { type: String, required: true },
+  eventType: { type: String, required: true },
+  category: { type: String, required: true },
+  year: { type: Number, default: null },
+  timestep: { type: Number, default: null },
+  description: { type: String, required: true },
+  previousValue: { type: Schema.Types.Mixed, default: null },
+  newValue: { type: Schema.Types.Mixed, default: null },
+  significance: { type: String, default: 'minor' },
+  relatedCharacterIds: { type: Schema.Types.Mixed, default: [] },
+  tags: { type: Schema.Types.Mixed, default: [] },
+  createdAt: { type: Date, default: Date.now },
 });
 
 const SimulationSchema = new Schema({
@@ -749,6 +785,17 @@ const LotSchema = new Schema({
   districtName: { type: String, default: null },
   buildingId: { type: String, default: null },
   buildingType: { type: String, default: 'vacant' },
+  positionX: { type: Number, default: null },
+  positionZ: { type: Number, default: null },
+  lotWidth: { type: Number, default: 12 },
+  lotDepth: { type: Number, default: 16 },
+  streetEdgeId: { type: String, default: null },
+  distanceAlongStreet: { type: Number, default: 0 },
+  side: { type: String, default: 'left' },
+  blockId: { type: String, default: null },
+  facingAngle: { type: Number, default: 0 },
+  elevation: { type: Number, default: 0 },
+  foundationType: { type: String, default: 'flat' },
   neighboringLotIds: { type: [String], default: [] },
   distanceFromDowntown: { type: Number, default: null },
   formerBuildingIds: { type: [String], default: [] },
@@ -940,6 +987,66 @@ const ApiKeySchema = new Schema({
 });
 ApiKeySchema.index({ key: 1 });
 
+const TerrainFeatureSchema = new Schema({
+  worldId: { type: String, required: true },
+  name: { type: String, required: true },
+  featureType: { type: String, required: true },
+  position: { type: Schema.Types.Mixed, required: true },
+  radius: { type: Number, required: true },
+  elevation: { type: Number, required: true },
+  description: { type: String, default: null },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+TerrainFeatureSchema.index({ worldId: 1 });
+
+const WaterFeatureSchema = new Schema({
+  worldId: { type: String, required: true },
+  settlementId: { type: String, default: null },
+  type: { type: String, required: true }, // river, lake, ocean, pond, stream, waterfall, marsh, canal
+  subType: { type: String, default: 'fresh' },
+  name: { type: String, required: true },
+  position: { type: Schema.Types.Mixed, default: { x: 0, y: 0, z: 0 } },
+  waterLevel: { type: Number, default: 0 },
+  bounds: { type: Schema.Types.Mixed, default: { minX: 0, maxX: 0, minZ: 0, maxZ: 0, centerX: 0, centerZ: 0 } },
+  depth: { type: Number, default: 2 },
+  width: { type: Number, default: 10 },
+  flowDirection: { type: Schema.Types.Mixed, default: null },
+  flowSpeed: { type: Number, default: 0 },
+  shorelinePoints: { type: Schema.Types.Mixed, default: [] },
+  biome: { type: String, default: null },
+  isNavigable: { type: Boolean, default: true },
+  isDrinkable: { type: Boolean, default: true },
+  modelAssetKey: { type: String, default: null },
+  color: { type: Schema.Types.Mixed, default: null },
+  transparency: { type: Number, default: 0.3 },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+WaterFeatureSchema.index({ worldId: 1 });
+WaterFeatureSchema.index({ settlementId: 1 });
+
+const AssessmentSessionSchema = new Schema({
+  playerId: { type: String, required: true },
+  worldId: { type: String, required: true },
+  assessmentDefinitionId: { type: String, required: true },
+  assessmentType: { type: String, required: true }, // arrival, departure, periodic
+  targetLanguage: { type: String, required: true },
+  status: { type: String, required: true, default: 'idle' }, // idle, initializing, phase_active, phase_transitioning, scoring, complete
+  phaseResults: { type: [Schema.Types.Mixed], default: [] },
+  totalScore: { type: Number, default: null },
+  totalMaxPoints: { type: Number, required: true },
+  cefrLevel: { type: String, default: null }, // A1, A2, B1, B2
+  dimensionScores: { type: Schema.Types.Mixed, default: null },
+  automatedMetrics: { type: Schema.Types.Mixed, default: null },
+  recordings: { type: [Schema.Types.Mixed], default: [] },
+  startedAt: { type: Date, default: null },
+  completedAt: { type: Date, default: null },
+  createdAt: { type: Date, default: Date.now }
+});
+AssessmentSessionSchema.index({ playerId: 1, worldId: 1, assessmentType: 1 });
+AssessmentSessionSchema.index({ worldId: 1, status: 1 });
+
 // Mongoose Models
 const RuleModel = mongoose.model<RuleDoc>('Rule', RuleSchema);
 const GrammarModel = mongoose.model<GrammarDoc>('Grammar', GrammarSchema);
@@ -948,6 +1055,7 @@ const WorldModel = mongoose.model<WorldDoc>('World', WorldSchema);
 const CountryModel = mongoose.model<CountryDoc>('Country', CountrySchema);
 const StateModel = mongoose.model<StateDoc>('State', StateSchema);
 const SettlementModel = mongoose.model<SettlementDoc>('Settlement', SettlementSchema);
+const SettlementHistoryEventModel = mongoose.model<SettlementHistoryEventDoc>('SettlementHistoryEvent', SettlementHistoryEventSchema);
 const SimulationModel = mongoose.model<SimulationDoc>('Simulation', SimulationSchema);
 const ActionModel = mongoose.model<ActionDoc>('Action', ActionSchema);
 const TruthModel = mongoose.model<TruthDoc>('Truth', TruthSchema);
@@ -974,10 +1082,24 @@ const VocabularyEntryModel = mongoose.model('VocabularyEntry', VocabularyEntrySc
 const GrammarPatternModel = mongoose.model('GrammarPattern', GrammarPatternSchema, 'grammarpatterns');
 const ConversationRecordModel = mongoose.model('ConversationRecord', ConversationRecordSchema, 'conversationrecords');
 const LanguageAssessmentModel = mongoose.model('LanguageAssessment', LanguageAssessmentSchema, 'languageassessments');
+const AssessmentSessionModel = mongoose.model('AssessmentSession', AssessmentSessionSchema, 'assessmentsessions');
 const EvaluationResponseModel = mongoose.model('EvaluationResponse', EvaluationResponseSchema, 'evaluationresponses');
 const TechnicalTelemetryModel = mongoose.model('TechnicalTelemetry', TechnicalTelemetrySchema, 'technicaltelemetry');
 const EngagementEventModel = mongoose.model('EngagementEvent', EngagementEventSchema, 'engagementevents');
 const ApiKeyModel = mongoose.model('ApiKey', ApiKeySchema, 'apikeys');
+const TerrainFeatureModel = mongoose.model('TerrainFeature', TerrainFeatureSchema);
+const WaterFeatureModel = mongoose.model('WaterFeature', WaterFeatureSchema);
+
+function docToAssessmentSession(doc: any): AssessmentSession {
+  const obj = doc.toObject ? doc.toObject() : doc;
+  return {
+    ...obj,
+    id: (doc._id || obj._id).toString(),
+    createdAt: obj.createdAt instanceof Date ? obj.createdAt.toISOString() : obj.createdAt,
+    startedAt: obj.startedAt instanceof Date ? obj.startedAt.toISOString() : obj.startedAt,
+    completedAt: obj.completedAt instanceof Date ? obj.completedAt.toISOString() : obj.completedAt,
+  } as AssessmentSession;
+}
 
 // Helper to convert Mongoose doc to our type
 function docToRule(doc: RuleDoc | any): Rule {
@@ -1026,6 +1148,10 @@ function docToState(doc: StateDoc): State {
 }
 
 function docToSettlement(doc: SettlementDoc): Settlement {
+  return { ...doc.toObject(), id: doc._id.toString() };
+}
+
+function docToSettlementHistoryEvent(doc: SettlementHistoryEventDoc): SettlementHistoryEvent {
   return { ...doc.toObject(), id: doc._id.toString() };
 }
 
@@ -1573,6 +1699,37 @@ export class MongoStorage implements IStorage {
     // Finally delete the settlement itself
     const result = await SettlementModel.findByIdAndDelete(id);
     console.log(`         ✅ Settlement ${id} deleted (${characters.length} characters removed)`);
+    return !!result;
+  }
+
+  // Settlement History Event operations
+  async getSettlementHistoryEvent(id: string): Promise<SettlementHistoryEvent | undefined> {
+    await this.connect();
+    const doc = await SettlementHistoryEventModel.findById(id);
+    return doc ? docToSettlementHistoryEvent(doc) : undefined;
+  }
+
+  async getSettlementHistoryBySettlement(settlementId: string): Promise<SettlementHistoryEvent[]> {
+    await this.connect();
+    const docs = await SettlementHistoryEventModel.find({ settlementId }).sort({ year: 1, timestep: 1 });
+    return docs.map(docToSettlementHistoryEvent);
+  }
+
+  async getSettlementHistoryByWorld(worldId: string): Promise<SettlementHistoryEvent[]> {
+    await this.connect();
+    const docs = await SettlementHistoryEventModel.find({ worldId }).sort({ year: 1, timestep: 1 });
+    return docs.map(docToSettlementHistoryEvent);
+  }
+
+  async createSettlementHistoryEvent(event: InsertSettlementHistoryEvent): Promise<SettlementHistoryEvent> {
+    await this.connect();
+    const doc = await SettlementHistoryEventModel.create(event);
+    return docToSettlementHistoryEvent(doc);
+  }
+
+  async deleteSettlementHistoryEvent(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await SettlementHistoryEventModel.findByIdAndDelete(id);
     return !!result;
   }
 
@@ -2723,6 +2880,18 @@ export class MongoStorage implements IStorage {
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
+  async getLanguageAssessmentsByWorld(worldId: string, filters?: { assessmentType?: string; dateFrom?: string; dateTo?: string }): Promise<any[]> {
+    const query: any = { worldId };
+    if (filters?.assessmentType) query.assessmentType = filters.assessmentType;
+    if (filters?.dateFrom || filters?.dateTo) {
+      query.createdAt = {};
+      if (filters.dateFrom) query.createdAt.$gte = new Date(filters.dateFrom);
+      if (filters.dateTo) query.createdAt.$lte = new Date(filters.dateTo);
+    }
+    const docs = await LanguageAssessmentModel.find(query).sort({ createdAt: -1 });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
   // ============= EVALUATION RESPONSES =============
 
   async createEvaluationResponse(data: any): Promise<any> {
@@ -2735,6 +2904,11 @@ export class MongoStorage implements IStorage {
     if (participantId) query.participantId = participantId;
     if (targetLanguage) query.targetLanguage = targetLanguage;
     const docs = await EvaluationResponseModel.find(query).sort({ createdAt: -1 });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  async getEvaluationResponsesByParticipant(participantId: string): Promise<any[]> {
+    const docs = await EvaluationResponseModel.find({ participantId }).sort({ createdAt: -1 });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
@@ -2839,6 +3013,229 @@ export class MongoStorage implements IStorage {
   async getApiKeysByWorld(worldId: string): Promise<any[]> {
     const docs = await ApiKeyModel.find({ worldId });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  // ============= ASSESSMENT SESSIONS =============
+
+  async createAssessmentSession(data: Omit<AssessmentSession, 'id'>): Promise<AssessmentSession> {
+    await this.connect();
+    const doc = await AssessmentSessionModel.create(data);
+    return docToAssessmentSession(doc);
+  }
+
+  async getAssessmentSession(id: string): Promise<AssessmentSession | undefined> {
+    await this.connect();
+    const doc = await AssessmentSessionModel.findById(id);
+    return doc ? docToAssessmentSession(doc) : undefined;
+  }
+
+  async updateAssessmentPhaseResult(sessionId: string, phaseResult: PhaseResult): Promise<AssessmentSession | undefined> {
+    await this.connect();
+    const existing = await AssessmentSessionModel.findById(sessionId);
+    if (!existing) return undefined;
+
+    const idx = existing.phaseResults.findIndex((r: any) => r.phaseId === phaseResult.phaseId);
+    let update;
+    if (idx >= 0) {
+      update = await AssessmentSessionModel.findByIdAndUpdate(
+        sessionId,
+        { $set: { [`phaseResults.${idx}`]: phaseResult } },
+        { new: true }
+      );
+    } else {
+      update = await AssessmentSessionModel.findByIdAndUpdate(
+        sessionId,
+        { $push: { phaseResults: phaseResult } },
+        { new: true }
+      );
+    }
+    return update ? docToAssessmentSession(update) : undefined;
+  }
+
+  async addAssessmentRecording(sessionId: string, recording: RecordingReference): Promise<AssessmentSession | undefined> {
+    await this.connect();
+    const doc = await AssessmentSessionModel.findByIdAndUpdate(
+      sessionId,
+      { $push: { recordings: recording } },
+      { new: true }
+    );
+    return doc ? docToAssessmentSession(doc) : undefined;
+  }
+
+  async completeAssessmentSession(sessionId: string, totalScore: number, maxScore: number, cefrLevel: string): Promise<AssessmentSession | undefined> {
+    await this.connect();
+    const doc = await AssessmentSessionModel.findByIdAndUpdate(
+      sessionId,
+      {
+        $set: {
+          status: 'complete',
+          totalScore,
+          totalMaxPoints: maxScore,
+          cefrLevel,
+          completedAt: new Date()
+        }
+      },
+      { new: true }
+    );
+    return doc ? docToAssessmentSession(doc) : undefined;
+  }
+
+  async getPlayerAssessments(playerId: string, worldId?: string, assessmentType?: string): Promise<AssessmentSession[]> {
+    await this.connect();
+    const query: any = { playerId };
+    if (worldId) query.worldId = worldId;
+    if (assessmentType) query.assessmentType = assessmentType;
+    const docs = await AssessmentSessionModel.find(query).sort({ createdAt: -1 });
+    return docs.map(d => docToAssessmentSession(d));
+  }
+
+  async getWorldAssessmentSummary(worldId: string): Promise<{
+    totalSessions: number;
+    completedSessions: number;
+    averageScore: number;
+    averagePercentage: number;
+    byType: Record<string, { count: number; avgScore: number; avgPercentage: number }>;
+    cefrDistribution: Record<string, number>;
+    scoreDistribution: { bucket: string; count: number }[];
+  }> {
+    await this.connect();
+    const docs = await AssessmentSessionModel.find({ worldId, status: 'complete' });
+    const totalSessions = await AssessmentSessionModel.countDocuments({ worldId });
+
+    const byType: Record<string, { count: number; scores: number[]; percentages: number[] }> = {};
+    const cefrDistribution: Record<string, number> = { A1: 0, A2: 0, B1: 0, B2: 0 };
+    const allScores: number[] = [];
+    const allPercentages: number[] = [];
+
+    for (const doc of docs) {
+      const score = doc.totalScore ?? 0;
+      const maxPoints = doc.totalMaxPoints || 1;
+      const pct = (score / maxPoints) * 100;
+      allScores.push(score);
+      allPercentages.push(pct);
+
+      const type = doc.assessmentType;
+      if (!byType[type]) byType[type] = { count: 0, scores: [], percentages: [] };
+      byType[type].count++;
+      byType[type].scores.push(score);
+      byType[type].percentages.push(pct);
+
+      if (doc.cefrLevel && doc.cefrLevel in cefrDistribution) {
+        cefrDistribution[doc.cefrLevel]++;
+      }
+    }
+
+    const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+
+    const byTypeResult: Record<string, { count: number; avgScore: number; avgPercentage: number }> = {};
+    for (const [type, data] of Object.entries(byType)) {
+      byTypeResult[type] = {
+        count: data.count,
+        avgScore: Math.round(avg(data.scores) * 100) / 100,
+        avgPercentage: Math.round(avg(data.percentages) * 100) / 100,
+      };
+    }
+
+    // Score distribution buckets (percentage-based)
+    const buckets = [
+      { label: '0-20%', min: 0, max: 20 },
+      { label: '21-40%', min: 21, max: 40 },
+      { label: '41-60%', min: 41, max: 60 },
+      { label: '61-80%', min: 61, max: 80 },
+      { label: '81-100%', min: 81, max: 100 },
+    ];
+    const scoreDistribution = buckets.map(b => ({
+      bucket: b.label,
+      count: allPercentages.filter(p => p >= b.min && p <= b.max).length,
+    }));
+
+    return {
+      totalSessions,
+      completedSessions: docs.length,
+      averageScore: Math.round(avg(allScores) * 100) / 100,
+      averagePercentage: Math.round(avg(allPercentages) * 100) / 100,
+      byType: byTypeResult,
+      cefrDistribution,
+      scoreDistribution,
+    };
+  }
+
+  // ============= TERRAIN FEATURES =============
+
+  async getTerrainFeature(id: string): Promise<any | undefined> {
+    await this.connect();
+    const doc = await TerrainFeatureModel.findById(id);
+    return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
+  }
+
+  async getTerrainFeaturesByWorld(worldId: string): Promise<any[]> {
+    await this.connect();
+    const docs = await TerrainFeatureModel.find({ worldId });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  async createTerrainFeature(feature: any): Promise<any> {
+    await this.connect();
+    const doc = await TerrainFeatureModel.create(feature);
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  async updateTerrainFeature(id: string, feature: any): Promise<any | undefined> {
+    await this.connect();
+    const doc = await TerrainFeatureModel.findByIdAndUpdate(
+      id,
+      { $set: { ...feature, updatedAt: new Date() } },
+      { new: true }
+    );
+    return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
+  }
+
+  async deleteTerrainFeature(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await TerrainFeatureModel.findByIdAndDelete(id);
+    return !!result;
+  }
+
+  // ============= WATER FEATURES =============
+
+  async getWaterFeature(id: string): Promise<any | undefined> {
+    await this.connect();
+    const doc = await WaterFeatureModel.findById(id);
+    return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
+  }
+
+  async getWaterFeaturesByWorld(worldId: string): Promise<any[]> {
+    await this.connect();
+    const docs = await WaterFeatureModel.find({ worldId });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  async getWaterFeaturesBySettlement(settlementId: string): Promise<any[]> {
+    await this.connect();
+    const docs = await WaterFeatureModel.find({ settlementId });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  async createWaterFeature(feature: any): Promise<any> {
+    await this.connect();
+    const doc = await WaterFeatureModel.create(feature);
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  async updateWaterFeature(id: string, feature: any): Promise<any | undefined> {
+    await this.connect();
+    const doc = await WaterFeatureModel.findByIdAndUpdate(
+      id,
+      { $set: { ...feature, updatedAt: new Date() } },
+      { new: true }
+    );
+    return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
+  }
+
+  async deleteWaterFeature(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await WaterFeatureModel.findByIdAndDelete(id);
+    return !!result;
   }
 
 }

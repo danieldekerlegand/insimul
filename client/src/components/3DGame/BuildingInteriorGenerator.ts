@@ -179,6 +179,7 @@ export class BuildingInteriorGenerator {
       this.scene
     );
     floor.parent = parent;
+    floor.checkCollisions = true;
     const floorMat = new StandardMaterial(`${prefix}_floor_mat`, this.scene);
     floorMat.diffuseColor = colors.floor;
     floorMat.specularColor = new Color3(0.1, 0.1, 0.1);
@@ -211,6 +212,7 @@ export class BuildingInteriorGenerator {
     backWall.position = new Vector3(0, height / 2, depth / 2);
     backWall.parent = parent;
     backWall.material = wallMat;
+    backWall.checkCollisions = true;
 
     // Left wall (west)
     const leftWall = MeshBuilder.CreatePlane(
@@ -222,6 +224,7 @@ export class BuildingInteriorGenerator {
     leftWall.rotation.y = Math.PI / 2;
     leftWall.parent = parent;
     leftWall.material = wallMat;
+    leftWall.checkCollisions = true;
 
     // Right wall (east)
     const rightWall = MeshBuilder.CreatePlane(
@@ -233,6 +236,7 @@ export class BuildingInteriorGenerator {
     rightWall.rotation.y = -Math.PI / 2;
     rightWall.parent = parent;
     rightWall.material = wallMat;
+    rightWall.checkCollisions = true;
 
     // Front wall (south) — with door opening (two panels leaving a gap)
     const doorWidth = 2;
@@ -253,6 +257,7 @@ export class BuildingInteriorGenerator {
     frontLeft.rotation.y = Math.PI;
     frontLeft.parent = parent;
     frontLeft.material = wallMat;
+    frontLeft.checkCollisions = true;
 
     // Right panel
     const frontRight = MeshBuilder.CreatePlane(
@@ -268,6 +273,7 @@ export class BuildingInteriorGenerator {
     frontRight.rotation.y = Math.PI;
     frontRight.parent = parent;
     frontRight.material = wallMat;
+    frontRight.checkCollisions = true;
 
     // Door lintel (above door)
     const lintelHeight = height - 3;

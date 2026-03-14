@@ -1,0 +1,106 @@
+{
+  "tasks": [
+    {
+      "title": "Wire XP awards to all quest and learning activities",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Ensure XP is consistently awarded across all activities using the gamification system. In a new client/src/components/3DGame/XPManager.ts: (1) Listen for GameEventBus events and award XP per shared/language/gamification.ts XP_REWARDS: quest_completed\u219225, vocabulary_used (new word)\u21923, vocabulary mastered\u219215, grammar correct\u21922, conversation_turn\u219210, achievement_unlocked\u219250; (2) After awarding XP, call calculateLevel() to check for level-ups; (3) On level-up, emit a 'level_up' event for the notification system, check skill tree unlocks, and persist to playerProgress via PUT /api/player-progress/:id; (4) Track daily challenge progress \u2014 check if the day's challenge criteria are met after each XP-granting event; (5) Maintain a session XP counter for the playerSessions record. Ensure XP is persisted server-side so it survives page refreshes."
+    },
+    {
+      "title": "Wire achievement detection to gameplay events",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Create client/src/components/3DGame/AchievementManager.ts to monitor gameplay and unlock achievements. Listen to GameEventBus events and check achievement conditions from shared/language/gamification.ts ACHIEVEMENTS: (1) 'First Words' \u2014 vocabulary.length >= 10; (2) 'Chatterbox' \u2014 totalConversations >= 25; (3) 'Grammar Guru' \u2014 grammar patterns mastered >= 5; (4) 'Polyglot' \u2014 level >= 11; (5) 'Navigator' \u2014 navigation quests completed >= 5; (6) 'Streak Master' \u2014 streakDays >= 7; (7) 'Word Collector' \u2014 vocabulary.length >= 50; (8) 'Quest Hero' \u2014 questsCompleted.length >= 10; (9) 'Cultural Explorer' \u2014 cultural quests >= 5; (10) 'Bookworm' \u2014 articles read >= 10. On unlock: persist to playerProgress.achievementsUnlocked, persist to achievements collection via API, award 50 XP, fire achievement_unlocked event for the notification toast. Check conditions after every relevant event (quest_completed, vocabulary_used, conversation_turn, etc.)."
+    },
+    {
+      "title": "Enhance BabylonSkillTreePanel with interactive visualization",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Upgrade BabylonSkillTreePanel.ts from its current state to a polished skill tree visualization. Using Babylon.js GUI: (1) Render the 5 tiers from shared/language/language-skill-tree.ts as a vertical tree with connecting lines between tiers; (2) Each node shows: skill name, icon (use unicode symbols as placeholders), progress bar toward unlock condition, locked/unlocked/completed state with distinct visual treatment (greyed out / glowing border / gold fill); (3) On hover/click, show a tooltip with the unlock condition description and current progress (e.g., 'Learn 20 words \u2014 14/20'); (4) Animate newly unlocked nodes with a burst effect; (5) Show the player's current tier prominently at the top; (6) Connect skill tree unlocks to tangible rewards \u2014 when a skill unlocks, grant the player something: new quest types available, new vocabulary categories, access to new areas, or cosmetic items. Persist unlock state in playerProgress."
+    },
+    {
+      "title": "Implement audio-level pronunciation scoring",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Enhance shared/pronunciation-scoring.ts to support audio-level comparison. Create a server endpoint POST /api/pronunciation/score that accepts two audio blobs (reference TTS + player recording). Use Google Cloud Speech-to-Text with word-level timestamps and confidence scores to compare pronunciation accuracy at the phoneme level. Return per-word scores, timing accuracy, and overall pronunciation grade. Fall back to the existing text-based Levenshtein scoring if audio analysis fails."
+    },
+    {
+      "title": "Precompute NPC greeting audio on chat open",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "In both BabylonChatPanel and CharacterChatDialog, when the chat dialog opens and the greeting text is generated, immediately fire an async TTS request for the greeting in the background. Store the resulting audio blob. When the user first sees the chat, the greeting audio is already available to play instantly instead of requiring a TTS round-trip. Use the correct languageCode from world context."
+    },
+    {
+      "title": "Create WebSocket infrastructure for real-time voice chat",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Create server/services/websocket-voice.ts with a WebSocket server (using 'ws' package) attached to the Express HTTP server. Protocol: client connects with worldId/npcId/playerId params. Client sends binary audio chunks (16-bit PCM at 16kHz). Server buffers chunks, runs VAD to detect utterance boundaries, then processes complete utterances through STT->LLM->TTS pipeline. Server sends back: interim transcripts (JSON), final transcripts (JSON), response text (JSON), audio chunks (binary). This is the foundation for <1s latency voice chat."
+    },
+    {
+      "title": "[US-071] Society editor map consistency with 3D game layout",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "As a developer, I need the Society editor's settlement map preview (GeographyMap.tsx / LocationMapPreview.tsx) to render using the same street layout data produced by US-067, so the 2D editor map matches what the player sees in the 3D game. Extract the street-segment-to-canvas rendering into a shared utility that both the editor and the minimap (US-048) can consume. Display streets, lot positions, building footprints, and address labels so world authors can verify layout correctness before entering the game."
+    },
+    {
+      "title": "[US-063] Settlement growth mechanics",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "As a developer, I need settlements to grow physically when population increases during simulation."
+    },
+    {
+      "title": "[US-064] Settlement decline mechanics",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "As a developer, I need settlements to show physical decline when population drops."
+    },
+    {
+      "title": "[US-065] Infrastructure development",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "As a developer, I need settlement infrastructure to upgrade as the town grows and prospers."
+    },
+    {
+      "title": "[US-066] Settlement history tracking",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "As a developer, I need a historical record of settlement changes over simulation time."
+    },
+    {
+      "title": "[US-054] Nature object LOD system",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "As a developer, I need level-of-detail rendering for nature objects for performance."
+    },
+    {
+      "title": "[US-039] Minimap terrain background layer",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "As a developer, I need the minimap to display terrain coloring from the heightmap."
+    },
+    {
+      "title": "[US-040] Minimap street network layer",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "As a developer, I need the minimap to display street lines."
+    },
+    {
+      "title": "[US-045] World editor street network display",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "As a developer, I need the world editor to display street networks within settlements."
+    },
+    {
+      "title": "[US-046] World editor water feature display",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "As a developer, I need the world editor to display rivers, lakes, and coastlines."
+    },
+    {
+      "title": "[US-056] Street network export in IR",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "As a developer, I need street networks exported in the IR for proper street layouts in exported games."
+    }
+  ]
+}

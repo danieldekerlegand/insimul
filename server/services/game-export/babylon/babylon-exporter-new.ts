@@ -18,6 +18,7 @@ function loadTemplate(name: string, vars: Record<string, string> = {}): string {
 import type { WorldIR } from '@shared/game-engine/ir-types';
 import type { GeneratedFile } from './babylon-project-generator';
 import { generateDataFiles } from './babylon-data-generator';
+import { generateSceneFiles } from './babylon-scene-generator';
 import { generateProjectFiles } from './babylon-project-generator';
 import { GameFileCopier } from './game-file-copier';
 import { bundleAssetsFromCollection, bundleCoreAssets, type TargetEngine } from '../asset-bundler';
@@ -118,6 +119,10 @@ export async function exportBabylonProject(
   // 2. Generate data files
   console.log('[Export] Generating data files...');
   const dataFiles = generateDataFiles(ir);
+
+  // 2b. Generate scene files (scene-builder, world-generator, npc-spawner)
+  console.log('[Export] Generating scene files...');
+  const sceneFiles = generateSceneFiles(ir);
   
   // 3. Copy actual game files from 3DGame directory
   console.log('[Export] Copying game files from 3DGame...');
@@ -187,6 +192,7 @@ export async function exportBabylonProject(
   // Combine all files
   const allFiles: GeneratedFile[] = [
     ...dataFiles,
+    ...sceneFiles,
     ...gameFiles,
     ...sharedTypesFiles,
     ...telemetryFiles,

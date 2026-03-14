@@ -1,11 +1,14 @@
 /**
- * RoadGenerator - Creates road/path meshes between settlements
+ * RoadGenerator - Creates road/path meshes between and within settlements.
  * Uses a minimum spanning tree (Kruskal's) to connect settlements efficiently,
  * then generates terrain-following ribbon meshes for each road segment.
+ * Also renders intra-settlement street networks with intersections, sidewalks,
+ * and street name signs.
  */
 
 import {
   Color3,
+  DynamicTexture,
   Mesh,
   MeshBuilder,
   Scene,
@@ -13,6 +16,8 @@ import {
   Texture,
   Vector3,
 } from '@babylonjs/core';
+import type { StreetSegment } from './StreetAlignedPlacement';
+import type { StreetNetwork, StreetSegment as StreetSegmentData } from '../../../../shared/game-engine/types';
 
 export interface RoadSegment {
   from: Vector3;
@@ -100,18 +105,359 @@ export class RoadGenerator {
   }
 
   /**
-   * Generate internal roads within a settlement (from center to buildings)
+   * Render a complete street network within a settlement.
+   * Creates road meshes for each street segment, intersection discs,
+   * sidewalk ribbons, and street name signs at key intersections.
    */
-  public generateSettlementRoads(
+  public generateSettlementStreets(
     settlementId: string,
-    center: Vector3,
-    buildingPositions: Vector3[],
+    network: StreetNetwork,
     sampleHeight: (x: number, z: number) => number
   ): void {
-    // Create short path segments from center to each building
-    for (let i = 0; i < buildingPositions.length; i++) {
-      const segId = `road_internal_${settlementId}_${i}`;
-      const mesh = this.createRoadSegment(segId, center, buildingPositions[i], sampleHeight, 1.5);
+    if (!network.segments.length) return;
+
+    const sidewalkColor = new Color3(0.6, 0.58, 0.55);
+    const intersectionColor = new Color3(0.42, 0.36, 0.28);
+    const sidewalkWidth = 0.6;
+
+    // Render each street segment as a terrain-following ribbon
+    for (const seg of network.segments) {
+      if (seg.waypoints.length < 2) continue;
+
+      const mesh = this.createPolylineRoad(
+        `street_${seg.id}`,
+        seg.waypoints,
+        sampleHeight,
+        seg.width
+      );
+      if (mesh) this.roadMeshes.push(mesh);
+
+      // Sidewalks on both sides
+      const leftSidewalk = this.createPolylineRoad(
+        `sidewalk_l_${seg.id}`,
+        this.offsetPolyline(seg.waypoints, seg.width / 2 + sidewalkWidth / 2),
+        sampleHeight,
+        sidewalkWidth,
+        sidewalkColor
+      );
+      if (leftSidewalk) this.roadMeshes.push(leftSidewalk);
+
+      const rightSidewalk = this.createPolylineRoad(
+        `sidewalk_r_${seg.id}`,
+        this.offsetPolyline(seg.waypoints, -(seg.width / 2 + sidewalkWidth / 2)),
+        sampleHeight,
+        sidewalkWidth,
+        sidewalkColor
+      );
+      if (rightSidewalk) this.roadMeshes.push(rightSidewalk);
+    }
+
+    // Render intersection discs at nodes where 2+ streets meet
+    const nodeMap = new Map(network.nodes.map(n => [n.id, n]));
+    for (const node of network.nodes) {
+      if (node.intersectionOf.length < 2) continue;
+
+      // Use the max width of meeting streets for the disc
+      const meetingWidths = node.intersectionOf
+        .map(segId => network.segments.find(s => s.id === segId)?.width ?? 2.5)
+        .sort((a, b) => b - a);
+      const discRadius = (meetingWidths[0] / 2) + 0.3;
+
+      const y = sampleHeight(node.x, node.z) + this.yOffset + 0.01;
+      const disc = MeshBuilder.CreateDisc(
+        `intersection_${node.id}`,
+        { radius: discRadius, tessellation: 16 },
+        this.scene
+      );
+      disc.position = new Vector3(node.x, y, node.z);
+      disc.rotation.x = Math.PI / 2;
+      disc.isPickable = false;
+      disc.checkCollisions = false;
+
+      const mat = new StandardMaterial(`intersection_mat_${node.id}`, this.scene);
+      mat.disableLighting = true;
+      mat.backFaceCulling = false;
+      mat.emissiveColor = intersectionColor;
+      disc.material = mat;
+      disc.addLODLevel(150, null);
+      disc.freezeWorldMatrix();
+      this.roadMeshes.push(disc);
+    }
+
+    // Place street name signs at select intersections
+    this.placeStreetSigns(settlementId, network, sampleHeight);
+
+    console.log(
+      `[RoadGenerator] Rendered ${network.segments.length} streets, ` +
+      `${network.nodes.filter(n => n.intersectionOf.length >= 2).length} intersections ` +
+      `for settlement ${settlementId}`
+    );
+  }
+
+  /**
+   * Create a terrain-following ribbon from an ordered polyline of waypoints.
+   */
+  private createPolylineRoad(
+    id: string,
+    waypoints: { x: number; z: number }[],
+    sampleHeight: (x: number, z: number) => number,
+    width: number,
+    colorOverride?: Color3
+  ): Mesh | null {
+    if (waypoints.length < 2) return null;
+
+    const halfWidth = width / 2;
+    const leftPath: Vector3[] = [];
+    const rightPath: Vector3[] = [];
+
+    for (let i = 0; i < waypoints.length; i++) {
+      const curr = waypoints[i];
+      // Determine local direction from neighboring waypoints
+      let dx: number, dz: number;
+      if (i === 0) {
+        dx = waypoints[1].x - curr.x;
+        dz = waypoints[1].z - curr.z;
+      } else if (i === waypoints.length - 1) {
+        dx = curr.x - waypoints[i - 1].x;
+        dz = curr.z - waypoints[i - 1].z;
+      } else {
+        dx = waypoints[i + 1].x - waypoints[i - 1].x;
+        dz = waypoints[i + 1].z - waypoints[i - 1].z;
+      }
+
+      const len = Math.sqrt(dx * dx + dz * dz);
+      if (len < 0.001) continue;
+
+      const perpX = -dz / len;
+      const perpZ = dx / len;
+
+      const lx = curr.x + perpX * halfWidth;
+      const lz = curr.z + perpZ * halfWidth;
+      const rx = curr.x - perpX * halfWidth;
+      const rz = curr.z - perpZ * halfWidth;
+
+      leftPath.push(new Vector3(lx, sampleHeight(lx, lz) + this.yOffset, lz));
+      rightPath.push(new Vector3(rx, sampleHeight(rx, rz) + this.yOffset, rz));
+
+      // Subdivide long spans between waypoints
+      if (i < waypoints.length - 1) {
+        const next = waypoints[i + 1];
+        const spanDx = next.x - curr.x;
+        const spanDz = next.z - curr.z;
+        const spanLen = Math.sqrt(spanDx * spanDx + spanDz * spanDz);
+        const subdivisions = Math.floor(spanLen / this.sampleInterval);
+
+        for (let s = 1; s < subdivisions; s++) {
+          const t = s / subdivisions;
+          const mx = curr.x + spanDx * t;
+          const mz = curr.z + spanDz * t;
+          const mlx = mx + perpX * halfWidth;
+          const mlz = mz + perpZ * halfWidth;
+          const mrx = mx - perpX * halfWidth;
+          const mrz = mz - perpZ * halfWidth;
+
+          leftPath.push(new Vector3(mlx, sampleHeight(mlx, mlz) + this.yOffset, mlz));
+          rightPath.push(new Vector3(mrx, sampleHeight(mrx, mrz) + this.yOffset, mrz));
+        }
+      }
+    }
+
+    if (leftPath.length < 2) return null;
+
+    try {
+      const road = MeshBuilder.CreateRibbon(
+        id,
+        {
+          pathArray: [leftPath, rightPath],
+          closeArray: false,
+          closePath: false,
+          sideOrientation: Mesh.DOUBLESIDE,
+          updatable: false,
+        },
+        this.scene
+      );
+
+      road.checkCollisions = false;
+      road.isPickable = false;
+
+      const mat = new StandardMaterial(`${id}_mat`, this.scene);
+      mat.disableLighting = true;
+      mat.backFaceCulling = false;
+
+      if (colorOverride) {
+        mat.emissiveColor = colorOverride;
+      } else if (this.roadTexture) {
+        const tex = this.roadTexture.clone();
+        if (tex) {
+          const totalLen = this.polylineLength(waypoints);
+          tex.uScale = Math.max(1, Math.round(totalLen / 8));
+          tex.vScale = 1;
+          mat.emissiveTexture = tex;
+        }
+      } else {
+        mat.emissiveColor = this.roadColor;
+      }
+
+      road.material = mat;
+      road.addLODLevel(150, null);
+      road.freezeWorldMatrix();
+      return road;
+    } catch (err) {
+      console.warn(`[RoadGenerator] Failed to create polyline road ${id}:`, err);
+      return null;
+    }
+  }
+
+  /**
+   * Offset a polyline laterally by `offset` units (positive = left, negative = right).
+   */
+  private offsetPolyline(
+    waypoints: { x: number; z: number }[],
+    offset: number
+  ): { x: number; z: number }[] {
+    const result: { x: number; z: number }[] = [];
+    for (let i = 0; i < waypoints.length; i++) {
+      const curr = waypoints[i];
+      let dx: number, dz: number;
+      if (i === 0) {
+        dx = waypoints[1].x - curr.x;
+        dz = waypoints[1].z - curr.z;
+      } else if (i === waypoints.length - 1) {
+        dx = curr.x - waypoints[i - 1].x;
+        dz = curr.z - waypoints[i - 1].z;
+      } else {
+        dx = waypoints[i + 1].x - waypoints[i - 1].x;
+        dz = waypoints[i + 1].z - waypoints[i - 1].z;
+      }
+      const len = Math.sqrt(dx * dx + dz * dz);
+      if (len < 0.001) {
+        result.push({ x: curr.x, z: curr.z });
+        continue;
+      }
+      const perpX = -dz / len;
+      const perpZ = dx / len;
+      result.push({ x: curr.x + perpX * offset, z: curr.z + perpZ * offset });
+    }
+    return result;
+  }
+
+  /**
+   * Place street name signs at intersections where 2+ named streets meet.
+   */
+  private placeStreetSigns(
+    settlementId: string,
+    network: StreetNetwork,
+    sampleHeight: (x: number, z: number) => number
+  ): void {
+    const placedNames = new Set<string>();
+
+    for (const node of network.nodes) {
+      if (node.intersectionOf.length < 2) continue;
+
+      // Pick first street at this intersection that hasn't had a sign yet
+      const seg = network.segments.find(
+        s => node.intersectionOf.includes(s.id) && !placedNames.has(s.name)
+      );
+      if (!seg) continue;
+      placedNames.add(seg.name);
+
+      const y = sampleHeight(node.x, node.z) + this.yOffset;
+      const signMesh = this.createStreetSign(
+        `sign_${settlementId}_${node.id}`,
+        seg.name,
+        new Vector3(node.x + 1.5, y + 2.5, node.z + 1.5)
+      );
+      if (signMesh) this.roadMeshes.push(signMesh);
+    }
+  }
+
+  /**
+   * Create a simple street name sign (pole + text plane).
+   */
+  private createStreetSign(id: string, name: string, position: Vector3): Mesh | null {
+    try {
+      // Pole
+      const pole = MeshBuilder.CreateCylinder(
+        `${id}_pole`,
+        { height: 2.5, diameter: 0.1, tessellation: 6 },
+        this.scene
+      );
+      pole.position = position.clone();
+      pole.position.y -= 1.25;
+      pole.isPickable = false;
+      pole.checkCollisions = false;
+
+      const poleMat = new StandardMaterial(`${id}_pole_mat`, this.scene);
+      poleMat.disableLighting = true;
+      poleMat.emissiveColor = new Color3(0.3, 0.3, 0.3);
+      pole.material = poleMat;
+
+      // Sign plane with dynamic texture
+      const sign = MeshBuilder.CreatePlane(
+        `${id}_face`,
+        { width: 2.0, height: 0.5 },
+        this.scene
+      );
+      sign.position = position.clone();
+      sign.isPickable = false;
+      sign.checkCollisions = false;
+      sign.billboardMode = Mesh.BILLBOARDMODE_Y;
+
+      const tex = new DynamicTexture(`${id}_tex`, { width: 256, height: 64 }, this.scene, false);
+      const ctx = tex.getContext() as CanvasRenderingContext2D;
+      ctx.fillStyle = '#2a5e2a';
+      ctx.fillRect(0, 0, 256, 64);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 22px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(name, 128, 32);
+      tex.update();
+
+      const signMat = new StandardMaterial(`${id}_face_mat`, this.scene);
+      signMat.disableLighting = true;
+      signMat.emissiveTexture = tex;
+      signMat.backFaceCulling = false;
+      sign.material = signMat;
+
+      // Parent sign to pole
+      sign.parent = pole;
+      sign.position = new Vector3(0, 1.25, 0);
+
+      pole.addLODLevel(80, null);
+      pole.freezeWorldMatrix();
+
+      return pole;
+    } catch (err) {
+      console.warn(`[RoadGenerator] Failed to create street sign ${id}:`, err);
+      return null;
+    }
+  }
+
+  /** Calculate total length of a polyline */
+  private polylineLength(waypoints: { x: number; z: number }[]): number {
+    let total = 0;
+    for (let i = 1; i < waypoints.length; i++) {
+      const dx = waypoints[i].x - waypoints[i - 1].x;
+      const dz = waypoints[i].z - waypoints[i - 1].z;
+      total += Math.sqrt(dx * dx + dz * dz);
+    }
+    return total;
+  }
+
+  /**
+   * Generate roads along a street network (from StreetAlignedPlacement).
+   * Main streets get standard width; side streets are narrower.
+   */
+  public generateSettlementStreetNetwork(
+    settlementId: string,
+    streets: StreetSegment[],
+    sampleHeight: (x: number, z: number) => number,
+  ): void {
+    for (const street of streets) {
+      const segId = `road_street_${settlementId}_${street.id}`;
+      const width = street.isMainStreet ? this.roadWidth : this.roadWidth * 0.6;
+      const mesh = this.createRoadSegment(segId, street.from, street.to, sampleHeight, width);
       if (mesh) {
         this.roadMeshes.push(mesh);
       }

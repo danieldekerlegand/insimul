@@ -2,8 +2,10 @@
  * Content Gating Manager
  *
  * Controls which content (settlements, NPC types, quest types) is
- * unlocked based on the player's fluency and XP level.
+ * unlocked based on the player's fluency, XP level, or CEFR level.
  */
+
+import type { CEFRLevel } from '../../../../shared/assessment/cefr-mapping';
 
 export interface ContentGate {
   id: string;
@@ -15,8 +17,15 @@ export interface ContentGate {
 }
 
 export interface GateRequirement {
-  type: 'fluency' | 'level' | 'words_mastered' | 'quests_completed';
+  type: 'fluency' | 'level' | 'words_mastered' | 'quests_completed' | 'cefr';
   threshold: number;
+  cefrMinLevel?: CEFRLevel;
+}
+
+const CEFR_ORDER: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2'];
+
+function cefrRank(level: CEFRLevel): number {
+  return CEFR_ORDER.indexOf(level);
 }
 
 const CONTENT_GATES: ContentGate[] = [
@@ -123,6 +132,32 @@ const CONTENT_GATES: ContentGate[] = [
     contentType: 'cosmetic',
     unlocked: false,
   },
+
+  // CEFR-gated content
+  {
+    id: 'unlock_debate_quests',
+    name: 'Debate Challenges',
+    description: 'Unlock debate quests requiring intermediate proficiency',
+    requirement: { type: 'cefr', threshold: 0, cefrMinLevel: 'B1' },
+    contentType: 'quest_type',
+    unlocked: false,
+  },
+  {
+    id: 'unlock_professional_npcs',
+    name: 'Professional NPCs',
+    description: 'Unlock professional NPCs who use domain-specific vocabulary',
+    requirement: { type: 'cefr', threshold: 0, cefrMinLevel: 'A2' },
+    contentType: 'npc_type',
+    unlocked: false,
+  },
+  {
+    id: 'unlock_university_district',
+    name: 'University District',
+    description: 'Unlock the university district with academic content',
+    requirement: { type: 'cefr', threshold: 0, cefrMinLevel: 'B1' },
+    contentType: 'settlement',
+    unlocked: false,
+  },
 ];
 
 export class ContentGatingManager {
@@ -142,23 +177,29 @@ export class ContentGatingManager {
     level: number;
     wordsMastered: number;
     questsCompleted: number;
+    cefrLevel?: CEFRLevel | null;
   }): ContentGate[] {
     const newlyUnlocked: ContentGate[] = [];
 
     for (const gate of this.gates) {
       if (gate.unlocked) continue;
 
-      const { type, threshold } = gate.requirement;
-      let current = 0;
+      const { type, threshold, cefrMinLevel } = gate.requirement;
+      let met = false;
 
       switch (type) {
-        case 'fluency': current = stats.fluency; break;
-        case 'level': current = stats.level; break;
-        case 'words_mastered': current = stats.wordsMastered; break;
-        case 'quests_completed': current = stats.questsCompleted; break;
+        case 'fluency': met = stats.fluency >= threshold; break;
+        case 'level': met = stats.level >= threshold; break;
+        case 'words_mastered': met = stats.wordsMastered >= threshold; break;
+        case 'quests_completed': met = stats.questsCompleted >= threshold; break;
+        case 'cefr':
+          if (stats.cefrLevel && cefrMinLevel) {
+            met = cefrRank(stats.cefrLevel) >= cefrRank(cefrMinLevel);
+          }
+          break;
       }
 
-      if (current >= threshold) {
+      if (met) {
         gate.unlocked = true;
         newlyUnlocked.push(gate);
         this.onContentUnlocked?.(gate);

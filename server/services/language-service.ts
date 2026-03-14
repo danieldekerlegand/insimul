@@ -1,5 +1,6 @@
 import { storage } from "../db/storage";
 import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from "../config/gemini.js";
+import { conversationContextCache, ConversationContextCache } from "./conversation-context-cache.js";
 import type {
   WorldLanguage,
   InsertWorldLanguage,
@@ -648,7 +649,38 @@ export async function sendLanguageChatMessage(
     throw new Error("Language not found");
   }
 
-  const history = await storage.getLanguageChatMessages(params.languageId);
+  // Use cached history if available, otherwise query MongoDB
+  const cacheKey = ConversationContextCache.languageKey(params.languageId);
+  const cached = conversationContextCache.get(cacheKey);
+  let history: LanguageChatMessage[];
+
+  if (cached && cached.messages.length > 0) {
+    // Reconstruct LanguageChatMessage shape from cache for downstream use
+    history = cached.messages.map((m, i) => ({
+      id: `cached-${i}`,
+      languageId: params.languageId,
+      worldId: params.worldId,
+      scopeType: (params.scopeType as LanguageScopeType) ?? null,
+      scopeId: params.scopeId ?? null,
+      userId: m.role === 'user' ? (params.userId ?? null) : null,
+      role: m.role === 'user' ? 'user' as const : 'assistant' as const,
+      content: m.content,
+      inLanguage: (m.meta?.inLanguage as string) ?? null,
+      createdAt: new Date(m.meta?.createdAt as string ?? Date.now()),
+    }));
+  } else {
+    history = await storage.getLanguageChatMessages(params.languageId);
+    // Populate cache from DB results
+    if (history.length > 0) {
+      conversationContextCache.set(cacheKey, {
+        messages: history.map(m => ({
+          role: m.role === 'user' ? 'user' as const : 'assistant' as const,
+          content: m.content,
+          meta: { inLanguage: m.inLanguage, createdAt: m.createdAt?.toISOString() },
+        })),
+      });
+    }
+  }
 
   const userMessage: InsertLanguageChatMessage = {
     languageId: params.languageId,
@@ -663,6 +695,13 @@ export async function sendLanguageChatMessage(
 
   const savedUserMessage = await storage.createLanguageChatMessage(userMessage);
 
+  // Update cache with the new user message
+  conversationContextCache.append(cacheKey, {
+    role: 'user',
+    content: params.message,
+    meta: { inLanguage: null, createdAt: new Date().toISOString() },
+  });
+
   if (!isGeminiConfigured()) {
     const assistantMessage: InsertLanguageChatMessage = {
       languageId: params.languageId,
@@ -676,6 +715,11 @@ export async function sendLanguageChatMessage(
     };
 
     const savedAssistantMessage = await storage.createLanguageChatMessage(assistantMessage);
+    conversationContextCache.append(cacheKey, {
+      role: 'assistant',
+      content: savedAssistantMessage.content,
+      meta: { inLanguage: savedAssistantMessage.inLanguage, createdAt: new Date().toISOString() },
+    });
     const updatedHistory = [...history, savedUserMessage, savedAssistantMessage];
 
     return {
@@ -687,18 +731,8 @@ export async function sendLanguageChatMessage(
 
   const ai = getGenAI();
 
-  const historyText = history
-    .slice(-10)
-    .map((msg) => {
-      const roleLabel = msg.role === "user" ? "User" : "Assistant";
-      const base = `${roleLabel}: ${msg.content}`;
-      if (msg.inLanguage) {
-        return `${base}
-(${language.name}): ${msg.inLanguage}`;
-      }
-      return base;
-    })
-    .join("\n\n");
+  const { compressTextHistory } = await import('./conversation-compression.js');
+  const historyText = await compressTextHistory(history, language.name);
 
   const systemInstruction =
     `You are a helpful AI assistant that speaks and understands "${language.name}", ` +
@@ -765,6 +799,13 @@ ${historyText || "(no previous messages)"}
   };
 
   const savedAssistantMessage = await storage.createLanguageChatMessage(assistantMessage);
+
+  // Update cache with assistant response
+  conversationContextCache.append(cacheKey, {
+    role: 'assistant',
+    content: englishResponse,
+    meta: { inLanguage: conlangResponse, createdAt: new Date().toISOString() },
+  });
 
   const updatedHistory = [...history, savedUserMessage, savedAssistantMessage];
 

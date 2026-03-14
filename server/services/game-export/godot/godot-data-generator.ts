@@ -130,13 +130,95 @@ function generateSettlements(ir: WorldIR): object[] {
     countryId: s.countryId || '',
     stateId: s.stateId || '',
     mayorId: s.mayorId || '',
+    elevationProfile: s.elevationProfile || null,
+    infrastructure: s.infrastructure || [],
+    lots: s.lots.map(l => ({
+      id: l.id,
+      address: l.address,
+      houseNumber: l.houseNumber,
+      streetName: l.streetName,
+      block: l.block || '',
+      districtName: l.districtName || '',
+      position: { x: l.position.x, y: l.position.y, z: l.position.z },
+      facingAngle: l.facingAngle,
+      elevation: l.elevation,
+      buildingType: l.buildingType || '',
+      buildingId: l.buildingId || '',
+      streetEdgeId: l.streetEdgeId || '',
+      side: l.side || '',
+      neighboringLotIds: l.neighboringLotIds,
+      distanceFromDowntown: l.distanceFromDowntown,
+      formerBuildingIds: l.formerBuildingIds,
+    })),
+    streetNetwork: {
+      layout: s.streetNetwork.layout,
+      nodes: s.streetNetwork.nodes.map(n => ({
+        id: n.id,
+        position: { x: n.position.x, y: n.position.y, z: n.position.z },
+        intersectionOf: n.intersectionOf,
+      })),
+      segments: s.streetNetwork.segments.map(seg => ({
+        id: seg.id,
+        name: seg.name,
+        direction: seg.direction,
+        nodeIds: seg.nodeIds,
+        waypoints: seg.waypoints.map(w => ({ x: w.x, y: w.y, z: w.z })),
+        width: seg.width,
+      })),
+    },
   }));
+}
+
+function generateWaterFeatures(ir: WorldIR): object[] {
+  return ir.geography.waterFeatures.map(w => ({
+    id: w.id,
+    name: w.name,
+    type: w.type,
+    subType: w.subType,
+    position: { x: w.position.x, y: w.position.y, z: w.position.z },
+    waterLevel: w.waterLevel,
+    bounds: w.bounds,
+    depth: w.depth,
+    width: w.width,
+    flowDirection: w.flowDirection ? { x: w.flowDirection.x, y: w.flowDirection.y, z: w.flowDirection.z } : null,
+    flowSpeed: w.flowSpeed,
+    shorelinePoints: w.shorelinePoints.map(p => ({ x: p.x, y: p.y, z: p.z })),
+    settlementId: w.settlementId || '',
+    biome: w.biome || '',
+    isNavigable: w.isNavigable,
+    isDrinkable: w.isDrinkable,
+    modelAssetKey: w.modelAssetKey || '',
+    color: w.color ? { r: w.color.r, g: w.color.g, b: w.color.b } : null,
+    transparency: w.transparency,
+  }));
+}
+
+function generateLots(ir: WorldIR): object[] {
+  const lots: object[] = [];
+  for (const s of ir.geography.settlements) {
+    for (const lot of s.lots) {
+      lots.push({
+        id: lot.id,
+        settlementId: s.id,
+        address: lot.address,
+        houseNumber: lot.houseNumber,
+        streetName: lot.streetName,
+        block: lot.block || '',
+        districtName: lot.districtName || '',
+        position: { x: lot.position.x, y: lot.position.y, z: lot.position.z },
+        buildingType: lot.buildingType || '',
+        buildingId: lot.buildingId || '',
+      });
+    }
+  }
+  return lots;
 }
 
 function generateBuildings(ir: WorldIR): object[] {
   return ir.entities.buildings.map(b => ({
     id: b.id,
     settlementId: b.settlementId,
+    lotId: b.lotId || '',
     position: { x: b.position.x, y: b.position.y, z: b.position.z },
     rotation: b.rotation,
     spec: {
@@ -260,6 +342,8 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'rules', data: generateRules(ir) },
     { name: 'quests', data: generateQuests(ir) },
     { name: 'settlements', data: generateSettlements(ir) },
+    { name: 'water_features', data: generateWaterFeatures(ir) },
+    { name: 'lots', data: generateLots(ir) },
     { name: 'buildings', data: generateBuildings(ir) },
     { name: 'roads', data: generateRoads(ir) },
     { name: 'businesses', data: generateBusinesses(ir) },

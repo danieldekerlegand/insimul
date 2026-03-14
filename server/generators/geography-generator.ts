@@ -4,6 +4,17 @@
  */
 
 import { storage } from '../db/storage';
+import { AgriculturalZone, AgriculturalZoneGenerator } from './agricultural-zone-generator';
+import { CrossingGenerator } from './crossing-generator';
+import { generateCoastline } from './coastline-generator';
+import { generateHarborAndDocks, type HarborZone } from './harbor-dock-generator';
+import {
+  generateStreetNetwork,
+  placeLots,
+  type StreetNetwork,
+  type StreetNetworkConfig,
+  type LotPlacement,
+} from './street-network-generator';
 
 export interface Location {
   id: string;
@@ -52,27 +63,148 @@ export class GeographyGenerator {
     buildings: Location[];
     landmarks: Location[];
     lotIds: string[];
+    agriculturalZones: AgriculturalZone[];
+    streetNetwork: StreetNetwork;
+    harborZones?: HarborZone[];
   }> {
     console.log(`🗺️  Generating geography for ${config.settlementName} (${config.settlementType}, pop: ${config.population})...`);
 
     const districts = this.generateDistricts(config);
-    const streets = this.generateStreets(config, districts);
     const landmarks = this.generateLandmarks(config, districts);
+
+    // Generate street network with actual polyline geometry
+    const mapSize = this.getMapSize(config.settlementType);
+    const streetNetworkConfig: StreetNetworkConfig = {
+      centerX: mapSize / 2,
+      centerZ: mapSize / 2,
+      settlementType: config.settlementType,
+      foundedYear: config.foundedYear,
+      seed: `${config.worldId}_${config.settlementId}`,
+    };
+    const streetNetwork = generateStreetNetwork(streetNetworkConfig);
+
+    // Convert street segments to Location objects for backward compatibility
+    const streets = streetNetwork.segments.map((seg, i) => ({
+      id: seg.id,
+      name: seg.name,
+      type: 'street' as const,
+      x: seg.waypoints[0]?.x || 0,
+      y: seg.waypoints[0]?.z || 0,
+      parentId: districts[i % districts.length]?.id,
+      properties: {
+        direction: seg.direction,
+        width: seg.width,
+        waypoints: seg.waypoints,
+        nodeIds: seg.nodeIds,
+      },
+    }));
+
     const buildings = this.generateBuildings(config, districts, streets);
 
-    // Update settlement with geography metadata
+    // Generate agricultural zones around the settlement
+    const agriGen = new AgriculturalZoneGenerator();
+    const agriculturalZones = agriGen.generate({
+      settlementType: config.settlementType,
+      terrain: config.terrain,
+      foundedYear: config.foundedYear,
+      mapSize,
+      centerX: mapSize / 2,
+      centerY: mapSize / 2,
+    });
+
+    // Generate river crossing points for river-terrain settlements
+    if (config.terrain === 'river') {
+      const crossingGen = new CrossingGenerator({
+        seed: config.settlementName.length * 31 + config.foundedYear,
+        mapSize: this.getMapSize(config.settlementType),
+        foundedYear: config.foundedYear,
+      });
+      const { rivers, crossings } = crossingGen.generate(streets);
+
+      for (const crossing of crossings) {
+        landmarks.push({
+          id: crossing.id,
+          name: crossing.name,
+          type: 'landmark',
+          x: crossing.x,
+          y: crossing.y,
+          properties: {
+            crossingType: crossing.type,
+            riverName: crossing.riverName,
+            streetName: crossing.streetName,
+            riverWidth: crossing.riverWidth,
+            ...crossing.properties,
+          },
+        });
+      }
+
+      // Store river data on the settlement for downstream consumers
+      (config as any)._rivers = rivers;
+    }
+
+    // Generate harbor and dock infrastructure for coastal settlements
+    let harborZones: HarborZone[] | undefined;
+    if (config.terrain === 'coast') {
+      const coastline = generateCoastline({
+        seed: config.settlementName.length * 37 + config.foundedYear,
+        mapSize,
+        waterSide: 'north',
+        minBays: 1,
+        maxBays: 3,
+      });
+
+      const harborResult = generateHarborAndDocks({
+        seed: config.settlementName.length * 41 + config.foundedYear,
+        coastline,
+        settlementType: config.settlementType,
+        foundedYear: config.foundedYear,
+      });
+
+      harborZones = harborResult.zones;
+
+      // Add harbor structures as landmarks
+      for (const structure of harborResult.allStructures) {
+        landmarks.push({
+          id: structure.id,
+          name: structure.name,
+          type: 'landmark',
+          x: structure.x,
+          y: structure.z,
+          width: structure.width,
+          height: structure.depth,
+          properties: {
+            harborStructureType: structure.type,
+            material: structure.properties.material,
+            condition: structure.properties.condition,
+            capacity: structure.properties.capacity,
+            builtYear: structure.properties.builtYear,
+            rotation: structure.rotation,
+          },
+        });
+      }
+    }
+
+    // Update settlement with geography metadata including street network
     await storage.updateSettlement(config.settlementId, {
       districts,
-      streets,
+      streets: streetNetwork.segments.map(seg => ({
+        id: seg.id,
+        name: seg.name,
+        direction: seg.direction,
+        waypoints: seg.waypoints,
+        nodeIds: seg.nodeIds,
+        width: seg.width,
+      })),
       landmarks,
     });
 
     // Persist lots, residences, and businesses as proper database records
-    const lotIds = await this.persistLotsAndBuildings(config, districts, streets, buildings);
+    const lotIds = await this.persistLotsAndBuildings(config, districts, streets, buildings, streetNetwork);
 
-    console.log(`✅ Generated ${districts.length} districts, ${streets.length} streets, ${buildings.length} buildings (${lotIds.length} lots persisted)`);
+    const harborMsg = harborZones ? `, ${harborZones.length} harbor zones` : '';
+    console.log(`✅ Generated ${districts.length} districts, ${streetNetwork.segments.length} streets (${streetNetwork.nodes.length} nodes), ${buildings.length} buildings (${lotIds.length} lots persisted), ${agriculturalZones.length} agricultural zones${harborMsg}`);
 
-    return { districts, streets, buildings, landmarks, lotIds };
+    return { districts, streets, buildings, landmarks, lotIds, agriculturalZones, streetNetwork, harborZones };
   }
 
   /**
@@ -84,18 +216,33 @@ export class GeographyGenerator {
     config: GeographyConfig,
     districts: Location[],
     streets: Location[],
-    buildings: Location[]
+    buildings: Location[],
+    streetNetwork?: StreetNetwork
   ): Promise<string[]> {
     // Build lookup maps for parent references
     const districtById = new Map(districts.map(d => [d.id, d]));
     const streetById = new Map(streets.map(s => [s.id, s]));
+
+    // Generate lot placements with world-space coordinates
+    let lotPlacements: LotPlacement[] = [];
+    if (streetNetwork) {
+      const seed = `${config.worldId}_${config.settlementId}`;
+      lotPlacements = placeLots(streetNetwork, buildings.length, seed);
+    }
+
+    // Build a lookup: streetName+houseNumber -> placement for matching
+    const placementByKey = new Map<string, LotPlacement>();
+    for (const p of lotPlacements) {
+      placementByKey.set(`${p.streetName}:${p.houseNumber}`, p);
+    }
 
     // Prepare bulk-insert arrays
     const lotDocs: any[] = [];
     const residenceDocs: any[] = [];
     const businessDocs: any[] = [];
 
-    for (const building of buildings) {
+    for (let bi = 0; bi < buildings.length; bi++) {
+      const building = buildings[bi];
       const street = building.parentId ? streetById.get(building.parentId) : undefined;
       const district = street?.parentId ? districtById.get(street.parentId) : undefined;
       const streetName = street?.name || 'Unknown St';
@@ -105,6 +252,9 @@ export class GeographyGenerator {
       const address = `${houseNumber} ${streetName}`;
       const isResidence = building.properties?.buildingType === 'residence';
 
+      // Try to match to a lot placement by streetName+houseNumber, else by index
+      const placement = placementByKey.get(`${streetName}:${houseNumber}`) || lotPlacements[bi];
+
       lotDocs.push({
         worldId: config.worldId,
         settlementId: config.settlementId,
@@ -113,6 +263,11 @@ export class GeographyGenerator {
         streetName,
         districtName,
         buildingType: isResidence ? 'residence' : 'business',
+        positionX: placement?.x ?? null,
+        positionZ: placement?.z ?? null,
+        facingAngle: placement?.facingAngle ?? 0,
+        streetEdgeId: placement?.streetId ?? null,
+        side: placement?.side ?? null,
         formerBuildingIds: [],
         // Placeholder — buildingId will be set after residence/business creation
         _buildingIndex: lotDocs.length,
@@ -206,6 +361,12 @@ export class GeographyGenerator {
     if (lower.includes('grocery') || lower.includes('general store')) return 'GroceryStore';
     if (lower.includes('shoe')) return 'ShoeStore';
     if (lower.includes('auto') || lower.includes('gas station')) return 'AutoRepair';
+    if (lower.includes('harbor') || lower.includes('dock') || lower.includes('pier')) return 'Harbor';
+    if (lower.includes('boatyard')) return 'Boatyard';
+    if (lower.includes('fish market')) return 'FishMarket';
+    if (lower.includes('customs')) return 'CustomsHouse';
+    if (lower.includes('lighthouse')) return 'Lighthouse';
+    if (lower.includes('warehouse')) return 'Warehouse';
     if (lower.includes('shop') || lower.includes('store') || lower.includes('market')) return 'Shop';
     return 'Shop';
   }

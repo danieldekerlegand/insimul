@@ -17,9 +17,14 @@ import {
   XP_REWARDS,
   MAX_LEVEL,
   LEVEL_THRESHOLDS,
-} from '@shared/language-gamification';
-import type { Achievement, DailyChallenge } from '@shared/language-gamification';
-import type { FluencyGainResult, VocabularyEntry, GrammarFeedback } from '@shared/language-progress';
+} from '@shared/language/language-gamification';
+import type { Achievement, DailyChallenge } from '@shared/language/language-gamification';
+import type { FluencyGainResult, VocabularyEntry, GrammarFeedback } from '@shared/language/language-progress';
+import {
+  isPeriodicAssessmentLevel,
+  isPeriodicAssessmentCooldownMet,
+} from '@shared/assessment/periodic-encounter';
+import type { GameEventBus } from './GameEventBus';
 
 export interface XPGainEvent {
   amount: number;
@@ -37,6 +42,11 @@ export interface AchievementUnlockedEvent {
   achievement: Achievement;
 }
 
+export interface PeriodicAssessmentEvent {
+  level: number;
+  tier: string;
+}
+
 export class LanguageGamificationTracker {
   private state: GamificationState;
 
@@ -45,15 +55,65 @@ export class LanguageGamificationTracker {
   private sessionNewWords: number = 0;
   private sessionQuestsCompleted: number = 0;
 
+  // Periodic assessment cooldown tracking
+  private lastPeriodicAssessmentTimestamp: number | null = null;
+
+  // Event bus integration
+  private eventBus: GameEventBus | null = null;
+  private eventBusUnsubscribers: (() => void)[] = [];
+
   // Callbacks
   private onXPGain: ((event: XPGainEvent) => void) | null = null;
   private onLevelUp: ((event: LevelUpEvent) => void) | null = null;
   private onAchievementUnlocked: ((event: AchievementUnlockedEvent) => void) | null = null;
   private onDailyChallengeCompleted: ((challenge: DailyChallenge) => void) | null = null;
+  private onPeriodicAssessmentTriggered: ((event: PeriodicAssessmentEvent) => void) | null = null;
 
   constructor() {
     this.state = createDefaultGamificationState();
     this.ensureDailyChallenge();
+  }
+
+  // --- Event Bus Integration ---
+
+  /**
+   * Subscribe to gameplay events on the event bus.
+   * Reacts to quest completions, conversations, and other events
+   * that may trigger achievement detection. Also emits achievement_unlocked
+   * events back through the bus when achievements are detected.
+   */
+  subscribeToEventBus(eventBus: GameEventBus): void {
+    this.unsubscribeFromEventBus();
+    this.eventBus = eventBus;
+
+    this.eventBusUnsubscribers.push(
+      eventBus.on('quest_completed', (event) => {
+        this.onQuestCompleted();
+      }),
+      eventBus.on('utterance_quest_completed', (_event) => {
+        this.onQuestCompleted();
+      }),
+      eventBus.on('puzzle_solved', (_event) => {
+        this.checkAchievements();
+      }),
+      eventBus.on('item_collected', (_event) => {
+        this.checkAchievements();
+      }),
+      eventBus.on('location_discovered', (_event) => {
+        this.checkAchievements();
+      }),
+      eventBus.on('enemy_defeated', (_event) => {
+        this.checkAchievements();
+      }),
+    );
+  }
+
+  private unsubscribeFromEventBus(): void {
+    for (const unsub of this.eventBusUnsubscribers) {
+      unsub();
+    }
+    this.eventBusUnsubscribers = [];
+    this.eventBus = null;
   }
 
   // --- XP System ---
@@ -81,6 +141,9 @@ export class LanguageGamificationTracker {
         newLevel: this.state.xp.level,
         tier,
       });
+
+      // Trigger periodic assessment at milestone levels
+      this.checkPeriodicAssessment(this.state.xp.level, tier);
 
       // Check level-based achievements
       this.checkAchievements();
@@ -152,10 +215,12 @@ export class LanguageGamificationTracker {
   }
 
   /**
-   * Called when a quest is completed
+   * Called when a quest is completed.
+   * Uses the quest's experienceReward if provided, otherwise falls back to flat XP_REWARDS.questComplete.
    */
-  public onQuestCompleted(questCategory?: string): void {
-    this.addXP(XP_REWARDS.questComplete, 'Quest complete');
+  public onQuestCompleted(questCategory?: string, experienceReward?: number): void {
+    const xp = (experienceReward && experienceReward > 0) ? experienceReward : XP_REWARDS.questComplete;
+    this.addXP(xp, 'Quest complete');
     this.state.questsCompleted++;
     this.sessionQuestsCompleted++;
 
@@ -185,6 +250,50 @@ export class LanguageGamificationTracker {
     this.checkAchievements();
   }
 
+  // --- Learning Activity Handlers ---
+
+  /**
+   * Called when an assessment phase is completed
+   */
+  public onAssessmentPhaseCompleted(): void {
+    this.addXP(XP_REWARDS.assessmentPhaseComplete, 'Assessment phase complete');
+  }
+
+  /**
+   * Called when a full assessment is completed
+   */
+  public onAssessmentCompleted(): void {
+    this.addXP(XP_REWARDS.assessmentComplete, 'Assessment complete');
+  }
+
+  /**
+   * Called when an onboarding step is completed
+   */
+  public onOnboardingStepCompleted(): void {
+    this.addXP(XP_REWARDS.onboardingStepComplete, 'Onboarding step complete');
+  }
+
+  /**
+   * Called when full onboarding is completed
+   */
+  public onOnboardingCompleted(): void {
+    this.addXP(XP_REWARDS.onboardingComplete, 'Onboarding complete');
+  }
+
+  /**
+   * Called when a puzzle is solved
+   */
+  public onPuzzleSolved(): void {
+    this.addXP(XP_REWARDS.puzzleSolved, 'Puzzle solved');
+  }
+
+  /**
+   * Called when a new location is discovered
+   */
+  public onLocationDiscovered(): void {
+    this.addXP(XP_REWARDS.locationDiscovered, 'Location discovered');
+  }
+
   // --- Achievement System ---
 
   private checkAchievements(): void {
@@ -196,8 +305,19 @@ export class LanguageGamificationTracker {
         achievement.unlockedAt = Date.now();
         this.addXP(XP_REWARDS.achievementUnlocked, `Achievement: ${achievement.name}`);
         this.onAchievementUnlocked?.({ achievement });
+        this.emitAchievementEvent(achievement);
       }
     }
+  }
+
+  private emitAchievementEvent(achievement: Achievement): void {
+    this.eventBus?.emit({
+      type: 'achievement_unlocked',
+      achievementId: achievement.id,
+      achievementName: achievement.name,
+      description: achievement.description,
+      icon: achievement.icon,
+    });
   }
 
   private isConditionMet(achievement: Achievement): boolean {
@@ -270,6 +390,7 @@ export class LanguageGamificationTracker {
         achievement.unlockedAt = Date.now();
         this.addXP(XP_REWARDS.achievementUnlocked, `Achievement: ${achievement.name}`);
         this.onAchievementUnlocked?.({ achievement });
+        this.emitAchievementEvent(achievement);
       }
     }
   }
@@ -320,6 +441,28 @@ export class LanguageGamificationTracker {
     }
   }
 
+  // --- Periodic Assessment ---
+
+  private checkPeriodicAssessment(level: number, tier: string): void {
+    if (!isPeriodicAssessmentLevel(level)) return;
+    if (!isPeriodicAssessmentCooldownMet(this.lastPeriodicAssessmentTimestamp)) return;
+
+    this.lastPeriodicAssessmentTimestamp = Date.now();
+    this.onPeriodicAssessmentTriggered?.({ level, tier });
+  }
+
+  /**
+   * Record that a periodic assessment was completed.
+   * Resets the cooldown timer so the same level won't re-trigger immediately.
+   */
+  public recordPeriodicAssessmentCompleted(): void {
+    this.lastPeriodicAssessmentTimestamp = Date.now();
+  }
+
+  public getLastPeriodicAssessmentTimestamp(): number | null {
+    return this.lastPeriodicAssessmentTimestamp;
+  }
+
   // --- Getters ---
 
   public getState(): GamificationState { return { ...this.state }; }
@@ -343,12 +486,18 @@ export class LanguageGamificationTracker {
   // --- Persistence ---
 
   public exportState(): string {
-    return JSON.stringify(this.state);
+    return JSON.stringify({
+      ...this.state,
+      lastPeriodicAssessmentTimestamp: this.lastPeriodicAssessmentTimestamp,
+    });
   }
 
   public importState(json: string): void {
     try {
-      this.state = JSON.parse(json);
+      const parsed = JSON.parse(json);
+      const { lastPeriodicAssessmentTimestamp, ...gamificationState } = parsed;
+      this.state = gamificationState;
+      this.lastPeriodicAssessmentTimestamp = lastPeriodicAssessmentTimestamp ?? null;
       this.ensureDailyChallenge();
     } catch (e) {
       console.error('[LanguageGamificationTracker] Failed to import state:', e);
@@ -361,11 +510,14 @@ export class LanguageGamificationTracker {
   public setOnLevelUp(cb: (event: LevelUpEvent) => void): void { this.onLevelUp = cb; }
   public setOnAchievementUnlocked(cb: (event: AchievementUnlockedEvent) => void): void { this.onAchievementUnlocked = cb; }
   public setOnDailyChallengeCompleted(cb: (challenge: DailyChallenge) => void): void { this.onDailyChallengeCompleted = cb; }
+  public setOnPeriodicAssessmentTriggered(cb: (event: PeriodicAssessmentEvent) => void): void { this.onPeriodicAssessmentTriggered = cb; }
 
   public dispose(): void {
+    this.unsubscribeFromEventBus();
     this.onXPGain = null;
     this.onLevelUp = null;
     this.onAchievementUnlocked = null;
     this.onDailyChallengeCompleted = null;
+    this.onPeriodicAssessmentTriggered = null;
   }
 }

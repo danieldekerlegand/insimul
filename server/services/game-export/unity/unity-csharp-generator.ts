@@ -29,6 +29,8 @@ function genDataClasses(): GeneratedFile[] {
     { path: `${base}/InsimulAssetManifest.cs`, content: loadStaticTemplate('scripts/data/InsimulAssetManifest.cs') },
     { path: `${base}/InsimulDialogueContext.cs`, content: loadStaticTemplate('scripts/data/InsimulDialogueContext.cs') },
     { path: `${base}/InsimulAIConfig.cs`, content: loadStaticTemplate('scripts/data/InsimulAIConfig.cs') },
+    { path: `${base}/InsimulWaterFeatureData.cs`, content: loadStaticTemplate('scripts/data/InsimulWaterFeatureData.cs') },
+    { path: `${base}/InsimulLotData.cs`, content: loadStaticTemplate('scripts/data/InsimulLotData.cs') },
   ];
 }
 
@@ -150,6 +152,7 @@ function genWorldGenerators(ir: WorldIR): GeneratedFile[] {
     { path: `${base}/RoadGenerator.cs`,              content: loadTemplate('scripts/world/RoadGenerator.cs', roadTokens) },
     { path: `${base}/ProceduralNatureGenerator.cs`,  content: loadStaticTemplate('scripts/world/ProceduralNatureGenerator.cs') },
     { path: `${base}/ProceduralDungeonGenerator.cs`, content: loadStaticTemplate('scripts/world/ProceduralDungeonGenerator.cs') },
+    { path: `${base}/WaterFeatureGenerator.cs`,      content: loadStaticTemplate('scripts/world/WaterFeatureGenerator.cs') },
   ];
 }
 

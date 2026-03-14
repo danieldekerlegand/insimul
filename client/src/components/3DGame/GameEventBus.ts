@@ -41,7 +41,8 @@ export type GameEvent =
   | { type: 'item_unequipped'; itemId: string; itemName: string; slot: string }
   | { type: 'utterance_evaluated'; objectiveId: string; input: string; score: number; passed: boolean; feedback: string }
   | { type: 'utterance_quest_progress'; questId: string; objectiveId: string; current: number; required: number; percentage: number }
-  | { type: 'utterance_quest_completed'; questId: string; objectiveId: string; finalScore: number; xpAwarded: number }
+  | { type: 'utterance_quest_completed'; questId: string; objectiveId: string; finalScore: number; xpAwarded: number; pronunciationBonusXp?: number }
+  | { type: 'pronunciation_assessment_data'; questId: string; averageScore: number; sampleCount: number }
   | { type: 'ambient_conversation_started'; conversationId: string; participants: [string, string]; locationId: string; topic: string }
   | { type: 'ambient_conversation_ended'; conversationId: string; participants: [string, string]; durationMs: number; vocabularyCount: number }
   | { type: 'vocabulary_overheard'; word: string; translation: string; language: string; context: string; conversationId: string; speakerNpcId: string }
@@ -60,7 +61,28 @@ export type GameEvent =
   // Conversation eavesdrop
   | { type: 'conversation_overheard'; npcId1: string; npcId2: string; topic: string; languageUsed: string }
   // Truth creation (emitted when game events should be recorded as world truths)
-  | { type: 'create_truth'; characterId: string; title: string; content: string; entryType: 'event' | 'fact' | 'secret'; category?: string };
+  | { type: 'create_truth'; characterId: string; title: string; content: string; entryType: 'event' | 'fact' | 'secret'; category?: string }
+  // Assessment events
+  | { type: 'assessment_started'; sessionId: string; instrumentId: string; phase: string; participantId: string; assessmentType?: string; playerId?: string }
+  | { type: 'assessment_phase_started'; sessionId: string; instrumentId: string; phase: string; phaseId?: string; phaseIndex?: number }
+  | { type: 'assessment_phase_completed'; sessionId: string; instrumentId: string; phase: string; score: number; subscaleScores?: Record<string, number>; phaseId?: string; maxScore?: number }
+  | { type: 'assessment_tier_change'; participantId: string; instrumentId: string; fromTier: string; toTier: string; score: number }
+  | { type: 'assessment_completed'; sessionId: string; instrumentId: string; totalScore: number; gainScore?: number; totalMaxScore?: number; cefrLevel?: string }
+  // Onboarding events
+  | { type: 'onboarding_step_started'; stepId: string; stepIndex: number; totalSteps: number }
+  | { type: 'onboarding_step_completed'; stepId: string; stepIndex: number; totalSteps: number; durationMs: number }
+  | { type: 'onboarding_completed'; totalSteps: number; totalDurationMs: number }
+  // Periodic assessment trigger (emitted when a level-up milestone requires a proficiency check)
+  | { type: 'periodic_assessment_triggered'; level: number; tier: string }
+  // Assessment conversation completed (player finished talking to NPC during assessment)
+  | { type: 'assessment_conversation_completed'; npcId: string }
+  // Visual vocabulary events
+  | { type: 'visual_vocab_prompted'; targetId: string; questId: string; objectiveId: string; isActivity: boolean }
+  | { type: 'visual_vocab_answered'; targetId: string; questId: string; passed: boolean; score: number; playerAnswer: string }
+  // Follow directions quest events
+  | { type: 'direction_step_completed'; questId: string; objectiveId: string; stepIndex: number; stepsCompleted: number; stepsRequired: number }
+  // Achievement events
+  | { type: 'achievement_unlocked'; achievementId: string; achievementName: string; description: string; icon: string };
 
 export type GameEventType = GameEvent['type'];
 

@@ -6,6 +6,12 @@
  */
 
 import { Vector3 } from '@babylonjs/core';
+import {
+  generateStreetAlignedLots,
+  sortLotsForZoning,
+  type StreetAlignedResult,
+  type PlacedLot,
+} from './StreetAlignedPlacement';
 
 export interface TerritoryBounds {
   minX: number;
@@ -280,63 +286,57 @@ export class WorldScaleManager {
   }
 
   /**
-   * Generate lot positions within a settlement
+   * Generate lot positions within a settlement using street-aligned placement.
+   *
+   * Buildings are distributed along both sides of a generated street network
+   * (main street + side streets) instead of a jittered grid. Returns only
+   * positions for backward compatibility — use generateStreetAlignedSettlement()
+   * to get full metadata (facing angles, house numbers, street names).
    */
   public generateLotPositions(
     settlement: ScaledSettlement,
-    lotCount: number
+    lotCount: number,
+    streetNames?: string[],
   ): Vector3[] {
-    const positions: Vector3[] = [];
-    const rand = this.createSeededRandom(`${this.seed}_${settlement.id}_lots`);
+    const result = this.generateStreetAlignedSettlement(settlement, lotCount, 0, streetNames);
+    return result.lots.map(l => l.position);
+  }
+
+  /**
+   * Generate a full street-aligned layout for a settlement.
+   *
+   * Returns street segments and placed lots with metadata (facing angle,
+   * house number, street name, zoning hints). Lots are sorted so that
+   * commercial-friendly positions (near intersections / main street) come
+   * first, making it easy to assign businesses to the first N slots.
+   *
+   * @param settlement   Scaled settlement with position and radius
+   * @param lotCount     Total lots to place
+   * @param bizCount     Number of business lots (for zoning sort)
+   * @param streetNames  Optional street names from backend lot data
+   */
+  public generateStreetAlignedSettlement(
+    settlement: ScaledSettlement,
+    lotCount: number,
+    bizCount: number = 0,
+    streetNames?: string[],
+  ): StreetAlignedResult {
     const half = this.worldSize / 2;
-    const terrainMargin = 5; // Keep lots slightly inside terrain edge
+    const result = generateStreetAlignedLots(
+      settlement.position,
+      settlement.radius,
+      lotCount,
+      `${this.seed}_${settlement.id}_lots`,
+      half,
+      streetNames,
+    );
 
-    // Arrange in a grid with some randomization
-    const cols = Math.ceil(Math.sqrt(lotCount));
-    const rows = Math.ceil(lotCount / cols);
-
-    const lotSpacing = 20; // Distance between lot centers (must exceed largest building footprint ~20 units)
-    const gridWidth = (cols - 1) * lotSpacing;
-    const gridHeight = (rows - 1) * lotSpacing;
-
-    // The player spawns at the settlement center. Keep a clear zone so no
-    // building lot lands too close to it.
-    const SPAWN_CLEAR_RADIUS = 15;
-
-    for (let i = 0; i < lotCount; i++) {
-      const row = Math.floor(i / cols);
-      const col = i % cols;
-
-      const baseX = settlement.position.x - gridWidth / 2 + col * lotSpacing;
-      const baseZ = settlement.position.z - gridHeight / 2 + row * lotSpacing;
-
-      // Add some jitter (keep small relative to spacing to avoid overlap)
-      const jitterX = (rand() - 0.5) * 4;
-      const jitterZ = (rand() - 0.5) * 4;
-
-      let lotX = baseX + jitterX;
-      let lotZ = baseZ + jitterZ;
-
-      // If this lot falls within the player spawn clear zone, push it outward
-      // along the same direction until it clears the radius.
-      const dx = lotX - settlement.position.x;
-      const dz = lotZ - settlement.position.z;
-      const dist = Math.sqrt(dx * dx + dz * dz);
-      if (dist < SPAWN_CLEAR_RADIUS) {
-        // Push radially outward; if right at center use an arbitrary direction
-        const angle = dist > 0.001 ? Math.atan2(dz, dx) : (i * Math.PI * 0.618);
-        lotX = settlement.position.x + Math.cos(angle) * SPAWN_CLEAR_RADIUS;
-        lotZ = settlement.position.z + Math.sin(angle) * SPAWN_CLEAR_RADIUS;
-      }
-
-      // Clamp to terrain bounds so buildings don't end up in the water
-      lotX = Math.max(-half + terrainMargin, Math.min(half - terrainMargin, lotX));
-      lotZ = Math.max(-half + terrainMargin, Math.min(half - terrainMargin, lotZ));
-
-      positions.push(new Vector3(lotX, 0, lotZ));
+    // Sort lots so commercial-friendly positions come first
+    if (bizCount > 0) {
+      result.lots = sortLotsForZoning(result.lots, bizCount);
     }
 
-    return positions;
+    return result;
   }
 
   /**

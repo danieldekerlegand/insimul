@@ -49,13 +49,21 @@ import { BabylonQuestTracker } from "@/components/3DGame/BabylonQuestTracker.ts"
 import { BabylonRadialMenu } from "@/components/3DGame/BabylonRadialMenu.ts";
 import { QuestObjectManager } from "@/components/3DGame/QuestObjectManager.ts";
 import { QuestIndicatorManager } from "@/components/3DGame/QuestIndicatorManager.ts";
+import { QuestWorldObjectLinker } from "@/components/3DGame/QuestWorldObjectLinker.ts";
+import { ListeningComprehensionManager } from "@/components/3DGame/ListeningComprehensionManager.ts";
 import { ProceduralBuildingGenerator, BuildingStyle } from "@/components/3DGame/ProceduralBuildingGenerator.ts";
+import { computeFoundationData } from "@/components/3DGame/TerrainFoundationRenderer.ts";
 import { ProceduralNatureGenerator, BiomeStyle } from "@/components/3DGame/ProceduralNatureGenerator.ts";
 import { RoadGenerator } from "@/components/3DGame/RoadGenerator.ts";
+import { RiverGenerator } from "@/components/3DGame/RiverGenerator.ts";
+import { WaterRenderer } from "@/components/3DGame/WaterRenderer.ts";
+import { buildStreetNetwork } from "@/components/3DGame/StreetNetworkLayout.ts";
 import { WorldScaleManager, ScaledSettlement } from "@/components/3DGame/WorldScaleManager.ts";
 import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay.ts";
 import { ChunkManager } from "@/components/3DGame/ChunkManager.ts";
 import { BabylonMinimap } from "@/components/3DGame/BabylonMinimap.ts";
+import { FullscreenMap } from "@/components/3DGame/FullscreenMap.ts";
+import { generateTerrainCanvas } from "@/components/3DGame/MinimapTerrainRenderer.ts";
 import { BabylonInventory, InventoryItem } from "@/components/3DGame/BabylonInventory.ts";
 import { BabylonShopPanel, ShopTransaction } from "@/components/3DGame/BabylonShopPanel.ts";
 import { BabylonRulesPanel, Rule } from "@/components/3DGame/BabylonRulesPanel.ts";
@@ -83,11 +91,14 @@ import { VRCombatAdapter } from "@/components/3DGame/VRCombatAdapter.ts";
 import { BabylonVocabularyPanel } from "@/components/3DGame/BabylonVocabularyPanel.ts";
 import { BuildingSignManager, BuildingSignData } from "@/components/3DGame/BuildingSignManager.ts";
 import { LanguageGamificationTracker } from "@/components/3DGame/LanguageGamificationTracker.ts";
+import { QuestCompletionManager } from "@/components/3DGame/QuestCompletionManager.ts";
 import { BabylonConversationHistoryPanel } from "@/components/3DGame/BabylonConversationHistoryPanel.ts";
 import { BabylonSkillTreePanel } from "@/components/3DGame/BabylonSkillTreePanel.ts";
+import { AssessmentProgressUI } from "@/components/3DGame/AssessmentProgressUI.ts";
+import { PlayerAssessmentPanel } from "@/components/3DGame/PlayerAssessmentPanel.ts";
 import { EnvironmentalAudioManager } from "@/components/3DGame/EnvironmentalAudioManager.ts";
 import { CulturalEventManager } from "@/components/3DGame/CulturalEventManager.ts";
-import { BabylonNoticeBoardPanel } from "@/components/3DGame/BabylonNoticeBoardPanel.ts";
+import { BabylonNoticeBoardPanel, SAMPLE_ARTICLES } from "@/components/3DGame/BabylonNoticeBoardPanel.ts";
 import { ContentGatingManager } from "@/components/3DGame/ContentGatingManager.ts";
 import { generateQuestSuggestions, selectQuestForNPC } from "@/components/3DGame/DynamicQuestBoard.ts";
 import { VRChatPanel } from "@/components/3DGame/VRChatPanel.ts";
@@ -107,6 +118,26 @@ import { BuildingCollisionSystem } from "@/components/3DGame/BuildingCollisionSy
 import { BuildingEntrySystem } from "@/components/3DGame/BuildingEntrySystem.ts";
 import { InteriorNPCManager } from "@/components/3DGame/InteriorNPCManager.ts";
 import { NPCSimulationLOD } from "@/components/3DGame/NPCSimulationLOD.ts";
+import { QuestNotificationManager } from "@/components/3DGame/QuestNotificationManager.ts";
+import { QuestLanguageFeedbackPanel } from "@/components/3DGame/QuestLanguageFeedbackPanel.ts";
+import { QuestLanguageFeedbackTracker } from "@shared/language/quest-language-feedback";
+import {
+  isFirstPlaythrough,
+  isLanguageLearningWorld,
+  getTargetLanguage,
+  launchOnboarding,
+} from "@/components/3DGame/OnboardingLauncher.ts";
+import type { OnboardingLaunchResult } from "@/components/3DGame/OnboardingLauncher.ts";
+import {
+  KEY_NPC_INTERACT,
+  KEY_BUILDING_INTERACT,
+  KEY_ATTACK,
+  KEY_TARGET_ENEMY,
+  KEY_TOGGLE_VR,
+  KEY_GAME_MENU,
+  KEY_QUEST_LOG,
+  KEY_FULLSCREEN_MAP,
+} from "@/components/3DGame/KeyboardMap.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 
 // Constants
@@ -186,6 +217,7 @@ interface NPCInstance {
   wanderTarget?: Vector3;
   wanderWaitUntil?: number;
   isInConversation?: boolean;
+  preConversationPosition?: Vector3;
   // Animation tracking
   animationGroups?: any[];
   currentAnimation?: any;
@@ -195,6 +227,9 @@ interface NPCInstance {
   // Phase 4: NPC billboard LOD
   billboardLOD?: Mesh;
   isBillboardMode?: boolean;
+  // Stuck detection for wandering
+  lastWanderPosition?: Vector3;
+  stuckTicks?: number;
   // Debug
   _debugLogged?: boolean;
 }
@@ -320,20 +355,31 @@ export class BabylonGame {
   private radialMenu: BabylonRadialMenu | null = null;
   private questObjectManager: QuestObjectManager | null = null;
   private questIndicatorManager: QuestIndicatorManager | null = null;
+  private questWorldObjectLinker: QuestWorldObjectLinker | null = null;
+  private questNotificationManager: QuestNotificationManager | null = null;
+  private questLanguageFeedbackPanel: QuestLanguageFeedbackPanel | null = null;
+  private questLanguageFeedbackTracker: QuestLanguageFeedbackTracker | null = null;
+  private listeningComprehensionManager: ListeningComprehensionManager | null = null;
   private buildingGenerator: ProceduralBuildingGenerator | null = null;
   private natureGenerator: ProceduralNatureGenerator | null = null;
   private roadGenerator: RoadGenerator | null = null;
+  private riverGenerator: RiverGenerator | null = null;
+  private waterRenderer: WaterRenderer | null = null;
   private worldScaleManager: WorldScaleManager | null = null;
   private buildingInfoDisplay: BuildingInfoDisplay | null = null;
   private minimap: BabylonMinimap | null = null;
+  private fullscreenMap: FullscreenMap | null = null;
   private inventory: BabylonInventory | null = null;
   private shopPanel: BabylonShopPanel | null = null;
   private rulesPanel: BabylonRulesPanel | null = null;
   private vocabularyPanel: BabylonVocabularyPanel | null = null;
   private conversationHistoryPanel: BabylonConversationHistoryPanel | null = null;
   private skillTreePanel: BabylonSkillTreePanel | null = null;
+  private assessmentProgressUI: AssessmentProgressUI | null = null;
+  private assessmentPanel: PlayerAssessmentPanel | null = null;
   private buildingSignManager: BuildingSignManager | null = null;
   private gamificationTracker: LanguageGamificationTracker | null = null;
+  private questCompletionManager: QuestCompletionManager | null = null;
   private environmentalAudio: EnvironmentalAudioManager | null = null;
   private culturalEventManager: CulturalEventManager | null = null;
   private noticeBoardPanel: BabylonNoticeBoardPanel | null = null;
@@ -358,6 +404,11 @@ export class BabylonGame {
   private ambientConversationManager: NPCAmbientConversationManager | null = null;
   private vrManager: VRManager | null = null;
   private gameMenuSystem: GameMenuSystem | null = null;
+
+  // Onboarding / assessment
+  private onboardingResult: OnboardingLaunchResult | null = null;
+  private onboardingActive: boolean = false;
+  private assessmentActive: boolean = false;
 
   // Player
   private playerController: CharacterController | null = null;
@@ -629,6 +680,9 @@ export class BabylonGame {
 
       console.log('[BabylonGame] Init complete! Scene meshes:', this.scene?.meshes.length,
         'Active meshes:', this.scene?.getActiveMeshes().length);
+
+      // Launch onboarding for first-time language-learning playthroughs
+      this.tryLaunchOnboarding();
     } catch (error) {
       console.error('[BabylonGame] Failed to initialize game:', error);
       this.hideLoadingScreen();
@@ -835,7 +889,7 @@ export class BabylonGame {
     camera.lowerRadiusLimit = 10;
     camera.upperRadiusLimit = 10;
     camera.inputs.removeByType("ArcRotateCameraMouseWheelInput");
-    camera.checkCollisions = true;
+    camera.checkCollisions = false;
     camera.lowerBetaLimit = 0.3;
     camera.upperBetaLimit = Math.PI / 2.1;
     camera.keysUp = [];
@@ -966,6 +1020,12 @@ export class BabylonGame {
     this.guiManager.setOnNPCSelected((npcId) => this.setSelectedNPC(npcId));
     this.guiManager.setOnActionSelected((actionId) => this.handlePerformAction(actionId));
     this.guiManager.setOnPayFines(() => this.handlePayFines());
+    this.guiManager.setMinimapNavigateCallback((worldX, worldZ) => {
+      if (this.playerMesh) {
+        this.playerMesh.position.x = worldX;
+        this.playerMesh.position.z = worldZ;
+      }
+    });
 
     // Initialize unified game menu system (ESC to toggle)
     const menuCallbacks: GameMenuCallbacks = {
@@ -1104,6 +1164,76 @@ export class BabylonGame {
           worldSize: this.terrainSize || 512,
         };
       },
+      // Language learning panel data callbacks
+      getVocabularyData: () => {
+        const tracker = this.chatPanel?.getLanguageTracker();
+        if (!tracker) return null;
+        const progress = tracker.getProgress();
+        return {
+          vocabulary: tracker.getVocabulary(),
+          grammarPatterns: tracker.getGrammarPatterns(),
+          overallFluency: progress.overallFluency,
+          totalCorrectUsages: progress.totalCorrectUsages,
+          dueForReview: tracker.getWordsDueForReview(),
+        };
+      },
+      getConversationHistory: () => {
+        const tracker = this.chatPanel?.getLanguageTracker();
+        return tracker ? tracker.getRecentConversations(20) : [];
+      },
+      getSkillTreeStats: () => {
+        const tracker = this.chatPanel?.getLanguageTracker();
+        if (!tracker) return null;
+        const progress = tracker.getProgress();
+        const conversations = progress.conversations || [];
+        const avgTLPct = conversations.length > 0
+          ? conversations.reduce((s, c) => s + c.targetLanguagePercentage, 0) / conversations.length
+          : 0;
+        const maxTurns = conversations.length > 0
+          ? Math.max(...conversations.map(c => c.turns))
+          : 0;
+        return {
+          wordsLearned: progress.totalWordsLearned,
+          wordsMastered: progress.vocabulary.filter(v => v.masteryLevel === 'mastered').length,
+          conversations: progress.totalConversations,
+          grammarPatterns: progress.grammarPatterns.length,
+          avgTargetLanguagePct: avgTLPct,
+          fluency: progress.overallFluency,
+          maxSustainedTurns: maxTurns,
+          questsCompleted: this.gamificationTracker?.getState().questsCompleted || 0,
+        };
+      },
+      getNoticeArticles: () => {
+        const tracker = this.chatPanel?.getLanguageTracker();
+        return {
+          articles: SAMPLE_ARTICLES,
+          playerFluency: tracker ? tracker.getFluency() : 0,
+        };
+      },
+      getAssessmentData: () => {
+        const gamState = this.gamificationTracker?.getState();
+        return {
+          data: null as any, // Assessment data comes from server
+          playerLevel: gamState?.xp?.level || 1,
+        };
+      },
+      onNoticeWordClicked: (word: string, meaning: string) => {
+        this.guiManager?.showToast({
+          title: `${word}`,
+          description: meaning,
+          duration: 3000,
+        });
+      },
+      onNoticeQuestionAnswered: (correct: boolean, _articleId: string) => {
+        this.guiManager?.showToast({
+          title: correct ? "Correct!" : "Not quite...",
+          description: correct ? "Great job!" : "Try again next time",
+          duration: 2000,
+        });
+      },
+      onVocabWordSpeak: (word: string) => {
+        this.chatPanel?.speakWord(word);
+      },
       onNPCSelected: (npcId: string) => this.setSelectedNPC(npcId),
       onPayFines: () => this.handlePayFines(),
       onBackToEditor: () => this.config.onBack?.(),
@@ -1144,11 +1274,46 @@ export class BabylonGame {
         description: questData.title || 'Quest assigned',
       });
       this.eventBus.emit({ type: 'quest_accepted', questId: questData.id || '', questTitle: questData.title || '' });
+
+      // Register listening comprehension quests when newly assigned
+      if (questData.completionCriteria?.type === 'listening_comprehension' && this.listeningComprehensionManager) {
+        this.listeningComprehensionManager.registerQuest(
+          questData.id,
+          questData.completionCriteria.storyNpcId || questData.assignedByCharacterId,
+          questData.completionCriteria.answerNpcId,
+          questData.completionCriteria.questions || [],
+          (this.worldData as any)?.targetLanguage,
+        );
+      }
     });
-    this.chatPanel.setOnQuestTurnedIn((questId, rewards) => {
+    this.chatPanel.setOnQuestTurnedIn(async (questId, rewards) => {
+      // Use QuestCompletionManager for the full ceremony
+      if (this.questCompletionManager) {
+        try {
+          const resp = await fetch(`/api/quests/${questId}`);
+          if (resp.ok) {
+            const questData = await resp.json();
+            await this.questCompletionManager.completeQuest({
+              id: questData.id,
+              worldId: questData.worldId || this.config.worldId,
+              title: questData.title,
+              questType: questData.questType,
+              experienceReward: questData.experienceReward || 0,
+              itemRewards: questData.itemRewards,
+              skillRewards: questData.skillRewards,
+              unlocks: questData.unlocks,
+              questChainId: questData.questChainId,
+              questChainOrder: questData.questChainOrder,
+              assignedBy: questData.assignedBy,
+            });
+          }
+        } catch (e) {
+          console.warn('[BabylonGame] Quest completion ceremony failed:', e);
+        }
+      }
       this.questTracker?.updateQuests(this.config.worldId);
-      this.updateQuestIndicators(); // Update NPC indicators
-      console.log('[BabylonGame] Quest turned in:', questId, rewards);
+      this.updateQuestIndicators();
+      this.eventBus.emit({ type: 'quest_completed', questId });
     });
     this.chatPanel.setOnActionSelect((actionId: string) => {
       this.handlePerformAction(actionId);
@@ -1162,6 +1327,16 @@ export class BabylonGame {
     this.chatPanel.setOnVocabularyUsed((word: string) => {
       this.questObjectManager?.trackVocabularyUsage(word);
       this.eventBus.emit({ type: 'vocabulary_used', word, correct: true });
+      // Forward vocabulary usage to quest language tracker
+      if (this.questLanguageFeedbackTracker) {
+        const items = this.questLanguageFeedbackTracker.processVocabularyUsage([
+          { word, meaning: '', usedCorrectly: true },
+        ]);
+        for (const item of items) {
+          this.questLanguageFeedbackPanel?.addFeedbackItem(item);
+        }
+        this.questLanguageFeedbackPanel?.updateFromState(this.questLanguageFeedbackTracker.getState());
+      }
     });
     this.chatPanel.setOnConversationTurn((keywords: string[]) => {
       this.questObjectManager?.trackConversationTurn(keywords);
@@ -1225,6 +1400,14 @@ export class BabylonGame {
         }
       }
 
+      // If assessment is active, signal that a conversation was completed
+      if (this.assessmentActive) {
+        this.eventBus.emit({
+          type: 'assessment_conversation_completed',
+          npcId: this.conversationNPCId || '',
+        });
+      }
+
       this.guiManager?.showToast({
         title: `Conversation Complete ${starStr}`,
         description: lines.join('\n'),
@@ -1240,6 +1423,14 @@ export class BabylonGame {
     });
     this.chatPanel.setOnGrammarFeedbackExternal((feedback: any) => {
       this.gamificationTracker?.onGrammarFeedback(feedback);
+      // Forward grammar feedback to quest language tracker
+      if (this.questLanguageFeedbackTracker) {
+        const items = this.questLanguageFeedbackTracker.processGrammarFeedback(feedback);
+        for (const item of items) {
+          this.questLanguageFeedbackPanel?.addFeedbackItem(item);
+        }
+        this.questLanguageFeedbackPanel?.updateFromState(this.questLanguageFeedbackTracker.getState());
+      }
     });
 
     // Initialize quest tracker
@@ -1247,6 +1438,15 @@ export class BabylonGame {
     if (this.prologEngine) {
       this.questTracker.setPrologEngine(this.prologEngine);
     }
+
+    // Initialize quest notification manager (toasts + HUD indicator)
+    this.questNotificationManager = new QuestNotificationManager(this.guiManager.advancedTexture, this.eventBus);
+    this.questNotificationManager.setOnHudClicked(() => {
+      this.questTracker?.toggle();
+    });
+
+    // Initialize quest language feedback panel (real-time grammar/vocab overlay)
+    this.questLanguageFeedbackPanel = new QuestLanguageFeedbackPanel(this.guiManager.advancedTexture);
 
     // Initialize zone audio
     this.initializeZoneAudio(scene);
@@ -1270,14 +1470,59 @@ export class BabylonGame {
       this.chatPanel?.speakWord(text);
     });
 
+    // Initialize listening comprehension manager
+    this.listeningComprehensionManager = new ListeningComprehensionManager();
+    this.listeningComprehensionManager.setOnComplete((questId, score, storyText, passed) => {
+      // Update quest progress with score and story
+      this.dataSource.updateQuest(questId, {
+        progress: { comprehensionScore: score, storyText },
+      }).catch(err => console.error('[ListeningComprehension] Failed to save progress:', err));
+
+      // Track each answer as correct/incorrect based on pass threshold
+      if (passed) {
+        this.questObjectManager?.trackListeningAnswer(true, questId);
+      }
+
+      this.guiManager?.showToast({
+        title: passed ? 'Comprehension Passed!' : 'Comprehension Check',
+        description: passed
+          ? `Score: ${score}/100 — Great listening skills!`
+          : `Score: ${score}/100 — You need 60% to pass. Try again!`,
+        duration: 4000,
+      });
+    });
+
+    // Wire listening comprehension prompt augmentation into chat panel
+    this.chatPanel?.setSystemPromptAugmentation((npcId: string) => {
+      return this.listeningComprehensionManager?.getPromptAugmentation(npcId) ?? null;
+    });
+
+    // Wire chat exchange to listening comprehension manager
+    this.chatPanel?.setOnChatExchange((npcId: string, playerMessage: string, npcResponse: string) => {
+      this.listeningComprehensionManager?.handleChatExchange(npcId, playerMessage, npcResponse);
+    });
+
     // Initialize quest indicator manager
     this.questIndicatorManager = new QuestIndicatorManager(scene);
+
+    // Initialize quest world object linker
+    this.questWorldObjectLinker = new QuestWorldObjectLinker(scene);
+    this.questWorldObjectLinker.setOnQuestObjectClicked((info) => {
+      this.guiManager?.showToast({
+        title: info.questTitle,
+        description: info.objectiveDescription,
+        duration: 4000,
+      });
+    });
 
     // Initialize building info display
     this.buildingInfoDisplay = new BuildingInfoDisplay(scene, this.guiManager.advancedTexture);
 
     // Initialize minimap
     this.minimap = new BabylonMinimap(scene, this.guiManager.advancedTexture, this.terrainSize);
+
+    // Initialize full-screen map
+    this.fullscreenMap = new FullscreenMap(this.guiManager.advancedTexture);
 
     // Initialize inventory
     this.inventory = new BabylonInventory(scene, this.guiManager.advancedTexture);
@@ -1315,6 +1560,9 @@ export class BabylonGame {
     this.conversationHistoryPanel = new BabylonConversationHistoryPanel(this.guiManager.advancedTexture);
     this.conversationHistoryPanel.setOnClose(() => {});
 
+    // Initialize assessment progress UI overlay
+    this.assessmentProgressUI = new AssessmentProgressUI(this.guiManager.advancedTexture);
+
     // Initialize skill tree panel (K key)
     this.skillTreePanel = new BabylonSkillTreePanel(this.guiManager.advancedTexture);
     this.skillTreePanel.setOnClose(() => {});
@@ -1325,6 +1573,10 @@ export class BabylonGame {
         duration: 4000,
       });
     });
+
+    // Initialize assessment progress panel (L key)
+    this.assessmentPanel = new PlayerAssessmentPanel(this.guiManager.advancedTexture);
+    this.assessmentPanel.setOnClose(() => {});
 
     // Initialize environmental audio manager
     this.environmentalAudio = new EnvironmentalAudioManager(scene);
@@ -1453,6 +1705,17 @@ export class BabylonGame {
       });
     });
 
+    // Wire achievement detection to gameplay events via event bus
+    this.gamificationTracker.subscribeToEventBus(this.eventBus);
+
+    // Initialize quest completion manager
+    this.questCompletionManager = new QuestCompletionManager(scene, this.guiManager.advancedTexture);
+    this.questCompletionManager.setEventBus(this.eventBus);
+    this.questCompletionManager.setGamificationTracker(this.gamificationTracker);
+    if (this.questTracker) {
+      this.questCompletionManager.setQuestTracker(this.questTracker);
+    }
+
     // Initialize rule enforcer
     this.ruleEnforcer = new RuleEnforcer(scene);
     this.ruleEnforcer.setOnViolation((violation: RuleViolation) => {
@@ -1467,14 +1730,72 @@ export class BabylonGame {
     // Initialize Prolog engine and connect to event bus
     this.prologEngine = new GamePrologEngine();
     this.prologEngine.subscribeToEventBus(this.eventBus);
-    this.prologEngine.setOnQuestCompleted((questId) => {
+    this.prologEngine.setOnQuestCompleted(async (questId) => {
       console.log('[BabylonGame] Prolog determined quest complete:', questId);
-      this.questTracker?.updateQuests(this.config.worldId);
+      if (this.questCompletionManager) {
+        try {
+          const resp = await fetch(`/api/quests/${questId}`);
+          if (resp.ok) {
+            const questData = await resp.json();
+            // Mark as completed on server
+            await fetch(`/api/quests/${questId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: 'completed', completedAt: new Date().toISOString() }),
+            });
+            await this.questCompletionManager.completeQuest({
+              id: questData.id,
+              worldId: questData.worldId || this.config.worldId,
+              title: questData.title,
+              questType: questData.questType,
+              experienceReward: questData.experienceReward || 0,
+              itemRewards: questData.itemRewards,
+              skillRewards: questData.skillRewards,
+              unlocks: questData.unlocks,
+              questChainId: questData.questChainId,
+              questChainOrder: questData.questChainOrder,
+              assignedBy: questData.assignedBy,
+            });
+          }
+        } catch (e) {
+          console.warn('[BabylonGame] Prolog quest completion ceremony failed:', e);
+        }
+      }
       this.updateQuestIndicators();
     });
 
     // Wire Prolog engine into rule enforcer
     this.ruleEnforcer.setPrologEngine(this.prologEngine);
+
+    // Subscribe to quest-relevant events to refresh NPC indicators
+    this.eventBus.on('quest_failed', () => this.updateQuestIndicators());
+    this.eventBus.on('quest_abandoned', () => this.updateQuestIndicators());
+    this.eventBus.on('utterance_quest_completed', () => this.updateQuestIndicators());
+    this.eventBus.on('utterance_quest_progress', () => this.updateQuestIndicators());
+    this.eventBus.on('item_collected', () => this.updateQuestIndicators());
+    this.eventBus.on('item_delivered', () => this.updateQuestIndicators());
+    this.eventBus.on('location_visited', () => this.updateQuestIndicators());
+    this.eventBus.on('npc_talked', () => this.updateQuestIndicators());
+
+    // Wire learning activity events to gamification tracker for XP awards
+    this.eventBus.on('assessment_phase_completed', () => {
+      this.gamificationTracker?.onAssessmentPhaseCompleted();
+    });
+    this.eventBus.on('assessment_completed', () => {
+      this.gamificationTracker?.onAssessmentCompleted();
+    });
+    this.eventBus.on('onboarding_step_completed', () => {
+      this.gamificationTracker?.onOnboardingStepCompleted();
+    });
+    this.eventBus.on('onboarding_completed', () => {
+      this.gamificationTracker?.onOnboardingCompleted();
+    });
+    this.eventBus.on('puzzle_solved', () => {
+      this.gamificationTracker?.onPuzzleSolved();
+    });
+    this.eventBus.on('location_discovered', () => {
+      this.gamificationTracker?.onLocationDiscovered();
+    });
 
     // Initialize combat system
     this.combatSystem = new CombatSystem(scene);
@@ -1521,6 +1842,8 @@ export class BabylonGame {
     this.buildingGenerator = new ProceduralBuildingGenerator(scene);
     this.natureGenerator = new ProceduralNatureGenerator(scene);
     this.roadGenerator = new RoadGenerator(scene);
+    this.riverGenerator = new RiverGenerator(scene);
+    this.waterRenderer = new WaterRenderer(scene);
     this.interiorGenerator = new BuildingInteriorGenerator(scene);
     this.buildingEntrySystem = new BuildingEntrySystem(scene, this.interiorGenerator, {
       onTeleportPlayer: (pos: Vector3) => {
@@ -1658,6 +1981,15 @@ export class BabylonGame {
       this.characters = characters;
       this.actions = [...actions, ...baseActions];
       this.quests = quests;
+      // Sync active quest count to HUD indicator
+      const activeCount = quests?.filter((q: any) => q.status === 'active').length ?? 0;
+      this.questNotificationManager?.setActiveQuestCount(activeCount);
+      if (activeCount > 0) {
+        const first = quests.find((q: any) => q.status === 'active');
+        if (first) {
+          this.questNotificationManager?.setTrackedQuest({ id: first.id, title: first.title });
+        }
+      }
       this.settlements = settlements;
       this.rules = [...rules, ...baseRules];
       this.countries = countries;
@@ -1675,6 +2007,24 @@ export class BabylonGame {
         quests: quests?.length || 0,
         assets: assets?.length || 0
       });
+
+      // Register active listening comprehension quests
+      if (this.listeningComprehensionManager && quests) {
+        for (const quest of quests) {
+          if (quest.status === 'active' && quest.completionCriteria?.type === 'listening_comprehension') {
+            this.listeningComprehensionManager.registerQuest(
+              quest.id,
+              quest.completionCriteria.storyNpcId || quest.assignedByCharacterId,
+              quest.completionCriteria.answerNpcId,
+              quest.completionCriteria.questions || [],
+              world?.targetLanguage,
+            );
+          }
+        }
+      }
+
+      // Initialize quest language feedback tracker for the first active language quest
+      this.initQuestLanguageFeedbackTracker(quests);
 
       // Initialize Prolog engine with world data
       if (this.prologEngine) {
@@ -2116,10 +2466,25 @@ export class BabylonGame {
           terrain: settlement.terrain
         });
 
-        // Generate lot positions
-        const lotPositions = worldScaleManager
-          .generateLotPositions(scaledSettlement, buildingCount)
-          .map((pos) => this.projectToGround(pos.x, pos.z));
+        // Extract street names from lot data for street-aligned placement
+        const lotStreetNames = Array.from(new Set(lots.map((l: any) => l.streetName).filter(Boolean)));
+
+        // Generate street-aligned lot layout (commercial-friendly positions first)
+        const streetLayout = worldScaleManager.generateStreetAlignedSettlement(
+          scaledSettlement,
+          buildingCount,
+          businesses.length,
+          lotStreetNames.length > 0 ? lotStreetNames : undefined,
+        );
+
+        // Project lot positions to ground and preserve facing angles + zones
+        const placedLots = streetLayout.lots;
+        const projectedLots = placedLots.map((l) => ({
+          position: this.projectToGround(l.position.x, l.position.z),
+          facingAngle: l.facingAngle,
+          zone: l.zone,
+        }));
+        const lotPositions = projectedLots.map((l) => l.position);
 
         // Spawn buildings (track per-settlement positions for street furniture)
         const settlementBuildingPositions: Vector3[] = [];
@@ -2135,7 +2500,9 @@ export class BabylonGame {
             businessType: business.businessType,
             position: lotPositions[buildingIndex],
             worldStyle,
-            population: scaledSettlement.population
+            population: scaledSettlement.population,
+            rotation: projectedLots[buildingIndex]?.facingAngle,
+            zone: projectedLots[buildingIndex]?.zone,
           });
 
           buildingSpec = {
@@ -2146,6 +2513,12 @@ export class BabylonGame {
               buildingSpec.depth
             )
           };
+
+          // Compute terrain-adaptive foundation
+          buildingSpec.foundation = computeFoundationData(
+            buildingSpec.position.x, buildingSpec.position.z,
+            buildingSpec.width, buildingSpec.depth, sampleHeight,
+          );
 
           const building = buildingGenerator.generateBuilding(buildingSpec);
           allBuildingPositions.push(building.position);
@@ -2233,7 +2606,9 @@ export class BabylonGame {
             businessType: residenceType,
             position: lotPositions[buildingIndex],
             worldStyle,
-            population: occupants.length
+            population: occupants.length,
+            rotation: projectedLots[buildingIndex]?.facingAngle,
+            zone: projectedLots[buildingIndex]?.zone,
           });
 
           buildingSpec = {
@@ -2244,6 +2619,12 @@ export class BabylonGame {
               buildingSpec.depth
             )
           };
+
+          // Compute terrain-adaptive foundation
+          buildingSpec.foundation = computeFoundationData(
+            buildingSpec.position.x, buildingSpec.position.z,
+            buildingSpec.width, buildingSpec.depth, sampleHeight,
+          );
 
           const building = buildingGenerator.generateBuilding(buildingSpec);
           allBuildingPositions.push(building.position);
@@ -2367,7 +2748,9 @@ export class BabylonGame {
               businessType: biz.businessType,
               position: lotPositions[buildingIndex],
               worldStyle,
-              population: scaledSettlement.population
+              population: scaledSettlement.population,
+              rotation: projectedLots[buildingIndex]?.facingAngle,
+              zone: projectedLots[buildingIndex]?.zone,
             });
 
             buildingSpec = {
@@ -2378,6 +2761,12 @@ export class BabylonGame {
                 buildingSpec.depth
               )
             };
+
+            // Compute terrain-adaptive foundation
+            buildingSpec.foundation = computeFoundationData(
+              buildingSpec.position.x, buildingSpec.position.z,
+              buildingSpec.width, buildingSpec.depth, sampleHeight,
+            );
 
             const building = buildingGenerator.generateBuilding(buildingSpec);
             allBuildingPositions.push(building.position);
@@ -2445,7 +2834,9 @@ export class BabylonGame {
             businessType: residenceType,
             position: lotPositions[buildingIndex],
             worldStyle,
-            population: Math.floor(scaledSettlement.population / buildingCount)
+            population: Math.floor(scaledSettlement.population / buildingCount),
+            rotation: projectedLots[buildingIndex]?.facingAngle,
+            zone: projectedLots[buildingIndex]?.zone,
           });
 
           buildingSpec = {
@@ -2456,6 +2847,12 @@ export class BabylonGame {
               buildingSpec.depth
             )
           };
+
+          // Compute terrain-adaptive foundation
+          buildingSpec.foundation = computeFoundationData(
+            buildingSpec.position.x, buildingSpec.position.z,
+            buildingSpec.width, buildingSpec.depth, sampleHeight,
+          );
 
           const building = buildingGenerator.generateBuilding(buildingSpec);
           allBuildingPositions.push(building.position);
@@ -2513,14 +2910,31 @@ export class BabylonGame {
           sampleHeight
         );
 
-        // Generate intra-settlement streets (hub-and-spoke from center to buildings)
-        if (this.roadGenerator && settlementBuildingPositions.length > 0) {
-          this.roadGenerator.generateSettlementRoads(
+        // Generate intra-settlement streets using street network topology
+        if (this.roadGenerator) {
+          const streetNetwork = buildStreetNetwork(
+            {
+              settlementId: settlement.id,
+              centerX: settlementCenterForProps.x,
+              centerZ: settlementCenterForProps.z,
+              radius: scaledSettlement.radius,
+              population: scaledSettlement.population,
+              settlementType: settlement.settlementType || scaledSettlement.settlementType || 'town',
+              streetNames: (settlement.streets || []).map((s: any) => s.name).filter(Boolean),
+            },
+            (settlement as any).streetNetwork ?? null
+          );
+          this.roadGenerator.generateSettlementStreets(
             settlement.id,
-            settlementCenterForProps,
-            settlementBuildingPositions,
+            streetNetwork,
             sampleHeight
           );
+          // Collect street segments for minimap overlay
+          for (const seg of streetNetwork.segments) {
+            if (seg.waypoints.length >= 2) {
+              this._minimapStreets.push({ waypoints: seg.waypoints, width: seg.width });
+            }
+          }
         }
 
         // Create a subtle ground marker and signpost for the settlement center
@@ -2756,6 +3170,12 @@ export class BabylonGame {
       this.roadGenerator.generateRoads(settlementNodes, sampleHeight);
     }
 
+    // Generate rivers for biomes that have water
+    if (this.riverGenerator && biome.hasWater) {
+      const riverCount = biome.name === 'Swamp' ? 3 : biome.name === 'Tropical' ? 2 : 1;
+      this.riverGenerator.generateRivers(terrainSize, sampleHeight, riverCount);
+    }
+
     // Generate nature elements (trees, rocks, grass, flowers)
     console.log('Generating nature elements...');
 
@@ -2766,11 +3186,16 @@ export class BabylonGame {
       maxZ: terrainSize / 2 - 50
     };
 
-    // Collect road positions for avoidance (trees shouldn't grow on roads)
+    // Collect road and river positions for avoidance (trees shouldn't grow on roads or in rivers)
     const avoidPositions = [...allBuildingPositions];
     if (this.roadGenerator) {
       for (const roadMesh of this.roadGenerator.getRoadMeshes()) {
         avoidPositions.push(roadMesh.position.clone());
+      }
+    }
+    if (this.riverGenerator) {
+      for (const riverMesh of this.riverGenerator.getRiverMeshes()) {
+        avoidPositions.push(riverMesh.position.clone());
       }
     }
 
@@ -2784,6 +3209,10 @@ export class BabylonGame {
     const rockCount = Math.floor((terrainSize / 20) * (biome.treeType === 'dead' ? 2 : 1));
     natureGenerator.generateRocks(biome, worldBounds, rockCount, sampleHeight);
 
+    // Geological features — boulders, rock clusters, pillars, outcrops, crystals
+    const geoBaseCount = Math.floor(terrainSize / 30);
+    natureGenerator.generateGeologicalFeatures(biome, worldBounds, geoBaseCount, sampleHeight);
+
     // Shrubs/bushes — scale with vegetation richness
     const shrubCount = Math.floor(30 * vegetationScale);
     natureGenerator.generateShrubs(biome, worldBounds, shrubCount, sampleHeight);
@@ -2796,6 +3225,11 @@ export class BabylonGame {
     if (biome.hasFlowers) {
       const flowerCount = Math.floor((terrainSize / 10) * vegetationScale);
       natureGenerator.generateFlowers(biome, worldBounds, flowerCount, sampleHeight);
+    }
+
+    // Lakes — generate in water-capable biomes, avoiding buildings/roads
+    if (biome.hasWater) {
+      natureGenerator.generateLakes(biome, worldBounds, sampleHeight, avoidPositions, 25);
     }
 
     // Generate wilderness props (camps, ruins, landmarks) between settlements
@@ -2842,6 +3276,9 @@ export class BabylonGame {
         }
       }
     }
+
+    // Generate terrain background for the minimap from the heightmap
+    this.generateMinimapTerrainBackground();
 
     // Capture the minimap snapshot BEFORE hiding prototypes.
     // InstancedMesh objects require their source prototype meshes to be enabled
@@ -3817,6 +4254,64 @@ export class BabylonGame {
     }
   }
 
+  /**
+   * Detect first playthrough in a language-learning world and launch onboarding.
+   * Runs asynchronously after the game loop starts so the world is visible.
+   */
+  private async tryLaunchOnboarding(): Promise<void> {
+    if (!this.worldData || !this.guiManager) return;
+    if (!isLanguageLearningWorld(this.worldData)) return;
+
+    const playerId = this.config.userId || DEFAULT_PLAYER_ID;
+    const authToken = this.config.authToken || '';
+
+    const firstPlay = await isFirstPlaythrough(
+      this.config.worldId,
+      playerId,
+      authToken,
+    );
+    if (!firstPlay) {
+      console.log('[BabylonGame] Returning player — skipping onboarding');
+      return;
+    }
+
+    console.log('[BabylonGame] First playthrough detected — launching onboarding');
+    this.onboardingActive = true;
+    this.assessmentActive = true;
+
+    const result = await launchOnboarding({
+      eventBus: this.eventBus,
+      worldId: this.config.worldId,
+      playerId,
+      authToken,
+      targetLanguage: getTargetLanguage(this.worldData),
+      guiManager: this.guiManager,
+    });
+
+    this.onboardingActive = false;
+    this.assessmentActive = false;
+
+    if (result) {
+      this.onboardingResult = result;
+      console.log('[BabylonGame] Onboarding complete — CEFR:', result.cefrLevel);
+
+      // Apply CEFR-based content gating if available
+      if (this.contentGatingManager) {
+        try {
+          (this.contentGatingManager as any).setCefrLevel?.(result.cefrLevel);
+        } catch {
+          // Content gating may not support setCefrLevel yet
+        }
+      }
+
+      this.guiManager?.showToast({
+        title: `Language Level: ${result.cefrLevel}`,
+        description: 'Your adventure begins! Talk to NPCs to practice.',
+        duration: 5000,
+      });
+    }
+  }
+
   private async loadPlayer(): Promise<void> {
     if (!this.scene) return;
 
@@ -4466,6 +4961,65 @@ export class BabylonGame {
   }
 
   /**
+   * Handle E-key building interaction: enter the nearest building or exit
+   * the current interior.
+   */
+  private async handleBuildingInteraction(): Promise<void> {
+    // If already inside a building, exit
+    if (this.isInsideBuilding) {
+      await this.exitBuilding();
+      return;
+    }
+
+    if (!this.playerMesh) return;
+
+    const playerPos = this.playerMesh.position;
+    const maxDist = 8;
+    let nearestBuilding: Mesh | null = null;
+    let nearestDist = maxDist;
+
+    // Search buildingData map (populated when buildings are placed in the world)
+    this.buildingData.forEach((data) => {
+      const meta = data.metadata;
+      if (!meta?.buildingId || !meta?.buildingType) return;
+      const dist = Vector3.Distance(playerPos, data.position);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestBuilding = data.mesh;
+      }
+    });
+
+    // Fallback: scan all scene meshes for any building with metadata
+    if (!nearestBuilding && this.scene) {
+      for (const mesh of this.scene.meshes) {
+        const meta = mesh.metadata;
+        if (!meta?.buildingId || !meta?.buildingType) continue;
+        const dist = Vector3.Distance(playerPos, mesh.position);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearestBuilding = mesh as Mesh;
+        }
+      }
+    }
+
+    if (nearestBuilding) {
+      const meta = nearestBuilding.metadata;
+      await this.enterBuilding(
+        meta.buildingId || meta.businessId || meta.residenceId,
+        meta.buildingType,
+        meta.businessType,
+        nearestBuilding.position.clone()
+      );
+    } else {
+      this.guiManager?.showToast({
+        title: 'No building nearby',
+        description: 'Walk closer to a building and press E to enter.',
+        duration: 2000,
+      });
+    }
+  }
+
+  /**
    * Phase 4B: Enter a building interior. Generates the interior if needed,
    * performs a fade-to-black transition, and teleports the player inside.
    */
@@ -4616,8 +5170,9 @@ export class BabylonGame {
       this.questObjectManager?.trackLocationDiscovery(zone.id);
       this.eventBus.emit({ type: 'settlement_entered', settlementId: zone.id, settlementName: zone.name || zone.id });
 
-      // Hide NPCs not in this settlement
+      // Hide NPCs not in this settlement (skip NPCs in active conversation)
       this.npcMeshes.forEach((instance, npcId) => {
+        if (instance.isInConversation) return;
         if (!this.settlementSceneManager!.isNPCInActiveSettlement(npcId)) {
           if (instance.mesh && instance.mesh.isEnabled()) {
             instance.mesh.setEnabled(false);
@@ -4976,6 +5531,8 @@ export class BabylonGame {
         if (!this.isInsideBuilding) {
           this.npcMeshes.forEach((instance) => {
             if (!instance?.mesh) return;
+            // Skip ground snapping for NPCs in conversation (controller is stopped)
+            if (instance.isInConversation) return;
             // Phase 8: Skip ground snapping for disabled NPCs (hidden by isolation or distance)
             if (!instance.mesh.isEnabled()) return;
             const mesh = instance.mesh;
@@ -5026,6 +5583,11 @@ export class BabylonGame {
       // Phase 3: Update audio listener position for distance-based culling
       if (this.playerMesh && this.audioManager) {
         this.audioManager.setListenerPosition(this.playerMesh.position);
+      }
+
+      // Animate water surfaces
+      if (this.waterRenderer) {
+        this.waterRenderer.update(dt / 1000);
       }
 
       // Update Prolog game state (every 500ms, aligned with ground snap timer)
@@ -5102,6 +5664,17 @@ export class BabylonGame {
     for (let i = 0; i < count; i++) {
       const { npcId, instance, dist } = npcList[i];
       if (!instance.mesh || !instance.controller) continue;
+
+      // Never cull the NPC the player is currently talking to
+      if (instance.isInConversation) {
+        if (!instance.mesh.isEnabled()) {
+          console.warn(`[NPC Culling] Conversation NPC ${npcId} was disabled by something! Re-enabling.`);
+          instance.mesh.setEnabled(true);
+        }
+        if (instance.billboardLOD?.isEnabled()) instance.billboardLOD.setEnabled(false);
+        instance.isBillboardMode = false;
+        continue;
+      }
 
       // Phase 8: Hide NPCs not in active settlement during isolation
       if (this.settlementSceneManager?.isIsolated &&
@@ -5234,21 +5807,9 @@ export class BabylonGame {
       instance.controller.turnLeft(false);
       instance.controller.turnRight(false);
 
-      // Make NPC face the player during conversation
-      if (this.playerMesh && instance.mesh) {
-        const npcPos = instance.mesh.position;
-        const pPos = this.playerMesh.position;
-        const directionToPlayer = pPos.subtract(npcPos).normalize();
-        const targetRotation = Math.atan2(directionToPlayer.x, directionToPlayer.z) + Math.PI;
-
-        instance.mesh.rotation.y = targetRotation;
-        if ((instance.controller as any)._avatar) {
-          (instance.controller as any)._avatar.rotation.y = targetRotation;
-        }
-        if (instance.mesh.parent && instance.mesh.parent instanceof Mesh) {
-          (instance.mesh.parent as Mesh).rotation.y = targetRotation;
-        }
-      }
+      // NPC rotation was already set at conversation start — no need
+      // to continuously re-apply it. The player isn't moving either,
+      // so the facing direction stays correct.
       return;
     }
 
@@ -5256,6 +5817,7 @@ export class BabylonGame {
     const homePos = instance.homePosition || instance.mesh.position;
     const currentPos = instance.mesh.position;
     const wanderRadius = 8;
+    const halfTerrain = (this.terrainSize || 512) / 2 - 5;
 
     // If waiting, check if wait is over
     if (instance.wanderWaitUntil && now < instance.wanderWaitUntil) {
@@ -5264,6 +5826,27 @@ export class BabylonGame {
       instance.controller.turnRight(false);
       return;
     }
+
+    // Stuck detection: if the NPC has been walking but hasn't moved, abandon target
+    if (instance.wanderTarget && instance.lastWanderPosition) {
+      const moved = Vector3.Distance(currentPos, instance.lastWanderPosition);
+      if (moved < 0.05) {
+        instance.stuckTicks = (instance.stuckTicks || 0) + 1;
+        if (instance.stuckTicks >= 3) {
+          // Stuck for 3+ AI ticks — abandon target and idle briefly
+          instance.wanderTarget = undefined;
+          instance.stuckTicks = 0;
+          instance.wanderWaitUntil = now + 1000 + Math.random() * 2000;
+          instance.controller.walk(false);
+          instance.controller.turnLeft(false);
+          instance.controller.turnRight(false);
+          return;
+        }
+      } else {
+        instance.stuckTicks = 0;
+      }
+    }
+    instance.lastWanderPosition = currentPos.clone();
 
     // If no wander target or reached target, pick new one
     if (!instance.wanderTarget || Vector3.Distance(currentPos, instance.wanderTarget) < 2) {
@@ -5278,24 +5861,25 @@ export class BabylonGame {
       if (this._wanderRaycastsThisTick < MAX_WANDER_RAYCASTS_PER_TICK) {
         const angle = Math.random() * Math.PI * 2;
         const distance = Math.random() * wanderRadius;
-        const offsetX = Math.cos(angle) * distance;
-        const offsetZ = Math.sin(angle) * distance;
+        let tx = homePos.x + Math.cos(angle) * distance;
+        let tz = homePos.z + Math.sin(angle) * distance;
 
-        const targetPos = this.projectToGround(
-          homePos.x + offsetX,
-          homePos.z + offsetZ
-        );
+        // Clamp to world bounds so NPCs don't wander off the terrain
+        tx = Math.max(-halfTerrain, Math.min(halfTerrain, tx));
+        tz = Math.max(-halfTerrain, Math.min(halfTerrain, tz));
+
+        const targetPos = this.projectToGround(tx, tz);
         instance.wanderTarget = targetPos;
         this._wanderRaycastsThisTick++;
       } else {
         // Fallback: use flat target without raycast
         const angle = Math.random() * Math.PI * 2;
         const distance = Math.random() * wanderRadius;
-        instance.wanderTarget = new Vector3(
-          homePos.x + Math.cos(angle) * distance,
-          currentPos.y,
-          homePos.z + Math.sin(angle) * distance
-        );
+        let tx = homePos.x + Math.cos(angle) * distance;
+        let tz = homePos.z + Math.sin(angle) * distance;
+        tx = Math.max(-halfTerrain, Math.min(halfTerrain, tx));
+        tz = Math.max(-halfTerrain, Math.min(halfTerrain, tz));
+        instance.wanderTarget = new Vector3(tx, currentPos.y, tz);
       }
       return;
     }
@@ -5342,6 +5926,19 @@ export class BabylonGame {
    * Capture a top-down orthographic screenshot of the world for the minimap.
    * Must be called BEFORE hidePrototypes() so clone source meshes are present.
    */
+  private generateMinimapTerrainBackground(): void {
+    if (!this.guiManager) return;
+    const biome = ProceduralNatureGenerator.getBiomeFromWorldType(this.config.worldType);
+    const biomeName = biome.name.toLowerCase();
+    generateTerrainCanvas('/assets/ground/ground_heightMap.png', 256, biomeName)
+      .then((canvas) => {
+        this.guiManager?.setMinimapTerrainBackground(canvas);
+      })
+      .catch((err) => {
+        console.warn('[BabylonGame] Minimap terrain background failed:', err);
+      });
+  }
+
   private async captureMinimapSnapshot(): Promise<void> {
     if (!this.scene || !this.guiManager) return;
     const engine = this.scene.getEngine();
@@ -5399,6 +5996,21 @@ export class BabylonGame {
         engine, snapCam, SNAPSHOT_SIZE
       );
       this.guiManager.setMinimapImage(dataUrl, worldSize);
+      // Share the snapshot with the full-screen map
+      if (this.fullscreenMap) {
+        const img = new window.Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0);
+            this.fullscreenMap?.setWorldImage(canvas, worldSize);
+          }
+        };
+        img.src = dataUrl;
+      }
     } catch (err) {
       console.error('[BabylonGame] Minimap snapshot failed:', err);
     }
@@ -5420,7 +6032,8 @@ export class BabylonGame {
   }
 
   private _minimapBuildingsCollected = false;
-  private _minimapBuildings: Array<{ position: { x: number; z: number }; type: 'business' | 'residence' | 'other' }> = [];
+  private _minimapBuildings: Array<{ position: { x: number; z: number }; type: 'business' | 'residence' | 'other'; width: number; depth: number }> = [];
+  private _minimapStreets: Array<{ waypoints: Array<{ x: number; z: number }>; width: number }> = [];
 
   private updateMinimapOverlay(): void {
     if (!this.guiManager || !this.worldData || !this.playerMesh) return;
@@ -5451,9 +6064,22 @@ export class BabylonGame {
         const bType = data.metadata?.buildingType === 'business' ? 'business' as const
           : data.metadata?.buildingType === 'residence' ? 'residence' as const
           : 'other' as const;
+        // Extract footprint dimensions from mesh bounding box
+        let width = 6;
+        let depth = 6;
+        if (data.mesh) {
+          const bounds = data.mesh.getBoundingInfo?.()?.boundingBox;
+          if (bounds) {
+            const ext = bounds.extendSize;
+            width = ext.x * 2;
+            depth = ext.z * 2;
+          }
+        }
         this._minimapBuildings.push({
           position: { x: data.position.x, z: data.position.z },
-          type: bType
+          type: bType,
+          width,
+          depth
         });
       });
       this._minimapBuildingsCollected = true;
@@ -5483,9 +6109,10 @@ export class BabylonGame {
       });
     });
 
-    this.guiManager.updateMinimap({
+    const minimapData = {
       settlements: settlementsData,
       buildings: this._minimapBuildings,
+      streets: this._minimapStreets,
       questMarkers,
       npcPositions,
       playerPosition: {
@@ -5494,7 +6121,10 @@ export class BabylonGame {
       },
       playerRotationY: this.playerMesh.rotation.y,
       worldSize: this.terrainSize || 512
-    });
+    };
+
+    this.guiManager.updateMinimap(minimapData);
+    this.fullscreenMap?.update(minimapData);
   }
 
   private _perfDiv: HTMLDivElement | null = null;
@@ -5544,9 +6174,13 @@ export class BabylonGame {
       return;
     }
 
-    // ESC - Toggle unified game menu (or close it if open)
-    if (event.code === 'Escape' && !event.repeat) {
+    // ESC - Close full-screen map first, then toggle game menu
+    if (event.code === KEY_GAME_MENU && !event.repeat) {
       event.preventDefault();
+      if (this.fullscreenMap?.isOpen) {
+        this.fullscreenMap.close();
+        return;
+      }
       if (this.gameMenuSystem) {
         this.gameMenuSystem.toggle();
       }
@@ -5559,7 +6193,7 @@ export class BabylonGame {
     }
 
     // G - Interact with nearest NPC (selects + opens chat) or exit conversation
-    if (event.code === 'KeyG' && !event.repeat) {
+    if (event.code === KEY_NPC_INTERACT && !event.repeat) {
       event.preventDefault();
       if (this.conversationNPCId) {
         // If in conversation, exit it
@@ -5575,44 +6209,38 @@ export class BabylonGame {
       }
     }
 
+    // Enter - Enter/exit nearest building
+    if (event.code === KEY_BUILDING_INTERACT && !event.repeat) {
+      event.preventDefault();
+      await this.handleBuildingInteraction();
+    }
+
     // F - Attack/Respawn
-    if (event.code === 'KeyF' && !event.repeat) {
+    if (event.code === KEY_ATTACK && !event.repeat) {
       event.preventDefault();
       this.handleAttack();
     }
 
     // T - Target nearest enemy
-    if (event.code === 'KeyT' && !event.repeat) {
+    if (event.code === KEY_TARGET_ENEMY && !event.repeat) {
       event.preventDefault();
       this.handleTargetEnemy();
     }
 
-    // V - Toggle vocabulary/grammar panel
-    if (event.code === 'KeyV' && !event.shiftKey && !event.repeat) {
+    // J - Toggle quest log
+    if (event.code === KEY_QUEST_LOG && !event.repeat) {
       event.preventDefault();
-      this.handleToggleVocabularyPanel();
+      this.questTracker?.toggle();
     }
 
-    // H - Toggle conversation history panel
-    if (event.code === 'KeyH' && !event.repeat) {
+    // M - Toggle full-screen map
+    if (event.code === KEY_FULLSCREEN_MAP && !event.repeat) {
       event.preventDefault();
-      this.handleToggleConversationHistory();
-    }
-
-    // K - Toggle skill tree panel
-    if (event.code === 'KeyK' && !event.repeat) {
-      event.preventDefault();
-      this.handleToggleSkillTree();
-    }
-
-    // N - Toggle notice board
-    if (event.code === 'KeyN' && !event.repeat) {
-      event.preventDefault();
-      this.handleToggleNoticeBoard();
+      this.fullscreenMap?.toggle();
     }
 
     // Shift+V - Toggle VR
-    if (event.code === 'KeyV' && event.shiftKey && !event.repeat) {
+    if (event.code === KEY_TOGGLE_VR && event.shiftKey && !event.repeat) {
       event.preventDefault();
       await this.handleToggleVR();
     }
@@ -5684,7 +6312,7 @@ export class BabylonGame {
         worldId: this.config.worldId
       } as any;
 
-      // Try to fetch truths for conversation context (optional - fallback to empty array)
+      // Fetch truths first (before NPC setup)
       let truths: any[] = [];
       try {
         truths = await this.dataSource.loadTruths(this.config.worldId);
@@ -5695,45 +6323,33 @@ export class BabylonGame {
       const npcInstance = this.npcMeshes.get(npcId);
       const npcMesh = npcInstance?.mesh;
 
-      // Mark NPC as in conversation (stops their wandering)
+      // Mark NPC as in conversation to protect from culling
       if (npcInstance) {
         npcInstance.isInConversation = true;
-        
-        // Make NPC turn to face the player
+
+        // Save the NPC's position so we can restore it after conversation
+        if (npcMesh) {
+          npcInstance.preConversationPosition = npcMesh.position.clone();
+        }
+
+        // Stop NPC movement and freeze controller (prevents gravity drift during chat)
+        if (npcInstance.controller) {
+          npcInstance.controller.walk(false);
+          npcInstance.controller.turnLeft(false);
+          npcInstance.controller.turnRight(false);
+          npcInstance.controller.stop();
+        }
+
+        // Rotate NPC to face the player
         if (npcMesh && this.playerMesh) {
           const npcPos = npcMesh.position;
           const playerPos = this.playerMesh.position;
-          
-          // Calculate direction from NPC to player
           const directionToPlayer = playerPos.subtract(npcPos).normalize();
-          
-          // Calculate the rotation angle (in radians)
-          // Note: Babylon.js uses Y rotation, where 0 = facing +Z, PI/2 = facing +X
-          // Add PI to make NPC face the player instead of away
           const targetRotation = Math.atan2(directionToPlayer.x, directionToPlayer.z) + Math.PI;
-          
-          // Try multiple ways to rotate the NPC
-          console.log(`[Conversation] Rotating NPC to face player. Target rotation: ${targetRotation}`);
-          
-          // Method 1: Direct mesh rotation
+
           npcMesh.rotation.y = targetRotation;
-          
-          // Method 2: If CharacterController has an avatar, rotate that
           if (npcInstance.controller && (npcInstance.controller as any)._avatar) {
             (npcInstance.controller as any)._avatar.rotation.y = targetRotation;
-            console.log('[Conversation] Rotated CharacterController avatar');
-          }
-          
-          // Method 3: Try rotating parent if it exists and is a Mesh
-          if (npcMesh.parent && npcMesh.parent instanceof Mesh) {
-            (npcMesh.parent as Mesh).rotation.y = targetRotation;
-          }
-          
-          // Also stop any ongoing movement
-          if (npcInstance.controller) {
-            npcInstance.controller.walk(false);
-            npcInstance.controller.turnLeft(false);
-            npcInstance.controller.turnRight(false);
           }
 
           // Show conversation indicator (speech bubble + body sway)
@@ -5744,47 +6360,52 @@ export class BabylonGame {
       }
       this.conversationNPCId = npcId;
 
-      // Save current camera mode and switch to conversation mode
+      // Save current camera mode and switch to first-person conversation view
       if (this.cameraManager && this.camera && npcMesh) {
         this.preConversationCameraMode = this.cameraManager.getCurrentMode();
-        
+
         // Stop the player's CharacterController to prevent camera updates
         if (this.playerController) {
           this.playerController.stop();
         }
-        
-        // Get NPC and player positions
-        const npcPos = npcMesh.position.clone();
-        const playerPos = this.playerMesh?.position || npcPos.add(new Vector3(1, 0, 0));
-        
-        // DON'T switch to first-person mode - keep current mode but override position
-        // this.cameraManager.setMode('first_person', false);
-        
-        // Calculate direction from player to NPC
-        const playerToNPC = npcPos.subtract(playerPos).normalize();
-        
-        // Calculate camera position: start from player, move back along the player-to-NPC direction
-        const conversationDistance = 4;
-        const cameraPos = playerPos.add(playerToNPC.scale(-conversationDistance));
-        
-        // Target is NPC's face
-        const targetPos = npcPos.add(new Vector3(0, 1.6, 0));
-        
-        // Set camera position directly
-        this.camera.position = cameraPos.add(new Vector3(0, 1.6, 0)); // Eye level
+
+        // First-person conversation camera: position at player's eyes, looking at NPC's face
+        const playerPos = this.playerMesh?.position || npcMesh.position.add(new Vector3(1, 0, 0));
+        const eyeHeight = 1.6;
+        const cameraPos = playerPos.add(new Vector3(0, eyeHeight, 0));
+        const targetPos = npcMesh.position.add(new Vector3(0, eyeHeight, 0));
+
+        // Clear all angle/radius limits before setting conversation camera,
+        // otherwise the previous camera mode's limits clamp the new position
+        this.camera.lowerBetaLimit = 0;
+        this.camera.upperBetaLimit = Math.PI;
+        this.camera.lowerAlphaLimit = null;
+        this.camera.upperAlphaLimit = null;
+        this.camera.lowerRadiusLimit = 0;
+        this.camera.upperRadiusLimit = 100;
+
+        // Set camera position and target
+        this.camera.position = cameraPos;
         this.camera.setTarget(targetPos);
-        
-        // Adjust camera settings for conversation
-        this.camera.radius = conversationDistance;
-        this.camera.beta = Math.PI / 2.2; // Looking slightly down
-        this.camera.lowerRadiusLimit = conversationDistance;
-        this.camera.upperRadiusLimit = conversationDistance;
-        
+
+        // Sync spherical coords from the position we just set
+        this.camera.rebuildAnglesAndRadius();
+
+        // Lock the radius so the camera stays in first-person position
+        this.camera.lowerRadiusLimit = this.camera.radius;
+        this.camera.upperRadiusLimit = this.camera.radius;
+
+        // Hide player mesh entirely (first-person view — looking through their eyes)
+        if (this.playerMesh) {
+          this.playerMesh.visibility = 0;
+        }
+
+        // Ensure NPC stays fully visible during conversation
+        npcMesh.visibility = 1;
+        npcMesh.getChildMeshes().forEach(child => { child.visibility = 1; });
+
         // Lock the camera by disabling camera controls
         this.camera.detachControl();
-        
-        // Force camera to update immediately
-        this.camera.rebuildAnglesAndRadius();
       }
 
       // Set player inventory context for NPC awareness
@@ -6055,6 +6676,21 @@ export class BabylonGame {
       const npcInstance = this.npcMeshes.get(this.conversationNPCId);
       if (npcInstance) {
         npcInstance.isInConversation = false;
+
+        // Restore the NPC's position to where they were before conversation
+        if (npcInstance.preConversationPosition && npcInstance.mesh) {
+          npcInstance.mesh.position.copyFrom(npcInstance.preConversationPosition);
+          npcInstance.preConversationPosition = undefined;
+          // Re-enable mesh if it was disabled by distance culling during conversation
+          if (!npcInstance.mesh.isEnabled()) {
+            npcInstance.mesh.setEnabled(true);
+          }
+        }
+
+        // Restart NPC controller (was stopped to prevent gravity drift during chat)
+        if (npcInstance.controller) {
+          npcInstance.controller.start();
+        }
       }
       if (this.npcTalkingIndicator) {
         this.npcTalkingIndicator.hide(this.conversationNPCId);
@@ -6062,30 +6698,30 @@ export class BabylonGame {
       this.conversationNPCId = null;
     }
 
-    // Restart the player's CharacterController
-    if (this.playerController) {
-      this.playerController.start();
+    // Restore player mesh visibility
+    if (this.playerMesh) {
+      this.playerMesh.visibility = 1;
     }
 
-    // Restore previous camera mode
+    // Restore previous camera mode (do this BEFORE restarting the controller,
+    // so limits are correct when the controller's _updateTargetValue runs)
     if (this.cameraManager && this.preConversationCameraMode && this.camera) {
-      // Restore locked camera radius
-      this.camera.lowerRadiusLimit = 10;
-      this.camera.upperRadiusLimit = 10;
-      
-      // Only switch mode if it's different from current
-      if (this.cameraManager.getCurrentMode() !== this.preConversationCameraMode) {
-        this.cameraManager.setMode(this.preConversationCameraMode, false);
-      }
+      // Re-attach camera controls first so mode switch can take effect
+      this.camera.attachControl(this.canvas, true);
+
+      // Restore camera mode (this resets radius, beta, limits, and player visibility)
+      this.cameraManager.setMode(this.preConversationCameraMode, false);
       this.preConversationCameraMode = null;
-      
+
       // Re-target camera to player if available
       if (this.playerMesh) {
         this.camera.setTarget(this.playerMesh.position.add(new Vector3(0, 1.6, 0)));
       }
-      
-      // Re-attach camera controls
-      this.camera.attachControl(this.canvas, true);
+    }
+
+    // Restart the player's CharacterController
+    if (this.playerController) {
+      this.playerController.start();
     }
   }
 
@@ -6279,6 +6915,17 @@ export class BabylonGame {
       });
     }
     this.skillTreePanel.toggle();
+  }
+
+  private handleToggleAssessmentPanel(): void {
+    if (!this.assessmentPanel) return;
+
+    // Refresh with latest gamification data before showing
+    const gamState = this.gamificationTracker?.getState();
+    if (gamState) {
+      this.assessmentPanel.updateData(null, gamState.xp.level);
+    }
+    this.assessmentPanel.toggle();
   }
 
   private handleToggleNoticeBoard(): void {
@@ -7154,6 +7801,54 @@ export class BabylonGame {
     }
   }
 
+  /**
+   * Initialize the quest language feedback tracker for the first active
+   * language-learning quest that has vocabulary or grammar objectives.
+   */
+  private initQuestLanguageFeedbackTracker(quests: any[]): void {
+    if (!quests) return;
+
+    const languageQuestTypes = ['vocabulary', 'grammar', 'conversation', 'translation'];
+    const activeQuest = quests.find(
+      (q: any) => q.status === 'active' && languageQuestTypes.includes(q.questType),
+    );
+
+    if (!activeQuest || !activeQuest.objectives?.length) {
+      this.questLanguageFeedbackTracker = null;
+      this.questLanguageFeedbackPanel?.hide();
+      return;
+    }
+
+    // Build vocab meanings from world language context if available
+    const vocabMeanings: Record<string, string> = {};
+    const lang = this.chatPanel?.getLanguageTracker();
+    if (lang) {
+      for (const entry of lang.getVocabulary()) {
+        vocabMeanings[entry.word] = entry.meaning;
+      }
+    }
+
+    this.questLanguageFeedbackTracker = new QuestLanguageFeedbackTracker(
+      activeQuest.id,
+      activeQuest.title,
+      activeQuest.questType,
+      activeQuest.objectives,
+      vocabMeanings,
+    );
+
+    // Wire callbacks
+    this.questLanguageFeedbackTracker.setOnFeedbackUpdate((state) => {
+      this.questLanguageFeedbackPanel?.updateFromState(state);
+    });
+    this.questLanguageFeedbackTracker.setOnFeedbackItem((item) => {
+      this.questLanguageFeedbackPanel?.addFeedbackItem(item);
+    });
+
+    // Show panel
+    this.questLanguageFeedbackPanel?.show(activeQuest.title);
+    this.questLanguageFeedbackPanel?.updateFromState(this.questLanguageFeedbackTracker.getState());
+  }
+
   private async handleQuestObjectiveCompleted(questId: string, objectiveId: string, type: string): Promise<void> {
     try {
       const quests = await this.dataSource.loadQuests(this.config.worldId);
@@ -7195,9 +7890,10 @@ export class BabylonGame {
         }
       }
 
-      // Apply quest rewards on completion
+      // Apply quest rewards on completion and emit event
       if (allObjectivesComplete) {
         this.applyQuestRewards(quest);
+        this.eventBus.emit({ type: 'quest_completed', questId });
       }
 
       this.guiManager?.showToast({
@@ -7295,8 +7991,32 @@ export class BabylonGame {
         }
       });
 
-      // Update indicators
+      // Update NPC indicators
       this.questIndicatorManager.updateIndicators(npcMap, quests);
+
+      // Update quest-related world object labels and interactivity
+      if (this.questWorldObjectLinker && this.buildingData.size > 0) {
+        // Build NPC-to-building map for objective matching
+        const npcBuildingMap = new Map<string, string>();
+        this.buildingData.forEach((data, buildingId) => {
+          const meta = data.metadata;
+          if (!meta) return;
+          if (meta.ownerId) npcBuildingMap.set(meta.ownerId, buildingId);
+          if (Array.isArray(meta.employees)) {
+            meta.employees.forEach((e: any) => {
+              const eid = typeof e === 'string' ? e : e?.id;
+              if (eid) npcBuildingMap.set(eid, buildingId);
+            });
+          }
+          if (Array.isArray(meta.occupants)) {
+            meta.occupants.forEach((o: any) => {
+              const oid = typeof o === 'string' ? o : o?.id;
+              if (oid) npcBuildingMap.set(oid, buildingId);
+            });
+          }
+        });
+        this.questWorldObjectLinker.updateLinks(quests, this.buildingData, npcBuildingMap);
+      }
     } catch (error) {
       console.error('[BabylonGame] Failed to update quest indicators:', error);
     }
@@ -7467,6 +8187,7 @@ export class BabylonGame {
     // Building system
     if (features.building && this.resourceSystem) {
       this.buildingSystem = new BuildingPlacementSystem(this.scene, this.resourceSystem);
+      this.buildingSystem.setHeightSampler((x, z) => this.projectToGround(x, z).y);
       this.buildingSystem.setOnBuildingComplete((building) => {
         this.guiManager?.showToast({
           title: `${building.name} Complete`,
@@ -7832,6 +8553,9 @@ export class BabylonGame {
   }
 
   private disposeSystems(): void {
+    this.onboardingActive = false;
+    this.assessmentActive = false;
+    this.onboardingResult = null;
     this.ambientConversationManager?.dispose();
     this.ambientConversationManager = null;
     this.npcTalkingIndicator?.dispose();
@@ -7840,14 +8564,18 @@ export class BabylonGame {
     this.buildingCollisionSystem = null;
     this.buildingInfoDisplay?.dispose();
     this.minimap?.dispose();
+    this.fullscreenMap?.dispose();
     this.inventory?.dispose();
     this.shopPanel?.dispose();
     this.rulesPanel?.dispose();
     this.vocabularyPanel?.dispose();
     this.conversationHistoryPanel?.dispose();
     this.skillTreePanel?.dispose();
+    this.assessmentProgressUI?.dispose();
+    this.assessmentPanel?.dispose();
     this.buildingSignManager?.dispose();
     this.gamificationTracker?.dispose();
+    this.questCompletionManager?.dispose();
     this.environmentalAudio?.dispose();
     this.culturalEventManager?.dispose();
     this.noticeBoardPanel?.dispose();
@@ -7857,7 +8585,16 @@ export class BabylonGame {
     this.prologEngine = null;
     this.eventBus.dispose();
     this.questObjectManager?.dispose();
+    this.questIndicatorManager?.dispose();
+    this.questWorldObjectLinker?.dispose();
+    this.questWorldObjectLinker = null;
+    this.questIndicatorManager = null;
     this.radialMenu?.dispose();
+    this.questNotificationManager?.dispose();
+    this.questNotificationManager = null;
+    this.questLanguageFeedbackPanel?.dispose();
+    this.questLanguageFeedbackPanel = null;
+    this.questLanguageFeedbackTracker = null;
     this.questTracker?.dispose();
     this.chatPanel?.dispose();
     this.gameMenuSystem?.dispose();
@@ -7870,6 +8607,8 @@ export class BabylonGame {
     this.buildingGenerator?.dispose();
     this.natureGenerator?.dispose();
     this.roadGenerator?.dispose();
+    this.riverGenerator?.dispose();
+    this.waterRenderer?.dispose();
     this.worldScaleManager = null;
   }
 

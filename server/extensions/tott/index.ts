@@ -78,5 +78,8 @@ export * from './sexuality-system';
 // Social Dynamics
 export * from './social-dynamics-system';
 
+// Settlement Decline Mechanics
+export * from './settlement-decline-system';
+
 // Town-wide simulation events
 export * from './town-events-system';

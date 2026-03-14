@@ -118,6 +118,65 @@ function generateSettlements(ir: WorldIR): object[] {
     countryId: s.countryId || '',
     stateId: s.stateId || '',
     mayorId: s.mayorId || '',
+    infrastructure: s.infrastructure || [],
+    lots: (s.lots || []).map(l => ({
+      id: l.id,
+      address: l.address,
+      houseNumber: l.houseNumber,
+      streetName: l.streetName,
+      block: l.block || '',
+      districtName: l.districtName || '',
+      position: vec3(l.position),
+      facingAngle: l.facingAngle,
+      elevation: l.elevation,
+      buildingType: l.buildingType || '',
+      buildingId: l.buildingId || '',
+      streetEdgeId: l.streetEdgeId || '',
+      side: l.side || '',
+      neighboringLotIds: l.neighboringLotIds,
+      distanceFromDowntown: l.distanceFromDowntown,
+      formerBuildingIds: l.formerBuildingIds,
+    })),
+    streetNetwork: {
+      layout: s.streetNetwork.layout,
+      nodes: s.streetNetwork.nodes.map(n => ({
+        id: n.id,
+        position: vec3(n.position),
+        intersectionOf: n.intersectionOf,
+      })),
+      segments: s.streetNetwork.segments.map(seg => ({
+        id: seg.id,
+        name: seg.name,
+        direction: seg.direction,
+        nodeIds: seg.nodeIds,
+        waypoints: seg.waypoints.map(w => vec3(w)),
+        width: seg.width,
+      })),
+    },
+  }));
+}
+
+function generateWaterFeatures(ir: WorldIR): object[] {
+  return ir.geography.waterFeatures.map(w => ({
+    id: w.id,
+    name: w.name,
+    type: w.type,
+    subType: w.subType,
+    position: vec3(w.position),
+    waterLevel: w.waterLevel,
+    bounds: w.bounds,
+    depth: w.depth,
+    width: w.width,
+    flowDirection: w.flowDirection ? vec3(w.flowDirection) : null,
+    flowSpeed: w.flowSpeed,
+    shorelinePoints: w.shorelinePoints.map(p => vec3(p)),
+    settlementId: w.settlementId || '',
+    biome: w.biome || '',
+    isNavigable: w.isNavigable,
+    isDrinkable: w.isDrinkable,
+    modelAssetKey: w.modelAssetKey || '',
+    transparency: w.transparency,
+    color: w.color || null,
   }));
 }
 
@@ -125,6 +184,7 @@ function generateBuildings(ir: WorldIR): object[] {
   return ir.entities.buildings.map(b => ({
     id: b.id,
     settlementId: b.settlementId,
+    lotId: b.lotId || '',
     position: vec3(b.position),
     rotation: b.rotation,
     buildingRole: b.spec.buildingRole,
@@ -245,6 +305,7 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'rules', data: generateRules(ir) },
     { name: 'quests', data: generateQuests(ir) },
     { name: 'settlements', data: generateSettlements(ir) },
+    { name: 'water_features', data: generateWaterFeatures(ir) },
     { name: 'buildings', data: generateBuildings(ir) },
     { name: 'roads', data: generateRoads(ir) },
     { name: 'businesses', data: generateBusinesses(ir) },

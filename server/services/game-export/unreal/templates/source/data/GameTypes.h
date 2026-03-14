@@ -418,3 +418,47 @@ struct FInsimulUIConfig
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bShowCompass = true;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString GenreLayout;
 };
+
+// ─── Street Networks ────────────────────────────────────────────────────────
+
+USTRUCT(BlueprintType)
+struct FStreetNode
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Id;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float X = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Z = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> IntersectionOf;
+};
+
+USTRUCT(BlueprintType)
+struct FStreetWaypoint
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float X = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Z = 0.f;
+};
+
+USTRUCT(BlueprintType)
+struct FStreetSegment
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Id;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Name;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Direction; // NS, EW, radial, ring
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> NodeIds;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FStreetWaypoint> Waypoints;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Width = 2.5f;
+};
+
+USTRUCT(BlueprintType)
+struct FStreetNetwork
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FStreetNode> Nodes;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FStreetSegment> Segments;
+};

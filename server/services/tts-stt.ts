@@ -1,16 +1,27 @@
 import { getGenAI, isGeminiConfigured, getGeminiApiKey, GEMINI_MODELS } from "../config/gemini.js";
+import { ttsCache, TTSCache } from "./tts-cache.js";
+import { wrapWithEmotionalProsody } from "@shared/emotional-tone.js";
 
 /**
- * Text-to-Speech using Google Cloud Text-to-Speech with gemini-2.5-pro-tts
+ * Text-to-Speech using Google Cloud Text-to-Speech with gemini-2.5-pro-tts.
+ * Results are cached using an LRU cache to avoid redundant API calls.
+ * Supports emotional tone modulation via SSML prosody tags.
  */
 export async function textToSpeech(
-  text: string, 
-  voiceName: string = "Kore", 
+  text: string,
+  voiceName: string = "Kore",
   gender: string = "neutral",
-  encoding: "MP3" | "WAV" = "MP3"
+  encoding: "MP3" | "WAV" = "MP3",
+  emotionalTone?: string
 ): Promise<Buffer> {
   if (!isGeminiConfigured()) {
     throw new Error("Gemini API key is not configured");
+  }
+
+  const cacheKey = TTSCache.makeKey(text, voiceName, gender, encoding, emotionalTone);
+  const cached = ttsCache.get(cacheKey);
+  if (cached) {
+    return cached;
   }
 
   try {
@@ -23,18 +34,20 @@ export async function textToSpeech(
     // Determine language based on text content (simple heuristic)
     const isFrench = /[àâäéèêëïîôùûüÿçœæ]/i.test(text) || text.includes('vous') || text.includes('est');
     const languageCode = isFrench ? "fr-FR" : "en-US";
-    
+
     // Map gender to SSML gender format
-    const ssmlGender = gender.toLowerCase() === 'female' ? 'FEMALE' : 
+    const ssmlGender = gender.toLowerCase() === 'female' ? 'FEMALE' :
                        gender.toLowerCase() === 'male' ? 'MALE' : 'NEUTRAL';
 
     // Map encoding - WAV is LINEAR16 in Google Cloud TTS
     const audioEncoding = encoding === "WAV" ? "LINEAR16" : "MP3";
 
+    // Apply emotional prosody via SSML if tone is provided
+    const { ssml, isSSML } = wrapWithEmotionalProsody(text, emotionalTone);
+    const input = isSSML ? { ssml } : { text };
+
     const [response] = await ttsClient.synthesizeSpeech({
-      input: { 
-        text: text
-      },
+      input,
       voice: {
         languageCode: languageCode,
         ssmlGender: ssmlGender as any
@@ -54,11 +67,12 @@ export async function textToSpeech(
     const audioBuffer = Buffer.from(response.audioContent as Uint8Array);
 
     // If WAV format, we need to add WAV header since LINEAR16 is raw PCM
-    if (encoding === "WAV") {
-      return addWavHeader(audioBuffer, 24000, 1); // 24kHz, mono
-    }
+    const result = encoding === "WAV"
+      ? addWavHeader(audioBuffer, 24000, 1)
+      : audioBuffer;
 
-    return audioBuffer;
+    ttsCache.set(cacheKey, result);
+    return result;
   } catch (error) {
     console.error("TTS error:", error);
     throw new Error(`TTS failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -101,20 +115,23 @@ function addWavHeader(pcmData: Buffer, sampleRate: number, numChannels: number):
 /**
  * Speech-to-Text using Gemini's audio understanding
  */
-export async function speechToText(audioBuffer: Buffer, mimeType: string = 'audio/wav'): Promise<string> {
+export async function speechToText(audioBuffer: Buffer, mimeType: string = 'audio/wav', languageHint?: string): Promise<string> {
   if (!isGeminiConfigured()) {
     throw new Error("Gemini API key is not configured");
   }
 
   try {
     const client = getGenAI();
+    const prompt = languageHint
+      ? `Generate a transcript of this audio. The speaker is expected to be speaking in ${languageHint}. Transcribe in the original language.`
+      : 'Generate a transcript of this audio.';
 
     // For smaller files (< 20MB), use inline audio
     if (audioBuffer.length < 20 * 1024 * 1024) {
       const response = await client.models.generateContent({
         model: GEMINI_MODELS.PRO,
         contents: [
-          'Generate a transcript of this audio.',
+          prompt,
           {
             inlineData: {
               data: audioBuffer.toString('base64'),
@@ -144,7 +161,7 @@ export async function speechToText(audioBuffer: Buffer, mimeType: string = 'audi
         const response = await client.models.generateContent({
           model: GEMINI_MODELS.PRO,
           contents: [
-            'Generate a transcript of this audio.',
+            prompt,
             { fileData: { fileUri: uploadedFile.uri, mimeType: mimeType } }
           ]
         });

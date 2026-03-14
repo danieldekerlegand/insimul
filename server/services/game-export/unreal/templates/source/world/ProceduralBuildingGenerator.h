@@ -36,6 +36,40 @@ struct FBuildingTypeDefaults
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasBalcony = false;
 };
 
+/**
+ * Foundation data for terrain-adaptive building placement.
+ * Determines the type and geometry of the foundation that fills the gap
+ * between sloped terrain and a building's floor plane.
+ */
+USTRUCT(BlueprintType)
+struct FFoundationData
+{
+    GENERATED_BODY()
+
+    /** Foundation type: flat, raised, stilted, or terraced */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Type = TEXT("flat");
+    /** Lowest corner elevation (world Z in Unreal coords) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float BaseElevation = 0.0f;
+    /** Height difference between lowest and highest corner */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float FoundationHeight = 0.0f;
+    /** Per-corner elevations: front-left, front-right, back-left, back-right */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<float> CornerElevations;
+};
+
+/**
+ * Zone-based scale multipliers for building dimensions.
+ * Commercial buildings are taller and wider; residential is the baseline.
+ */
+USTRUCT(BlueprintType)
+struct FZoneScale
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float FloorsMultiplier = 1.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float WidthMultiplier = 1.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float DepthMultiplier = 1.0f;
+};
+
 UCLASS()
 class INSIMULEXPORT_API AProceduralBuildingGenerator : public AActor
 {
@@ -46,7 +80,8 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Building")
     void GenerateBuilding(FVector Position, float Rotation, int32 Floors,
-                          float Width, float Depth, const FString& BuildingRole);
+                          float Width, float Depth, const FString& BuildingRole,
+                          const FFoundationData& Foundation = FFoundationData());
 
     /** Register a prefab model mesh for a building role. When GenerateBuilding is called
      *  with a matching role, this mesh is instanced instead of procedural geometry. */
@@ -80,6 +115,9 @@ public:
     /** Default building dimensions indexed by business type. */
     static const TMap<FString, FBuildingTypeDefaults>& GetBuildingTypes();
 
+    /** Zone-based scale multipliers indexed by zone name (commercial, residential). */
+    static const TMap<FString, FZoneScale>& GetZoneScale();
+
 private:
     UPROPERTY()
     TMap<FString, UMaterialInstanceDynamic*> MaterialCache;
@@ -96,4 +134,12 @@ private:
     UTexture2D* RoofTextureOverride = nullptr;
 
     UMaterialInstanceDynamic* GetSharedMaterial(const FString& Key, UMaterialInterface* Parent, FLinearColor Color);
+
+    /** Create style-appropriate roof geometry. Returns the roof height for positioning. */
+    float CreateRoof(USceneComponent* Parent, const FString& ArchStyle, float Width, float Depth,
+                     int32 Floors, FLinearColor Color, UMaterialInterface* BaseMaterial);
+
+    /** Add door with frame and handle to building. */
+    void AddDoor(USceneComponent* Parent, float Width, float Depth, int32 Floors,
+                 FLinearColor DoorColor, UMaterialInterface* BaseMaterial);
 };

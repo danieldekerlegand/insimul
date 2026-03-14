@@ -1,0 +1,178 @@
+{
+  "tasks": [
+    {
+      "title": "Generic skill tree framework",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "Create shared/skill-tree/ with generic parameterized SkillNode<T>, SkillTier<T>, updateSkillProgress<T>. Extract language-specific types to language-skill-tree.ts. Backward-compatible re-export from existing shared/language-skill-tree.ts."
+    },
+    {
+      "title": "Create shared/language/ directory and move language files",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "Move 9 language-related files from shared/ into shared/language/ (progress, gamification, quest-templates, utils, vocabulary-corpus, types, pronunciation-scoring, character-profile, bilingual-names). Create barrel index.ts."
+    },
+    {
+      "title": "Backward-compatible re-export files for moved language files",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "Create single-line re-export files at each old path (e.g. shared/language-progress.ts -> export * from './language/progress'). Zero breakage for existing imports."
+    },
+    {
+      "title": "Assessment type definitions",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "Create shared/assessment/ with assessment-types.ts: AssessmentDefinition, AssessmentPhase, AssessmentTask, ScoringDimension, AssessmentSession, PhaseResult, TaskResult, AutomatedMetrics, RecordingReference. Pure types, no logic."
+    },
+    {
+      "title": "CEFR score mapping",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "Create shared/assessment/cefr-mapping.ts: mapScoreToCEFR() with A1-B2 thresholds, generic mapScoreToLevel<T>(), getCEFRDescription(). Export from barrel."
+    },
+    {
+      "title": "Arrival Encounter pre-test definition",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "Create shared/assessment/arrival-encounter.ts: ARRIVAL_ENCOUNTER data definition with 4 phases (conversational 25pts, listening 7pts, writing 11pts, visual 10pts). Total 53pts. Template strings with {{targetLanguage}} and {{cityName}}."
+    },
+    {
+      "title": "Departure Encounter post-test definition",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "Create shared/assessment/departure-encounter.ts: DEPARTURE_ENCOUNTER parallel structure to Arrival but different scenarios/prompts. Same scoring: 53pts total across 4 phases."
+    },
+    {
+      "title": "Generic onboarding framework types",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "Create shared/onboarding/ with onboarding-types.ts: OnboardingDefinition, OnboardingStep (narrative/movement/interaction/assessment/ui/combat/custom), OnboardingState, StepState. Genre-agnostic."
+    },
+    {
+      "title": "Language learning onboarding definition",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "Create shared/onboarding/language-onboarding.ts: LANGUAGE_LEARNING_ONBOARDING with 10 steps interleaving tutorial and assessment phases. References ARRIVAL_ENCOUNTER phase IDs."
+    },
+    {
+      "title": "Assessment MongoDB schema and basic CRUD",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Add AssessmentSessionSchema to mongo-storage.ts. Compound index on {playerId, worldId, assessmentType}. IStorage methods: createAssessmentSession, getAssessmentSession, updateAssessmentPhaseResult, addAssessmentRecording."
+    },
+    {
+      "title": "Assessment MongoDB completion and query methods",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Add completeAssessmentSession, getPlayerAssessments, getWorldAssessmentSummary (aggregation pipeline with $group, $avg, $bucket for distributions). Only aggregate completed sessions."
+    },
+    {
+      "title": "Assessment API routes",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Create server/routes/assessment-routes.ts: POST /api/assessments, GET/:sessionId, PUT phases/recordings/complete, GET player/:playerId, GET world/:worldId/summary. Register in routes.ts."
+    },
+    {
+      "title": "GameEventBus assessment events",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Add 8 events to GameEvent union: assessment_started, assessment_phase_started, assessment_phase_completed, assessment_tier_change, assessment_completed, onboarding_step_started, onboarding_step_completed, onboarding_completed."
+    },
+    {
+      "title": "Assessment EVAL block parser and system prompt builder",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Create client assessment/assessment-prompt-utils.ts: buildAssessmentSystemPrompt() for tier-adaptive NPC prompts, parseAssessmentEvalBlock() regex parser for 5 dimension scores. Same pattern as parseGrammarFeedbackBlock()."
+    },
+    {
+      "title": "Assessment conversation controller",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Create AssessmentConversationController.ts: tier tracking (advance after 3 good exchanges, drop on struggle), 8-10 min timer, real-time automated metrics (WPM, TTR, MLU, latency, repairs, code-switching), full transcript storage."
+    },
+    {
+      "title": "Assessment engine state machine",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Create AssessmentEngine.ts: states idle/initializing/phase_active/phase_transitioning/scoring/complete. Orchestrates phases via callbacks, manages RecordingReferences, computes total score + CEFR on complete."
+    },
+    {
+      "title": "Assessment listening task handler",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Create AssessmentListeningTask.ts: Task 2A following directions (score /4 via position tracking callbacks), Task 2B info extraction (3 questions, score /3). Combined /7."
+    },
+    {
+      "title": "Assessment writing task handler",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Create AssessmentWritingTask.ts: Task 3A form completion (/5, LLM scoring callback), Task 3B brief message (/6, taskCompletion+vocab+grammar). Combined /11. Stores player text verbatim."
+    },
+    {
+      "title": "Assessment visual recognition task handler",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Create AssessmentVisualTask.ts: Task 4A sign reading (5 signs, 3-option MC, /5), Task 4B object identification (5 objects, verbal+selection, /5). Combined /10. Configurable per target language."
+    },
+    {
+      "title": "Assessment progress UI overlay",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Create AssessmentProgressUI.ts (@babylonjs/gui): phase dots (4 phases), countdown timer (amber 2min, red 1min), phase transition fade overlay. Style matches BabylonQuestTracker.ts."
+    },
+    {
+      "title": "Assessment results summary panel",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Create AssessmentResultsPanel.ts (@babylonjs/gui): overall score %, CEFR badge with description, 5-dimension horizontal bars (color-coded 1-5), 'Your adventure begins!' CTA. Style matches BabylonSkillTreePanel.ts."
+    },
+    {
+      "title": "Onboarding manager",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Create OnboardingManager.ts: orchestrates OnboardingDefinition steps, dispatches by type (narrative/tutorial/assessment), manages OnboardingState, persists via callback. Decoupled from Babylon.js."
+    },
+    {
+      "title": "BabylonGame integration — onboarding launch",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Modify BabylonGame.ts init(): detect first playthrough, create AssessmentEngine + OnboardingManager, wire callbacks to BabylonChatPanel/UI. On completion store cefrLevel + set effectiveFluency. Dynamic imports for assessment modules."
+    },
+    {
+      "title": "Periodic assessment definition and level-up trigger",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Create periodic-encounter.ts: conversational-only 5min assessment (/25). Modify LanguageGamificationTracker: trigger at levels 5/10/15/20 with 60min cooldown. Emit event for BabylonGame."
+    },
+    {
+      "title": "Integrate assessment CEFR with existing systems",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Modify buildPlayerProficiencySection() to accept cefrLevel for tier selection. Modify ContentGatingManager for CEFR-based content unlocks. Store Phase 1 dimension scores in LanguageProgress metadata."
+    },
+    {
+      "title": "Admin assessment dashboard",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Create AssessmentDashboard.tsx: score distribution histogram (div bars), CEFR distribution badges, per-phase averages table, automated metrics table. Filters: world/type/date. Player list with drill-down. Style matches ResearcherDashboard.tsx."
+    },
+    {
+      "title": "Player assessment detail view",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Create PlayerAssessmentDetail.tsx: longitudinal scores table, per-dimension bars comparison, phase breakdown expandable rows, automated metrics with deltas, recordings/transcripts inline. URL: /analytics/assessments/player/:playerId."
+    },
+    {
+      "title": "Player-facing RPG progress panel",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Create PlayerAssessmentPanel.ts (@babylonjs/gui): 5 stat bars (1-5, color-coded), CEFR badge, improvement arrows vs previous assessment, next assessment indicator. Hotkey L, registered with BabylonGUIManager."
+    },
+    {
+      "title": "Recording and transcript storage integration",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Wire RecordingReference flow across all phase handlers -> AssessmentEngine -> server API -> MongoDB. Ensure transcripts from conversation/listening/writing phases all persist. Verify admin detail view displays them."
+    }
+  ]
+}

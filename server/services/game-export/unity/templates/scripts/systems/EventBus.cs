@@ -44,7 +44,23 @@ namespace Insimul.Systems
         QuestFailed,
         QuestAbandoned,
         ConversationOverheard,
-        CreateTruth
+        CreateTruth,
+        // Assessment / onboarding events
+        AssessmentStarted,
+        AssessmentPhaseStarted,
+        AssessmentPhaseCompleted,
+        AssessmentTierChange,
+        AssessmentCompleted,
+        OnboardingStepStarted,
+        OnboardingStepCompleted,
+        OnboardingCompleted,
+        PeriodicAssessmentTriggered,
+        AssessmentConversationCompleted,
+        // Visual vocabulary quest events
+        VisualVocabPrompted,
+        VisualVocabAnswered,
+        // Follow directions quest events
+        DirectionStepCompleted
     }
 
     /// <summary>
@@ -363,6 +379,129 @@ namespace Insimul.Systems
         public string content;
         public string entryType;
         public string category;
+    }
+
+    // ── Assessment / Onboarding Events ───────────────────────────────────────
+
+    public class AssessmentStartedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AssessmentStarted;
+        public string sessionId;
+        public string instrumentId;
+        public string phase;
+        public string participantId;
+        public string assessmentType;
+        public string playerId;
+    }
+
+    public class AssessmentPhaseStartedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AssessmentPhaseStarted;
+        public string sessionId;
+        public string instrumentId;
+        public string phase;
+        public string phaseId;
+        public int phaseIndex;
+    }
+
+    public class AssessmentPhaseCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AssessmentPhaseCompleted;
+        public string sessionId;
+        public string instrumentId;
+        public string phase;
+        public float score;
+        public string phaseId;
+        public float maxScore;
+    }
+
+    public class AssessmentTierChangeEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AssessmentTierChange;
+        public string participantId;
+        public string instrumentId;
+        public string fromTier;
+        public string toTier;
+        public float score;
+    }
+
+    public class AssessmentCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AssessmentCompleted;
+        public string sessionId;
+        public string instrumentId;
+        public float totalScore;
+        public float gainScore;
+        public float totalMaxScore;
+        public string cefrLevel;
+    }
+
+    public class OnboardingStepStartedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.OnboardingStepStarted;
+        public string stepId;
+        public int stepIndex;
+        public int totalSteps;
+    }
+
+    public class OnboardingStepCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.OnboardingStepCompleted;
+        public string stepId;
+        public int stepIndex;
+        public int totalSteps;
+        public int durationMs;
+    }
+
+    public class OnboardingCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.OnboardingCompleted;
+        public int totalSteps;
+        public int totalDurationMs;
+    }
+
+    public class PeriodicAssessmentTriggeredEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.PeriodicAssessmentTriggered;
+        public int level;
+        public string tier;
+    }
+
+    public class AssessmentConversationCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AssessmentConversationCompleted;
+        public string npcId;
+    }
+
+    // ── Visual Vocabulary / Follow Directions Events ────────────────────────
+
+    public class VisualVocabPromptedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.VisualVocabPrompted;
+        public string targetId;
+        public string questId;
+        public string objectiveId;
+        public bool isActivity;
+    }
+
+    public class VisualVocabAnsweredEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.VisualVocabAnswered;
+        public string targetId;
+        public string questId;
+        public bool passed;
+        public float score;
+        public string playerAnswer;
+    }
+
+    public class DirectionStepCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.DirectionStepCompleted;
+        public string questId;
+        public string objectiveId;
+        public int stepIndex;
+        public int stepsCompleted;
+        public int stepsRequired;
     }
 
     // ── Event Bus ────────────────────────────────────────────────────────────

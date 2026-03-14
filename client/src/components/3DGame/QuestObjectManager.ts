@@ -8,6 +8,9 @@
 import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3, Animation, ActionManager, ExecuteCodeAction } from '@babylonjs/core';
 import { createDebugLabel } from './DebugLabelUtils';
 import * as GUI from '@babylonjs/gui';
+import { ProceduralQuestObjects } from './ProceduralQuestObjects';
+import { VisualVocabularyDetector, type VocabularyTarget, type IdentificationPrompt, type IdentificationResult } from './VisualVocabularyDetector';
+import type { GameEventBus } from './GameEventBus';
 
 // Quest objective types that can be spawned/tracked in the world
 export type QuestObjectiveType =
@@ -159,14 +162,26 @@ export class QuestObjectManager {
   // Quest object model templates loaded from asset collection
   private questModelTemplates: Map<string, Mesh> = new Map();
 
+  // Procedural mesh generator for quest objects
+  private proceduralObjects: ProceduralQuestObjects;
+
+  // Visual vocabulary detection
+  private visualVocabDetector: VisualVocabularyDetector;
+
   // Callbacks
   private onObjectCollected?: (questId: string, objectiveId: string) => void;
   private onLocationVisited?: (questId: string, objectiveId: string) => void;
   private onObjectiveCompleted?: (questId: string, objectiveId: string) => void;
   private onStoryTTS?: (text: string, npcId?: string) => void;
+  private onIdentificationPrompt?: (prompt: IdentificationPrompt) => void;
 
-  constructor(scene: Scene) {
+  constructor(scene: Scene, eventBus?: GameEventBus) {
     this.scene = scene;
+    this.proceduralObjects = new ProceduralQuestObjects(scene);
+    this.visualVocabDetector = new VisualVocabularyDetector(eventBus);
+    this.visualVocabDetector.setOnObjectiveCompleted((questId, objectiveId) => {
+      this.completeObjective(questId, objectiveId);
+    });
   }
 
   /**
@@ -726,14 +741,11 @@ export class QuestObjectManager {
         item.position = position;
         console.log(`[QuestObjectManager] Using collectible model from asset collection`);
       } else {
-        // Fallback: Create glowing collectible sphere
-        item = MeshBuilder.CreateSphere(
-          `quest_item_${itemId}`,
-          { diameter: 0.8, segments: 16 },
-          this.scene
-        );
+        // Fallback: Use procedural mesh generator for contextual shape
+        const objectType = objective.itemName?.toLowerCase() || 'gem';
+        const result = this.proceduralObjects.generate(`item_${itemId}`, { objectType });
+        item = result.mesh;
         item.position = position;
-        createDebugLabel(this.scene, item, 'QUEST ITEM (collectible)', 2);
       }
 
       // Create material with quest color (golden yellow)
@@ -897,23 +909,40 @@ export class QuestObjectManager {
 
   /**
    * Spawn a vocabulary-labeled collectible for visual vocab / scavenger hunt quests.
-   * Shows the target-language word as the label — player must identify the correct object.
+   * Player must click/tap the object and correctly name it in the target language.
    */
   private spawnVocabularyItem(objective: QuestObjective) {
     const positions = objective.spawnPositions || this.generateSpawnPositions(1);
     const word = objective.targetLanguageWord || objective.itemName || '???';
     const meaning = objective.englishMeaning || '';
 
+    // Register with the visual vocabulary detector for answer validation
+    const vocabTarget: VocabularyTarget = {
+      id: objective.id,
+      questId: objective.questId,
+      objectiveId: objective.id,
+      targetWord: word,
+      englishMeaning: meaning,
+      acceptedAnswers: objective.targetWords,
+      isActivity: false,
+    };
+    this.visualVocabDetector.registerTarget(vocabTarget);
+
     positions.forEach((position, index) => {
       const itemId = `${objective.id}_vocabitem_${index}`;
 
-      // Create a glowing sphere with vocabulary label
-      const item = MeshBuilder.CreateSphere(
-        `vocab_item_${itemId}`,
-        { diameter: 0.7, segments: 16 },
-        this.scene
-      );
+      // Use procedural mesh generator for contextual vocabulary object shape
+      const objectType = meaning.toLowerCase() || objective.itemName?.toLowerCase() || 'orb';
+      const vocabColor = ProceduralQuestObjects.getColor(meaning.toLowerCase());
+      const result = this.proceduralObjects.generate(`vocab_${itemId}`, {
+        objectType,
+        color: vocabColor,
+        label: word,
+        interactable: true,
+      });
+      const item = result.mesh;
       item.position = position;
+      item.isPickable = true;
 
       // Purple-ish material for vocabulary items (distinct from golden quest items)
       const material = new StandardMaterial(`vocab_item_mat_${itemId}`, this.scene);
@@ -936,16 +965,16 @@ export class QuestObjectManager {
       item.animations.push(floatAnim);
       this.scene.beginAnimation(item, 0, 60, true);
 
-      // Collision-based collection
+      // Click-to-identify: trigger identification prompt when player clicks/taps
       item.actionManager = new ActionManager(this.scene);
       item.actionManager.registerAction(
         new ExecuteCodeAction(
-          { trigger: ActionManager.OnIntersectionEnterTrigger, parameter: { usePreciseIntersection: false } },
-          () => { this.collectItem(objective.questId, objective.id, itemId); }
+          ActionManager.OnPickTrigger,
+          () => { this.triggerVocabIdentification(objective.id, itemId); }
         )
       );
 
-      // Target-language label (shows the foreign word — player identifies by meaning)
+      // Visual hint label (shows "?" until identified — no answer revealed)
       const advancedTexture = GUI.AdvancedDynamicTexture.CreateFullscreenUI(`vocab_ui_${itemId}`);
       const label = new GUI.Rectangle(`vocab_label_${itemId}`);
       label.width = '180px';
@@ -956,7 +985,7 @@ export class QuestObjectManager {
       label.background = 'rgba(30, 0, 60, 0.85)';
 
       const text = new GUI.TextBlock();
-      text.text = `📖 ${word}${meaning ? `\n(${meaning})` : ''}`;
+      text.text = `📖 ${meaning || '?'}`;
       text.color = '#E1BEE7';
       text.fontSize = 12;
       text.textWrapping = true;
@@ -1376,6 +1405,9 @@ export class QuestObjectManager {
         this.locationMarkers.delete(markerId);
       }
     });
+
+    // Remove visual vocabulary targets
+    this.visualVocabDetector.removeQuestTargets(questId);
   }
 
   /**
@@ -1399,6 +1431,56 @@ export class QuestObjectManager {
    */
   public setOnStoryTTS(callback: (text: string, npcId?: string) => void) {
     this.onStoryTTS = callback;
+  }
+
+  /**
+   * Set callback for when the player should be prompted to identify a vocabulary object.
+   * The UI should display an input field for the player to type the target-language word.
+   */
+  public setOnIdentificationPrompt(callback: (prompt: IdentificationPrompt) => void) {
+    this.onIdentificationPrompt = callback;
+    this.visualVocabDetector.setOnIdentificationPrompt(callback);
+  }
+
+  /**
+   * Trigger vocabulary identification when player clicks/taps a vocab object.
+   * Fires the identification prompt callback.
+   */
+  private triggerVocabIdentification(objectiveId: string, itemId: string): void {
+    const progress = this.visualVocabDetector.getProgress(objectiveId);
+    if (progress?.identified) return;
+
+    const prompt = this.visualVocabDetector.triggerPrompt(objectiveId);
+    if (prompt) {
+      console.log(`[QuestObjectManager] Visual vocabulary prompt triggered for: ${objectiveId}`);
+    }
+  }
+
+  /**
+   * Submit a player's answer for a visual vocabulary identification.
+   * Called by the UI after the player types/speaks their answer.
+   * On success, plays collection animation and removes the object.
+   */
+  public submitVocabAnswer(objectiveId: string, playerInput: string): IdentificationResult {
+    const result = this.visualVocabDetector.submitAnswer(objectiveId, playerInput);
+
+    if (result.passed) {
+      // Find and collect the associated quest object
+      Array.from(this.questObjects.entries()).some(([itemId, obj]) => {
+        if (obj.objectiveId === objectiveId && !obj.isCollected) {
+          this.collectItem(obj.questId, obj.objectiveId, itemId);
+          return true;
+        }
+        return false;
+      });
+    }
+
+    return result;
+  }
+
+  /** Get the visual vocabulary detector for direct access. */
+  public getVisualVocabDetector(): VisualVocabularyDetector {
+    return this.visualVocabDetector;
   }
 
   /**
@@ -1728,6 +1810,9 @@ export class QuestObjectManager {
     this.locationMarkers.forEach(marker => marker.dispose());
     this.locationMarkers.clear();
 
+    this.proceduralObjects.dispose();
+
     this.activeQuests = [];
+    this.visualVocabDetector.dispose();
   }
 }

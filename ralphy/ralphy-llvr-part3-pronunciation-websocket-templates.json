@@ -1,0 +1,106 @@
+{
+  "tasks": [
+    {
+      "title": "Implement real-time grammar and vocabulary feedback during quests",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Enhance the chat system to provide quest-relevant language feedback. In BabylonChatPanel.ts and LanguageProgressTracker.ts: (1) When a quest requires specific vocabulary usage, highlight quest-relevant words in the chat input suggestions (e.g., if the quest says 'order food at restaurant', suggest food vocabulary the player knows); (2) After each player message during a quest conversation, parse the Gemini response for GRAMMAR_FEEDBACK markers and display inline corrections below the chat — green for correct usage of target patterns, orange for minor errors with corrections, red for major errors; (3) Track grammar pattern usage per quest and include it in quest completion scoring via QuestPostConditionValidator; (4) Show a small 'language score' indicator in the quest tracker that updates in real-time based on target language percentage and grammar accuracy during the quest; (5) On quest completion, include a language performance summary in the completion overlay (words used, grammar accuracy %, new words learned during quest)."
+    },
+    {
+      "title": "Implement quest auto-generation on quest depletion",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Ensure players never run out of quests. In the game client, create a QuestRefillManager in client/src/components/3DGame/QuestRefillManager.ts: (1) Monitor active quest count — when it drops below 2, trigger the quest assignment engine to generate new quests; (2) Use DynamicQuestBoard.ts's existing weak-area detection to prioritize quest types the player needs most (e.g., if vocabulary is weak, generate more vocab quests; if grammar is weak, generate conversation quests with grammar focus); (3) Ensure at least one quest of each major category is available: one conversation quest, one vocabulary quest, one navigation quest; (4) Rate-limit generation to prevent quest spam — max 5 active quests, generate at most 3 new quests per trigger; (5) On world load, check if the player has any active quests — if not, generate an initial batch of 3 quests appropriate to their level. Wire to the game initialization flow in BabylonGame.ts."
+    },
+    {
+      "title": "Add quest-related world object interactivity and labels",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "Enhance the 3D world to support quest interactions with existing environment objects. In BabylonGame.ts and the building/object systems: (1) Add clickable interaction zones to building entrances — when player clicks a restaurant door, open the chat with a contextual prompt ('You enter the restaurant. A waiter greets you.'); (2) Add target-language labels to key buildings (restaurant, hotel, park, market, school, hospital) as floating text billboards, initially showing both languages, switching to target-language-only as the player's vocabulary grows; (3) Add interactable props near buildings: menu boards outside restaurants, room rate signs outside hotels, directional signs at intersections — each labeled in the target language and collectible for vocabulary; (4) Create a simple interaction system: player approaches object → 'E to interact' prompt → triggers quest-relevant action (start conversation, collect vocab word, read sign). Use the existing ProceduralBuildingGenerator.ts building types to determine what labels and props to spawn."
+    },
+    {
+      "title": "[US-041] Minimap building footprint layer",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "As a developer, I need building footprints on the minimap at higher zoom levels."
+    },
+    {
+      "title": "[US-042] Minimap zoom and interaction",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "As a developer, I need the minimap to support zoom and basic interaction."
+    },
+    {
+      "title": "[US-043] Full-screen map view",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "As a developer, I need a full-screen 2D map overlay for detailed settlement/world viewing."
+    },
+    {
+      "title": "[US-047] World editor layers panel",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "As a developer, I need a layers toggle panel in the world editor map."
+    },
+    {
+      "title": "[US-048] Settlement editor mini-map",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "As a developer, I need a dedicated mini-map when editing a settlement showing lot layout, addresses, and streets."
+    },
+    {
+      "title": "[US-057] Water features export in IR",
+      "completed": false,
+      "parallel_group": 1,
+      "description": "As a developer, I need water features exported in the IR for exported game rendering."
+    },
+    {
+      "title": "Implement pronunciation feedback integration with quests",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "Wire pronunciation scoring into quest objectives for voice-based quests. In UtteranceQuestSystem.ts: (1) For speak_phrase and pronunciation_check objectives, use the existing pronunciation scoring (shared/pronunciation-scoring.ts) to evaluate player speech; (2) Show per-word pronunciation feedback inline: green=good, yellow=acceptable, red=needs work, using BabylonChatPanel's existing practicePronunciation flow; (3) Allow retry — if pronunciation score < 60%, prompt 'Try saying it again' without penalizing quest progress; (4) For conversation quests, track overall pronunciation quality as a bonus metric (doesn't block completion but affects XP reward — up to 25% bonus XP for excellent pronunciation); (5) Add a 'Pronunciation Challenge' quest template: player must correctly pronounce 5 phrases with >70% accuracy. Feed pronunciation scores into the Assessment dimension scores for the next periodic assessment."
+    },
+    {
+      "title": "Integrate VAD for auto-start/stop recording",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "Add a 'hands-free mode' toggle to both chat panels. When enabled, keep the microphone stream open continuously and use VoiceActivityDetector to auto-start recording when speech is detected and auto-stop after 1.5s of silence. Auto-send the transcript when recording stops. Show a visual volume indicator (animated bar or pulsing dot) so the user knows the mic is listening. Disable when in text-input mode."
+    },
+    {
+      "title": "[US-058] Enhanced lot and building export",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "As a developer, I need enhanced lot and building data in the IR for correct placement along streets."
+    },
+    {
+      "title": "[US-059] Babylon.js scene generator updates",
+      "completed": false,
+      "parallel_group": 2,
+      "description": "As a developer, I need the Babylon.js scene generator to use all new IR data in exports."
+    },
+    {
+      "title": "Create WebSocket voice chat client for BabylonChatPanel",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Add a WebSocket voice chat mode to BabylonChatPanel.ts. When activated, open a WebSocket connection to the voice chat server. Stream audio from getUserMedia through an AudioWorklet that converts to 16-bit PCM and sends chunks over WebSocket. Receive and play audio response chunks in real-time using AudioContext with a jitter buffer. Show interim transcripts as they arrive. Fall back to HTTP-based voice chat if WebSocket connection fails. Add a toggle button to switch between push-to-talk (HTTP) and always-on (WebSocket) modes."
+    },
+    {
+      "title": "[US-060] Unity export template updates",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "As a developer, I need Unity export templates to consume new IR data."
+    },
+    {
+      "title": "[US-061] Godot export template updates",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "As a developer, I need Godot export templates to consume new IR data."
+    },
+    {
+      "title": "[US-062] Unreal export template updates",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "As a developer, I need Unreal export templates to consume new IR data."
+    }
+  ]
+}

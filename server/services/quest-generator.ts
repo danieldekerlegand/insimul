@@ -9,7 +9,7 @@
 import { getQuestTypeForWorld, type World } from '../../shared/quest-types/index.js';
 import type { InsertQuest } from '../../shared/schema.js';
 import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from '../config/gemini.js';
-import type { PlayerProficiency } from '../../shared/language-utils.js';
+import type { PlayerProficiency } from '../../shared/language/language-utils.js';
 
 /**
  * Call LLM for quest generation using Gemini API.

@@ -26,6 +26,7 @@ import type {
   TileType,
   NeedConfig,
   ResourceType,
+  WaterFeatureType,
 } from './types';
 
 // ─────────────────────────────────────────────
@@ -98,6 +99,7 @@ export interface GeographyIR {
   countries: CountryIR[];
   states: StateIR[];
   settlements: SettlementIR[];
+  waterFeatures: WaterFeatureIR[];
 }
 
 export interface CountryIR {
@@ -129,6 +131,19 @@ export interface StateIR {
   bounds: BoundsIR;
 }
 
+export interface ElevationProfileIR {
+  /** Minimum elevation within settlement bounds (world units) */
+  minElevation: number;
+  /** Maximum elevation within settlement bounds (world units) */
+  maxElevation: number;
+  /** Mean elevation within settlement bounds (world units) */
+  meanElevation: number;
+  /** Max elevation difference across the settlement (world units) */
+  elevationRange: number;
+  /** Slope classification based on elevation range relative to settlement size */
+  slopeClass: 'flat' | 'gentle' | 'moderate' | 'steep' | 'extreme';
+}
+
 export interface SettlementIR {
   id: string;
   worldId: string;
@@ -146,12 +161,28 @@ export interface SettlementIR {
   position: Vec3;
   /** Radius in world units */
   radius: number;
+  /** Elevation profile computed from heightmap */
+  elevationProfile: ElevationProfileIR | null;
   /** Building lot positions */
   lots: LotIR[];
   /** Business IDs located in this settlement */
   businessIds: string[];
   /** Internal road waypoints (settlement center → buildings) */
   internalRoads: RoadIR[];
+  /** Infrastructure built in this settlement */
+  infrastructure: InfrastructureItemIR[];
+  /** Full street network topology with named streets and intersections */
+  streetNetwork: StreetNetworkIR;
+}
+
+/** A single built infrastructure item in a settlement. */
+export interface InfrastructureItemIR {
+  id: string;
+  name: string;
+  category: string;
+  level: number;
+  builtYear: number;
+  description: string;
 }
 
 export interface LotIR {
@@ -163,8 +194,22 @@ export interface LotIR {
   districtName: string | null;
   /** Position in world space */
   position: Vec3;
+  /** Y-axis facing angle in radians */
+  facingAngle: number;
+  /** Ground elevation at this lot */
+  elevation: number;
   buildingType: string | null;
   buildingId: string | null;
+  /** Street edge this lot is placed along */
+  streetEdgeId: string | null;
+  /** Which side of the street: 'left' or 'right' */
+  side: string | null;
+  /** IDs of adjacent lots */
+  neighboringLotIds: string[];
+  /** Distance from settlement center (downtown) */
+  distanceFromDowntown: number;
+  /** IDs of buildings that previously occupied this lot */
+  formerBuildingIds: string[];
 }
 
 export interface BoundsIR {
@@ -253,6 +298,8 @@ export interface NPCIR {
 export interface BuildingIR {
   id: string;
   settlementId: string;
+  /** Lot this building sits on */
+  lotId: string | null;
   /** Position in world space */
   position: Vec3;
   /** Y-axis rotation in radians */
@@ -322,6 +369,41 @@ export interface RoadIR {
   materialKey: string | null;
 }
 
+// ─────────────────────────────────────────────
+// Street Network IR
+// ─────────────────────────────────────────────
+
+export interface StreetNodeIR {
+  id: string;
+  /** World-space position */
+  position: Vec3;
+  /** IDs of streets that intersect at this node */
+  intersectionOf: string[];
+}
+
+export interface StreetSegmentIR {
+  id: string;
+  /** Human-readable street name */
+  name: string;
+  /** Direction hint (NS = north-south, EW = east-west) */
+  direction: 'NS' | 'EW';
+  /** Ordered node IDs forming the polyline */
+  nodeIds: string[];
+  /** Ordered world-space waypoints */
+  waypoints: Vec3[];
+  /** Road width in world units */
+  width: number;
+}
+
+export interface StreetNetworkIR {
+  /** Layout algorithm used */
+  layout: 'grid' | 'organic';
+  /** Intersection nodes */
+  nodes: StreetNodeIR[];
+  /** Named street segments with topology */
+  segments: StreetSegmentIR[];
+}
+
 export interface NatureObjectIR {
   type: 'tree' | 'rock' | 'bush' | 'flower' | 'grass';
   /** Sub-type based on biome (e.g. oak, pine, palm, dead) */
@@ -334,6 +416,12 @@ export interface NatureObjectIR {
   biome: string;
   /** Model asset override key (if any) */
   modelAssetKey: string | null;
+  /** Elevation zone (lowland/midland/highland/alpine) */
+  elevationZone?: string;
+  /** Moisture level (arid/dry/moderate/wet/saturated) */
+  moistureLevel?: string;
+  /** Plant species ID from the vegetation zone system */
+  plantSpeciesId?: string;
 }
 
 export interface DungeonIR {
@@ -366,6 +454,50 @@ export interface QuestObjectIR {
   modelAssetKey: string | null;
   interactionType: string;
   metadata: Record<string, any>;
+}
+
+// ─────────────────────────────────────────────
+// Water Features
+// ─────────────────────────────────────────────
+
+export interface WaterFeatureIR {
+  id: string;
+  worldId: string;
+  /** Water body type */
+  type: WaterFeatureType;
+  /** Variant: fresh, salt, brackish, etc. */
+  subType: string;
+  name: string;
+  /** Center or entry point in world space */
+  position: Vec3;
+  /** Y-coordinate of the water surface */
+  waterLevel: number;
+  /** Spatial extent of the water body */
+  bounds: BoundsIR;
+  /** Average depth from surface in world units */
+  depth: number;
+  /** Average width in world units (for rivers/streams) */
+  width: number;
+  /** Flow direction vector (normalized); null for still water */
+  flowDirection: Vec3 | null;
+  /** Flow speed in world units per second; 0 for still water */
+  flowSpeed: number;
+  /** Ordered shoreline/path points defining the water shape */
+  shorelinePoints: Vec3[];
+  /** Settlement this water feature is associated with (if any) */
+  settlementId: string | null;
+  /** Biome context */
+  biome: string | null;
+  /** Whether the water is safe for swimming */
+  isNavigable: boolean;
+  /** Whether the water is drinkable (fresh vs salt) */
+  isDrinkable: boolean;
+  /** Model asset override key (if any) */
+  modelAssetKey: string | null;
+  /** Visual color of the water */
+  color: Color3 | null;
+  /** Visual transparency (0 = opaque, 1 = fully transparent) */
+  transparency: number;
 }
 
 // ─────────────────────────────────────────────

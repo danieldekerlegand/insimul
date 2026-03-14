@@ -34,6 +34,7 @@ import type {
   CountryIR,
   StateIR,
   SettlementIR,
+  ElevationProfileIR,
   LotIR,
   BoundsIR,
   CharacterIR,
@@ -42,6 +43,10 @@ import type {
   BuildingSpecIR,
   BusinessIR,
   RoadIR,
+  StreetNodeIR,
+  StreetSegmentIR,
+  StreetNetworkIR,
+  WaterFeatureIR,
   NatureObjectIR,
   DungeonIR,
   QuestObjectIR,
@@ -57,6 +62,7 @@ import type {
   NPCDialogueContext,
   AIConfigIR,
 } from '@shared/game-engine/ir-types';
+import { computeElevationProfile } from '../../generators/settlement-elevation';
 import { getNPCReasoningRules } from '@shared/prolog/npc-reasoning';
 import { getTotTPredicates } from '@shared/prolog/tott-predicates';
 import { getAdvancedPredicates } from '@shared/prolog/advanced-predicates';
@@ -70,9 +76,15 @@ import type {
   CombatStyle,
 } from '@shared/game-engine/types';
 import type { World, Country, State, Settlement, Character, Quest } from '@shared/schema';
-import { buildLanguageAwareSystemPrompt, buildWorldLanguageContext } from '@shared/language-utils';
-import type { CharacterInfo, Truth, WorldLanguageContext } from '@shared/language-utils';
+import { buildLanguageAwareSystemPrompt, buildWorldLanguageContext } from '@shared/language/language-utils';
+import type { CharacterInfo, Truth, WorldLanguageContext } from '@shared/language/language-utils';
 import type { WorldLanguage } from '@shared/language';
+import {
+  generateStreetNetwork,
+  chooseLayout,
+  placeLots,
+  type StreetNetwork,
+} from '../../generators/street-network-generator';
 
 // ─────────────────────────────────────────────
 // Constants (match client-side values exactly)
@@ -583,6 +595,7 @@ export async function generateWorldIR(
     grammars,
     languages,
     worldItems,
+    waterFeatures,
   ] = await Promise.all([
     storage.getWorld(worldId).then(r => { console.log(`[Export] ✓ getWorld`); return r; }),
     storage.getCountriesByWorld(worldId).then(r => { console.log(`[Export] ✓ getCountriesByWorld`); return r; }),
@@ -598,6 +611,7 @@ export async function generateWorldIR(
     storage.getGrammarsByWorld(worldId).then(r => { console.log(`[Export] ✓ getGrammarsByWorld`); return r; }),
     storage.getWorldLanguagesByWorld(worldId).then(r => { console.log(`[Export] ✓ getWorldLanguagesByWorld`); return r; }),
     storage.getItemsByWorld(worldId).then(r => { console.log(`[Export] ✓ getItemsByWorld`); return r; }),
+    storage.getWaterFeaturesByWorld(worldId).then(r => { console.log(`[Export] ✓ getWaterFeaturesByWorld`); return r; }),
   ]);
   
   const parallelTime = Date.now() - startTime;
@@ -749,22 +763,39 @@ export async function generateWorldIR(
     const lots = lotsBySettlement.get(s.id) || [];
     const settlementBusinesses = allBusinesses.filter((b: any) => b.settlementId === s.id);
 
-    // Map lots to positions
-    const lotIRs: LotIR[] = lots.map((lot, i) => ({
-      id: lot.id,
-      address: lot.address || '',
-      houseNumber: lot.houseNumber || i + 1,
-      streetName: lot.streetName || 'Main Street',
-      block: lot.block || null,
-      districtName: lot.districtName || null,
-      position: lotPositions[i] || { x: placed.position.x, y: 0, z: placed.position.z },
-      buildingType: lot.buildingType || null,
-      buildingId: lot.buildingId || null,
-    }));
+    // Map lots using persisted spatial data when available, falling back to generated positions
+    const lotIRs: LotIR[] = lots.map((lot, i) => {
+      const hasPersistedPosition = lot.positionX != null && lot.positionZ != null;
+      const position: Vec3 = hasPersistedPosition
+        ? { x: lot.positionX!, y: lot.elevation || 0, z: lot.positionZ! }
+        : lotPositions[i] || { x: placed.position.x, y: 0, z: placed.position.z };
 
-    // Generate buildings for businesses + residences
+      return {
+        id: lot.id,
+        address: lot.address || '',
+        houseNumber: lot.houseNumber || i + 1,
+        streetName: lot.streetName || 'Main Street',
+        block: lot.block || null,
+        districtName: lot.districtName || null,
+        position,
+        facingAngle: lot.facingAngle || 0,
+        elevation: lot.elevation || 0,
+        buildingType: lot.buildingType || null,
+        buildingId: lot.buildingId || null,
+        streetEdgeId: lot.streetEdgeId || null,
+        side: lot.side || null,
+        neighboringLotIds: (lot.neighboringLotIds as string[]) || [],
+        distanceFromDowntown: lot.distanceFromDowntown || 0,
+        formerBuildingIds: (lot.formerBuildingIds as string[]) || [],
+      };
+    });
+
+    // Generate buildings using lot data for placement when available
+    // Build a lookup from lot index to lotIR for position/rotation
     for (let i = 0; i < Math.min(buildingCount, lotPositions.length); i++) {
-      const pos = lotPositions[i];
+      const lotIR = lotIRs[i] || null;
+      const pos = lotIR ? lotIR.position : lotPositions[i];
+      const rotation = lotIR ? lotIR.facingAngle : 0;
       const business: any = settlementBusinesses[i] || null;
       const spec = getBuildingSpec(business?.businessType || null);
       const buildingId = business ? `bld_${business.id}` : `bld_${s.id}_${i}`;
@@ -772,8 +803,9 @@ export async function generateWorldIR(
       allBuildingIRs.push({
         id: buildingId,
         settlementId: s.id,
+        lotId: lotIR?.id || null,
         position: pos,
-        rotation: 0,
+        rotation,
         spec,
         style: buildingStyle,
         occupantIds: [],
@@ -783,16 +815,58 @@ export async function generateWorldIR(
       });
     }
 
-    // Internal roads: center → each building
-    for (const pos of lotPositions) {
-      allRoadIRs.push({
-        fromId: s.id,
-        toId: `internal_${s.id}`,
-        waypoints: [placed.position, pos],
-        width: 1.5,
-        materialKey: null,
-      });
+    // Generate street network topology for this settlement
+    const streetNetwork = generateStreetNetwork({
+      centerX: placed.position.x,
+      centerZ: placed.position.z,
+      settlementType: (s.settlementType as 'village' | 'town' | 'city') || 'town',
+      foundedYear: s.foundedYear || 1900,
+      seed: `${seed}_${s.id}`,
+    });
+
+    // Convert street segments to internal road IRs (polyline waypoints)
+    const internalRoads: RoadIR[] = streetNetwork.segments.map(seg => ({
+      fromId: seg.nodeIds[0],
+      toId: seg.nodeIds[seg.nodeIds.length - 1],
+      waypoints: seg.waypoints.map(wp => ({ x: wp.x, y: 0, z: wp.z })),
+      width: seg.width,
+      materialKey: null,
+    }));
+
+    // Build full street network IR with topology
+    const settlementType = (s.settlementType as 'village' | 'town' | 'city') || 'town';
+    const streetNetworkIR: StreetNetworkIR = {
+      layout: chooseLayout(settlementType, s.foundedYear || 1900),
+      nodes: streetNetwork.nodes.map(n => ({
+        id: n.id,
+        position: { x: n.x, y: 0, z: n.z },
+        intersectionOf: n.intersectionOf,
+      })),
+      segments: streetNetwork.segments.map(seg => ({
+        id: seg.id,
+        name: seg.name,
+        direction: seg.direction,
+        nodeIds: seg.nodeIds,
+        waypoints: seg.waypoints.map(wp => ({ x: wp.x, y: 0, z: wp.z })),
+        width: seg.width,
+      })),
+    };
+
+    // Also add street-segment roads to the global roads list
+    for (const road of internalRoads) {
+      allRoadIRs.push(road);
     }
+
+    // Compute elevation profile from heightmap if available
+    const worldHeightmap = (world as any).heightmap as number[][] | undefined;
+    const elevationProfile: ElevationProfileIR | null =
+      worldHeightmap && Array.isArray(worldHeightmap) && worldHeightmap.length > 0
+        ? computeElevationProfile(
+            { centerX: placed.position.x, centerZ: placed.position.z, radius: placed.radius },
+            worldHeightmap,
+            terrainSize / 2,
+          )
+        : null;
 
     settlementIRs.push({
       id: s.id,
@@ -809,9 +883,12 @@ export async function generateWorldIR(
       mayorId: s.mayorId || null,
       position: placed.position,
       radius: placed.radius,
+      elevationProfile,
       lots: lotIRs,
       businessIds: settlementBusinesses.map(b => b.id),
-      internalRoads: [],
+      internalRoads,
+      infrastructure: [],
+      streetNetwork: streetNetworkIR,
     });
   }
 
@@ -829,6 +906,31 @@ export async function generateWorldIR(
       materialKey: null,
     });
   }
+
+  // ── 3b. Water features ──
+  const waterFeatureIRs: WaterFeatureIR[] = waterFeatures.map((wf: any) => ({
+    id: wf.id,
+    worldId: wf.worldId,
+    type: wf.type,
+    subType: wf.subType || 'fresh',
+    name: wf.name,
+    position: wf.position || { x: 0, y: 0, z: 0 },
+    waterLevel: wf.waterLevel ?? 0,
+    bounds: wf.bounds || { minX: 0, maxX: 0, minZ: 0, maxZ: 0, centerX: 0, centerZ: 0 },
+    depth: wf.depth ?? 2,
+    width: wf.width ?? 10,
+    flowDirection: wf.flowDirection || null,
+    flowSpeed: wf.flowSpeed ?? 0,
+    shorelinePoints: wf.shorelinePoints || [],
+    settlementId: wf.settlementId || null,
+    biome: wf.biome || null,
+    isNavigable: wf.isNavigable ?? true,
+    isDrinkable: wf.isDrinkable ?? true,
+    modelAssetKey: wf.modelAssetKey || null,
+    color: wf.color || null,
+    transparency: wf.transparency ?? 0.3,
+  }));
+  console.log(`[Export] ✓ ${waterFeatureIRs.length} water feature(s) converted to IR`);
 
   // ── 4. Characters & NPCs ──
   const characterIRs: CharacterIR[] = characters.map(c => ({
@@ -1149,6 +1251,7 @@ export async function generateWorldIR(
       countries: countryIRs,
       states: stateIRs,
       settlements: settlementIRs,
+      waterFeatures: waterFeatureIRs,
     },
 
     entities: {
@@ -1200,6 +1303,7 @@ export async function generateWorldIR(
         truths,
         worldItems: worldItems || [],
         languages: languages || [],
+        waterFeatures: waterFeatures || [],
       }),
     },
 
@@ -1309,6 +1413,7 @@ async function buildKnowledgeBase(
     truths?: any[];
     worldItems?: any[];
     languages?: any[];
+    waterFeatures?: any[];
   },
 ): Promise<string | null> {
   const parts: string[] = [];
@@ -1504,6 +1609,23 @@ async function buildKnowledgeBase(
       if (lang.name) parts.push(`language_name(${lId}, '${escapeAtom(lang.name)}').`);
       if (lang.nativeName) parts.push(`language_native_name(${lId}, '${escapeAtom(lang.nativeName)}').`);
       if (lang.script) parts.push(`language_script(${lId}, ${sanitizeAtom(lang.script)}).`);
+    }
+    parts.push('');
+  }
+
+  // ── Water feature facts ──
+  const waterFeats = worldData?.waterFeatures || [];
+  if (waterFeats.length > 0) {
+    parts.push('% === Water Feature Facts ===');
+    for (const wf of waterFeats) {
+      const wId = sanitizeAtom(wf.id || wf._id?.toString());
+      parts.push(`water_feature(${wId}).`);
+      if (wf.name) parts.push(`water_feature_name(${wId}, '${escapeAtom(wf.name)}').`);
+      if (wf.type) parts.push(`water_feature_type(${wId}, ${sanitizeAtom(wf.type)}).`);
+      if (wf.subType) parts.push(`water_feature_sub_type(${wId}, ${sanitizeAtom(wf.subType)}).`);
+      if (wf.settlementId) parts.push(`water_feature_settlement(${wId}, ${sanitizeAtom(wf.settlementId)}).`);
+      if (wf.isNavigable !== undefined) parts.push(`water_feature_navigable(${wId}, ${wf.isNavigable}).`);
+      if (wf.isDrinkable !== undefined) parts.push(`water_feature_drinkable(${wId}, ${wf.isDrinkable}).`);
     }
     parts.push('');
   }

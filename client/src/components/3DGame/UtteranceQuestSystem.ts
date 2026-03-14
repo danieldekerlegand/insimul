@@ -16,12 +16,14 @@
  */
 
 import type { GameEventBus } from './GameEventBus';
+import { scorePronunciation, type PronunciationResult, type WordResult } from '@shared/language/pronunciation-scoring';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export type UtteranceObjectiveType =
   | 'speak_phrase'
   | 'use_vocabulary'
+  | 'collect_vocabulary'
   | 'translate_phrase'
   | 'pronunciation_check'
   | 'conversation_goal'
@@ -61,6 +63,8 @@ export interface UtteranceObjectiveDefinition {
   requiredVocabulary?: string[];
   /** For conversation_goal: keywords or phrases that indicate goal completion. */
   goalKeywords?: string[];
+  /** For collect_vocabulary: the vocabulary category to collect from (e.g. 'food', 'colors'). */
+  targetCategory?: string;
   /** How many times the objective must be completed (default 1). */
   requiredCount: number;
   difficulty: DifficultyLevel;
@@ -92,6 +96,10 @@ export interface UtteranceObjectiveProgress {
   failed: boolean;
   /** For use_vocabulary: tracks which words have been used. */
   vocabularyUsed?: Set<string>;
+  /** For collect_vocabulary: tracks words collected with their category. */
+  collectedWords?: Set<string>;
+  /** Accumulated pronunciation scores for bonus XP calculation. */
+  pronunciationScores?: number[];
 }
 
 export interface EvaluationResult {
@@ -104,6 +112,16 @@ export interface EvaluationResult {
   distance?: number;
   /** NPC correction/response dialogue for incorrect attempts. */
   npcResponse?: string;
+  /** Per-word pronunciation feedback (green=good, yellow=acceptable, red=needs work). */
+  wordFeedback?: Array<{
+    word: string;
+    status: 'good' | 'acceptable' | 'needs_work' | 'missed';
+    similarity: number;
+  }>;
+  /** Whether this was a pronunciation retry (score < 60%, not penalized). */
+  isPronunciationRetry?: boolean;
+  /** Pronunciation bonus XP multiplier (0-0.25) for conversation quests. */
+  pronunciationBonusXpMultiplier?: number;
 }
 
 /**
@@ -115,6 +133,27 @@ interface CorrectionContext {
   npcName: string;
   style: CorrectionStyle;
   targetLanguage: string;
+}
+
+// ── Pronunciation feedback helpers ──────────────────────────────────────────
+
+/**
+ * Convert WordResult[] from pronunciation scoring into color-coded feedback.
+ * green (good) = similarity >= 0.9, yellow (acceptable) = >= 0.6, red (needs_work) = < 0.6
+ */
+function wordResultsToFeedback(
+  wordResults: WordResult[],
+): EvaluationResult['wordFeedback'] {
+  return wordResults
+    .filter(w => w.match !== 'extra')
+    .map(w => ({
+      word: w.expected,
+      status: w.match === 'missed' ? 'missed' as const
+        : w.similarity >= 0.9 ? 'good' as const
+        : w.similarity >= 0.6 ? 'acceptable' as const
+        : 'needs_work' as const,
+      similarity: w.similarity,
+    }));
 }
 
 // ── Difficulty configuration ────────────────────────────────────────────────
@@ -220,6 +259,8 @@ export class UtteranceQuestSystem {
       completed: false,
       failed: false,
       vocabularyUsed: def.type === 'use_vocabulary' ? new Set<string>() : undefined,
+      collectedWords: def.type === 'collect_vocabulary' ? new Set<string>() : undefined,
+      pronunciationScores: [],
     };
 
     this.progress.set(objectiveId, prog);
@@ -255,8 +296,6 @@ export class UtteranceQuestSystem {
       }
     }
 
-    prog.attempts++;
-
     const def = prog.definition;
     const config = DIFFICULTY_CONFIGS[def.difficulty];
     let result: EvaluationResult;
@@ -267,6 +306,9 @@ export class UtteranceQuestSystem {
         break;
       case 'use_vocabulary':
         result = this.evaluateUseVocabulary(input, def, config, prog);
+        break;
+      case 'collect_vocabulary':
+        result = this.evaluateCollectVocabulary(input, def, prog);
         break;
       case 'translate_phrase':
         result = this.evaluateTranslatePhrase(input, def, config);
@@ -291,6 +333,16 @@ export class UtteranceQuestSystem {
         break;
       default:
         result = { passed: false, score: 0, feedback: 'Unknown objective type.' };
+    }
+
+    // Pronunciation retries (score < 60%) don't count against attempts
+    if (!result.isPronunciationRetry) {
+      prog.attempts++;
+    }
+
+    // Track pronunciation scores for bonus XP on conversation quests
+    if (result.wordFeedback && prog.pronunciationScores) {
+      prog.pronunciationScores.push(result.score);
     }
 
     // Generate NPC correction response for incorrect attempts
@@ -345,13 +397,37 @@ export class UtteranceQuestSystem {
       if (prog.currentCount >= def.requiredCount) {
         prog.completed = true;
         const finalScore = Math.round(prog.totalScore / prog.currentCount);
+
+        // Calculate pronunciation bonus XP (up to 25%) for conversation quests
+        const bonusMultiplier = this.calculatePronunciationBonusXp(prog);
+        const bonusXp = Math.round(def.xpReward * bonusMultiplier);
+        const totalXp = def.xpReward + bonusXp;
+
+        if (bonusMultiplier > 0) {
+          result.pronunciationBonusXpMultiplier = bonusMultiplier;
+        }
+
         this.eventBus?.emit({
           type: 'utterance_quest_completed',
           questId: def.questId,
           objectiveId,
           finalScore,
-          xpAwarded: def.xpReward,
+          xpAwarded: totalXp,
+          pronunciationBonusXp: bonusXp,
         });
+
+        // Emit pronunciation assessment data for periodic assessments
+        if (prog.pronunciationScores && prog.pronunciationScores.length > 0) {
+          const avgPronunciation = Math.round(
+            prog.pronunciationScores.reduce((a, b) => a + b, 0) / prog.pronunciationScores.length
+          );
+          this.eventBus?.emit({
+            type: 'pronunciation_assessment_data',
+            questId: def.questId,
+            averageScore: avgPronunciation,
+            sampleCount: prog.pronunciationScores.length,
+          });
+        }
       }
     }
 
@@ -371,33 +447,41 @@ export class UtteranceQuestSystem {
     def: UtteranceObjectiveDefinition,
     config: DifficultyConfig,
   ): EvaluationResult {
-    const normalizedInput = this.normalize(input, config);
-    let bestScore = 0;
+    // Use shared pronunciation scoring for word-level feedback
+    let bestResult: PronunciationResult | null = null;
     let bestMatch = '';
     let bestDistance = Infinity;
 
     for (const accepted of def.acceptedUtterances) {
+      const result = scorePronunciation(accepted.text, input);
+      // Also compute distance for backward compatibility
+      const normalizedInput = this.normalize(input, config);
       const normalizedTarget = this.normalize(accepted.text, config);
       const distance = this.levenshtein(normalizedInput, normalizedTarget);
-      const maxAllowed = Math.max(1, Math.ceil(normalizedTarget.length * config.maxDistanceRatio));
-      const score = this.distanceToScore(distance, normalizedTarget.length);
 
-      if (score > bestScore) {
-        bestScore = score;
+      if (!bestResult || result.overallScore > bestResult.overallScore) {
+        bestResult = result;
         bestMatch = accepted.text;
         bestDistance = distance;
       }
     }
 
-    const passed = bestScore >= config.passThreshold;
-    let feedback: string;
-    if (passed) {
-      feedback = bestScore >= 90 ? 'Excellent!' : bestScore >= 70 ? 'Good job!' : 'Acceptable. Keep practicing!';
-    } else {
-      feedback = bestScore >= 30 ? 'Close, but not quite. Try again.' : 'That doesn\'t seem right. Check the prompt and try again.';
+    if (!bestResult) {
+      return { passed: false, score: 0, feedback: 'No target phrase to compare.' };
     }
 
-    return { passed, score: bestScore, feedback, bestMatch, distance: bestDistance };
+    const score = bestResult.overallScore;
+    const wordFeedback = wordResultsToFeedback(bestResult.wordResults);
+    const passed = score >= config.passThreshold;
+
+    let feedback: string;
+    if (passed) {
+      feedback = score >= 90 ? 'Excellent!' : score >= 70 ? 'Good job!' : 'Acceptable. Keep practicing!';
+    } else {
+      feedback = score >= 30 ? 'Close, but not quite. Try again.' : 'That doesn\'t seem right. Check the prompt and try again.';
+    }
+
+    return { passed, score, feedback, bestMatch, distance: bestDistance, wordFeedback };
   }
 
   private evaluateUseVocabulary(
@@ -446,6 +530,60 @@ export class UtteranceQuestSystem {
     return { passed, score, feedback };
   }
 
+  /**
+   * Evaluate a "collect_vocabulary" objective.
+   * Input format: "word:category" (e.g. "manzana:food").
+   * Tracks unique words collected in the target category.
+   */
+  private evaluateCollectVocabulary(
+    input: string,
+    def: UtteranceObjectiveDefinition,
+    prog: UtteranceObjectiveProgress,
+  ): EvaluationResult {
+    // Parse "word:category" format
+    const colonIdx = input.indexOf(':');
+    if (colonIdx === -1) {
+      return { passed: false, score: 0, feedback: 'Invalid format. Expected "word:category".' };
+    }
+
+    const word = input.substring(0, colonIdx).trim().toLowerCase();
+    const category = input.substring(colonIdx + 1).trim().toLowerCase();
+
+    if (!word) {
+      return { passed: false, score: 0, feedback: 'No word provided.' };
+    }
+
+    // Check category matches if targetCategory is specified
+    if (def.targetCategory && category !== def.targetCategory.toLowerCase()) {
+      return {
+        passed: false,
+        score: 0,
+        feedback: `Word "${word}" is not in the "${def.targetCategory}" category.`,
+      };
+    }
+
+    // Check if already collected
+    if (prog.collectedWords?.has(word)) {
+      return {
+        passed: false,
+        score: 0,
+        feedback: `"${word}" already collected. Find a new word!`,
+      };
+    }
+
+    // Collect the word
+    prog.collectedWords?.add(word);
+    const collected = prog.collectedWords?.size ?? 0;
+    const required = def.requiredCount;
+    const score = Math.round((collected / required) * 100);
+
+    return {
+      passed: true,
+      score,
+      feedback: `Collected "${word}"! ${collected}/${required} words found.`,
+    };
+  }
+
   private evaluateTranslatePhrase(
     input: string,
     def: UtteranceObjectiveDefinition,
@@ -460,38 +598,48 @@ export class UtteranceQuestSystem {
     def: UtteranceObjectiveDefinition,
     config: DifficultyConfig,
   ): EvaluationResult {
-    // Pronunciation check compares phonetic representations when available,
-    // otherwise falls back to standard text matching with relaxed thresholds.
-    const normalizedInput = this.normalize(input, config);
-    let bestScore = 0;
+    // Use shared pronunciation scoring for word-level feedback
+    let bestResult: PronunciationResult | null = null;
     let bestMatch = '';
-    let bestDistance = Infinity;
 
     for (const accepted of def.acceptedUtterances) {
-      // Prefer phonetic comparison if available
-      const target = accepted.phonetic
-        ? this.normalize(accepted.phonetic, config)
-        : this.normalize(accepted.text, config);
+      const target = accepted.text;
+      const result = scorePronunciation(target, input);
 
-      const distance = this.levenshtein(normalizedInput, target);
-      const score = this.distanceToScore(distance, target.length);
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestMatch = accepted.text;
-        bestDistance = distance;
+      if (!bestResult || result.overallScore > bestResult.overallScore) {
+        bestResult = result;
+        bestMatch = target;
       }
     }
 
-    const passed = bestScore >= config.passThreshold;
+    if (!bestResult) {
+      return { passed: false, score: 0, feedback: 'No target phrase to compare.' };
+    }
+
+    const score = bestResult.overallScore;
+    const wordFeedback = wordResultsToFeedback(bestResult.wordResults);
+
+    // Retry logic: score < 60% prompts retry without penalty
+    if (score < 60) {
+      return {
+        passed: false,
+        score,
+        feedback: `Try saying it again: "${bestMatch}". ${bestResult.feedback}`,
+        bestMatch,
+        wordFeedback,
+        isPronunciationRetry: true,
+      };
+    }
+
+    const passed = score >= config.passThreshold;
     let feedback: string;
     if (passed) {
-      feedback = bestScore >= 95 ? 'Perfect pronunciation!' : bestScore >= 80 ? 'Good pronunciation.' : 'Understandable pronunciation.';
+      feedback = score >= 95 ? 'Perfect pronunciation!' : score >= 80 ? 'Good pronunciation.' : 'Understandable pronunciation.';
     } else {
       feedback = `Pronunciation needs work. Try to match: "${bestMatch}"`;
     }
 
-    return { passed, score: bestScore, feedback, bestMatch, distance: bestDistance };
+    return { passed, score, feedback, bestMatch, wordFeedback };
   }
 
   private evaluateConversationGoal(
@@ -547,6 +695,24 @@ export class UtteranceQuestSystem {
     }
 
     return { passed, score, feedback };
+  }
+
+  // ── Pronunciation bonus ──────────────────────────────────────────────
+
+  /**
+   * Calculate pronunciation bonus XP multiplier (0 to 0.25).
+   * For conversation quests, excellent pronunciation awards up to 25% bonus XP.
+   */
+  private calculatePronunciationBonusXp(prog: UtteranceObjectiveProgress): number {
+    const scores = prog.pronunciationScores;
+    if (!scores || scores.length === 0) return 0;
+
+    const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+
+    // Scale: 90+ = 25% bonus, 70-89 = 10-24% bonus, below 70 = no bonus
+    if (avgScore >= 90) return 0.25;
+    if (avgScore >= 70) return Math.round(((avgScore - 70) / 20) * 0.15 * 100) / 100 + 0.10;
+    return 0;
   }
 
   // ── Hints ─────────────────────────────────────────────────────────────
@@ -659,6 +825,8 @@ export class UtteranceQuestSystem {
         completed: prog.completed,
         failed: prog.failed,
         vocabularyUsed: prog.vocabularyUsed ? Array.from(prog.vocabularyUsed) : undefined,
+        collectedWords: prog.collectedWords ? Array.from(prog.collectedWords) : undefined,
+        pronunciationScores: prog.pronunciationScores,
       }]);
     }
 
@@ -691,6 +859,8 @@ export class UtteranceQuestSystem {
         completed: saved.completed,
         failed: saved.failed,
         vocabularyUsed: saved.vocabularyUsed ? new Set(saved.vocabularyUsed) : undefined,
+        collectedWords: saved.collectedWords ? new Set(saved.collectedWords) : undefined,
+        pronunciationScores: saved.pronunciationScores ?? [],
       });
     }
   }
@@ -873,6 +1043,8 @@ interface SerializedProgress {
   completed: boolean;
   failed: boolean;
   vocabularyUsed?: string[];
+  collectedWords?: string[];
+  pronunciationScores?: number[];
 }
 
 export interface UtteranceQuestSaveData {
@@ -1131,6 +1303,57 @@ export const UTTERANCE_QUEST_TEMPLATES: Record<string, UtteranceQuestTemplate> =
     difficulty: 'beginner',
     hints: [
       { text: 'Walk near NPCs who are talking', scorePenalty: 0.1 },
+    ],
+  },
+  word_explorer_nouns: {
+    type: 'collect_vocabulary',
+    prompt: 'Explore the area and collect 5 noun words for your vocabulary bank.',
+    targetLanguage: '',
+    acceptedUtterances: [],
+    targetCategory: 'food',
+    requiredCount: 5,
+    difficulty: 'beginner',
+    hints: [
+      { text: 'Interact with objects around you to learn their names', scorePenalty: 0.1 },
+      { text: 'Try clicking on items in shops or homes', scorePenalty: 0.15 },
+    ],
+  },
+  color_hunter: {
+    type: 'collect_vocabulary',
+    prompt: 'Find 3 objects and learn their color words in the target language.',
+    targetLanguage: '',
+    acceptedUtterances: [],
+    targetCategory: 'colors',
+    requiredCount: 3,
+    difficulty: 'beginner',
+    hints: [
+      { text: 'Look for colorful objects in the environment', scorePenalty: 0.1 },
+      { text: 'Flowers, clothing, and market stalls have many colors', scorePenalty: 0.15 },
+    ],
+  },
+  action_spotter: {
+    type: 'collect_vocabulary',
+    prompt: 'Observe 3 NPCs and learn the verbs for what they are doing.',
+    targetLanguage: '',
+    acceptedUtterances: [],
+    targetCategory: 'actions',
+    requiredCount: 3,
+    difficulty: 'beginner',
+    hints: [
+      { text: 'Watch what NPCs are doing and ask about the action words', scorePenalty: 0.1 },
+      { text: 'Visit the market, workshop, or tavern to see NPCs in action', scorePenalty: 0.15 },
+    ],
+  },
+  pronunciation_challenge: {
+    type: 'pronunciation_check',
+    prompt: 'Pronounce the phrase correctly. You need at least 70% accuracy.',
+    targetLanguage: '',
+    acceptedUtterances: [{ text: '' }], // Filled dynamically with target phrases
+    requiredCount: 5,
+    difficulty: 'intermediate',
+    hints: [
+      { text: 'Listen to the phrase first, then try to repeat it', scorePenalty: 0.1 },
+      { text: 'Focus on the vowel sounds', scorePenalty: 0.15 },
     ],
   },
   romance_first_date: {

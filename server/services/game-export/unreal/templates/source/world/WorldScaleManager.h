@@ -33,7 +33,11 @@ public:
     static FString GetSettlementTier(int32 Population);
 
     UFUNCTION(BlueprintCallable, Category = "World")
-    static TArray<FVector> GenerateLotPositions(FVector SettlementPosition, float SettlementRadius, int32 LotCount);
+    static TArray<FVector> GenerateLotPositions(FVector SettlementPosition, float SettlementRadius, int32 LotCount, const TArray<FString>& StreetNames = TArray<FString>());
+
+    /** Generate a full street-aligned layout for a settlement. Returns lot positions, facing angles, and street metadata. */
+    UFUNCTION(BlueprintCallable, Category = "World")
+    static void GenerateStreetAlignedSettlement(FVector SettlementPosition, float SettlementRadius, int32 LotCount, int32 BizCount = 0, const TArray<FString>& StreetNames = TArray<FString>());
 
     UFUNCTION(BlueprintCallable, Category = "World")
     static int32 CalculateOptimalWorldSize(int32 CountryCount, int32 StateCount, int32 SettlementCount);

@@ -635,6 +635,181 @@ export function createTelemetryRoutes(storage: any): Router {
 
   // ============= ASSESSMENT ENDPOINTS =============
 
+  // GET /api/assessment/dashboard/:worldId — aggregate assessment data for admin dashboard
+  router.get('/assessment/dashboard/:worldId', async (req: Request, res: Response) => {
+    try {
+      const { worldId } = req.params;
+      const assessmentType = req.query.assessmentType as string | undefined;
+      const dateFrom = req.query.dateFrom as string | undefined;
+      const dateTo = req.query.dateTo as string | undefined;
+
+      const assessments: any[] = await storage.getLanguageAssessmentsByWorld(worldId, {
+        assessmentType,
+        dateFrom,
+        dateTo,
+      });
+
+      // Compute aggregations
+      const playerMap = new Map<string, any[]>();
+      const byType: Record<string, { scores: number[], maxScores: number[], count: number }> = {};
+      const byPhase: Record<string, { scores: number[], count: number }> = {};
+      const cefrDistribution: Record<string, number> = {};
+
+      for (const a of assessments) {
+        // Group by player
+        if (!playerMap.has(a.playerId)) playerMap.set(a.playerId, []);
+        playerMap.get(a.playerId)!.push(a);
+
+        // Group by type
+        const type = a.assessmentType || 'unknown';
+        if (!byType[type]) byType[type] = { scores: [], maxScores: [], count: 0 };
+        byType[type].count++;
+        if (a.score != null) {
+          byType[type].scores.push(a.score);
+          byType[type].maxScores.push(a.maxScore || 100);
+        }
+
+        // Group by phase/testWindow
+        const phase = a.testWindow || 'unspecified';
+        if (!byPhase[phase]) byPhase[phase] = { scores: [], count: 0 };
+        byPhase[phase].count++;
+        if (a.score != null && a.maxScore) {
+          byPhase[phase].scores.push((a.score / a.maxScore) * 100);
+        }
+
+        // CEFR mapping from percentage score
+        if (a.score != null && a.maxScore) {
+          const pct = (a.score / a.maxScore) * 100;
+          let cefr: string;
+          if (pct >= 95) cefr = 'C2';
+          else if (pct >= 85) cefr = 'C1';
+          else if (pct >= 70) cefr = 'B2';
+          else if (pct >= 55) cefr = 'B1';
+          else if (pct >= 40) cefr = 'A2';
+          else cefr = 'A1';
+          cefrDistribution[cefr] = (cefrDistribution[cefr] || 0) + 1;
+        }
+      }
+
+      // Score distribution histogram (10-point buckets)
+      const allPercentages = assessments
+        .filter(a => a.score != null && a.maxScore)
+        .map(a => (a.score / a.maxScore) * 100);
+      const histogram: Record<string, number> = {};
+      for (let i = 0; i < 10; i++) {
+        const label = `${i * 10}-${i * 10 + 9}`;
+        histogram[label] = 0;
+      }
+      histogram['100'] = 0;
+      for (const pct of allPercentages) {
+        if (pct >= 100) histogram['100']++;
+        else {
+          const bucket = `${Math.floor(pct / 10) * 10}-${Math.floor(pct / 10) * 10 + 9}`;
+          histogram[bucket] = (histogram[bucket] || 0) + 1;
+        }
+      }
+
+      // Per-type averages
+      const typeAverages: Record<string, { avgScore: number; avgPercentage: number; count: number }> = {};
+      for (const [type, data] of Object.entries(byType)) {
+        const avgScore = data.scores.length > 0 ? data.scores.reduce((a, b) => a + b, 0) / data.scores.length : 0;
+        const avgPct = data.scores.length > 0
+          ? data.scores.map((s, i) => (s / data.maxScores[i]) * 100).reduce((a, b) => a + b, 0) / data.scores.length
+          : 0;
+        typeAverages[type] = { avgScore: Math.round(avgScore * 10) / 10, avgPercentage: Math.round(avgPct * 10) / 10, count: data.count };
+      }
+
+      // Per-phase averages
+      const phaseAverages: Record<string, { avgPercentage: number; count: number }> = {};
+      for (const [phase, data] of Object.entries(byPhase)) {
+        const avg = data.scores.length > 0 ? data.scores.reduce((a, b) => a + b, 0) / data.scores.length : 0;
+        phaseAverages[phase] = { avgPercentage: Math.round(avg * 10) / 10, count: data.count };
+      }
+
+      // Player summaries
+      const players = Array.from(playerMap.entries()).map(([playerId, playerAssessments]) => {
+        const scores = playerAssessments.filter(a => a.score != null && a.maxScore);
+        const avgPct = scores.length > 0
+          ? scores.map(a => (a.score / a.maxScore) * 100).reduce((a, b) => a + b, 0) / scores.length
+          : 0;
+        return {
+          playerId,
+          assessmentCount: playerAssessments.length,
+          avgPercentage: Math.round(avgPct * 10) / 10,
+          lastAssessment: playerAssessments[0]?.createdAt,
+        };
+      });
+
+      res.json({
+        worldId,
+        totalAssessments: assessments.length,
+        uniquePlayers: playerMap.size,
+        histogram,
+        cefrDistribution,
+        typeAverages,
+        phaseAverages,
+        players,
+      });
+    } catch (error) {
+      console.error('Assessment dashboard error:', error);
+      res.status(500).json({ message: 'Failed to get assessment dashboard data' });
+    }
+  });
+
+  // GET /api/assessment/:participantId/detail — full assessment history for a player
+  router.get('/assessment/:participantId/detail', async (req: Request, res: Response) => {
+    try {
+      const { participantId } = req.params;
+      const worldId = req.query.worldId as string | undefined;
+
+      // Get all evaluation responses for this participant
+      const evaluations = await storage.getEvaluationResponsesByParticipant(participantId);
+
+      // Get language assessments if worldId provided
+      let languageAssessments: any[] = [];
+      if (worldId) {
+        languageAssessments = await storage.getLanguageAssessments(participantId, worldId);
+      }
+
+      // Re-score evaluations with subscale breakdowns
+      const { scoreInstrument, INSTRUMENTS } = await import('../services/assessment-framework');
+      const enriched = evaluations.map((ev: any) => {
+        const instrument = INSTRUMENTS[ev.instrumentType as keyof typeof INSTRUMENTS];
+        let subscaleScores: Record<string, number> = {};
+        let totalScore = ev.score;
+
+        if (instrument && ev.responses && typeof ev.responses === 'object') {
+          try {
+            const result = scoreInstrument(ev.instrumentType, ev.responses);
+            subscaleScores = result.subscaleScores;
+            totalScore = result.totalScore;
+          } catch {
+            // Use stored score if re-scoring fails
+          }
+        }
+
+        return {
+          ...ev,
+          score: totalScore,
+          subscaleScores,
+          maxScore: instrument?.scoreRange?.max ?? ev.maxScore,
+          instrumentName: instrument?.name ?? ev.instrumentType,
+          subscales: instrument?.subscales?.map(s => ({ id: s.id, name: s.name })) ?? [],
+        };
+      });
+
+      res.json({
+        participantId,
+        evaluations: enriched,
+        languageAssessments,
+        totalAssessments: enriched.length + languageAssessments.length,
+      });
+    } catch (error) {
+      console.error('Assessment detail error:', error);
+      res.status(500).json({ message: 'Failed to get assessment detail' });
+    }
+  });
+
   // GET /api/assessment/:participantId/schedule — shows which tests are due
   router.get('/assessment/:participantId/schedule', async (req: Request, res: Response) => {
     try {
@@ -719,6 +894,104 @@ export function createTelemetryRoutes(storage: any): Router {
     } catch (error) {
       console.error('Assessment submit error:', error);
       res.status(500).json({ message: 'Failed to submit assessment' });
+    }
+  });
+
+  // ============= VISUAL RECOGNITION ASSESSMENT ENDPOINTS =============
+
+  // POST /api/assessment/:participantId/visual-recognition/generate — generate a task
+  router.post('/assessment/:participantId/visual-recognition/generate', async (req: Request, res: Response) => {
+    try {
+      const { participantId } = req.params;
+      const { worldId, targetLanguage, format, direction, itemCount, categories, difficulty, timeLimit, studyId, testWindow, customVocabulary } = req.body;
+
+      if (!worldId || !targetLanguage) {
+        return res.status(400).json({ message: 'Missing required fields: worldId, targetLanguage' });
+      }
+
+      const { generateTask, getSupportedLanguages } = await import('../services/visual-recognition-handler');
+
+      const supported = getSupportedLanguages();
+      if (!customVocabulary && !supported.includes(targetLanguage.toLowerCase())) {
+        return res.status(400).json({ message: `Unsupported language: ${targetLanguage}. Supported: ${supported.join(', ')}. Provide customVocabulary for other languages.` });
+      }
+
+      const task = generateTask({
+        participantId,
+        worldId,
+        targetLanguage,
+        format,
+        direction,
+        itemCount,
+        categories,
+        difficulty,
+        timeLimit,
+        studyId,
+        testWindow,
+        customVocabulary,
+      });
+
+      res.status(201).json(task);
+    } catch (error) {
+      console.error('Visual recognition generate error:', error);
+      res.status(500).json({ message: 'Failed to generate visual recognition task' });
+    }
+  });
+
+  // POST /api/assessment/:participantId/visual-recognition/submit — submit responses and get score
+  router.post('/assessment/:participantId/visual-recognition/submit', async (req: Request, res: Response) => {
+    try {
+      const { participantId } = req.params;
+      const { task, responses, studyId } = req.body;
+
+      if (!task || !responses) {
+        return res.status(400).json({ message: 'Missing required fields: task, responses' });
+      }
+
+      if (task.participantId !== participantId) {
+        return res.status(400).json({ message: 'Task participantId does not match route parameter' });
+      }
+
+      const { scoreTask, validateResponses } = await import('../services/visual-recognition-handler');
+
+      const validation = validateResponses(task, responses);
+      if (!validation.valid) {
+        return res.status(400).json({ message: 'Invalid responses', errors: validation.errors });
+      }
+
+      const result = scoreTask(task, responses);
+
+      // Persist as an evaluation response for research analysis
+      const effectiveStudyId = studyId || task.studyId;
+      if (effectiveStudyId) {
+        await storage.createEvaluationResponse({
+          studyId: effectiveStudyId,
+          participantId,
+          instrumentType: 'visual_recognition',
+          testWindow: task.testWindow || 'post',
+          targetLanguage: task.targetLanguage,
+          responses,
+          score: result.score,
+          maxScore: 100,
+          createdAt: new Date(),
+        });
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error('Visual recognition submit error:', error);
+      res.status(500).json({ message: 'Failed to score visual recognition task' });
+    }
+  });
+
+  // GET /api/assessment/:participantId/visual-recognition/languages — list supported languages
+  router.get('/assessment/:participantId/visual-recognition/languages', async (_req: Request, res: Response) => {
+    try {
+      const { getSupportedLanguages } = await import('../services/visual-recognition-handler');
+      res.json({ languages: getSupportedLanguages() });
+    } catch (error) {
+      console.error('Visual recognition languages error:', error);
+      res.status(500).json({ message: 'Failed to get supported languages' });
     }
   });
 

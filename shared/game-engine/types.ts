@@ -431,6 +431,7 @@ export interface PlacedBuildingData {
 // ─── Nature / Biomes ────────────────────────────────────────────────────────
 
 export type TreeType = 'pine' | 'oak' | 'palm' | 'dead' | 'none';
+export type GeologicalFeatureType = 'boulder' | 'rock_cluster' | 'stone_pillar' | 'rock_outcrop' | 'crystal_formation';
 
 export interface BiomeStyleData {
   name: string;
@@ -442,6 +443,22 @@ export interface BiomeStyleData {
   hasFlowers: boolean;
   flowerColors: Color3[];
   treeAssetSetId?: string;
+  geologicalDensity: number;
+  geologicalFeatures: GeologicalFeatureType[];
+}
+
+// ─── Water Features ─────────────────────────────────────────────────────────
+
+export type WaterFeatureType = 'river' | 'lake' | 'ocean' | 'pond' | 'stream' | 'waterfall' | 'marsh' | 'canal';
+
+export interface WaterFeatureStyleData {
+  name: string;
+  waterType: WaterFeatureType;
+  color: Color3;
+  transparency: number;
+  flowSpeed: number;
+  waveIntensity: number;
+  assetSetId?: string;
 }
 
 // ─── Roads ──────────────────────────────────────────────────────────────────
@@ -449,6 +466,32 @@ export interface BiomeStyleData {
 export interface RoadSegmentData {
   from: Vec3;
   to: Vec3;
+}
+
+// ─── Street Networks ────────────────────────────────────────────────────────
+
+/** A point where two or more streets meet */
+export interface StreetNode {
+  id: string;
+  x: number;
+  z: number;
+  intersectionOf: string[]; // IDs of StreetSegments that meet here
+}
+
+/** A single street defined by a polyline of waypoints */
+export interface StreetSegment {
+  id: string;
+  name: string;
+  direction: 'NS' | 'EW' | 'radial' | 'ring';
+  nodeIds: string[];                        // Ordered intersection node IDs
+  waypoints: { x: number; z: number }[];    // Ordered centerline polyline
+  width: number;                            // Road width in world units
+}
+
+/** Complete street network for a settlement */
+export interface StreetNetwork {
+  nodes: StreetNode[];
+  segments: StreetSegment[];
 }
 
 // ─── Dungeons ───────────────────────────────────────────────────────────────

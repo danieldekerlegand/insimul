@@ -20,6 +20,8 @@ import { AdminPanel } from '@/components/AdminPanel';
 import { PlaythroughsList } from '@/components/PlaythroughsList';
 import { PlaythroughAnalytics } from '@/components/PlaythroughAnalytics';
 import { ResearcherDashboard } from '@/components/ResearcherDashboard';
+import { PlayerAssessmentDetail } from '@/components/PlayerAssessmentDetail';
+import { AssessmentDashboard } from '@/components/AssessmentDashboard';
 import { WorldBrowser } from '@/components/WorldBrowser';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -44,6 +46,7 @@ export default function Home() {
   const [worldSettingsOpen, setWorldSettingsOpen] = useState(false);
   const [worldDeleteDialogOpen, setWorldDeleteDialogOpen] = useState(false);
   const [worldEditDialogOpen, setWorldEditDialogOpen] = useState(false);
+  const [assessmentPlayerId, setAssessmentPlayerId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const ruleCompiler = new InsimulRuleCompiler();
   const { toast } = useToast();
@@ -199,8 +202,22 @@ export default function Home() {
         )}
 
         {/* Research Dashboard Tab */}
-        {activeTab === 'research' && selectedWorld && (
-          <ResearcherDashboard worldId={selectedWorld} />
+        {activeTab === 'research' && selectedWorld && !assessmentPlayerId && (
+          <ResearcherDashboard worldId={selectedWorld} onViewPlayerDetail={setAssessmentPlayerId} />
+        )}
+
+        {/* Player Assessment Detail (drills down from Research Dashboard) */}
+        {activeTab === 'research' && selectedWorld && assessmentPlayerId && (
+          <PlayerAssessmentDetail
+            playerId={assessmentPlayerId}
+            worldId={selectedWorld}
+            onBack={() => setAssessmentPlayerId(null)}
+          />
+        )}
+
+        {/* Assessment Dashboard Tab */}
+        {activeTab === 'assessments' && selectedWorld && (
+          <AssessmentDashboard worldId={selectedWorld} />
         )}
 
         {/* My Playthroughs Tab */}

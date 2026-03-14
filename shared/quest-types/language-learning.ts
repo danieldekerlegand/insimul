@@ -191,6 +191,14 @@ export const languageLearningQuestType: QuestTypeDefinition = {
       },
     },
     {
+      id: 'collect_vocabulary',
+      name: 'Collect Vocabulary',
+      trackingLogic: (context) => context.collectedWords || 0,
+      completionCheck: (progress) => {
+        return (progress.collectedWords || 0) >= (progress.required || 5);
+      },
+    },
+    {
       id: 'identify_object',
       name: 'Identify Object',
       trackingLogic: (context) => context.objectsIdentified || 0,
@@ -267,7 +275,7 @@ World Description: ${world.description || 'A language learning environment'}
 
 Create a quest that helps the player practice ${language} through natural interactions. The quest should:
 - Have a clear narrative context that fits the ${setting} setting
-- Include 2-4 objectives from: use_vocabulary, complete_conversation, practice_grammar, collect_item, visit_location, talk_to_npc, use_vocabulary_category, sustained_conversation, master_words, learn_new_words, identify_object, follow_directions, find_vocabulary_items, listening_comprehension, translation_challenge, navigate_language
+- Include 2-4 objectives from: use_vocabulary, complete_conversation, practice_grammar, collect_item, visit_location, talk_to_npc, use_vocabulary_category, sustained_conversation, master_words, learn_new_words, collect_vocabulary, identify_object, follow_directions, find_vocabulary_items, listening_comprehension, translation_challenge, navigate_language
 - Specify vocabulary words or grammar patterns to practice
 - Set appropriate difficulty (beginner/intermediate/advanced)
 - Provide meaningful rewards (XP and fluency points)

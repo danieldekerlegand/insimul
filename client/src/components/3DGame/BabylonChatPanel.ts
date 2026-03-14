@@ -14,15 +14,20 @@ import { Scene, Mesh } from "@babylonjs/core";
 import { BabylonDialogueActions } from "./BabylonDialogueActions.ts";
 import { Action } from "./types/actions";
 import { NPCTalkingIndicator } from "./NPCTalkingIndicator";
-import { buildGreeting, buildLanguageAwareSystemPrompt, buildWorldLanguageContext, extractLanguageFluencies, getLanguageBCP47 } from "@shared/language-utils";
-import type { WorldLanguageContext } from "@shared/language-utils";
+import { buildGreeting, buildLanguageAwareSystemPrompt, buildWorldLanguageContext, extractLanguageFluencies, getLanguageBCP47 } from "@shared/language/language-utils";
+import type { WorldLanguageContext } from "@shared/language/language-utils";
 import { LanguageProgressTracker } from "./LanguageProgressTracker";
-import { scorePronunciation, formatPronunciationFeedback } from "@shared/pronunciation-scoring";
+import { scorePronunciation, formatPronunciationFeedback } from "@shared/language/pronunciation-scoring";
 import { ConversationClient } from "./ConversationClient";
 import type { ConversationState } from "./ConversationClient";
 import { StreamingAudioPlayer } from "./StreamingAudioPlayer";
 import type { StreamingAudioChunk } from "./StreamingAudioPlayer";
 import { LipSyncController } from "./LipSyncController";
+import { SpeechRecognitionService, isSpeechRecognitionSupported, serverSideSTT } from "@/lib/speech-recognition";
+import { processRecordedAudio } from "@/lib/audio-utils";
+import { HandsFreeController } from "@/lib/hands-free-controller";
+import { fetchGreetingAudio } from "@/lib/greeting-audio-cache";
+import { VoiceWebSocketClient } from "@/lib/voice-websocket-client";
 
 interface Message {
   role: 'user' | 'assistant';
@@ -100,13 +105,16 @@ export class BabylonChatPanel {
   private _sessionGrammarErrors: Map<string, number> = new Map(); // pattern -> error count this session
   private _grammarFocusShown: Set<string> = new Set(); // patterns already shown focus popup
 
+  // Precomputed greeting audio
+  private greetingAudioPromise: Promise<Blob | null> | null = null;
+
   // Audio queue for sentence-level TTS playback
   private audioQueue: { index: number; blob: Blob }[] = [];
   private isPlayingQueue = false;
 
-  // Audio
-  private mediaRecorder: MediaRecorder | null = null;
-  private audioChunks: Blob[] = [];
+  // Audio / Speech Recognition
+  private speechService: SpeechRecognitionService | null = null;
+  private serverSTTHandle: { stop: () => void } | null = null;
   private currentAudio: HTMLAudioElement | null = null;
   private isRecording = false;
   private isSpeaking = false;
@@ -118,6 +126,18 @@ export class BabylonChatPanel {
   private _grpcAvailable: boolean | null = null; // null = unchecked
   private _conversationState: ConversationState = 'idle';
   private _stateIndicator: TextBlock | null = null;
+
+  // WebSocket voice chat
+  private voiceWSClient: VoiceWebSocketClient | null = null;
+  private voiceMode: 'push-to-talk' | 'always-on' = 'push-to-talk';
+  private voiceModeButton: Button | null = null;
+
+  // Hands-free mode (VAD auto-start/stop)
+  private handsFreeController: HandsFreeController | null = null;
+  private isHandsFreeMode = false;
+  private handsFreeButton: Button | null = null;
+  private volumeIndicator: Rectangle | null = null;
+  private volumeBar: Rectangle | null = null;
 
   // Dialogue Actions
   private dialogueActions: BabylonDialogueActions | null = null;
@@ -141,6 +161,8 @@ export class BabylonChatPanel {
   private onFluencyGain: ((fluency: number, gain: number) => void) | null = null;
   private onConversationSummary: ((result: any) => void) | null = null;
   private onDialogueRating: ((messageIndex: number, rating: number) => void) | null = null;
+  private onChatExchange: ((npcId: string, playerMessage: string, npcResponse: string) => void) | null = null;
+  private systemPromptAugmentation: ((npcId: string) => string | null) | null = null;
   private pendingTurnInQuests: any[] = [];
 
   // Expose advancedTexture for debugging
@@ -324,6 +346,7 @@ export class BabylonChatPanel {
     console.log('[ChatPanel] Hide() called - was isVisible:', this.isVisible, 'userInitiated:', userInitiated);
     console.log('[ChatPanel] Call stack:', new Error().stack);
     this.clearHintTimer();
+    this.disableHandsFreeMode();
     this.isVisible = false;
     if (this.chatContainer) {
       this.chatContainer.isVisible = false;
@@ -348,6 +371,8 @@ export class BabylonChatPanel {
         this.onConversationSummary?.(result);
       }
     }
+    // Cancel any pending greeting audio
+    this.greetingAudioPromise = null;
     // Hide talking indicator
     if (this.talkingIndicator && this.character) {
       this.talkingIndicator.hide(this.character.id);
@@ -372,9 +397,15 @@ export class BabylonChatPanel {
       this.currentAudio.pause();
       this.currentAudio = null;
     }
-    if (this.mediaRecorder && this.isRecording) {
-      this.mediaRecorder.stop();
-      this.isRecording = false;
+    if ('speechSynthesis' in window) {
+      speechSynthesis.cancel();
+    }
+    if (this.isRecording) {
+      this.stopRecording();
+    }
+    // Stop WebSocket voice capture when hiding
+    if (this.voiceWSClient) {
+      this.voiceWSClient.stopCapture();
     }
     this.isSpeaking = false;
   }
@@ -423,6 +454,9 @@ export class BabylonChatPanel {
       });
     }
 
+    // Precompute greeting audio so it's ready to play immediately
+    this.precomputeGreetingAudio(greeting);
+
     // Set up language tracker callbacks
     if (this.languageTracker) {
       if (this.worldLanguageContext) {
@@ -441,6 +475,25 @@ export class BabylonChatPanel {
     }
 
     this.updateMessagesDisplay();
+  }
+
+  private precomputeGreetingAudio(greeting: string) {
+    if (!this.character) return;
+
+    const voice = this.character.gender === 'female' ? 'Kore' : 'Charon';
+    const gender = this.character.gender || 'neutral';
+    const characterId = this.character.id;
+
+    this.greetingAudioPromise = fetchGreetingAudio(characterId, greeting, voice, gender);
+
+    // Auto-play once ready (if panel is still visible and showing this character)
+    this.greetingAudioPromise.then((blob) => {
+      if (blob && this.isVisible && this.character?.id === characterId) {
+        this.playAudio(blob).catch((err) => {
+          console.warn('[ChatPanel] Failed to play greeting audio:', err);
+        });
+      }
+    });
   }
 
   private createChatUI() {
@@ -573,17 +626,26 @@ export class BabylonChatPanel {
     this.inputText.paddingLeft = "10px";
 
     this.inputText.onFocusObservable.add(() => {
-      if (this.inputText && this.inputText.text === "Type your message...") {
+      if (this.inputText && (this.inputText.text === "Type your message..." || this.inputText.text === "Hands-free: speak to chat...")) {
         this.inputText.text = "";
       }
       this._inputFocused = true;
+      // Pause hands-free while typing
+      if (this.isHandsFreeMode && this.handsFreeController) {
+        this.handsFreeController.stop();
+      }
     });
 
     this.inputText.onBlurObservable.add(() => {
       if (this.inputText && this.inputText.text === "") {
-        this.inputText.text = "Type your message...";
+        this.inputText.text = this.isHandsFreeMode ? "Hands-free: speak to chat..." : "Type your message...";
+        if (this.isHandsFreeMode) this.inputText.color = '#88cc88';
       }
       this._inputFocused = false;
+      // Resume hands-free when leaving text input
+      if (this.isHandsFreeMode && this.handsFreeController && !this.handsFreeController.isActive) {
+        this.handsFreeController.start();
+      }
     });
 
     inputArea.addControl(this.inputText);
@@ -606,6 +668,59 @@ export class BabylonChatPanel {
       }
     });
     inputArea.addControl(this.micButton);
+
+    // Voice mode toggle button (push-to-talk vs always-on WebSocket)
+    this.voiceModeButton = Button.CreateSimpleButton("voiceModeBtn", "PTT");
+    this.voiceModeButton.width = "26px";
+    this.voiceModeButton.height = "26px";
+    this.voiceModeButton.color = "white";
+    this.voiceModeButton.background = "rgba(60, 60, 60, 0.5)";
+    this.voiceModeButton.cornerRadius = 4;
+    this.voiceModeButton.fontSize = 7;
+    this.voiceModeButton.left = "68%";
+    this.voiceModeButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.voiceModeButton.onPointerClickObservable.add(() => {
+      this.toggleVoiceMode();
+    });
+    inputArea.addControl(this.voiceModeButton);
+
+    // Hands-free toggle button (VAD auto-start/stop)
+    this.handsFreeButton = Button.CreateSimpleButton("hfBtn", "HF");
+    this.handsFreeButton.width = "26px";
+    this.handsFreeButton.height = "26px";
+    this.handsFreeButton.color = "white";
+    this.handsFreeButton.background = "rgba(60, 60, 60, 0.5)";
+    this.handsFreeButton.cornerRadius = 4;
+    this.handsFreeButton.fontSize = 8;
+    this.handsFreeButton.left = "72%";
+    this.handsFreeButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.handsFreeButton.onPointerClickObservable.add(() => {
+      this.toggleHandsFreeMode();
+    });
+    inputArea.addControl(this.handsFreeButton);
+
+    // Volume indicator (visible only in hands-free mode)
+    this.volumeIndicator = new Rectangle("volumeIndicator");
+    this.volumeIndicator.width = "40px";
+    this.volumeIndicator.height = "4px";
+    this.volumeIndicator.left = "60%";
+    this.volumeIndicator.top = "-2px";
+    this.volumeIndicator.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.volumeIndicator.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    this.volumeIndicator.background = "rgba(40, 40, 40, 0.6)";
+    this.volumeIndicator.cornerRadius = 2;
+    this.volumeIndicator.thickness = 0;
+    this.volumeIndicator.isVisible = false;
+
+    this.volumeBar = new Rectangle("volumeBar");
+    this.volumeBar.width = "0%";
+    this.volumeBar.height = "100%";
+    this.volumeBar.background = "#4CAF50";
+    this.volumeBar.cornerRadius = 2;
+    this.volumeBar.thickness = 0;
+    this.volumeBar.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.volumeIndicator.addControl(this.volumeBar);
+    inputArea.addControl(this.volumeIndicator);
 
     // Send button
     const sendBtn = Button.CreateSimpleButton("sendBtn", "Send");
@@ -926,8 +1041,59 @@ export class BabylonChatPanel {
         this.loadingIndicator.isVisible = false;
       }
 
-      // Process the response (quests, grammar, vocabulary)
-      await this.processAssistantResponse(userMessage, responseText, placeholderMsg);
+      // Use server-provided cleaned response if available, otherwise parse locally
+      const cleanedResponse = aiResponse.cleanedResponse
+        ? await this.parseAndCreateQuest(aiResponse.cleanedResponse)
+        : await this.parseAndCreateQuest(aiResponse.text);
+
+      // Analyze vocabulary usage
+      if (this.languageTracker) {
+        this.languageTracker.analyzePlayerMessage(userMessage);
+        this.languageTracker.analyzeNPCResponse(cleanedResponse);
+      }
+
+      // Use grammar feedback from streaming done event, or fall back to separate API call
+      const isLanguageLearning = this.world?.gameType === 'language-learning' ||
+                                 this.world?.gameType === 'educational' ||
+                                 this.world?.worldType === 'language-learning' ||
+                                 this.world?.worldType === 'educational';
+      if (isLanguageLearning && this.languageTracker && this.worldLanguageContext?.targetLanguage) {
+        if (aiResponse.grammarFeedback) {
+          this.languageTracker.recordGrammarFeedback(aiResponse.grammarFeedback);
+          if (aiResponse.grammarFeedback.errors?.length > 0) {
+            const corrections = aiResponse.grammarFeedback.errors
+              .map((e: any) => `"${e.incorrect}" → "${e.corrected}" (${e.explanation})`)
+              .join('\n');
+            this.displayGrammarFeedback(corrections, false);
+          } else if (aiResponse.grammarFeedback.status === 'correct') {
+            this.displayGrammarFeedback('Great grammar!', true);
+          }
+        } else {
+          this.requestGrammarAnalysis(userMessage, cleanedResponse);
+        }
+      }
+
+      // Update final cleaned message content and do full display rebuild
+      placeholderMsg.content = cleanedResponse;
+      this.updateMessagesDisplay();
+
+      // Track vocabulary usage for quests
+      this.trackQuestProgress(userMessage, cleanedResponse);
+
+      // Notify listeners of the chat exchange (used by listening comprehension)
+      if (this.onChatExchange && this.character?.id) {
+        this.onChatExchange(this.character.id, userMessage, cleanedResponse);
+      }
+
+      // Play queued sentence audio, or fall back to full TTS
+      if (this.audioQueue.length > 0) {
+        // Audio queue playback was started during streaming; wait for it to drain
+        while (this.isPlayingQueue) {
+          await new Promise(r => setTimeout(r, 100));
+        }
+      } else {
+        await this.textToSpeech(cleanedResponse);
+      }
 
       // Start hint timer for beginner players
       this.startHintTimer();
@@ -1169,7 +1335,7 @@ export class BabylonChatPanel {
   private async sendToGeminiStreaming(
     userMessage: string,
     onChunk: (partialText: string) => void
-  ): Promise<{text: string, audio?: string}> {
+  ): Promise<{text: string, audio?: string, cleanedResponse?: string, grammarFeedback?: any}> {
     if (!this.character) throw new Error('No character selected');
 
     const systemPrompt = this.buildSystemPrompt();
@@ -1208,6 +1374,7 @@ export class BabylonChatPanel {
 
     const decoder = new TextDecoder();
     let fullText = '';
+    let doneData: any = null;
     // Reset audio queue for this response
     this.audioQueue = [];
 
@@ -1225,20 +1392,33 @@ export class BabylonChatPanel {
 
         try {
           const parsed = JSON.parse(data);
+          // Handle the final done event with cleaned response and grammar metadata
+          if (parsed.done) {
+            doneData = parsed;
+            if (parsed.cleanedResponse) {
+              onChunk(parsed.cleanedResponse);
+            }
+            if (parsed.audio) {
+              const audioBytes = Uint8Array.from(atob(parsed.audio), c => c.charCodeAt(0));
+              const audioBlob = new Blob([audioBytes], { type: 'audio/mp3' });
+              this.audioQueue.push({ index: this.audioQueue.length, blob: audioBlob });
+              if (!this.isPlayingQueue) {
+                this.playAudioQueue();
+              }
+            }
+            continue;
+          }
           if (parsed.text) {
             fullText += parsed.text;
-            onChunk(fullText);
-          }
-          if (parsed.audio) {
-            // Sentence-level audio chunk — queue for sequential playback
-            const audioBytes = Uint8Array.from(atob(parsed.audio), c => c.charCodeAt(0));
-            const audioBlob = new Blob([audioBytes], { type: 'audio/mp3' });
-            const idx = parsed.sentenceIndex ?? this.audioQueue.length;
-            this.audioQueue.push({ index: idx, blob: audioBlob });
-            // Start playing immediately if this is the first chunk
-            if (!this.isPlayingQueue) {
-              this.playAudioQueue();
-            }
+            // Strip system markers before displaying to the player
+            const displayText = fullText
+              .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+              .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+              // Also strip partial/incomplete marker blocks mid-stream
+              .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*$/g, '')
+              .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*$/g, '')
+              .trim();
+            onChunk(displayText);
           }
           if (parsed.error) {
             console.error('[ChatPanel] Stream error:', parsed.error);
@@ -1249,7 +1429,12 @@ export class BabylonChatPanel {
       }
     }
 
-    return { text: fullText };
+    return {
+      text: fullText,
+      cleanedResponse: doneData?.cleanedResponse,
+      grammarFeedback: doneData?.grammarFeedback,
+      audio: doneData?.audio,
+    };
   }
 
   /**
@@ -1453,8 +1638,8 @@ export class BabylonChatPanel {
     if (!this.character) return '';
     // Return cached prompt if character hasn't changed
     if (this._cachedSystemPrompt && this._systemPromptCharId === this.character.id) {
-      // Rebuild if inventory context or proficiency data changed
-      if (!this.playerInventoryContext && !this._proficiencyDirty) return this._cachedSystemPrompt;
+      // Rebuild if inventory context, proficiency data, or prompt augmentation changed
+      if (!this.playerInventoryContext && !this._proficiencyDirty && !this.systemPromptAugmentation) return this._cachedSystemPrompt;
     }
     this._proficiencyDirty = false;
     const proficiency = this.languageTracker?.getPlayerProficiency() || undefined;
@@ -1475,9 +1660,76 @@ export class BabylonChatPanel {
     if (this.playerInventoryContext) {
       prompt += this.playerInventoryContext;
     }
+    // Inject listening comprehension or other quest-specific augmentation
+    if (this.systemPromptAugmentation && this.character.id) {
+      const augmentation = this.systemPromptAugmentation(this.character.id);
+      if (augmentation) {
+        prompt += augmentation;
+      }
+    }
     this._cachedSystemPrompt = prompt;
     this._systemPromptCharId = this.character.id as string;
     return prompt;
+  }
+
+  /**
+   * Request grammar analysis from a separate LLM call.
+   * Runs in the background — doesn't block dialogue display or TTS.
+   */
+  private async requestGrammarAnalysis(playerMessage: string, npcResponse: string): Promise<void> {
+    try {
+      const res = await fetch('/api/gemini/grammar-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerMessage,
+          npcResponse,
+          targetLanguage: this.worldLanguageContext?.targetLanguage || 'Spanish',
+        }),
+      });
+
+      if (!res.ok) return;
+      const data = await res.json();
+
+      if (!data || !this.languageTracker) return;
+
+      const feedback = {
+        status: data.status as 'correct' | 'corrected' | 'no_target_language',
+        errors: (data.errors || []).map((e: any) => ({
+          pattern: e.pattern || 'unknown',
+          incorrect: e.incorrect || '',
+          corrected: e.corrected || '',
+          explanation: e.explanation || '',
+        })),
+        errorCount: data.errors?.length || 0,
+        timestamp: Date.now(),
+      };
+
+      this.languageTracker.recordGrammarFeedback(feedback);
+
+      if (feedback.status === 'corrected' && feedback.errors.length > 0) {
+        console.log(`[GrammarAnalysis] Grammar corrections: ${feedback.errors.length}`);
+        const corrections = feedback.errors.map((err: any) =>
+          `"${err.incorrect}" → "${err.corrected}" (${err.explanation})`
+        ).join('\n');
+        this.displayGrammarFeedback(corrections, false);
+
+        // Track repeated grammar errors — show focus popup after 3 errors of same type
+        for (const err of feedback.errors) {
+          const count = (this._sessionGrammarErrors.get(err.pattern) || 0) + 1;
+          this._sessionGrammarErrors.set(err.pattern, count);
+          if (count >= 3 && !this._grammarFocusShown.has(err.pattern)) {
+            this._grammarFocusShown.add(err.pattern);
+            this.showGrammarFocusPopup(err.pattern, err.explanation, err.corrected);
+          }
+        }
+      } else if (feedback.status === 'correct') {
+        console.log('[GrammarAnalysis] Grammar: correct!');
+        this.displayGrammarFeedback('Great grammar!', true);
+      }
+    } catch (err) {
+      console.warn('[GrammarAnalysis] Failed:', err);
+    }
   }
 
   private async textToSpeech(text: string) {
@@ -1488,7 +1740,8 @@ export class BabylonChatPanel {
         body: JSON.stringify({
           text,
           voice: this.character?.gender === 'female' ? 'Kore' : 'Charon',
-          gender: this.character?.gender || 'neutral'
+          gender: this.character?.gender || 'neutral',
+          emotionalTone: this.character?.emotionalTone
         })
       });
 
@@ -1497,172 +1750,173 @@ export class BabylonChatPanel {
         await this.playAudio(audioBlob);
       } else {
         // Fallback to browser TTS
-        this.browserTextToSpeech(text);
+        await this.browserTextToSpeech(text);
       }
     } catch (error) {
       console.error('TTS error:', error);
-      this.browserTextToSpeech(text);
+      await this.browserTextToSpeech(text);
     }
   }
 
-  private browserTextToSpeech(text: string) {
-    if (!('speechSynthesis' in window)) return;
+  private browserTextToSpeech(text: string): Promise<void> {
+    if (!('speechSynthesis' in window)) return Promise.resolve();
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    return new Promise<void>((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(text);
 
-    // Dynamically detect the character's dominant language for TTS
-    const fluencies = extractLanguageFluencies(this.truths);
-    const dominantLang = fluencies[0]?.language || 'English';
-    const langCode = getLanguageBCP47(dominantLang);
-    utterance.lang = langCode;
-    utterance.rate = 0.9;
+      // Dynamically detect the character's dominant language for TTS
+      const fluencies = extractLanguageFluencies(this.truths);
+      const dominantLang = fluencies[0]?.language || 'English';
+      const langCode = getLanguageBCP47(dominantLang);
+      utterance.lang = langCode;
+      utterance.rate = 0.9;
 
-    const voices = speechSynthesis.getVoices();
-    const langPrefix = langCode.split('-')[0];
-    const voice = voices.find(v => v.lang.startsWith(langPrefix));
-    if (voice) utterance.voice = voice;
+      const voices = speechSynthesis.getVoices();
+      const langPrefix = langCode.split('-')[0];
+      const voice = voices.find(v => v.lang.startsWith(langPrefix));
+      if (voice) utterance.voice = voice;
 
-    this.isSpeaking = true;
+      this.isSpeaking = true;
 
-    // Show talking indicator
-    if (this.talkingIndicator && this.character && this.npcMesh) {
-      this.talkingIndicator.show(this.character.id, this.npcMesh);
-    }
-
-    utterance.onend = () => {
-      this.isSpeaking = false;
-
-      // Hide talking indicator
-      if (this.talkingIndicator && this.character) {
-        this.talkingIndicator.hide(this.character.id);
+      // Show talking indicator
+      if (this.talkingIndicator && this.character && this.npcMesh) {
+        this.talkingIndicator.show(this.character.id, this.npcMesh);
       }
-    };
 
-    speechSynthesis.speak(utterance);
+      utterance.onend = () => {
+        this.isSpeaking = false;
+
+        // Hide talking indicator
+        if (this.talkingIndicator && this.character) {
+          this.talkingIndicator.hide(this.character.id);
+        }
+        resolve();
+      };
+
+      utterance.onerror = () => {
+        this.isSpeaking = false;
+        if (this.talkingIndicator && this.character) {
+          this.talkingIndicator.hide(this.character.id);
+        }
+        resolve();
+      };
+
+      speechSynthesis.speak(utterance);
+    });
   }
 
-  private async playAudio(audioBlob: Blob) {
-    const audioUrl = URL.createObjectURL(audioBlob);
-    const audio = new Audio(audioUrl);
-    this.currentAudio = audio;
+  private playAudio(audioBlob: Blob): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      this.currentAudio = audio;
 
-    this.isSpeaking = true;
+      this.isSpeaking = true;
 
-    // Show talking indicator
-    if (this.talkingIndicator && this.character && this.npcMesh) {
-      this.talkingIndicator.show(this.character.id, this.npcMesh);
-    }
-
-    audio.onended = () => {
-      this.isSpeaking = false;
-      URL.revokeObjectURL(audioUrl);
-
-      // Hide talking indicator
-      if (this.talkingIndicator && this.character) {
-        this.talkingIndicator.hide(this.character.id);
+      // Show talking indicator
+      if (this.talkingIndicator && this.character && this.npcMesh) {
+        this.talkingIndicator.show(this.character.id, this.npcMesh);
       }
-    };
 
-    await audio.play();
+      audio.onended = () => {
+        this.isSpeaking = false;
+        URL.revokeObjectURL(audioUrl);
+
+        // Hide talking indicator
+        if (this.talkingIndicator && this.character) {
+          this.talkingIndicator.hide(this.character.id);
+        }
+        resolve();
+      };
+
+      audio.onerror = (e) => {
+        this.isSpeaking = false;
+        URL.revokeObjectURL(audioUrl);
+        if (this.talkingIndicator && this.character) {
+          this.talkingIndicator.hide(this.character.id);
+        }
+        reject(e);
+      };
+
+      audio.play().catch(reject);
+    });
   }
 
   private async startRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      this.mediaRecorder = new MediaRecorder(stream);
-      this.audioChunks = [];
+    if (this.isRecording || this.isProcessing) return;
 
-      this.mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          this.audioChunks.push(event.data);
-        }
-      };
-
-      this.mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
-        stream.getTracks().forEach(track => track.stop());
-
-        this.isProcessing = true;
-        this.updateConversationStateIndicator('listening');
-
-        // Update input text to show processing
-        if (this.inputText) {
-          this.inputText.text = "Transcribing audio...";
-          this.inputText.color = "#ffd93d";
-        }
-
-        // Show thinking indicator
-        if (this.loadingIndicator) {
-          this.loadingIndicator.isVisible = true;
-        }
-
-        try {
-          // Try gRPC audio streaming if available
-          if (this._grpcAvailable && this.conversationClient) {
-            await this.handleAudioViaGrpc(audioBlob);
-          } else {
-            await this.handleAudioViaGemini(audioBlob);
-          }
-
-          // Hide thinking indicator
-          if (this.loadingIndicator) {
-            this.loadingIndicator.isVisible = false;
-          }
-
-          // Reset input
-          if (this.inputText) {
-            this.inputText.text = "Type your message...";
-            this.inputText.color = "white";
-          }
-
-        } catch (error) {
-          console.error('Audio processing error:', error);
-
-          // Hide thinking indicator on error
-          if (this.loadingIndicator) {
-            this.loadingIndicator.isVisible = false;
-          }
-
-          // Reset input on error
-          if (this.inputText) {
-            this.inputText.text = "Type your message...";
-            this.inputText.color = "white";
-          }
-        } finally {
-          this.isProcessing = false;
-          this.updateConversationStateIndicator('idle');
-        }
-      };
-
-      this.mediaRecorder.start();
-      this.isRecording = true;
-      this.updateConversationStateIndicator('listening');
-
-      // Update mic button appearance
+    // In always-on WebSocket mode, mic is already streaming — toggle mute instead
+    if (this.voiceMode === 'always-on' && this.voiceWSClient) {
+      this.voiceWSClient.setMuted(false);
       if (this.micButton) {
         this.micButton.background = "rgba(255, 50, 50, 0.8)";
-        this.micButton.color = "white";
       }
+      return;
+    }
 
-      // Update input text to show recording
+    // Determine language for recognition
+    const lang = this.worldLanguageContext?.targetLanguage
+      ? getLanguageBCP47(this.worldLanguageContext.targetLanguage)
+      : 'en-US';
+
+    this.isRecording = true;
+
+    // Update mic button appearance
+    if (this.micButton) {
+      this.micButton.background = "rgba(255, 50, 50, 0.8)";
+      this.micButton.color = "white";
+    }
+
+    // Update input text to show recording
+    if (this.inputText) {
+      this.inputText.text = "🎤 Listening...";
+      this.inputText.color = "#ff6b6b";
+    }
+
+    if (isSpeechRecognitionSupported()) {
+      this.speechService = new SpeechRecognitionService({
+        lang,
+        interimResults: true,
+        continuous: false,
+        onInterimResult: (text) => {
+          if (this.inputText) {
+            this.inputText.text = text;
+            this.inputText.color = "#ffd93d";
+          }
+        },
+        onFinalResult: (transcript) => {
+          this.handleVoiceTranscript(transcript);
+        },
+        onError: (err) => {
+          console.warn('[BabylonChatPanel] Speech recognition error:', err);
+          this.resetRecordingUI();
+        },
+        onEnd: () => {
+          this.isRecording = false;
+          if (this.micButton) {
+            this.micButton.background = "rgba(60, 60, 60, 0.8)";
+            this.micButton.color = "white";
+          }
+        },
+      });
+      this.speechService.start();
+    } else {
+      // Fallback to server-side STT
       if (this.inputText) {
         this.inputText.text = "Recording...";
         this.inputText.color = "#ff6b6b";
       }
-    } catch (error) {
-      console.error('Microphone error:', error);
-    }
-  }
-
-  private stopRecording() {
-    if (this.mediaRecorder && this.isRecording) {
-      this.mediaRecorder.stop();
-      this.isRecording = false;
-      
-      // Update mic button appearance
-      if (this.micButton) {
-        this.micButton.background = "rgba(60, 60, 60, 0.8)";
-        this.micButton.color = "white";
+      try {
+        this.serverSTTHandle = await serverSideSTT(
+          (transcript) => this.handleVoiceTranscript(transcript),
+          (err) => {
+            console.error('[BabylonChatPanel] Server STT error:', err);
+            this.resetRecordingUI();
+          },
+        );
+      } catch (err) {
+        console.error('Microphone error:', err);
+        this.resetRecordingUI();
       }
     }
   }
@@ -1829,7 +2083,120 @@ export class BabylonChatPanel {
     }
 
     const data = await response.json();
-    return data.transcript;
+    return data.text;
+  }
+
+  private stopRecording() {
+    // In always-on mode, mute instead of stopping
+    if (this.voiceMode === 'always-on' && this.voiceWSClient) {
+      this.voiceWSClient.setMuted(true);
+      if (this.micButton) {
+        this.micButton.background = "rgba(60, 60, 60, 0.8)";
+      }
+      return;
+    }
+
+    if (!this.isRecording) return;
+
+    this.isRecording = false;
+
+    if (this.speechService) {
+      this.speechService.stop();
+    }
+    if (this.serverSTTHandle) {
+      this.serverSTTHandle.stop();
+      this.serverSTTHandle = null;
+    }
+
+    // Update mic button appearance
+    if (this.micButton) {
+      this.micButton.background = "rgba(60, 60, 60, 0.8)";
+      this.micButton.color = "white";
+    }
+  }
+
+  private resetRecordingUI() {
+    this.isRecording = false;
+    this.isProcessing = false;
+    if (this.micButton) {
+      this.micButton.background = "rgba(60, 60, 60, 0.8)";
+      this.micButton.color = "white";
+    }
+    if (this.inputText) {
+      this.inputText.text = "Type your message...";
+      this.inputText.color = "white";
+    }
+    if (this.loadingIndicator) {
+      this.loadingIndicator.isVisible = false;
+    }
+  }
+
+  private async handleVoiceTranscript(userTranscript: string) {
+    if (!userTranscript.trim()) {
+      this.resetRecordingUI();
+      return;
+    }
+
+    this.isProcessing = true;
+
+    // Show thinking indicator
+    if (this.loadingIndicator) {
+      this.loadingIndicator.isVisible = true;
+    }
+
+    try {
+      // Show user message right away
+      this.messages.push({
+        role: 'user',
+        content: userTranscript,
+        timestamp: new Date()
+      });
+      this.updateMessagesDisplay();
+
+      // Update input to show thinking status
+      if (this.inputText) {
+        this.inputText.text = "NPC is thinking...";
+        this.inputText.color = "#ffd93d";
+      }
+
+      // Send to Gemini
+      const response = await this.sendToGemini(userTranscript);
+      const voiceCleanedResponse = response.text;
+
+      // Add AI response
+      this.messages.push({
+        role: 'assistant',
+        content: voiceCleanedResponse,
+        timestamp: new Date()
+      });
+      this.updateMessagesDisplay();
+      this.onNPCSpeechUpdate?.(voiceCleanedResponse);
+
+      // Request grammar analysis asynchronously
+      const isLangLearning = this.world?.gameType === 'language-learning' ||
+                             this.world?.gameType === 'educational' ||
+                             this.world?.worldType === 'language-learning' ||
+                             this.world?.worldType === 'educational';
+      if (isLangLearning && this.languageTracker && this.worldLanguageContext?.targetLanguage) {
+        this.requestGrammarAnalysis(userTranscript, voiceCleanedResponse);
+      }
+
+      // Play audio if available
+      if (response.audio) {
+        const audioBytes = Uint8Array.from(atob(response.audio), c => c.charCodeAt(0));
+        const audioBlob = new Blob([audioBytes], { type: 'audio/mp3' });
+        await this.playAudio(audioBlob);
+      } else {
+        await this.textToSpeech(voiceCleanedResponse);
+      }
+
+      this.resetRecordingUI();
+    } catch (error) {
+      console.error('Audio processing error:', error);
+      this.resetRecordingUI();
+    } finally {
+      this.isProcessing = false;
+    }
   }
 
   /**
@@ -1861,7 +2228,7 @@ export class BabylonChatPanel {
     // Record player's attempt
     try {
       const audioBlob = await this.recordPronunciationAttempt(5000); // 5 second max
-      const transcript = await this.speechToText(audioBlob);
+      const transcript = await this.serverSpeechToText(audioBlob);
 
       // Score the pronunciation
       const result = scorePronunciation(phrase, transcript);
@@ -1903,6 +2270,16 @@ export class BabylonChatPanel {
       });
       this.updateMessagesDisplay();
     }
+  }
+
+  /** Server-side STT for pronunciation scoring (needs full audio for accuracy). */
+  private async serverSpeechToText(audioBlob: Blob): Promise<string> {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.webm');
+    const response = await fetch('/api/stt', { method: 'POST', body: formData });
+    if (!response.ok) throw new Error('Failed to convert speech to text');
+    const data = await response.json();
+    return data.transcript;
   }
 
   /**
@@ -2054,6 +2431,16 @@ export class BabylonChatPanel {
     this.onDialogueRating = callback;
   }
 
+  /** Set callback invoked after each player↔NPC message exchange. */
+  public setOnChatExchange(callback: (npcId: string, playerMessage: string, npcResponse: string) => void) {
+    this.onChatExchange = callback;
+  }
+
+  /** Set a function that provides additional system prompt text for specific NPCs. */
+  public setSystemPromptAugmentation(fn: (npcId: string) => string | null) {
+    this.systemPromptAugmentation = fn;
+  }
+
   private _onExternalNewWord: ((entry: any) => void) | null = null;
   private _onExternalWordMastered: ((entry: any) => void) | null = null;
   private _onExternalGrammarFeedback: ((feedback: any) => void) | null = null;
@@ -2149,6 +2536,8 @@ export class BabylonChatPanel {
         return (progress.currentCount || 0) >= (criteria.requiredCount || 5);
       case 'conversation_engagement':
         return (progress.messagesCount || 0) >= (criteria.requiredMessages || 8);
+      case 'follow_directions':
+        return (progress.stepsCompleted || 0) >= (criteria.stepsRequired || criteria.requiredCount || 1);
       default:
         return false;
     }
@@ -2503,7 +2892,229 @@ export class BabylonChatPanel {
     }
   }
 
+  // ─── WebSocket voice mode ──────────────────────────────────────────
+
+  /**
+   * Toggle between push-to-talk (HTTP) and always-on (WebSocket) voice modes.
+   */
+  private toggleVoiceMode(): void {
+    if (this.voiceMode === 'push-to-talk') {
+      this.voiceMode = 'always-on';
+      this.activateWebSocketVoice();
+      if (this.voiceModeButton) {
+        this.voiceModeButton.children[0] && ((this.voiceModeButton.children[0] as TextBlock).text = "WS");
+        this.voiceModeButton.background = "rgba(50, 180, 50, 0.8)";
+      }
+    } else {
+      this.voiceMode = 'push-to-talk';
+      this.deactivateWebSocketVoice();
+      if (this.voiceModeButton) {
+        this.voiceModeButton.children[0] && ((this.voiceModeButton.children[0] as TextBlock).text = "PTT");
+        this.voiceModeButton.background = "rgba(60, 60, 60, 0.5)";
+      }
+    }
+  }
+
+  /**
+   * Activate WebSocket voice mode: connect, join room, start capture.
+   */
+  private activateWebSocketVoice(): void {
+    if (this.voiceWSClient) {
+      this.voiceWSClient.destroy();
+    }
+
+    this.voiceWSClient = new VoiceWebSocketClient(
+      {
+        onStateChange: (state) => {
+          console.log('[ChatPanel] Voice WS state:', state);
+          if (state === 'in_room' && this.voiceMode === 'always-on') {
+            this.voiceWSClient?.startCapture().catch(err => {
+              console.warn('[ChatPanel] Failed to start capture:', err);
+            });
+          }
+        },
+        onAudio: (_fromId, _audioBase64) => {
+          // Audio is played by the jitter buffer inside VoiceWebSocketClient
+        },
+        onTranscript: (text, isFinal) => {
+          if (this.inputText) {
+            this.inputText.text = text;
+            this.inputText.color = isFinal ? 'white' : '#ffd93d';
+          }
+          if (isFinal && text.trim()) {
+            this.handleVoiceTranscript(text);
+          }
+        },
+        onError: (msg) => {
+          console.warn('[ChatPanel] Voice WS error:', msg);
+        },
+        onFallbackToHTTP: () => {
+          console.log('[ChatPanel] WebSocket voice failed, falling back to push-to-talk');
+          this.voiceMode = 'push-to-talk';
+          if (this.voiceModeButton) {
+            this.voiceModeButton.children[0] && ((this.voiceModeButton.children[0] as TextBlock).text = "PTT");
+            this.voiceModeButton.background = "rgba(60, 60, 60, 0.5)";
+          }
+          if (this.inputText) {
+            this.inputText.text = "WS unavailable, using push-to-talk";
+            this.inputText.color = "#ff6b6b";
+            setTimeout(() => {
+              if (this.inputText) {
+                this.inputText.text = "Type your message...";
+                this.inputText.color = "white";
+              }
+            }, 2000);
+          }
+        },
+      },
+      { maxReconnectAttempts: 3 },
+    );
+
+    this.voiceWSClient.connect();
+
+    // Join room once connected — use character + world as room ID
+    const checkAndJoin = () => {
+      if (!this.voiceWSClient) return;
+      if (this.voiceWSClient.state === 'connected' && this.character && this.world) {
+        const roomId = `voice_${this.world.id}_${this.character.id}`;
+        this.voiceWSClient.joinRoom(roomId, this.world.id, this.character.id);
+      } else if (this.voiceWSClient.state === 'connecting') {
+        setTimeout(checkAndJoin, 200);
+      }
+    };
+    checkAndJoin();
+
+    if (this.inputText) {
+      this.inputText.text = "🎤 Always-on voice active";
+      this.inputText.color = "#50e050";
+    }
+  }
+
+  /**
+   * Deactivate WebSocket voice mode and return to push-to-talk.
+   */
+  private deactivateWebSocketVoice(): void {
+    if (this.voiceWSClient) {
+      this.voiceWSClient.destroy();
+      this.voiceWSClient = null;
+    }
+    if (this.inputText) {
+      this.inputText.text = "Type your message...";
+      this.inputText.color = "white";
+    }
+  }
+
+  // -- Hands-free mode (VAD auto-start/stop) --
+
+  private toggleHandsFreeMode(): void {
+    if (this.isHandsFreeMode) {
+      this.disableHandsFreeMode();
+    } else {
+      this.enableHandsFreeMode();
+    }
+  }
+
+  private enableHandsFreeMode(): void {
+    if (this.isHandsFreeMode) return;
+
+    // Stop any manual recording in progress
+    if (this.isRecording) {
+      this.stopRecording();
+    }
+
+    const lang = this.worldLanguageContext?.targetLanguage
+      ? getLanguageBCP47(this.worldLanguageContext.targetLanguage)
+      : 'en-US';
+
+    this.handsFreeController = new HandsFreeController(
+      {
+        onTranscript: (transcript) => {
+          this.handleVoiceTranscript(transcript);
+        },
+        onInterimTranscript: (text) => {
+          if (this.inputText) {
+            this.inputText.text = text;
+            this.inputText.color = '#ffd93d';
+          }
+        },
+        onEnergyChange: (energy) => {
+          if (this.volumeBar) {
+            // Scale energy (typically 0-0.1) to 0-100%
+            const pct = Math.min(100, Math.round(energy * 1000));
+            this.volumeBar.width = `${pct}%`;
+            this.volumeBar.background = energy >= 0.015 ? '#4CAF50' : '#666';
+          }
+        },
+        onSpeechStart: () => {
+          if (this.micButton) {
+            this.micButton.background = 'rgba(255, 50, 50, 0.8)';
+          }
+          if (this.inputText) {
+            this.inputText.text = '🎤 Listening...';
+            this.inputText.color = '#ff6b6b';
+          }
+        },
+        onSpeechEnd: () => {
+          if (this.micButton) {
+            this.micButton.background = 'rgba(60, 60, 60, 0.8)';
+          }
+          if (this.inputText && !this.isProcessing) {
+            this.inputText.text = 'Hands-free: speak to chat...';
+            this.inputText.color = '#88cc88';
+          }
+        },
+        onError: (err) => {
+          console.error('[BabylonChatPanel] Hands-free error:', err);
+        },
+      },
+      { lang },
+    );
+
+    this.isHandsFreeMode = true;
+
+    // Update UI
+    if (this.handsFreeButton) {
+      this.handsFreeButton.background = 'rgba(50, 200, 50, 0.8)';
+    }
+    if (this.volumeIndicator) {
+      this.volumeIndicator.isVisible = true;
+    }
+    if (this.inputText) {
+      this.inputText.text = 'Hands-free: speak to chat...';
+      this.inputText.color = '#88cc88';
+    }
+
+    this.handsFreeController.start();
+  }
+
+  private disableHandsFreeMode(): void {
+    if (!this.isHandsFreeMode) return;
+
+    this.isHandsFreeMode = false;
+
+    if (this.handsFreeController) {
+      this.handsFreeController.stop();
+      this.handsFreeController = null;
+    }
+
+    // Reset UI
+    if (this.handsFreeButton) {
+      this.handsFreeButton.background = 'rgba(60, 60, 60, 0.5)';
+    }
+    if (this.volumeIndicator) {
+      this.volumeIndicator.isVisible = false;
+    }
+    if (this.volumeBar) {
+      this.volumeBar.width = '0%';
+    }
+    if (this.inputText) {
+      this.inputText.text = 'Type your message...';
+      this.inputText.color = 'white';
+    }
+  }
+
   public dispose() {
+    this.disableHandsFreeMode();
     this.stopAllAudio();
     // Clean up gRPC streaming resources
     this.streamingAudioPlayer?.dispose();
@@ -2512,6 +3123,14 @@ export class BabylonChatPanel {
     this.lipSyncController = null;
     this.conversationClient?.dispose();
     this.conversationClient = null;
+    if (this.voiceWSClient) {
+      this.voiceWSClient.destroy();
+      this.voiceWSClient = null;
+    }
+    if (this.speechService) {
+      this.speechService.dispose();
+      this.speechService = null;
+    }
     if (this.dialogueActions) {
       this.dialogueActions.hide();
       this.dialogueActions = null;

@@ -163,9 +163,10 @@ function StatCard({ icon: Icon, label, value, sub }: { icon: any; label: string;
 
 interface ResearcherDashboardProps {
   worldId: string;
+  onViewPlayerDetail?: (playerId: string) => void;
 }
 
-export function ResearcherDashboard({ worldId }: ResearcherDashboardProps) {
+export function ResearcherDashboard({ worldId, onViewPlayerDetail }: ResearcherDashboardProps) {
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -773,6 +774,11 @@ export function ResearcherDashboard({ worldId }: ResearcherDashboardProps) {
                         ← Back to list
                       </Button>
                       <span className="text-sm font-medium font-mono">{selectedParticipant}</span>
+                      {onViewPlayerDetail && (
+                        <Button variant="outline" size="sm" className="text-xs ml-auto" onClick={() => onViewPlayerDetail(selectedParticipant)}>
+                          View Full Detail
+                        </Button>
+                      )}
                     </div>
                     {/* Individual participant detail */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

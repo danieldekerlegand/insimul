@@ -27,7 +27,9 @@ export type BusinessType =
   | 'PoliceStation' | 'FireStation' | 'TownHall' | 'Church' | 'Farm' | 'Factory'
   | 'Shop' | 'Mortuary' | 'RealEstateOffice' | 'InsuranceOffice' | 'JewelryStore'
   | 'TattoParlor' | 'Brewery' | 'Pharmacy' | 'DentalOffice' | 'OptometryOffice'
-  | 'University';
+  | 'University'
+  | 'Harbor' | 'Boatyard' | 'FishMarket' | 'CustomsHouse' | 'Lighthouse'
+  | 'Warehouse';
 
 export type ShiftType = 'day' | 'night';
 
@@ -410,6 +412,38 @@ export const settlements = pgTable("settlements", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Settlement history events - tracks changes to settlements over simulation time
+export const settlementHistoryEvents = pgTable("settlement_history_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worldId: varchar("world_id").notNull(),
+  settlementId: varchar("settlement_id").notNull(),
+
+  // Event classification
+  eventType: text("event_type").notNull(), // population_change, mayor_change, type_change, founding, annexation, infrastructure, economic_shift, district_added, landmark_added
+  category: text("category").notNull(), // demographic, governance, geographic, economic, political
+
+  // Temporal data
+  year: integer("year"),
+  timestep: integer("timestep"),
+
+  // Change data
+  description: text("description").notNull(),
+  previousValue: jsonb("previous_value").$type<Record<string, any>>(),
+  newValue: jsonb("new_value").$type<Record<string, any>>(),
+
+  // Metadata
+  significance: text("significance").default("minor"), // minor, moderate, major, critical
+  relatedCharacterIds: jsonb("related_character_ids").$type<string[]>().default([]),
+  tags: jsonb("tags").$type<string[]>().default([]),
+
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSettlementHistoryEventSchema = createInsertSchema(settlementHistoryEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Enhanced simulations - all execute using Insimul engine
 export const simulations = pgTable("simulations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -766,6 +800,16 @@ export const lots = pgTable("lots", {
   buildingId: varchar("building_id"), // Can be residence or business ID
   buildingType: text("building_type"), // residence, business, vacant
   
+  // Position coordinates (world-space)
+  positionX: real("position_x"),
+  positionZ: real("position_z"),
+  facingAngle: real("facing_angle").default(0),
+  elevation: real("elevation").default(0),
+
+  // Street placement metadata
+  streetEdgeId: varchar("street_edge_id"),
+  side: text("side"), // 'left' or 'right'
+
   // Spatial relationships
   neighboringLotIds: jsonb("neighboring_lot_ids").$type<string[]>().default([]),
   distanceFromDowntown: integer("distance_from_downtown").default(0),
@@ -815,6 +859,41 @@ export const whereabouts = pgTable("whereabouts", {
   date: timestamp("date").notNull(),
   
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Water Features - rivers, lakes, oceans, ponds, streams, waterfalls, marshes, canals
+export const waterFeatures = pgTable("water_features", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worldId: varchar("world_id").notNull(),
+  settlementId: varchar("settlement_id"), // Optional: associated settlement
+
+  // Type
+  type: text("type").notNull(), // river, lake, ocean, pond, stream, waterfall, marsh, canal
+  subType: text("sub_type").notNull().default("fresh"), // fresh, salt, brackish
+  name: text("name").notNull(),
+
+  // Spatial
+  position: jsonb("position").$type<{ x: number; y: number; z: number }>(),
+  waterLevel: real("water_level").notNull().default(0),
+  bounds: jsonb("bounds").$type<{ minX: number; maxX: number; minZ: number; maxZ: number; centerX: number; centerZ: number }>(),
+  depth: real("depth").notNull().default(2),
+  width: real("width").notNull().default(10),
+  flowDirection: jsonb("flow_direction").$type<{ x: number; y: number; z: number } | null>(),
+  flowSpeed: real("flow_speed").notNull().default(0),
+  shorelinePoints: jsonb("shoreline_points").$type<{ x: number; y: number; z: number }[]>().default([]),
+
+  // Properties
+  biome: text("biome"),
+  isNavigable: boolean("is_navigable").default(true),
+  isDrinkable: boolean("is_drinkable").default(true),
+
+  // Visual
+  modelAssetKey: varchar("model_asset_key"),
+  color: jsonb("color").$type<{ r: number; g: number; b: number } | null>(),
+  transparency: real("transparency").default(0.3),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Insert schemas
@@ -1001,6 +1080,15 @@ export const insertItemSchema = createInsertSchema(items).pick({
 
 export type InsertItem = z.infer<typeof insertItemSchema>;
 export type Item = typeof items.$inferSelect;
+
+export const insertWaterFeatureSchema = createInsertSchema(waterFeatures).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertWaterFeature = z.infer<typeof insertWaterFeatureSchema>;
+export type WaterFeature = typeof waterFeatures.$inferSelect;
 
 // ============= USER AUTHENTICATION AND PLAYER PROGRESS =============
 
@@ -1301,6 +1389,12 @@ export const insertLotSchema = createInsertSchema(lots).pick({
   districtName: true,
   buildingId: true,
   buildingType: true,
+  positionX: true,
+  positionZ: true,
+  facingAngle: true,
+  elevation: true,
+  streetEdgeId: true,
+  side: true,
   neighboringLotIds: true,
   distanceFromDowntown: true,
   formerBuildingIds: true,
@@ -1348,6 +1442,9 @@ export type InsertState = z.infer<typeof insertStateSchema>;
 
 export type Settlement = typeof settlements.$inferSelect;
 export type InsertSettlement = z.infer<typeof insertSettlementSchema>;
+
+export type SettlementHistoryEvent = typeof settlementHistoryEvents.$inferSelect;
+export type InsertSettlementHistoryEvent = z.infer<typeof insertSettlementHistoryEventSchema>;
 
 export type Simulation = typeof simulations.$inferSelect;
 export type InsertSimulation = z.infer<typeof insertSimulationSchema>;

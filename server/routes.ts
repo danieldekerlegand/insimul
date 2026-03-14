@@ -3,6 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from './db/storage';
 import { createTelemetryRoutes } from './routes/telemetry-routes';
 import { createHistoryRoutes } from './routes/history-routes';
+import { createSettlementHistoryRoutes } from './routes/settlement-history-routes';
+import { createAssessmentRoutes } from './routes/assessment-routes';
 import { enrichHistoricalEvents, type WorldContext } from './services/llm-event-enrichment.js';
 import { prologAutoSync } from './engines/prolog/prolog-auto-sync';
 import { convertActionToProlog } from '../shared/prolog/action-converter';
@@ -10,6 +12,7 @@ import { convertQuestToProlog } from '../shared/prolog/quest-converter';
 import { extractAllMetadata, extractActionMetadata } from '../shared/prolog/prolog-metadata-extractor';
 import { nameGenerator } from './generators/name-generator.js';
 import { isGeminiConfigured, getModel, GEMINI_MODELS } from './config/gemini.js';
+import { conversationContextCache, ConversationContextCache } from './services/conversation-context-cache.js';
 import {
   generateLanguage,
   getLanguageById,
@@ -2054,6 +2057,39 @@ app.get("/api/rules", async (req, res) => {
       res.status(201).json(lot);
     } catch (error) {
       res.status(500).json({ error: "Failed to create lot" });
+    }
+  });
+
+  // Address-to-position lookup
+  app.get("/api/settlements/:settlementId/address-lookup", async (req, res) => {
+    try {
+      const { address } = req.query;
+      if (!address || typeof address !== 'string') {
+        return res.status(400).json({ error: "Query parameter 'address' is required" });
+      }
+      const lots = await storage.getLotsBySettlement(req.params.settlementId);
+      const match = lots.find((l: any) =>
+        l.address?.toLowerCase() === address.toLowerCase()
+      );
+      if (!match) {
+        return res.status(404).json({ error: "Address not found" });
+      }
+      res.json({
+        lotId: match.id,
+        address: match.address,
+        position: {
+          x: match.positionX ?? null,
+          z: match.positionZ ?? null,
+        },
+        facingAngle: match.facingAngle ?? 0,
+        elevation: match.elevation ?? 0,
+        streetEdgeId: match.streetEdgeId ?? null,
+        side: match.side ?? null,
+        buildingId: match.buildingId ?? null,
+        buildingType: match.buildingType ?? null,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to lookup address" });
     }
   });
 
@@ -4349,7 +4385,7 @@ app.get("/api/rules", async (req, res) => {
           console.log(`🗣️ Creating world language records for target "${worldTargetLanguage}"...`);
 
           // 1) Create a "real" WorldLanguage record for the actual target language
-          const { getLanguageBCP47 } = await import("@shared/language-utils");
+          const { getLanguageBCP47 } = await import("@shared/language/language-utils");
           await storage.createWorldLanguage({
             worldId,
             scopeType: "world",
@@ -4389,7 +4425,7 @@ app.get("/api/rules", async (req, res) => {
       // Step 1c: Create WorldLanguage records for explicitly requested world languages
       if (Array.isArray(requestedWorldLanguages) && requestedWorldLanguages.length > 0) {
         try {
-          const { getLanguageBCP47: getBCP47 } = await import("@shared/language-utils");
+          const { getLanguageBCP47: getBCP47 } = await import("@shared/language/language-utils");
           // Check which languages already have records (e.g., the learning target created in step 1b)
           const existingLangs = await storage.getWorldLanguagesByWorld(worldId);
           const existingNames = new Set(existingLangs.map(l => l.name));
@@ -5446,17 +5482,23 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
   app.post("/api/tts", async (req, res) => {
     try {
       const { textToSpeech } = await import("./services/tts-stt.js");
-      const { transcript, text, voice = "Kore", gender = "neutral", encoding = "MP3" } = req.body;
+      const { transcript, text, voice = "Kore", gender = "neutral", encoding = "MP3", emotionalTone } = req.body;
       const textToConvert = transcript || text;
 
-      console.log("TTS request received:", { text: textToConvert?.substring(0, 50), voice, gender, encoding, bodyKeys: Object.keys(req.body) });
+      console.log("TTS request received:", { text: textToConvert?.substring(0, 50), voice, gender, encoding, emotionalTone, bodyKeys: Object.keys(req.body) });
 
       if (!textToConvert || textToConvert.trim() === '') {
         console.error("TTS error: No text provided. Body:", req.body);
         return res.status(400).json({ error: "No text provided" });
       }
 
-      const audioBuffer = await textToSpeech(textToConvert, voice, gender, encoding);
+      // Strip any system markers that shouldn't be spoken
+      const cleanText = textToConvert
+        .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+        .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+        .trim();
+
+      const audioBuffer = await textToSpeech(cleanText || textToConvert, voice, gender, encoding, emotionalTone);
 
       // Set appropriate content type based on encoding
       const contentType = encoding === "WAV" ? 'audio/wav' : 'audio/mpeg';
@@ -5478,6 +5520,7 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
 
       let audioBuffer: Buffer;
       let mimeType = 'audio/wav';
+      const languageHint = req.body?.languageHint as string | undefined;
 
       // Handle file upload
       if (req.file) {
@@ -5493,12 +5536,180 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         return res.status(400).json({ error: "No audio data provided" });
       }
 
-      const transcript = await speechToText(audioBuffer, mimeType);
+      const transcript = await speechToText(audioBuffer, mimeType, languageHint);
 
       res.json({ transcript });
     } catch (error) {
       console.error("STT error:", error);
       res.status(500).json({ error: error instanceof Error ? error.message : "Failed to transcribe audio" });
+    }
+  });
+
+  // Audio-level Pronunciation Scoring Endpoint
+  app.post("/api/pronunciation/score", upload.single('audio'), async (req, res) => {
+    try {
+      const { scoreAudioPronunciation } = await import("./services/pronunciation-scorer.js");
+
+      const expectedPhrase = req.body?.expectedPhrase as string;
+      if (!expectedPhrase) {
+        return res.status(400).json({ error: "expectedPhrase is required" });
+      }
+
+      let audioBuffer: Buffer;
+      let mimeType = 'audio/wav';
+
+      if (req.file) {
+        audioBuffer = req.file.buffer;
+        mimeType = req.file.mimetype;
+      } else if (req.body.audio) {
+        audioBuffer = Buffer.from(req.body.audio, 'base64');
+        mimeType = req.body.mimeType || 'audio/wav';
+      } else {
+        return res.status(400).json({ error: "No audio data provided. Send as multipart file or base64 'audio' field." });
+      }
+
+      const languageHint = req.body?.languageHint as string | undefined;
+      const result = await scoreAudioPronunciation(audioBuffer, expectedPhrase, mimeType, languageHint);
+
+      res.json(result);
+    } catch (error) {
+      console.error("Pronunciation scoring error:", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to score pronunciation" });
+    }
+  });
+
+  // Combined Voice-Chat Endpoint — STT → LLM → TTS in a single request
+  app.post("/api/gemini/voice-chat", upload.single('audio'), async (req, res) => {
+    try {
+      const { speechToText, textToSpeech } = await import("./services/tts-stt.js");
+      const { parseGrammarFeedbackBlock, stripSystemMarkers } = await import("../shared/language/progress.js");
+
+      // Audio comes via multipart; metadata comes as a JSON string field
+      if (!req.file) {
+        return res.status(400).json({ error: "No audio file provided" });
+      }
+
+      let meta: any = {};
+      try {
+        meta = JSON.parse(req.body.metadata || '{}');
+      } catch {
+        return res.status(400).json({ error: "Invalid metadata JSON" });
+      }
+
+      const {
+        systemPrompt = '',
+        messages = [],
+        voice = 'Kore',
+        temperature = 0.8,
+        maxTokens = 2048,
+        worldId,
+        npcId,
+        playerId,
+        languageCode,
+        gameType,
+      } = meta;
+
+      // 1. STT — pass languageCode as hint for better transcription
+      const transcript = await speechToText(req.file.buffer, req.file.mimetype, languageCode);
+      if (!transcript || transcript.trim() === '') {
+        return res.status(400).json({ error: "Could not transcribe audio" });
+      }
+
+      // 2. Try Prolog-first routing for simple queries (reduces Gemini API calls)
+      if (worldId && gameType !== 'language_learning') {
+        const userText = transcript.toLowerCase().trim();
+        try {
+          const { prologLLMRouter } = await import('./services/prolog-llm-router.js');
+          let queryType: string | null = null;
+          const greetings = ['hello', 'hi', 'hey', 'greetings', 'good day', 'good morning', 'good evening', 'howdy'];
+          const farewells = ['bye', 'goodbye', 'farewell', 'see you', 'later', 'take care', 'good night'];
+          const trade = ['buy', 'sell', 'trade', 'wares', 'shop', 'purchase', 'merchandise', 'goods'];
+
+          if (greetings.some(g => userText.startsWith(g) || userText === g)) queryType = 'greeting';
+          else if (farewells.some(f => userText.startsWith(f) || userText === f)) queryType = 'farewell';
+          else if (trade.some(t => userText.includes(t))) queryType = 'trade_offer';
+
+          if (queryType) {
+            const prologResult = await prologLLMRouter.tryPrologFirst(worldId, queryType, {
+              speakerId: npcId,
+              listenerId: playerId || 'player',
+            });
+            if (prologResult.answered && prologResult.confidence >= 0.6) {
+              console.log(`[voice-chat][PrologLLMRouter] Handled "${queryType}" without Gemini (confidence: ${prologResult.confidence})`);
+              let audioBase64: string | undefined;
+              try {
+                const gender = voice === 'Kore' ? 'female' : 'male';
+                const audioBuffer = await textToSpeech(prologResult.answer!, voice, gender, "MP3");
+                audioBase64 = audioBuffer.toString('base64');
+              } catch { /* TTS optional for Prolog responses */ }
+              return res.json({
+                transcript,
+                response: prologResult.answer,
+                cleanedResponse: prologResult.answer,
+                audio: audioBase64,
+                grammarFeedback: null,
+                source: prologResult.source,
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('[voice-chat][PrologLLMRouter] Error:', e);
+        }
+      }
+
+      // 3. LLM — build conversation and send to Gemini
+      if (!isGeminiConfigured()) {
+        return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
+      }
+
+      const { GoogleGenerativeAI } = await import("@google/generative-ai");
+      const { getGeminiApiKey } = await import('./config/gemini.js');
+      const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
+
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODELS.PRO,
+        generationConfig: { temperature, maxOutputTokens: maxTokens },
+      });
+
+      const chat = model.startChat({
+        history: [
+          { role: 'user', parts: [{ text: systemPrompt }] },
+          { role: 'model', parts: [{ text: 'I understand. I will roleplay as this character.' }] },
+          ...messages,
+        ],
+      });
+
+      const result = await chat.sendMessage(transcript);
+      const rawResponse = result.response.text();
+
+      if (!rawResponse || rawResponse.trim() === '') {
+        return res.status(500).json({ error: "Gemini returned empty response", transcript });
+      }
+
+      // Parse grammar feedback before stripping markers
+      const { feedback: grammarFeedback } = parseGrammarFeedbackBlock(rawResponse);
+      const cleanedResponse = stripSystemMarkers(rawResponse).trim();
+
+      // 4. TTS — generate audio from cleaned response
+      let audioBase64: string | undefined;
+      try {
+        const gender = voice === 'Kore' ? 'female' : 'male';
+        const audioBuffer = await textToSpeech(cleanedResponse, voice, gender, "MP3");
+        audioBase64 = audioBuffer.toString('base64');
+      } catch (audioErr) {
+        console.error("[voice-chat] TTS failed:", audioErr);
+      }
+
+      res.json({
+        transcript,
+        response: rawResponse,
+        cleanedResponse,
+        audio: audioBase64,
+        grammarFeedback,
+      });
+    } catch (error) {
+      console.error("Voice-chat error:", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Voice chat failed" });
     }
   });
 
@@ -5566,11 +5777,26 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
       }
 
+      // Handle streaming mode with per-sentence TTS
+      if (stream && !audioInput) {
+        const { streamChatWithTTS } = await import('./services/streaming-chat.js');
+        const gender = voice === 'Kore' || voice === 'Aoede' ? 'female' : 'male';
+        return streamChatWithTTS(res, {
+          systemPrompt,
+          messages,
+          temperature,
+          maxTokens,
+          returnAudio,
+          voice,
+          gender,
+        });
+      }
+
       const { GoogleGenerativeAI } = await import("@google/generative-ai");
       const { getGeminiApiKey } = await import('./config/gemini.js');
 
       const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-      
+
       // Use a model that supports audio if audio input is provided
       const model = genAI.getGenerativeModel({
         model: audioInput ? "gemini-2.5-pro" : GEMINI_MODELS.PRO,
@@ -5587,11 +5813,11 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       if (audioInput) {
         // Import speech-to-text
         const { speechToText } = await import("./services/tts-stt.js");
-        
+
         // Decode base64 audio
         const base64Data = audioInput.includes(',') ? audioInput.split(',')[1] : audioInput;
         const audioBuffer = Buffer.from(base64Data, 'base64');
-        
+
         // Get transcript
         userTranscript = await speechToText(audioBuffer, 'audio/webm');
         lastMessageContent = { text: userTranscript };
@@ -5600,6 +5826,33 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         const lastMessage = messages[messages.length - 1];
         lastMessageContent = lastMessage.parts[0];
       }
+
+      // Build conversation history, using server-side cache when available
+      const cacheKey = (worldId && npcId && playerId)
+        ? ConversationContextCache.chatKey(worldId, npcId, playerId)
+        : null;
+
+      let historyMessages: any[];
+
+      if (cacheKey) {
+        const cached = conversationContextCache.get(cacheKey);
+        if (cached && cached.systemPrompt === systemPrompt) {
+          // Use cached history — client only needs to send the latest message
+          historyMessages = cached.messages.map(m => ({
+            role: m.role === 'assistant' ? 'model' : m.role,
+            parts: [{ text: m.content }]
+          }));
+        } else {
+          // No cache hit or system prompt changed — use client-provided history
+          historyMessages = messages.slice(0, -1);
+        }
+      } else {
+        historyMessages = messages.slice(0, -1);
+      }
+
+      // Compress conversation history if it's too long
+      const { compressConversationHistory } = await import('./services/conversation-compression.js');
+      const compressedHistory = await compressConversationHistory(historyMessages);
 
       // Build the conversation with system prompt
       const chat = model.startChat({
@@ -5612,24 +5865,127 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
             role: 'model',
             parts: [{ text: 'I understand. I will roleplay as this character.' }]
           },
-          ...messages.slice(0, -1) // All messages except the last one
+          ...compressedHistory
         ]
       });
 
-      // Send the message
-      console.log("Sending to Gemini:", lastMessageContent.text?.substring(0, 100) || "[Audio message]");
-      
+      // Log full prompt for debugging NPC chat
+      console.log("\n========== GEMINI CHAT DEBUG ==========");
+      console.log("SYSTEM PROMPT:\n", systemPrompt);
+      console.log("\nCONVERSATION HISTORY (" + historyMessages.length + " prior → " + compressedHistory.length + " compressed" + (cacheKey ? ", cache key: " + cacheKey : "") + "):");
+      for (const msg of compressedHistory) {
+        const text = msg.parts?.[0]?.text || '';
+        console.log(`  [${msg.role}]: ${text.substring(0, 200)}${text.length > 200 ? '...' : ''}`);
+      }
+      console.log("\nCURRENT MESSAGE:", lastMessageContent.text?.substring(0, 500) || "[Audio message]");
+      console.log("========================================\n");
+
+      // ── SSE streaming path (with sentence boundary detection) ──
+      if (stream) {
+        const { SentenceBuffer } = await import('./services/sentence-boundary.js');
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders();
+
+        const sentenceBuffer = new SentenceBuffer();
+        let fullResponse = '';
+        let sentenceIndex = 0;
+
+        try {
+          const streamResult = await chat.sendMessageStream(lastMessageContent.text);
+
+          for await (const chunk of streamResult.stream) {
+            const chunkText = chunk.text();
+            if (!chunkText) continue;
+
+            fullResponse += chunkText;
+            const sentences = sentenceBuffer.push(chunkText);
+
+            for (const sentence of sentences) {
+              res.write(`data: ${JSON.stringify({ type: 'sentence', text: sentence })}\n\n`);
+
+              // Generate TTS audio for each sentence
+              if (returnAudio) {
+                const cleaned = sentence
+                  .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+                  .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+                  .trim();
+                if (cleaned) {
+                  try {
+                    const { textToSpeech } = await import("./services/tts-stt.js");
+                    const gender = voice === 'Kore' ? 'female' : 'male';
+                    const audioBuffer = await textToSpeech(cleaned, voice, gender, "MP3");
+                    res.write(`data: ${JSON.stringify({ type: 'audio', audio: audioBuffer.toString('base64'), sentenceIndex })}\n\n`);
+                    sentenceIndex++;
+                  } catch (audioErr) {
+                    console.error("TTS error for sentence chunk:", audioErr);
+                  }
+                }
+              }
+            }
+          }
+
+          // Flush any remaining buffered text
+          const remaining = sentenceBuffer.flush();
+          if (remaining) {
+            res.write(`data: ${JSON.stringify({ type: 'sentence', text: remaining })}\n\n`);
+
+            // TTS for remaining text
+            if (returnAudio) {
+              const cleaned = remaining
+                .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+                .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+                .trim();
+              if (cleaned) {
+                try {
+                  const { textToSpeech } = await import("./services/tts-stt.js");
+                  const gender = voice === 'Kore' ? 'female' : 'male';
+                  const audioBuffer = await textToSpeech(cleaned, voice, gender, "MP3");
+                  res.write(`data: ${JSON.stringify({ type: 'audio', audio: audioBuffer.toString('base64'), sentenceIndex })}\n\n`);
+                } catch (audioErr) {
+                  console.error("TTS error for final sentence chunk:", audioErr);
+                }
+              }
+            }
+          }
+
+          // Parse grammar feedback from the full response
+          const { parseGrammarFeedbackBlock } = await import('../shared/language/progress.js');
+          const { feedback: grammarFeedback, cleanedResponse } = parseGrammarFeedbackBlock(fullResponse);
+
+          // Send the complete response with metadata
+          const cleanedForDisplay = cleanedResponse || fullResponse
+            .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+            .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+            .trim();
+
+          const doneData: any = { type: 'done', done: true, response: fullResponse, cleanedResponse: cleanedForDisplay };
+          if (grammarFeedback) doneData.grammarFeedback = grammarFeedback;
+          if (userTranscript) doneData.userTranscript = userTranscript;
+
+          res.write(`data: ${JSON.stringify(doneData)}\n\n`);
+          res.end();
+        } catch (streamError) {
+          console.error("Streaming error:", streamError);
+          res.write(`data: ${JSON.stringify({ type: 'error', error: streamError instanceof Error ? streamError.message : 'Streaming failed' })}\n\n`);
+          res.end();
+        }
+        return;
+      }
+
+      // ── Non-streaming path ──
       const result = await chat.sendMessage(lastMessageContent.text);
-      
-      // Log the full response for debugging
+
+
       console.log("Gemini response object:", JSON.stringify(result.response, null, 2));
-      
+
       const response = result.response.text();
-      
+
       if (!response || response.trim() === '') {
         console.error("Gemini returned empty response. Candidates:", result.response.candidates);
         console.error("Prompt feedback:", result.response.promptFeedback);
-        return res.status(500).json({ 
+        return res.status(500).json({
           error: "Gemini returned empty response. This may be due to safety filters.",
           details: {
             promptFeedback: result.response.promptFeedback,
@@ -5640,32 +5996,255 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
 
       console.log("Gemini response:", response.substring(0, 100));
 
-      // Prepare response object
-      const responseData: any = { response };
+      // Strip system markers (GRAMMAR_FEEDBACK, QUEST_ASSIGN) from displayed/spoken text
+      const cleanedForDisplay = response
+        .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+        .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+        .trim();
 
-      // Add user transcript if we had audio input
+      // Update server-side conversation cache with the new exchange
+      if (cacheKey) {
+        const userText = lastMessageContent.text || userTranscript || '';
+        conversationContextCache.append(cacheKey, { role: 'user', content: userText }, systemPrompt);
+        conversationContextCache.append(cacheKey, { role: 'model', content: response });
+      }
+
+      // Prepare response object — send both raw (for parsing) and cleaned (for display)
+      const responseData: any = { response, cleanedResponse: cleanedForDisplay };
+
       if (userTranscript) {
         responseData.userTranscript = userTranscript;
       }
 
-      // Generate audio if requested
       if (returnAudio) {
         try {
           const { textToSpeech } = await import("./services/tts-stt.js");
           const gender = voice === 'Kore' ? 'female' : 'male';
-          const audioBuffer = await textToSpeech(response, voice, gender, "MP3");
-          // Convert to base64 for JSON response
+          const audioBuffer = await textToSpeech(cleanedForDisplay, voice, gender, "MP3");
           responseData.audio = audioBuffer.toString('base64');
         } catch (audioError) {
           console.error("Failed to generate audio:", audioError);
-          // Continue without audio
         }
       }
 
       res.json(responseData);
     } catch (error) {
       console.error("Gemini chat error:", error);
-      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to get chat response" });
+      const errMsg = error instanceof Error ? error.message : "Failed to get chat response";
+      if (res.headersSent) {
+        // Already streaming — send error as SSE event and close
+        res.write(`data: ${JSON.stringify({ error: errMsg })}\n\n`);
+        res.write('data: [DONE]\n\n');
+        res.end();
+      } else {
+        res.status(500).json({ error: errMsg });
+      }
+    }
+  });
+
+  // Gemini Native Audio Chat — single-call voice I/O
+  // Audio goes in, text + audio come out via Gemini's native audio capabilities
+  app.post("/api/gemini/native-audio-chat", async (req, res) => {
+    try {
+      const {
+        audioData, // Base64-encoded audio (required for voice mode)
+        mimeType = 'audio/webm',
+        textMessage, // Text input (alternative to audio)
+        systemPrompt,
+        history = [],
+        voice = 'Kore',
+        temperature = 0.7,
+        maxTokens = 1000,
+        returnAudio = true,
+        worldId,
+        npcId,
+        playerId,
+      } = req.body;
+
+      if (!audioData && !textMessage) {
+        return res.status(400).json({ error: "Either audioData or textMessage is required" });
+      }
+
+      if (!systemPrompt) {
+        return res.status(400).json({ error: "systemPrompt is required" });
+      }
+
+      if (!isGeminiConfigured()) {
+        return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
+      }
+
+      const { nativeAudioChat, nativeTextToAudioChat } = await import("./services/gemini-native-audio.js");
+
+      let result;
+
+      if (audioData) {
+        // Voice mode: audio in → text + audio out
+        const base64Data = audioData.includes(',') ? audioData.split(',')[1] : audioData;
+        result = await nativeAudioChat({
+          audioData: base64Data,
+          mimeType,
+          systemPrompt,
+          history,
+          voice,
+          temperature,
+          maxTokens,
+        });
+      } else {
+        // Text mode with audio response
+        result = await nativeTextToAudioChat(
+          textMessage,
+          systemPrompt,
+          history,
+          voice,
+          temperature,
+          maxTokens,
+        );
+      }
+
+      // Strip system markers for display
+      const cleanedResponse = result.text
+        .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+        .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+        .trim();
+
+      const responseData: any = {
+        response: result.text,
+        cleanedResponse,
+      };
+
+      if (returnAudio && result.audioData) {
+        responseData.audio = result.audioData;
+        responseData.audioMimeType = result.audioMimeType;
+      }
+
+      res.json(responseData);
+    } catch (error) {
+      console.error("Native audio chat error:", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to process native audio chat" });
+    }
+  });
+
+  // Grammar Analysis Endpoint — separate from dialogue to keep NPC responses clean
+  app.post("/api/gemini/grammar-analysis", async (req, res) => {
+    try {
+      const { playerMessage, npcResponse, targetLanguage, worldLanguage } = req.body;
+
+      if (!playerMessage || !targetLanguage) {
+        return res.status(400).json({ error: "playerMessage and targetLanguage are required" });
+      }
+
+      const { GoogleGenerativeAI } = await import("@google/generative-ai");
+      const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+      const { buildGrammarAnalysisPrompt } = await import("../shared/language/utils.js");
+
+      const apiKey = getGeminiApiKey();
+      if (!apiKey) {
+        return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODELS.FLASH,
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 512,
+          responseMimeType: "application/json",
+        },
+      });
+
+      const prompt = buildGrammarAnalysisPrompt(
+        targetLanguage,
+        playerMessage,
+        npcResponse || '',
+        worldLanguage || null,
+      );
+
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text();
+
+      try {
+        const parsed = JSON.parse(responseText);
+        res.json(parsed);
+      } catch {
+        console.warn('[GrammarAnalysis] Failed to parse JSON response:', responseText.substring(0, 200));
+        res.json({ status: 'no_target_language', errors: [] });
+      }
+    } catch (error) {
+      console.error("Grammar analysis error:", error);
+      res.json({ status: 'no_target_language', errors: [] });
+    }
+  });
+
+  // Listening comprehension evaluation via Gemini
+  app.post("/api/gemini/comprehension-evaluation", async (req, res) => {
+    try {
+      const { storyText, questions, playerAnswers, targetLanguage } = req.body;
+
+      if (!storyText || !questions || !playerAnswers) {
+        return res.status(400).json({ error: "storyText, questions, and playerAnswers are required" });
+      }
+
+      const { GoogleGenerativeAI } = await import("@google/generative-ai");
+      const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+
+      const apiKey = getGeminiApiKey();
+      if (!apiKey) {
+        return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODELS.FLASH,
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 1024,
+          responseMimeType: "application/json",
+        },
+      });
+
+      const questionsWithAnswers = (questions as Array<{ question: string; correctAnswer: string }>)
+        .map((q, i) => {
+          const answer = (playerAnswers as string[])[i] || "(no answer)";
+          return `Question: "${q.question}"\nExpected: "${q.correctAnswer}"\nPlayer said: "${answer}"`;
+        })
+        .join("\n\n");
+
+      const prompt = `You are a language learning comprehension evaluator.
+
+A student heard a story in ${targetLanguage || "the target language"} and was asked comprehension questions.
+Evaluate how well they understood the story based on their answers.
+
+STORY:
+"${storyText}"
+
+QUESTIONS AND ANSWERS:
+${questionsWithAnswers}
+
+Evaluate each answer. The player may answer in English or the target language — accept either.
+Focus on whether they understood the content, not grammar or spelling.
+
+Respond with this JSON structure:
+{
+  "score": <number 0-100, overall comprehension score>,
+  "feedback": "<brief overall feedback>",
+  "questionResults": [
+    { "question": "<the question>", "correct": <true/false>, "feedback": "<brief feedback for this question>" }
+  ]
+}`;
+
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text();
+
+      try {
+        const parsed = JSON.parse(responseText);
+        res.json(parsed);
+      } catch {
+        console.warn('[ComprehensionEval] Failed to parse JSON response:', responseText.substring(0, 200));
+        res.json({ score: 50, feedback: "Unable to evaluate", questionResults: [] });
+      }
+    } catch (error) {
+      console.error("Comprehension evaluation error:", error);
+      res.json({ score: 50, feedback: "Evaluation error", questionResults: [] });
     }
   });
 
@@ -7436,6 +8015,72 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
     }
   });
 
+  // Complete a quest and auto-generate new quests if the player's pool is depleted
+  app.post("/api/worlds/:worldId/quests/:questId/complete", async (req, res) => {
+    try {
+      const { worldId, questId } = req.params;
+      const { minActiveQuests, replenishCount } = req.body;
+
+      const quest = await storage.getQuest(questId);
+      if (!quest) {
+        return res.status(404).json({ error: "Quest not found" });
+      }
+      if (quest.worldId !== worldId) {
+        return res.status(400).json({ error: "Quest does not belong to this world" });
+      }
+      if (quest.status === 'completed') {
+        return res.status(400).json({ error: "Quest is already completed" });
+      }
+
+      // Mark quest as completed
+      const updated = await storage.updateQuest(questId, {
+        status: 'completed',
+        completedAt: new Date(),
+        progress: { percentComplete: 100 },
+      });
+
+      // Check depletion and auto-generate if needed
+      const playerName = quest.assignedTo;
+      let depletionResult = null;
+
+      if (playerName) {
+        const world = await storage.getWorld(worldId);
+        if (world) {
+          const [characters, settlements, worldQuests] = await Promise.all([
+            storage.getCharactersByWorld(worldId),
+            storage.getSettlementsByWorld(worldId),
+            storage.getQuestsByWorld(worldId),
+          ]);
+
+          const { checkAndReplenishQuests } = await import('./services/quest-depletion-monitor.js');
+          depletionResult = await checkAndReplenishQuests(
+            worldQuests,
+            { world, characters, settlements, existingQuests: worldQuests },
+            playerName,
+            { minActiveQuests, replenishCount },
+            (questData) => storage.createQuest(questData),
+          );
+        }
+      }
+
+      res.json({
+        quest: updated,
+        depletion: depletionResult
+          ? {
+              depleted: depletionResult.depleted,
+              activeCount: depletionResult.activeCount,
+              threshold: depletionResult.threshold,
+              generatedCount: depletionResult.generatedQuests.length,
+              generatedQuests: depletionResult.generatedQuests,
+            }
+          : null,
+      });
+    } catch (error) {
+      console.error('[Quest Complete] Error:', error);
+      res.status(500).json({ error: "Failed to complete quest" });
+    }
+  });
+
   // ============= ITEMS =============
 
   // Get all items for a world (includes matching base items)
@@ -7597,6 +8242,49 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
     } catch (error) {
       console.error('[Quest Generation] Error:', error);
       res.status(500).json({ error: "Failed to generate quests" });
+    }
+  });
+
+  // Quest Assignment Engine — generates playable quests from templates using real world data
+  app.post("/api/worlds/:worldId/quests/assign", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { playerName, playerCharacterId, count = 3, proficiency, excludeTemplateIds, preferredCategories } = req.body;
+
+      if (!playerName) {
+        return res.status(400).json({ error: "playerName is required" });
+      }
+
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      const [characters, settlements, existingQuests] = await Promise.all([
+        storage.getCharactersByWorld(worldId),
+        storage.getSettlementsByWorld(worldId),
+        storage.getQuestsByWorld(worldId),
+      ]);
+
+      const { assignQuests } = await import('./services/quest-assignment-engine.js');
+
+      const assigned = assignQuests(
+        { world, characters, settlements, existingQuests },
+        { playerName, playerCharacterId, count, proficiency, excludeTemplateIds, preferredCategories },
+      );
+
+      // Save to database
+      const created = [];
+      for (const quest of assigned) {
+        const { templateId, filledParameters, ...questData } = quest;
+        const saved = await storage.createQuest(questData);
+        created.push({ ...saved, templateId, filledParameters });
+      }
+
+      res.status(201).json({ count: created.length, quests: created });
+    } catch (error) {
+      console.error('[Quest Assignment] Error:', error);
+      res.status(500).json({ error: "Failed to assign quests" });
     }
   });
 
@@ -10569,6 +11257,54 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
 
   // Register history import/export routes
   app.use('/api', createHistoryRoutes(storage));
+
+  // Register settlement history routes
+  app.use('/api', createSettlementHistoryRoutes(storage));
+
+  // Register assessment session routes
+  app.use('/api', createAssessmentRoutes(storage));
+
+  // Water features routes
+  app.get("/api/worlds/:worldId/water-features", async (req, res) => {
+    try {
+      const features = await storage.getWaterFeaturesByWorld(req.params.worldId);
+      res.json(features);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch water features" });
+    }
+  });
+
+  app.post("/api/worlds/:worldId/water-features", async (req, res) => {
+    try {
+      const feature = await storage.createWaterFeature({
+        ...req.body,
+        worldId: req.params.worldId,
+      });
+      res.status(201).json(feature);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create water feature" });
+    }
+  });
+
+  app.put("/api/water-features/:id", async (req, res) => {
+    try {
+      const feature = await storage.updateWaterFeature(req.params.id, req.body);
+      if (!feature) return res.status(404).json({ error: "Water feature not found" });
+      res.json(feature);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update water feature" });
+    }
+  });
+
+  app.delete("/api/water-features/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteWaterFeature(req.params.id);
+      if (!deleted) return res.status(404).json({ error: "Water feature not found" });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete water feature" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

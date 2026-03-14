@@ -18,6 +18,8 @@ import { CharacterEditDialog } from '../CharacterEditDialog';
 import { CharacterChatDialog } from '../CharacterChatDialog';
 import { FamilyTreeFlow } from '../visualization/FamilyTreeFlow';
 import { LocationMapPreview, type ViewLevel } from './LocationMapPreview';
+import { SettlementMiniMap } from './SettlementMiniMap';
+import { MapLayersPanel, ALL_LAYERS, type MapLayer } from './MapLayersPanel';
 
 interface SettlementHubProps {
   worldId: string;
@@ -46,6 +48,19 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
   // All characters (for CharacterDetailView)
   const [allCharacters, setAllCharacters] = useState<Character[]>([]);
   const [truths, setTruths] = useState<any[]>([]);
+  const [waterFeatures, setWaterFeatures] = useState<any[]>([]);
+
+  // Map layers
+  const [visibleLayers, setVisibleLayers] = useState<Set<MapLayer>>(() => new Set(ALL_LAYERS));
+
+  const toggleLayer = (layer: MapLayer) => {
+    setVisibleLayers(prev => {
+      const next = new Set(prev);
+      if (next.has(layer)) next.delete(layer);
+      else next.add(layer);
+      return next;
+    });
+  };
 
   // Character sidebar
   const [selectedChar, setSelectedChar] = useState<Character | null>(null);
@@ -69,6 +84,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
     fetchAllSettlements();
     fetchAllCharacters();
     fetchTruths();
+    fetchWaterFeatures();
   }, [worldId]);
 
   useEffect(() => {
@@ -119,6 +135,13 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
       const res = await fetch(`/api/worlds/${worldId}/truths`);
       if (res.ok) setTruths(await res.json());
     } catch { setTruths([]); }
+  };
+
+  const fetchWaterFeatures = async () => {
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/water-features`);
+      if (res.ok) setWaterFeatures(await res.json());
+    } catch { setWaterFeatures([]); }
   };
 
   const fetchLots = async (id: string) => {
@@ -418,20 +441,41 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
         </div>
       )}
 
-      {/* 3D Map */}
-      <LocationMapPreview
-        viewLevel={viewLevel}
-        countries={countries}
-        settlements={settlements}
-        lots={lots}
-        businesses={businesses}
-        residences={residences}
-        selectedCountryId={selectedCountry?.id}
-        worldId={worldId}
-        onSettlementClick={selectSettlement}
-        onCountryClick={selectCountry}
-        className="flex-1 min-h-0"
-      />
+      {/* 3D Map with mini-map and layers panel */}
+      <div className="relative flex-1 min-h-0">
+        <LocationMapPreview
+          viewLevel={viewLevel}
+          countries={countries}
+          settlements={settlements}
+          lots={lots}
+          businesses={businesses}
+          residences={residences}
+          streets={selectedSettlement?.streets ?? []}
+          waterFeatures={waterFeatures}
+          selectedCountryId={selectedCountry?.id}
+          worldId={worldId}
+          onSettlementClick={selectSettlement}
+          onCountryClick={selectCountry}
+          visibleLayers={visibleLayers}
+          className="w-full h-full"
+        />
+        {viewLevel === 'settlement' && selectedSettlement && (
+          <SettlementMiniMap
+            terrain={selectedSettlement.terrain}
+            streets={selectedSettlement.streets ?? []}
+            lots={lots}
+            businesses={businesses}
+            residences={residences}
+            waterFeatures={waterFeatures}
+            settlementType={selectedSettlement.settlementType}
+          />
+        )}
+        <MapLayersPanel
+          viewLevel={viewLevel}
+          visibleLayers={visibleLayers}
+          onToggleLayer={toggleLayer}
+        />
+      </div>
     </div>
   );
 

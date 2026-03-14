@@ -45,8 +45,39 @@ enum class EInsimulEventType : uint8
     QuestFailed             UMETA(DisplayName = "Quest Failed"),
     QuestAbandoned          UMETA(DisplayName = "Quest Abandoned"),
     ConversationOverheard   UMETA(DisplayName = "Conversation Overheard"),
-    CreateTruth             UMETA(DisplayName = "Create Truth")
+    CreateTruth             UMETA(DisplayName = "Create Truth"),
+    // Assessment / onboarding events
+    AssessmentStarted       UMETA(DisplayName = "Assessment Started"),
+    AssessmentPhaseStarted  UMETA(DisplayName = "Assessment Phase Started"),
+    AssessmentPhaseCompleted UMETA(DisplayName = "Assessment Phase Completed"),
+    AssessmentTierChange    UMETA(DisplayName = "Assessment Tier Change"),
+    AssessmentCompleted     UMETA(DisplayName = "Assessment Completed"),
+    OnboardingStepStarted   UMETA(DisplayName = "Onboarding Step Started"),
+    OnboardingStepCompleted UMETA(DisplayName = "Onboarding Step Completed"),
+    OnboardingCompleted     UMETA(DisplayName = "Onboarding Completed"),
+    PeriodicAssessmentTriggered UMETA(DisplayName = "Periodic Assessment Triggered"),
+    AssessmentConversationCompleted UMETA(DisplayName = "Assessment Conversation Completed"),
+    // Visual vocabulary quest events
+    VisualVocabPrompted     UMETA(DisplayName = "Visual Vocab Prompted"),
+    VisualVocabAnswered     UMETA(DisplayName = "Visual Vocab Answered"),
+    // Follow directions quest events
+    DirectionStepCompleted UMETA(DisplayName = "Direction Step Completed"),
+    // Pronunciation quest events
+    PronunciationAssessmentData UMETA(DisplayName = "Pronunciation Assessment Data"),
+    // Achievement events
+    AchievementUnlocked UMETA(DisplayName = "Achievement Unlocked")
 };
+
+// ── String ↔ Enum conversion ─────────────────────────────────────────────────
+// Convert between snake_case event type strings (matching GameEventBus.ts) and
+// the EInsimulEventType enum. Defined in EventBus.cpp.
+
+/** Parse a snake_case event type string into the corresponding enum value.
+ *  Returns ItemCollected and logs a warning for unknown strings. */
+EInsimulEventType EventTypeFromString(const FString& TypeString);
+
+/** Convert an enum value to its canonical snake_case string representation. */
+FString EventTypeToString(EInsimulEventType EventType);
 
 /**
  * Optional taxonomy fields carried on item events for Prolog assertion.
@@ -172,6 +203,42 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString NpcId1;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString NpcId2;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString LanguageUsed;
+
+    // ── Assessment / onboarding fields ───────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString SessionId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString InstrumentId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Phase;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ParticipantId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float TotalScore = 0.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float GainScore = 0.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString FromTier;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ToTier;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AssessmentType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PlayerId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PhaseId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 PhaseIndex = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float MaxScore = 0.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float TotalMaxScore = 0.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString CefrLevel;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString StepId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 StepIndex = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 TotalSteps = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 TotalDurationMs = 0;
+
+    // ── Follow directions fields ───────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ObjectiveId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 StepsCompleted = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 StepsRequired = 0;
+
+    // ── Periodic assessment fields ────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Level = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Tier;
+
+    // ── Achievement fields ─────────────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AchievementId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AchievementName;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Description;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Icon;
 };
 
 // ── Delegates ────────────────────────────────────────────────────────────────

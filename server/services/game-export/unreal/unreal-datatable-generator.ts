@@ -164,7 +164,103 @@ function generateSettlementsDT(ir: WorldIR): object[] {
     CountryId: s.countryId || '',
     StateId: s.stateId || '',
     MayorId: s.mayorId || '',
+    MinElevation: (s.elevationProfile?.minElevation ?? 0) * 100,
+    MaxElevation: (s.elevationProfile?.maxElevation ?? 0) * 100,
+    MeanElevation: (s.elevationProfile?.meanElevation ?? 0) * 100,
+    ElevationRange: (s.elevationProfile?.elevationRange ?? 0) * 100,
+    SlopeClass: s.elevationProfile?.slopeClass ?? 'flat',
+    Infrastructure: (s.infrastructure || []).map(inf => ({
+      Id: inf.id,
+      Name: inf.name,
+      Category: inf.category,
+      Level: inf.level,
+      BuiltYear: inf.builtYear,
+      Description: inf.description,
+    })),
+    StreetNetworkLayout: s.streetNetwork.layout,
+    StreetNodes: s.streetNetwork.nodes.map(n => ({
+      Id: n.id,
+      Position: vec3Obj(n.position),
+      IntersectionOf: n.intersectionOf,
+    })),
+    StreetSegments: s.streetNetwork.segments.map(seg => ({
+      Id: seg.id,
+      Name: seg.name,
+      Direction: seg.direction,
+      NodeIds: seg.nodeIds,
+      Waypoints: seg.waypoints.map(w => vec3Obj(w)),
+      Width: seg.width * 100, // scale to cm
+    })),
+    Lots: s.lots.map(l => ({
+      Id: l.id,
+      Address: l.address,
+      HouseNumber: l.houseNumber,
+      StreetName: l.streetName,
+      Block: l.block || '',
+      DistrictName: l.districtName || '',
+      Position: vec3Obj(l.position),
+      FacingAngle: l.facingAngle,
+      Elevation: l.elevation * 100, // scale to cm
+      BuildingType: l.buildingType || '',
+      BuildingId: l.buildingId || '',
+      StreetEdgeId: l.streetEdgeId || '',
+      Side: l.side || '',
+      NeighboringLotIds: l.neighboringLotIds,
+      DistanceFromDowntown: l.distanceFromDowntown,
+      FormerBuildingIds: l.formerBuildingIds,
+    })),
   }));
+}
+
+// ─────────────────────────────────────────────
+// Water Feature DataTable
+// ─────────────────────────────────────────────
+
+function generateWaterFeaturesDT(ir: WorldIR): object[] {
+  return ir.geography.waterFeatures.map(w => ({
+    Name: w.id,
+    WaterFeatureId: w.id,
+    WaterFeatureName: w.name,
+    WaterType: w.type,
+    SubType: w.subType,
+    Position: vec3Obj(w.position),
+    WaterLevel: w.waterLevel * 100,
+    Depth: w.depth * 100,
+    Width: w.width * 100,
+    FlowSpeed: w.flowSpeed,
+    bIsNavigable: w.isNavigable,
+    bIsDrinkable: w.isDrinkable,
+    SettlementId: w.settlementId || '',
+    Biome: w.biome || '',
+    Transparency: w.transparency,
+    ModelAssetKey: w.modelAssetKey || '',
+  }));
+}
+
+// ─────────────────────────────────────────────
+// Lot DataTable
+// ─────────────────────────────────────────────
+
+function generateLotsDT(ir: WorldIR): object[] {
+  const lots: object[] = [];
+  for (const settlement of ir.geography.settlements) {
+    for (const lot of settlement.lots) {
+      lots.push({
+        Name: lot.id,
+        LotId: lot.id,
+        Address: lot.address,
+        HouseNumber: lot.houseNumber,
+        StreetName: lot.streetName,
+        Block: lot.block || '',
+        DistrictName: lot.districtName || '',
+        Position: vec3Obj(lot.position),
+        BuildingType: lot.buildingType || '',
+        BuildingId: lot.buildingId || '',
+        SettlementId: settlement.id,
+      });
+    }
+  }
+  return lots;
 }
 
 // ─────────────────────────────────────────────
@@ -176,6 +272,7 @@ function generateBuildingsDT(ir: WorldIR): object[] {
     Name: b.id,
     BuildingId: b.id,
     SettlementId: b.settlementId,
+    LotId: b.lotId || '',
     Position: vec3Obj(b.position),
     Rotation: b.rotation,
     BuildingRole: b.spec.buildingRole,
@@ -325,7 +422,9 @@ export function generateDataTableFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'DT_Rules', data: generateRulesDT(ir) },
     { name: 'DT_Quests', data: generateQuestsDT(ir) },
     { name: 'DT_Settlements', data: generateSettlementsDT(ir) },
+    { name: 'DT_WaterFeatures', data: generateWaterFeaturesDT(ir) },
     { name: 'DT_Buildings', data: generateBuildingsDT(ir) },
+    { name: 'DT_Lots', data: generateLotsDT(ir) },
     { name: 'DT_Grammars', data: generateGrammarsDT(ir) },
     { name: 'DT_Truths', data: generateTruthsDT(ir) },
     { name: 'DT_Roads', data: generateRoadsDT(ir) },

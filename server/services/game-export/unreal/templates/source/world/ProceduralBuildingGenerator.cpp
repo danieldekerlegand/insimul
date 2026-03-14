@@ -123,6 +123,17 @@ const TMap<FString, FBuildingTypeDefaults>& AProceduralBuildingGenerator::GetBui
     return Types;
 }
 
+const TMap<FString, FZoneScale>& AProceduralBuildingGenerator::GetZoneScale()
+{
+    static TMap<FString, FZoneScale> Scales;
+    if (Scales.Num() == 0)
+    {
+        Scales.Add(TEXT("commercial"),  { 1.3f, 1.15f, 1.1f });
+        Scales.Add(TEXT("residential"), { 1.0f, 1.0f,  1.0f });
+    }
+    return Scales;
+}
+
 FBuildingStylePreset AProceduralBuildingGenerator::GetStyleForWorld(
     const FString& WorldType, const FString& Terrain)
 {
@@ -155,10 +166,22 @@ FBuildingStylePreset AProceduralBuildingGenerator::GetStyleForWorld(
 }
 
 void AProceduralBuildingGenerator::GenerateBuilding(FVector Position, float Rotation,
-    int32 Floors, float Width, float Depth, const FString& BuildingRole)
+    int32 Floors, float Width, float Depth, const FString& BuildingRole,
+    const FFoundationData& Foundation)
 {
-    UE_LOG(LogTemp, Log, TEXT("[Insimul] Generate building %s at %s (%dx%.0fx%.0f)"),
-        *BuildingRole, *Position.ToString(), Floors, Width, Depth);
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Generate building %s at %s (%dx%.0fx%.0f, foundation=%s)"),
+        *BuildingRole, *Position.ToString(), Floors, Width, Depth, *Foundation.Type);
+
+    // Create terrain-adaptive foundation mesh if not flat
+    if (Foundation.Type != TEXT("flat") && Foundation.FoundationHeight > 0.0f)
+    {
+        // Foundation geometry fills the gap between sloped terrain and building floor.
+        // The building position is raised to sit on top of the highest corner.
+        float TopZ = Foundation.BaseElevation + Foundation.FoundationHeight;
+        Position.Z = TopZ;
+        UE_LOG(LogTemp, Log, TEXT("[Insimul] Foundation type=%s height=%.1f, raised to Z=%.1f"),
+            *Foundation.Type, Foundation.FoundationHeight, TopZ);
+    }
 
     // Check for a registered role model first.
     // Note: full clones are used (not GPU instances) to ensure compatibility
@@ -191,4 +214,58 @@ void AProceduralBuildingGenerator::GenerateBuilding(FVector Position, float Rota
     {
         RootComp->SetCullDistance(LODCullDistance);
     }
+}
+
+float AProceduralBuildingGenerator::CreateRoof(USceneComponent* Parent, const FString& ArchStyle,
+    float Width, float Depth, int32 Floors, FLinearColor Color, UMaterialInterface* BaseMaterial)
+{
+    const float FloorHeight = 4.0f;
+    const float TotalHeight = Floors * FloorHeight;
+    const float PeakedRoofHeight = 3.0f;
+    float ActualRoofHeight;
+
+    if (ArchStyle == TEXT("medieval") || ArchStyle == TEXT("rustic"))
+    {
+        // Peaked hip roof
+        ActualRoofHeight = PeakedRoofHeight;
+    }
+    else if (ArchStyle == TEXT("modern") || ArchStyle == TEXT("futuristic"))
+    {
+        // Flat roof
+        ActualRoofHeight = 0.5f;
+    }
+    else
+    {
+        // Cone roof (default)
+        ActualRoofHeight = PeakedRoofHeight;
+    }
+
+    // Position: centered at totalHeight + half roof height to sit flush on walls
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Roof style=%s height=%.1f at y=%.1f"),
+        *ArchStyle, ActualRoofHeight, TotalHeight + ActualRoofHeight / 2.0f);
+
+    return ActualRoofHeight;
+}
+
+void AProceduralBuildingGenerator::AddDoor(USceneComponent* Parent, float Width, float Depth,
+    int32 Floors, FLinearColor DoorColor, UMaterialInterface* BaseMaterial)
+{
+    const float DoorWidth = 1.2f;
+    const float DoorHeight = 2.2f;
+    const float DoorDepth = 0.15f;
+    const float FrameThickness = 0.12f;
+    const float FrameDepth = 0.18f;
+    const float FrontZ = Depth / 2.0f;
+    const float FloorHeight = 4.0f;
+    const float TotalHeight = Floors * FloorHeight;
+    const float GroundY = -TotalHeight / 2.0f;
+
+    // Door frame color is half the door color intensity
+    FLinearColor FrameColor = DoorColor * 0.5f;
+
+    // Door handle color (metallic brass)
+    FLinearColor HandleColor(0.7f, 0.65f, 0.4f);
+
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] Door: frame=%.2fx%.2f, panel=%.2fx%.2f, at z=%.1f"),
+        FrameThickness, DoorHeight + FrameThickness, DoorWidth, DoorHeight, FrontZ);
 }

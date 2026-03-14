@@ -6,7 +6,7 @@
  */
 
 import * as GUI from '@babylonjs/gui';
-import type { ConversationRecord } from '@shared/language-progress';
+import type { ConversationRecord } from '@shared/language/language-progress';
 
 export class BabylonConversationHistoryPanel {
   private advancedTexture: GUI.AdvancedDynamicTexture;

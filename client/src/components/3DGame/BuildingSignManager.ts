@@ -21,7 +21,7 @@ import {
   StandardMaterial,
   Vector3,
 } from '@babylonjs/core';
-import type { VocabularyEntry } from '@shared/language-progress';
+import type { VocabularyEntry } from '@shared/language/language-progress';
 
 export interface BuildingSignData {
   buildingId: string;

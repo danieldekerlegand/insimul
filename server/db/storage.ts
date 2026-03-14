@@ -13,6 +13,8 @@ import {
   type InsertState,
   type Settlement,
   type InsertSettlement,
+  type SettlementHistoryEvent,
+  type InsertSettlementHistoryEvent,
   type Lot,
   type InsertLot,
   type Business,
@@ -45,6 +47,11 @@ import type {
   InsertLanguageChatMessage,
   LanguageScopeType
 } from "@shared/language";
+import type {
+  AssessmentSession,
+  PhaseResult,
+  RecordingReference
+} from "@shared/assessment";
 import { randomUUID } from "crypto";
 import * as fs from "fs/promises";
 import * as path from "path";
@@ -82,6 +89,13 @@ export interface IStorage {
   createSettlement(settlement: InsertSettlement): Promise<Settlement>;
   updateSettlement(id: string, settlement: Partial<InsertSettlement>): Promise<Settlement | undefined>;
   deleteSettlement(id: string): Promise<boolean>;
+
+  // Settlement History Events
+  getSettlementHistoryEvent(id: string): Promise<SettlementHistoryEvent | undefined>;
+  getSettlementHistoryBySettlement(settlementId: string): Promise<SettlementHistoryEvent[]>;
+  getSettlementHistoryByWorld(worldId: string): Promise<SettlementHistoryEvent[]>;
+  createSettlementHistoryEvent(event: InsertSettlementHistoryEvent): Promise<SettlementHistoryEvent>;
+  deleteSettlementHistoryEvent(id: string): Promise<boolean>;
 
   // Lots
   getLot(id: string): Promise<Lot | undefined>;
@@ -208,6 +222,14 @@ export interface IStorage {
   updateGenerationJob(id: string, job: Partial<InsertGenerationJob>): Promise<GenerationJob | undefined>;
   deleteGenerationJob(id: string): Promise<boolean>;
 
+  // Water Features
+  getWaterFeature(id: string): Promise<any | undefined>;
+  getWaterFeaturesByWorld(worldId: string): Promise<any[]>;
+  getWaterFeaturesBySettlement(settlementId: string): Promise<any[]>;
+  createWaterFeature(feature: any): Promise<any>;
+  updateWaterFeature(id: string, feature: any): Promise<any | undefined>;
+  deleteWaterFeature(id: string): Promise<boolean>;
+
   // Languages (real and constructed)
   getWorldLanguage(id: string): Promise<WorldLanguage | undefined>;
   getWorldLanguagesByWorld(worldId: string): Promise<WorldLanguage[]>;
@@ -277,6 +299,23 @@ export interface IStorage {
   getTracesByUser(userId: string): Promise<import("@shared/schema").PlayTrace[]>;
   createPlayTrace(trace: import("@shared/schema").InsertPlayTrace): Promise<import("@shared/schema").PlayTrace>;
   deletePlayTrace(id: string): Promise<boolean>;
+
+  // Assessment Sessions
+  createAssessmentSession(data: Omit<AssessmentSession, 'id'>): Promise<AssessmentSession>;
+  getAssessmentSession(id: string): Promise<AssessmentSession | undefined>;
+  updateAssessmentPhaseResult(sessionId: string, phaseResult: PhaseResult): Promise<AssessmentSession | undefined>;
+  addAssessmentRecording(sessionId: string, recording: RecordingReference): Promise<AssessmentSession | undefined>;
+  completeAssessmentSession(sessionId: string, totalScore: number, maxScore: number, cefrLevel: string): Promise<AssessmentSession | undefined>;
+  getPlayerAssessments(playerId: string, worldId?: string, assessmentType?: string): Promise<AssessmentSession[]>;
+  getWorldAssessmentSummary(worldId: string): Promise<{
+    totalSessions: number;
+    completedSessions: number;
+    averageScore: number;
+    averagePercentage: number;
+    byType: Record<string, { count: number; avgScore: number; avgPercentage: number }>;
+    cefrDistribution: Record<string, number>;
+    scoreDistribution: { bucket: string; count: number }[];
+  }>;
 }
 
 // Export MongoStorage as the default storage implementation

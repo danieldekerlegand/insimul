@@ -371,14 +371,15 @@ export class NPCAmbientConversationManager {
       const characterData = await characterRes.json();
       const gender = characterData.gender || 'neutral';
 
-      // Use TTS API
+      // Use TTS API with emotional tone from utterance
       const ttsResponse = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: utterance.text,
           voice: gender === 'female' ? 'Kore' : 'Charon',
-          gender
+          gender,
+          emotionalTone: utterance.tone || undefined
         })
       });
 

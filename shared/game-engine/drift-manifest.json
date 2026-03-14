@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-12T21:36:32.500Z",
+  "lastUpdated": "2026-03-14T22:45:09.300Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -194,7 +194,7 @@
     {
       "path": "client/src/components/3DGame/ProceduralBuildingGenerator.ts",
       "description": "Procedural building placement and geometry. Changes affect world-generator templates.",
-      "hash": "f8b8a15873067f867ed913ff029e5e739b26c3766e7a27561eb7baee1014e5e8",
+      "hash": "5a67dbfab6dbeab3e3abb1ba6990d9b10a0c4fc1589bf59f2f035f0df3d7f9c6",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -217,7 +217,7 @@
     {
       "path": "client/src/components/3DGame/WorldScaleManager.ts",
       "description": "World-to-scene coordinate scaling, biome setup, terrain parameters.",
-      "hash": "7123ecd290e767d7b4db2535347513776bbfef11eeef06e1ff010a794082959b",
+      "hash": "66b52d95b1856b8ad57da42f79e22242a7343388db384bae4b888db7dad24b77",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -262,7 +262,7 @@
     {
       "path": "client/src/components/3DGame/GameEventBus.ts",
       "description": "Centralized typed event bus (20 event types). Exported engines need equivalent event routing for gameplay actions.",
-      "hash": "3c17d0bb4efad6f91f8e7d6f6f18890cf29830912566dd3b9c8aae654e130a88",
+      "hash": "d75e9bcf1fd7368692fb22d139a3774aa7d50159088bd3d5a885d7e68dfac601",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -289,7 +289,7 @@
     {
       "path": "client/src/components/3DGame/GamePrologEngine.ts",
       "description": "Client-side Prolog runtime: KB initialization, event-to-fact pipeline, quest/action queries. Exported engines need equivalent Prolog query logic.",
-      "hash": "56e8af9d656bf469d70ca571e6f2302fe576d9a9de15f2b43761ec5801b2eb0a",
+      "hash": "ee142312163134b4163b6c98c97ea405dd5c24ac5d2ac3d007c9959f3a56c0c0",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -343,7 +343,7 @@
     {
       "path": "shared/game-engine/ir-types.ts",
       "description": "WorldIR intermediate representation: the single source of truth consumed by all 4 engine generators. New IR fields not reflected in generators cause silent data loss.",
-      "hash": "aad728fa9744a8ffb1b4f842fbe5858ada6a3b812ad85632d75205e8847125b4",
+      "hash": "f088434bf549032001dc5bbe45da17e97452466fceab28b463075a93ed64b8a1",
       "engineMappings": [
         {
           "engine": "babylon",
@@ -370,7 +370,7 @@
     {
       "path": "shared/game-engine/types.ts",
       "description": "Engine-agnostic type primitives (InventoryItem, LootTableEntry, Action, Rule, etc.) shared across in-app and export systems.",
-      "hash": "e4a2c9c92bbbc6f624a1e68ddb42e013d0058d2d3367ae663367f3258fe4adcb",
+      "hash": "d2ddd05bcb9154992ee439cc50bdda0699d13c0ca605a7b962e47c6281dd7603",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -392,7 +392,7 @@
     {
       "path": "client/src/components/3DGame/QuestObjectManager.ts",
       "description": "Quest object lifecycle: 15 objective types, collectible tracking, completion logic. New objective types need handling in exported quest systems.",
-      "hash": "3be2d49e3fdd3e5ec3b5067407aa19ccde3686946dac14f252e7735268247eeb",
+      "hash": "12d9dc096e8b8b7d01ddd451c2c6ecc4084ee00db1878aa6dce0e16c79b58b24",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -419,7 +419,7 @@
     {
       "path": "shared/prolog/quest-converter.ts",
       "description": "Converts quests to Prolog predicates for knowledge-base.pl. Format changes affect all exported engines that load the KB.",
-      "hash": "d421660bd03d4149b4965cc2051b726da2aa090b1f070ac8f80dc18690244c22",
+      "hash": "60fc831c1143f4af08ffe30d44dc12727bec02de71fb950fe27d46636110a690",
       "engineMappings": [
         {
           "engine": "unreal",

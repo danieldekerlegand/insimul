@@ -44,6 +44,26 @@ const EVENT_QUEST_FAILED := "quest_failed"
 const EVENT_QUEST_ABANDONED := "quest_abandoned"
 const EVENT_CONVERSATION_OVERHEARD := "conversation_overheard"
 const EVENT_CREATE_TRUTH := "create_truth"
+# Assessment / onboarding events
+const EVENT_ASSESSMENT_STARTED := "assessment_started"
+const EVENT_ASSESSMENT_PHASE_STARTED := "assessment_phase_started"
+const EVENT_ASSESSMENT_PHASE_COMPLETED := "assessment_phase_completed"
+const EVENT_ASSESSMENT_TIER_CHANGE := "assessment_tier_change"
+const EVENT_ASSESSMENT_COMPLETED := "assessment_completed"
+const EVENT_ONBOARDING_STEP_STARTED := "onboarding_step_started"
+const EVENT_ONBOARDING_STEP_COMPLETED := "onboarding_step_completed"
+const EVENT_ONBOARDING_COMPLETED := "onboarding_completed"
+const EVENT_PERIODIC_ASSESSMENT_TRIGGERED := "periodic_assessment_triggered"
+const EVENT_ASSESSMENT_CONVERSATION_COMPLETED := "assessment_conversation_completed"
+# Visual vocabulary quest events
+const EVENT_VISUAL_VOCAB_PROMPTED := "visual_vocab_prompted"
+const EVENT_VISUAL_VOCAB_ANSWERED := "visual_vocab_answered"
+# Follow directions quest events
+const EVENT_DIRECTION_STEP_COMPLETED := "direction_step_completed"
+# Pronunciation quest events
+const EVENT_PRONUNCIATION_ASSESSMENT_DATA := "pronunciation_assessment_data"
+# Achievement events
+const EVENT_ACHIEVEMENT_UNLOCKED := "achievement_unlocked"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -62,6 +82,17 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_NPC_VOLITION_ACTION, EVENT_PUZZLE_FAILED,
 	EVENT_QUEST_FAILED, EVENT_QUEST_ABANDONED,
 	EVENT_CONVERSATION_OVERHEARD, EVENT_CREATE_TRUTH,
+	EVENT_ASSESSMENT_STARTED, EVENT_ASSESSMENT_PHASE_STARTED,
+	EVENT_ASSESSMENT_PHASE_COMPLETED, EVENT_ASSESSMENT_TIER_CHANGE,
+	EVENT_ASSESSMENT_COMPLETED, EVENT_ONBOARDING_STEP_STARTED,
+	EVENT_ONBOARDING_STEP_COMPLETED, EVENT_ONBOARDING_COMPLETED,
+	EVENT_PERIODIC_ASSESSMENT_TRIGGERED,
+	EVENT_ASSESSMENT_CONVERSATION_COMPLETED,
+	EVENT_VISUAL_VOCAB_PROMPTED,
+	EVENT_VISUAL_VOCAB_ANSWERED,
+	EVENT_DIRECTION_STEP_COMPLETED,
+	EVENT_PRONUNCIATION_ASSESSMENT_DATA,
+	EVENT_ACHIEVEMENT_UNLOCKED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
@@ -100,7 +131,7 @@ var _global_handlers: Array[Callable] = []
 ##   item_unequipped:     {type, item_id, item_name, slot}
 ##   utterance_evaluated: {type, objective_id, input, score, passed, feedback}
 ##   utterance_quest_progress: {type, quest_id, objective_id, current, required, percentage}
-##   utterance_quest_completed: {type, quest_id, objective_id, final_score, xp_awarded}
+##   utterance_quest_completed: {type, quest_id, objective_id, final_score, xp_awarded, pronunciation_bonus_xp?}
 ##   ambient_conversation_started: {type, conversation_id, participants, location_id, topic}
 ##   ambient_conversation_ended: {type, conversation_id, participants, duration_ms, vocabulary_count}
 ##   vocabulary_overheard: {type, word, translation, language, context, conversation_id, speaker_npc_id}
@@ -114,6 +145,21 @@ var _global_handlers: Array[Callable] = []
 ##   quest_abandoned:     {type, quest_id}
 ##   conversation_overheard: {type, npc_id_1, npc_id_2, topic, language_used}
 ##   create_truth:        {type, character_id, title, content, entry_type, category?}
+##   assessment_started:  {type, session_id, instrument_id, phase, participant_id, assessment_type?, player_id?}
+##   assessment_phase_started: {type, session_id, instrument_id, phase, phase_id?, phase_index?}
+##   assessment_phase_completed: {type, session_id, instrument_id, phase, score, subscale_scores?, phase_id?, max_score?}
+##   assessment_tier_change: {type, participant_id, instrument_id, from_tier, to_tier, score}
+##   assessment_completed: {type, session_id, instrument_id, total_score, gain_score?, total_max_score?, cefr_level?}
+##   onboarding_step_started: {type, step_id, step_index, total_steps}
+##   onboarding_step_completed: {type, step_id, step_index, total_steps, duration_ms}
+##   onboarding_completed: {type, total_steps, total_duration_ms}
+##   periodic_assessment_triggered: {type, level, tier}
+##   assessment_conversation_completed: {type, npc_id}
+##   visual_vocab_prompted: {type, target_id, quest_id, objective_id, is_activity}
+##   visual_vocab_answered: {type, target_id, quest_id, passed, score, player_answer}
+##   direction_step_completed: {type, quest_id, objective_id, step_index, steps_completed, steps_required}
+##   pronunciation_assessment_data: {type, quest_id, average_score, sample_count}
+##   achievement_unlocked: {type, achievement_id, achievement_name, description, icon}
 ##
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}
 func emit_event(event: Dictionary) -> void:
