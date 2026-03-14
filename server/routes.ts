@@ -5501,6 +5501,7 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
   app.post("/api/gemini/voice-chat", upload.single('audio'), async (req, res) => {
     try {
       const { speechToText, textToSpeech } = await import("./services/tts-stt.js");
+      const { parseGrammarFeedbackBlock, stripSystemMarkers } = await import("../shared/language/progress.js");
 
       // Audio comes via multipart; metadata comes as a JSON string field
       if (!req.file) {
@@ -5523,15 +5524,59 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         worldId,
         npcId,
         playerId,
+        languageCode,
+        gameType,
       } = meta;
 
-      // 1. STT
-      const transcript = await speechToText(req.file.buffer, req.file.mimetype);
+      // 1. STT — pass languageCode as hint for better transcription
+      const transcript = await speechToText(req.file.buffer, req.file.mimetype, languageCode);
       if (!transcript || transcript.trim() === '') {
         return res.status(400).json({ error: "Could not transcribe audio" });
       }
 
-      // 2. LLM — build conversation and send to Gemini
+      // 2. Try Prolog-first routing for simple queries (reduces Gemini API calls)
+      if (worldId && gameType !== 'language_learning') {
+        const userText = transcript.toLowerCase().trim();
+        try {
+          const { prologLLMRouter } = await import('./services/prolog-llm-router.js');
+          let queryType: string | null = null;
+          const greetings = ['hello', 'hi', 'hey', 'greetings', 'good day', 'good morning', 'good evening', 'howdy'];
+          const farewells = ['bye', 'goodbye', 'farewell', 'see you', 'later', 'take care', 'good night'];
+          const trade = ['buy', 'sell', 'trade', 'wares', 'shop', 'purchase', 'merchandise', 'goods'];
+
+          if (greetings.some(g => userText.startsWith(g) || userText === g)) queryType = 'greeting';
+          else if (farewells.some(f => userText.startsWith(f) || userText === f)) queryType = 'farewell';
+          else if (trade.some(t => userText.includes(t))) queryType = 'trade_offer';
+
+          if (queryType) {
+            const prologResult = await prologLLMRouter.tryPrologFirst(worldId, queryType, {
+              speakerId: npcId,
+              listenerId: playerId || 'player',
+            });
+            if (prologResult.answered && prologResult.confidence >= 0.6) {
+              console.log(`[voice-chat][PrologLLMRouter] Handled "${queryType}" without Gemini (confidence: ${prologResult.confidence})`);
+              let audioBase64: string | undefined;
+              try {
+                const gender = voice === 'Kore' ? 'female' : 'male';
+                const audioBuffer = await textToSpeech(prologResult.answer!, voice, gender, "MP3");
+                audioBase64 = audioBuffer.toString('base64');
+              } catch { /* TTS optional for Prolog responses */ }
+              return res.json({
+                transcript,
+                response: prologResult.answer,
+                cleanedResponse: prologResult.answer,
+                audio: audioBase64,
+                grammarFeedback: null,
+                source: prologResult.source,
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('[voice-chat][PrologLLMRouter] Error:', e);
+        }
+      }
+
+      // 3. LLM — build conversation and send to Gemini
       if (!isGeminiConfigured()) {
         return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
       }
@@ -5560,12 +5605,11 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         return res.status(500).json({ error: "Gemini returned empty response", transcript });
       }
 
-      const cleanedResponse = rawResponse
-        .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
-        .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
-        .trim();
+      // Parse grammar feedback before stripping markers
+      const { feedback: grammarFeedback } = parseGrammarFeedbackBlock(rawResponse);
+      const cleanedResponse = stripSystemMarkers(rawResponse).trim();
 
-      // 3. TTS — generate audio from cleaned response
+      // 4. TTS — generate audio from cleaned response
       let audioBase64: string | undefined;
       try {
         const gender = voice === 'Kore' ? 'female' : 'male';
@@ -5580,6 +5624,7 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         response: rawResponse,
         cleanedResponse,
         audio: audioBase64,
+        grammarFeedback,
       });
     } catch (error) {
       console.error("Voice-chat error:", error);
