@@ -64,6 +64,17 @@ enum class EInsimulEventType : uint8
     DirectionStepCompleted UMETA(DisplayName = "Direction Step Completed")
 };
 
+// ── String ↔ Enum conversion ─────────────────────────────────────────────────
+// Convert between snake_case event type strings (matching GameEventBus.ts) and
+// the EInsimulEventType enum. Defined in EventBus.cpp.
+
+/** Parse a snake_case event type string into the corresponding enum value.
+ *  Returns ItemCollected and logs a warning for unknown strings. */
+EInsimulEventType EventTypeFromString(const FString& TypeString);
+
+/** Convert an enum value to its canonical snake_case string representation. */
+FString EventTypeToString(EInsimulEventType EventType);
+
 /**
  * Optional taxonomy fields carried on item events for Prolog assertion.
  * Mirrors ItemTaxonomy from GameEventBus.ts.

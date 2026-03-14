@@ -55,7 +55,12 @@ namespace Insimul.Systems
         OnboardingStepCompleted,
         OnboardingCompleted,
         PeriodicAssessmentTriggered,
-        AssessmentConversationCompleted
+        AssessmentConversationCompleted,
+        // Visual vocabulary quest events
+        VisualVocabPrompted,
+        VisualVocabAnswered,
+        // Follow directions quest events
+        DirectionStepCompleted
     }
 
     /// <summary>
@@ -466,6 +471,37 @@ namespace Insimul.Systems
     {
         public override GameEventType EventType => GameEventType.AssessmentConversationCompleted;
         public string npcId;
+    }
+
+    // ── Visual Vocabulary / Follow Directions Events ────────────────────────
+
+    public class VisualVocabPromptedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.VisualVocabPrompted;
+        public string targetId;
+        public string questId;
+        public string objectiveId;
+        public bool isActivity;
+    }
+
+    public class VisualVocabAnsweredEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.VisualVocabAnswered;
+        public string targetId;
+        public string questId;
+        public bool passed;
+        public float score;
+        public string playerAnswer;
+    }
+
+    public class DirectionStepCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.DirectionStepCompleted;
+        public string questId;
+        public string objectiveId;
+        public int stepIndex;
+        public int stepsCompleted;
+        public int stepsRequired;
     }
 
     // ── Event Bus ────────────────────────────────────────────────────────────

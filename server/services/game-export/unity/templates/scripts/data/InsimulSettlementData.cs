@@ -16,5 +16,12 @@ namespace Insimul.Data
         public string countryId;
         public string stateId;
         public string mayorId;
+
+        // Elevation profile (null if no heightmap available)
+        public float minElevation;
+        public float maxElevation;
+        public float meanElevation;
+        public float elevationRange;
+        public string slopeClass = "flat";
     }
 }
