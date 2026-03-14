@@ -919,6 +919,8 @@ export class ProceduralBuildingGenerator {
     position: Vector3;
     worldStyle: BuildingStyle;
     population?: number;
+    /** Street-facing rotation in radians (from StreetAlignedPlacement) */
+    rotation?: number;
   }): BuildingSpec {
     const defaults = data.businessType && ProceduralBuildingGenerator.BUILDING_TYPES[data.businessType]
       || ProceduralBuildingGenerator.BUILDING_TYPES['residence_medium'];
@@ -938,7 +940,7 @@ export class ProceduralBuildingGenerator {
       depth,
       style: data.worldStyle,
       position: data.position,
-      rotation: Math.random() * Math.PI * 2,
+      rotation: data.rotation ?? Math.random() * Math.PI * 2,
       hasChimney: defaults.hasChimney || false,
       hasBalcony: defaults.hasBalcony || false
     };

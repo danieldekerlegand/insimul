@@ -2313,6 +2313,7 @@ export class BabylonGame {
         const lotPositions = streetLayout.lots.map((l) =>
           this.projectToGround(l.position.x, l.position.z)
         );
+        const lotFacingAngles = streetLayout.lots.map((l) => l.facingAngle);
 
         // Spawn buildings (track per-settlement positions for street furniture)
         const settlementBuildingPositions: Vector3[] = [];
@@ -2328,7 +2329,8 @@ export class BabylonGame {
             businessType: business.businessType,
             position: lotPositions[buildingIndex],
             worldStyle,
-            population: scaledSettlement.population
+            population: scaledSettlement.population,
+            rotation: lotFacingAngles[buildingIndex],
           });
 
           buildingSpec = {
@@ -2403,7 +2405,8 @@ export class BabylonGame {
             businessType: residenceType,
             position: lotPositions[buildingIndex],
             worldStyle,
-            population: occupants.length
+            population: occupants.length,
+            rotation: lotFacingAngles[buildingIndex],
           });
 
           buildingSpec = {
@@ -2515,7 +2518,8 @@ export class BabylonGame {
               businessType: biz.businessType,
               position: lotPositions[buildingIndex],
               worldStyle,
-              population: scaledSettlement.population
+              population: scaledSettlement.population,
+              rotation: lotFacingAngles[buildingIndex],
             });
 
             buildingSpec = {
@@ -2570,7 +2574,8 @@ export class BabylonGame {
             businessType: residenceType,
             position: lotPositions[buildingIndex],
             worldStyle,
-            population: Math.floor(scaledSettlement.population / buildingCount)
+            population: Math.floor(scaledSettlement.population / buildingCount),
+            rotation: lotFacingAngles[buildingIndex],
           });
 
           buildingSpec = {
