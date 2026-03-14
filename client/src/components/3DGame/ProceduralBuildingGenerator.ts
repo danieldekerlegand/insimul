@@ -7,6 +7,7 @@
 
 import { Scene, Mesh, AbstractMesh, MeshBuilder, Vector3, StandardMaterial, Color3, Texture, VertexData, DynamicTexture, SceneLoader } from '@babylonjs/core';
 import { createDebugLabel } from './DebugLabelUtils';
+import { FoundationData, createFoundationMesh } from './TerrainFoundationRenderer';
 import "@babylonjs/loaders/glTF";
 
 export interface BuildingStyle {
@@ -33,6 +34,7 @@ export interface BuildingSpec {
   hasChimney?: boolean;
   hasBalcony?: boolean;
   windowCount?: { width: number; height: number };
+  foundation?: FoundationData;
 }
 
 export class ProceduralBuildingGenerator {
@@ -365,6 +367,29 @@ export class ProceduralBuildingGenerator {
 
     // LOD: hide building entirely at 500+ units from camera
     parent.addLODLevel(500, null);
+
+    // Create terrain-adaptive foundation mesh if foundation data is provided
+    if (spec.foundation && spec.foundation.type !== 'flat') {
+      const foundationMesh = createFoundationMesh(
+        spec.id,
+        spec.width,
+        spec.depth,
+        spec.foundation,
+        this.scene,
+      );
+      if (foundationMesh) {
+        // Foundation is positioned in world space; parent it to the building
+        // but zero out relative position since the building parent is already
+        // at the correct XZ and the foundation uses absolute Y values.
+        foundationMesh.parent = parent;
+        // Foundation mesh uses absolute Y positions, so offset by parent's Y
+        foundationMesh.position.y = -parent.position.y;
+
+        // Raise the building to sit on top of the highest corner
+        const topY = Math.max(...spec.foundation.cornerElevations);
+        parent.position.y = topY;
+      }
+    }
 
     // Prefer world-level overrides by logical role, then fall back to
     // style-based assetSet models, and finally to primitive geometry.

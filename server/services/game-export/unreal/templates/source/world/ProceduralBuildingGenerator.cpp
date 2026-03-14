@@ -155,10 +155,22 @@ FBuildingStylePreset AProceduralBuildingGenerator::GetStyleForWorld(
 }
 
 void AProceduralBuildingGenerator::GenerateBuilding(FVector Position, float Rotation,
-    int32 Floors, float Width, float Depth, const FString& BuildingRole)
+    int32 Floors, float Width, float Depth, const FString& BuildingRole,
+    const FFoundationData& Foundation)
 {
-    UE_LOG(LogTemp, Log, TEXT("[Insimul] Generate building %s at %s (%dx%.0fx%.0f)"),
-        *BuildingRole, *Position.ToString(), Floors, Width, Depth);
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Generate building %s at %s (%dx%.0fx%.0f, foundation=%s)"),
+        *BuildingRole, *Position.ToString(), Floors, Width, Depth, *Foundation.Type);
+
+    // Create terrain-adaptive foundation mesh if not flat
+    if (Foundation.Type != TEXT("flat") && Foundation.FoundationHeight > 0.0f)
+    {
+        // Foundation geometry fills the gap between sloped terrain and building floor.
+        // The building position is raised to sit on top of the highest corner.
+        float TopZ = Foundation.BaseElevation + Foundation.FoundationHeight;
+        Position.Z = TopZ;
+        UE_LOG(LogTemp, Log, TEXT("[Insimul] Foundation type=%s height=%.1f, raised to Z=%.1f"),
+            *Foundation.Type, Foundation.FoundationHeight, TopZ);
+    }
 
     // Check for a registered role model first.
     // Note: full clones are used (not GPU instances) to ensure compatibility
