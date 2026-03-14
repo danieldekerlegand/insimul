@@ -8,7 +8,9 @@ import { Vector3 } from '@babylonjs/core';
 import {
   generateStreetAlignedLots,
   sortLotsForZoning,
+  resolveCornerFacing,
   type PlacedLot,
+  type StreetSegment,
   type StreetAlignedResult,
 } from './StreetAlignedPlacement';
 
@@ -116,15 +118,17 @@ console.log('\nHouse number parity (odd/even sides):');
   }
 
   for (const [streetName, streetLots] of byStreet) {
-    const oddLots = streetLots.filter(l => l.houseNumber % 2 === 1);
-    const evenLots = streetLots.filter(l => l.houseNumber % 2 === 0);
+    // Filter out corner lots — they face the intersecting street, not their own
+    const nonCornerLots = streetLots.filter(l => !l.isCorner);
+    const oddLots = nonCornerLots.filter(l => l.houseNumber % 2 === 1);
+    const evenLots = nonCornerLots.filter(l => l.houseNumber % 2 === 0);
 
     if (oddLots.length > 0 && evenLots.length > 0) {
       // Odd and even should be on opposite sides (different facing angles)
       const oddAngle = oddLots[0].facingAngle;
       const evenAngle = evenLots[0].facingAngle;
       const angleDiff = Math.abs(oddAngle - evenAngle);
-      assertGreaterThan(angleDiff, 0.5, `'${streetName}': odd/even lots face different directions`);
+      assertGreaterThan(angleDiff, 0.5, `'${streetName}': odd/even non-corner lots face different directions`);
     }
   }
 }
@@ -298,6 +302,105 @@ console.log('\nStreet-facing building orientation:');
   }
 }
 
+// ── Corner building handling ────────────────────────────────────────────────
+
+console.log('\nCorner building handling:');
+{
+  const result = makeResult(30);
+
+  // All lots should have isCorner property
+  for (const lot of result.lots) {
+    assert(typeof lot.isCorner === 'boolean', 'lot has isCorner boolean property');
+  }
+
+  // Corner lots should be near intersections
+  const cornerLots = result.lots.filter(l => l.isCorner);
+  for (const lot of cornerLots) {
+    assert(lot.nearIntersection, 'corner lot is also near an intersection');
+  }
+
+  // Not all near-intersection lots need to be corners (some may only be near
+  // one street), but all corners must be near intersections
+  const nearIntersectionLots = result.lots.filter(l => l.nearIntersection);
+  assertGreaterThan(nearIntersectionLots.length, 0, 'at least some lots are near intersections');
+}
+
+console.log('\nCorner facing angle - resolveCornerFacing:');
+{
+  // Create a simple T-intersection: main street horizontal, side street vertical
+  const streets: StreetSegment[] = [
+    {
+      id: 'main',
+      from: new Vector3(0, 0, 0),
+      to: new Vector3(100, 0, 0),
+      isMainStreet: true,
+      streetName: 'Main St',
+    },
+    {
+      id: 'side',
+      from: new Vector3(50, 0, -50),
+      to: new Vector3(50, 0, 50),
+      isMainStreet: false,
+      streetName: '1st Ave',
+    },
+  ];
+  const streetLengths = [100, 100];
+
+  // Lot on side street near intersection should face main street
+  const cornerResult = resolveCornerFacing(50, 5, 1, streets, streetLengths, 25);
+  assert(cornerResult !== null, 'resolveCornerFacing finds intersecting street');
+  assert(cornerResult!.streetIdx === 0, 'corner facing points to main street (index 0)');
+
+  // Lot on main street near intersection should NOT re-orient (main > side)
+  const mainResult = resolveCornerFacing(50, 0, 0, streets, streetLengths, 25);
+  assert(mainResult === null, 'main street lot does not re-orient toward side street');
+
+  // Lot far from any intersection should return null
+  const farResult = resolveCornerFacing(0, 0, 0, streets, streetLengths, 25);
+  assert(farResult === null, 'lot far from intersection returns null');
+}
+
+console.log('\nCorner facing angle direction:');
+{
+  // Horizontal main street, vertical side street intersecting at (50, 0)
+  const streets: StreetSegment[] = [
+    {
+      id: 'main',
+      from: new Vector3(0, 0, 0),
+      to: new Vector3(100, 0, 0),
+      isMainStreet: true,
+      streetName: 'Main St',
+    },
+    {
+      id: 'side',
+      from: new Vector3(50, 0, -50),
+      to: new Vector3(50, 0, 50),
+      isMainStreet: false,
+      streetName: '1st Ave',
+    },
+  ];
+  const streetLengths = [100, 100];
+
+  // Lot on side street, above main street (positive z)
+  const aboveResult = resolveCornerFacing(50, 10, 1, streets, streetLengths, 25);
+  assert(aboveResult !== null, 'lot above intersection is detected as corner');
+
+  // Lot on side street, below main street (negative z)
+  const belowResult = resolveCornerFacing(50, -10, 1, streets, streetLengths, 25);
+  assert(belowResult !== null, 'lot below intersection is detected as corner');
+
+  // The two lots should face opposite directions (toward the main street from their side)
+  if (aboveResult && belowResult) {
+    const angleDiff = Math.abs(aboveResult.facingAngle - belowResult.facingAngle);
+    // Should differ by roughly π (180°)
+    const normalizedDiff = Math.min(angleDiff, 2 * Math.PI - angleDiff);
+    assert(
+      normalizedDiff > Math.PI * 0.7,
+      `lots on opposite sides face opposite directions (diff: ${(normalizedDiff * 180 / Math.PI).toFixed(1)}°)`,
+    );
+  }
+}
+
 // ── Facing angle determinism ─────────────────────────────────────────────────
 
 console.log('\nFacing angle determinism:');
@@ -311,6 +414,21 @@ console.log('\nFacing angle determinism:');
       b.lots[i].facingAngle,
       `lot ${i} facingAngle is deterministic`,
     );
+  }
+}
+
+console.log('\nCorner lots in full generation:');
+{
+  // Use a large settlement to ensure we get corner lots
+  const result = makeResult(50, 'corner_test_seed');
+  const cornerLots = result.lots.filter(l => l.isCorner);
+
+  // With 50 lots and multiple streets, we should have some corners
+  assertGreaterThan(cornerLots.length, 0, 'large settlement has corner lots');
+
+  // Corner lots should have valid facing angles (not NaN or Infinity)
+  for (const lot of cornerLots) {
+    assert(isFinite(lot.facingAngle), `corner lot facing angle is finite (${lot.facingAngle.toFixed(3)})`);
   }
 }
 

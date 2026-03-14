@@ -42,6 +42,8 @@ export interface PlacedLot {
   nearIntersection: boolean;
   /** true when this lot is on the main street */
   onMainStreet: boolean;
+  /** true when this lot is a corner lot at an intersection of two streets */
+  isCorner: boolean;
 }
 
 export interface StreetAlignedResult {
@@ -250,6 +252,21 @@ export function generateStreetAlignedLots(
         int => vec2Len(cx - int.x, cz - int.z) < LOT_SPACING * 1.5
       );
 
+      // Corner detection: a lot is a "corner" if it's near an intersection
+      // and there's a different street nearby. Corner buildings should face
+      // the more important street (main street takes priority).
+      let cornerFacingAngle: number | null = null;
+      let isCorner = false;
+      if (nearIntersection) {
+        const cornerInfo = resolveCornerFacing(
+          cx, cz, si, streets, streetLengths, LOT_SPACING * 1.5,
+        );
+        if (cornerInfo) {
+          isCorner = true;
+          cornerFacingAngle = cornerInfo.facingAngle;
+        }
+      }
+
       // ── Left side (odd house numbers) ──
       if (lots.length < lotCount) {
         let lx = cx + perpX * SETBACK + (rand() - 0.5) * 2;
@@ -262,13 +279,19 @@ export function generateStreetAlignedLots(
         // Skip if too close to spawn
         const dFromCenter = vec2Len(lx - center.x, lz - center.z);
         if (dFromCenter >= SPAWN_CLEAR_RADIUS) {
+          // Corner lots face the more important intersecting street;
+          // non-corner lots face their own street normally.
+          const leftFacing = isCorner && cornerFacingAngle !== null
+            ? cornerFacingAngle
+            : streetAngle - Math.PI / 2;
           lots.push({
             position: new Vector3(lx, 0, lz),
-            facingAngle: streetAngle - Math.PI / 2, // face toward street (right)
+            facingAngle: leftFacing,
             houseNumber: houseOdd,
             streetName: street.streetName,
             nearIntersection,
             onMainStreet: street.isMainStreet,
+            isCorner,
           });
           houseOdd += 2;
         }
@@ -284,13 +307,17 @@ export function generateStreetAlignedLots(
 
         const dFromCenter = vec2Len(rx - center.x, rz - center.z);
         if (dFromCenter >= SPAWN_CLEAR_RADIUS) {
+          const rightFacing = isCorner && cornerFacingAngle !== null
+            ? cornerFacingAngle
+            : streetAngle + Math.PI / 2;
           lots.push({
             position: new Vector3(rx, 0, rz),
-            facingAngle: streetAngle + Math.PI / 2, // face toward street (left)
+            facingAngle: rightFacing,
             houseNumber: houseEven,
             streetName: street.streetName,
             nearIntersection,
             onMainStreet: street.isMainStreet,
+            isCorner,
           });
           houseEven += 2;
         }
@@ -299,6 +326,107 @@ export function generateStreetAlignedLots(
   }
 
   return { streets, lots };
+}
+
+// ── Corner building helpers ──────────────────────────────────────────────────
+
+/**
+ * Find the closest point on a line segment (from→to) to a given point (px, pz).
+ * Returns the squared distance to avoid sqrt.
+ */
+function distSqToSegment(
+  px: number, pz: number,
+  fx: number, fz: number, tx: number, tz: number,
+): number {
+  const dx = tx - fx;
+  const dz = tz - fz;
+  const lenSq = dx * dx + dz * dz;
+  if (lenSq < 0.001) return (px - fx) * (px - fx) + (pz - fz) * (pz - fz);
+  const t = Math.max(0, Math.min(1, ((px - fx) * dx + (pz - fz) * dz) / lenSq));
+  const projX = fx + t * dx;
+  const projZ = fz + t * dz;
+  return (px - projX) * (px - projX) + (pz - projZ) * (pz - projZ);
+}
+
+/**
+ * For a lot position near an intersection, determine whether a different
+ * (more important) street is nearby. If so, return a facing angle oriented
+ * toward that street. Main streets always win over side streets. Among
+ * equal-priority streets, the closer one wins.
+ *
+ * Returns null if no intersecting street is found (lot is not a true corner).
+ */
+export function resolveCornerFacing(
+  lotX: number,
+  lotZ: number,
+  currentStreetIdx: number,
+  streets: StreetSegment[],
+  streetLengths: number[],
+  proximityThreshold: number,
+): { facingAngle: number; streetIdx: number } | null {
+  const threshSq = proximityThreshold * proximityThreshold;
+  const current = streets[currentStreetIdx];
+
+  let bestIdx = -1;
+  let bestDistSq = Infinity;
+  let bestIsMain = false;
+
+  for (let i = 0; i < streets.length; i++) {
+    if (i === currentStreetIdx) continue;
+    const s = streets[i];
+    const dSq = distSqToSegment(lotX, lotZ, s.from.x, s.from.z, s.to.x, s.to.z);
+    if (dSq > threshSq) continue;
+
+    // Prefer main street, then closer street
+    const isMain = s.isMainStreet;
+    if (bestIdx === -1 ||
+        (isMain && !bestIsMain) ||
+        (isMain === bestIsMain && dSq < bestDistSq)) {
+      bestIdx = i;
+      bestDistSq = dSq;
+      bestIsMain = isMain;
+    }
+  }
+
+  if (bestIdx === -1) return null;
+
+  // Only re-orient if the other street is more important (main street)
+  // or if the current street is not the main street and the other is closer.
+  // If both are the same priority, the lot already faces its own street correctly
+  // unless the other street is the main street.
+  const otherStreet = streets[bestIdx];
+  if (!otherStreet.isMainStreet && current.isMainStreet) {
+    // Current street is main — keep current facing, not a meaningful corner re-orient
+    return null;
+  }
+
+  // Compute facing angle: perpendicular to the other street, pointing from
+  // the lot toward the street center line.
+  const sDx = otherStreet.to.x - otherStreet.from.x;
+  const sDz = otherStreet.to.z - otherStreet.from.z;
+  const sLen = streetLengths[bestIdx];
+  if (sLen < 0.001) return null;
+
+  const sDirX = sDx / sLen;
+  const sDirZ = sDz / sLen;
+  // Street center line angle
+  const otherAngle = Math.atan2(sDirZ, sDirX);
+
+  // Two perpendicular candidates; pick the one pointing from lot toward street
+  const midX = (otherStreet.from.x + otherStreet.to.x) / 2;
+  const midZ = (otherStreet.from.z + otherStreet.to.z) / 2;
+  const toLotX = lotX - midX;
+  const toLotZ = lotZ - midZ;
+  // Perpendicular directions
+  const perpA = otherAngle + Math.PI / 2;
+  const perpB = otherAngle - Math.PI / 2;
+  // Dot product to determine which perp points toward the lot
+  const dotA = Math.cos(perpA) * toLotX + Math.sin(perpA) * toLotZ;
+
+  // The facing angle should point FROM the lot TOWARD the street (opposite direction)
+  const facingAngle = dotA > 0 ? perpA + Math.PI : perpB + Math.PI;
+
+  return { facingAngle, streetIdx: bestIdx };
 }
 
 /**

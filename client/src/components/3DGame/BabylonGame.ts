@@ -2310,10 +2310,12 @@ export class BabylonGame {
           lotStreetNames.length > 0 ? lotStreetNames : undefined,
         );
 
-        const lotPositions = streetLayout.lots.map((l) =>
-          this.projectToGround(l.position.x, l.position.z)
-        );
-        const lotFacingAngles = streetLayout.lots.map((l) => l.facingAngle);
+        // Project lot positions to ground and preserve facing angles
+        const projectedLots = streetLayout.lots.map((l) => ({
+          position: this.projectToGround(l.position.x, l.position.z),
+          facingAngle: l.facingAngle,
+        }));
+        const lotPositions = projectedLots.map((l) => l.position);
 
         // Spawn buildings (track per-settlement positions for street furniture)
         const settlementBuildingPositions: Vector3[] = [];
@@ -2330,7 +2332,7 @@ export class BabylonGame {
             position: lotPositions[buildingIndex],
             worldStyle,
             population: scaledSettlement.population,
-            rotation: lotFacingAngles[buildingIndex],
+            rotation: projectedLots[buildingIndex]?.facingAngle,
           });
 
           buildingSpec = {
@@ -2406,7 +2408,7 @@ export class BabylonGame {
             position: lotPositions[buildingIndex],
             worldStyle,
             population: occupants.length,
-            rotation: lotFacingAngles[buildingIndex],
+            rotation: projectedLots[buildingIndex]?.facingAngle,
           });
 
           buildingSpec = {
@@ -2519,7 +2521,7 @@ export class BabylonGame {
               position: lotPositions[buildingIndex],
               worldStyle,
               population: scaledSettlement.population,
-              rotation: lotFacingAngles[buildingIndex],
+              rotation: projectedLots[buildingIndex]?.facingAngle,
             });
 
             buildingSpec = {
@@ -2575,7 +2577,7 @@ export class BabylonGame {
             position: lotPositions[buildingIndex],
             worldStyle,
             population: Math.floor(scaledSettlement.population / buildingCount),
-            rotation: lotFacingAngles[buildingIndex],
+            rotation: projectedLots[buildingIndex]?.facingAngle,
           });
 
           buildingSpec = {
