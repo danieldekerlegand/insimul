@@ -2307,9 +2307,12 @@ export class BabylonGame {
           lotStreetNames.length > 0 ? lotStreetNames : undefined,
         );
 
-        const lotPositions = streetLayout.lots.map((l) =>
-          this.projectToGround(l.position.x, l.position.z)
-        );
+        // Project lot positions to ground and preserve facing angles
+        const projectedLots = streetLayout.lots.map((l) => ({
+          position: this.projectToGround(l.position.x, l.position.z),
+          facingAngle: l.facingAngle,
+        }));
+        const lotPositions = projectedLots.map((l) => l.position);
 
         // Spawn buildings (track per-settlement positions for street furniture)
         const settlementBuildingPositions: Vector3[] = [];
@@ -2325,7 +2328,8 @@ export class BabylonGame {
             businessType: business.businessType,
             position: lotPositions[buildingIndex],
             worldStyle,
-            population: scaledSettlement.population
+            population: scaledSettlement.population,
+            rotation: projectedLots[buildingIndex]?.facingAngle,
           });
 
           buildingSpec = {
@@ -2400,7 +2404,8 @@ export class BabylonGame {
             businessType: residenceType,
             position: lotPositions[buildingIndex],
             worldStyle,
-            population: occupants.length
+            population: occupants.length,
+            rotation: projectedLots[buildingIndex]?.facingAngle,
           });
 
           buildingSpec = {
@@ -2512,7 +2517,8 @@ export class BabylonGame {
               businessType: biz.businessType,
               position: lotPositions[buildingIndex],
               worldStyle,
-              population: scaledSettlement.population
+              population: scaledSettlement.population,
+              rotation: projectedLots[buildingIndex]?.facingAngle,
             });
 
             buildingSpec = {
@@ -2567,7 +2573,8 @@ export class BabylonGame {
             businessType: residenceType,
             position: lotPositions[buildingIndex],
             worldStyle,
-            population: Math.floor(scaledSettlement.population / buildingCount)
+            population: Math.floor(scaledSettlement.population / buildingCount),
+            rotation: projectedLots[buildingIndex]?.facingAngle,
           });
 
           buildingSpec = {
