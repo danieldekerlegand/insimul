@@ -2673,6 +2673,12 @@ export class BabylonGame {
             streetNetwork,
             sampleHeight
           );
+          // Collect street segments for minimap overlay
+          for (const seg of streetNetwork.segments) {
+            if (seg.waypoints.length >= 2) {
+              this._minimapStreets.push({ waypoints: seg.waypoints, width: seg.width });
+            }
+          }
         }
 
         // Create a subtle ground marker and signpost for the settlement center
@@ -5720,6 +5726,7 @@ export class BabylonGame {
 
   private _minimapBuildingsCollected = false;
   private _minimapBuildings: Array<{ position: { x: number; z: number }; type: 'business' | 'residence' | 'other' }> = [];
+  private _minimapStreets: Array<{ waypoints: Array<{ x: number; z: number }>; width: number }> = [];
 
   private updateMinimapOverlay(): void {
     if (!this.guiManager || !this.worldData || !this.playerMesh) return;
@@ -5785,6 +5792,7 @@ export class BabylonGame {
     this.guiManager.updateMinimap({
       settlements: settlementsData,
       buildings: this._minimapBuildings,
+      streets: this._minimapStreets,
       questMarkers,
       npcPositions,
       playerPosition: {
