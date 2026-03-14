@@ -51,6 +51,7 @@ import { QuestObjectManager } from "@/components/3DGame/QuestObjectManager.ts";
 import { QuestIndicatorManager } from "@/components/3DGame/QuestIndicatorManager.ts";
 import { ListeningComprehensionManager } from "@/components/3DGame/ListeningComprehensionManager.ts";
 import { ProceduralBuildingGenerator, BuildingStyle } from "@/components/3DGame/ProceduralBuildingGenerator.ts";
+import { computeFoundationData } from "@/components/3DGame/TerrainFoundationRenderer.ts";
 import { ProceduralNatureGenerator, BiomeStyle } from "@/components/3DGame/ProceduralNatureGenerator.ts";
 import { RoadGenerator } from "@/components/3DGame/RoadGenerator.ts";
 import { RiverGenerator } from "@/components/3DGame/RiverGenerator.ts";
@@ -2337,6 +2338,12 @@ export class BabylonGame {
             )
           };
 
+          // Compute terrain-adaptive foundation
+          buildingSpec.foundation = computeFoundationData(
+            buildingSpec.position.x, buildingSpec.position.z,
+            buildingSpec.width, buildingSpec.depth, sampleHeight,
+          );
+
           const building = buildingGenerator.generateBuilding(buildingSpec);
           allBuildingPositions.push(building.position);
           settlementBuildingPositions.push(building.position.clone());
@@ -2411,6 +2418,12 @@ export class BabylonGame {
               buildingSpec.depth
             )
           };
+
+          // Compute terrain-adaptive foundation
+          buildingSpec.foundation = computeFoundationData(
+            buildingSpec.position.x, buildingSpec.position.z,
+            buildingSpec.width, buildingSpec.depth, sampleHeight,
+          );
 
           const building = buildingGenerator.generateBuilding(buildingSpec);
           allBuildingPositions.push(building.position);
@@ -2524,6 +2537,12 @@ export class BabylonGame {
               )
             };
 
+            // Compute terrain-adaptive foundation
+            buildingSpec.foundation = computeFoundationData(
+              buildingSpec.position.x, buildingSpec.position.z,
+              buildingSpec.width, buildingSpec.depth, sampleHeight,
+            );
+
             const building = buildingGenerator.generateBuilding(buildingSpec);
             allBuildingPositions.push(building.position);
             settlementBuildingPositions.push(building.position.clone());
@@ -2578,6 +2597,12 @@ export class BabylonGame {
               buildingSpec.depth
             )
           };
+
+          // Compute terrain-adaptive foundation
+          buildingSpec.foundation = computeFoundationData(
+            buildingSpec.position.x, buildingSpec.position.z,
+            buildingSpec.width, buildingSpec.depth, sampleHeight,
+          );
 
           const building = buildingGenerator.generateBuilding(buildingSpec);
           allBuildingPositions.push(building.position);

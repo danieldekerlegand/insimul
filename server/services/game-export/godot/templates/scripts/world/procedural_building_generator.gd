@@ -144,7 +144,17 @@ func _get_shared_material(key: String, color: Color) -> StandardMaterial3D:
 
 
 func generate_building(pos: Vector3, rotation_y: float, floors: int,
-		width: float, depth: float, role: String) -> void:
+		width: float, depth: float, role: String,
+		foundation: Dictionary = {}) -> void:
+
+	# Create terrain-adaptive foundation: raise building to sit on highest corner
+	var fnd_type: String = foundation.get("type", "flat")
+	var fnd_height: float = foundation.get("foundation_height", 0.0)
+	if fnd_type != "flat" and fnd_height > 0.0:
+		var base_elev: float = foundation.get("base_elevation", 0.0)
+		var top_y := base_elev + fnd_height
+		pos.y = top_y
+		print("[Insimul] Foundation type=%s height=%.1f, raised to Y=%.1f" % [fnd_type, fnd_height, top_y])
 
 	# Check for a registered role model first.
 	# Uses full scene instantiation (not MultiMesh) for RTT/minimap compatibility.

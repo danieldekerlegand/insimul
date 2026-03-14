@@ -36,6 +36,26 @@ struct FBuildingTypeDefaults
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bHasBalcony = false;
 };
 
+/**
+ * Foundation data for terrain-adaptive building placement.
+ * Determines the type and geometry of the foundation that fills the gap
+ * between sloped terrain and a building's floor plane.
+ */
+USTRUCT(BlueprintType)
+struct FFoundationData
+{
+    GENERATED_BODY()
+
+    /** Foundation type: flat, raised, stilted, or terraced */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Type = TEXT("flat");
+    /** Lowest corner elevation (world Z in Unreal coords) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float BaseElevation = 0.0f;
+    /** Height difference between lowest and highest corner */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float FoundationHeight = 0.0f;
+    /** Per-corner elevations: front-left, front-right, back-left, back-right */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<float> CornerElevations;
+};
+
 UCLASS()
 class INSIMULEXPORT_API AProceduralBuildingGenerator : public AActor
 {
@@ -46,7 +66,8 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Building")
     void GenerateBuilding(FVector Position, float Rotation, int32 Floors,
-                          float Width, float Depth, const FString& BuildingRole);
+                          float Width, float Depth, const FString& BuildingRole,
+                          const FFoundationData& Foundation = FFoundationData());
 
     /** Register a prefab model mesh for a building role. When GenerateBuilding is called
      *  with a matching role, this mesh is instanced instead of procedural geometry. */
