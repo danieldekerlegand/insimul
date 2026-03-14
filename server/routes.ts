@@ -11134,6 +11134,48 @@ Respond with this JSON structure:
   // Register assessment session routes
   app.use('/api', createAssessmentRoutes(storage));
 
+  // Water features routes
+  app.get("/api/worlds/:worldId/water-features", async (req, res) => {
+    try {
+      const features = await storage.getWaterFeaturesByWorld(req.params.worldId);
+      res.json(features);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch water features" });
+    }
+  });
+
+  app.post("/api/worlds/:worldId/water-features", async (req, res) => {
+    try {
+      const feature = await storage.createWaterFeature({
+        ...req.body,
+        worldId: req.params.worldId,
+      });
+      res.status(201).json(feature);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create water feature" });
+    }
+  });
+
+  app.put("/api/water-features/:id", async (req, res) => {
+    try {
+      const feature = await storage.updateWaterFeature(req.params.id, req.body);
+      if (!feature) return res.status(404).json({ error: "Water feature not found" });
+      res.json(feature);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update water feature" });
+    }
+  });
+
+  app.delete("/api/water-features/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteWaterFeature(req.params.id);
+      if (!deleted) return res.status(404).json({ error: "Water feature not found" });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete water feature" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
