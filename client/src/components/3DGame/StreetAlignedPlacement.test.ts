@@ -215,6 +215,48 @@ console.log('\nZoning sort (commercial-first):');
   }
 }
 
+// ── Zone assignment ─────────────────────────────────────────────────────────
+
+console.log('\nZone assignment:');
+{
+  const result = makeResult(30);
+  // All generated lots default to 'residential'
+  for (const lot of result.lots) {
+    assertEqual(lot.zone, 'residential', `generated lot defaults to residential zone`);
+  }
+}
+
+console.log('\nZone assignment via sortLotsForZoning:');
+{
+  const result = makeResult(30);
+  const bizCount = 5;
+  const sorted = sortLotsForZoning(result.lots, bizCount);
+
+  // First bizCount lots should be commercial
+  const commercialLots = sorted.filter(l => l.zone === 'commercial');
+  const residentialLots = sorted.filter(l => l.zone === 'residential');
+
+  assertEqual(commercialLots.length, bizCount, `exactly ${bizCount} lots are commercial`);
+  assertEqual(residentialLots.length, sorted.length - bizCount, `remaining lots are residential`);
+
+  // Verify commercial lots come first in the sorted array
+  for (let i = 0; i < bizCount && i < sorted.length; i++) {
+    assertEqual(sorted[i].zone, 'commercial', `lot ${i} is commercial (first ${bizCount} slots)`);
+  }
+  for (let i = bizCount; i < sorted.length; i++) {
+    assertEqual(sorted[i].zone, 'residential', `lot ${i} is residential (after first ${bizCount} slots)`);
+  }
+}
+
+console.log('\nZone assignment with zero businesses:');
+{
+  const result = makeResult(20);
+  const sorted = sortLotsForZoning(result.lots, 0);
+
+  const commercialLots = sorted.filter(l => l.zone === 'commercial');
+  assertEqual(commercialLots.length, 0, 'zero businesses means no commercial lots');
+}
+
 // ── Large settlement ────────────────────────────────────────────────────────
 
 console.log('\nLarge settlement (100 lots):');

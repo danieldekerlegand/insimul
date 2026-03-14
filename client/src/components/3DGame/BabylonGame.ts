@@ -2311,10 +2311,12 @@ export class BabylonGame {
           lotStreetNames.length > 0 ? lotStreetNames : undefined,
         );
 
-        // Project lot positions to ground and preserve facing angles
-        const projectedLots = streetLayout.lots.map((l) => ({
+        // Project lot positions to ground and preserve facing angles + zones
+        const placedLots = streetLayout.lots;
+        const projectedLots = placedLots.map((l) => ({
           position: this.projectToGround(l.position.x, l.position.z),
           facingAngle: l.facingAngle,
+          zone: l.zone,
         }));
         const lotPositions = projectedLots.map((l) => l.position);
 
@@ -2334,6 +2336,7 @@ export class BabylonGame {
             worldStyle,
             population: scaledSettlement.population,
             rotation: projectedLots[buildingIndex]?.facingAngle,
+            zone: projectedLots[buildingIndex]?.zone,
           });
 
           buildingSpec = {
@@ -2416,6 +2419,7 @@ export class BabylonGame {
             worldStyle,
             population: occupants.length,
             rotation: projectedLots[buildingIndex]?.facingAngle,
+            zone: projectedLots[buildingIndex]?.zone,
           });
 
           buildingSpec = {
@@ -2535,6 +2539,7 @@ export class BabylonGame {
               worldStyle,
               population: scaledSettlement.population,
               rotation: projectedLots[buildingIndex]?.facingAngle,
+              zone: projectedLots[buildingIndex]?.zone,
             });
 
             buildingSpec = {
@@ -2597,6 +2602,7 @@ export class BabylonGame {
             worldStyle,
             population: Math.floor(scaledSettlement.population / buildingCount),
             rotation: projectedLots[buildingIndex]?.facingAngle,
+            zone: projectedLots[buildingIndex]?.zone,
           });
 
           buildingSpec = {

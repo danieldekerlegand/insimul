@@ -123,6 +123,17 @@ const TMap<FString, FBuildingTypeDefaults>& AProceduralBuildingGenerator::GetBui
     return Types;
 }
 
+const TMap<FString, FZoneScale>& AProceduralBuildingGenerator::GetZoneScale()
+{
+    static TMap<FString, FZoneScale> Scales;
+    if (Scales.Num() == 0)
+    {
+        Scales.Add(TEXT("commercial"),  { 1.3f, 1.15f, 1.1f });
+        Scales.Add(TEXT("residential"), { 1.0f, 1.0f,  1.0f });
+    }
+    return Scales;
+}
+
 FBuildingStylePreset AProceduralBuildingGenerator::GetStyleForWorld(
     const FString& WorldType, const FString& Terrain)
 {
