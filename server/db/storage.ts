@@ -13,6 +13,8 @@ import {
   type InsertState,
   type Settlement,
   type InsertSettlement,
+  type SettlementHistoryEvent,
+  type InsertSettlementHistoryEvent,
   type Lot,
   type InsertLot,
   type Business,
@@ -87,6 +89,13 @@ export interface IStorage {
   createSettlement(settlement: InsertSettlement): Promise<Settlement>;
   updateSettlement(id: string, settlement: Partial<InsertSettlement>): Promise<Settlement | undefined>;
   deleteSettlement(id: string): Promise<boolean>;
+
+  // Settlement History Events
+  getSettlementHistoryEvent(id: string): Promise<SettlementHistoryEvent | undefined>;
+  getSettlementHistoryBySettlement(settlementId: string): Promise<SettlementHistoryEvent[]>;
+  getSettlementHistoryByWorld(worldId: string): Promise<SettlementHistoryEvent[]>;
+  createSettlementHistoryEvent(event: InsertSettlementHistoryEvent): Promise<SettlementHistoryEvent>;
+  deleteSettlementHistoryEvent(id: string): Promise<boolean>;
 
   // Lots
   getLot(id: string): Promise<Lot | undefined>;

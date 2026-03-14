@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from './db/storage';
 import { createTelemetryRoutes } from './routes/telemetry-routes';
 import { createHistoryRoutes } from './routes/history-routes';
+import { createSettlementHistoryRoutes } from './routes/settlement-history-routes';
 import { createAssessmentRoutes } from './routes/assessment-routes';
 import { enrichHistoricalEvents, type WorldContext } from './services/llm-event-enrichment.js';
 import { prologAutoSync } from './engines/prolog/prolog-auto-sync';
@@ -11130,6 +11131,9 @@ Respond with this JSON structure:
 
   // Register history import/export routes
   app.use('/api', createHistoryRoutes(storage));
+
+  // Register settlement history routes
+  app.use('/api', createSettlementHistoryRoutes(storage));
 
   // Register assessment session routes
   app.use('/api', createAssessmentRoutes(storage));

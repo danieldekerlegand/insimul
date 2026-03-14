@@ -15,6 +15,8 @@ import {
   type InsertState,
   type Settlement,
   type InsertSettlement,
+  type SettlementHistoryEvent,
+  type InsertSettlementHistoryEvent,
   type Simulation,
   type InsertSimulation,
   type Action,
@@ -85,6 +87,10 @@ interface StateDoc extends Omit<State, 'id'>, Document {
 }
 
 interface SettlementDoc extends Omit<Settlement, 'id'>, Document {
+  _id: string;
+}
+
+interface SettlementHistoryEventDoc extends Omit<SettlementHistoryEvent, 'id'>, Document {
   _id: string;
 }
 
@@ -351,6 +357,22 @@ const SettlementSchema = new Schema({
   generationConfig: { type: Schema.Types.Mixed, default: null },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
+});
+
+const SettlementHistoryEventSchema = new Schema({
+  worldId: { type: String, required: true },
+  settlementId: { type: String, required: true },
+  eventType: { type: String, required: true },
+  category: { type: String, required: true },
+  year: { type: Number, default: null },
+  timestep: { type: Number, default: null },
+  description: { type: String, required: true },
+  previousValue: { type: Schema.Types.Mixed, default: null },
+  newValue: { type: Schema.Types.Mixed, default: null },
+  significance: { type: String, default: 'minor' },
+  relatedCharacterIds: { type: Schema.Types.Mixed, default: [] },
+  tags: { type: Schema.Types.Mixed, default: [] },
+  createdAt: { type: Date, default: Date.now },
 });
 
 const SimulationSchema = new Schema({
@@ -1007,6 +1029,7 @@ const WorldModel = mongoose.model<WorldDoc>('World', WorldSchema);
 const CountryModel = mongoose.model<CountryDoc>('Country', CountrySchema);
 const StateModel = mongoose.model<StateDoc>('State', StateSchema);
 const SettlementModel = mongoose.model<SettlementDoc>('Settlement', SettlementSchema);
+const SettlementHistoryEventModel = mongoose.model<SettlementHistoryEventDoc>('SettlementHistoryEvent', SettlementHistoryEventSchema);
 const SimulationModel = mongoose.model<SimulationDoc>('Simulation', SimulationSchema);
 const ActionModel = mongoose.model<ActionDoc>('Action', ActionSchema);
 const TruthModel = mongoose.model<TruthDoc>('Truth', TruthSchema);
@@ -1098,6 +1121,10 @@ function docToState(doc: StateDoc): State {
 }
 
 function docToSettlement(doc: SettlementDoc): Settlement {
+  return { ...doc.toObject(), id: doc._id.toString() };
+}
+
+function docToSettlementHistoryEvent(doc: SettlementHistoryEventDoc): SettlementHistoryEvent {
   return { ...doc.toObject(), id: doc._id.toString() };
 }
 
@@ -1645,6 +1672,37 @@ export class MongoStorage implements IStorage {
     // Finally delete the settlement itself
     const result = await SettlementModel.findByIdAndDelete(id);
     console.log(`         ✅ Settlement ${id} deleted (${characters.length} characters removed)`);
+    return !!result;
+  }
+
+  // Settlement History Event operations
+  async getSettlementHistoryEvent(id: string): Promise<SettlementHistoryEvent | undefined> {
+    await this.connect();
+    const doc = await SettlementHistoryEventModel.findById(id);
+    return doc ? docToSettlementHistoryEvent(doc) : undefined;
+  }
+
+  async getSettlementHistoryBySettlement(settlementId: string): Promise<SettlementHistoryEvent[]> {
+    await this.connect();
+    const docs = await SettlementHistoryEventModel.find({ settlementId }).sort({ year: 1, timestep: 1 });
+    return docs.map(docToSettlementHistoryEvent);
+  }
+
+  async getSettlementHistoryByWorld(worldId: string): Promise<SettlementHistoryEvent[]> {
+    await this.connect();
+    const docs = await SettlementHistoryEventModel.find({ worldId }).sort({ year: 1, timestep: 1 });
+    return docs.map(docToSettlementHistoryEvent);
+  }
+
+  async createSettlementHistoryEvent(event: InsertSettlementHistoryEvent): Promise<SettlementHistoryEvent> {
+    await this.connect();
+    const doc = await SettlementHistoryEventModel.create(event);
+    return docToSettlementHistoryEvent(doc);
+  }
+
+  async deleteSettlementHistoryEvent(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await SettlementHistoryEventModel.findByIdAndDelete(id);
     return !!result;
   }
 
