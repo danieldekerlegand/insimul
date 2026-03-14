@@ -154,7 +154,7 @@ export class GeographyGenerator {
     });
 
     // Persist lots, residences, and businesses as proper database records
-    const lotIds = await this.persistLotsAndBuildings(config, districts, streets, buildings);
+    const lotIds = await this.persistLotsAndBuildings(config, districts, streets, buildings, streetNetwork);
 
     console.log(`✅ Generated ${districts.length} districts, ${streetNetwork.segments.length} streets (${streetNetwork.nodes.length} nodes), ${buildings.length} buildings (${lotIds.length} lots persisted), ${agriculturalZones.length} agricultural zones`);
 
@@ -170,18 +170,33 @@ export class GeographyGenerator {
     config: GeographyConfig,
     districts: Location[],
     streets: Location[],
-    buildings: Location[]
+    buildings: Location[],
+    streetNetwork?: StreetNetwork
   ): Promise<string[]> {
     // Build lookup maps for parent references
     const districtById = new Map(districts.map(d => [d.id, d]));
     const streetById = new Map(streets.map(s => [s.id, s]));
+
+    // Generate lot placements with world-space coordinates
+    let lotPlacements: LotPlacement[] = [];
+    if (streetNetwork) {
+      const seed = `${config.worldId}_${config.settlementId}`;
+      lotPlacements = placeLots(streetNetwork, buildings.length, seed);
+    }
+
+    // Build a lookup: streetName+houseNumber -> placement for matching
+    const placementByKey = new Map<string, LotPlacement>();
+    for (const p of lotPlacements) {
+      placementByKey.set(`${p.streetName}:${p.houseNumber}`, p);
+    }
 
     // Prepare bulk-insert arrays
     const lotDocs: any[] = [];
     const residenceDocs: any[] = [];
     const businessDocs: any[] = [];
 
-    for (const building of buildings) {
+    for (let bi = 0; bi < buildings.length; bi++) {
+      const building = buildings[bi];
       const street = building.parentId ? streetById.get(building.parentId) : undefined;
       const district = street?.parentId ? districtById.get(street.parentId) : undefined;
       const streetName = street?.name || 'Unknown St';
@@ -191,6 +206,9 @@ export class GeographyGenerator {
       const address = `${houseNumber} ${streetName}`;
       const isResidence = building.properties?.buildingType === 'residence';
 
+      // Try to match to a lot placement by streetName+houseNumber, else by index
+      const placement = placementByKey.get(`${streetName}:${houseNumber}`) || lotPlacements[bi];
+
       lotDocs.push({
         worldId: config.worldId,
         settlementId: config.settlementId,
@@ -199,6 +217,11 @@ export class GeographyGenerator {
         streetName,
         districtName,
         buildingType: isResidence ? 'residence' : 'business',
+        positionX: placement?.x ?? null,
+        positionZ: placement?.z ?? null,
+        facingAngle: placement?.facingAngle ?? 0,
+        streetEdgeId: placement?.streetId ?? null,
+        side: placement?.side ?? null,
         formerBuildingIds: [],
         // Placeholder — buildingId will be set after residence/business creation
         _buildingIndex: lotDocs.length,

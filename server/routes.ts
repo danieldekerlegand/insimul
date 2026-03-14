@@ -2058,6 +2058,39 @@ app.get("/api/rules", async (req, res) => {
     }
   });
 
+  // Address-to-position lookup
+  app.get("/api/settlements/:settlementId/address-lookup", async (req, res) => {
+    try {
+      const { address } = req.query;
+      if (!address || typeof address !== 'string') {
+        return res.status(400).json({ error: "Query parameter 'address' is required" });
+      }
+      const lots = await storage.getLotsBySettlement(req.params.settlementId);
+      const match = lots.find((l: any) =>
+        l.address?.toLowerCase() === address.toLowerCase()
+      );
+      if (!match) {
+        return res.status(404).json({ error: "Address not found" });
+      }
+      res.json({
+        lotId: match.id,
+        address: match.address,
+        position: {
+          x: match.positionX ?? null,
+          z: match.positionZ ?? null,
+        },
+        facingAngle: match.facingAngle ?? 0,
+        elevation: match.elevation ?? 0,
+        streetEdgeId: match.streetEdgeId ?? null,
+        side: match.side ?? null,
+        buildingId: match.buildingId ?? null,
+        buildingType: match.buildingType ?? null,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to lookup address" });
+    }
+  });
+
   // Businesses routes
   app.get("/api/settlements/:settlementId/businesses", async (req, res) => {
     try {
