@@ -7,6 +7,7 @@ import {
   generateStreetAlignedLots,
   type StreetSegment,
 } from '../3DGame/StreetAlignedPlacement';
+import type { MapLayer } from './MapLayersPanel';
 
 export type ViewLevel = 'world' | 'country' | 'settlement';
 
@@ -33,6 +34,7 @@ interface LocationMapPreviewProps {
   onSettlementClick?: (settlement: any) => void;
   onCountryClick?: (country: any) => void;
   className?: string;
+  visibleLayers?: Set<MapLayer>;
 }
 
 // Deterministic hash for consistent positioning
@@ -153,9 +155,12 @@ export function LocationMapPreview({
   onSettlementClick,
   onCountryClick,
   className = '',
+  visibleLayers,
 }: LocationMapPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<BABYLON.Engine | null>(null);
+  const sceneRef = useRef<BABYLON.Scene | null>(null);
+  const guiRef = useRef<GUI.AdvancedDynamicTexture | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState<string | null>(null);
 
@@ -170,6 +175,7 @@ export function LocationMapPreview({
     engineRef.current = engine;
 
     const scene = new BABYLON.Scene(engine);
+    sceneRef.current = scene;
     scene.clearColor = new BABYLON.Color4(0.08, 0.1, 0.14, 1);
 
     // Camera - more top-down for world, more angled for settlement
@@ -200,6 +206,7 @@ export function LocationMapPreview({
 
     // GUI for labels
     const advancedTexture = GUI.AdvancedDynamicTexture.CreateFullscreenUI('UI', true, scene);
+    guiRef.current = advancedTexture;
 
     // Picking support
     const pickableMap = new Map<string, { type: 'settlement' | 'country'; data: any }>();
@@ -262,8 +269,16 @@ export function LocationMapPreview({
       scene.dispose();
       engine.dispose();
       engineRef.current = null;
+      sceneRef.current = null;
+      guiRef.current = null;
     };
   }, [viewLevel, countries, settlements, lots, businesses, residences, streets, waterFeatures, selectedCountryId, worldId]);
+
+  // Apply layer visibility without rebuilding the scene
+  useEffect(() => {
+    if (!visibleLayers || !sceneRef.current || sceneRef.current.isDisposed) return;
+    applyLayerVisibility(sceneRef.current, guiRef.current, visibleLayers);
+  }, [visibleLayers]);
 
   return (
     <div className={`relative bg-black rounded-b-lg overflow-hidden ${className}`}>
@@ -284,6 +299,31 @@ export function LocationMapPreview({
   );
 }
 
+// ─── Layer Visibility ─────────────────────────────────────────────────────────
+
+function tagMesh(mesh: BABYLON.AbstractMesh, layer: MapLayer): void {
+  mesh.metadata = { ...mesh.metadata, layer };
+}
+
+function applyLayerVisibility(
+  scene: BABYLON.Scene,
+  gui: GUI.AdvancedDynamicTexture | null,
+  visibleLayers: Set<MapLayer>,
+): void {
+  const labelsVisible = visibleLayers.has('labels');
+  for (const mesh of scene.meshes) {
+    const layer = mesh.metadata?.layer as MapLayer | undefined;
+    if (!layer) continue;
+    const layerVisible = visibleLayers.has(layer);
+    mesh.isVisible = layerVisible;
+    mesh.setEnabled(layerVisible);
+    // GUI labels: visible only if both their parent layer AND the labels layer are on
+    if (mesh.metadata?.guiControl) {
+      mesh.metadata.guiControl.isVisible = layerVisible && labelsVisible;
+    }
+  }
+}
+
 // ─── World View ──────────────────────────────────────────────────────────────
 
 function buildWorldView(
@@ -301,6 +341,7 @@ function buildWorldView(
   groundMat.diffuseColor = new BABYLON.Color3(0.15, 0.2, 0.12);
   groundMat.specularColor = BABYLON.Color3.Black();
   ground.material = groundMat;
+  tagMesh(ground, 'terrain');
 
   // Layout countries in a circle pattern
   const countryCount = Math.max(countries.length, 1);
@@ -329,12 +370,14 @@ function buildWorldView(
     disc.material = discMat;
     disc.id = `country_pick_${country.id}`;
     pickableMap.set(disc.id, { type: 'country', data: country });
+    tagMesh(disc, 'districts');
 
     // Country name
     const anchor = BABYLON.MeshBuilder.CreateBox(`cAnchor_${ci}`, { size: 0.01 }, scene);
     anchor.position = new BABYLON.Vector3(cx, 3.5, cz);
     anchor.isVisible = false;
     anchor.isPickable = false;
+    tagMesh(anchor, 'labels');
     addLabel(gui, anchor, country.name, 13, '#FFD700', 0);
 
     // Place settlement markers within country
@@ -360,6 +403,7 @@ function buildWorldView(
       marker.material = mMat;
       marker.id = `settlement_pick_${s.id}`;
       pickableMap.set(marker.id, { type: 'settlement', data: s });
+      tagMesh(marker, 'buildings');
 
       addLabel(gui, marker, s.name, 10, '#CCC', 20);
     });
@@ -392,6 +436,7 @@ function buildCountryView(
   groundMat.diffuseColor = groundCol;
   groundMat.specularColor = BABYLON.Color3.Black();
   ground.material = groundMat;
+  tagMesh(ground, 'terrain');
 
   const count = Math.max(settlements.length, 1);
   const radius = Math.min(count * 2.5, 15);
@@ -413,6 +458,7 @@ function buildCountryView(
     discMat.specularColor = BABYLON.Color3.Black();
     discMat.alpha = 0.6;
     disc.material = discMat;
+    tagMesh(disc, 'districts');
 
     // Building cluster
     const rng = seededRandom(hashStr(s.id));
@@ -436,6 +482,7 @@ function buildCountryView(
       bMat.diffuseColor = buildingCol.scale(0.6 + rng() * 0.4);
       bMat.specularColor = BABYLON.Color3.Black();
       box.material = bMat;
+      tagMesh(box, 'buildings');
     }
 
     // Settlement label and picker
@@ -444,6 +491,7 @@ function buildCountryView(
     marker.isVisible = false;
     marker.id = `settlement_pick_${s.id}`;
     pickableMap.set(marker.id, { type: 'settlement', data: s });
+    tagMesh(marker, 'labels');
     addLabel(gui, marker, s.name, 12, '#FFF', 0);
   });
 
@@ -744,6 +792,7 @@ async function buildSettlementView(
   groundMat.diffuseColor = new BABYLON.Color3(0.25, 0.3, 0.2);
   groundMat.specularColor = BABYLON.Color3.Black();
   ground.material = groundMat;
+  tagMesh(ground, 'terrain');
 
   // Render street network
   if (streets.length > 0) {
@@ -760,10 +809,10 @@ async function buildSettlementView(
   if (scene.isDisposed) return;
 
   // Compute street-aligned layout (consistent with 3D game)
-  const { positions, streets } = computeSettlementLayout(lots, worldId);
+  const { positions, streets: layoutStreets } = computeSettlementLayout(lots, worldId);
 
   // Render street network
-  renderStreets(scene, gui, streets);
+  renderStreets(scene, gui, layoutStreets);
 
   // Business lookup by lotId
   const bizByLot = new Map<string, any>();
@@ -819,6 +868,7 @@ async function buildSettlementView(
       const parent = new BABYLON.Mesh(`lot_parent_${lot.id}`, scene);
       parent.position = new BABYLON.Vector3(lx, 0, lz);
       parent.rotation.y = facingAngle;
+      tagMesh(parent, 'buildings');
 
       // Place the real model
       placeModelInstance(prototype, parent, height, lot.id);
@@ -833,10 +883,15 @@ async function buildSettlementView(
       plateMat.specularColor = BABYLON.Color3.Black();
       plateMat.alpha = 0.7;
       plate.material = plateMat;
+      tagMesh(plate, 'buildings');
 
       // Label
+      const labelAnchor = new BABYLON.Mesh(`lotLabel_${lot.id}`, scene);
+      labelAnchor.position = parent.position.clone();
+      labelAnchor.isVisible = false;
+      tagMesh(labelAnchor, 'labels');
       const label = biz?.name ?? lot.address ?? `Lot ${li + 1}`;
-      addLabel(gui, parent, label, 9, isBusiness ? '#FFB86C' : isResidence ? '#8BE9FD' : '#aaa', 15);
+      addLabel(gui, labelAnchor, label, 9, isBusiness ? '#FFB86C' : isResidence ? '#8BE9FD' : '#aaa', 15);
     } else {
       // Fallback: primitive box + cone roof
       const width = 0.4 + rng() * 0.3;
@@ -853,6 +908,7 @@ async function buildSettlementView(
       boxMat.diffuseColor = tintColor;
       boxMat.specularColor = new BABYLON.Color3(0.08, 0.08, 0.08);
       box.material = boxMat;
+      tagMesh(box, 'buildings');
 
       // Roof for non-vacant
       if (buildingType !== 'vacant') {
@@ -870,11 +926,16 @@ async function buildSettlementView(
           : new BABYLON.Color3(0.3, 0.3, 0.5);
         roofMat.specularColor = BABYLON.Color3.Black();
         roof.material = roofMat;
+        tagMesh(roof, 'buildings');
       }
 
       // Building label
+      const labelAnchor2 = new BABYLON.Mesh(`lotLabel2_${lot.id}`, scene);
+      labelAnchor2.position = box.position.clone();
+      labelAnchor2.isVisible = false;
+      tagMesh(labelAnchor2, 'labels');
       const label = biz?.name ?? lot.address ?? `Lot ${li + 1}`;
-      addLabel(gui, box, label, 9, isBusiness ? '#FFB86C' : isResidence ? '#8BE9FD' : '#aaa', 15);
+      addLabel(gui, labelAnchor2, label, 9, isBusiness ? '#FFB86C' : isResidence ? '#8BE9FD' : '#aaa', 15);
     }
   });
 
@@ -937,6 +998,7 @@ function renderStreets(
     roadMat.specularColor = BABYLON.Color3.Black();
     road.material = roadMat;
     road.isPickable = false;
+    tagMesh(road, 'streets');
 
     // Street name label at midpoint
     if (street.streetName) {
@@ -944,6 +1006,7 @@ function renderStreets(
       labelAnchor.position = new BABYLON.Vector3(midX, 0.3, midZ);
       labelAnchor.isVisible = false;
       labelAnchor.isPickable = false;
+      tagMesh(labelAnchor, 'labels');
       addLabel(gui, labelAnchor, street.streetName, 8, '#AAA', 0);
     }
   });
@@ -1017,6 +1080,7 @@ function renderStreetNetwork(
     }, scene);
     ribbon.material = roadMat;
     ribbon.isPickable = false;
+    tagMesh(ribbon, 'streets');
 
     // Street name label at the midpoint
     const midIdx = Math.floor(points.length / 2);
@@ -1025,6 +1089,7 @@ function renderStreetNetwork(
     labelAnchor.position = new BABYLON.Vector3(midPt.x, 0.5, midPt.z);
     labelAnchor.isVisible = false;
     labelAnchor.isPickable = false;
+    tagMesh(labelAnchor, 'labels');
     addLabel(gui, labelAnchor, seg.name, 8, '#E8E8D0', 0);
   });
 }
@@ -1123,6 +1188,7 @@ function renderLinearWaterPreview(
     mat.backFaceCulling = false;
     mesh.material = mat;
     mesh.isPickable = false;
+    tagMesh(mesh, 'water');
 
     // Label at midpoint
     const mid = points[Math.floor(points.length / 2)];
@@ -1130,6 +1196,7 @@ function renderLinearWaterPreview(
     labelAnchor.position = new BABYLON.Vector3(mid.x * scale, 0.5, mid.z * scale);
     labelAnchor.isVisible = false;
     labelAnchor.isPickable = false;
+    tagMesh(labelAnchor, 'labels');
     addLabel(gui, labelAnchor, wf.name, 9, '#8BE9FD', 10);
   } catch {
     // Ribbon creation can fail with degenerate paths
@@ -1175,6 +1242,7 @@ function renderAreaWaterPreview(
     mat.alpha = alpha;
     mesh.material = mat;
     mesh.isPickable = false;
+    tagMesh(mesh, 'water');
   } else {
     // Lake, pond, marsh as discs
     const tessellation = type === 'marsh' ? 8 : 20;
@@ -1193,6 +1261,7 @@ function renderAreaWaterPreview(
     mat.backFaceCulling = false;
     disc.material = mat;
     disc.isPickable = false;
+    tagMesh(disc, 'water');
   }
 
   // Label
@@ -1200,6 +1269,7 @@ function renderAreaWaterPreview(
   labelAnchor.position = new BABYLON.Vector3(pos.x * scale, 0.5, pos.z * scale);
   labelAnchor.isVisible = false;
   labelAnchor.isPickable = false;
+  tagMesh(labelAnchor, 'labels');
   addLabel(gui, labelAnchor, wf.name, 9, '#8BE9FD', 10);
 }
 
@@ -1235,4 +1305,7 @@ function addLabel(
   gui.addControl(container);
   container.linkWithMesh(mesh);
   container.linkOffsetY = -yOffset;
+
+  // Store GUI control reference on the mesh for layer visibility toggling
+  mesh.metadata = { ...mesh.metadata, guiControl: container };
 }
