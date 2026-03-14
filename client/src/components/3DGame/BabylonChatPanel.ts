@@ -277,6 +277,9 @@ export class BabylonChatPanel {
       this.currentAudio.pause();
       this.currentAudio = null;
     }
+    if ('speechSynthesis' in window) {
+      speechSynthesis.cancel();
+    }
     if (this.isRecording) {
       this.stopRecording();
     }
@@ -1255,49 +1258,6 @@ export class BabylonChatPanel {
     };
   }
 
-  /**
-   * Combined voice-chat: sends audio to /api/gemini/voice-chat which performs
-   * STT → LLM → TTS in a single server round-trip.
-   */
-  private async sendVoiceChat(audioBlob: Blob): Promise<{
-    transcript: string;
-    response: string;
-    cleanedResponse: string;
-    audio?: string;
-  }> {
-    if (!this.character) throw new Error('No character selected');
-
-    const systemPrompt = this.buildSystemPrompt();
-    const conversationHistory = this.messages.map(msg => ({
-      role: msg.role === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.content }]
-    }));
-
-    const metadata = JSON.stringify({
-      systemPrompt,
-      messages: conversationHistory,
-      voice: this.character?.gender === 'female' ? 'Kore' : 'Charon',
-      temperature: 0.8,
-      maxTokens: 2048,
-    });
-
-    const formData = new FormData();
-    formData.append('audio', audioBlob, 'recording.webm');
-    formData.append('metadata', metadata);
-
-    const response = await fetch('/api/gemini/voice-chat', {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || 'Voice chat request failed');
-    }
-
-    return response.json();
-  }
-
   private _cachedSystemPrompt: string | null = null;
   private _systemPromptCharId: string | null = null;
   private _proficiencyDirty = false;
@@ -1417,48 +1377,59 @@ export class BabylonChatPanel {
         await this.playAudio(audioBlob);
       } else {
         // Fallback to browser TTS
-        this.browserTextToSpeech(text);
+        await this.browserTextToSpeech(text);
       }
     } catch (error) {
       console.error('TTS error:', error);
-      this.browserTextToSpeech(text);
+      await this.browserTextToSpeech(text);
     }
   }
 
-  private browserTextToSpeech(text: string) {
-    if (!('speechSynthesis' in window)) return;
+  private browserTextToSpeech(text: string): Promise<void> {
+    if (!('speechSynthesis' in window)) return Promise.resolve();
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    return new Promise<void>((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(text);
 
-    // Dynamically detect the character's dominant language for TTS
-    const fluencies = extractLanguageFluencies(this.truths);
-    const dominantLang = fluencies[0]?.language || 'English';
-    const langCode = getLanguageBCP47(dominantLang);
-    utterance.lang = langCode;
-    utterance.rate = 0.9;
+      // Dynamically detect the character's dominant language for TTS
+      const fluencies = extractLanguageFluencies(this.truths);
+      const dominantLang = fluencies[0]?.language || 'English';
+      const langCode = getLanguageBCP47(dominantLang);
+      utterance.lang = langCode;
+      utterance.rate = 0.9;
 
-    const voices = speechSynthesis.getVoices();
-    const langPrefix = langCode.split('-')[0];
-    const voice = voices.find(v => v.lang.startsWith(langPrefix));
-    if (voice) utterance.voice = voice;
+      const voices = speechSynthesis.getVoices();
+      const langPrefix = langCode.split('-')[0];
+      const voice = voices.find(v => v.lang.startsWith(langPrefix));
+      if (voice) utterance.voice = voice;
 
-    this.isSpeaking = true;
+      this.isSpeaking = true;
 
-    // Show talking indicator
-    if (this.talkingIndicator && this.character && this.npcMesh) {
-      this.talkingIndicator.show(this.character.id, this.npcMesh);
-    }
-
-    utterance.onend = () => {
-      this.isSpeaking = false;
-
-      // Hide talking indicator
-      if (this.talkingIndicator && this.character) {
-        this.talkingIndicator.hide(this.character.id);
+      // Show talking indicator
+      if (this.talkingIndicator && this.character && this.npcMesh) {
+        this.talkingIndicator.show(this.character.id, this.npcMesh);
       }
-    };
 
-    speechSynthesis.speak(utterance);
+      utterance.onend = () => {
+        this.isSpeaking = false;
+
+        // Hide talking indicator
+        if (this.talkingIndicator && this.character) {
+          this.talkingIndicator.hide(this.character.id);
+        }
+        resolve();
+      };
+
+      utterance.onerror = () => {
+        this.isSpeaking = false;
+        if (this.talkingIndicator && this.character) {
+          this.talkingIndicator.hide(this.character.id);
+        }
+        resolve();
+      };
+
+      speechSynthesis.speak(utterance);
+    });
   }
 
   private playAudio(audioBlob: Blob): Promise<void> {
@@ -2367,6 +2338,10 @@ export class BabylonChatPanel {
 
   public dispose() {
     this.stopAllAudio();
+    if (this.speechService) {
+      this.speechService.dispose();
+      this.speechService = null;
+    }
     if (this.dialogueActions) {
       this.dialogueActions.hide();
       this.dialogueActions = null;
