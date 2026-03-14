@@ -22,6 +22,7 @@ import type { GameEventBus } from './GameEventBus';
 export type UtteranceObjectiveType =
   | 'speak_phrase'
   | 'use_vocabulary'
+  | 'collect_vocabulary'
   | 'translate_phrase'
   | 'pronunciation_check'
   | 'conversation_goal'
@@ -61,6 +62,8 @@ export interface UtteranceObjectiveDefinition {
   requiredVocabulary?: string[];
   /** For conversation_goal: keywords or phrases that indicate goal completion. */
   goalKeywords?: string[];
+  /** For collect_vocabulary: the vocabulary category to collect from (e.g. 'food', 'colors'). */
+  targetCategory?: string;
   /** How many times the objective must be completed (default 1). */
   requiredCount: number;
   difficulty: DifficultyLevel;
@@ -92,6 +95,8 @@ export interface UtteranceObjectiveProgress {
   failed: boolean;
   /** For use_vocabulary: tracks which words have been used. */
   vocabularyUsed?: Set<string>;
+  /** For collect_vocabulary: tracks words collected with their category. */
+  collectedWords?: Set<string>;
 }
 
 export interface EvaluationResult {
@@ -220,6 +225,7 @@ export class UtteranceQuestSystem {
       completed: false,
       failed: false,
       vocabularyUsed: def.type === 'use_vocabulary' ? new Set<string>() : undefined,
+      collectedWords: def.type === 'collect_vocabulary' ? new Set<string>() : undefined,
     };
 
     this.progress.set(objectiveId, prog);
@@ -267,6 +273,9 @@ export class UtteranceQuestSystem {
         break;
       case 'use_vocabulary':
         result = this.evaluateUseVocabulary(input, def, config, prog);
+        break;
+      case 'collect_vocabulary':
+        result = this.evaluateCollectVocabulary(input, def, prog);
         break;
       case 'translate_phrase':
         result = this.evaluateTranslatePhrase(input, def, config);
@@ -444,6 +453,60 @@ export class UtteranceQuestSystem {
     }
 
     return { passed, score, feedback };
+  }
+
+  /**
+   * Evaluate a "collect_vocabulary" objective.
+   * Input format: "word:category" (e.g. "manzana:food").
+   * Tracks unique words collected in the target category.
+   */
+  private evaluateCollectVocabulary(
+    input: string,
+    def: UtteranceObjectiveDefinition,
+    prog: UtteranceObjectiveProgress,
+  ): EvaluationResult {
+    // Parse "word:category" format
+    const colonIdx = input.indexOf(':');
+    if (colonIdx === -1) {
+      return { passed: false, score: 0, feedback: 'Invalid format. Expected "word:category".' };
+    }
+
+    const word = input.substring(0, colonIdx).trim().toLowerCase();
+    const category = input.substring(colonIdx + 1).trim().toLowerCase();
+
+    if (!word) {
+      return { passed: false, score: 0, feedback: 'No word provided.' };
+    }
+
+    // Check category matches if targetCategory is specified
+    if (def.targetCategory && category !== def.targetCategory.toLowerCase()) {
+      return {
+        passed: false,
+        score: 0,
+        feedback: `Word "${word}" is not in the "${def.targetCategory}" category.`,
+      };
+    }
+
+    // Check if already collected
+    if (prog.collectedWords?.has(word)) {
+      return {
+        passed: false,
+        score: 0,
+        feedback: `"${word}" already collected. Find a new word!`,
+      };
+    }
+
+    // Collect the word
+    prog.collectedWords?.add(word);
+    const collected = prog.collectedWords?.size ?? 0;
+    const required = def.requiredCount;
+    const score = Math.round((collected / required) * 100);
+
+    return {
+      passed: true,
+      score,
+      feedback: `Collected "${word}"! ${collected}/${required} words found.`,
+    };
   }
 
   private evaluateTranslatePhrase(
@@ -659,6 +722,7 @@ export class UtteranceQuestSystem {
         completed: prog.completed,
         failed: prog.failed,
         vocabularyUsed: prog.vocabularyUsed ? Array.from(prog.vocabularyUsed) : undefined,
+        collectedWords: prog.collectedWords ? Array.from(prog.collectedWords) : undefined,
       }]);
     }
 
@@ -691,6 +755,7 @@ export class UtteranceQuestSystem {
         completed: saved.completed,
         failed: saved.failed,
         vocabularyUsed: saved.vocabularyUsed ? new Set(saved.vocabularyUsed) : undefined,
+        collectedWords: saved.collectedWords ? new Set(saved.collectedWords) : undefined,
       });
     }
   }
@@ -873,6 +938,7 @@ interface SerializedProgress {
   completed: boolean;
   failed: boolean;
   vocabularyUsed?: string[];
+  collectedWords?: string[];
 }
 
 export interface UtteranceQuestSaveData {
@@ -1131,6 +1197,45 @@ export const UTTERANCE_QUEST_TEMPLATES: Record<string, UtteranceQuestTemplate> =
     difficulty: 'beginner',
     hints: [
       { text: 'Walk near NPCs who are talking', scorePenalty: 0.1 },
+    ],
+  },
+  word_explorer_nouns: {
+    type: 'collect_vocabulary',
+    prompt: 'Explore the area and collect 5 noun words for your vocabulary bank.',
+    targetLanguage: '',
+    acceptedUtterances: [],
+    targetCategory: 'food',
+    requiredCount: 5,
+    difficulty: 'beginner',
+    hints: [
+      { text: 'Interact with objects around you to learn their names', scorePenalty: 0.1 },
+      { text: 'Try clicking on items in shops or homes', scorePenalty: 0.15 },
+    ],
+  },
+  color_hunter: {
+    type: 'collect_vocabulary',
+    prompt: 'Find 3 objects and learn their color words in the target language.',
+    targetLanguage: '',
+    acceptedUtterances: [],
+    targetCategory: 'colors',
+    requiredCount: 3,
+    difficulty: 'beginner',
+    hints: [
+      { text: 'Look for colorful objects in the environment', scorePenalty: 0.1 },
+      { text: 'Flowers, clothing, and market stalls have many colors', scorePenalty: 0.15 },
+    ],
+  },
+  action_spotter: {
+    type: 'collect_vocabulary',
+    prompt: 'Observe 3 NPCs and learn the verbs for what they are doing.',
+    targetLanguage: '',
+    acceptedUtterances: [],
+    targetCategory: 'actions',
+    requiredCount: 3,
+    difficulty: 'beginner',
+    hints: [
+      { text: 'Watch what NPCs are doing and ask about the action words', scorePenalty: 0.1 },
+      { text: 'Visit the market, workshop, or tavern to see NPCs in action', scorePenalty: 0.15 },
     ],
   },
   romance_first_date: {

@@ -142,6 +142,64 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
     ],
   },
 
+  // --- Vocabulary Bank Collection Quests ---
+  {
+    id: 'word_explorer_nouns',
+    name: 'Word Explorer: Nouns',
+    category: 'vocabulary',
+    description: 'Explore the area and collect {{wordCount}} noun words for your vocabulary bank.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'collect_vocabulary',
+        descriptionTemplate: 'Collect {{wordCount}} nouns by interacting with objects',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 20, fluency: 3 },
+    parameters: [
+      { name: 'wordCount', type: 'number', description: 'Nouns to collect' },
+      { name: 'vocabularyCategory', type: 'category', description: 'Target vocabulary category (e.g. food, household, animals)' },
+    ],
+  },
+  {
+    id: 'color_hunter',
+    name: 'Color Hunter',
+    category: 'vocabulary',
+    description: 'Find {{wordCount}} objects and learn their color words in the target language.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'collect_vocabulary',
+        descriptionTemplate: 'Find {{wordCount}} objects and learn their color adjectives',
+        requiredCount: 3,
+      },
+    ],
+    rewardScale: { xp: 15, fluency: 2 },
+    parameters: [
+      { name: 'wordCount', type: 'number', description: 'Color words to collect' },
+    ],
+  },
+  {
+    id: 'action_spotter',
+    name: 'Action Spotter',
+    category: 'vocabulary',
+    description: 'Observe {{npcCount}} NPCs and learn the verbs for what they are doing.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'collect_vocabulary',
+        descriptionTemplate: 'Observe NPCs and collect {{wordCount}} action verbs',
+        requiredCount: 3,
+      },
+    ],
+    rewardScale: { xp: 15, fluency: 2 },
+    parameters: [
+      { name: 'npcCount', type: 'number', description: 'NPCs to observe' },
+      { name: 'wordCount', type: 'number', description: 'Action verbs to collect' },
+    ],
+  },
+
   // --- Grammar Quests ---
   {
     id: 'grammar_practice',
