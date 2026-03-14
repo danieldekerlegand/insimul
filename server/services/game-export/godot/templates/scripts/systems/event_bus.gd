@@ -60,6 +60,8 @@ const EVENT_VISUAL_VOCAB_PROMPTED := "visual_vocab_prompted"
 const EVENT_VISUAL_VOCAB_ANSWERED := "visual_vocab_answered"
 # Follow directions quest events
 const EVENT_DIRECTION_STEP_COMPLETED := "direction_step_completed"
+# Pronunciation quest events
+const EVENT_PRONUNCIATION_ASSESSMENT_DATA := "pronunciation_assessment_data"
 # Achievement events
 const EVENT_ACHIEVEMENT_UNLOCKED := "achievement_unlocked"
 
@@ -89,6 +91,7 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_VISUAL_VOCAB_PROMPTED,
 	EVENT_VISUAL_VOCAB_ANSWERED,
 	EVENT_DIRECTION_STEP_COMPLETED,
+	EVENT_PRONUNCIATION_ASSESSMENT_DATA,
 	EVENT_ACHIEVEMENT_UNLOCKED,
 ]
 
@@ -128,7 +131,7 @@ var _global_handlers: Array[Callable] = []
 ##   item_unequipped:     {type, item_id, item_name, slot}
 ##   utterance_evaluated: {type, objective_id, input, score, passed, feedback}
 ##   utterance_quest_progress: {type, quest_id, objective_id, current, required, percentage}
-##   utterance_quest_completed: {type, quest_id, objective_id, final_score, xp_awarded}
+##   utterance_quest_completed: {type, quest_id, objective_id, final_score, xp_awarded, pronunciation_bonus_xp?}
 ##   ambient_conversation_started: {type, conversation_id, participants, location_id, topic}
 ##   ambient_conversation_ended: {type, conversation_id, participants, duration_ms, vocabulary_count}
 ##   vocabulary_overheard: {type, word, translation, language, context, conversation_id, speaker_npc_id}
@@ -155,6 +158,7 @@ var _global_handlers: Array[Callable] = []
 ##   visual_vocab_prompted: {type, target_id, quest_id, objective_id, is_activity}
 ##   visual_vocab_answered: {type, target_id, quest_id, passed, score, player_answer}
 ##   direction_step_completed: {type, quest_id, objective_id, step_index, steps_completed, steps_required}
+##   pronunciation_assessment_data: {type, quest_id, average_score, sample_count}
 ##   achievement_unlocked: {type, achievement_id, achievement_name, description, icon}
 ##
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}

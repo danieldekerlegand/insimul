@@ -41,7 +41,8 @@ export type GameEvent =
   | { type: 'item_unequipped'; itemId: string; itemName: string; slot: string }
   | { type: 'utterance_evaluated'; objectiveId: string; input: string; score: number; passed: boolean; feedback: string }
   | { type: 'utterance_quest_progress'; questId: string; objectiveId: string; current: number; required: number; percentage: number }
-  | { type: 'utterance_quest_completed'; questId: string; objectiveId: string; finalScore: number; xpAwarded: number }
+  | { type: 'utterance_quest_completed'; questId: string; objectiveId: string; finalScore: number; xpAwarded: number; pronunciationBonusXp?: number }
+  | { type: 'pronunciation_assessment_data'; questId: string; averageScore: number; sampleCount: number }
   | { type: 'ambient_conversation_started'; conversationId: string; participants: [string, string]; locationId: string; topic: string }
   | { type: 'ambient_conversation_ended'; conversationId: string; participants: [string, string]; durationMs: number; vocabularyCount: number }
   | { type: 'vocabulary_overheard'; word: string; translation: string; language: string; context: string; conversationId: string; speakerNpcId: string }

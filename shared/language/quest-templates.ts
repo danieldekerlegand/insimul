@@ -386,6 +386,26 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
     ],
   },
 
+  // --- Pronunciation Quests ---
+  {
+    id: 'pronunciation_challenge',
+    name: 'Pronunciation Challenge',
+    category: 'pronunciation',
+    description: 'Correctly pronounce {{phraseCount}} phrases with at least 70% accuracy.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'pronunciation_check',
+        descriptionTemplate: 'Pronounce {{phraseCount}} phrases with >70% accuracy',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 4 },
+    parameters: [
+      { name: 'phraseCount', type: 'number', description: 'Number of phrases to pronounce' },
+    ],
+  },
+
   // --- Time-Based Activities ---
   {
     id: 'time_appointment',
