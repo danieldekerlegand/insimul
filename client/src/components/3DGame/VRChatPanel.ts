@@ -21,6 +21,7 @@ import { VRUIPanel } from './VRUIPanel';
 import { VRManager } from './VRManager';
 import { SpeechRecognitionService, isSpeechRecognitionSupported, serverSideSTT } from '@/lib/speech-recognition';
 import { processRecordedAudio } from '@/lib/audio-utils';
+import { HandsFreeController } from '@/lib/hands-free-controller';
 
 interface VRChatMessage {
   role: 'user' | 'assistant';
@@ -73,6 +74,12 @@ export class VRChatPanel {
   private serverSTTHandle: { stop: () => void } | null = null;
   private currentAudio: HTMLAudioElement | null = null;
 
+  // Hands-free mode (VAD auto-start/stop)
+  private handsFreeController: HandsFreeController | null = null;
+  private isHandsFreeMode: boolean = false;
+  private volumeIndicator: GUI.Rectangle | null = null;
+  private volumeBar: GUI.Rectangle | null = null;
+
   // Render observer for panel positioning
   private positionObserver: Observer<Scene> | null = null;
 
@@ -117,6 +124,7 @@ export class VRChatPanel {
    */
   public hide(): void {
     this.isVisible = false;
+    this.disableHandsFreeMode();
     this.stopRecording();
     this.stopAudio();
 
@@ -203,6 +211,43 @@ export class VRChatPanel {
     this.statusText.height = '20px';
     this.statusText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     container.addControl(this.statusText);
+
+    // Volume indicator (visible in hands-free mode)
+    this.volumeIndicator = new GUI.Rectangle('vr_volume_indicator');
+    this.volumeIndicator.width = '200px';
+    this.volumeIndicator.height = '6px';
+    this.volumeIndicator.background = '#222222';
+    this.volumeIndicator.cornerRadius = 3;
+    this.volumeIndicator.thickness = 0;
+    this.volumeIndicator.isVisible = false;
+
+    this.volumeBar = new GUI.Rectangle('vr_volume_bar');
+    this.volumeBar.width = '0%';
+    this.volumeBar.height = '100%';
+    this.volumeBar.background = '#4CAF50';
+    this.volumeBar.cornerRadius = 3;
+    this.volumeBar.thickness = 0;
+    this.volumeBar.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.volumeIndicator.addControl(this.volumeBar);
+    container.addControl(this.volumeIndicator);
+
+    // Hands-free toggle button
+    const hfBtn = GUI.Button.CreateSimpleButton('vr_hf_btn', 'Hands-Free: Off');
+    hfBtn.width = '140px';
+    hfBtn.height = '30px';
+    hfBtn.color = '#ffffff';
+    hfBtn.background = '#334466';
+    hfBtn.cornerRadius = 4;
+    hfBtn.fontSize = 14;
+    hfBtn.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    hfBtn.onPointerUpObservable.add(() => {
+      this.toggleHandsFreeMode();
+      const label = this.isHandsFreeMode ? 'Hands-Free: On' : 'Hands-Free: Off';
+      const bg = this.isHandsFreeMode ? '#336633' : '#334466';
+      (hfBtn.children[0] as GUI.TextBlock).text = label;
+      hfBtn.background = bg;
+    });
+    container.addControl(hfBtn);
 
     // Close button
     const closeBtn = GUI.Button.CreateSimpleButton('chat_close', 'Close (Grip)');
@@ -556,10 +601,102 @@ export class VRChatPanel {
   public setOnQuestAssigned(cb: (questData: any) => void): void { this.onQuestAssigned = cb; }
   public setOnVocabularyUsed(cb: (word: string) => void): void { this.onVocabularyUsed = cb; }
 
+  // -- Hands-free mode (VAD auto-start/stop) --
+
+  private toggleHandsFreeMode(): void {
+    if (this.isHandsFreeMode) {
+      this.disableHandsFreeMode();
+    } else {
+      this.enableHandsFreeMode();
+    }
+  }
+
+  private enableHandsFreeMode(): void {
+    if (this.isHandsFreeMode) return;
+
+    // Stop any manual recording in progress
+    if (this.isRecording) {
+      this.stopRecording();
+    }
+
+    this.handsFreeController = new HandsFreeController(
+      {
+        onTranscript: (transcript) => {
+          this.handleVoiceResult(transcript);
+        },
+        onInterimTranscript: (text) => {
+          if (this.statusText) {
+            this.statusText.text = text;
+            this.statusText.color = '#ffcc44';
+          }
+        },
+        onEnergyChange: (energy) => {
+          if (this.volumeBar) {
+            const pct = Math.min(100, Math.round(energy * 1000));
+            this.volumeBar.width = `${pct}%`;
+            this.volumeBar.background = energy >= 0.015 ? '#4CAF50' : '#666';
+          }
+        },
+        onSpeechStart: () => {
+          if (this.statusText) {
+            this.statusText.text = 'Listening...';
+            this.statusText.color = '#ff4444';
+          }
+          this.vrManager.triggerHapticPulse('right', 0.1, 30);
+        },
+        onSpeechEnd: () => {
+          if (this.statusText && !this.isProcessing) {
+            this.statusText.text = 'Hands-free: speak to chat...';
+            this.statusText.color = '#88cc88';
+          }
+        },
+        onError: (err) => {
+          console.error('[VRChatPanel] Hands-free error:', err);
+        },
+      },
+      { lang: 'en-US' },
+    );
+
+    this.isHandsFreeMode = true;
+
+    if (this.volumeIndicator) {
+      this.volumeIndicator.isVisible = true;
+    }
+    if (this.statusText) {
+      this.statusText.text = 'Hands-free: speak to chat...';
+      this.statusText.color = '#88cc88';
+    }
+
+    this.handsFreeController.start();
+  }
+
+  private disableHandsFreeMode(): void {
+    if (!this.isHandsFreeMode) return;
+
+    this.isHandsFreeMode = false;
+
+    if (this.handsFreeController) {
+      this.handsFreeController.stop();
+      this.handsFreeController = null;
+    }
+
+    if (this.volumeIndicator) {
+      this.volumeIndicator.isVisible = false;
+    }
+    if (this.volumeBar) {
+      this.volumeBar.width = '0%';
+    }
+    if (this.statusText) {
+      this.statusText.text = 'Press trigger to speak';
+      this.statusText.color = '#888888';
+    }
+  }
+
   /**
    * Dispose
    */
   public dispose(): void {
+    this.disableHandsFreeMode();
     this.hide();
     this.onClose = null;
     this.onConversationTurn = null;
