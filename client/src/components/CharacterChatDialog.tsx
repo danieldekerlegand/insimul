@@ -62,6 +62,7 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
     : 'en-US';
 
   const {
+    isSupported: isSpeechSupported,
     isListening: isRecording,
     interimTranscript,
     finalTranscript,
@@ -116,6 +117,15 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
     } else {
       setMessages([]);
       setInputText('');
+      // Cancel any ongoing speech when dialog closes
+      if ('speechSynthesis' in window) {
+        speechSynthesis.cancel();
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      setIsSpeaking(false);
     }
   }, [open, character, truths]);
 
@@ -255,7 +265,7 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
     return response.json();
   };
 
-  const textToSpeech = async (text: string): Promise<Blob> => {
+  const textToSpeech = async (text: string): Promise<Blob | null> => {
     try {
       const response = await fetch('/api/tts', {
         method: 'POST',
@@ -269,18 +279,19 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
 
       if (!response.ok) {
         console.warn('Server TTS failed, falling back to browser TTS');
-        // Fallback to browser's Web Speech API
-        return await browserTextToSpeech(text);
+        await browserTextToSpeech(text);
+        return null;
       }
 
       return await response.blob();
     } catch (error) {
       console.warn('TTS error, using browser fallback:', error);
-      return await browserTextToSpeech(text);
+      await browserTextToSpeech(text);
+      return null;
     }
   };
 
-  const browserTextToSpeech = async (text: string): Promise<Blob> => {
+  const browserTextToSpeech = (text: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       if (!('speechSynthesis' in window)) {
         reject(new Error('Browser does not support speech synthesis'));
@@ -304,13 +315,15 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
         utterance.voice = matchedVoice;
       }
 
+      setIsSpeaking(true);
+
       utterance.onend = () => {
-        // Create a silent audio blob as placeholder
-        const silence = new Blob([], { type: 'audio/wav' });
-        resolve(silence);
+        setIsSpeaking(false);
+        resolve();
       };
 
       utterance.onerror = (error) => {
+        setIsSpeaking(false);
         reject(error);
       };
 
@@ -753,9 +766,11 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
       // Convert to speech and play (without markers)
       try {
         const responseAudioBlob = await textToSpeech(displayResponse);
-        await playAudio(responseAudioBlob);
+        if (responseAudioBlob) {
+          await playAudio(responseAudioBlob);
+        }
       } catch {
-        browserTextToSpeech(displayResponse);
+        await browserTextToSpeech(displayResponse).catch(() => {});
       }
 
       // Automatically create a quest based on the conversation
@@ -827,9 +842,11 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
       // Convert to speech and play (without markers)
       try {
         const responseAudioBlob = await textToSpeech(voiceDisplayResponse);
-        await playAudio(responseAudioBlob);
+        if (responseAudioBlob) {
+          await playAudio(responseAudioBlob);
+        }
       } catch {
-        browserTextToSpeech(voiceDisplayResponse);
+        await browserTextToSpeech(voiceDisplayResponse).catch(() => {});
       }
     } catch (error) {
       toast({
@@ -913,7 +930,9 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
       } else {
         // Fallback to TTS if native audio not available
         const responseAudioBlob = await textToSpeech(nativeDisplayResponse);
-        await playAudio(responseAudioBlob);
+        if (responseAudioBlob) {
+          await playAudio(responseAudioBlob);
+        }
       }
     } catch (error) {
       toast({
@@ -994,7 +1013,8 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
               size="icon"
               variant={isRecording ? 'destructive' : 'outline'}
               onClick={isRecording ? handleStopRecording : handleStartRecording}
-              disabled={isProcessing}
+              disabled={isProcessing || !isSpeechSupported}
+              title={isSpeechSupported ? (isRecording ? 'Stop recording' : 'Start recording') : 'Speech recognition not supported in this browser'}
             >
               {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
             </Button>
