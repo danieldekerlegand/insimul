@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
+#include "InfrastructureData.h"
 #include "SettlementData.generated.h"
 
 USTRUCT(BlueprintType)
@@ -48,6 +49,8 @@ struct INSIMULEXPORT_API FInsimulSettlementData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float MeanElevation = 0.f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float ElevationRange = 0.f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString SlopeClass = TEXT("flat");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulInfrastructureItem> Infrastructure;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString StreetNetworkLayout;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulStreetNode> StreetNodes;
