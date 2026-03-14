@@ -412,6 +412,38 @@ export const settlements = pgTable("settlements", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Settlement history events - tracks changes to settlements over simulation time
+export const settlementHistoryEvents = pgTable("settlement_history_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worldId: varchar("world_id").notNull(),
+  settlementId: varchar("settlement_id").notNull(),
+
+  // Event classification
+  eventType: text("event_type").notNull(), // population_change, mayor_change, type_change, founding, annexation, infrastructure, economic_shift, district_added, landmark_added
+  category: text("category").notNull(), // demographic, governance, geographic, economic, political
+
+  // Temporal data
+  year: integer("year"),
+  timestep: integer("timestep"),
+
+  // Change data
+  description: text("description").notNull(),
+  previousValue: jsonb("previous_value").$type<Record<string, any>>(),
+  newValue: jsonb("new_value").$type<Record<string, any>>(),
+
+  // Metadata
+  significance: text("significance").default("minor"), // minor, moderate, major, critical
+  relatedCharacterIds: jsonb("related_character_ids").$type<string[]>().default([]),
+  tags: jsonb("tags").$type<string[]>().default([]),
+
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSettlementHistoryEventSchema = createInsertSchema(settlementHistoryEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Enhanced simulations - all execute using Insimul engine
 export const simulations = pgTable("simulations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1410,6 +1442,9 @@ export type InsertState = z.infer<typeof insertStateSchema>;
 
 export type Settlement = typeof settlements.$inferSelect;
 export type InsertSettlement = z.infer<typeof insertSettlementSchema>;
+
+export type SettlementHistoryEvent = typeof settlementHistoryEvents.$inferSelect;
+export type InsertSettlementHistoryEvent = z.infer<typeof insertSettlementHistoryEventSchema>;
 
 export type Simulation = typeof simulations.$inferSelect;
 export type InsertSimulation = z.infer<typeof insertSimulationSchema>;
