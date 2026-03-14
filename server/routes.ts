@@ -5434,10 +5434,10 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
   app.post("/api/tts", async (req, res) => {
     try {
       const { textToSpeech } = await import("./services/tts-stt.js");
-      const { transcript, text, voice = "Kore", gender = "neutral", encoding = "MP3" } = req.body;
+      const { transcript, text, voice = "Kore", gender = "neutral", encoding = "MP3", emotionalTone } = req.body;
       const textToConvert = transcript || text;
 
-      console.log("TTS request received:", { text: textToConvert?.substring(0, 50), voice, gender, encoding, bodyKeys: Object.keys(req.body) });
+      console.log("TTS request received:", { text: textToConvert?.substring(0, 50), voice, gender, encoding, emotionalTone, bodyKeys: Object.keys(req.body) });
 
       if (!textToConvert || textToConvert.trim() === '') {
         console.error("TTS error: No text provided. Body:", req.body);
@@ -5450,7 +5450,7 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
         .trim();
 
-      const audioBuffer = await textToSpeech(cleanText || textToConvert, voice, gender, encoding);
+      const audioBuffer = await textToSpeech(cleanText || textToConvert, voice, gender, encoding, emotionalTone);
 
       // Set appropriate content type based on encoding
       const contentType = encoding === "WAV" ? 'audio/wav' : 'audio/mpeg';
