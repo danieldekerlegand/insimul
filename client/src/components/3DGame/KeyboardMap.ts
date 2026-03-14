@@ -57,6 +57,9 @@ export const KEY_QUEST_LOG = 'KeyJ';
 /** Toggle VR mode */
 export const KEY_TOGGLE_VR = 'KeyV'; // Shift+V
 
+/** Toggle full-screen map view */
+export const KEY_FULLSCREEN_MAP = 'KeyM';
+
 /** Open/close game menu */
 export const KEY_GAME_MENU = 'Escape';
 
