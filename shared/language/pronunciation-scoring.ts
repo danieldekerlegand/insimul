@@ -3,6 +3,10 @@
  *
  * Compares a player's spoken transcript (from STT) against an expected phrase
  * and produces a word-level accuracy score with feedback.
+ *
+ * Supports two modes:
+ * - Text-based: compares STT transcript to expected phrase (Levenshtein)
+ * - Audio-level: uses Gemini to analyze pronunciation quality from raw audio
  */
 
 export interface PronunciationResult {
@@ -18,6 +22,104 @@ export interface WordResult {
   spoken: string | null;       // null if word was missed entirely
   match: 'exact' | 'close' | 'missed' | 'extra';
   similarity: number;          // 0-1
+}
+
+/** Per-word audio-level pronunciation analysis */
+export interface AudioWordScore {
+  word: string;
+  confidence: number;          // 0-1 STT confidence for this word
+  pronunciationScore: number;  // 0-100 pronunciation quality
+  issue?: string;              // e.g. "vowel substitution", "stress misplaced"
+}
+
+/** Full audio-level pronunciation result */
+export interface AudioPronunciationResult extends PronunciationResult {
+  /** Per-word audio confidence and pronunciation scores */
+  audioWordScores: AudioWordScore[];
+  /** Fluency score based on pacing and hesitation (0-100) */
+  fluencyScore: number;
+  /** Overall pronunciation grade: A (90+), B (70-89), C (40-69), D (<40) */
+  grade: 'A' | 'B' | 'C' | 'D';
+  /** Whether this result used audio analysis or fell back to text */
+  scoringMethod: 'audio' | 'text-fallback';
+}
+
+/** Response shape from Gemini pronunciation analysis prompt */
+export interface GeminiPronunciationAnalysis {
+  transcript: string;
+  words: Array<{
+    word: string;
+    confidence: number;
+    pronunciationScore: number;
+    issue?: string;
+  }>;
+  fluencyScore: number;
+  overallScore: number;
+  feedback: string;
+}
+
+/**
+ * Compute a letter grade from a numeric score (0-100).
+ */
+export function computeGrade(score: number): 'A' | 'B' | 'C' | 'D' {
+  if (score >= 90) return 'A';
+  if (score >= 70) return 'B';
+  if (score >= 40) return 'C';
+  return 'D';
+}
+
+/**
+ * Build an AudioPronunciationResult from Gemini analysis + text-based fallback.
+ */
+export function buildAudioResult(
+  expected: string,
+  analysis: GeminiPronunciationAnalysis,
+): AudioPronunciationResult {
+  const textResult = scorePronunciation(expected, analysis.transcript);
+
+  const audioWordScores: AudioWordScore[] = analysis.words.map(w => ({
+    word: w.word,
+    confidence: Math.max(0, Math.min(1, w.confidence)),
+    pronunciationScore: Math.max(0, Math.min(100, w.pronunciationScore)),
+    issue: w.issue,
+  }));
+
+  // Blend audio analysis score with text-based score (70/30 weighting)
+  const blendedScore = Math.round(
+    analysis.overallScore * 0.7 + textResult.overallScore * 0.3
+  );
+
+  return {
+    ...textResult,
+    overallScore: blendedScore,
+    feedback: analysis.feedback || textResult.feedback,
+    audioWordScores,
+    fluencyScore: Math.max(0, Math.min(100, analysis.fluencyScore)),
+    grade: computeGrade(blendedScore),
+    scoringMethod: 'audio',
+  };
+}
+
+/**
+ * Wrap a text-based result as an AudioPronunciationResult (fallback mode).
+ */
+export function textResultAsAudioResult(
+  textResult: PronunciationResult,
+): AudioPronunciationResult {
+  return {
+    ...textResult,
+    audioWordScores: textResult.wordResults
+      .filter(w => w.match !== 'extra')
+      .map(w => ({
+        word: w.expected,
+        confidence: w.similarity,
+        pronunciationScore: Math.round(w.similarity * 100),
+        issue: w.match === 'missed' ? 'word not detected' : undefined,
+      })),
+    fluencyScore: textResult.overallScore,
+    grade: computeGrade(textResult.overallScore),
+    scoringMethod: 'text-fallback',
+  };
 }
 
 /**

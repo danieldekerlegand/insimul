@@ -5530,6 +5530,39 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
     }
   });
 
+  // Audio-level Pronunciation Scoring Endpoint
+  app.post("/api/pronunciation/score", upload.single('audio'), async (req, res) => {
+    try {
+      const { scoreAudioPronunciation } = await import("./services/pronunciation-scorer.js");
+
+      const expectedPhrase = req.body?.expectedPhrase as string;
+      if (!expectedPhrase) {
+        return res.status(400).json({ error: "expectedPhrase is required" });
+      }
+
+      let audioBuffer: Buffer;
+      let mimeType = 'audio/wav';
+
+      if (req.file) {
+        audioBuffer = req.file.buffer;
+        mimeType = req.file.mimetype;
+      } else if (req.body.audio) {
+        audioBuffer = Buffer.from(req.body.audio, 'base64');
+        mimeType = req.body.mimeType || 'audio/wav';
+      } else {
+        return res.status(400).json({ error: "No audio data provided. Send as multipart file or base64 'audio' field." });
+      }
+
+      const languageHint = req.body?.languageHint as string | undefined;
+      const result = await scoreAudioPronunciation(audioBuffer, expectedPhrase, mimeType, languageHint);
+
+      res.json(result);
+    } catch (error) {
+      console.error("Pronunciation scoring error:", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to score pronunciation" });
+    }
+  });
+
   // Combined Voice-Chat Endpoint — STT → LLM → TTS in a single request
   app.post("/api/gemini/voice-chat", upload.single('audio'), async (req, res) => {
     try {
