@@ -8001,6 +8001,72 @@ Respond with this JSON structure:
     }
   });
 
+  // Complete a quest and auto-generate new quests if the player's pool is depleted
+  app.post("/api/worlds/:worldId/quests/:questId/complete", async (req, res) => {
+    try {
+      const { worldId, questId } = req.params;
+      const { minActiveQuests, replenishCount } = req.body;
+
+      const quest = await storage.getQuest(questId);
+      if (!quest) {
+        return res.status(404).json({ error: "Quest not found" });
+      }
+      if (quest.worldId !== worldId) {
+        return res.status(400).json({ error: "Quest does not belong to this world" });
+      }
+      if (quest.status === 'completed') {
+        return res.status(400).json({ error: "Quest is already completed" });
+      }
+
+      // Mark quest as completed
+      const updated = await storage.updateQuest(questId, {
+        status: 'completed',
+        completedAt: new Date(),
+        progress: { percentComplete: 100 },
+      });
+
+      // Check depletion and auto-generate if needed
+      const playerName = quest.assignedTo;
+      let depletionResult = null;
+
+      if (playerName) {
+        const world = await storage.getWorld(worldId);
+        if (world) {
+          const [characters, settlements, worldQuests] = await Promise.all([
+            storage.getCharactersByWorld(worldId),
+            storage.getSettlementsByWorld(worldId),
+            storage.getQuestsByWorld(worldId),
+          ]);
+
+          const { checkAndReplenishQuests } = await import('./services/quest-depletion-monitor.js');
+          depletionResult = await checkAndReplenishQuests(
+            worldQuests,
+            { world, characters, settlements, existingQuests: worldQuests },
+            playerName,
+            { minActiveQuests, replenishCount },
+            (questData) => storage.createQuest(questData),
+          );
+        }
+      }
+
+      res.json({
+        quest: updated,
+        depletion: depletionResult
+          ? {
+              depleted: depletionResult.depleted,
+              activeCount: depletionResult.activeCount,
+              threshold: depletionResult.threshold,
+              generatedCount: depletionResult.generatedQuests.length,
+              generatedQuests: depletionResult.generatedQuests,
+            }
+          : null,
+      });
+    } catch (error) {
+      console.error('[Quest Complete] Error:', error);
+      res.status(500).json({ error: "Failed to complete quest" });
+    }
+  });
+
   // ============= ITEMS =============
 
   // Get all items for a world (includes matching base items)
