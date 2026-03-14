@@ -13,3 +13,4 @@ export * from './vocabulary-corpus';
 export * from './pronunciation-scoring';
 export * from './character-profile';
 export * from './bilingual-names';
+export * from './vocabulary-review';

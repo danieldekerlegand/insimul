@@ -316,7 +316,9 @@ export class BabylonVocabularyPanel {
     const accuracy = totalAttempts > 0
       ? Math.round((this.totalCorrectUsages / totalAttempts) * 100)
       : 0;
-    this.statsText.text = `${total} words learned  |  ${mastered} mastered  |  ${accuracy}% accuracy  |  Fluency: ${Math.round(this.overallFluency)}%`;
+    const reviewDueCount = this.dueForReviewWords.size;
+    const reviewPart = reviewDueCount > 0 ? `  |  ${reviewDueCount} review due` : '';
+    this.statsText.text = `${total} words learned  |  ${mastered} mastered  |  ${accuracy}% accuracy  |  Fluency: ${Math.round(this.overallFluency)}%${reviewPart}`;
   }
 
   private refreshContent(): void {
