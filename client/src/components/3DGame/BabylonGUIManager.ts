@@ -78,6 +78,10 @@ export interface MinimapData {
     position: { x: number; z: number };
     role?: string;
   }>;
+  streets?: Array<{
+    waypoints: Array<{ x: number; z: number }>;
+    width: number;
+  }>;
   playerPosition: { x: number; z: number };
   playerRotationY: number; // Player's Y-axis rotation in radians
   worldSize: number; // Terrain size for scaling
@@ -1347,6 +1351,10 @@ export class BabylonGUIManager {
             this._minimapFullImage, srcX, srcY, srcSize, srcSize,
             0, 0, MAP_SIZE, MAP_SIZE
           );
+          // Draw street network lines on the viewport canvas
+          if (data.streets && data.streets.length > 0) {
+            this.drawMinimapStreets(this._minimapVpCtx, data.streets, viewRadius, data.playerPosition, MAP_SIZE);
+          }
           const dataUrl = this._minimapVpCanvas.toDataURL('image/jpeg', 0.85);
           // Only assign source when the data URL actually changed, to avoid
           // triggering an image reload cycle that causes flicker.
@@ -1463,6 +1471,51 @@ export class BabylonGUIManager {
       this._minimapPlayerMarker.thickness = 2;
       mapContainer.addControl(this._minimapPlayerMarker);
     }
+  }
+
+  /**
+   * Draw street network polylines onto the minimap viewport canvas.
+   */
+  private drawMinimapStreets(
+    ctx: CanvasRenderingContext2D,
+    streets: NonNullable<MinimapData['streets']>,
+    viewRadius: number,
+    playerPos: { x: number; z: number },
+    mapSize: number
+  ): void {
+    const vpSize = viewRadius * 2;
+    const half = mapSize / 2;
+
+    // Convert world coords to canvas pixel coords
+    const toCanvas = (wx: number, wz: number): [number, number] => {
+      const cx = ((wx - playerPos.x) / vpSize) * mapSize + half;
+      const cy = (-(wz - playerPos.z) / vpSize) * mapSize + half;
+      return [cx, cy];
+    };
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(200, 200, 200, 0.6)';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    for (const street of streets) {
+      if (street.waypoints.length < 2) continue;
+
+      // Scale road width from world units to minimap pixels (min 1px)
+      const lineWidth = Math.max(1, (street.width / vpSize) * mapSize);
+      ctx.lineWidth = lineWidth;
+
+      ctx.beginPath();
+      const [sx, sy] = toCanvas(street.waypoints[0].x, street.waypoints[0].z);
+      ctx.moveTo(sx, sy);
+      for (let i = 1; i < street.waypoints.length; i++) {
+        const [px, py] = toCanvas(street.waypoints[i].x, street.waypoints[i].z);
+        ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+
+    ctx.restore();
   }
 
   /**
