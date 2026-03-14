@@ -49,6 +49,7 @@ import { BabylonQuestTracker } from "@/components/3DGame/BabylonQuestTracker.ts"
 import { BabylonRadialMenu } from "@/components/3DGame/BabylonRadialMenu.ts";
 import { QuestObjectManager } from "@/components/3DGame/QuestObjectManager.ts";
 import { QuestIndicatorManager } from "@/components/3DGame/QuestIndicatorManager.ts";
+import { QuestWorldObjectLinker } from "@/components/3DGame/QuestWorldObjectLinker.ts";
 import { ListeningComprehensionManager } from "@/components/3DGame/ListeningComprehensionManager.ts";
 import { ProceduralBuildingGenerator, BuildingStyle } from "@/components/3DGame/ProceduralBuildingGenerator.ts";
 import { computeFoundationData } from "@/components/3DGame/TerrainFoundationRenderer.ts";
@@ -346,6 +347,7 @@ export class BabylonGame {
   private radialMenu: BabylonRadialMenu | null = null;
   private questObjectManager: QuestObjectManager | null = null;
   private questIndicatorManager: QuestIndicatorManager | null = null;
+  private questWorldObjectLinker: QuestWorldObjectLinker | null = null;
   private questNotificationManager: QuestNotificationManager | null = null;
   private listeningComprehensionManager: ListeningComprehensionManager | null = null;
   private buildingGenerator: ProceduralBuildingGenerator | null = null;
@@ -1452,6 +1454,16 @@ export class BabylonGame {
 
     // Initialize quest indicator manager
     this.questIndicatorManager = new QuestIndicatorManager(scene);
+
+    // Initialize quest world object linker
+    this.questWorldObjectLinker = new QuestWorldObjectLinker(scene);
+    this.questWorldObjectLinker.setOnQuestObjectClicked((info) => {
+      this.guiManager?.showToast({
+        title: info.questTitle,
+        description: info.objectiveDescription,
+        duration: 4000,
+      });
+    });
 
     // Initialize building info display
     this.buildingInfoDisplay = new BuildingInfoDisplay(scene, this.guiManager.advancedTexture);
@@ -7650,8 +7662,32 @@ export class BabylonGame {
         }
       });
 
-      // Update indicators
+      // Update NPC indicators
       this.questIndicatorManager.updateIndicators(npcMap, quests);
+
+      // Update quest-related world object labels and interactivity
+      if (this.questWorldObjectLinker && this.buildingData.size > 0) {
+        // Build NPC-to-building map for objective matching
+        const npcBuildingMap = new Map<string, string>();
+        this.buildingData.forEach((data, buildingId) => {
+          const meta = data.metadata;
+          if (!meta) return;
+          if (meta.ownerId) npcBuildingMap.set(meta.ownerId, buildingId);
+          if (Array.isArray(meta.employees)) {
+            meta.employees.forEach((e: any) => {
+              const eid = typeof e === 'string' ? e : e?.id;
+              if (eid) npcBuildingMap.set(eid, buildingId);
+            });
+          }
+          if (Array.isArray(meta.occupants)) {
+            meta.occupants.forEach((o: any) => {
+              const oid = typeof o === 'string' ? o : o?.id;
+              if (oid) npcBuildingMap.set(oid, buildingId);
+            });
+          }
+        });
+        this.questWorldObjectLinker.updateLinks(quests, this.buildingData, npcBuildingMap);
+      }
     } catch (error) {
       console.error('[BabylonGame] Failed to update quest indicators:', error);
     }
@@ -8209,6 +8245,8 @@ export class BabylonGame {
     this.eventBus.dispose();
     this.questObjectManager?.dispose();
     this.questIndicatorManager?.dispose();
+    this.questWorldObjectLinker?.dispose();
+    this.questWorldObjectLinker = null;
     this.questIndicatorManager = null;
     this.radialMenu?.dispose();
     this.questNotificationManager?.dispose();
