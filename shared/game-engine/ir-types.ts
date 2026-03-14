@@ -171,6 +171,8 @@ export interface SettlementIR {
   internalRoads: RoadIR[];
   /** Infrastructure built in this settlement */
   infrastructure: InfrastructureItemIR[];
+  /** Full street network topology with named streets and intersections */
+  streetNetwork: StreetNetworkIR;
 }
 
 /** A single built infrastructure item in a settlement. */
@@ -349,6 +351,41 @@ export interface RoadIR {
   width: number;
   /** Material/texture key */
   materialKey: string | null;
+}
+
+// ─────────────────────────────────────────────
+// Street Network IR
+// ─────────────────────────────────────────────
+
+export interface StreetNodeIR {
+  id: string;
+  /** World-space position */
+  position: Vec3;
+  /** IDs of streets that intersect at this node */
+  intersectionOf: string[];
+}
+
+export interface StreetSegmentIR {
+  id: string;
+  /** Human-readable street name */
+  name: string;
+  /** Direction hint (NS = north-south, EW = east-west) */
+  direction: 'NS' | 'EW';
+  /** Ordered node IDs forming the polyline */
+  nodeIds: string[];
+  /** Ordered world-space waypoints */
+  waypoints: Vec3[];
+  /** Road width in world units */
+  width: number;
+}
+
+export interface StreetNetworkIR {
+  /** Layout algorithm used */
+  layout: 'grid' | 'organic';
+  /** Intersection nodes */
+  nodes: StreetNodeIR[];
+  /** Named street segments with topology */
+  segments: StreetSegmentIR[];
 }
 
 export interface NatureObjectIR {
