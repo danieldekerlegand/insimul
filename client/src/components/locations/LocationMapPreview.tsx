@@ -10,6 +10,14 @@ import {
 
 export type ViewLevel = 'world' | 'country' | 'settlement';
 
+export interface StreetSegmentData {
+  id: string;
+  name: string;
+  direction?: string;
+  waypoints: { x: number; z: number }[];
+  width?: number;
+}
+
 interface LocationMapPreviewProps {
   viewLevel: ViewLevel;
   countries: any[];
@@ -17,6 +25,7 @@ interface LocationMapPreviewProps {
   lots?: any[];
   businesses?: any[];
   residences?: any[];
+  streets?: StreetSegmentData[];
   selectedCountryId?: string | null;
   worldId?: string;
   worldName?: string;
@@ -120,6 +129,7 @@ export function LocationMapPreview({
   lots = [],
   businesses = [],
   residences = [],
+  streets = [],
   selectedCountryId,
   worldId,
   worldName = 'World',
@@ -192,7 +202,7 @@ export function LocationMapPreview({
         const onProgress = (loaded: number, total: number) => {
           if (!disposed) setLoadingProgress(`Loading models ${loaded}/${total}...`);
         };
-        await buildSettlementView(scene, camera, advancedTexture, lots, businesses, residences, worldId, onProgress);
+        await buildSettlementView(scene, camera, advancedTexture, lots, businesses, residences, streets, worldId, onProgress);
       }
 
       if (!disposed) {
@@ -236,7 +246,7 @@ export function LocationMapPreview({
       engine.dispose();
       engineRef.current = null;
     };
-  }, [viewLevel, countries, settlements, lots, businesses, residences, selectedCountryId, worldId]);
+  }, [viewLevel, countries, settlements, lots, businesses, residences, streets, selectedCountryId, worldId]);
 
   return (
     <div className={`relative bg-black rounded-b-lg overflow-hidden ${className}`}>
@@ -698,6 +708,7 @@ async function buildSettlementView(
   lots: any[],
   businesses: any[],
   residences: any[],
+  streets: StreetSegmentData[],
   worldId?: string,
   onProgress?: (loaded: number, total: number) => void
 ) {
@@ -707,6 +718,11 @@ async function buildSettlementView(
   groundMat.diffuseColor = new BABYLON.Color3(0.25, 0.3, 0.2);
   groundMat.specularColor = BABYLON.Color3.Black();
   ground.material = groundMat;
+
+  // Render street network
+  if (streets.length > 0) {
+    renderStreetNetwork(scene, gui, streets);
+  }
 
   // Load model prototypes if worldId is available
   let prototypes = new Map<string, ModelPrototype>();
@@ -899,6 +915,86 @@ function renderStreets(
       labelAnchor.isPickable = false;
       addLabel(gui, labelAnchor, street.streetName, 8, '#AAA', 0);
     }
+  });
+}
+
+// ─── Street Network Rendering ────────────────────────────────────────────────
+
+/** Scale factor to map server-space waypoints into the editor's coordinate space */
+export function computeStreetScale(streets: StreetSegmentData[]): { scale: number; cx: number; cz: number } {
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const seg of streets) {
+    for (const wp of seg.waypoints) {
+      if (wp.x < minX) minX = wp.x;
+      if (wp.x > maxX) maxX = wp.x;
+      if (wp.z < minZ) minZ = wp.z;
+      if (wp.z > maxZ) maxZ = wp.z;
+    }
+  }
+  const rangeX = maxX - minX || 1;
+  const rangeZ = maxZ - minZ || 1;
+  const editorSize = 24; // fit within the 30×30 ground with margin
+  const scale = editorSize / Math.max(rangeX, rangeZ);
+  const cx = (minX + maxX) / 2;
+  const cz = (minZ + maxZ) / 2;
+  return { scale, cx, cz };
+}
+
+function renderStreetNetwork(
+  scene: BABYLON.Scene,
+  gui: GUI.AdvancedDynamicTexture,
+  streets: StreetSegmentData[]
+) {
+  const { scale, cx, cz } = computeStreetScale(streets);
+
+  const roadMat = new BABYLON.StandardMaterial('roadMat', scene);
+  roadMat.diffuseColor = new BABYLON.Color3(0.35, 0.33, 0.3);
+  roadMat.specularColor = BABYLON.Color3.Black();
+
+  streets.forEach((seg, si) => {
+    if (seg.waypoints.length < 2) return;
+
+    // Map waypoints to editor space
+    const editorWidth = Math.max((seg.width ?? 2.5) * scale * 0.5, 0.15);
+    const points = seg.waypoints.map(wp =>
+      new BABYLON.Vector3((wp.x - cx) * scale, 0.03, (wp.z - cz) * scale)
+    );
+
+    // Build a ribbon (flat road surface) from the polyline
+    const leftPath: BABYLON.Vector3[] = [];
+    const rightPath: BABYLON.Vector3[] = [];
+    const halfW = editorWidth / 2;
+
+    for (let i = 0; i < points.length; i++) {
+      // Compute perpendicular direction
+      let dir: BABYLON.Vector3;
+      if (i === 0) {
+        dir = points[1].subtract(points[0]).normalize();
+      } else if (i === points.length - 1) {
+        dir = points[i].subtract(points[i - 1]).normalize();
+      } else {
+        dir = points[i + 1].subtract(points[i - 1]).normalize();
+      }
+      const perp = new BABYLON.Vector3(-dir.z, 0, dir.x);
+      leftPath.push(points[i].add(perp.scale(halfW)));
+      rightPath.push(points[i].subtract(perp.scale(halfW)));
+    }
+
+    const ribbon = BABYLON.MeshBuilder.CreateRibbon(`street_${si}`, {
+      pathArray: [leftPath, rightPath],
+      sideOrientation: BABYLON.Mesh.DOUBLESIDE,
+    }, scene);
+    ribbon.material = roadMat;
+    ribbon.isPickable = false;
+
+    // Street name label at the midpoint
+    const midIdx = Math.floor(points.length / 2);
+    const midPt = points[midIdx];
+    const labelAnchor = BABYLON.MeshBuilder.CreateBox(`streetLabel_${si}`, { size: 0.01 }, scene);
+    labelAnchor.position = new BABYLON.Vector3(midPt.x, 0.5, midPt.z);
+    labelAnchor.isVisible = false;
+    labelAnchor.isPickable = false;
+    addLabel(gui, labelAnchor, seg.name, 8, '#E8E8D0', 0);
   });
 }
 
