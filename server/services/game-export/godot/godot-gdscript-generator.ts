@@ -117,10 +117,18 @@ function genWorldScripts(ir: WorldIR): GeneratedFile[] {
     ROAD_WIDTH:   theme.roadRadius * 2,
   };
 
+  const waterTokens: TokenMap = {
+    WATER_COLOR_R: 0.15,
+    WATER_COLOR_G: 0.45,
+    WATER_COLOR_B: 0.65,
+    WATER_ALPHA:   0.7,
+  };
+
   return [
     { path: 'scripts/world/world_scale_manager.gd', content: loadTemplate('scripts/world/world_scale_manager.gd', worldScaleTokens) },
     { path: 'scripts/world/building_generator.gd',  content: loadTemplate('scripts/world/building_generator.gd', buildingTokens) },
     { path: 'scripts/world/road_generator.gd',      content: loadTemplate('scripts/world/road_generator.gd', roadTokens) },
+    { path: 'scripts/world/water_generator.gd',     content: loadTemplate('scripts/world/water_generator.gd', waterTokens) },
     { path: 'scripts/world/nature_generator.gd',    content: loadStaticTemplate('scripts/world/nature_generator.gd') },
     { path: 'scripts/world/dungeon_generator.gd',   content: loadStaticTemplate('scripts/world/dungeon_generator.gd') },
   ];

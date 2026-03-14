@@ -111,6 +111,12 @@ func load_businesses() -> Array:
 func load_roads() -> Array:
 	return _load_json_array("roads.json")
 
+func load_water_features() -> Array:
+	return _load_json_array("water_features.json")
+
+func load_lots() -> Array:
+	return _load_json_array("lots.json")
+
 func load_dialogue_contexts() -> Array:
 	return _load_json_array("dialogue_contexts.json")
 

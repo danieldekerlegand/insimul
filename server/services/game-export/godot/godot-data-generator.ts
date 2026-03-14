@@ -170,8 +170,30 @@ function generateWaterFeatures(ir: WorldIR): object[] {
     isNavigable: w.isNavigable,
     isDrinkable: w.isDrinkable,
     modelAssetKey: w.modelAssetKey || '',
+    color: w.color ? { r: w.color.r, g: w.color.g, b: w.color.b } : null,
     transparency: w.transparency,
   }));
+}
+
+function generateLots(ir: WorldIR): object[] {
+  const lots: object[] = [];
+  for (const s of ir.geography.settlements) {
+    for (const lot of s.lots) {
+      lots.push({
+        id: lot.id,
+        settlementId: s.id,
+        address: lot.address,
+        houseNumber: lot.houseNumber,
+        streetName: lot.streetName,
+        block: lot.block || '',
+        districtName: lot.districtName || '',
+        position: { x: lot.position.x, y: lot.position.y, z: lot.position.z },
+        buildingType: lot.buildingType || '',
+        buildingId: lot.buildingId || '',
+      });
+    }
+  }
+  return lots;
 }
 
 function generateBuildings(ir: WorldIR): object[] {
@@ -302,6 +324,7 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     { name: 'quests', data: generateQuests(ir) },
     { name: 'settlements', data: generateSettlements(ir) },
     { name: 'water_features', data: generateWaterFeatures(ir) },
+    { name: 'lots', data: generateLots(ir) },
     { name: 'buildings', data: generateBuildings(ir) },
     { name: 'roads', data: generateRoads(ir) },
     { name: 'businesses', data: generateBusinesses(ir) },

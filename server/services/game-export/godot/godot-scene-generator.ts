@@ -30,6 +30,7 @@ function generateMainTscn(ir: WorldIR): string {
     { id: 6, path: 'res://scripts/world/nature_generator.gd', type: 'Script' },
     { id: 7, path: 'res://scripts/characters/npc_spawner.gd', type: 'Script' },
     { id: 8, path: 'res://scripts/ui/hud.gd', type: 'Script' },
+    { id: 9, path: 'res://scripts/world/water_generator.gd', type: 'Script' },
   ];
 
   let tscn = `[gd_scene load_steps=${extResources.length + 3} format=3]\n\n`;
@@ -90,6 +91,10 @@ function generateMainTscn(ir: WorldIR): string {
 
   tscn += `\n[node name="NatureGenerator" type="Node3D" parent="."]\n`;
   tscn += `script = ExtResource("6")\n`;
+
+  // Water generator
+  tscn += `\n[node name="WaterGenerator" type="Node3D" parent="."]\n`;
+  tscn += `script = ExtResource("9")\n`;
 
   // NPC spawner
   tscn += `\n[node name="NPCSpawner" type="Node3D" parent="."]\n`;
@@ -167,6 +172,34 @@ function generateSceneDescriptor(ir: WorldIR): object {
       width: r.width,
       waypoints: r.waypoints,
     })),
+
+    waterFeatures: ir.geography.waterFeatures.map(w => ({
+      id: w.id,
+      name: w.name,
+      type: w.type,
+      subType: w.subType,
+      position: w.position,
+      waterLevel: w.waterLevel,
+      bounds: w.bounds,
+      depth: w.depth,
+      width: w.width,
+      flowDirection: w.flowDirection,
+      flowSpeed: w.flowSpeed,
+      shorelinePoints: w.shorelinePoints,
+      color: w.color,
+      transparency: w.transparency,
+    })),
+
+    lots: ir.geography.settlements.flatMap(s =>
+      s.lots.map(lot => ({
+        id: lot.id,
+        settlementId: s.id,
+        address: lot.address,
+        position: lot.position,
+        buildingType: lot.buildingType,
+        buildingId: lot.buildingId,
+      })),
+    ),
   };
 }
 
