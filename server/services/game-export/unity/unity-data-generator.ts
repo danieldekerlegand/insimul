@@ -127,8 +127,15 @@ function generateSettlements(ir: WorldIR): object[] {
       block: l.block || '',
       districtName: l.districtName || '',
       position: vec3(l.position),
+      facingAngle: l.facingAngle,
+      elevation: l.elevation,
       buildingType: l.buildingType || '',
       buildingId: l.buildingId || '',
+      streetEdgeId: l.streetEdgeId || '',
+      side: l.side || '',
+      neighboringLotIds: l.neighboringLotIds,
+      distanceFromDowntown: l.distanceFromDowntown,
+      formerBuildingIds: l.formerBuildingIds,
     })),
     streetNetwork: {
       layout: s.streetNetwork.layout,
@@ -177,6 +184,7 @@ function generateBuildings(ir: WorldIR): object[] {
   return ir.entities.buildings.map(b => ({
     id: b.id,
     settlementId: b.settlementId,
+    lotId: b.lotId || '',
     position: vec3(b.position),
     rotation: b.rotation,
     buildingRole: b.spec.buildingRole,

@@ -763,22 +763,39 @@ export async function generateWorldIR(
     const lots = lotsBySettlement.get(s.id) || [];
     const settlementBusinesses = allBusinesses.filter((b: any) => b.settlementId === s.id);
 
-    // Map lots to positions
-    const lotIRs: LotIR[] = lots.map((lot, i) => ({
-      id: lot.id,
-      address: lot.address || '',
-      houseNumber: lot.houseNumber || i + 1,
-      streetName: lot.streetName || 'Main Street',
-      block: lot.block || null,
-      districtName: lot.districtName || null,
-      position: lotPositions[i] || { x: placed.position.x, y: 0, z: placed.position.z },
-      buildingType: lot.buildingType || null,
-      buildingId: lot.buildingId || null,
-    }));
+    // Map lots using persisted spatial data when available, falling back to generated positions
+    const lotIRs: LotIR[] = lots.map((lot, i) => {
+      const hasPersistedPosition = lot.positionX != null && lot.positionZ != null;
+      const position: Vec3 = hasPersistedPosition
+        ? { x: lot.positionX!, y: lot.elevation || 0, z: lot.positionZ! }
+        : lotPositions[i] || { x: placed.position.x, y: 0, z: placed.position.z };
 
-    // Generate buildings for businesses + residences
+      return {
+        id: lot.id,
+        address: lot.address || '',
+        houseNumber: lot.houseNumber || i + 1,
+        streetName: lot.streetName || 'Main Street',
+        block: lot.block || null,
+        districtName: lot.districtName || null,
+        position,
+        facingAngle: lot.facingAngle || 0,
+        elevation: lot.elevation || 0,
+        buildingType: lot.buildingType || null,
+        buildingId: lot.buildingId || null,
+        streetEdgeId: lot.streetEdgeId || null,
+        side: lot.side || null,
+        neighboringLotIds: (lot.neighboringLotIds as string[]) || [],
+        distanceFromDowntown: lot.distanceFromDowntown || 0,
+        formerBuildingIds: (lot.formerBuildingIds as string[]) || [],
+      };
+    });
+
+    // Generate buildings using lot data for placement when available
+    // Build a lookup from lot index to lotIR for position/rotation
     for (let i = 0; i < Math.min(buildingCount, lotPositions.length); i++) {
-      const pos = lotPositions[i];
+      const lotIR = lotIRs[i] || null;
+      const pos = lotIR ? lotIR.position : lotPositions[i];
+      const rotation = lotIR ? lotIR.facingAngle : 0;
       const business: any = settlementBusinesses[i] || null;
       const spec = getBuildingSpec(business?.businessType || null);
       const buildingId = business ? `bld_${business.id}` : `bld_${s.id}_${i}`;
@@ -786,8 +803,9 @@ export async function generateWorldIR(
       allBuildingIRs.push({
         id: buildingId,
         settlementId: s.id,
+        lotId: lotIR?.id || null,
         position: pos,
-        rotation: 0,
+        rotation,
         spec,
         style: buildingStyle,
         occupantIds: [],

@@ -194,8 +194,22 @@ export interface LotIR {
   districtName: string | null;
   /** Position in world space */
   position: Vec3;
+  /** Y-axis facing angle in radians */
+  facingAngle: number;
+  /** Ground elevation at this lot */
+  elevation: number;
   buildingType: string | null;
   buildingId: string | null;
+  /** Street edge this lot is placed along */
+  streetEdgeId: string | null;
+  /** Which side of the street: 'left' or 'right' */
+  side: string | null;
+  /** IDs of adjacent lots */
+  neighboringLotIds: string[];
+  /** Distance from settlement center (downtown) */
+  distanceFromDowntown: number;
+  /** IDs of buildings that previously occupied this lot */
+  formerBuildingIds: string[];
 }
 
 export interface BoundsIR {
@@ -284,6 +298,8 @@ export interface NPCIR {
 export interface BuildingIR {
   id: string;
   settlementId: string;
+  /** Lot this building sits on */
+  lotId: string | null;
   /** Position in world space */
   position: Vec3;
   /** Y-axis rotation in radians */
