@@ -20,8 +20,9 @@ export class TTSCache {
     this.maxTotalBytes = maxTotalBytes;
   }
 
-  static makeKey(text: string, voice: string, gender: string, encoding: string): string {
-    return `${encoding}:${voice}:${gender}:${text}`;
+  static makeKey(text: string, voice: string, gender: string, encoding: string, emotionalTone?: string): string {
+    const tone = emotionalTone || 'neutral';
+    return `${encoding}:${voice}:${gender}:${tone}:${text}`;
   }
 
   get(key: string): Buffer | undefined {

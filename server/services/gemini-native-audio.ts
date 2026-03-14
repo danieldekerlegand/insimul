@@ -22,6 +22,8 @@ export interface NativeAudioChatRequest {
   temperature?: number;
   /** Max output tokens */
   maxTokens?: number;
+  /** Emotional tone to apply to speech (e.g., 'happy', 'sad', 'angry') */
+  emotionalTone?: string;
 }
 
 export interface NativeAudioChatResponse {
@@ -106,9 +108,12 @@ export async function nativeAudioChat(request: NativeAudioChatRequest): Promise<
         .trim();
 
       if (cleanedText) {
+        const toneDirective = request.emotionalTone && request.emotionalTone !== 'neutral'
+          ? ` with a ${request.emotionalTone} tone`
+          : '';
         const audioResponse = await client.models.generateContent({
           model: GEMINI_MODELS.FLASH,
-          contents: `Say the following text naturally, in character: "${cleanedText}"`,
+          contents: `Say the following text naturally${toneDirective}, in character: "${cleanedText}"`,
           config: {
             responseModalities: ['AUDIO'],
             speechConfig: {
@@ -158,6 +163,7 @@ export async function nativeTextToAudioChat(
   voice: string = 'Kore',
   temperature: number = 0.7,
   maxTokens: number = 1000,
+  emotionalTone?: string,
 ): Promise<NativeAudioChatResponse> {
   if (!isGeminiConfigured()) {
     throw new Error("Gemini API key is not configured");
@@ -214,9 +220,12 @@ export async function nativeTextToAudioChat(
         .trim();
 
       if (cleanedText) {
+        const toneDirective = emotionalTone && emotionalTone !== 'neutral'
+          ? ` with a ${emotionalTone} tone`
+          : '';
         const audioResponse = await client.models.generateContent({
           model: GEMINI_MODELS.FLASH,
-          contents: `Say the following text naturally, in character: "${cleanedText}"`,
+          contents: `Say the following text naturally${toneDirective}, in character: "${cleanedText}"`,
           config: {
             responseModalities: ['AUDIO'],
             speechConfig: {

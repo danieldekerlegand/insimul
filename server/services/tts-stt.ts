@@ -1,21 +1,24 @@
 import { getGenAI, isGeminiConfigured, getGeminiApiKey, GEMINI_MODELS } from "../config/gemini.js";
 import { ttsCache, TTSCache } from "./tts-cache.js";
+import { wrapWithEmotionalProsody } from "@shared/emotional-tone.js";
 
 /**
  * Text-to-Speech using Google Cloud Text-to-Speech with gemini-2.5-pro-tts.
  * Results are cached using an LRU cache to avoid redundant API calls.
+ * Supports emotional tone modulation via SSML prosody tags.
  */
 export async function textToSpeech(
   text: string,
   voiceName: string = "Kore",
   gender: string = "neutral",
-  encoding: "MP3" | "WAV" = "MP3"
+  encoding: "MP3" | "WAV" = "MP3",
+  emotionalTone?: string
 ): Promise<Buffer> {
   if (!isGeminiConfigured()) {
     throw new Error("Gemini API key is not configured");
   }
 
-  const cacheKey = TTSCache.makeKey(text, voiceName, gender, encoding);
+  const cacheKey = TTSCache.makeKey(text, voiceName, gender, encoding, emotionalTone);
   const cached = ttsCache.get(cacheKey);
   if (cached) {
     return cached;
@@ -31,18 +34,20 @@ export async function textToSpeech(
     // Determine language based on text content (simple heuristic)
     const isFrench = /[àâäéèêëïîôùûüÿçœæ]/i.test(text) || text.includes('vous') || text.includes('est');
     const languageCode = isFrench ? "fr-FR" : "en-US";
-    
+
     // Map gender to SSML gender format
-    const ssmlGender = gender.toLowerCase() === 'female' ? 'FEMALE' : 
+    const ssmlGender = gender.toLowerCase() === 'female' ? 'FEMALE' :
                        gender.toLowerCase() === 'male' ? 'MALE' : 'NEUTRAL';
 
     // Map encoding - WAV is LINEAR16 in Google Cloud TTS
     const audioEncoding = encoding === "WAV" ? "LINEAR16" : "MP3";
 
+    // Apply emotional prosody via SSML if tone is provided
+    const { ssml, isSSML } = wrapWithEmotionalProsody(text, emotionalTone);
+    const input = isSSML ? { ssml } : { text };
+
     const [response] = await ttsClient.synthesizeSpeech({
-      input: { 
-        text: text
-      },
+      input,
       voice: {
         languageCode: languageCode,
         ssmlGender: ssmlGender as any

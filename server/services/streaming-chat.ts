@@ -56,6 +56,7 @@ export interface StreamingChatOptions {
   returnAudio?: boolean;
   voice?: string;
   gender?: string;
+  emotionalTone?: string;
 }
 
 /** Dependency injection interface for testing */
@@ -66,7 +67,7 @@ export interface StreamingDeps {
     temperature: number;
     maxTokens: number;
   }) => Promise<AsyncIterable<{ text(): string }>>;
-  textToSpeech: (text: string, voice?: string, gender?: string, encoding?: "MP3" | "WAV") => Promise<Buffer>;
+  textToSpeech: (text: string, voice?: string, gender?: string, encoding?: "MP3" | "WAV", emotionalTone?: string) => Promise<Buffer>;
 }
 
 /**
@@ -76,8 +77,8 @@ export interface StreamingDeps {
 export async function processStreamWithTTS(
   textStream: AsyncIterable<{ text(): string }>,
   sendSSE: (data: string) => void,
-  options: { returnAudio: boolean; voice: string; gender: string },
-  ttsFunc: (text: string, voice?: string, gender?: string, encoding?: "MP3" | "WAV") => Promise<Buffer>,
+  options: { returnAudio: boolean; voice: string; gender: string; emotionalTone?: string },
+  ttsFunc: (text: string, voice?: string, gender?: string, encoding?: "MP3" | "WAV", emotionalTone?: string) => Promise<Buffer>,
 ): Promise<void> {
   const accumulator = new SentenceAccumulator();
   let sentenceIndex = 0;
@@ -96,7 +97,7 @@ export async function processStreamWithTTS(
         const cleaned = cleanForSpeech(sentence);
         if (!cleaned) continue;
         const idx = sentenceIndex++;
-        const promise = ttsFunc(cleaned, options.voice, options.gender, 'MP3')
+        const promise = ttsFunc(cleaned, options.voice, options.gender, 'MP3', options.emotionalTone)
           .then(buf => {
             sendSSE(JSON.stringify({ audio: buf.toString('base64'), sentenceIndex: idx }));
           })
@@ -115,7 +116,7 @@ export async function processStreamWithTTS(
       const cleaned = cleanForSpeech(remaining);
       if (cleaned) {
         const idx = sentenceIndex++;
-        const promise = ttsFunc(cleaned, options.voice, options.gender, 'MP3')
+        const promise = ttsFunc(cleaned, options.voice, options.gender, 'MP3', options.emotionalTone)
           .then(buf => {
             sendSSE(JSON.stringify({ audio: buf.toString('base64'), sentenceIndex: idx }));
           })
@@ -151,6 +152,7 @@ export async function streamChatWithTTS(
     returnAudio = false,
     voice = 'Kore',
     gender = 'neutral',
+    emotionalTone,
   } = options;
 
   // Set up SSE headers
@@ -191,7 +193,7 @@ export async function streamChatWithTTS(
     await processStreamWithTTS(
       streamResult.stream,
       sendSSE,
-      { returnAudio, voice, gender },
+      { returnAudio, voice, gender, emotionalTone },
       textToSpeech,
     );
 

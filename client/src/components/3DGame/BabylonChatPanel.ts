@@ -1408,7 +1408,8 @@ export class BabylonChatPanel {
         body: JSON.stringify({
           text,
           voice: this.character?.gender === 'female' ? 'Kore' : 'Charon',
-          gender: this.character?.gender || 'neutral'
+          gender: this.character?.gender || 'neutral',
+          emotionalTone: this.character?.emotionalTone
         })
       });
 

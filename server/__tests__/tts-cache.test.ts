@@ -11,13 +11,24 @@ describe('TTSCache', () => {
   describe('makeKey', () => {
     it('creates a deterministic key from parameters', () => {
       const key = TTSCache.makeKey('hello', 'Kore', 'female', 'MP3');
-      expect(key).toBe('MP3:Kore:female:hello');
+      expect(key).toBe('MP3:Kore:female:neutral:hello');
     });
 
     it('creates different keys for different parameters', () => {
       const k1 = TTSCache.makeKey('hello', 'Kore', 'female', 'MP3');
       const k2 = TTSCache.makeKey('hello', 'Charon', 'male', 'MP3');
       const k3 = TTSCache.makeKey('hello', 'Kore', 'female', 'WAV');
+      expect(k1).not.toBe(k2);
+      expect(k1).not.toBe(k3);
+    });
+
+    it('includes emotional tone in cache key', () => {
+      const k1 = TTSCache.makeKey('hello', 'Kore', 'female', 'MP3', 'happy');
+      const k2 = TTSCache.makeKey('hello', 'Kore', 'female', 'MP3', 'sad');
+      const k3 = TTSCache.makeKey('hello', 'Kore', 'female', 'MP3');
+      expect(k1).toBe('MP3:Kore:female:happy:hello');
+      expect(k2).toBe('MP3:Kore:female:sad:hello');
+      expect(k3).toBe('MP3:Kore:female:neutral:hello');
       expect(k1).not.toBe(k2);
       expect(k1).not.toBe(k3);
     });

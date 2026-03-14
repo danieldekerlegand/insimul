@@ -213,7 +213,7 @@ describe('processStreamWithTTS', () => {
     );
 
     // TTS should still be called for the flushed text
-    expect(mockTTS).toHaveBeenCalledWith('Hello world', 'Kore', 'female', 'MP3');
+    expect(mockTTS).toHaveBeenCalledWith('Hello world', 'Kore', 'female', 'MP3', undefined);
   });
 
   it('handles TTS failure gracefully', async () => {
@@ -265,6 +265,22 @@ describe('processStreamWithTTS', () => {
       try { return JSON.parse(e).text; } catch { return false; }
     });
     expect(textEvents).toHaveLength(1);
+  });
+
+  it('passes emotionalTone to TTS function', async () => {
+    const events: string[] = [];
+    const sendSSE = (data: string) => events.push(data);
+
+    const mockTTS = vi.fn().mockResolvedValue(Buffer.from('audio'));
+
+    await processStreamWithTTS(
+      makeStream(['Hello world']),
+      sendSSE,
+      { returnAudio: true, voice: 'Kore', gender: 'female', emotionalTone: 'happy' },
+      mockTTS,
+    );
+
+    expect(mockTTS).toHaveBeenCalledWith('Hello world', 'Kore', 'female', 'MP3', 'happy');
   });
 
   it('strips system markers before TTS', async () => {
