@@ -30,6 +30,10 @@ function genDataStructs(): GeneratedFile[] {
     { path: `${base}/SettlementData.h`, content: loadStaticTemplate('source/data/SettlementData.h') },
     { path: `${base}/BuildingData.h`,   content: loadStaticTemplate('source/data/BuildingData.h') },
     { path: `${base}/DialogueContextData.h`, content: loadStaticTemplate('source/data/DialogueContextData.h') },
+    { path: `${base}/WaterFeatureData.h`, content: loadStaticTemplate('source/data/WaterFeatureData.h') },
+    { path: `${base}/GameTypes.h`,     content: loadStaticTemplate('source/data/GameTypes.h') },
+    { path: `${base}/LotData.h`,       content: loadStaticTemplate('source/data/LotData.h') },
+    { path: `${base}/InfrastructureData.h`, content: loadStaticTemplate('source/data/InfrastructureData.h') },
   ];
 }
 
