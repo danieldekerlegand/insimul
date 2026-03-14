@@ -1,8 +1,15 @@
 /**
  * Babylon Skill Tree Panel
  *
- * In-game panel (K key) showing a visual 5-tier skill tree
+ * In-game panel (K key) showing an interactive 5-tier skill tree
  * representing language learning progression from "First Words" to "Near Native".
+ *
+ * Interactive features:
+ * - Segmented tier progress bar at the top
+ * - Hover highlighting on skill nodes
+ * - Click-to-expand skill details with requirement breakdown
+ * - Tier connector indicators between sections
+ * - Visual emphasis on newly-unlocked nodes
  */
 
 import * as GUI from '@babylonjs/gui';
@@ -26,17 +33,37 @@ export interface SkillTreeStats {
   questsCompleted: number;
 }
 
+/** Friendly labels for condition types shown in expanded node details. */
+const CONDITION_LABELS: Record<string, string> = {
+  words_learned: 'Words Learned',
+  words_mastered: 'Words Mastered',
+  conversations: 'Conversations',
+  grammar_patterns: 'Grammar Patterns',
+  target_language_pct: 'Target Language %',
+  fluency: 'Fluency %',
+  sustained_turns: 'Sustained Turns',
+  quest_count: 'Quests Completed',
+};
+
 export class BabylonSkillTreePanel {
   private advancedTexture: GUI.AdvancedDynamicTexture;
   private container: GUI.Rectangle | null = null;
   private contentStack: GUI.StackPanel | null = null;
   private scrollViewer: GUI.ScrollViewer | null = null;
   private headerText: GUI.TextBlock | null = null;
+  private progressBarContainer: GUI.Rectangle | null = null;
   private isVisible: boolean = false;
 
   private state: SkillTreeState;
+  private currentStats: SkillTreeStats = {
+    wordsLearned: 0, wordsMastered: 0, conversations: 0, grammarPatterns: 0,
+    avgTargetLanguagePct: 0, fluency: 0, maxSustainedTurns: 0, questsCompleted: 0,
+  };
+  private expandedNodeId: string | null = null;
+  private recentlyUnlockedIds: Set<string> = new Set();
   private onClose: (() => void) | null = null;
   private onSkillUnlocked: ((node: SkillNode) => void) | null = null;
+  private onNodeSelected: ((node: SkillNode) => void) | null = null;
 
   constructor(advancedTexture: GUI.AdvancedDynamicTexture) {
     this.advancedTexture = advancedTexture;
@@ -57,7 +84,6 @@ export class BabylonSkillTreePanel {
     this.container.zIndex = 50;
     this.advancedTexture.addControl(this.container);
 
-    // Vertical layout: title bar -> header -> scroll area
     const mainLayout = new GUI.StackPanel('skillTreeMainLayout');
     mainLayout.isVertical = true;
     mainLayout.width = '100%';
@@ -80,7 +106,6 @@ export class BabylonSkillTreePanel {
     titleText.color = 'white';
     titleBar.addControl(titleText);
 
-    // Close button
     const closeBtn = GUI.Button.CreateSimpleButton('skillTreeClose', 'X');
     closeBtn.width = '36px';
     closeBtn.height = '36px';
@@ -98,18 +123,25 @@ export class BabylonSkillTreePanel {
     });
     titleBar.addControl(closeBtn);
 
+    // Segmented tier progress bar
+    this.progressBarContainer = new GUI.Rectangle('skillTreeProgressBar');
+    this.progressBarContainer.width = '470px';
+    this.progressBarContainer.height = '28px';
+    this.progressBarContainer.thickness = 0;
+    mainLayout.addControl(this.progressBarContainer);
+
     // Header summary
     this.headerText = new GUI.TextBlock('skillTreeHeader');
     this.headerText.text = '';
     this.headerText.fontSize = 12;
     this.headerText.color = 'rgba(200, 200, 200, 0.9)';
-    this.headerText.height = '20px';
+    this.headerText.height = '18px';
     mainLayout.addControl(this.headerText);
 
-    // Scroll area — fills remaining space
+    // Scroll area
     this.scrollViewer = new GUI.ScrollViewer('skillTreeScroll');
     this.scrollViewer.width = '480px';
-    this.scrollViewer.height = '500px';
+    this.scrollViewer.height = '474px';
     this.scrollViewer.thickness = 0;
     this.scrollViewer.barColor = 'rgba(100, 160, 100, 0.8)';
     this.scrollViewer.barBackground = 'rgba(50, 50, 50, 0.5)';
@@ -117,10 +149,80 @@ export class BabylonSkillTreePanel {
 
     this.contentStack = new GUI.StackPanel('skillTreeContent');
     this.contentStack.width = '460px';
-    this.contentStack.spacing = 8;
+    this.contentStack.spacing = 4;
     this.scrollViewer.addControl(this.contentStack);
 
     this.container.isVisible = false;
+  }
+
+  private updateProgressBar(): void {
+    if (!this.progressBarContainer) return;
+
+    // Clear existing
+    const children = this.progressBarContainer.children.slice();
+    for (const child of children) {
+      this.progressBarContainer.removeControl(child);
+      child.dispose();
+    }
+
+    // Background
+    const bg = new GUI.Rectangle('progressBg');
+    bg.width = '460px';
+    bg.height = '14px';
+    bg.cornerRadius = 7;
+    bg.background = 'rgba(40, 40, 45, 0.9)';
+    bg.thickness = 1;
+    bg.color = 'rgba(80, 80, 80, 0.5)';
+    bg.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+    this.progressBarContainer.addControl(bg);
+
+    // Each tier gets a proportional segment
+    const segmentWidth = 460 / SKILL_TIERS.length;
+    for (let i = 0; i < SKILL_TIERS.length; i++) {
+      const tierDef = SKILL_TIERS[i];
+      const tierNodes = this.state.nodes.filter(n => n.tier === tierDef.tier);
+      const unlockedCount = tierNodes.filter(n => n.unlocked).length;
+      const tierProgress = tierNodes.length > 0 ? unlockedCount / tierNodes.length : 0;
+
+      if (tierProgress > 0) {
+        const fillW = Math.max(2, tierProgress * segmentWidth);
+        const fill = new GUI.Rectangle(`progressFill_${i}`);
+        fill.width = `${fillW}px`;
+        fill.height = '14px';
+        fill.cornerRadius = i === 0 ? 7 : (i === SKILL_TIERS.length - 1 && tierProgress === 1 ? 7 : 2);
+        fill.background = tierDef.color;
+        fill.thickness = 0;
+        fill.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+        fill.left = `${i * segmentWidth}px`;
+        fill.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+        bg.addControl(fill);
+      }
+
+      // Tier divider line (except after last)
+      if (i < SKILL_TIERS.length - 1) {
+        const divider = new GUI.Rectangle(`progressDiv_${i}`);
+        divider.width = '1px';
+        divider.height = '14px';
+        divider.background = 'rgba(100, 100, 100, 0.6)';
+        divider.thickness = 0;
+        divider.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+        divider.left = `${(i + 1) * segmentWidth}px`;
+        divider.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+        bg.addControl(divider);
+      }
+    }
+
+    // Overall percentage label
+    const unlocked = this.state.nodes.filter(n => n.unlocked).length;
+    const total = this.state.nodes.length;
+    const pct = total > 0 ? Math.round((unlocked / total) * 100) : 0;
+    const label = new GUI.TextBlock('progressLabel');
+    label.text = `${pct}%`;
+    label.fontSize = 10;
+    label.fontWeight = 'bold';
+    label.color = 'white';
+    label.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+    this.progressBarContainer.addControl(label);
   }
 
   private updateHeader(): void {
@@ -132,6 +234,7 @@ export class BabylonSkillTreePanel {
 
   private refreshContent(): void {
     this.updateHeader();
+    this.updateProgressBar();
     if (!this.contentStack) return;
 
     // Clear existing
@@ -141,19 +244,63 @@ export class BabylonSkillTreePanel {
       child.dispose();
     }
 
-    // Render tiers top to bottom (tier 1 at top)
-    for (const tierDef of SKILL_TIERS) {
+    // Render tiers with connectors
+    for (let i = 0; i < SKILL_TIERS.length; i++) {
+      const tierDef = SKILL_TIERS[i];
       const tierNodes = this.state.nodes.filter(n => n.tier === tierDef.tier);
       const tierCard = this.createTierSection(tierDef, tierNodes);
       this.contentStack.addControl(tierCard);
+
+      // Tier connector between sections
+      if (i < SKILL_TIERS.length - 1) {
+        const connector = this.createTierConnector(tierDef, SKILL_TIERS[i + 1], tierNodes);
+        this.contentStack.addControl(connector);
+      }
     }
+  }
+
+  private createTierConnector(from: SkillTier, to: SkillTier, fromNodes: SkillNode[]): GUI.Rectangle {
+    const allUnlocked = fromNodes.every(n => n.unlocked);
+    const container = new GUI.Rectangle(`connector_${from.tier}_${to.tier}`);
+    container.width = '460px';
+    container.height = '24px';
+    container.thickness = 0;
+    container.background = 'transparent';
+
+    // Vertical line
+    const line = new GUI.Rectangle(`connLine_${from.tier}`);
+    line.width = '2px';
+    line.height = '16px';
+    line.background = allUnlocked ? from.color : 'rgba(80, 80, 80, 0.4)';
+    line.thickness = 0;
+    line.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+    container.addControl(line);
+
+    // Arrow indicator
+    const arrow = new GUI.TextBlock(`connArrow_${from.tier}`);
+    arrow.text = allUnlocked ? '▼' : '▽';
+    arrow.fontSize = 10;
+    arrow.color = allUnlocked ? from.color : 'rgba(80, 80, 80, 0.5)';
+    arrow.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+    arrow.height = '14px';
+    container.addControl(arrow);
+
+    return container;
   }
 
   private createTierSection(tierDef: SkillTier, nodes: SkillNode[]): GUI.Rectangle {
     const unlockedCount = nodes.filter(n => n.unlocked).length;
     const allUnlocked = unlockedCount === nodes.length;
-    const nodeHeight = 50;
-    const totalHeight = 40 + nodes.length * (nodeHeight + 4) + 8;
+    const baseNodeHeight = 50;
+    const expandedExtraHeight = 40;
+
+    // Calculate total height accounting for expanded node
+    let totalHeight = 40;
+    for (const node of nodes) {
+      const isExpanded = this.expandedNodeId === node.id;
+      totalHeight += (isExpanded ? baseNodeHeight + expandedExtraHeight : baseNodeHeight) + 4;
+    }
+    totalHeight += 8;
 
     const section = new GUI.Rectangle(`tier_${tierDef.tier}`);
     section.width = '450px';
@@ -181,7 +328,7 @@ export class BabylonSkillTreePanel {
 
     // Completion badge
     const badge = new GUI.TextBlock(`tierBadge_${tierDef.tier}`);
-    badge.text = `${unlockedCount}/${nodes.length}`;
+    badge.text = allUnlocked ? `✓ ${unlockedCount}/${nodes.length}` : `${unlockedCount}/${nodes.length}`;
     badge.fontSize = 11;
     badge.fontWeight = 'bold';
     badge.color = allUnlocked ? '#2ecc71' : 'rgba(150, 150, 150, 0.8)';
@@ -190,13 +337,15 @@ export class BabylonSkillTreePanel {
     badge.left = '-12px';
     badge.top = '8px';
     badge.height = '18px';
-    badge.width = '40px';
+    badge.width = '60px';
     section.addControl(badge);
 
     // Skill nodes
     let yOffset = 34;
     for (const node of nodes) {
-      const nodeCard = this.createSkillNode(node, tierDef.color, yOffset);
+      const isExpanded = this.expandedNodeId === node.id;
+      const nodeHeight = isExpanded ? baseNodeHeight + expandedExtraHeight : baseNodeHeight;
+      const nodeCard = this.createSkillNode(node, tierDef.color, yOffset, isExpanded);
       section.addControl(nodeCard);
       yOffset += nodeHeight + 4;
     }
@@ -204,19 +353,56 @@ export class BabylonSkillTreePanel {
     return section;
   }
 
-  private createSkillNode(node: SkillNode, tierColor: string, yOffset: number): GUI.Rectangle {
+  private createSkillNode(node: SkillNode, tierColor: string, yOffset: number, isExpanded: boolean): GUI.Rectangle {
+    const isRecentlyUnlocked = this.recentlyUnlockedIds.has(node.id);
+    const cardHeight = isExpanded ? 90 : 50;
+
     const card = new GUI.Rectangle(`skill_${node.id}`);
     card.width = '430px';
-    card.height = '50px';
+    card.height = `${cardHeight}px`;
     card.cornerRadius = 5;
-    card.thickness = 1;
-    card.color = node.unlocked ? tierColor : 'rgba(60, 60, 60, 0.5)';
-    card.background = node.unlocked
-      ? `rgba(${this.hexToRgb(tierColor)}, 0.15)`
-      : 'rgba(20, 20, 25, 0.6)';
+    card.thickness = isRecentlyUnlocked ? 2 : 1;
+    card.color = isRecentlyUnlocked
+      ? '#2ecc71'
+      : node.unlocked ? tierColor : 'rgba(60, 60, 60, 0.5)';
+    card.background = isRecentlyUnlocked
+      ? `rgba(46, 204, 113, 0.2)`
+      : node.unlocked
+        ? `rgba(${this.hexToRgb(tierColor)}, 0.15)`
+        : 'rgba(20, 20, 25, 0.6)';
     card.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     card.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
     card.top = `${yOffset}px`;
+
+    // Hover effects
+    card.onPointerEnterObservable.add(() => {
+      if (!node.unlocked) {
+        card.background = 'rgba(40, 40, 50, 0.8)';
+        card.thickness = 2;
+        card.color = `rgba(${this.hexToRgb(tierColor)}, 0.6)`;
+      } else {
+        card.background = `rgba(${this.hexToRgb(tierColor)}, 0.25)`;
+      }
+    });
+    card.onPointerOutObservable.add(() => {
+      card.thickness = isRecentlyUnlocked ? 2 : 1;
+      card.color = isRecentlyUnlocked
+        ? '#2ecc71'
+        : node.unlocked ? tierColor : 'rgba(60, 60, 60, 0.5)';
+      card.background = isRecentlyUnlocked
+        ? 'rgba(46, 204, 113, 0.2)'
+        : node.unlocked
+          ? `rgba(${this.hexToRgb(tierColor)}, 0.15)`
+          : 'rgba(20, 20, 25, 0.6)';
+    });
+
+    // Click to expand/collapse
+    card.onPointerUpObservable.add(() => {
+      this.expandedNodeId = this.expandedNodeId === node.id ? null : node.id;
+      this.onNodeSelected?.(node);
+      this.refreshContent();
+    });
+    card.isPointerBlocker = true;
 
     // Icon
     const icon = new GUI.TextBlock(`skillIcon_${node.id}`);
@@ -224,8 +410,26 @@ export class BabylonSkillTreePanel {
     icon.fontSize = 20;
     icon.width = '30px';
     icon.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    icon.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+    icon.top = '12px';
     icon.left = '8px';
     card.addControl(icon);
+
+    // "NEW" badge for recently unlocked
+    if (isRecentlyUnlocked) {
+      const newBadge = new GUI.TextBlock(`skillNew_${node.id}`);
+      newBadge.text = 'NEW';
+      newBadge.fontSize = 8;
+      newBadge.fontWeight = 'bold';
+      newBadge.color = '#2ecc71';
+      newBadge.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+      newBadge.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+      newBadge.left = '10px';
+      newBadge.top = '2px';
+      newBadge.height = '10px';
+      newBadge.width = '24px';
+      card.addControl(newBadge);
+    }
 
     // Name
     const nameText = new GUI.TextBlock(`skillName_${node.id}`);
@@ -290,19 +494,64 @@ export class BabylonSkillTreePanel {
       pctText.width = '30px';
       card.addControl(pctText);
     } else {
-      // Unlocked checkmark
       const check = new GUI.TextBlock(`skillCheck_${node.id}`);
       check.text = '✓';
       check.fontSize = 18;
       check.fontWeight = 'bold';
       check.color = '#2ecc71';
       check.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      check.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+      check.top = '12px';
       check.left = '-12px';
       check.width = '30px';
       card.addControl(check);
     }
 
+    // Expanded detail section
+    if (isExpanded) {
+      const detailBg = new GUI.Rectangle(`skillDetail_${node.id}`);
+      detailBg.width = '410px';
+      detailBg.height = '32px';
+      detailBg.cornerRadius = 4;
+      detailBg.background = 'rgba(0, 0, 0, 0.3)';
+      detailBg.thickness = 0;
+      detailBg.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+      detailBg.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+      detailBg.top = '-6px';
+      card.addControl(detailBg);
+
+      const condLabel = CONDITION_LABELS[node.condition.type] || node.condition.type;
+      const currentValue = this.getStatForCondition(node.condition.type);
+      const detailText = new GUI.TextBlock(`skillDetailText_${node.id}`);
+
+      if (node.unlocked) {
+        detailText.text = `${condLabel}: ${currentValue}/${node.condition.threshold} (Complete!)`;
+        detailText.color = '#2ecc71';
+      } else {
+        detailText.text = `${condLabel}: ${currentValue}/${node.condition.threshold} needed`;
+        detailText.color = 'rgba(180, 180, 180, 0.9)';
+      }
+      detailText.fontSize = 11;
+      detailText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+      detailText.left = '10px';
+      detailBg.addControl(detailText);
+    }
+
     return card;
+  }
+
+  private getStatForCondition(conditionType: string): number {
+    const map: Record<string, number> = {
+      words_learned: this.currentStats.wordsLearned,
+      words_mastered: this.currentStats.wordsMastered,
+      conversations: this.currentStats.conversations,
+      grammar_patterns: this.currentStats.grammarPatterns,
+      target_language_pct: this.currentStats.avgTargetLanguagePct,
+      fluency: this.currentStats.fluency,
+      sustained_turns: this.currentStats.maxSustainedTurns,
+      quest_count: this.currentStats.questsCompleted,
+    };
+    return map[conditionType] ?? 0;
   }
 
   private hexToRgb(hex: string): string {
@@ -315,8 +564,10 @@ export class BabylonSkillTreePanel {
   // --- Public API ---
 
   public updateStats(stats: SkillTreeStats): void {
+    this.currentStats = { ...stats };
     const newlyUnlocked = updateSkillProgress(this.state, stats);
     for (const node of newlyUnlocked) {
+      this.recentlyUnlockedIds.add(node.id);
       this.onSkillUnlocked?.(node);
     }
     if (this.isVisible) {
@@ -347,8 +598,16 @@ export class BabylonSkillTreePanel {
 
   public getState(): SkillTreeState { return { nodes: this.state.nodes.map(n => ({ ...n })) }; }
 
+  public getExpandedNodeId(): string | null { return this.expandedNodeId; }
+
+  public clearRecentlyUnlocked(): void {
+    this.recentlyUnlockedIds.clear();
+    if (this.isVisible) this.refreshContent();
+  }
+
   public setOnClose(cb: () => void): void { this.onClose = cb; }
   public setOnSkillUnlocked(cb: (node: SkillNode) => void): void { this.onSkillUnlocked = cb; }
+  public setOnNodeSelected(cb: (node: SkillNode) => void): void { this.onNodeSelected = cb; }
 
   public exportState(): string { return JSON.stringify(this.state); }
 
