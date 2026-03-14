@@ -11,6 +11,7 @@ import { buildWorldLanguageContext } from '@shared/language/language-utils';
 import { parseGrammarFeedbackBlock } from '@shared/language/language-progress';
 import { useSpeechRecognition } from '@/hooks/use-speech-recognition';
 import { processRecordedAudio } from '@/lib/audio-utils';
+import { fetchGreetingAudio } from '@/lib/greeting-audio-cache';
 
 export interface Character {
   id: string;
@@ -108,12 +109,35 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
 
       // Build greeting dynamically based on all language fluencies
       const greeting = buildGreeting(character, truths);
-      
+
       setMessages([{
         role: 'assistant',
         content: greeting,
         timestamp: new Date()
       }]);
+
+      // Precompute greeting audio so it's ready to play immediately
+      const voice = character.gender === 'female' ? 'Kore' : 'Charon';
+      const gender = character.gender || 'neutral';
+      let cancelled = false;
+      fetchGreetingAudio(character.id, greeting, voice, gender).then((blob) => {
+        if (blob && !cancelled) {
+          const audioUrl = URL.createObjectURL(blob);
+          const audio = new Audio(audioUrl);
+          audioRef.current = audio;
+          setIsSpeaking(true);
+          audio.onended = () => {
+            setIsSpeaking(false);
+            URL.revokeObjectURL(audioUrl);
+          };
+          audio.play().catch(() => {
+            setIsSpeaking(false);
+            URL.revokeObjectURL(audioUrl);
+          });
+        }
+      });
+
+      return () => { cancelled = true; };
     } else {
       setMessages([]);
       setInputText('');
