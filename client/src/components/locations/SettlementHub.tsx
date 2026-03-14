@@ -46,6 +46,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
   // All characters (for CharacterDetailView)
   const [allCharacters, setAllCharacters] = useState<Character[]>([]);
   const [truths, setTruths] = useState<any[]>([]);
+  const [waterFeatures, setWaterFeatures] = useState<any[]>([]);
 
   // Character sidebar
   const [selectedChar, setSelectedChar] = useState<Character | null>(null);
@@ -69,6 +70,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
     fetchAllSettlements();
     fetchAllCharacters();
     fetchTruths();
+    fetchWaterFeatures();
   }, [worldId]);
 
   useEffect(() => {
@@ -119,6 +121,13 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
       const res = await fetch(`/api/worlds/${worldId}/truths`);
       if (res.ok) setTruths(await res.json());
     } catch { setTruths([]); }
+  };
+
+  const fetchWaterFeatures = async () => {
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/water-features`);
+      if (res.ok) setWaterFeatures(await res.json());
+    } catch { setWaterFeatures([]); }
   };
 
   const fetchLots = async (id: string) => {
@@ -427,6 +436,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
         businesses={businesses}
         residences={residences}
         streets={selectedSettlement?.streets ?? []}
+        waterFeatures={waterFeatures}
         selectedCountryId={selectedCountry?.id}
         worldId={worldId}
         onSettlementClick={selectSettlement}

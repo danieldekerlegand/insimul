@@ -26,6 +26,7 @@ interface LocationMapPreviewProps {
   businesses?: any[];
   residences?: any[];
   streets?: StreetSegmentData[];
+  waterFeatures?: any[];
   selectedCountryId?: string | null;
   worldId?: string;
   worldName?: string;
@@ -77,6 +78,21 @@ const SETTLEMENT_SCALE: Record<string, number> = {
   town: 0.7,
   village: 0.45,
 };
+
+const WATER_COLORS: Record<string, { color: BABYLON.Color3; alpha: number }> = {
+  ocean: { color: new BABYLON.Color3(0.05, 0.2, 0.45), alpha: 0.8 },
+  lake: { color: new BABYLON.Color3(0.15, 0.35, 0.55), alpha: 0.75 },
+  river: { color: new BABYLON.Color3(0.15, 0.35, 0.55), alpha: 0.7 },
+  pond: { color: new BABYLON.Color3(0.12, 0.3, 0.42), alpha: 0.7 },
+  stream: { color: new BABYLON.Color3(0.18, 0.4, 0.58), alpha: 0.65 },
+  waterfall: { color: new BABYLON.Color3(0.6, 0.75, 0.9), alpha: 0.55 },
+  marsh: { color: new BABYLON.Color3(0.18, 0.28, 0.2), alpha: 0.85 },
+  canal: { color: new BABYLON.Color3(0.12, 0.32, 0.5), alpha: 0.72 },
+};
+
+function getWaterStyle(type: string): { color: BABYLON.Color3; alpha: number } {
+  return WATER_COLORS[type] ?? WATER_COLORS.lake;
+}
 
 function getTerrainColor(terrain: string | null): BABYLON.Color3 {
   return TERRAIN_COLORS[(terrain ?? 'plains').toLowerCase()] ?? TERRAIN_COLORS.plains;
@@ -130,6 +146,7 @@ export function LocationMapPreview({
   businesses = [],
   residences = [],
   streets = [],
+  waterFeatures = [],
   selectedCountryId,
   worldId,
   worldName = 'World',
@@ -191,18 +208,18 @@ export function LocationMapPreview({
 
     const buildScene = async () => {
       if (viewLevel === 'world') {
-        buildWorldView(scene, camera, advancedTexture, countries, settlements, pickableMap);
+        buildWorldView(scene, camera, advancedTexture, countries, settlements, pickableMap, waterFeatures);
       } else if (viewLevel === 'country') {
         const countrySettlements = selectedCountryId
           ? settlements.filter(s => s.countryId === selectedCountryId)
           : settlements;
         const country = countries.find(c => c.id === selectedCountryId);
-        buildCountryView(scene, camera, advancedTexture, countrySettlements, country, pickableMap);
+        buildCountryView(scene, camera, advancedTexture, countrySettlements, country, pickableMap, waterFeatures);
       } else {
         const onProgress = (loaded: number, total: number) => {
           if (!disposed) setLoadingProgress(`Loading models ${loaded}/${total}...`);
         };
-        await buildSettlementView(scene, camera, advancedTexture, lots, businesses, residences, streets, worldId, onProgress);
+        await buildSettlementView(scene, camera, advancedTexture, lots, businesses, residences, streets, worldId, onProgress, waterFeatures);
       }
 
       if (!disposed) {
@@ -246,7 +263,7 @@ export function LocationMapPreview({
       engine.dispose();
       engineRef.current = null;
     };
-  }, [viewLevel, countries, settlements, lots, businesses, residences, streets, selectedCountryId, worldId]);
+  }, [viewLevel, countries, settlements, lots, businesses, residences, streets, waterFeatures, selectedCountryId, worldId]);
 
   return (
     <div className={`relative bg-black rounded-b-lg overflow-hidden ${className}`}>
@@ -275,7 +292,8 @@ function buildWorldView(
   gui: GUI.AdvancedDynamicTexture,
   countries: any[],
   settlements: any[],
-  pickableMap: Map<string, { type: 'settlement' | 'country'; data: any }>
+  pickableMap: Map<string, { type: 'settlement' | 'country'; data: any }>,
+  waterFeatures: any[] = []
 ) {
   // Ground plane
   const ground = BABYLON.MeshBuilder.CreateGround('ground', { width: 60, height: 60 }, scene);
@@ -347,6 +365,9 @@ function buildWorldView(
     });
   });
 
+  // Water features at world scale
+  renderWaterFeatures(scene, gui, waterFeatures, radius * 2, 'world');
+
   camera.target = BABYLON.Vector3.Zero();
   camera.radius = Math.max(radius + 12, 20);
 }
@@ -359,7 +380,8 @@ function buildCountryView(
   gui: GUI.AdvancedDynamicTexture,
   settlements: any[],
   country: any,
-  pickableMap: Map<string, { type: 'settlement' | 'country'; data: any }>
+  pickableMap: Map<string, { type: 'settlement' | 'country'; data: any }>,
+  waterFeatures: any[] = []
 ) {
   const terrain = country?.terrain ?? 'plains';
   const groundCol = getGroundColor(terrain);
@@ -424,6 +446,9 @@ function buildCountryView(
     pickableMap.set(marker.id, { type: 'settlement', data: s });
     addLabel(gui, marker, s.name, 12, '#FFF', 0);
   });
+
+  // Water features at country scale
+  renderWaterFeatures(scene, gui, waterFeatures, radius * 2, 'country');
 
   camera.target = BABYLON.Vector3.Zero();
   camera.radius = Math.max(radius + 8, 12);
@@ -710,7 +735,8 @@ async function buildSettlementView(
   residences: any[],
   streets: StreetSegmentData[],
   worldId?: string,
-  onProgress?: (loaded: number, total: number) => void
+  onProgress?: (loaded: number, total: number) => void,
+  waterFeatures: any[] = []
 ) {
   // Ground plane
   const ground = BABYLON.MeshBuilder.CreateGround('ground', { width: 30, height: 30 }, scene);
@@ -860,13 +886,18 @@ async function buildSettlementView(
     addLabel(gui, anchor, 'No lots or buildings', 14, '#888', 0);
   }
 
-  camera.target = BABYLON.Vector3.Zero();
   // Scale camera to fit layout bounds
   let maxDist = 8;
   positions.forEach(pos => {
     const d = Math.sqrt(pos.x * pos.x + pos.z * pos.z);
     if (d > maxDist) maxDist = d;
   });
+
+  // Water features at settlement scale
+  const extent = Math.max(maxDist, 8);
+  renderWaterFeatures(scene, gui, waterFeatures, extent, 'settlement');
+
+  camera.target = BABYLON.Vector3.Zero();
   camera.radius = maxDist * 1.5;
 }
 
@@ -996,6 +1027,180 @@ function renderStreetNetwork(
     labelAnchor.isPickable = false;
     addLabel(gui, labelAnchor, seg.name, 8, '#E8E8D0', 0);
   });
+}
+
+// ─── Water Feature Rendering ─────────────────────────────────────────────────
+
+function renderWaterFeatures(
+  scene: BABYLON.Scene,
+  gui: GUI.AdvancedDynamicTexture,
+  waterFeatures: any[],
+  mapExtent: number,
+  viewLevel: ViewLevel
+) {
+  if (!waterFeatures.length) return;
+
+  for (const wf of waterFeatures) {
+    const type: string = wf.type ?? 'lake';
+    const style = getWaterStyle(type);
+    const pos = wf.position ?? { x: 0, y: 0, z: 0 };
+
+    // Use custom color if provided
+    const color = wf.color
+      ? new BABYLON.Color3(wf.color.r, wf.color.g, wf.color.b)
+      : style.color;
+    const alpha = wf.transparency != null ? 1 - wf.transparency : style.alpha;
+
+    if (type === 'river' || type === 'stream' || type === 'canal') {
+      renderLinearWaterPreview(scene, gui, wf, color, alpha, mapExtent, viewLevel);
+    } else {
+      renderAreaWaterPreview(scene, gui, wf, color, alpha, mapExtent, viewLevel);
+    }
+  }
+}
+
+function renderLinearWaterPreview(
+  scene: BABYLON.Scene,
+  gui: GUI.AdvancedDynamicTexture,
+  wf: any,
+  color: BABYLON.Color3,
+  alpha: number,
+  mapExtent: number,
+  viewLevel: ViewLevel
+) {
+  const points: { x: number; y: number; z: number }[] = wf.shorelinePoints ?? [];
+  if (points.length < 2) return;
+
+  // Scale positions to fit the preview map extent
+  const scale = viewLevel === 'world' ? mapExtent / 100 : mapExtent / 60;
+  const halfWidth = Math.max(0.15, ((wf.width ?? 4) / 2) * scale * 0.1);
+
+  const leftPath: BABYLON.Vector3[] = [];
+  const rightPath: BABYLON.Vector3[] = [];
+
+  for (let i = 0; i < points.length; i++) {
+    const pt = points[i];
+    let dirX: number, dirZ: number;
+    if (i < points.length - 1) {
+      dirX = points[i + 1].x - pt.x;
+      dirZ = points[i + 1].z - pt.z;
+    } else {
+      dirX = pt.x - points[i - 1].x;
+      dirZ = pt.z - points[i - 1].z;
+    }
+    const len = Math.sqrt(dirX * dirX + dirZ * dirZ);
+    if (len < 0.001) continue;
+    dirX /= len;
+    dirZ /= len;
+
+    const px = pt.x * scale;
+    const pz = pt.z * scale;
+    const perpX = -dirZ * halfWidth;
+    const perpZ = dirX * halfWidth;
+
+    leftPath.push(new BABYLON.Vector3(px + perpX, 0.05, pz + perpZ));
+    rightPath.push(new BABYLON.Vector3(px - perpX, 0.05, pz - perpZ));
+  }
+
+  if (leftPath.length < 2) return;
+
+  try {
+    const mesh = BABYLON.MeshBuilder.CreateRibbon(
+      `water_preview_${wf.id ?? wf.name}`,
+      {
+        pathArray: [leftPath, rightPath],
+        closeArray: false,
+        closePath: false,
+        sideOrientation: BABYLON.Mesh.DOUBLESIDE,
+      },
+      scene
+    );
+    const mat = new BABYLON.StandardMaterial(`waterMat_${wf.id ?? wf.name}`, scene);
+    mat.diffuseColor = color;
+    mat.emissiveColor = color.scale(0.3);
+    mat.specularColor = new BABYLON.Color3(0.3, 0.3, 0.4);
+    mat.alpha = alpha;
+    mat.backFaceCulling = false;
+    mesh.material = mat;
+    mesh.isPickable = false;
+
+    // Label at midpoint
+    const mid = points[Math.floor(points.length / 2)];
+    const labelAnchor = BABYLON.MeshBuilder.CreateBox(`wLabel_${wf.id}`, { size: 0.01 }, scene);
+    labelAnchor.position = new BABYLON.Vector3(mid.x * scale, 0.5, mid.z * scale);
+    labelAnchor.isVisible = false;
+    labelAnchor.isPickable = false;
+    addLabel(gui, labelAnchor, wf.name, 9, '#8BE9FD', 10);
+  } catch {
+    // Ribbon creation can fail with degenerate paths
+  }
+}
+
+function renderAreaWaterPreview(
+  scene: BABYLON.Scene,
+  gui: GUI.AdvancedDynamicTexture,
+  wf: any,
+  color: BABYLON.Color3,
+  alpha: number,
+  mapExtent: number,
+  viewLevel: ViewLevel
+) {
+  const pos = wf.position ?? { x: 0, y: 0, z: 0 };
+  const scale = viewLevel === 'world' ? mapExtent / 100 : mapExtent / 60;
+  const type: string = wf.type ?? 'lake';
+
+  // Determine radius from bounds or width
+  let radius: number;
+  if (wf.bounds && wf.bounds.maxX !== wf.bounds.minX) {
+    const boundsW = wf.bounds.maxX - wf.bounds.minX;
+    const boundsD = wf.bounds.maxZ - wf.bounds.minZ;
+    radius = Math.max(0.5, Math.max(boundsW, boundsD) / 2 * scale * 0.1);
+  } else {
+    radius = Math.max(0.5, (wf.width ?? 10) * scale * 0.05);
+  }
+
+  // Ocean gets a large ground plane
+  if (type === 'ocean') {
+    const size = Math.max(radius * 3, mapExtent * 0.4);
+    const mesh = BABYLON.MeshBuilder.CreateGround(
+      `water_preview_${wf.id ?? wf.name}`,
+      { width: size, height: size, subdivisions: 1 },
+      scene
+    );
+    mesh.position = new BABYLON.Vector3(pos.x * scale, 0.03, pos.z * scale);
+    const mat = new BABYLON.StandardMaterial(`waterMat_${wf.id ?? wf.name}`, scene);
+    mat.diffuseColor = color;
+    mat.emissiveColor = color.scale(0.3);
+    mat.specularColor = new BABYLON.Color3(0.3, 0.3, 0.4);
+    mat.alpha = alpha;
+    mesh.material = mat;
+    mesh.isPickable = false;
+  } else {
+    // Lake, pond, marsh as discs
+    const tessellation = type === 'marsh' ? 8 : 20;
+    const disc = BABYLON.MeshBuilder.CreateDisc(
+      `water_preview_${wf.id ?? wf.name}`,
+      { radius, tessellation },
+      scene
+    );
+    disc.rotation.x = Math.PI / 2;
+    disc.position = new BABYLON.Vector3(pos.x * scale, 0.04, pos.z * scale);
+    const mat = new BABYLON.StandardMaterial(`waterMat_${wf.id ?? wf.name}`, scene);
+    mat.diffuseColor = color;
+    mat.emissiveColor = color.scale(0.3);
+    mat.specularColor = new BABYLON.Color3(0.3, 0.3, 0.4);
+    mat.alpha = alpha;
+    mat.backFaceCulling = false;
+    disc.material = mat;
+    disc.isPickable = false;
+  }
+
+  // Label
+  const labelAnchor = BABYLON.MeshBuilder.CreateBox(`wLabel_${wf.id}`, { size: 0.01 }, scene);
+  labelAnchor.position = new BABYLON.Vector3(pos.x * scale, 0.5, pos.z * scale);
+  labelAnchor.isVisible = false;
+  labelAnchor.isPickable = false;
+  addLabel(gui, labelAnchor, wf.name, 9, '#8BE9FD', 10);
 }
 
 // ─── Label Helper ────────────────────────────────────────────────────────────

@@ -1000,6 +1000,32 @@ const TerrainFeatureSchema = new Schema({
 });
 TerrainFeatureSchema.index({ worldId: 1 });
 
+const WaterFeatureSchema = new Schema({
+  worldId: { type: String, required: true },
+  settlementId: { type: String, default: null },
+  type: { type: String, required: true }, // river, lake, ocean, pond, stream, waterfall, marsh, canal
+  subType: { type: String, default: 'fresh' },
+  name: { type: String, required: true },
+  position: { type: Schema.Types.Mixed, default: { x: 0, y: 0, z: 0 } },
+  waterLevel: { type: Number, default: 0 },
+  bounds: { type: Schema.Types.Mixed, default: { minX: 0, maxX: 0, minZ: 0, maxZ: 0, centerX: 0, centerZ: 0 } },
+  depth: { type: Number, default: 2 },
+  width: { type: Number, default: 10 },
+  flowDirection: { type: Schema.Types.Mixed, default: null },
+  flowSpeed: { type: Number, default: 0 },
+  shorelinePoints: { type: Schema.Types.Mixed, default: [] },
+  biome: { type: String, default: null },
+  isNavigable: { type: Boolean, default: true },
+  isDrinkable: { type: Boolean, default: true },
+  modelAssetKey: { type: String, default: null },
+  color: { type: Schema.Types.Mixed, default: null },
+  transparency: { type: Number, default: 0.3 },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+WaterFeatureSchema.index({ worldId: 1 });
+WaterFeatureSchema.index({ settlementId: 1 });
+
 const AssessmentSessionSchema = new Schema({
   playerId: { type: String, required: true },
   worldId: { type: String, required: true },
@@ -1062,6 +1088,7 @@ const TechnicalTelemetryModel = mongoose.model('TechnicalTelemetry', TechnicalTe
 const EngagementEventModel = mongoose.model('EngagementEvent', EngagementEventSchema, 'engagementevents');
 const ApiKeyModel = mongoose.model('ApiKey', ApiKeySchema, 'apikeys');
 const TerrainFeatureModel = mongoose.model('TerrainFeature', TerrainFeatureSchema);
+const WaterFeatureModel = mongoose.model('WaterFeature', WaterFeatureSchema);
 
 function docToAssessmentSession(doc: any): AssessmentSession {
   const obj = doc.toObject ? doc.toObject() : doc;
@@ -3166,6 +3193,48 @@ export class MongoStorage implements IStorage {
   async deleteTerrainFeature(id: string): Promise<boolean> {
     await this.connect();
     const result = await TerrainFeatureModel.findByIdAndDelete(id);
+    return !!result;
+  }
+
+  // ============= WATER FEATURES =============
+
+  async getWaterFeature(id: string): Promise<any | undefined> {
+    await this.connect();
+    const doc = await WaterFeatureModel.findById(id);
+    return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
+  }
+
+  async getWaterFeaturesByWorld(worldId: string): Promise<any[]> {
+    await this.connect();
+    const docs = await WaterFeatureModel.find({ worldId });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  async getWaterFeaturesBySettlement(settlementId: string): Promise<any[]> {
+    await this.connect();
+    const docs = await WaterFeatureModel.find({ settlementId });
+    return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
+  }
+
+  async createWaterFeature(feature: any): Promise<any> {
+    await this.connect();
+    const doc = await WaterFeatureModel.create(feature);
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  async updateWaterFeature(id: string, feature: any): Promise<any | undefined> {
+    await this.connect();
+    const doc = await WaterFeatureModel.findByIdAndUpdate(
+      id,
+      { $set: { ...feature, updatedAt: new Date() } },
+      { new: true }
+    );
+    return doc ? { id: doc._id.toString(), ...doc.toObject() } : undefined;
+  }
+
+  async deleteWaterFeature(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await WaterFeatureModel.findByIdAndDelete(id);
     return !!result;
   }
 
