@@ -782,11 +782,16 @@ export async function generateWorldIR(
         elevation: lot.elevation || 0,
         buildingType: lot.buildingType || null,
         buildingId: lot.buildingId || null,
+        lotWidth: lot.lotWidth ?? 12,
+        lotDepth: lot.lotDepth ?? 16,
         streetEdgeId: lot.streetEdgeId || null,
-        side: lot.side || null,
+        distanceAlongStreet: lot.distanceAlongStreet ?? 0,
+        side: lot.side === 'right' ? 'right' as const : 'left' as const,
+        blockId: lot.blockId || null,
         neighboringLotIds: (lot.neighboringLotIds as string[]) || [],
         distanceFromDowntown: lot.distanceFromDowntown || 0,
         formerBuildingIds: (lot.formerBuildingIds as string[]) || [],
+        foundationType: lot.foundationType || 'flat',
       };
     });
 
@@ -1248,6 +1253,7 @@ export async function generateWorldIR(
 
     geography: {
       terrainSize,
+      terrainFeatures: [],
       countries: countryIRs,
       states: stateIRs,
       settlements: settlementIRs,

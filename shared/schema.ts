@@ -368,6 +368,7 @@ export const settlements = pgTable("settlements", {
   
   // Settlement type and characteristics
   settlementType: text("settlement_type").notNull(), // city, town, village
+  settlementSubtype: text("settlement_subtype").default("standard"), // port_city, mountain_village, etc.
   terrain: text("terrain"), // plains, hills, mountains, coast, river, forest, desert
   
   // Demographics and founding
@@ -405,6 +406,13 @@ export const settlements = pgTable("settlements", {
   previousStateIds: jsonb("previous_state_ids").$type<string[]>().default([]),
   annexationHistory: jsonb("annexation_history").$type<any[]>().default([]),
   
+  // Settlement boundary (terrain-aware polygon)
+  boundaryPolygon: jsonb("boundary_polygon").$type<{ x: number; z: number }[]>().default([]),
+
+  // Terrain data
+  elevation: integer("elevation").default(0),
+  slopeProfile: text("slope_profile"), // flat, gentle, moderate, steep, terraced
+
   // Generation config specific to this settlement
   generationConfig: jsonb("generation_config").$type<Record<string, any>>().default({}),
   
@@ -442,6 +450,26 @@ export const settlementHistoryEvents = pgTable("settlement_history_events", {
 export const insertSettlementHistoryEventSchema = createInsertSchema(settlementHistoryEvents).omit({
   id: true,
   createdAt: true,
+});
+
+// Terrain features - mountains, valleys, canyons, etc.
+export const terrainFeatures = pgTable("terrain_features", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worldId: varchar("world_id").notNull(),
+  name: text("name").notNull(),
+  featureType: text("feature_type").notNull(), // mountain, hill, valley, canyon, cliff, mesa, plateau, crater, ridge, pass
+  position: jsonb("position").$type<{ x: number; y: number; z: number }>().notNull(),
+  radius: integer("radius").notNull(),
+  elevation: integer("elevation").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertTerrainFeatureSchema = createInsertSchema(terrainFeatures).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
 });
 
 // Enhanced simulations - all execute using Insimul engine
@@ -806,9 +834,14 @@ export const lots = pgTable("lots", {
   facingAngle: real("facing_angle").default(0),
   elevation: real("elevation").default(0),
 
-  // Street placement metadata
-  streetEdgeId: varchar("street_edge_id"),
-  side: text("side"), // 'left' or 'right'
+  // Lot geometry & street alignment
+  lotWidth: integer("lot_width").default(12),
+  lotDepth: integer("lot_depth").default(16),
+  streetEdgeId: text("street_edge_id"),
+  distanceAlongStreet: integer("distance_along_street").default(0),
+  side: text("side").default("left"), // left or right of street
+  blockId: text("block_id"),
+  foundationType: text("foundation_type").default("flat"), // flat, raised, stilted, terraced
 
   // Spatial relationships
   neighboringLotIds: jsonb("neighboring_lot_ids").$type<string[]>().default([]),
@@ -952,6 +985,12 @@ export const insertStateSchema = createInsertSchema(states).omit({
 });
 
 export const insertSettlementSchema = createInsertSchema(settlements).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertTerrainFeatureSchema = createInsertSchema(terrainFeatures).omit({
   id: true,
   createdAt: true,
   updatedAt: true
@@ -1445,6 +1484,9 @@ export type InsertSettlement = z.infer<typeof insertSettlementSchema>;
 
 export type SettlementHistoryEvent = typeof settlementHistoryEvents.$inferSelect;
 export type InsertSettlementHistoryEvent = z.infer<typeof insertSettlementHistoryEventSchema>;
+
+export type TerrainFeature = typeof terrainFeatures.$inferSelect;
+export type InsertTerrainFeature = z.infer<typeof insertTerrainFeatureSchema>;
 
 export type Simulation = typeof simulations.$inferSelect;
 export type InsertSimulation = z.infer<typeof insertSimulationSchema>;

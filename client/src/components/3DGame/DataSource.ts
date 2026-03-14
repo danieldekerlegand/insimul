@@ -45,6 +45,7 @@ export interface DataSource {
   loadWorldItems(worldId: string): Promise<any[]>;
   saveGameState(worldId: string, playthroughId: string, slotIndex: number, state: any): Promise<void>;
   loadGameState(worldId: string, playthroughId: string, slotIndex: number): Promise<any | null>;
+  loadGeography(worldId: string): Promise<{ heightmap?: number[][]; terrainSize?: number } | null>;
 }
 
 /**
@@ -232,6 +233,17 @@ export class ApiDataSource implements DataSource {
     if (!res.ok) return null;
     const data = await res.json();
     return data.state || null;
+  }
+
+  async loadGeography(worldId: string): Promise<{ heightmap?: number[][]; terrainSize?: number } | null> {
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/geography`, { headers: this.getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        return data || null;
+      }
+    } catch { /* Geography not available */ }
+    return null;
   }
 }
 
@@ -601,6 +613,13 @@ export class FileDataSource implements DataSource {
     } catch {
       return null;
     }
+  }
+
+  async loadGeography(worldId: string): Promise<{ heightmap?: number[][]; terrainSize?: number } | null> {
+    await this.waitForData();
+    const geo = this.worldData?.geography;
+    if (!geo) return null;
+    return { heightmap: geo.heightmap, terrainSize: geo.terrainSize };
   }
 }
 

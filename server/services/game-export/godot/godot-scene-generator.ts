@@ -121,6 +121,9 @@ function generateSceneDescriptor(ir: WorldIR): object {
 
     terrain: {
       size: ir.geography.terrainSize,
+      heightmap: ir.geography.heightmap ?? null,
+      slopeMap: ir.geography.slopeMap ?? null,
+      terrainFeatures: ir.geography.terrainFeatures,
       groundColor: [v.groundColor.r, v.groundColor.g, v.groundColor.b],
     },
 

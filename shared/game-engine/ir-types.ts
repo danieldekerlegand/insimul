@@ -96,10 +96,24 @@ export interface GeographyIR {
   terrainSize: number;
   /** Optional heightmap as row-major 2D array of normalised heights [0,1] */
   heightmap?: number[][];
+  /** Optional slope map derived from heightmap (gradient magnitudes) */
+  slopeMap?: number[][];
+  /** Terrain features (mountains, valleys, canyons, etc.) */
+  terrainFeatures: TerrainFeatureIR[];
   countries: CountryIR[];
   states: StateIR[];
   settlements: SettlementIR[];
   waterFeatures: WaterFeatureIR[];
+}
+
+export interface TerrainFeatureIR {
+  id: string;
+  name: string;
+  featureType: 'mountain' | 'hill' | 'valley' | 'canyon' | 'cliff' | 'mesa' | 'plateau' | 'crater' | 'ridge' | 'pass';
+  position: Vec3;
+  radius: number;
+  elevation: number;
+  description: string | null;
 }
 
 export interface CountryIR {
@@ -171,8 +185,8 @@ export interface SettlementIR {
   internalRoads: RoadIR[];
   /** Infrastructure built in this settlement */
   infrastructure: InfrastructureItemIR[];
-  /** Full street network topology with named streets and intersections */
-  streetNetwork: StreetNetworkIR;
+  /** Street network graph (optional; settlements without procgen use internalRoads) */
+  streetNetwork?: StreetNetworkIR;
 }
 
 /** A single built infrastructure item in a settlement. */
@@ -200,10 +214,15 @@ export interface LotIR {
   elevation: number;
   buildingType: string | null;
   buildingId: string | null;
+  lotWidth: number;
+  lotDepth: number;
   /** Street edge this lot is placed along */
   streetEdgeId: string | null;
-  /** Which side of the street: 'left' or 'right' */
-  side: string | null;
+  distanceAlongStreet: number;
+  /** Which side of the street */
+  side: 'left' | 'right';
+  blockId: string | null;
+  foundationType: 'flat' | 'raised' | 'stilted' | 'terraced';
   /** IDs of adjacent lots */
   neighboringLotIds: string[];
   /** Distance from settlement center (downtown) */
@@ -354,6 +373,45 @@ export interface BusinessIR {
   lotId: string | null;
   vacancies: { day: string[]; night: string[] };
   businessData: Record<string, any>;
+}
+
+// ─── Street Network IR ──────────────────────────────────────────────────────
+
+export interface StreetNodeIR {
+  id: string;
+  position: { x: number; z: number };
+  elevation: number;
+  type: 'intersection' | 'dead_end' | 'T_junction' | 'curve_point';
+}
+
+export interface StreetEdgeIR {
+  id: string;
+  name: string;
+  fromNodeId: string;
+  toNodeId: string;
+  streetType: 'main_road' | 'avenue' | 'residential' | 'alley' | 'lane' | 'boulevard' | 'highway';
+  width: number;
+  waypoints: Vec3[];
+  length: number;
+  condition: number;
+  traffic: number;
+  sidewalks: boolean;
+  hasStreetLights: boolean;
+}
+
+export interface StreetNetworkIR {
+  nodes: StreetNodeIR[];
+  edges: StreetEdgeIR[];
+}
+
+/** IR representation of a city block */
+export interface BlockIR {
+  id: string;
+  boundaryStreetIds: string[];
+  polygon: { x: number; z: number }[];
+  districtId: string;
+  blockNumber: number;
+  center: Vec3;
 }
 
 export interface RoadIR {

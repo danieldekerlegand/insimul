@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
+#include "GameTypes.h"
 #include "InfrastructureData.h"
 #include "SettlementData.generated.h"
 

@@ -217,6 +217,10 @@ func load_prolog_knowledge_base() -> String:
 func load_prolog_content() -> String:
 	return load_prolog_knowledge_base()
 
+## Load geography data (heightmap, terrain features). Returns empty dict if not found.
+func load_geography() -> Dictionary:
+	return _load_json("geography.json")
+
 # ── Save / Load ───────────────────────────────────────────────
 
 ## Save game state dictionary to a numbered slot (0-2).

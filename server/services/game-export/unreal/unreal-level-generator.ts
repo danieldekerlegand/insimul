@@ -41,6 +41,9 @@ interface TerrainDesc {
   sizeUnreal: number; // cm
   groundColorLinear: [number, number, number];
   material: string | null;
+  heightmap: number[][] | null;
+  slopeMap: number[][] | null;
+  terrainFeatures: any[];
 }
 
 interface LightingDesc {
@@ -118,6 +121,9 @@ function buildLevelDescriptor(ir: WorldIR): LevelDescriptor {
       sizeUnreal: ir.geography.terrainSize * 100,
       groundColorLinear: [v.groundColor.r, v.groundColor.g, v.groundColor.b],
       material: null,
+      heightmap: ir.geography.heightmap ?? null,
+      slopeMap: ir.geography.slopeMap ?? null,
+      terrainFeatures: ir.geography.terrainFeatures,
     },
 
     lighting: {

@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-14T22:45:09.300Z",
+  "lastUpdated": "2026-03-14T23:05:21.546Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -316,7 +316,7 @@
     {
       "path": "client/src/components/3DGame/DataSource.ts",
       "description": "Data loading abstraction: ApiDataSource (in-app) and FileDataSource (exports). FileDataSource defines the contract for how exported games load JSON/Prolog data.",
-      "hash": "5a2f0a3c4dbd68b39479ad5e7530f7d173b743d15f5e98a2db18f929abe2d299",
+      "hash": "fb287a0018de53a25dbcd63573dd09d371319e113c92d41d12eb5c7dbb37ece7",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -343,7 +343,7 @@
     {
       "path": "shared/game-engine/ir-types.ts",
       "description": "WorldIR intermediate representation: the single source of truth consumed by all 4 engine generators. New IR fields not reflected in generators cause silent data loss.",
-      "hash": "f088434bf549032001dc5bbe45da17e97452466fceab28b463075a93ed64b8a1",
+      "hash": "0f0c5ee11ccc6c40f4be5ace2865bc67456121579e7652f35c49d126ac2cd763",
       "engineMappings": [
         {
           "engine": "babylon",
@@ -370,7 +370,7 @@
     {
       "path": "shared/game-engine/types.ts",
       "description": "Engine-agnostic type primitives (InventoryItem, LootTableEntry, Action, Rule, etc.) shared across in-app and export systems.",
-      "hash": "d2ddd05bcb9154992ee439cc50bdda0699d13c0ca605a7b962e47c6281dd7603",
+      "hash": "5fb3d37bbdc7ce8f48a3cb384228e8b190026e4f90f9662348301cc6385865a9",
       "engineMappings": [
         {
           "engine": "unreal",

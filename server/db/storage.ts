@@ -38,7 +38,9 @@ import {
   type GenerationJob,
   type InsertGenerationJob,
   type Item,
-  type InsertItem
+  type InsertItem,
+  type TerrainFeature,
+  type InsertTerrainFeature
 } from "@shared/schema";
 import type {
   WorldLanguage,
@@ -316,6 +318,13 @@ export interface IStorage {
     cefrDistribution: Record<string, number>;
     scoreDistribution: { bucket: string; count: number }[];
   }>;
+
+  // Terrain Features
+  getTerrainFeature(id: string): Promise<TerrainFeature | undefined>;
+  getTerrainFeaturesByWorld(worldId: string): Promise<TerrainFeature[]>;
+  createTerrainFeature(feature: InsertTerrainFeature): Promise<TerrainFeature>;
+  updateTerrainFeature(id: string, feature: Partial<InsertTerrainFeature>): Promise<TerrainFeature | undefined>;
+  deleteTerrainFeature(id: string): Promise<boolean>;
 }
 
 // Export MongoStorage as the default storage implementation

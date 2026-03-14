@@ -150,7 +150,7 @@ function generateSettlements(ir: WorldIR): object[] {
       distanceFromDowntown: l.distanceFromDowntown,
       formerBuildingIds: l.formerBuildingIds,
     })),
-    streetNetwork: {
+    streetNetwork: s.streetNetwork ? {
       layout: s.streetNetwork.layout,
       nodes: s.streetNetwork.nodes.map(n => ({
         id: n.id,
@@ -165,7 +165,7 @@ function generateSettlements(ir: WorldIR): object[] {
         waypoints: seg.waypoints.map(w => ({ x: w.x, y: w.y, z: w.z })),
         width: seg.width,
       })),
-    },
+    } : null,
   }));
 }
 

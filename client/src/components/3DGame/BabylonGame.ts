@@ -65,6 +65,7 @@ import { BabylonMinimap } from "@/components/3DGame/BabylonMinimap.ts";
 import { FullscreenMap } from "@/components/3DGame/FullscreenMap.ts";
 import { generateTerrainCanvas } from "@/components/3DGame/MinimapTerrainRenderer.ts";
 import { BabylonInventory, InventoryItem } from "@/components/3DGame/BabylonInventory.ts";
+import { TerrainRenderer } from "@/components/3DGame/TerrainRenderer.ts";
 import { BabylonShopPanel, ShopTransaction } from "@/components/3DGame/BabylonShopPanel.ts";
 import { BabylonRulesPanel, Rule } from "@/components/3DGame/BabylonRulesPanel.ts";
 import { RuleEnforcer, RuleViolation } from "@/components/3DGame/RuleEnforcer.ts";
@@ -179,6 +180,7 @@ interface SettlementSummary {
   settlementType?: string;
   terrain?: string;
   population?: number;
+  streets?: any; // StreetNetwork (graph) or Location[] (legacy)
 }
 
 interface WorldData {
@@ -465,6 +467,7 @@ export class BabylonGame {
   private config3D: any = {};
   private worldItems: any[] = [];
   private terrainSize: number = 512;
+  private terrainRenderer: TerrainRenderer = new TerrainRenderer();
   private actionInProgress: boolean = false;
   private isInCombat: boolean = false;
   private isVRMode: boolean = false;
@@ -2104,9 +2107,47 @@ export class BabylonGame {
       console.log(`World size: ${optimalSize} (${countries.length} countries, ${states.length} states, ${settlements.length} settlements)`);
       this.rescaleGround();
 
+      // Try to upgrade flat ground to terrain mesh if heightmap data available
+      await this.tryApplyTerrainHeightmap();
+
     } catch (error) {
       console.error('Failed to load world data', error);
       throw error;
+    }
+  }
+
+  /**
+   * Attempt to load geography heightmap data and replace the flat ground
+   * with a terrain mesh. Falls back to existing flat ground if no data.
+   */
+  private async tryApplyTerrainHeightmap(): Promise<void> {
+    if (!this.scene) return;
+    try {
+      const geo = await this.dataSource.loadGeography(this.config.worldId);
+      if (!geo?.heightmap || geo.heightmap.length < 2) return;
+
+      const size = geo.terrainSize || this.terrainSize;
+
+      // Remove existing flat ground
+      const oldGround = this.scene.getMeshByName("ground");
+      if (oldGround) {
+        oldGround.dispose();
+      }
+
+      // Create terrain mesh from heightmap data
+      const terrain = this.terrainRenderer.createTerrainMesh(
+        geo.heightmap,
+        size,
+        this.scene,
+      );
+
+      // Rename to "ground" so existing systems (projectToGround, etc.) find it
+      terrain.name = "ground";
+      terrain.metadata = { ...(terrain.metadata || {}), terrainSize: size };
+
+      console.log(`[BabylonGame] Terrain mesh applied from heightmap (${geo.heightmap.length}x${geo.heightmap[0].length})`);
+    } catch (err) {
+      console.warn('[BabylonGame] Terrain heightmap not available, keeping flat ground:', err);
     }
   }
 
@@ -2912,27 +2953,40 @@ export class BabylonGame {
 
         // Generate intra-settlement streets using street network topology
         if (this.roadGenerator) {
-          const streetNetwork = buildStreetNetwork(
-            {
-              settlementId: settlement.id,
-              centerX: settlementCenterForProps.x,
-              centerZ: settlementCenterForProps.z,
-              radius: scaledSettlement.radius,
-              population: scaledSettlement.population,
-              settlementType: settlement.settlementType || scaledSettlement.settlementType || 'town',
-              streetNames: (settlement.streets || []).map((s: any) => s.name).filter(Boolean),
-            },
-            (settlement as any).streetNetwork ?? null
-          );
-          this.roadGenerator.generateSettlementStreets(
-            settlement.id,
-            streetNetwork,
-            sampleHeight
-          );
-          // Collect street segments for minimap overlay
-          for (const seg of streetNetwork.segments) {
-            if (seg.waypoints.length >= 2) {
-              this._minimapStreets.push({ waypoints: seg.waypoints, width: seg.width });
+          // Prefer street network graph if available (new procgen format)
+          if (
+            settlement.streets &&
+            !Array.isArray(settlement.streets) &&
+            settlement.streets.nodes &&
+            settlement.streets.edges
+          ) {
+            this.roadGenerator.generateStreetNetworkRoads(
+              settlement.streets,
+              sampleHeight
+            );
+          } else {
+            const streetNetwork = buildStreetNetwork(
+              {
+                settlementId: settlement.id,
+                centerX: settlementCenterForProps.x,
+                centerZ: settlementCenterForProps.z,
+                radius: scaledSettlement.radius,
+                population: scaledSettlement.population,
+                settlementType: settlement.settlementType || scaledSettlement.settlementType || 'town',
+                streetNames: (settlement.streets || []).map((s: any) => s.name).filter(Boolean),
+              },
+              (settlement as any).streetNetwork ?? null
+            );
+            this.roadGenerator.generateSettlementStreets(
+              settlement.id,
+              streetNetwork,
+              sampleHeight
+            );
+            // Collect street segments for minimap overlay
+            for (const seg of streetNetwork.segments) {
+              if (seg.waypoints.length >= 2) {
+                this._minimapStreets.push({ waypoints: seg.waypoints, width: seg.width });
+              }
             }
           }
         }
@@ -3460,7 +3514,7 @@ export class BabylonGame {
     });
 
     // Categorize all meshes
-    const globalNames = new Set(['ground', 'sky-dome', 'sky_dome', 'skybox', 'sunLight', 'hemisphericLight']);
+    const globalNames = new Set(['ground', 'terrain', 'sky-dome', 'sky_dome', 'skybox', 'sunLight', 'hemisphericLight']);
 
     for (const mesh of this.scene.meshes) {
       if (mesh.isDisposed()) continue;

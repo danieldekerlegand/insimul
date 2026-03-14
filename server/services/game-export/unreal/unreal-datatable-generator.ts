@@ -177,13 +177,13 @@ function generateSettlementsDT(ir: WorldIR): object[] {
       BuiltYear: inf.builtYear,
       Description: inf.description,
     })),
-    StreetNetworkLayout: s.streetNetwork.layout,
-    StreetNodes: s.streetNetwork.nodes.map(n => ({
+    StreetNetworkLayout: s.streetNetwork?.layout ?? '',
+    StreetNodes: (s.streetNetwork?.nodes || []).map(n => ({
       Id: n.id,
       Position: vec3Obj(n.position),
       IntersectionOf: n.intersectionOf,
     })),
-    StreetSegments: s.streetNetwork.segments.map(seg => ({
+    StreetSegments: (s.streetNetwork?.segments || []).map(seg => ({
       Id: seg.id,
       Name: seg.name,
       Direction: seg.direction,
@@ -191,7 +191,7 @@ function generateSettlementsDT(ir: WorldIR): object[] {
       Waypoints: seg.waypoints.map(w => vec3Obj(w)),
       Width: seg.width * 100, // scale to cm
     })),
-    Lots: s.lots.map(l => ({
+    Lots: (s.lots || []).map(l => ({
       Id: l.id,
       Address: l.address,
       HouseNumber: l.houseNumber,
