@@ -995,6 +995,12 @@ export class BabylonGame {
     this.guiManager.setOnNPCSelected((npcId) => this.setSelectedNPC(npcId));
     this.guiManager.setOnActionSelected((actionId) => this.handlePerformAction(actionId));
     this.guiManager.setOnPayFines(() => this.handlePayFines());
+    this.guiManager.setMinimapNavigateCallback((worldX, worldZ) => {
+      if (this.playerMesh) {
+        this.playerMesh.position.x = worldX;
+        this.playerMesh.position.z = worldZ;
+      }
+    });
 
     // Initialize unified game menu system (ESC to toggle)
     const menuCallbacks: GameMenuCallbacks = {
