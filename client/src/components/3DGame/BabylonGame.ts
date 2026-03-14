@@ -54,6 +54,7 @@ import { ProceduralBuildingGenerator, BuildingStyle } from "@/components/3DGame/
 import { ProceduralNatureGenerator, BiomeStyle } from "@/components/3DGame/ProceduralNatureGenerator.ts";
 import { RoadGenerator } from "@/components/3DGame/RoadGenerator.ts";
 import { RiverGenerator } from "@/components/3DGame/RiverGenerator.ts";
+import { WaterRenderer } from "@/components/3DGame/WaterRenderer.ts";
 import { buildStreetNetwork } from "@/components/3DGame/StreetNetworkLayout.ts";
 import { WorldScaleManager, ScaledSettlement } from "@/components/3DGame/WorldScaleManager.ts";
 import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay.ts";
@@ -349,6 +350,7 @@ export class BabylonGame {
   private natureGenerator: ProceduralNatureGenerator | null = null;
   private roadGenerator: RoadGenerator | null = null;
   private riverGenerator: RiverGenerator | null = null;
+  private waterRenderer: WaterRenderer | null = null;
   private worldScaleManager: WorldScaleManager | null = null;
   private buildingInfoDisplay: BuildingInfoDisplay | null = null;
   private minimap: BabylonMinimap | null = null;
@@ -1751,6 +1753,7 @@ export class BabylonGame {
     this.natureGenerator = new ProceduralNatureGenerator(scene);
     this.roadGenerator = new RoadGenerator(scene);
     this.riverGenerator = new RiverGenerator(scene);
+    this.waterRenderer = new WaterRenderer(scene);
     this.interiorGenerator = new BuildingInteriorGenerator(scene);
     this.worldScaleManager = new WorldScaleManager(512, this.config.worldId);
 
@@ -5259,6 +5262,11 @@ export class BabylonGame {
         this.audioManager.setListenerPosition(this.playerMesh.position);
       }
 
+      // Animate water surfaces
+      if (this.waterRenderer) {
+        this.waterRenderer.update(dt / 1000);
+      }
+
       // Update Prolog game state (every 500ms, aligned with ground snap timer)
       if (this._npcGroundSnapTimer === 0 && this.prologEngine && this.playerMesh) {
         const pPos = this.playerMesh.position;
@@ -8132,6 +8140,7 @@ export class BabylonGame {
     this.natureGenerator?.dispose();
     this.roadGenerator?.dispose();
     this.riverGenerator?.dispose();
+    this.waterRenderer?.dispose();
     this.worldScaleManager = null;
   }
 
