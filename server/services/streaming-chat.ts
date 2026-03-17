@@ -180,13 +180,11 @@ export async function processStreamWithTTS(
       }
     }
 
+    // Wait for all in-flight TTS to finish before closing
+    await Promise.all(ttsPromises);
+
     // Tell the client how many audio chunks to expect so it can stop waiting early
     sendSSE(JSON.stringify({ totalSentences: sentenceIndex }));
-
-    // Let remaining TTS finish in the background — audio is sent as chunks complete
-    Promise.all(ttsPromises).catch(err => {
-      console.error('[StreamingChat] Background TTS error:', err);
-    });
   }
 }
 

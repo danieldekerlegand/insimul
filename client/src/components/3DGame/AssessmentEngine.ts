@@ -1,51 +1,89 @@
 /**
- * AssessmentEngine — Interactive assessment adapter.
+ * AssessmentEngine — Interactive assessment orchestrator.
  *
- * Goes through 4 assessment phases (Conversational, Listening, Writing, Visual).
- * The conversational phase waits for the player to complete an NPC conversation.
- * Other phases show instructions and wait for a Continue button click (placeholder
- * until full task UIs are built).
+ * Runs through 4 assessment sections:
+ *   1. Reading — modal with passage + comprehension questions
+ *   2. Writing — modal with writing prompts
+ *   3. Listening — modal with TTS audio + comprehension questions
+ *   4. Conversation — in-game NPC quest
  *
- * Fires phase/instruction events so the UI layer can show overlays, and produces
- * an AssessmentResult with CEFR level on completion.
+ * Modal phases generate content via the server, display the AssessmentModalUI,
+ * then score answers via the server. The conversation phase waits for the
+ * player to complete an NPC conversation (detected via event bus).
+ *
+ * Fires callbacks so the UI layer can show overlays and track progress.
+ * Produces an AssessmentResult with CEFR level on completion.
  */
 
 import type { AssessmentResult } from './OnboardingLauncher';
 import type { GameEventBus } from './GameEventBus';
+import type { AssessmentModalConfig } from './AssessmentModalUI';
+import type { ContentTemplate, PhaseType } from '../../../shared/assessment/assessment-types';
 
-// Phase definitions derived from ARRIVAL_ENCOUNTER
+// Phase definitions matching the new encounter structure
 const ASSESSMENT_PHASES = [
   {
-    id: 'arrival_conversational',
-    name: 'Conversational Assessment',
-    maxScore: 25,
-    isConversational: true,
-    description: 'Walk up to a nearby NPC and have a conversation in the target language. Speak naturally — this measures your starting level.',
-  },
-  {
-    id: 'arrival_listening',
-    name: 'Listening Comprehension',
-    maxScore: 7,
-    isConversational: false,
-    description: 'Listen carefully to locals speaking the target language. Follow directions and answer comprehension questions.',
+    id: 'arrival_reading',
+    name: 'Reading Comprehension',
+    type: 'reading' as PhaseType,
+    maxScore: 15,
   },
   {
     id: 'arrival_writing',
     name: 'Writing Assessment',
-    maxScore: 11,
-    isConversational: false,
-    description: 'Complete a short writing task: fill out a visitor form and write a brief message in the target language.',
+    type: 'writing' as PhaseType,
+    maxScore: 15,
   },
   {
-    id: 'arrival_visual',
-    name: 'Visual Recognition',
-    maxScore: 10,
-    isConversational: false,
-    description: 'Read signs and identify labeled objects around the city in the target language.',
+    id: 'arrival_listening',
+    name: 'Listening Comprehension',
+    type: 'listening' as PhaseType,
+    maxScore: 13,
   },
-] as const;
+  {
+    id: 'arrival_conversation',
+    name: 'Conversation',
+    type: 'conversation' as PhaseType,
+    maxScore: 10,
+  },
+];
 
 const TOTAL_MAX_SCORE = ASSESSMENT_PHASES.reduce((sum, p) => sum + p.maxScore, 0);
+
+// Content templates for each phase (used to generate LLM content)
+const CONTENT_TEMPLATES: Record<string, ContentTemplate> = {
+  arrival_reading: {
+    topic: 'A visitor arriving in {{cityName}} for the first time — reading signs, navigating the train station, and finding their accommodation.',
+    difficulty: 'beginner',
+    lengthSentences: 5,
+    questionCount: 3,
+  },
+  arrival_writing: {
+    topic: 'Arriving in {{cityName}} — write a message to a friend about your arrival, and describe what you see around you.',
+    difficulty: 'beginner',
+    promptCount: 2,
+  },
+  arrival_listening: {
+    topic: 'A local resident giving a welcome announcement at the {{cityName}} visitor center — mentioning opening hours, nearby attractions, and local customs.',
+    difficulty: 'beginner',
+    lengthSentences: 5,
+    questionCount: 3,
+  },
+};
+
+interface GeneratedContent {
+  passage?: string;
+  questions?: Array<{ id: string; questionText: string; maxPoints: number }>;
+  writingPrompts?: string[];
+}
+
+interface ScoringResult {
+  totalScore: number;
+  maxScore: number;
+  questionScores?: Array<{ questionId: string; score: number; maxScore: number; rationale: string }>;
+  dimensionScores?: Record<string, { score: number; maxScore: number; rationale: string }>;
+  overallRationale: string;
+}
 
 export class AssessmentEngine {
   private authToken: string;
@@ -64,8 +102,11 @@ export class AssessmentEngine {
     onContinue: () => void;
   }) => void;
   private _onHideInstruction?: () => void;
+  private _onShowModal?: (config: AssessmentModalConfig) => void;
+  private _onHideModal?: () => void;
   private _aborted = false;
   private _phaseResolver: (() => void) | null = null;
+  private _modalAnswers: Record<string, string> | null = null;
   private _unsubscribeConversation: (() => void) | null = null;
 
   constructor(config: { authToken: string; targetLanguage: string; eventBus?: GameEventBus }) {
@@ -81,35 +122,31 @@ export class AssessmentEngine {
     targetLanguage: string;
   }): Promise<void> {
     console.log('[AssessmentEngine] Starting assessment —', config.assessmentType, 'for', config.targetLanguage);
+    this.targetLanguage = config.targetLanguage;
 
     let totalScore = 0;
-    const phaseScores: Array<{ phaseId: string; score: number; maxScore: number }> = [];
+    const dimensionScores: Record<string, number> = {};
 
     for (let i = 0; i < ASSESSMENT_PHASES.length; i++) {
       if (this._aborted) return;
 
       const phase = ASSESSMENT_PHASES[i];
-      console.log(`[AssessmentEngine] Phase ${i + 1}/${ASSESSMENT_PHASES.length}: ${phase.name}`);
+      console.log(`[AssessmentEngine] Section ${i + 1}/${ASSESSMENT_PHASES.length}: ${phase.name}`);
 
-      // Fire phase started event (0 duration = interactive, no countdown timer)
       this._onPhaseStarted?.(phase.id, i, 0);
 
-      // Show instruction overlay and wait for player action
-      if (phase.isConversational) {
-        await this._waitForConversation(phase, i);
+      let score = 0;
+
+      if (phase.type === 'conversation') {
+        score = await this._runConversationPhase(phase, i);
       } else {
-        await this._waitForContinue(phase, i);
+        score = await this._runModalPhase(phase, i);
       }
 
       if (this._aborted) return;
 
-      // Generate a baseline score — slightly randomized around 40-70% of max
-      const scorePct = 0.35 + Math.random() * 0.35;
-      const score = Math.round(phase.maxScore * scorePct * 10) / 10;
       totalScore += score;
-      phaseScores.push({ phaseId: phase.id, score, maxScore: phase.maxScore });
-
-      console.log(`[AssessmentEngine] Phase ${phase.name} complete: ${score}/${phase.maxScore}`);
+      console.log(`[AssessmentEngine] ${phase.name} complete: ${score}/${phase.maxScore}`);
       this._onHideInstruction?.();
       this._onPhaseCompleted?.(phase.id, score, phase.maxScore);
     }
@@ -120,16 +157,18 @@ export class AssessmentEngine {
     const totalPct = (totalScore / TOTAL_MAX_SCORE) * 100;
     const cefrLevel = totalPct >= 80 ? 'B2' : totalPct >= 60 ? 'B1' : totalPct >= 40 ? 'A2' : 'A1';
 
-    // Compute dimension scores
-    const dimensionScores: Record<string, number> = {
-      vocabulary: 1.5 + Math.random() * 2.5,
-      grammar: 1.5 + Math.random() * 2,
-      fluency: 1.5 + Math.random() * 2,
-      pronunciation: 2 + Math.random() * 2,
-      comprehension: 2 + Math.random() * 2.5,
-    };
-    for (const key of Object.keys(dimensionScores)) {
-      dimensionScores[key] = Math.round(dimensionScores[key] * 10) / 10;
+    // Build dimension scores from phase results
+    if (Object.keys(dimensionScores).length === 0) {
+      // Estimate dimensions from total score percentage
+      const dimValue = Math.round((totalPct / 100) * 5 * 10) / 10;
+      dimensionScores.vocabulary = Math.min(5, dimValue + (Math.random() - 0.5));
+      dimensionScores.grammar = Math.min(5, dimValue + (Math.random() - 0.5));
+      dimensionScores.fluency = Math.min(5, dimValue + (Math.random() - 0.5));
+      dimensionScores.comprehension = Math.min(5, dimValue + (Math.random() - 0.5));
+      dimensionScores.pronunciation = Math.min(5, dimValue + (Math.random() - 0.5));
+      for (const key of Object.keys(dimensionScores)) {
+        dimensionScores[key] = Math.max(1, Math.round(dimensionScores[key] * 10) / 10);
+      }
     }
 
     const result: AssessmentResult = {
@@ -166,7 +205,14 @@ export class AssessmentEngine {
     this._onHideInstruction = cb;
   }
 
-  /** Called externally to resolve the current phase (used by instruction overlay Continue button). */
+  onShowModal(cb: (config: AssessmentModalConfig) => void): void {
+    this._onShowModal = cb;
+  }
+
+  onHideModal(cb: () => void): void {
+    this._onHideModal = cb;
+  }
+
   resolveCurrentPhase(): void {
     if (this._phaseResolver) {
       this._phaseResolver();
@@ -176,7 +222,6 @@ export class AssessmentEngine {
 
   dispose(): void {
     this._aborted = true;
-    // Resolve any pending phase promise to prevent leaks
     if (this._phaseResolver) {
       this._phaseResolver();
       this._phaseResolver = null;
@@ -190,72 +235,222 @@ export class AssessmentEngine {
     this._onCompleted = undefined;
     this._onShowInstruction = undefined;
     this._onHideInstruction = undefined;
+    this._onShowModal = undefined;
+    this._onHideModal = undefined;
   }
 
-  // ── Private: phase waiting strategies ──────────────────────────────────────
+  // ── Private: modal-based phases (reading, writing, listening) ─────────────
 
-  private _waitForConversation(
+  private async _runModalPhase(
     phase: typeof ASSESSMENT_PHASES[number],
     phaseIndex: number,
-  ): Promise<void> {
-    return new Promise<void>((resolve) => {
-      this._phaseResolver = resolve;
+  ): Promise<number> {
+    // Step 1: Generate content from server
+    const template = CONTENT_TEMPLATES[phase.id];
+    let content: GeneratedContent = {};
 
-      // Show instruction overlay
-      this._onShowInstruction?.({
-        phaseId: phase.id,
+    if (template) {
+      try {
+        content = await this._generateContent(phase.type, template);
+      } catch (err) {
+        console.warn('[AssessmentEngine] Content generation failed, using fallback:', err);
+      }
+    }
+
+    // Step 1b: Generate TTS audio for listening phases
+    let audioUrl: string | undefined;
+    if (phase.type === 'listening' && content.passage) {
+      try {
+        audioUrl = await this._generateTTSAudio(content.passage);
+      } catch (err) {
+        console.warn('[AssessmentEngine] TTS generation failed, will fall back to browser TTS:', err);
+      }
+    }
+
+    // Step 2: Show modal and wait for player submission
+    const answers = await this._showModalAndWait(phase, phaseIndex, content, audioUrl);
+
+    if (this._aborted || !answers) return 0;
+
+    // Step 3: Score answers via server
+    try {
+      const scoring = await this._scorePhase(phase.type, content, answers);
+      return Math.min(phase.maxScore, scoring.totalScore);
+    } catch (err) {
+      console.warn('[AssessmentEngine] Scoring failed, using estimate:', err);
+      // Fallback: count non-empty answers as partial credit
+      const nonEmpty = Object.values(answers).filter(a => a.length > 0).length;
+      const totalFields = Object.keys(answers).length || 1;
+      return Math.round((nonEmpty / totalFields) * phase.maxScore * 0.5);
+    }
+  }
+
+  private async _generateContent(phaseType: PhaseType, template: ContentTemplate): Promise<GeneratedContent> {
+    const res = await fetch('/api/assessments/generate-content', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
+      },
+      body: JSON.stringify({
+        phaseType,
+        targetLanguage: this.targetLanguage,
+        cityName: 'the city',
+        contentTemplate: template,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Content generation failed: ${res.status}`);
+    }
+
+    return await res.json();
+  }
+
+  private async _generateTTSAudio(passage: string): Promise<string> {
+    const res = await fetch('/api/assessments/tts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
+      },
+      body: JSON.stringify({
+        text: passage,
+        targetLanguage: this.targetLanguage,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`TTS generation failed: ${res.status}`);
+    }
+
+    const data = await res.json();
+    return data.audioDataUrl;
+  }
+
+  private _showModalAndWait(
+    phase: typeof ASSESSMENT_PHASES[number],
+    phaseIndex: number,
+    content: GeneratedContent,
+    audioUrl?: string,
+  ): Promise<Record<string, string> | null> {
+    return new Promise<Record<string, string> | null>((resolve) => {
+      this._modalAnswers = null;
+
+      const modalConfig: AssessmentModalConfig = {
+        phaseType: phase.type as 'reading' | 'writing' | 'listening',
         phaseName: phase.name,
         phaseIndex,
         totalPhases: ASSESSMENT_PHASES.length,
-        description: phase.description,
-        isConversational: true,
-        onContinue: () => {
-          // Not used for conversational — resolved via event bus
+        passage: content.passage,
+        questions: content.questions,
+        writingPrompts: content.writingPrompts,
+        audioUrl,
+        onSubmit: (answers: Record<string, string>) => {
+          this._modalAnswers = answers;
+          this._onHideModal?.();
+          resolve(answers);
         },
-      });
+      };
 
-      // Listen for conversation completion on the event bus
-      if (this.eventBus) {
-        this._unsubscribeConversation = this.eventBus.on(
-          'assessment_conversation_completed',
-          () => {
-            console.log('[AssessmentEngine] Conversation completed — advancing phase');
-            if (this._unsubscribeConversation) {
-              this._unsubscribeConversation();
-              this._unsubscribeConversation = null;
-            }
-            if (this._phaseResolver) {
-              this._phaseResolver();
-              this._phaseResolver = null;
-            }
-          },
-        );
+      if (this._onShowModal) {
+        this._onShowModal(modalConfig);
+      } else {
+        // Fallback: if no modal handler, use instruction overlay with auto-continue
+        console.warn('[AssessmentEngine] No modal handler — falling back to instruction overlay');
+        this._onShowInstruction?.({
+          phaseId: phase.id,
+          phaseName: phase.name,
+          phaseIndex,
+          totalPhases: ASSESSMENT_PHASES.length,
+          description: `Complete the ${phase.name} section.`,
+          isConversational: false,
+          onContinue: () => resolve(null),
+        });
       }
     });
   }
 
-  private _waitForContinue(
+  private async _scorePhase(
+    phaseType: PhaseType,
+    content: GeneratedContent,
+    answers: Record<string, string>,
+  ): Promise<ScoringResult> {
+    const res = await fetch('/api/assessments/score-phase', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
+      },
+      body: JSON.stringify({
+        phaseType,
+        targetLanguage: this.targetLanguage,
+        passage: content.passage,
+        questions: content.questions?.map(q => ({ id: q.id, text: q.questionText, maxPoints: q.maxPoints })),
+        writingPrompts: content.writingPrompts,
+        answers,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Scoring failed: ${res.status}`);
+    }
+
+    return await res.json();
+  }
+
+  // ── Private: conversation phase ────────────────────────────────────────────
+
+  private _runConversationPhase(
     phase: typeof ASSESSMENT_PHASES[number],
     phaseIndex: number,
-  ): Promise<void> {
-    return new Promise<void>((resolve) => {
-      this._phaseResolver = resolve;
+  ): Promise<number> {
+    return new Promise<number>((resolve) => {
+      this._phaseResolver = () => resolve(0);
 
-      // Show instruction overlay with Continue button
+      // Show instruction overlay directing player to NPC
       this._onShowInstruction?.({
         phaseId: phase.id,
         phaseName: phase.name,
         phaseIndex,
         totalPhases: ASSESSMENT_PHASES.length,
-        description: phase.description,
-        isConversational: false,
-        onContinue: () => {
-          if (this._phaseResolver) {
-            this._phaseResolver();
-            this._phaseResolver = null;
-          }
-        },
+        description: 'Walk to the marked NPC and have a conversation in the target language. Speak naturally — this measures your conversational ability.',
+        isConversational: true,
+        onContinue: () => { /* resolved via event bus */ },
       });
+
+      // Emit event to trigger quest waypoint on an NPC
+      this.eventBus?.emit({
+        type: 'assessment_conversation_quest_start',
+        phaseId: phase.id,
+        topics: ['greetings', 'travel', 'directions'],
+        minExchanges: 6,
+        maxExchanges: 12,
+      });
+
+      // Listen for conversation completion
+      if (this.eventBus) {
+        this._unsubscribeConversation = this.eventBus.on(
+          'assessment_conversation_completed',
+          (event: any) => {
+            console.log('[AssessmentEngine] Conversation completed — scoring');
+            if (this._unsubscribeConversation) {
+              this._unsubscribeConversation();
+              this._unsubscribeConversation = null;
+            }
+            // Use conversation scores if available, otherwise estimate
+            const score = event?.score ?? Math.round(phase.maxScore * (0.35 + Math.random() * 0.35));
+            this._phaseResolver = null;
+            resolve(Math.min(phase.maxScore, score));
+          },
+        );
+      } else {
+        // No event bus — fallback with estimated score
+        setTimeout(() => {
+          const score = Math.round(phase.maxScore * (0.35 + Math.random() * 0.35));
+          resolve(score);
+        }, 1000);
+      }
     });
   }
 }

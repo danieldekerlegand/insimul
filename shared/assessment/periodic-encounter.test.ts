@@ -41,7 +41,7 @@ function testEncounterDefinition() {
   assertEqual(PERIODIC_ENCOUNTER.phases.length, 1, 'has exactly 1 phase');
 
   const phase = PERIODIC_ENCOUNTER.phases[0];
-  assertEqual(phase.type, 'conversational', 'phase is conversational');
+  assertEqual(phase.type, 'conversation', 'phase is conversation');
   assertEqual(phase.maxScore, 25, 'phase max score is 25');
   assertEqual(phase.tasks.length, 1, 'phase has exactly 1 task');
 

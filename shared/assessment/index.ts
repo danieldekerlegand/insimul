@@ -9,6 +9,9 @@ export {
   type ScoringMethod,
   type ScoringDimension,
   type AssessmentDimensionScores,
+  type AssessmentQuestion,
+  type ContentTemplate,
+  type ConversationQuestConfig,
   type AssessmentTask,
   type AssessmentPhase,
   type AssessmentDefinition,
@@ -36,5 +39,7 @@ export {
   resolveTemplate,
   resolveAssessment,
 } from './arrival-encounter';
+
+export { DEPARTURE_ENCOUNTER } from './departure-encounter';
 
 export * from './periodic-encounter';

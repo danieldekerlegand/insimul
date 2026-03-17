@@ -74,8 +74,10 @@ export type GameEvent =
   | { type: 'onboarding_completed'; totalSteps: number; totalDurationMs: number }
   // Periodic assessment trigger (emitted when a level-up milestone requires a proficiency check)
   | { type: 'periodic_assessment_triggered'; level: number; tier: string }
+  // Assessment conversation quest start (engine requests a waypoint on an NPC)
+  | { type: 'assessment_conversation_quest_start'; phaseId: string; topics: string[]; minExchanges: number; maxExchanges: number }
   // Assessment conversation completed (player finished talking to NPC during assessment)
-  | { type: 'assessment_conversation_completed'; npcId: string }
+  | { type: 'assessment_conversation_completed'; npcId: string; score?: number }
   // Visual vocabulary events
   | { type: 'visual_vocab_prompted'; targetId: string; questId: string; objectiveId: string; isActivity: boolean }
   | { type: 'visual_vocab_answered'; targetId: string; questId: string; passed: boolean; score: number; playerAnswer: string }

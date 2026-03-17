@@ -22,7 +22,7 @@ export interface AssessmentPhaseInfo {
   timeRemainingSeconds: number;
 }
 
-const PHASE_LABELS = ['Conversational', 'Listening', 'Writing', 'Visual'];
+const PHASE_LABELS = ['Reading', 'Writing', 'Listening', 'Conversation'];
 const TOTAL_PHASES = 4;
 
 // Timer color thresholds (in seconds)
@@ -226,7 +226,7 @@ export class AssessmentProgressUI {
   private updatePhaseLabel(): void {
     if (this.phaseLabel) {
       const name = PHASE_LABELS[this.currentPhase] ?? `Phase ${this.currentPhase + 1}`;
-      this.phaseLabel.text = `Phase ${this.currentPhase + 1}: ${name}`;
+      this.phaseLabel.text = `Section ${this.currentPhase + 1}: ${name}`;
     }
   }
 

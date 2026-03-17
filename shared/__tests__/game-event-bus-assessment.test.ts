@@ -29,12 +29,12 @@ describe('GameEventBus — assessment & onboarding events', () => {
     bus.emit({
       type: 'assessment_phase_started',
       sessionId: 's1',
-      phaseId: 'conversational',
+      phaseId: 'conversation',
       phaseIndex: 0,
     });
 
     expect(handler).toHaveBeenCalledWith(
-      expect.objectContaining({ phaseId: 'conversational', phaseIndex: 0 }),
+      expect.objectContaining({ phaseId: 'conversation', phaseIndex: 0 }),
     );
     bus.dispose();
   });
@@ -67,7 +67,7 @@ describe('GameEventBus — assessment & onboarding events', () => {
       type: 'assessment_completed',
       sessionId: 's1',
       totalScore: 35,
-      totalMaxScore: 53,
+      totalMaxPoints: 53,
       cefrLevel: 'A2',
     });
 
@@ -140,7 +140,7 @@ describe('GameEventBus — assessment & onboarding events', () => {
       type: 'assessment_completed',
       sessionId: 's1',
       totalScore: 40,
-      totalMaxScore: 53,
+      totalMaxPoints: 53,
       cefrLevel: 'B1',
     });
 

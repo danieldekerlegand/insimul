@@ -77,7 +77,7 @@ describe('Assessment Session Types', () => {
       rationale: 'Good greeting with correct verb form',
     };
     const phaseResult: PhaseResult = {
-      phaseId: 'conversational',
+      phaseId: 'conversation',
       score: 20,
       maxPoints: 25,
       taskResults: [taskResult],
@@ -109,7 +109,7 @@ describe('Assessment Session Types', () => {
       storageKey: 'recordings/sess-1/phase-1.webm',
       mimeType: 'audio/webm',
       durationSeconds: 180,
-      phaseId: 'conversational',
+      phaseId: 'conversation',
       taskId: 'task-1',
       recordedAt: new Date().toISOString(),
     };
@@ -129,10 +129,10 @@ describe('Assessment Session Types', () => {
         avgLatencyMs: 1800, repairs: 2, codeSwitchingCount: 0,
       },
       phaseResults: [
-        { phaseId: 'conversational', score: 20, maxPoints: 25, taskResults: [] },
-        { phaseId: 'listening', score: 5, maxPoints: 7, taskResults: [] },
-        { phaseId: 'writing', score: 9, maxPoints: 11, taskResults: [] },
-        { phaseId: 'visual', score: 8, maxPoints: 10, taskResults: [] },
+        { phaseId: 'reading', score: 12, maxPoints: 15, taskResults: [] },
+        { phaseId: 'writing', score: 12, maxPoints: 15, taskResults: [] },
+        { phaseId: 'listening', score: 10, maxPoints: 13, taskResults: [] },
+        { phaseId: 'conversation', score: 8, maxPoints: 10, taskResults: [] },
       ],
       startedAt: new Date().toISOString(),
       completedAt: new Date().toISOString(),
@@ -184,11 +184,11 @@ describe('Assessment Session Schema Shape', () => {
     const rec: RecordingReference = {
       storageKey: 'key',
       mimeType: 'audio/webm',
-      phaseId: 'conversational',
+      phaseId: 'conversation',
       recordedAt: new Date().toISOString(),
     };
     expect(rec.storageKey).toBe('key');
-    expect(rec.phaseId).toBe('conversational');
+    expect(rec.phaseId).toBe('conversation');
     // Optional fields should be undefined
     expect(rec.durationSeconds).toBeUndefined();
     expect(rec.taskId).toBeUndefined();

@@ -227,45 +227,71 @@ export class ConversationClient {
     let fullText = '';
     let hasAudio = false;
     let buffer = '';
+    let textComplete = false;
 
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+    // Resolve the text promise as soon as all text is received (isFinal),
+    // while continuing to consume audio/viseme events in the background.
+    // IMPORTANT: onComplete is NOT called here — only when the stream truly ends,
+    // so that streamingAudioPlayer.finish() isn't called prematurely.
+    let resolveText: ((text: string) => void) | null = null;
+    const textPromise = new Promise<string>((resolve) => { resolveText = resolve; });
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        // Keep incomplete last line in buffer
-        buffer = lines.pop() || '';
+    const readLoop = async () => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const data = line.slice(6).trim();
-          if (data === '[DONE]') continue;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
 
-          try {
-            const parsed = JSON.parse(data);
-            this.handleSSEEvent(parsed, fullText);
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const data = line.slice(6).trim();
+            if (data === '[DONE]') continue;
 
-            if (parsed.type === 'text') {
-              fullText += parsed.text;
-              if (!hasAudio) this.setState('speaking');
-            } else if (parsed.type === 'audio') {
-              hasAudio = true;
-              this.setState('speaking');
+            try {
+              const parsed = JSON.parse(data);
+              this.handleSSEEvent(parsed, fullText);
+
+              if (parsed.type === 'text') {
+                fullText += parsed.text;
+                if (!hasAudio) this.setState('speaking');
+                // When server signals all text is sent, resolve the promise
+                // so the caller can proceed while audio continues streaming.
+                // Do NOT call onComplete yet — that signals end of audio.
+                if (parsed.isFinal && !textComplete) {
+                  textComplete = true;
+                  resolveText?.(fullText);
+                }
+              } else if (parsed.type === 'audio') {
+                hasAudio = true;
+                this.setState('speaking');
+              }
+            } catch {
+              // Skip malformed JSON
             }
-          } catch {
-            // Skip malformed JSON
           }
         }
+      } finally {
+        reader.releaseLock();
+        // Stream fully ended — now it's safe to signal completion
+        this.callbacks.onComplete?.(fullText);
+        if (!textComplete) {
+          resolveText?.(fullText);
+        }
+        this.setState('idle');
       }
-    } finally {
-      reader.releaseLock();
-    }
+    };
 
-    this.callbacks.onComplete?.(fullText);
-    this.setState('idle');
-    return fullText;
+    // Start consuming the stream — don't await it
+    readLoop().catch(err => {
+      console.error('[ConversationClient] SSE read error:', err);
+      if (!textComplete) resolveText?.('');
+    });
+
+    return textPromise;
   }
 
   private handleSSEEvent(parsed: any, _accumulatedText: string): void {

@@ -330,12 +330,9 @@ async function streamTextResponse(
   // Final text marker
   sendSSE(res, { type: 'text', text: '', isFinal: true });
 
-  // Let TTS finish in the background — audio chunks are already sent via SSE
-  // as they complete. Don't block the stream end on TTS completion.
+  // Wait for TTS to complete before closing the SSE stream
   if (ttsPromises.length > 0) {
-    Promise.all(ttsPromises).catch(err => {
-      console.error('[ConversationBridge] Background TTS error:', err);
-    });
+    await Promise.all(ttsPromises);
   }
 
   // Store response in history

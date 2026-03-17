@@ -177,7 +177,7 @@ describe('Assessment Type Definitions', () => {
 
   describe('PhaseType', () => {
     it('accepts all four phase types', () => {
-      const phases: PhaseType[] = ['conversational', 'listening', 'writing', 'visual'];
+      const phases: PhaseType[] = ['reading', 'writing', 'listening', 'conversation'];
       expect(phases).toHaveLength(4);
     });
   });
@@ -185,15 +185,12 @@ describe('Assessment Type Definitions', () => {
   describe('TaskType', () => {
     it('accepts all task types', () => {
       const tasks: TaskType[] = [
-        'conversation_tier',
-        'follow_directions',
-        'info_extraction',
-        'form_completion',
-        'brief_message',
-        'sign_reading',
-        'object_identification',
+        'reading_comprehension',
+        'writing_prompt',
+        'listening_comprehension',
+        'conversation_quest',
       ];
-      expect(tasks).toHaveLength(7);
+      expect(tasks).toHaveLength(4);
     });
   });
 
@@ -229,50 +226,48 @@ describe('Assessment Type Definitions', () => {
   });
 
   describe('AssessmentTask', () => {
-    it('can create a conversation tier task', () => {
+    it('can create a conversation quest task', () => {
       const task: AssessmentTask = {
-        id: 'conv_tier1',
-        type: 'conversation_tier',
+        id: 'conv_quest1',
+        type: 'conversation_quest',
         prompt: 'Greet the player in {{targetLanguage}}',
         maxPoints: 5,
         scoringMethod: 'llm',
         timeLimitSeconds: 120,
       };
-      expect(task.type).toBe('conversation_tier');
+      expect(task.type).toBe('conversation_quest');
       expect(task.maxPoints).toBe(5);
     });
 
-    it('can create a multiple choice task with options', () => {
+    it('can create a reading comprehension task', () => {
       const task: AssessmentTask = {
-        id: 'sign_1',
-        type: 'sign_reading',
-        prompt: 'What does this sign say?',
-        maxPoints: 1,
-        scoringMethod: 'multiple_choice',
-        options: ['Exit', 'Entrance', 'Closed'],
-        expectedAnswer: 'Exit',
+        id: 'reading_1',
+        type: 'reading_comprehension',
+        prompt: 'Read the following passage and answer questions.',
+        maxPoints: 15,
+        scoringMethod: 'llm',
       };
-      expect(task.options).toHaveLength(3);
-      expect(task.expectedAnswer).toBe('Exit');
+      expect(task.type).toBe('reading_comprehension');
+      expect(task.maxPoints).toBe(15);
     });
   });
 
   describe('AssessmentPhase', () => {
     it('can create a phase with tasks summing to maxPoints', () => {
       const phase: AssessmentPhase = {
-        id: 'phase_1_conversational',
-        type: 'conversational',
-        name: 'Conversational Assessment',
-        description: 'NPC conversation across 5 tiers',
+        id: 'phase_1_conversation',
+        type: 'conversation',
+        name: 'Conversation Assessment',
+        description: 'NPC conversation quest',
         tasks: [
-          { id: 't1', type: 'conversation_tier', prompt: 'Tier 1', maxPoints: 5, scoringMethod: 'llm' },
-          { id: 't2', type: 'conversation_tier', prompt: 'Tier 2', maxPoints: 5, scoringMethod: 'llm' },
+          { id: 't1', type: 'conversation_quest', prompt: 'Quest 1', maxPoints: 5, scoringMethod: 'llm' },
+          { id: 't2', type: 'conversation_quest', prompt: 'Quest 2', maxPoints: 5, scoringMethod: 'llm' },
         ],
         maxPoints: 10,
         timeLimitSeconds: 600,
         scoringDimensions: ['vocabulary', 'grammar'],
       };
-      const taskSum = phase.tasks.reduce((s, t) => s + t.maxPoints, 0);
+      const taskSum = phase.tasks.reduce((s, t) => s + (t.maxPoints ?? 0), 0);
       expect(taskSum).toBe(phase.maxPoints);
     });
   });
@@ -287,20 +282,20 @@ describe('Assessment Type Definitions', () => {
         targetLanguage: '{{targetLanguage}}',
         phases: [
           {
-            id: 'p1', type: 'conversational', name: 'Conversation',
-            description: 'Talk with NPC', tasks: [], maxPoints: 25,
+            id: 'p1', type: 'reading', name: 'Reading',
+            description: 'Read passage', tasks: [], maxPoints: 15,
           },
           {
-            id: 'p2', type: 'listening', name: 'Listening',
-            description: 'Follow directions', tasks: [], maxPoints: 7,
+            id: 'p2', type: 'writing', name: 'Writing',
+            description: 'Written tasks', tasks: [], maxPoints: 15,
           },
           {
-            id: 'p3', type: 'writing', name: 'Writing',
-            description: 'Written tasks', tasks: [], maxPoints: 11,
+            id: 'p3', type: 'listening', name: 'Listening',
+            description: 'Listen and answer', tasks: [], maxPoints: 13,
           },
           {
-            id: 'p4', type: 'visual', name: 'Visual',
-            description: 'Visual recognition', tasks: [], maxPoints: 10,
+            id: 'p4', type: 'conversation', name: 'Conversation',
+            description: 'Talk with NPC', tasks: [], maxPoints: 10,
           },
         ],
         totalMaxPoints: 53,
@@ -361,7 +356,7 @@ describe('Assessment Type Definitions', () => {
   describe('PhaseResult', () => {
     it('can create a phase result with dimension scores and metrics', () => {
       const result: PhaseResult = {
-        phaseId: 'phase_1_conversational',
+        phaseId: 'phase_1_conversation',
         score: 20,
         maxPoints: 25,
         taskResults: [

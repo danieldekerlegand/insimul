@@ -378,11 +378,8 @@ function createHandlers(options: GrpcServerOptions) {
       },
     });
 
-    // Let TTS finish in the background — audio chunks are streamed as they complete
     if (ttsPromises.length > 0) {
-      Promise.all(ttsPromises).catch(err => {
-        console.error('[gRPC] Background TTS error:', err);
-      });
+      await Promise.all(ttsPromises);
     }
 
     // Store assistant response in history

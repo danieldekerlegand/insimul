@@ -77,7 +77,7 @@ export class AssessmentInstructionOverlay {
 
     // Phase indicator (e.g. "Phase 1 of 4")
     const phaseIndicator = new TextBlock('phaseIndicator');
-    phaseIndicator.text = `Phase ${config.phaseIndex + 1} of ${config.totalPhases}`;
+    phaseIndicator.text = `Section ${config.phaseIndex + 1} of ${config.totalPhases}`;
     phaseIndicator.fontSize = 13;
     phaseIndicator.color = '#9ca3af';
     phaseIndicator.height = '20px';

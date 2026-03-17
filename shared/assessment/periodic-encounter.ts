@@ -60,7 +60,7 @@ export const PERIODIC_ENCOUNTER: AssessmentDefinition = {
     {
       id: 'periodic_conversational',
       name: 'Conversation',
-      type: 'conversational',
+      type: 'conversation',
       description:
         'Have a natural conversation with a local resident. ' +
         'They will guide the discussion through everyday topics appropriate to your level.',

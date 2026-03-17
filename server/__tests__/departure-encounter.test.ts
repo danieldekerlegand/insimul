@@ -14,9 +14,9 @@ import {
 describe('DEPARTURE_ENCOUNTER', () => {
   // ── Structure ───────────────────────────────────────────────────────────
 
-  it('has the correct id and testPhase', () => {
+  it('has the correct id and type', () => {
     expect(DEPARTURE_ENCOUNTER.id).toBe('departure_encounter');
-    expect(DEPARTURE_ENCOUNTER.testPhase).toBe('post');
+    expect(DEPARTURE_ENCOUNTER.type).toBe('departure_encounter');
   });
 
   it('has exactly 4 phases', () => {
@@ -25,7 +25,7 @@ describe('DEPARTURE_ENCOUNTER', () => {
 
   it('phases are in the correct order', () => {
     const types = DEPARTURE_ENCOUNTER.phases.map(p => p.type);
-    expect(types).toEqual(['conversational', 'listening', 'writing', 'visual']);
+    expect(types).toEqual(['reading', 'writing', 'listening', 'conversation']);
   });
 
   it('all phase IDs are unique', () => {
@@ -53,61 +53,61 @@ describe('DEPARTURE_ENCOUNTER', () => {
 
   // ── Scoring ─────────────────────────────────────────────────────────────
 
-  it('totalMaxScore equals 53', () => {
-    expect(DEPARTURE_ENCOUNTER.totalMaxScore).toBe(53);
+  it('totalMaxPoints equals 53', () => {
+    expect(DEPARTURE_ENCOUNTER.totalMaxPoints).toBe(53);
   });
 
-  it('sum of phase maxScores equals totalMaxScore', () => {
-    const sum = DEPARTURE_ENCOUNTER.phases.reduce((acc, p) => acc + p.maxScore, 0);
-    expect(sum).toBe(DEPARTURE_ENCOUNTER.totalMaxScore);
+  it('sum of phase maxScores equals totalMaxPoints', () => {
+    const sum = DEPARTURE_ENCOUNTER.phases.reduce((acc, p) => acc + (p.maxScore ?? 0), 0);
+    expect(sum).toBe(DEPARTURE_ENCOUNTER.totalMaxPoints);
   });
 
   it('each phase maxScore equals the sum of its task maxScores', () => {
     for (const phase of DEPARTURE_ENCOUNTER.phases) {
-      const taskSum = phase.tasks.reduce((acc, t) => acc + t.maxScore, 0);
+      const taskSum = phase.tasks.reduce((acc, t) => acc + (t.maxScore ?? 0), 0);
       expect(taskSum).toBe(phase.maxScore);
     }
   });
 
   // ── Per-phase point values ──────────────────────────────────────────────
 
-  it('conversational phase is 25 points', () => {
-    const phase = DEPARTURE_ENCOUNTER.phases.find(p => p.type === 'conversational')!;
-    expect(phase.maxScore).toBe(25);
+  it('reading phase is 15 points', () => {
+    const phase = DEPARTURE_ENCOUNTER.phases.find(p => p.type === 'reading')!;
+    expect(phase.maxScore).toBe(15);
   });
 
-  it('listening phase is 7 points', () => {
+  it('listening phase is 13 points', () => {
     const phase = DEPARTURE_ENCOUNTER.phases.find(p => p.type === 'listening')!;
-    expect(phase.maxScore).toBe(7);
+    expect(phase.maxScore).toBe(13);
   });
 
-  it('writing phase is 11 points', () => {
+  it('writing phase is 15 points', () => {
     const phase = DEPARTURE_ENCOUNTER.phases.find(p => p.type === 'writing')!;
-    expect(phase.maxScore).toBe(11);
+    expect(phase.maxScore).toBe(15);
   });
 
-  it('visual phase is 10 points', () => {
-    const phase = DEPARTURE_ENCOUNTER.phases.find(p => p.type === 'visual')!;
+  it('conversation phase is 10 points', () => {
+    const phase = DEPARTURE_ENCOUNTER.phases.find(p => p.type === 'conversation')!;
     expect(phase.maxScore).toBe(10);
   });
 
   // ── Scoring dimensions ─────────────────────────────────────────────────
 
-  it('conversational task has 5 scoring dimensions summing to 25', () => {
+  it('reading task has 3 scoring dimensions summing to 15', () => {
     const task = DEPARTURE_ENCOUNTER.phases[0].tasks[0];
     expect(task.scoringDimensions).toBeDefined();
-    expect(task.scoringDimensions).toHaveLength(5);
+    expect(task.scoringDimensions).toHaveLength(3);
     const dimSum = task.scoringDimensions!.reduce((acc, d) => acc + d.maxScore, 0);
-    expect(dimSum).toBe(25);
+    expect(dimSum).toBe(15);
   });
 
-  it('writing postcard task has 3 scoring dimensions summing to 6', () => {
+  it('writing task has 3 scoring dimensions summing to 15', () => {
     const writePhase = DEPARTURE_ENCOUNTER.phases.find(p => p.type === 'writing')!;
-    const postcardTask = writePhase.tasks.find(t => t.id === 'departure_write_postcard')!;
-    expect(postcardTask.scoringDimensions).toBeDefined();
-    expect(postcardTask.scoringDimensions).toHaveLength(3);
-    const dimSum = postcardTask.scoringDimensions!.reduce((acc, d) => acc + d.maxScore, 0);
-    expect(dimSum).toBe(6);
+    const writeTask = writePhase.tasks.find(t => t.id === 'departure_writing_response')!;
+    expect(writeTask.scoringDimensions).toBeDefined();
+    expect(writeTask.scoringDimensions).toHaveLength(3);
+    const dimSum = writeTask.scoringDimensions!.reduce((acc, d) => acc + d.maxScore, 0);
+    expect(dimSum).toBe(15);
   });
 
   // ── Template strings ───────────────────────────────────────────────────
@@ -117,21 +117,21 @@ describe('DEPARTURE_ENCOUNTER', () => {
     expect(DEPARTURE_ENCOUNTER.description).toContain('{{cityName}}');
   });
 
-  it('every phase instruction contains at least one template variable', () => {
+  it('every phase description contains at least one template variable', () => {
     for (const phase of DEPARTURE_ENCOUNTER.phases) {
       const hasTemplate =
-        phase.instructions.includes('{{targetLanguage}}') ||
-        phase.instructions.includes('{{cityName}}');
+        phase.description.includes('{{targetLanguage}}') ||
+        phase.description.includes('{{cityName}}');
       expect(hasTemplate).toBe(true);
     }
   });
 
-  it('every task instruction contains at least one template variable', () => {
+  it('every task prompt contains at least one template variable', () => {
     for (const phase of DEPARTURE_ENCOUNTER.phases) {
       for (const task of phase.tasks) {
         const hasTemplate =
-          task.instructions.includes('{{targetLanguage}}') ||
-          task.instructions.includes('{{cityName}}');
+          task.prompt.includes('{{targetLanguage}}') ||
+          task.prompt.includes('{{cityName}}');
         expect(hasTemplate).toBe(true);
       }
     }
@@ -140,20 +140,20 @@ describe('DEPARTURE_ENCOUNTER', () => {
   // ── Parallel structure with Arrival ─────────────────────────────────────
 
   it('has the same phase types and point distribution as arrival', () => {
-    // Departure must mirror arrival: conversational=25, listening=7, writing=11, visual=10
+    // Departure must mirror arrival: reading=15, writing=15, listening=13, conversation=10
     const expected = [
-      { type: 'conversational', maxScore: 25 },
-      { type: 'listening', maxScore: 7 },
-      { type: 'writing', maxScore: 11 },
-      { type: 'visual', maxScore: 10 },
+      { type: 'reading', maxScore: 15 },
+      { type: 'writing', maxScore: 15 },
+      { type: 'listening', maxScore: 13 },
+      { type: 'conversation', maxScore: 10 },
     ];
     const actual = DEPARTURE_ENCOUNTER.phases.map(p => ({ type: p.type, maxScore: p.maxScore }));
     expect(actual).toEqual(expected);
   });
 
   it('has the same task count per phase as arrival', () => {
-    // Arrival: conv=1, listening=2, writing=2, visual=2
-    const expected = [1, 2, 2, 2];
+    // Arrival: reading=1, writing=1, listening=1, conversation=1
+    const expected = [1, 1, 1, 1];
     const actual = DEPARTURE_ENCOUNTER.phases.map(p => p.tasks.length);
     expect(actual).toEqual(expected);
   });
@@ -169,18 +169,18 @@ describe('resolveAssessment with DEPARTURE_ENCOUNTER', () => {
     expect(resolved.description).not.toContain('{{');
   });
 
-  it('resolves all phase instructions', () => {
+  it('resolves all phase descriptions', () => {
     const resolved = resolveAssessment(DEPARTURE_ENCOUNTER, vars);
     for (const phase of resolved.phases) {
-      expect(phase.instructions).not.toContain('{{');
+      expect(phase.description).not.toContain('{{');
     }
   });
 
-  it('resolves all task instructions', () => {
+  it('resolves all task prompts', () => {
     const resolved = resolveAssessment(DEPARTURE_ENCOUNTER, vars);
     for (const phase of resolved.phases) {
       for (const task of phase.tasks) {
-        expect(task.instructions).not.toContain('{{');
+        expect(task.prompt).not.toContain('{{');
       }
     }
   });
@@ -192,7 +192,7 @@ describe('resolveAssessment with DEPARTURE_ENCOUNTER', () => {
 
   it('preserves scoring and structure', () => {
     const resolved = resolveAssessment(DEPARTURE_ENCOUNTER, vars);
-    expect(resolved.totalMaxScore).toBe(53);
+    expect(resolved.totalMaxPoints).toBe(53);
     expect(resolved.phases).toHaveLength(4);
     expect(resolved.id).toBe('departure_encounter');
   });

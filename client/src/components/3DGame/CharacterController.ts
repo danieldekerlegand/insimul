@@ -24,6 +24,7 @@ import {
     MeshBuilder,
     Color3
 } from "@babylonjs/core";
+import { assessmentModalOpen } from "@/components/3DGame/AssessmentModalUI.ts";
 
 
 export class CharacterController {
@@ -1674,6 +1675,7 @@ export class CharacterController {
     private _onKeyDown(e: KeyboardEvent) {
         if (!e.key) return;
         if (e.repeat) return;
+        if (assessmentModalOpen) return;
         switch (e.key.toLowerCase()) {
             case this._actionMap.idleJump.key:
                 this._act._jump = true;

@@ -1065,6 +1065,10 @@ export class BabylonChatPanel {
   ): Promise<string> {
     let accumulatedText = '';
 
+    // Mark that the streaming service handles TTS — prevents processAssistantResponse
+    // from also doing a fallback TTS call (which would cause duplicate speech).
+    this._receivedStreamingAudio = true;
+
     // Override the text chunk callback for this specific request
     const prevCallbacks = { ...this.conversationClient!['callbacks'] };
     this.conversationClient!.setCallbacks({
@@ -1845,8 +1849,18 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
 
       const voices = speechSynthesis.getVoices();
       const langPrefix = langCode.split('-')[0];
-      const voice = voices.find(v => v.lang.startsWith(langPrefix));
+      const isFemale = this._lockedGender === 'female';
+      // Prefer a voice matching the character's gender and language
+      const langVoices = voices.filter(v => v.lang.startsWith(langPrefix));
+      const genderMatch = langVoices.find(v =>
+        isFemale
+          ? /female|woman|zira|samantha|victoria|karen|moira|tessa/i.test(v.name)
+          : /male|man|daniel|david|james|thomas|alex|jorge|rishi/i.test(v.name)
+      );
+      const voice = genderMatch || langVoices[0] || voices.find(v => v.lang.startsWith(langPrefix));
       if (voice) utterance.voice = voice;
+      // Adjust pitch based on gender
+      utterance.pitch = isFemale ? 1.2 : 0.85;
 
       this.isSpeaking = true;
       this.handsFreeController?.pause(); // Suppress mic during TTS

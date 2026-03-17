@@ -5,6 +5,7 @@ import { createTelemetryRoutes } from './routes/telemetry-routes';
 import { createHistoryRoutes } from './routes/history-routes';
 import { createSettlementHistoryRoutes } from './routes/settlement-history-routes';
 import { createAssessmentRoutes } from './routes/assessment-routes';
+import { createAssessmentScoringRoutes } from './routes/assessment-scoring';
 import { enrichHistoricalEvents, type WorldContext } from './services/llm-event-enrichment.js';
 import { prologAutoSync } from './engines/prolog/prolog-auto-sync';
 import { convertActionToProlog } from '../shared/prolog/action-converter';
@@ -11484,6 +11485,9 @@ Respond with this JSON structure:
 
   // Register assessment session routes
   app.use('/api', createAssessmentRoutes(storage));
+
+  // Register assessment scoring & content generation routes
+  app.use('/api', createAssessmentScoringRoutes());
 
   // Water features routes
   app.get("/api/worlds/:worldId/water-features", async (req, res) => {

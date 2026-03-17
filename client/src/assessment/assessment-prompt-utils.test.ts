@@ -139,15 +139,17 @@ TaskCompletion: 3
 console.log('\n=== buildAssessmentSystemPrompt ===\n');
 
 const testPhase: AssessmentPhase = {
-  id: 'conversational',
-  name: 'Conversational',
+  id: 'conversation',
+  name: 'Conversation',
+  type: 'conversation',
   order: 1,
   maxScore: 25,
+  description: 'Have a conversation with a local resident.',
   timeLimitSeconds: 600,
   systemPromptTemplate: 'You are a friendly local in {{cityName}} who speaks {{targetLanguage}}. Help the traveler.',
   tasks: [
-    { id: 'conv_greeting', title: 'Greeting', description: 'Exchange greetings', maxScore: 5, dimensionId: 'vocabulary' },
-    { id: 'conv_directions', title: 'Directions', description: 'Navigate directions', maxScore: 5, dimensionId: 'fluency' },
+    { id: 'conv_greeting', title: 'Greeting', description: 'Exchange greetings', prompt: 'Greet the visitor', maxScore: 5, dimensionId: 'vocabulary' },
+    { id: 'conv_directions', title: 'Directions', description: 'Navigate directions', prompt: 'Give directions', maxScore: 5, dimensionId: 'fluency' },
   ],
 };
 
@@ -182,7 +184,7 @@ const testPhase: AssessmentPhase = {
 // Phase context included
 {
   const prompt = buildAssessmentSystemPrompt('A2', testPhase, 'German', 'Berlin');
-  assert(prompt.includes('Phase: Conversational'), 'prompt includes phase name');
+  assert(prompt.includes('Phase: Conversation'), 'prompt includes phase name');
   assert(prompt.includes('25 points'), 'prompt includes max score');
   assert(prompt.includes('Greeting'), 'prompt includes task titles');
   assert(prompt.includes('10 minutes'), 'prompt includes time limit');
@@ -193,10 +195,12 @@ const testPhase: AssessmentPhase = {
   const noTemplatePhase: AssessmentPhase = {
     id: 'listening',
     name: 'Listening',
+    type: 'listening',
     order: 2,
     maxScore: 7,
+    description: 'Listen and answer comprehension questions.',
     tasks: [
-      { id: 'listen_1', title: 'Follow Directions', description: 'Follow spoken directions', maxScore: 4, dimensionId: 'comprehension' },
+      { id: 'listen_1', title: 'Follow Directions', description: 'Follow spoken directions', prompt: 'Listen and follow directions', maxScore: 4, dimensionId: 'comprehension' },
     ],
   };
   const prompt = buildAssessmentSystemPrompt('A1', noTemplatePhase, 'French', 'Lyon');

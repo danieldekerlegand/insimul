@@ -130,6 +130,7 @@ import {
   launchOnboarding,
 } from "@/components/3DGame/OnboardingLauncher.ts";
 import type { OnboardingLaunchResult } from "@/components/3DGame/OnboardingLauncher.ts";
+import { assessmentModalOpen } from "@/components/3DGame/AssessmentModalUI.ts";
 import {
   KEY_NPC_INTERACT,
   KEY_BUILDING_INTERACT,
@@ -6727,6 +6728,11 @@ export class BabylonGame {
   private async handleKeyDown(event: KeyboardEvent): Promise<void> {
     // Prevent handling if in text input
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+
+    // Block all game input while the assessment modal is open
+    if (assessmentModalOpen) {
       return;
     }
 

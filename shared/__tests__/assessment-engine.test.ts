@@ -15,19 +15,19 @@ import type {
 
 // ─── Test Fixtures ───────────────────────────────────────────────────────────
 
-function makePhase(id: string, type: 'conversational' | 'listening' | 'writing' | 'visual' = 'conversational', maxPoints = 25): AssessmentPhase {
+function makePhase(id: string, type: 'reading' | 'writing' | 'listening' | 'conversation' = 'conversation', maxPoints = 25): AssessmentPhase {
   return {
     id,
     type,
     name: `Phase ${id}`,
     description: `Test phase ${id}`,
-    tasks: [{ id: `${id}_t1`, type: 'conversation_tier', prompt: 'test', maxPoints, scoringMethod: 'llm' }],
+    tasks: [{ id: `${id}_t1`, type: 'conversation_quest', prompt: 'test', maxPoints, scoringMethod: 'llm' }],
     maxPoints,
     scoringDimensions: ['vocab', 'grammar'],
   };
 }
 
-function makeDefinition(phases: AssessmentPhase[] = [makePhase('p1'), makePhase('p2', 'listening', 10)]): AssessmentDefinition {
+function makeDefinition(phases: AssessmentPhase[] = [makePhase('p1', 'conversation'), makePhase('p2', 'listening', 10)]): AssessmentDefinition {
   return {
     id: 'test-def',
     type: 'arrival',
@@ -306,7 +306,7 @@ describe('AssessmentEngine', () => {
 
   describe('CEFR level mapping', () => {
     async function runWithScores(score: number, maxPoints: number): Promise<string | undefined> {
-      const phase = makePhase('p1', 'conversational', maxPoints);
+      const phase = makePhase('p1', 'conversation', maxPoints);
       const engine = createEngine({ definition: makeDefinition([phase]) });
       await engine.start();
       await engine.completePhase(makePhaseResult('p1', score, maxPoints));
@@ -430,7 +430,7 @@ describe('AssessmentEngine', () => {
 
   describe('single-phase assessment', () => {
     it('goes directly to scoring after one phase', async () => {
-      const phase = makePhase('p1', 'conversational', 10);
+      const phase = makePhase('p1', 'conversation', 10);
       const engine = createEngine({ definition: makeDefinition([phase]) });
 
       await engine.start();

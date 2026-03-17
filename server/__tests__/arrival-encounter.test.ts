@@ -9,16 +9,15 @@ import {
   ARRIVAL_ENCOUNTER,
   resolveTemplate,
   resolveAssessment,
-  type AssessmentDefinition,
-  type AssessmentPhase,
 } from '../../shared/assessment/arrival-encounter';
+import type { AssessmentDefinition, AssessmentPhase } from '../../shared/assessment/assessment-types';
 
 describe('ARRIVAL_ENCOUNTER', () => {
   // ── Structure ───────────────────────────────────────────────────────────
 
-  it('has the correct id and testPhase', () => {
+  it('has the correct id and type', () => {
     expect(ARRIVAL_ENCOUNTER.id).toBe('arrival_encounter');
-    expect(ARRIVAL_ENCOUNTER.testPhase).toBe('pre');
+    expect(ARRIVAL_ENCOUNTER.type).toBe('arrival_encounter');
   });
 
   it('has exactly 4 phases', () => {
@@ -27,7 +26,7 @@ describe('ARRIVAL_ENCOUNTER', () => {
 
   it('phases are in the correct order', () => {
     const types = ARRIVAL_ENCOUNTER.phases.map(p => p.type);
-    expect(types).toEqual(['conversational', 'listening', 'writing', 'visual']);
+    expect(types).toEqual(['reading', 'writing', 'listening', 'conversation']);
   });
 
   it('all phase IDs are unique', () => {
@@ -42,61 +41,61 @@ describe('ARRIVAL_ENCOUNTER', () => {
 
   // ── Scoring ─────────────────────────────────────────────────────────────
 
-  it('totalMaxScore equals 53', () => {
-    expect(ARRIVAL_ENCOUNTER.totalMaxScore).toBe(53);
+  it('totalMaxPoints equals 53', () => {
+    expect(ARRIVAL_ENCOUNTER.totalMaxPoints).toBe(53);
   });
 
-  it('sum of phase maxScores equals totalMaxScore', () => {
-    const sum = ARRIVAL_ENCOUNTER.phases.reduce((acc, p) => acc + p.maxScore, 0);
-    expect(sum).toBe(ARRIVAL_ENCOUNTER.totalMaxScore);
+  it('sum of phase maxScores equals totalMaxPoints', () => {
+    const sum = ARRIVAL_ENCOUNTER.phases.reduce((acc, p) => acc + (p.maxScore ?? 0), 0);
+    expect(sum).toBe(ARRIVAL_ENCOUNTER.totalMaxPoints);
   });
 
   it('each phase maxScore equals the sum of its task maxScores', () => {
     for (const phase of ARRIVAL_ENCOUNTER.phases) {
-      const taskSum = phase.tasks.reduce((acc, t) => acc + t.maxScore, 0);
+      const taskSum = phase.tasks.reduce((acc, t) => acc + (t.maxScore ?? 0), 0);
       expect(taskSum).toBe(phase.maxScore);
     }
   });
 
   // ── Per-phase point values ──────────────────────────────────────────────
 
-  it('conversational phase is 25 points', () => {
-    const phase = ARRIVAL_ENCOUNTER.phases.find(p => p.type === 'conversational')!;
-    expect(phase.maxScore).toBe(25);
+  it('reading phase is 15 points', () => {
+    const phase = ARRIVAL_ENCOUNTER.phases.find(p => p.type === 'reading')!;
+    expect(phase.maxScore).toBe(15);
   });
 
-  it('listening phase is 7 points', () => {
+  it('listening phase is 13 points', () => {
     const phase = ARRIVAL_ENCOUNTER.phases.find(p => p.type === 'listening')!;
-    expect(phase.maxScore).toBe(7);
+    expect(phase.maxScore).toBe(13);
   });
 
-  it('writing phase is 11 points', () => {
+  it('writing phase is 15 points', () => {
     const phase = ARRIVAL_ENCOUNTER.phases.find(p => p.type === 'writing')!;
-    expect(phase.maxScore).toBe(11);
+    expect(phase.maxScore).toBe(15);
   });
 
-  it('visual phase is 10 points', () => {
-    const phase = ARRIVAL_ENCOUNTER.phases.find(p => p.type === 'visual')!;
+  it('conversation phase is 10 points', () => {
+    const phase = ARRIVAL_ENCOUNTER.phases.find(p => p.type === 'conversation')!;
     expect(phase.maxScore).toBe(10);
   });
 
   // ── Scoring dimensions ─────────────────────────────────────────────────
 
-  it('conversational task has 5 scoring dimensions summing to 25', () => {
+  it('reading task has 3 scoring dimensions summing to 15', () => {
     const task = ARRIVAL_ENCOUNTER.phases[0].tasks[0];
     expect(task.scoringDimensions).toBeDefined();
-    expect(task.scoringDimensions).toHaveLength(5);
+    expect(task.scoringDimensions).toHaveLength(3);
     const dimSum = task.scoringDimensions!.reduce((acc, d) => acc + d.maxScore, 0);
-    expect(dimSum).toBe(25);
+    expect(dimSum).toBe(15);
   });
 
-  it('writing message task has 3 scoring dimensions summing to 6', () => {
+  it('writing task has 3 scoring dimensions summing to 15', () => {
     const writePhase = ARRIVAL_ENCOUNTER.phases.find(p => p.type === 'writing')!;
-    const msgTask = writePhase.tasks.find(t => t.id === 'arrival_write_message')!;
-    expect(msgTask.scoringDimensions).toBeDefined();
-    expect(msgTask.scoringDimensions).toHaveLength(3);
-    const dimSum = msgTask.scoringDimensions!.reduce((acc, d) => acc + d.maxScore, 0);
-    expect(dimSum).toBe(6);
+    const writeTask = writePhase.tasks.find(t => t.id === 'arrival_writing_response')!;
+    expect(writeTask.scoringDimensions).toBeDefined();
+    expect(writeTask.scoringDimensions).toHaveLength(3);
+    const dimSum = writeTask.scoringDimensions!.reduce((acc, d) => acc + d.maxScore, 0);
+    expect(dimSum).toBe(15);
   });
 
   // ── Template strings ───────────────────────────────────────────────────
@@ -106,21 +105,21 @@ describe('ARRIVAL_ENCOUNTER', () => {
     expect(ARRIVAL_ENCOUNTER.description).toContain('{{cityName}}');
   });
 
-  it('every phase instruction contains at least one template variable', () => {
+  it('every phase description contains at least one template variable', () => {
     for (const phase of ARRIVAL_ENCOUNTER.phases) {
       const hasTemplate =
-        phase.instructions.includes('{{targetLanguage}}') ||
-        phase.instructions.includes('{{cityName}}');
+        phase.description.includes('{{targetLanguage}}') ||
+        phase.description.includes('{{cityName}}');
       expect(hasTemplate).toBe(true);
     }
   });
 
-  it('every task instruction contains at least one template variable', () => {
+  it('every task prompt contains at least one template variable', () => {
     for (const phase of ARRIVAL_ENCOUNTER.phases) {
       for (const task of phase.tasks) {
         const hasTemplate =
-          task.instructions.includes('{{targetLanguage}}') ||
-          task.instructions.includes('{{cityName}}');
+          task.prompt.includes('{{targetLanguage}}') ||
+          task.prompt.includes('{{cityName}}');
         expect(hasTemplate).toBe(true);
       }
     }
@@ -160,18 +159,18 @@ describe('resolveAssessment', () => {
     expect(resolved.description).not.toContain('{{');
   });
 
-  it('resolves all phase instructions', () => {
+  it('resolves all phase descriptions', () => {
     const resolved = resolveAssessment(ARRIVAL_ENCOUNTER, vars);
     for (const phase of resolved.phases) {
-      expect(phase.instructions).not.toContain('{{');
+      expect(phase.description).not.toContain('{{');
     }
   });
 
-  it('resolves all task instructions', () => {
+  it('resolves all task prompts', () => {
     const resolved = resolveAssessment(ARRIVAL_ENCOUNTER, vars);
     for (const phase of resolved.phases) {
       for (const task of phase.tasks) {
-        expect(task.instructions).not.toContain('{{');
+        expect(task.prompt).not.toContain('{{');
       }
     }
   });
@@ -183,7 +182,7 @@ describe('resolveAssessment', () => {
 
   it('preserves scoring and structure', () => {
     const resolved = resolveAssessment(ARRIVAL_ENCOUNTER, vars);
-    expect(resolved.totalMaxScore).toBe(53);
+    expect(resolved.totalMaxPoints).toBe(53);
     expect(resolved.phases).toHaveLength(4);
     expect(resolved.id).toBe('arrival_encounter');
   });

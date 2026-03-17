@@ -8,6 +8,8 @@
 
 import type { GameEventBus } from '@/components/3DGame/GameEventBus.ts';
 
+import type { AssessmentModalConfig } from '@/components/3DGame/AssessmentModalUI.ts';
+
 // Lazy-loaded module types (resolved when sibling branches merge)
 type AssessmentEngine = {
   start(config: {
@@ -29,6 +31,8 @@ type AssessmentEngine = {
     onContinue: () => void;
   }) => void): void;
   onHideInstruction(cb: () => void): void;
+  onShowModal(cb: (config: AssessmentModalConfig) => void): void;
+  onHideModal(cb: () => void): void;
   resolveCurrentPhase(): void;
   dispose(): void;
 };
@@ -137,6 +141,7 @@ export async function launchOnboarding(
   let AssessmentEngineClass: any;
   let OnboardingManagerClass: any;
   let AssessmentProgressUIClass: any;
+  let AssessmentModalUIClass: any;
   let languageOnboarding: any;
 
   try {
@@ -144,11 +149,13 @@ export async function launchOnboarding(
       { AssessmentEngine: AssessmentEngineClass },
       { OnboardingManager: OnboardingManagerClass },
       { AssessmentProgressUI: AssessmentProgressUIClass },
+      { AssessmentModalUI: AssessmentModalUIClass },
       { LANGUAGE_LEARNING_ONBOARDING: languageOnboarding },
     ] = await Promise.all([
       import('@/components/3DGame/AssessmentEngine.ts'),
       import('@/components/3DGame/OnboardingManager.ts'),
       import('@/components/3DGame/AssessmentProgressUI.ts'),
+      import('@/components/3DGame/AssessmentModalUI.ts'),
       import('@shared/onboarding/language-onboarding.ts'),
     ]);
   } catch (err) {
@@ -162,12 +169,19 @@ export async function launchOnboarding(
   }
 
   // Create progress UI (small corner panel with phase dots + timer).
-  // Fullscreen fade overlay and results panel removed — they were buggy.
   let progressUI: any = null;
   try {
     progressUI = new AssessmentProgressUIClass(guiManager.advancedTexture);
   } catch (err) {
     console.warn('[OnboardingLauncher] Failed to create assessment progress UI:', err);
+  }
+
+  // Create modal UI for reading/writing/listening sections
+  let modalUI: any = null;
+  try {
+    modalUI = new AssessmentModalUIClass();
+  } catch (err) {
+    console.warn('[OnboardingLauncher] Failed to create assessment modal UI:', err);
   }
 
   // Create assessment engine with event bus for conversation detection
@@ -208,19 +222,29 @@ export async function launchOnboarding(
     });
   });
 
-  // Wire instruction callbacks — auto-continue non-conversational placeholder phases.
+  // Wire instruction callbacks — conversation phase shows instruction overlay
   assessmentEngine.onShowInstruction((config) => {
     if (config.isConversational) {
-      progressUI?.setStatusText('Talk to an NPC');
+      progressUI?.setStatusText('Walk to the marked NPC');
     } else {
       progressUI?.setStatusText(config.phaseName || 'In progress...');
-      // Auto-continue placeholder phases (they have no real content yet)
-      config.onContinue?.();
     }
   });
 
   assessmentEngine.onHideInstruction(() => {
     // No overlay to hide
+  });
+
+  // Wire modal callbacks — reading/writing/listening phases show modal UI
+  assessmentEngine.onShowModal((config: AssessmentModalConfig) => {
+    if (modalUI && guiManager.advancedTexture) {
+      progressUI?.setStatusText(config.phaseName || 'In progress...');
+      modalUI.show(guiManager.advancedTexture, config);
+    }
+  });
+
+  assessmentEngine.onHideModal(() => {
+    modalUI?.hide();
   });
 
   // Return a promise that resolves when the full onboarding completes
@@ -282,6 +306,7 @@ export async function launchOnboarding(
         assessmentEngine.dispose();
         onboardingManager.dispose();
         progressUI?.dispose();
+        modalUI?.dispose();
 
 
         if (assessmentResult) {
@@ -308,6 +333,7 @@ export async function launchOnboarding(
       assessmentEngine.dispose();
       onboardingManager.dispose();
       progressUI?.dispose();
+      modalUI?.dispose();
       resolve(null);
     });
 
@@ -315,7 +341,7 @@ export async function launchOnboarding(
       type: 'assessment_started',
       sessionId: '',
       instrumentId: 'arrival_encounter',
-      phase: 'arrival_conversational',
+      phase: 'arrival_reading',
       participantId: playerId,
       assessmentType: 'arrival',
       playerId,

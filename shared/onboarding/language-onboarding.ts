@@ -2,7 +2,7 @@
  * Language Learning Onboarding Definition
  *
  * 10-step onboarding sequence that interleaves tutorial steps (movement,
- * UI, interaction) with Arrival Encounter assessment phases. Players learn
+ * UI, interaction) with Arrival Encounter assessment sections. Players learn
  * game mechanics while their baseline language proficiency is measured.
  *
  * References ARRIVAL_ENCOUNTER phase IDs from shared/assessment/arrival-encounter.ts.
@@ -50,20 +50,20 @@ export const LANGUAGE_LEARNING_ONBOARDING: OnboardingDefinition = {
       },
     },
 
-    // Step 3: Assessment — Conversational phase
+    // Step 3: Assessment — Reading section
     {
-      id: 'assessment_conversational',
+      id: 'assessment_reading',
       type: 'assessment',
-      name: 'Meeting a Local',
+      name: 'Reading Comprehension',
       description:
-        'A friendly resident strikes up a conversation. Speak naturally — this measures your starting level.',
+        'Read a short passage in the target language and answer comprehension questions. This measures your reading ability.',
       skippable: false,
       prerequisites: ['movement_tutorial'],
-      estimatedDurationSeconds: 600,
-      externalRef: 'arrival_conversational',
+      estimatedDurationSeconds: 420,
+      externalRef: 'arrival_reading',
       config: {
         assessmentId: 'arrival_encounter',
-        phaseId: 'arrival_conversational',
+        phaseId: 'arrival_reading',
       },
     },
 
@@ -75,27 +75,27 @@ export const LANGUAGE_LEARNING_ONBOARDING: OnboardingDefinition = {
       description:
         'Learn how to use the chat panel, phrase book, and translation hints during conversations.',
       skippable: true,
-      prerequisites: ['assessment_conversational'],
+      prerequisites: ['assessment_reading'],
       estimatedDurationSeconds: 60,
       config: {
         highlightElements: ['chat_panel', 'phrase_book', 'translation_toggle'],
       },
     },
 
-    // Step 5: Assessment — Listening phase
+    // Step 5: Assessment — Writing section
     {
-      id: 'assessment_listening',
+      id: 'assessment_writing',
       type: 'assessment',
-      name: 'Listening to the Locals',
+      name: 'Writing Assessment',
       description:
-        'Follow directions and extract information from spoken announcements.',
+        'Respond to writing prompts in the target language. This measures your writing ability.',
       skippable: false,
       prerequisites: ['ui_chat_tutorial'],
-      estimatedDurationSeconds: 300,
-      externalRef: 'arrival_listening',
+      estimatedDurationSeconds: 420,
+      externalRef: 'arrival_writing',
       config: {
         assessmentId: 'arrival_encounter',
-        phaseId: 'arrival_listening',
+        phaseId: 'arrival_writing',
       },
     },
 
@@ -107,27 +107,27 @@ export const LANGUAGE_LEARNING_ONBOARDING: OnboardingDefinition = {
       description:
         'Practice interacting with objects and NPCs: examine signs, pick up items, and ask for help.',
       skippable: true,
-      prerequisites: ['assessment_listening'],
+      prerequisites: ['assessment_writing'],
       estimatedDurationSeconds: 120,
       config: {
         requiredInteractions: ['examine_sign', 'pick_up_item', 'talk_to_npc'],
       },
     },
 
-    // Step 7: Assessment — Writing phase
+    // Step 7: Assessment — Listening section
     {
-      id: 'assessment_writing',
+      id: 'assessment_listening',
       type: 'assessment',
-      name: 'Putting Pen to Paper',
+      name: 'Listening Comprehension',
       description:
-        'Fill out a visitor form and write a short message in the target language.',
+        'Listen to a passage spoken in the target language and answer comprehension questions.',
       skippable: false,
       prerequisites: ['interaction_tutorial'],
       estimatedDurationSeconds: 420,
-      externalRef: 'arrival_writing',
+      externalRef: 'arrival_listening',
       config: {
         assessmentId: 'arrival_encounter',
-        phaseId: 'arrival_writing',
+        phaseId: 'arrival_listening',
       },
     },
 
@@ -139,27 +139,27 @@ export const LANGUAGE_LEARNING_ONBOARDING: OnboardingDefinition = {
       description:
         'Learn how to view your quest log, skill tree, and language proficiency stats.',
       skippable: true,
-      prerequisites: ['assessment_writing'],
+      prerequisites: ['assessment_listening'],
       estimatedDurationSeconds: 60,
       config: {
         highlightElements: ['quest_log', 'skill_tree', 'proficiency_panel'],
       },
     },
 
-    // Step 9: Assessment — Visual recognition phase
+    // Step 9: Assessment — Conversation section (in-game quest)
     {
-      id: 'assessment_visual',
+      id: 'assessment_conversation',
       type: 'assessment',
-      name: 'Reading the Signs',
+      name: 'Meeting a Local',
       description:
-        'Read signs and identify labeled objects around the city.',
+        'Walk to the marked NPC and have a guided conversation in the target language. Speak naturally — this measures your conversational ability.',
       skippable: false,
       prerequisites: ['ui_progress_tutorial'],
-      estimatedDurationSeconds: 300,
-      externalRef: 'arrival_visual',
+      estimatedDurationSeconds: 600,
+      externalRef: 'arrival_conversation',
       config: {
         assessmentId: 'arrival_encounter',
-        phaseId: 'arrival_visual',
+        phaseId: 'arrival_conversation',
       },
     },
 
@@ -171,7 +171,7 @@ export const LANGUAGE_LEARNING_ONBOARDING: OnboardingDefinition = {
       description:
         'Review your assessment results, receive your CEFR level, and get your first quest.',
       skippable: false,
-      prerequisites: ['assessment_visual'],
+      prerequisites: ['assessment_conversation'],
       estimatedDurationSeconds: 90,
       config: {
         narrativeKey: 'onboarding_results',
