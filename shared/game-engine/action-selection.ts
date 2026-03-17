@@ -193,4 +193,5 @@ export const STANDARD_ACTION_AFFINITIES: Record<string, Record<string, number>> 
   study: { openness: 0.5, conscientiousness: 0.4 },
   meditate: { openness: 0.4, neuroticism: -0.3 },
   plan: { conscientiousness: 0.6, openness: 0.2 },
+  read_sign: { openness: 0.4, conscientiousness: 0.3 },
 };

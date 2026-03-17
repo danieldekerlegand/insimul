@@ -1,0 +1,19 @@
+{
+  "category": "environmental-interaction",
+  "actions": [
+    {
+      "name": "Read Sign",
+      "displayName": "Read a nearby sign or notice",
+      "conditions": [],
+      "effects": [
+        {
+          "category": "event",
+          "first": "initiator",
+          "type": "read_sign",
+          "value": true
+        }
+      ],
+      "influenceRules": []
+    }
+  ]
+}
