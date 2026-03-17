@@ -65,10 +65,11 @@ const EVENT_DIRECTION_STEP_COMPLETED := "direction_step_completed"
 const EVENT_PRONUNCIATION_ASSESSMENT_DATA := "pronunciation_assessment_data"
 # Point-and-name vocabulary events
 const EVENT_OBJECT_NAMED := "object_named"
+# Object examination events
+const EVENT_OBJECT_EXAMINED := "object_examined"
 # NPC exam events (listening comprehension)
 const EVENT_NPC_EXAM_STARTED := "npc_exam_started"
 const EVENT_NPC_EXAM_LISTENING_READY := "npc_exam_listening_ready"
-const EVENT_NPC_EXAM_COMPLETED := "npc_exam_completed"
 # Achievement events
 const EVENT_ACHIEVEMENT_UNLOCKED := "achievement_unlocked"
 # Quest notification & reminder events
@@ -111,9 +112,9 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_DIRECTION_STEP_COMPLETED,
 	EVENT_PRONUNCIATION_ASSESSMENT_DATA,
 	EVENT_OBJECT_NAMED,
+	EVENT_OBJECT_EXAMINED,
 	EVENT_NPC_EXAM_STARTED,
 	EVENT_NPC_EXAM_LISTENING_READY,
-	EVENT_NPC_EXAM_COMPLETED,
 	EVENT_ACHIEVEMENT_UNLOCKED,
 	EVENT_QUEST_REMINDER,
 	EVENT_QUEST_EXPIRED,
@@ -190,9 +191,9 @@ var _global_handlers: Array[Callable] = []
 ##   direction_step_completed: {type, quest_id, objective_id, step_index, steps_completed, steps_required}
 ##   pronunciation_assessment_data: {type, quest_id, average_score, sample_count}
 ##   object_named:        {type, object_id, target_word, category, correct, attempts}
+##   object_examined:     {type, object_id, object_name, target_word, target_language, pronunciation?, category?}
 ##   npc_exam_started:     {type, exam_id, npc_id, npc_name, business_type, exam_type}
 ##   npc_exam_listening_ready: {type, exam_id, audio_url?, passage, questions, max_replays}
-##   npc_exam_completed:  {type, exam_id, npc_id, score, max_score, percentage, passed}
 ##   achievement_unlocked: {type, achievement_id, achievement_name, description, icon}
 ##   quest_reminder:      {type, quest_id, quest_title, message, reminder_type}
 ##   quest_expired:       {type, quest_id, quest_title}

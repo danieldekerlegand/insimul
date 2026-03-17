@@ -143,6 +143,7 @@ import {
   KEY_QUEST_LOG,
   KEY_FULLSCREEN_MAP,
   KEY_PUSH_TO_TALK,
+  KEY_EXAMINE_OBJECT,
 } from "@/components/3DGame/KeyboardMap.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 
@@ -5772,6 +5773,84 @@ export class BabylonGame {
     });
   }
 
+  /**
+   * Handle X key: examine the nearest world-prop object within range.
+   * Shows its target-language name (if in a language-learning world) and
+   * emits an object_examined event for quest/vocabulary tracking.
+   */
+  private handleExamineObject(): void {
+    if (!this.playerMesh) return;
+
+    const maxExamineDistance = 5;
+    const playerPos = this.playerMesh.position;
+    let nearestMesh: Mesh | null = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    for (const propMesh of this.worldPropMeshes) {
+      if (!propMesh || propMesh.isDisposed()) continue;
+      const dx = playerPos.x - propMesh.position.x;
+      const dz = playerPos.z - propMesh.position.z;
+      const distance = Math.sqrt(dx * dx + dz * dz);
+      if (distance <= maxExamineDistance && distance < nearestDistance) {
+        nearestMesh = propMesh;
+        nearestDistance = distance;
+      }
+    }
+
+    if (!nearestMesh) {
+      this.guiManager?.showToast({
+        title: "Nothing to examine",
+        description: "Move closer to an object and try again (X)",
+        duration: 1500,
+      });
+      return;
+    }
+
+    // Resolve the object role from mesh metadata
+    const objectRole = (nearestMesh.metadata?.objectRole || nearestMesh.name || "").toLowerCase();
+    const dbItem = this.worldItems.find(
+      (item: any) => item.objectRole && item.objectRole.toLowerCase() === objectRole
+    );
+
+    const itemName = dbItem?.name || objectRole.split(/[_\s]+/).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+    const langData = dbItem?.languageLearningData;
+    const isLangWorld = isLanguageLearningWorld(this.worldData);
+
+    if (isLangWorld && langData?.targetWord) {
+      // Show target-language label with pronunciation
+      const pronunciation = langData.pronunciation ? ` [${langData.pronunciation}]` : '';
+      this.guiManager?.showToast({
+        title: langData.targetWord,
+        description: `${itemName}${pronunciation}`,
+        duration: 3000,
+      });
+
+      // Track vocabulary exposure via language tracker
+      const tracker = this.chatPanel?.getLanguageTracker();
+      if (tracker) {
+        tracker.analyzeNPCResponse(langData.targetWord);
+      }
+
+      // Emit event for quest tracking and Prolog assertion
+      this.eventBus.emit({
+        type: 'object_examined',
+        objectId: dbItem?.id || objectRole,
+        objectName: itemName,
+        targetWord: langData.targetWord,
+        targetLanguage: langData.targetLanguage,
+        pronunciation: langData.pronunciation,
+        category: langData.category,
+      });
+    } else {
+      // Non-language-learning world: just show the object name
+      this.guiManager?.showToast({
+        title: itemName,
+        description: dbItem?.description || 'You examine the object closely.',
+        duration: 2500,
+      });
+    }
+  }
+
   private createInventoryItemForObjectRole(objectRole: string): InventoryItem {
     const role = (objectRole || "").toLowerCase();
     const id = `prop_${role || "generic"}`;
@@ -6916,6 +6995,12 @@ export class BabylonGame {
     if (event.code === KEY_PUSH_TO_TALK && !event.repeat) {
       event.preventDefault();
       this.chatPanel?.startPushToTalk();
+    }
+
+    // X - Examine nearest object (target-language label)
+    if (event.code === KEY_EXAMINE_OBJECT && !event.repeat) {
+      event.preventDefault();
+      this.handleExamineObject();
     }
   }
   
