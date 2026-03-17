@@ -406,6 +406,258 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
     ],
   },
 
+  // --- Shopping & Economic Vocabulary ---
+  {
+    id: 'shop_vocabulary',
+    name: 'Shopping Basics',
+    category: 'shopping',
+    description: 'Visit {{businessName}} and learn {{wordCount}} shopping vocabulary words.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'visit_location',
+        descriptionTemplate: 'Visit {{businessName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'collect_vocabulary',
+        descriptionTemplate: 'Learn {{wordCount}} shopping words (money, price, to buy, etc.)',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 20, fluency: 3 },
+    parameters: [
+      { name: 'businessName', type: 'location', description: 'Name of the business to visit' },
+      { name: 'wordCount', type: 'number', description: 'Shopping words to learn' },
+    ],
+  },
+  {
+    id: 'bakery_order',
+    name: 'At the Bakery',
+    category: 'shopping',
+    description: 'Visit the bakery and practice ordering food using target-language vocabulary.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'visit_location',
+        descriptionTemplate: 'Visit {{businessName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Order from the baker at {{businessName}} using {{wordCount}} food words',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} food and shopping vocabulary words',
+        requiredCount: 4,
+      },
+    ],
+    rewardScale: { xp: 25, fluency: 3 },
+    parameters: [
+      { name: 'businessName', type: 'location', description: 'Name of the bakery' },
+      { name: 'wordCount', type: 'number', description: 'Food and shopping words to use' },
+    ],
+  },
+  {
+    id: 'price_haggling',
+    name: 'How Much Is That?',
+    category: 'shopping',
+    description: 'Ask about prices at {{businessName}} using numbers and shopping vocabulary.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'visit_location',
+        descriptionTemplate: 'Visit {{businessName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Ask about prices and negotiate at {{businessName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} number and shopping words (how much, expensive, cheap, etc.)',
+        requiredCount: 6,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 4 },
+    parameters: [
+      { name: 'businessName', type: 'location', description: 'Name of the shop' },
+      { name: 'wordCount', type: 'number', description: 'Number/shopping words to use' },
+    ],
+  },
+  {
+    id: 'shopping_list',
+    name: 'The Shopping List',
+    category: 'shopping',
+    description: 'An NPC gives you a shopping list in the target language. Visit {{businessCount}} shops to collect everything.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'collect_item',
+        descriptionTemplate: 'Collect {{itemCount}} items from shops around town',
+        requiredCount: 3,
+      },
+      {
+        type: 'deliver_item',
+        descriptionTemplate: 'Deliver the shopping to {{npcName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use shopping vocabulary while buying items',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 35, fluency: 4 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC who gave the list' },
+      { name: 'itemCount', type: 'number', description: 'Items to collect' },
+      { name: 'businessCount', type: 'number', description: 'Number of shops to visit' },
+    ],
+  },
+  {
+    id: 'merchant_interview',
+    name: 'Meet the Merchants',
+    category: 'shopping',
+    description: 'Interview {{npcCount}} business owners about their shops and learn economic vocabulary.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'talk_to_npc',
+        descriptionTemplate: 'Talk to {{npcCount}} business owners about their trade',
+        requiredCount: 3,
+      },
+      {
+        type: 'collect_vocabulary',
+        descriptionTemplate: 'Collect {{wordCount}} economic and profession vocabulary words',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 4 },
+    parameters: [
+      { name: 'npcCount', type: 'number', description: 'Business owners to interview' },
+      { name: 'wordCount', type: 'number', description: 'Economic words to learn' },
+    ],
+  },
+
+  // --- Storytelling & Narrative Quests ---
+  {
+    id: 'story_circle',
+    name: 'Story Circle',
+    category: 'storytelling',
+    description: 'Join a group of NPCs and contribute to a collaborative story in the target language using past tense and sequencing words.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Contribute to a collaborative story with {{npcCount}} NPCs, adding at least {{turns}} story segments',
+        requiredCount: 3,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} sequencing and descriptive words (first, then, finally, beautiful, etc.)',
+        requiredCount: 6,
+      },
+    ],
+    rewardScale: { xp: 35, fluency: 5 },
+    parameters: [
+      { name: 'npcCount', type: 'number', description: 'Number of NPCs in the story circle' },
+      { name: 'turns', type: 'number', description: 'Story segments to contribute' },
+      { name: 'wordCount', type: 'number', description: 'Sequencing/descriptive words to use' },
+    ],
+  },
+  {
+    id: 'local_legend',
+    name: 'Local Legend',
+    category: 'storytelling',
+    description: 'Listen to {{storytellerName}} tell a folk tale, then retell it to {{listenerName}} in the target language.',
+    difficulty: 'advanced',
+    objectiveTemplates: [
+      {
+        type: 'listening_comprehension',
+        descriptionTemplate: 'Listen to {{storytellerName}} tell a folk tale and answer {{questionCount}} comprehension questions',
+        requiredCount: 3,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Retell the folk tale to {{listenerName}} using past tense and narrative vocabulary',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} past tense verbs and emotional vocabulary in your retelling',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 45, fluency: 6 },
+    parameters: [
+      { name: 'storytellerName', type: 'npc', description: 'NPC who tells the folk tale' },
+      { name: 'listenerName', type: 'npc', description: 'NPC to retell the story to' },
+      { name: 'questionCount', type: 'number', description: 'Comprehension questions to answer' },
+      { name: 'wordCount', type: 'number', description: 'Past tense and emotional words to use' },
+    ],
+  },
+  {
+    id: 'my_adventure',
+    name: 'My Adventure',
+    category: 'storytelling',
+    description: 'Describe your in-game experiences to {{npcName}} the scribe using past tense and descriptive vocabulary.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Tell {{npcName}} about your adventures in a {{turns}}-turn conversation',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} past tense verbs and descriptive adjectives',
+        requiredCount: 8,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 4 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC journalist/scribe to narrate to' },
+      { name: 'turns', type: 'number', description: 'Minimum conversation turns' },
+      { name: 'wordCount', type: 'number', description: 'Past tense and descriptive words to use' },
+    ],
+  },
+  {
+    id: 'picture_this',
+    name: 'Picture This',
+    category: 'storytelling',
+    description: 'Visit {{location}} and describe the scene to {{npcName}}, who cannot see it, using vivid descriptive language.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'visit_location',
+        descriptionTemplate: 'Visit {{location}} to observe the scene',
+        requiredCount: 1,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Describe the scene at {{location}} to {{npcName}} in a {{turns}}-turn conversation',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} descriptive adjectives and spatial vocabulary (big, small, near, far, etc.)',
+        requiredCount: 6,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 4 },
+    parameters: [
+      { name: 'location', type: 'location', description: 'Location to visit and describe' },
+      { name: 'npcName', type: 'npc', description: 'NPC who cannot see the scene' },
+      { name: 'turns', type: 'number', description: 'Minimum conversation turns' },
+      { name: 'wordCount', type: 'number', description: 'Descriptive and spatial words to use' },
+    ],
+  },
+
   // --- Time-Based Activities ---
   {
     id: 'time_appointment',

@@ -219,6 +219,10 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'acquire': 'collect_item',
   'buy_item': 'collect_item',
   'purchase': 'collect_item',
+  'purchase_item': 'collect_item',
+  'shop': 'collect_item',
+  'shop_for': 'collect_item',
+  'buy_from': 'collect_item',
   'collect_items': 'collect_item',
 
   'deliver': 'deliver_item',
@@ -273,6 +277,15 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'learn_vocabulary': 'collect_vocabulary',
   'collect_words': 'collect_vocabulary',
   'find_words': 'collect_vocabulary',
+
+  // Storytelling / narrative quest aliases
+  'tell_story': 'complete_conversation',
+  'retell_story': 'complete_conversation',
+  'narrate': 'complete_conversation',
+  'storytelling': 'complete_conversation',
+  'collaborative_story': 'complete_conversation',
+  'describe_scene': 'complete_conversation',
+  'retell': 'complete_conversation',
 
   // Legacy template types that need normalization
   'learn_new_words': 'collect_vocabulary',
