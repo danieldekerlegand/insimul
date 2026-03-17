@@ -8510,6 +8510,30 @@ Respond with this JSON structure:
     }
   });
 
+  // NPC Quest Guidance — get conversation guidance for an NPC based on active quests
+  app.get("/api/worlds/:worldId/quests/npc-guidance/:npcId", async (req, res) => {
+    try {
+      const { worldId, npcId } = req.params;
+
+      const character = await storage.getCharacter(npcId);
+      if (!character) {
+        return res.status(404).json({ error: "Character not found" });
+      }
+
+      const allQuests = await storage.getQuestsByWorld(worldId);
+      const activeQuests = allQuests.filter((q: any) => q.status === 'active');
+
+      const { getQuestGuidanceForNPC } = await import('./services/conversation/npc-quest-guidance.js');
+      const npcName = `${character.firstName} ${character.lastName}`;
+      const guidance = getQuestGuidanceForNPC(npcId, npcName, activeQuests);
+
+      res.json(guidance);
+    } catch (error) {
+      console.error('[Quest Guidance] Error:', error);
+      res.status(500).json({ error: "Failed to get quest guidance" });
+    }
+  });
+
   // Mystery Quest Generation (Prolog abductive reasoning)
   app.post("/api/worlds/:worldId/quests/generate-mystery", async (req, res) => {
     try {

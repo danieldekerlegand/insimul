@@ -168,6 +168,7 @@ export class BabylonChatPanel {
   private pendingTurnInQuests: any[] = [];
   private questOfferingContext: { questTitle: string; questDescription: string; questType: string; difficulty: string; objectives: string; category: string } | null = null;
   private activeQuestFromNPC: { questTitle: string; questDescription: string; questId: string } | null = null;
+  private questGuidancePrompt: string | null = null;
   private _targetLanguage: string | null = null;
 
   // Expose advancedTexture for debugging
@@ -457,6 +458,7 @@ export class BabylonChatPanel {
     // Clear quest context so it doesn't bleed into next conversation
     this.questOfferingContext = null;
     this.activeQuestFromNPC = null;
+    this.questGuidancePrompt = null;
     this._cachedSystemPrompt = null; // Force prompt rebuild for next NPC
     // Hide talking indicator
     if (this.talkingIndicator && this.character) {
@@ -1714,6 +1716,11 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
       prompt += `\n\nACTIVE QUEST CONTEXT: You previously gave the player a quest: "${aq.questTitle}" — ${aq.questDescription}. Reference this quest naturally in conversation. Ask about their progress, offer hints or encouragement. Do NOT re-assign the quest.`;
     }
 
+    // Inject NPC-guided conversation mode for quest objectives
+    if (this.questGuidancePrompt) {
+      prompt += '\n' + this.questGuidancePrompt;
+    }
+
     // Inject listening comprehension or other quest-specific augmentation
     if (this.systemPromptAugmentation && this.character.id) {
       const augmentation = this.systemPromptAugmentation(this.character.id);
@@ -2490,6 +2497,17 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
    */
   public setActiveQuestFromNPC(context: { questTitle: string; questDescription: string; questId: string } | null) {
     this.activeQuestFromNPC = context;
+  }
+
+  /**
+   * Set NPC-guided conversation mode prompt addition.
+   * When set, the NPC will steer the conversation to help the player complete
+   * relevant quest objectives. Call before show().
+   */
+  public setQuestGuidancePrompt(prompt: string | null) {
+    this.questGuidancePrompt = prompt;
+    // Invalidate cached system prompt so it rebuilds with guidance
+    this._cachedSystemPrompt = null;
   }
 
   private _onExternalNewWord: ((entry: any) => void) | null = null;
