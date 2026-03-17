@@ -61,7 +61,11 @@ namespace Insimul.Systems
         VisualVocabPrompted,
         VisualVocabAnswered,
         // Follow directions quest events
-        DirectionStepCompleted
+        DirectionStepCompleted,
+        // NPC exam events
+        NpcExamStarted,
+        NpcExamListeningReady,
+        NpcExamCompleted
     }
 
     /// <summary>
@@ -513,6 +517,47 @@ namespace Insimul.Systems
         public int stepIndex;
         public int stepsCompleted;
         public int stepsRequired;
+    }
+
+    // ── NPC Exam Events ──────────────────────────────────────────────────────
+
+    public class NpcExamStartedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.NpcExamStarted;
+        public string examId;
+        public string npcId;
+        public string npcName;
+        public string businessType;
+        public string examType;
+    }
+
+    [System.Serializable]
+    public class NpcExamQuestion
+    {
+        public string id;
+        public string questionText;
+        public int maxPoints;
+    }
+
+    public class NpcExamListeningReadyEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.NpcExamListeningReady;
+        public string examId;
+        public string audioUrl;
+        public string passage;
+        public NpcExamQuestion[] questions;
+        public int maxReplays;
+    }
+
+    public class NpcExamCompletedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.NpcExamCompleted;
+        public string examId;
+        public string npcId;
+        public float score;
+        public float maxScore;
+        public float percentage;
+        public bool passed;
     }
 
     // ── Event Bus ────────────────────────────────────────────────────────────
