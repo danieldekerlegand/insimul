@@ -65,6 +65,8 @@ enum class EInsimulEventType : uint8
     DirectionStepCompleted UMETA(DisplayName = "Direction Step Completed"),
     // Pronunciation quest events
     PronunciationAssessmentData UMETA(DisplayName = "Pronunciation Assessment Data"),
+    // Point-and-name vocabulary events
+    ObjectNamed UMETA(DisplayName = "Object Named"),
     // Achievement events
     AchievementUnlocked UMETA(DisplayName = "Achievement Unlocked")
 };
@@ -241,6 +243,10 @@ struct FInsimulGameEvent
     // ── Periodic assessment fields ────────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Level = 0;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Tier;
+
+    // ── Point-and-name fields ─────────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ObjectId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString TargetWord;
 
     // ── Achievement fields ─────────────────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AchievementId;
