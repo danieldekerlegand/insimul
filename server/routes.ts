@@ -8490,6 +8490,50 @@ Respond with this JSON structure:
     }
   });
 
+  // Business Role-Play Quest Generation
+  app.post("/api/worlds/:worldId/quests/generate-business-roleplay", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { assignedTo, businessTypeFilter, maxQuests, difficulty } = req.body;
+
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      const { generateBusinessRoleplayQuests } = await import('./services/business-roleplay-quest-generator.js');
+
+      const [businesses, characters] = await Promise.all([
+        storage.getBusinessesByWorld(worldId),
+        storage.getCharactersByWorld(worldId),
+      ]);
+
+      const quests = generateBusinessRoleplayQuests({
+        world,
+        businesses,
+        characters,
+        assignedTo: assignedTo || 'Player',
+        businessTypeFilter,
+        maxQuests,
+        difficulty,
+      });
+
+      const createdQuests = [];
+      for (const questData of quests) {
+        const created = await storage.createQuest(questData as any);
+        createdQuests.push(created);
+      }
+
+      res.status(201).json({
+        count: createdQuests.length,
+        quests: createdQuests,
+      });
+    } catch (error) {
+      console.error('[Business Roleplay Quest Generation] Error:', error);
+      res.status(500).json({ error: "Failed to generate business roleplay quests" });
+    }
+  });
+
   // Quest Assignment Engine — generates playable quests from templates using real world data
   app.post("/api/worlds/:worldId/quests/assign", async (req, res) => {
     try {
