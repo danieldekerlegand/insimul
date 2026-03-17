@@ -68,6 +68,16 @@ export type ActivityVerb =
   | 'grammar_attempt'
   | 'translation'
   | 'pronunciation'
+  | 'examine_object'
+  | 'read_sign'
+  | 'write_response'
+  | 'listen_and_repeat'
+  | 'point_and_name'
+  | 'ask_for_directions'
+  | 'order_food'
+  | 'haggle_price'
+  | 'introduce_self'
+  | 'describe_scene'
   // Quest
   | 'quest_accept'
   | 'quest_complete'
@@ -452,6 +462,86 @@ export const ACTIVITY_TAXONOMY: Record<ActivityVerb, ActivityDefinition> = {
     prologPredicate: 'pronunciation_attempted(player, Word)',
     telemetryFields: ['word', 'score', 'feedback'],
   },
+  examine_object: {
+    category: 'language',
+    verb: 'examine_object',
+    requiresTarget: true,
+    emitsEvent: 'object_examined',
+    prologPredicate: 'examined_object(player, ObjectId)',
+    telemetryFields: ['objectId', 'objectName', 'targetLanguageName', 'learned'],
+  },
+  read_sign: {
+    category: 'language',
+    verb: 'read_sign',
+    requiresTarget: true,
+    emitsEvent: 'sign_read',
+    prologPredicate: 'read_sign(player, SignId)',
+    telemetryFields: ['signId', 'signText', 'understood', 'locationId'],
+  },
+  write_response: {
+    category: 'language',
+    verb: 'write_response',
+    requiresTarget: false,
+    emitsEvent: 'response_written',
+    prologPredicate: 'wrote_response(player, PromptId)',
+    telemetryFields: ['promptId', 'promptText', 'playerText', 'accuracy', 'grammarScore'],
+  },
+  listen_and_repeat: {
+    category: 'language',
+    verb: 'listen_and_repeat',
+    requiresTarget: true,
+    emitsEvent: 'phrase_repeated',
+    prologPredicate: 'listened_and_repeated(player, NpcId, Phrase)',
+    telemetryFields: ['npcId', 'targetPhrase', 'playerPhrase', 'matchScore'],
+  },
+  point_and_name: {
+    category: 'language',
+    verb: 'point_and_name',
+    requiresTarget: true,
+    emitsEvent: 'object_named',
+    prologPredicate: 'pointed_and_named(player, ObjectId)',
+    telemetryFields: ['objectId', 'objectName', 'playerName', 'correct'],
+  },
+  ask_for_directions: {
+    category: 'language',
+    verb: 'ask_for_directions',
+    requiresTarget: true,
+    emitsEvent: 'directions_asked',
+    prologPredicate: 'asked_directions(player, NpcId, DestinationId)',
+    telemetryFields: ['npcId', 'destinationId', 'languageUsed', 'understood'],
+  },
+  order_food: {
+    category: 'language',
+    verb: 'order_food',
+    requiresTarget: true,
+    emitsEvent: 'food_ordered',
+    prologPredicate: 'ordered_food(player, NpcId, ItemId)',
+    telemetryFields: ['npcId', 'itemOrdered', 'languageUsed', 'correct', 'businessId'],
+  },
+  haggle_price: {
+    category: 'language',
+    verb: 'haggle_price',
+    requiresTarget: true,
+    emitsEvent: 'price_haggled',
+    prologPredicate: 'haggled_price(player, NpcId, ItemId)',
+    telemetryFields: ['npcId', 'itemId', 'originalPrice', 'finalPrice', 'languageUsed'],
+  },
+  introduce_self: {
+    category: 'language',
+    verb: 'introduce_self',
+    requiresTarget: true,
+    emitsEvent: 'self_introduced',
+    prologPredicate: 'introduced_self(player, NpcId)',
+    telemetryFields: ['npcId', 'languageUsed', 'contentAccuracy', 'grammarScore'],
+  },
+  describe_scene: {
+    category: 'language',
+    verb: 'describe_scene',
+    requiresTarget: false,
+    emitsEvent: 'scene_described',
+    prologPredicate: 'described_scene(player, LocationId)',
+    telemetryFields: ['locationId', 'playerDescription', 'accuracy', 'vocabularyUsed'],
+  },
 
   // ── Quest ───────────────────────────────────────────────────────────────
 
@@ -606,6 +696,16 @@ export const LEGACY_EVENT_ALIASES: Readonly<Record<string, ActivityVerb>> = {
   'grammar_attempted': 'grammar_attempt',
   'translation_attempted': 'translation',
   'pronunciation_attempted': 'pronunciation',
+  'object_examined': 'examine_object',
+  'sign_read': 'read_sign',
+  'response_written': 'write_response',
+  'phrase_repeated': 'listen_and_repeat',
+  'object_named': 'point_and_name',
+  'directions_asked': 'ask_for_directions',
+  'food_ordered': 'order_food',
+  'price_haggled': 'haggle_price',
+  'self_introduced': 'introduce_self',
+  'scene_described': 'describe_scene',
   'conversation_overheard': 'eavesdrop',
   'utterance_attempted': 'utterance_attempt',
   'romance_action': 'romance_action',

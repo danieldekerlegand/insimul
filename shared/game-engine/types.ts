@@ -213,7 +213,7 @@ export interface Action {
   name: string;
   description: string | null;
   content?: string | null;
-  actionType: 'social' | 'mental' | 'combat' | 'movement' | 'economic';
+  actionType: 'social' | 'mental' | 'combat' | 'movement' | 'economic' | 'language';
   category: string | null;
   duration: number | null;
   difficulty: number | null;
