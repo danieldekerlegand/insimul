@@ -25,6 +25,8 @@ import './tts/google-tts-provider.js';
 import type { IVisemeGenerator, VisemeQuality } from './viseme/viseme-generator.js';
 import { createVisemeGenerator } from './viseme/viseme-generator.js';
 import { PipelineTimer, getConversationMetrics } from './conversation-metrics.js';
+import { analyzeConversation } from './quest-trigger-analyzer.js';
+import type { ActiveQuest } from './quest-trigger-analyzer.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -38,6 +40,7 @@ const MARKER_BLOCKS = [
   { open: '**GRAMMAR_FEEDBACK**', close: '**END_GRAMMAR**', type: 'grammar_feedback' },
   { open: '**QUEST_ASSIGN**', close: '**END_QUEST**', type: 'quest_assign' },
   { open: '**EVAL**', close: '**END_EVAL**', type: 'eval' },
+  { open: '**QUEST_PROGRESS**', close: '**END_QUEST_PROGRESS**', type: 'quest_progress' },
 ] as const;
 
 /**
@@ -51,8 +54,9 @@ function cleanForTTS(text: string): string {
     .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
     .replace(/\*\*VOCAB_HINTS\*\*[\s\S]*?\*\*END_VOCAB\*\*/g, '')
     .replace(/\*\*EVAL\*\*[\s\S]*?\*\*END_EVAL\*\*/g, '')
+    .replace(/\*\*QUEST_PROGRESS\*\*[\s\S]*?\*\*END_QUEST_PROGRESS\*\*/g, '')
     // Strip orphaned marker tags
-    .replace(/\*\*(VOCAB_HINTS|END_VOCAB|GRAMMAR_FEEDBACK|END_GRAMMAR|QUEST_ASSIGN|END_QUEST|EVAL|END_EVAL)\*\*/g, '')
+    .replace(/\*\*(VOCAB_HINTS|END_VOCAB|GRAMMAR_FEEDBACK|END_GRAMMAR|QUEST_ASSIGN|END_QUEST|EVAL|END_EVAL|QUEST_PROGRESS|END_QUEST_PROGRESS)\*\*/g, '')
     // Strip markdown bold/italic (***text***, **text**, *text*)
     .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')
     // Strip markdown headers
@@ -89,6 +93,7 @@ async function streamTextResponse(
   characterId: string,
   worldId: string,
   languageCode: string,
+  activeQuests?: ActiveQuest[],
 ): Promise<void> {
   const metrics = getConversationMetrics();
   const e2eTimer = new PipelineTimer('end_to_end');
@@ -340,6 +345,23 @@ async function streamTextResponse(
     addToHistory(session, 'assistant', fullResponse);
   }
 
+  // Run quest trigger analysis on the player message
+  if (activeQuests && activeQuests.length > 0) {
+    try {
+      const analysisResult = analyzeConversation({
+        playerMessage: text,
+        npcCharacterId: characterId,
+        conversationTurnCount: session.history.filter(h => h.role === 'user').length,
+        activeQuests,
+      });
+      if (analysisResult.triggers.length > 0) {
+        sendSSE(res, { type: 'quest_progress', content: analysisResult.markerContent, triggers: analysisResult.triggers });
+      }
+    } catch (err: any) {
+      console.error('[ConversationBridge] Quest trigger analysis error:', err.message);
+    }
+  }
+
   e2eTimer.stop();
 
   res.write('data: [DONE]\n\n');
@@ -355,7 +377,7 @@ export function registerConversationRoutes(app: Express): void {
    * Response: SSE stream of text/audio/facial/meta events
    */
   app.post('/api/conversation/stream', async (req: Request, res: Response) => {
-    const { sessionId, characterId, worldId, text, languageCode } = req.body;
+    const { sessionId, characterId, worldId, text, languageCode, activeQuests } = req.body;
 
     if (!sessionId || !characterId || !worldId || !text) {
       res.status(400).json({ error: 'Missing required fields: sessionId, characterId, worldId, text' });
@@ -370,7 +392,7 @@ export function registerConversationRoutes(app: Express): void {
     res.flushHeaders();
 
     try {
-      await streamTextResponse(res, text, sessionId, characterId, worldId, languageCode || 'en');
+      await streamTextResponse(res, text, sessionId, characterId, worldId, languageCode || 'en', activeQuests);
     } catch (err: any) {
       console.error('[ConversationBridge] Stream error:', err);
       if (!res.writableEnded) {
