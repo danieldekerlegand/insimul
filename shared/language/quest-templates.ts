@@ -760,6 +760,140 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
     ],
   },
 
+  // --- Social / Relationship Quests ---
+  {
+    id: 'make_a_friend',
+    name: 'Make a Friend',
+    category: 'social',
+    description: 'Build a friendship with {{npcName}} by having {{conversationCount}} conversations.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'build_friendship',
+        descriptionTemplate: 'Have {{conversationCount}} conversations with {{npcName}}',
+        requiredCount: 3,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} greeting or social words during your conversations',
+        requiredCount: 3,
+      },
+    ],
+    rewardScale: { xp: 25, fluency: 3 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC to befriend' },
+      { name: 'conversationCount', type: 'number', description: 'Number of conversations' },
+      { name: 'wordCount', type: 'number', description: 'Social vocabulary to use' },
+    ],
+  },
+  {
+    id: 'gift_of_friendship',
+    name: 'Gift of Friendship',
+    category: 'social',
+    description: 'Show {{npcName}} you care by finding a gift and presenting it to them.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'collect_item',
+        descriptionTemplate: 'Find a gift for {{npcName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'give_gift',
+        descriptionTemplate: 'Present the gift to {{npcName}}',
+        requiredCount: 1,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 4 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC to give the gift to' },
+    ],
+  },
+  {
+    id: 'community_builder',
+    name: 'Community Builder',
+    category: 'social',
+    description: 'Get to know the community by talking to {{npcCount}} different people.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'talk_to_npc',
+        descriptionTemplate: 'Talk to {{npcCount}} different community members',
+        requiredCount: 5,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} social vocabulary words across your conversations',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 3 },
+    parameters: [
+      { name: 'npcCount', type: 'number', description: 'Number of NPCs to talk to' },
+      { name: 'wordCount', type: 'number', description: 'Social words to use' },
+    ],
+  },
+  {
+    id: 'language_exchange',
+    name: 'Language Exchange Partner',
+    category: 'social',
+    description: 'Practice {{language}} with {{npcName}} through a sustained conversation.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'build_friendship',
+        descriptionTemplate: 'Build rapport with {{npcName}} through {{conversationCount}} conversations',
+        requiredCount: 2,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Have a sustained {{turns}}-turn conversation with {{npcName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} {{language}} words while chatting',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 40, fluency: 5 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'Language exchange partner NPC' },
+      { name: 'conversationCount', type: 'number', description: 'Conversations to have' },
+      { name: 'turns', type: 'number', description: 'Minimum conversation turns' },
+      { name: 'wordCount', type: 'number', description: 'Target language words to use' },
+      { name: 'language', type: 'category', description: 'Target language name' },
+    ],
+  },
+  {
+    id: 'the_helpful_stranger',
+    name: 'The Helpful Stranger',
+    category: 'social',
+    description: 'Help {{npcName}} by delivering an item they need, then talk to build your bond.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'collect_item',
+        descriptionTemplate: 'Find the item {{npcName}} needs',
+        requiredCount: 1,
+      },
+      {
+        type: 'deliver_item',
+        descriptionTemplate: 'Deliver the item to {{npcName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'build_friendship',
+        descriptionTemplate: 'Talk to {{npcName}} to strengthen your bond',
+        requiredCount: 2,
+      },
+    ],
+    rewardScale: { xp: 35, fluency: 4 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC who needs help' },
+    ],
+  },
+
   // --- Time-Based Activities ---
   {
     id: 'time_appointment',

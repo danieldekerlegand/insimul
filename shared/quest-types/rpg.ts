@@ -158,6 +158,22 @@ export const rpgQuestType: QuestTypeDefinition = {
         return gained >= required;
       },
     },
+    {
+      id: 'build_friendship',
+      name: 'Build Friendship',
+      trackingLogic: (context) => context.friendshipInteractions || 0,
+      completionCheck: (progress) => {
+        const interactions = progress.friendshipInteractions || 0;
+        const required = progress.required || 3;
+        return interactions >= required;
+      },
+    },
+    {
+      id: 'give_gift',
+      name: 'Give Gift',
+      trackingLogic: (context) => context.giftGiven || false,
+      completionCheck: (progress) => progress.giftGiven === true,
+    },
   ],
 
   rewardTypes: ['experience', 'items', 'gold', 'skills', 'reputation', 'unlock'],

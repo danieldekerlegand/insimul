@@ -78,6 +78,12 @@ export const languageLearningQuestType: QuestTypeDefinition = {
       icon: '🧭',
       description: 'Navigate the world following target-language directions',
     },
+    {
+      id: 'social',
+      name: 'Social',
+      icon: '🤝',
+      description: 'Build relationships with NPCs through language practice',
+    },
   ],
 
   objectiveTypes: [
@@ -246,6 +252,20 @@ export const languageLearningQuestType: QuestTypeDefinition = {
         return (progress.waypointsReached || 0) >= (progress.required || 1);
       },
     },
+    {
+      id: 'build_friendship',
+      name: 'Build Friendship',
+      trackingLogic: (context) => context.friendshipInteractions || 0,
+      completionCheck: (progress) => {
+        return (progress.friendshipInteractions || 0) >= (progress.required || 3);
+      },
+    },
+    {
+      id: 'give_gift',
+      name: 'Give Gift',
+      trackingLogic: (context) => context.giftGiven || false,
+      completionCheck: (progress) => progress.giftGiven === true,
+    },
   ],
 
   rewardTypes: ['experience', 'fluency', 'items', 'unlock'],
@@ -275,7 +295,7 @@ World Description: ${world.description || 'A language learning environment'}
 
 Create a quest that helps the player practice ${language} through natural interactions. The quest should:
 - Have a clear narrative context that fits the ${setting} setting
-- Include 2-4 objectives from: use_vocabulary, complete_conversation, practice_grammar, collect_item, visit_location, talk_to_npc, use_vocabulary_category, sustained_conversation, master_words, learn_new_words, collect_vocabulary, identify_object, follow_directions, find_vocabulary_items, listening_comprehension, translation_challenge, navigate_language
+- Include 2-4 objectives from: use_vocabulary, complete_conversation, practice_grammar, collect_item, visit_location, talk_to_npc, use_vocabulary_category, sustained_conversation, master_words, learn_new_words, collect_vocabulary, identify_object, follow_directions, find_vocabulary_items, listening_comprehension, translation_challenge, navigate_language, build_friendship, give_gift
 - Specify vocabulary words or grammar patterns to practice
 - Set appropriate difficulty (beginner/intermediate/advanced)
 - Provide meaningful rewards (XP and fluency points)
@@ -301,7 +321,7 @@ Return JSON format:
 {
   "title": "Quest title in English",
   "description": "Quest description with narrative context",
-  "category": "conversation|vocabulary|grammar|translation|cultural|visual_vocabulary|follow_instructions|scavenger_hunt|listening_comprehension|translation_challenge|navigation",
+  "category": "conversation|vocabulary|grammar|translation|cultural|visual_vocabulary|follow_instructions|scavenger_hunt|listening_comprehension|translation_challenge|navigation|social",
   "difficulty": "beginner|intermediate|advanced",
   "objectives": [
     {

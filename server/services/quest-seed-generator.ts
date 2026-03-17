@@ -252,6 +252,55 @@ function buildSeedQuests(): SeedQuestDef[] {
       },
     },
     {
+      objectiveType: 'build_friendship',
+      title: 'Making Friends',
+      description: 'Build a friendship with a local by having several conversations.',
+      questType: 'social',
+      difficulty: 'beginner',
+      xp: 25,
+      buildObjectives: (ctx) => {
+        const npc = ctx.npcs.length > 0 ? pick(ctx.npcs) : null;
+        return [{
+          id: 'obj_0', type: 'build_friendship',
+          description: npc
+            ? `Have 3 conversations with ${charName(npc)} to build a friendship`
+            : 'Have 3 conversations with a local to build a friendship',
+          target: npc ? charName(npc) : undefined,
+          npcId: npc?.id,
+          requiredCount: 3, currentCount: 0, completed: false,
+          friendshipInteractions: 0,
+        }];
+      },
+    },
+    {
+      objectiveType: 'give_gift',
+      title: 'A Thoughtful Gift',
+      description: 'Find a gift and present it to a local to strengthen your bond.',
+      questType: 'social',
+      difficulty: 'intermediate',
+      xp: 30,
+      buildObjectives: (ctx) => {
+        const npc = ctx.npcs.length > 0 ? pick(ctx.npcs) : null;
+        return [
+          {
+            id: 'obj_0', type: 'collect_item',
+            description: 'Find a gift item',
+            requiredCount: 1, currentCount: 0, completed: false,
+          },
+          {
+            id: 'obj_1', type: 'give_gift',
+            description: npc
+              ? `Present the gift to ${charName(npc)}`
+              : 'Present the gift to a local resident',
+            target: npc ? charName(npc) : undefined,
+            npcId: npc?.id,
+            requiredCount: 1, currentCount: 0, completed: false,
+            giftGiven: false,
+          },
+        ];
+      },
+    },
+    {
       objectiveType: 'gain_reputation',
       title: 'Earn Their Trust',
       description: 'Build your standing with the community through positive interactions.',

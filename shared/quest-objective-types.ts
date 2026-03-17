@@ -125,6 +125,22 @@ export const ACHIEVABLE_OBJECTIVE_TYPES: ObjectiveTypeInfo[] = [
     countable: false,
   },
 
+  // ── Social / Relationships ──────────────────────────────────────────────
+  {
+    type: 'build_friendship',
+    description: 'Build a friendship with an NPC through repeated conversations',
+    playerAction: 'Have multiple conversations with the same NPC to build rapport',
+    requiresTarget: 'npc',
+    countable: true,
+  },
+  {
+    type: 'give_gift',
+    description: 'Give a gift item to an NPC to strengthen a relationship',
+    playerAction: 'Collect an item and present it to an NPC during conversation',
+    requiresTarget: 'npc',
+    countable: false,
+  },
+
   // ── Reputation ───────────────────────────────────────────────────────────
   {
     type: 'gain_reputation',
@@ -317,6 +333,20 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'protect': 'escort_npc',
   'accompany': 'escort_npc',
   'guard': 'escort_npc',
+
+  'befriend': 'build_friendship',
+  'befriend_npc': 'build_friendship',
+  'make_friend': 'build_friendship',
+  'friendship': 'build_friendship',
+  'build_rapport': 'build_friendship',
+  'bond_with': 'build_friendship',
+  'socialize': 'build_friendship',
+
+  'gift': 'give_gift',
+  'present_gift': 'give_gift',
+  'give_present': 'give_gift',
+  'gift_item': 'give_gift',
+  'offer_gift': 'give_gift',
 
   'reputation': 'gain_reputation',
   'improve_standing': 'gain_reputation',
