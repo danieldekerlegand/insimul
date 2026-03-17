@@ -44,6 +44,36 @@ export interface Quest {
   objectives?: QuestObjective[];
   rewards?: Record<string, any> | null;
   locationName?: string;
+  hintsUsed?: number;
+  performanceRating?: number;
+  vocabularyUsed?: string[];
+  grammarAccuracy?: number;
+}
+
+/** Filter criteria for quest log */
+export interface QuestFilters {
+  questType?: string;
+  difficulty?: string;
+  assignedBy?: string;
+  search?: string;
+}
+
+/** Sort options for quest log */
+export type QuestSortBy = 'recent' | 'difficulty' | 'reward';
+
+/** Aggregated quest statistics */
+export interface QuestStats {
+  totalCompleted: number;
+  totalActive: number;
+  totalFailed: number;
+  totalAbandoned: number;
+  completionRate: number;
+  averagePerformance: number;
+  totalXpEarned: number;
+  vocabularyWordsLearned: number;
+  grammarPatternsCount: number;
+  questsByType: Record<string, number>;
+  questsByDifficulty: Record<string, number>;
 }
 
 /** Color for quest type background tint */
@@ -168,6 +198,118 @@ export function formatDistance(distance: number): string {
   return `${(distance / 100).toFixed(1)}km`;
 }
 
+/** Difficulty numeric value for sorting */
+const DIFFICULTY_ORDER: Record<string, number> = {
+  beginner: 1, easy: 1,
+  intermediate: 2, normal: 2,
+  advanced: 3, hard: 3,
+  legendary: 4,
+};
+
+/** Filter quests by type, difficulty, NPC giver, and search keyword */
+export function filterQuests(quests: Quest[], filters: QuestFilters): Quest[] {
+  return quests.filter(q => {
+    if (filters.questType && q.questType !== filters.questType) return false;
+    if (filters.difficulty && q.difficulty !== filters.difficulty) return false;
+    if (filters.assignedBy && q.assignedBy !== filters.assignedBy) return false;
+    if (filters.search) {
+      const term = filters.search.toLowerCase();
+      if (!q.title.toLowerCase().includes(term) && !q.description.toLowerCase().includes(term)) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
+/** Sort quests by the given criterion */
+export function sortQuests(quests: Quest[], sortBy: QuestSortBy): Quest[] {
+  const sorted = [...quests];
+  switch (sortBy) {
+    case 'recent':
+      sorted.sort((a, b) => {
+        const dateA = a.completedAt ? new Date(a.completedAt).getTime() : new Date(a.assignedAt).getTime();
+        const dateB = b.completedAt ? new Date(b.completedAt).getTime() : new Date(b.assignedAt).getTime();
+        return dateB - dateA;
+      });
+      break;
+    case 'difficulty':
+      sorted.sort((a, b) => (DIFFICULTY_ORDER[b.difficulty] ?? 0) - (DIFFICULTY_ORDER[a.difficulty] ?? 0));
+      break;
+    case 'reward':
+      sorted.sort((a, b) => b.experienceReward - a.experienceReward);
+      break;
+  }
+  return sorted;
+}
+
+/** Compute aggregate statistics from a full quest list */
+export function computeQuestStats(quests: Quest[]): QuestStats {
+  const completed = quests.filter(q => q.status === 'completed');
+  const active = quests.filter(q => q.status === 'active');
+  const failed = quests.filter(q => q.status === 'failed');
+  const abandoned = quests.filter(q => q.status === 'abandoned');
+
+  const totalWithOutcome = completed.length + failed.length + abandoned.length;
+  const completionRate = totalWithOutcome > 0 ? completed.length / totalWithOutcome : 0;
+
+  const ratings = completed.filter(q => q.performanceRating != null).map(q => q.performanceRating!);
+  const averagePerformance = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
+
+  const totalXpEarned = completed.reduce((sum, q) => sum + q.experienceReward, 0);
+
+  const vocabSet = new Set<string>();
+  for (const q of completed) {
+    if (q.vocabularyUsed) {
+      for (const word of q.vocabularyUsed) vocabSet.add(word);
+    }
+  }
+
+  let grammarPatternsCount = 0;
+  for (const q of completed) {
+    if (q.questType === 'grammar') grammarPatternsCount++;
+  }
+
+  const questsByType: Record<string, number> = {};
+  const questsByDifficulty: Record<string, number> = {};
+  for (const q of quests) {
+    questsByType[q.questType] = (questsByType[q.questType] || 0) + 1;
+    questsByDifficulty[q.difficulty] = (questsByDifficulty[q.difficulty] || 0) + 1;
+  }
+
+  return {
+    totalCompleted: completed.length,
+    totalActive: active.length,
+    totalFailed: failed.length,
+    totalAbandoned: abandoned.length,
+    completionRate,
+    averagePerformance,
+    totalXpEarned,
+    vocabularyWordsLearned: vocabSet.size,
+    grammarPatternsCount,
+    questsByType,
+    questsByDifficulty,
+  };
+}
+
+/** Get unique NPC givers from quest list */
+export function getUniqueQuestGivers(quests: Quest[]): string[] {
+  const givers = new Set<string>();
+  for (const q of quests) {
+    if (q.assignedBy) givers.add(q.assignedBy);
+  }
+  return Array.from(givers).sort();
+}
+
+/** Get unique quest types from quest list */
+export function getUniqueQuestTypes(quests: Quest[]): string[] {
+  const types = new Set<string>();
+  for (const q of quests) {
+    types.add(q.questType);
+  }
+  return Array.from(types).sort();
+}
+
 export class BabylonQuestTracker {
   private advancedTexture: AdvancedDynamicTexture;
   private scene: Scene;
@@ -180,9 +322,15 @@ export class BabylonQuestTracker {
   private isMinimized = false;
 
   // Tab state
-  private activeTab: 'active' | 'completed' = 'active';
+  private activeTab: 'active' | 'completed' | 'stats' = 'active';
   private activeTabBtn: Button | null = null;
   private completedTabBtn: Button | null = null;
+  private statsTabBtn: Button | null = null;
+
+  // Filter, sort, search state
+  private filters: QuestFilters = {};
+  private sortBy: QuestSortBy = 'recent';
+  private filterBarPanel: StackPanel | null = null;
 
   // Selection and tracking
   private selectedQuestId: string | null = null;
@@ -295,11 +443,11 @@ export class BabylonQuestTracker {
     mainStack.addControl(tabBar);
 
     this.activeTabBtn = Button.CreateSimpleButton("activeTab", "Active");
-    this.activeTabBtn.width = "50%";
+    this.activeTabBtn.width = "34%";
     this.activeTabBtn.height = "35px";
     this.activeTabBtn.color = "white";
     this.activeTabBtn.background = "#4CAF50";
-    this.activeTabBtn.fontSize = 13;
+    this.activeTabBtn.fontSize = 12;
     this.activeTabBtn.fontWeight = "bold";
     this.activeTabBtn.thickness = 0;
     this.activeTabBtn.onPointerClickObservable.add(() => {
@@ -308,11 +456,11 @@ export class BabylonQuestTracker {
     tabBar.addControl(this.activeTabBtn);
 
     this.completedTabBtn = Button.CreateSimpleButton("completedTab", "Completed");
-    this.completedTabBtn.width = "50%";
+    this.completedTabBtn.width = "33%";
     this.completedTabBtn.height = "35px";
     this.completedTabBtn.color = "#AAA";
     this.completedTabBtn.background = "rgba(60, 60, 60, 0.8)";
-    this.completedTabBtn.fontSize = 13;
+    this.completedTabBtn.fontSize = 12;
     this.completedTabBtn.fontWeight = "bold";
     this.completedTabBtn.thickness = 0;
     this.completedTabBtn.onPointerClickObservable.add(() => {
@@ -320,10 +468,30 @@ export class BabylonQuestTracker {
     });
     tabBar.addControl(this.completedTabBtn);
 
+    this.statsTabBtn = Button.CreateSimpleButton("statsTab", "Stats");
+    this.statsTabBtn.width = "33%";
+    this.statsTabBtn.height = "35px";
+    this.statsTabBtn.color = "#AAA";
+    this.statsTabBtn.background = "rgba(60, 60, 60, 0.8)";
+    this.statsTabBtn.fontSize = 12;
+    this.statsTabBtn.fontWeight = "bold";
+    this.statsTabBtn.thickness = 0;
+    this.statsTabBtn.onPointerClickObservable.add(() => {
+      this.setActiveTab('stats');
+    });
+    tabBar.addControl(this.statsTabBtn);
+
+    // Filter bar (for active/completed tabs)
+    this.filterBarPanel = new StackPanel("filterBar");
+    this.filterBarPanel.width = "100%";
+    this.filterBarPanel.adaptHeightToChildren = true;
+    mainStack.addControl(this.filterBarPanel);
+    this.rebuildFilterBar();
+
     // Quest list scroll area
     this.scrollViewer = new ScrollViewer("questScroll");
     this.scrollViewer.width = "100%";
-    this.scrollViewer.height = "415px";
+    this.scrollViewer.height = "370px";
     this.scrollViewer.paddingTop = "5px";
     this.scrollViewer.paddingBottom = "5px";
     this.scrollViewer.background = "rgba(20, 20, 20, 0.5)";
@@ -362,23 +530,27 @@ export class BabylonQuestTracker {
     this.advancedTexture.addControl(this.detailPanel);
   }
 
-  private setActiveTab(tab: 'active' | 'completed') {
+  private setActiveTab(tab: 'active' | 'completed' | 'stats') {
     this.activeTab = tab;
     this.selectedQuestId = null;
     this.hideDetailPanel();
 
-    if (this.activeTabBtn && this.completedTabBtn) {
-      if (tab === 'active') {
-        this.activeTabBtn.background = "#4CAF50";
-        this.activeTabBtn.color = "white";
-        this.completedTabBtn.background = "rgba(60, 60, 60, 0.8)";
-        this.completedTabBtn.color = "#AAA";
-      } else {
-        this.completedTabBtn.background = "#FFD700";
-        this.completedTabBtn.color = "#000";
-        this.activeTabBtn.background = "rgba(60, 60, 60, 0.8)";
-        this.activeTabBtn.color = "#AAA";
+    const inactive = { bg: "rgba(60, 60, 60, 0.8)", color: "#AAA" };
+    const buttons = [
+      { btn: this.activeTabBtn, active: tab === 'active', activeBg: "#4CAF50", activeColor: "white" },
+      { btn: this.completedTabBtn, active: tab === 'completed', activeBg: "#FFD700", activeColor: "#000" },
+      { btn: this.statsTabBtn, active: tab === 'stats', activeBg: "#9C27B0", activeColor: "white" },
+    ];
+    for (const { btn, active, activeBg, activeColor } of buttons) {
+      if (btn) {
+        btn.background = active ? activeBg : inactive.bg;
+        btn.color = active ? activeColor : inactive.color;
       }
+    }
+
+    // Show/hide filter bar for stats tab
+    if (this.filterBarPanel) {
+      this.filterBarPanel.isVisible = tab !== 'stats';
     }
 
     this.updateQuestsDisplay();
@@ -409,58 +581,42 @@ export class BabylonQuestTracker {
 
     this.questListPanel.clearControls();
 
-    const activeQuests = this.quests.filter(q => q.status === 'active');
-    const completedQuests = this.quests.filter(q => q.status === 'completed');
+    const allActive = this.quests.filter(q => q.status === 'active');
+    const allCompleted = this.quests.filter(q => q.status === 'completed');
 
-    if (this.activeTab === 'active') {
-      // Update tab label with count
-      if (this.activeTabBtn) {
-        this.activeTabBtn.textBlock!.text = `Active (${activeQuests.length})`;
-      }
-      if (this.completedTabBtn) {
-        this.completedTabBtn.textBlock!.text = `Completed (${completedQuests.length})`;
-      }
+    // Update tab labels with counts
+    if (this.activeTabBtn) this.activeTabBtn.textBlock!.text = `Active (${allActive.length})`;
+    if (this.completedTabBtn) this.completedTabBtn.textBlock!.text = `Done (${allCompleted.length})`;
 
-      if (activeQuests.length === 0) {
-        const emptyText = new TextBlock();
-        emptyText.text = "No active quests\n\nTalk to NPCs to receive quests!";
-        emptyText.color = "#888";
-        emptyText.fontSize = 14;
-        emptyText.height = "80px";
-        emptyText.textWrapping = TextWrapping.WordWrap;
-        emptyText.paddingTop = "20px";
-        this.questListPanel.addControl(emptyText);
-        return;
-      }
-
-      activeQuests.forEach((quest) => {
-        this.questListPanel?.addControl(this.createQuestCard(quest));
-      });
-    } else {
-      // Update tab labels
-      if (this.activeTabBtn) {
-        this.activeTabBtn.textBlock!.text = `Active (${activeQuests.length})`;
-      }
-      if (this.completedTabBtn) {
-        this.completedTabBtn.textBlock!.text = `Completed (${completedQuests.length})`;
-      }
-
-      if (completedQuests.length === 0) {
-        const emptyText = new TextBlock();
-        emptyText.text = "No completed quests yet.";
-        emptyText.color = "#888";
-        emptyText.fontSize = 14;
-        emptyText.height = "50px";
-        emptyText.textWrapping = TextWrapping.WordWrap;
-        emptyText.paddingTop = "20px";
-        this.questListPanel.addControl(emptyText);
-        return;
-      }
-
-      completedQuests.forEach((quest) => {
-        this.questListPanel?.addControl(this.createQuestCard(quest));
-      });
+    if (this.activeTab === 'stats') {
+      this.renderStatsTab();
+      return;
     }
+
+    // Determine base quests for current tab
+    const baseQuests = this.activeTab === 'active' ? allActive : allCompleted;
+
+    // Apply filters and sorting
+    const filtered = filterQuests(baseQuests, this.filters);
+    const sorted = sortQuests(filtered, this.sortBy);
+
+    if (sorted.length === 0) {
+      const emptyText = new TextBlock();
+      emptyText.text = this.activeTab === 'active'
+        ? "No active quests\n\nTalk to NPCs to receive quests!"
+        : "No completed quests yet.";
+      emptyText.color = "#888";
+      emptyText.fontSize = 14;
+      emptyText.height = "80px";
+      emptyText.textWrapping = TextWrapping.WordWrap;
+      emptyText.paddingTop = "20px";
+      this.questListPanel.addControl(emptyText);
+      return;
+    }
+
+    sorted.forEach((quest) => {
+      this.questListPanel?.addControl(this.createQuestCard(quest));
+    });
   }
 
   private createQuestCard(quest: Quest): Rectangle {
@@ -898,9 +1054,362 @@ export class BabylonQuestTracker {
       earnedXP.paddingLeft = "10px";
       earnedXP.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       this.detailStack.addControl(earnedXP);
+
+      // Performance rating
+      if (quest.performanceRating != null) {
+        const perfText = new TextBlock();
+        const fullStars = Math.round(quest.performanceRating);
+        perfText.text = `Performance: ${ "\u2605".repeat(fullStars)}${"\u2606".repeat(5 - fullStars)}`;
+        perfText.color = "#FFC107";
+        perfText.fontSize = 12;
+        perfText.height = "20px";
+        perfText.paddingLeft = "10px";
+        perfText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        this.detailStack.addControl(perfText);
+      }
+
+      // Time taken
+      if (quest.assignedAt && quest.completedAt) {
+        const msElapsed = new Date(quest.completedAt).getTime() - new Date(quest.assignedAt).getTime();
+        const mins = Math.round(msElapsed / 60000);
+        const timeText = new TextBlock();
+        timeText.text = `Time taken: ${mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m`}`;
+        timeText.color = "#AAA";
+        timeText.fontSize = 11;
+        timeText.height = "18px";
+        timeText.paddingLeft = "10px";
+        timeText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        this.detailStack.addControl(timeText);
+      }
+
+      // Hints used
+      if (quest.hintsUsed != null && quest.hintsUsed > 0) {
+        const hintsText = new TextBlock();
+        hintsText.text = `Hints used: ${quest.hintsUsed}`;
+        hintsText.color = "#AAA";
+        hintsText.fontSize = 11;
+        hintsText.height = "18px";
+        hintsText.paddingLeft = "10px";
+        hintsText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        this.detailStack.addControl(hintsText);
+      }
+
+      // Vocabulary used
+      if (quest.vocabularyUsed && quest.vocabularyUsed.length > 0) {
+        const vocabLabel = new TextBlock();
+        vocabLabel.text = `Vocabulary: ${quest.vocabularyUsed.join(', ')}`;
+        vocabLabel.color = "#4CAF50";
+        vocabLabel.fontSize = 11;
+        vocabLabel.textWrapping = TextWrapping.WordWrap;
+        vocabLabel.resizeToFit = true;
+        vocabLabel.paddingLeft = "10px";
+        vocabLabel.paddingRight = "10px";
+        vocabLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        this.detailStack.addControl(vocabLabel);
+      }
+
+      // Grammar accuracy
+      if (quest.grammarAccuracy != null) {
+        const grammarText = new TextBlock();
+        grammarText.text = `Grammar accuracy: ${Math.round(quest.grammarAccuracy * 100)}%`;
+        grammarText.color = "#00BCD4";
+        grammarText.fontSize = 11;
+        grammarText.height = "18px";
+        grammarText.paddingLeft = "10px";
+        grammarText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        this.detailStack.addControl(grammarText);
+      }
     }
 
     this.detailPanel.isVisible = true;
+  }
+
+  private rebuildFilterBar() {
+    if (!this.filterBarPanel) return;
+    this.filterBarPanel.clearControls();
+
+    // Row 1: Sort buttons + search hint
+    const sortRow = new StackPanel("sortRow");
+    sortRow.isVertical = false;
+    sortRow.width = "100%";
+    sortRow.height = "26px";
+    this.filterBarPanel.addControl(sortRow);
+
+    const sortLabel = new TextBlock();
+    sortLabel.text = "Sort:";
+    sortLabel.color = "#AAA";
+    sortLabel.fontSize = 10;
+    sortLabel.width = "35px";
+    sortLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    sortLabel.paddingLeft = "5px";
+    sortRow.addControl(sortLabel);
+
+    const sortOptions: { label: string; value: QuestSortBy }[] = [
+      { label: "Recent", value: "recent" },
+      { label: "Difficulty", value: "difficulty" },
+      { label: "Reward", value: "reward" },
+    ];
+
+    for (const opt of sortOptions) {
+      const btn = Button.CreateSimpleButton(`sort_${opt.value}`, opt.label);
+      btn.width = "70px";
+      btn.height = "22px";
+      btn.fontSize = 10;
+      btn.thickness = 0;
+      btn.cornerRadius = 3;
+      btn.color = this.sortBy === opt.value ? "white" : "#888";
+      btn.background = this.sortBy === opt.value ? "rgba(100,100,100,0.8)" : "transparent";
+      btn.onPointerClickObservable.add(() => {
+        this.sortBy = opt.value;
+        this.rebuildFilterBar();
+        this.updateQuestsDisplay();
+      });
+      sortRow.addControl(btn);
+    }
+
+    // Row 2: Filter buttons (type cycling + difficulty cycling + clear)
+    const filterRow = new StackPanel("filterRow");
+    filterRow.isVertical = false;
+    filterRow.width = "100%";
+    filterRow.height = "26px";
+    this.filterBarPanel.addControl(filterRow);
+
+    // Quest type filter button
+    const types = getUniqueQuestTypes(this.quests);
+    const typeBtn = Button.CreateSimpleButton("filterType",
+      this.filters.questType ? `Type: ${this.filters.questType}` : "All Types");
+    typeBtn.width = "110px";
+    typeBtn.height = "22px";
+    typeBtn.fontSize = 10;
+    typeBtn.thickness = 0;
+    typeBtn.cornerRadius = 3;
+    typeBtn.color = this.filters.questType ? "white" : "#888";
+    typeBtn.background = this.filters.questType ? getQuestTypeColor(this.filters.questType) + "88" : "transparent";
+    typeBtn.onPointerClickObservable.add(() => {
+      if (!this.filters.questType) {
+        this.filters.questType = types[0];
+      } else {
+        const idx = types.indexOf(this.filters.questType);
+        this.filters.questType = idx < types.length - 1 ? types[idx + 1] : undefined;
+      }
+      this.rebuildFilterBar();
+      this.updateQuestsDisplay();
+    });
+    filterRow.addControl(typeBtn);
+
+    // Difficulty filter button
+    const diffs = ['beginner', 'intermediate', 'advanced'];
+    const diffBtn = Button.CreateSimpleButton("filterDiff",
+      this.filters.difficulty ? `Diff: ${this.filters.difficulty}` : "All Diff");
+    diffBtn.width = "100px";
+    diffBtn.height = "22px";
+    diffBtn.fontSize = 10;
+    diffBtn.thickness = 0;
+    diffBtn.cornerRadius = 3;
+    diffBtn.color = this.filters.difficulty ? "white" : "#888";
+    diffBtn.background = this.filters.difficulty ? getDifficultyColor(this.filters.difficulty) + "88" : "transparent";
+    diffBtn.onPointerClickObservable.add(() => {
+      if (!this.filters.difficulty) {
+        this.filters.difficulty = diffs[0];
+      } else {
+        const idx = diffs.indexOf(this.filters.difficulty);
+        this.filters.difficulty = idx < diffs.length - 1 ? diffs[idx + 1] : undefined;
+      }
+      this.rebuildFilterBar();
+      this.updateQuestsDisplay();
+    });
+    filterRow.addControl(diffBtn);
+
+    // NPC filter button
+    const givers = getUniqueQuestGivers(this.quests);
+    if (givers.length > 0) {
+      const npcBtn = Button.CreateSimpleButton("filterNpc",
+        this.filters.assignedBy ? `NPC: ${this.filters.assignedBy.substring(0, 8)}` : "All NPCs");
+      npcBtn.width = "90px";
+      npcBtn.height = "22px";
+      npcBtn.fontSize = 10;
+      npcBtn.thickness = 0;
+      npcBtn.cornerRadius = 3;
+      npcBtn.color = this.filters.assignedBy ? "white" : "#888";
+      npcBtn.background = this.filters.assignedBy ? "rgba(100,100,100,0.8)" : "transparent";
+      npcBtn.onPointerClickObservable.add(() => {
+        if (!this.filters.assignedBy) {
+          this.filters.assignedBy = givers[0];
+        } else {
+          const idx = givers.indexOf(this.filters.assignedBy);
+          this.filters.assignedBy = idx < givers.length - 1 ? givers[idx + 1] : undefined;
+        }
+        this.rebuildFilterBar();
+        this.updateQuestsDisplay();
+      });
+      filterRow.addControl(npcBtn);
+    }
+
+    // Clear all filters button
+    const hasFilters = this.filters.questType || this.filters.difficulty || this.filters.assignedBy || this.filters.search;
+    if (hasFilters) {
+      const clearBtn = Button.CreateSimpleButton("clearFilters", "\u2715");
+      clearBtn.width = "30px";
+      clearBtn.height = "22px";
+      clearBtn.fontSize = 12;
+      clearBtn.thickness = 0;
+      clearBtn.cornerRadius = 3;
+      clearBtn.color = "#F44336";
+      clearBtn.background = "transparent";
+      clearBtn.onPointerClickObservable.add(() => {
+        this.filters = {};
+        this.rebuildFilterBar();
+        this.updateQuestsDisplay();
+      });
+      filterRow.addControl(clearBtn);
+    }
+
+    // Row 3: Search display (show current search term if any)
+    if (this.filters.search) {
+      const searchRow = new StackPanel("searchRow");
+      searchRow.isVertical = false;
+      searchRow.width = "100%";
+      searchRow.height = "22px";
+      this.filterBarPanel.addControl(searchRow);
+
+      const searchText = new TextBlock();
+      searchText.text = `Search: "${this.filters.search}"`;
+      searchText.color = "#AAA";
+      searchText.fontSize = 10;
+      searchText.width = "300px";
+      searchText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      searchText.paddingLeft = "10px";
+      searchRow.addControl(searchText);
+    }
+  }
+
+  private renderStatsTab() {
+    if (!this.questListPanel) return;
+
+    const stats = computeQuestStats(this.quests);
+
+    // Title
+    const title = new TextBlock();
+    title.text = "Quest Statistics";
+    title.color = "#FFD700";
+    title.fontSize = 16;
+    title.fontWeight = "bold";
+    title.height = "30px";
+    title.paddingTop = "10px";
+    this.questListPanel.addControl(title);
+
+    // Summary stats
+    const summaryItems = [
+      { label: "Total Completed", value: `${stats.totalCompleted}`, color: "#4CAF50" },
+      { label: "Active Quests", value: `${stats.totalActive}`, color: "#2196F3" },
+      { label: "Failed / Abandoned", value: `${stats.totalFailed} / ${stats.totalAbandoned}`, color: "#F44336" },
+      { label: "Completion Rate", value: `${Math.round(stats.completionRate * 100)}%`, color: "#FFC107" },
+      { label: "Avg Performance", value: stats.averagePerformance > 0 ? `${stats.averagePerformance.toFixed(1)} / 5` : "N/A", color: "#FFC107" },
+      { label: "Total XP Earned", value: `${stats.totalXpEarned}`, color: "#FFD700" },
+      { label: "Vocabulary Learned", value: `${stats.vocabularyWordsLearned} words`, color: "#4CAF50" },
+      { label: "Grammar Quests", value: `${stats.grammarPatternsCount}`, color: "#00BCD4" },
+    ];
+
+    for (const item of summaryItems) {
+      const row = new StackPanel();
+      row.isVertical = false;
+      row.width = "100%";
+      row.height = "24px";
+      row.paddingLeft = "15px";
+      this.questListPanel.addControl(row);
+
+      const label = new TextBlock();
+      label.text = item.label;
+      label.color = "#AAA";
+      label.fontSize = 12;
+      label.width = "180px";
+      label.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      row.addControl(label);
+
+      const value = new TextBlock();
+      value.text = item.value;
+      value.color = item.color;
+      value.fontSize = 12;
+      value.fontWeight = "bold";
+      value.width = "150px";
+      value.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      row.addControl(value);
+    }
+
+    // Quests by type breakdown
+    const typeHeader = new TextBlock();
+    typeHeader.text = "BY TYPE";
+    typeHeader.color = "#FFD700";
+    typeHeader.fontSize = 12;
+    typeHeader.fontWeight = "bold";
+    typeHeader.height = "28px";
+    typeHeader.paddingTop = "12px";
+    typeHeader.paddingLeft = "15px";
+    typeHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.questListPanel.addControl(typeHeader);
+
+    for (const [type, count] of Object.entries(stats.questsByType)) {
+      const row = new StackPanel();
+      row.isVertical = false;
+      row.width = "100%";
+      row.height = "20px";
+      row.paddingLeft = "20px";
+      this.questListPanel.addControl(row);
+
+      const typeLabel = new TextBlock();
+      typeLabel.text = `${getQuestIcon(type)} ${type.replace(/_/g, ' ')}`;
+      typeLabel.color = getQuestTypeColor(type);
+      typeLabel.fontSize = 11;
+      typeLabel.width = "200px";
+      typeLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      row.addControl(typeLabel);
+
+      const countText = new TextBlock();
+      countText.text = `${count}`;
+      countText.color = "#CCC";
+      countText.fontSize = 11;
+      countText.width = "50px";
+      countText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      row.addControl(countText);
+    }
+
+    // Quests by difficulty breakdown
+    const diffHeader = new TextBlock();
+    diffHeader.text = "BY DIFFICULTY";
+    diffHeader.color = "#FFD700";
+    diffHeader.fontSize = 12;
+    diffHeader.fontWeight = "bold";
+    diffHeader.height = "28px";
+    diffHeader.paddingTop = "12px";
+    diffHeader.paddingLeft = "15px";
+    diffHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.questListPanel.addControl(diffHeader);
+
+    for (const [diff, count] of Object.entries(stats.questsByDifficulty)) {
+      const row = new StackPanel();
+      row.isVertical = false;
+      row.width = "100%";
+      row.height = "20px";
+      row.paddingLeft = "20px";
+      this.questListPanel.addControl(row);
+
+      const diffLabel = new TextBlock();
+      const stars = getDifficultyStars(diff);
+      diffLabel.text = `${diff} ${"\u2605".repeat(stars)}`;
+      diffLabel.color = getDifficultyColor(diff);
+      diffLabel.fontSize = 11;
+      diffLabel.width = "200px";
+      diffLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      row.addControl(diffLabel);
+
+      const countText = new TextBlock();
+      countText.text = `${count}`;
+      countText.color = "#CCC";
+      countText.fontSize = 11;
+      countText.width = "50px";
+      countText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      row.addControl(countText);
+    }
   }
 
   private hideDetailPanel() {
@@ -1181,8 +1690,25 @@ export class BabylonQuestTracker {
     return this.selectedQuestId;
   }
 
-  public getActiveTab(): 'active' | 'completed' {
+  public getActiveTab(): 'active' | 'completed' | 'stats' {
     return this.activeTab;
+  }
+
+  /** Set search filter and refresh display */
+  public setSearch(term: string) {
+    this.filters.search = term || undefined;
+    this.rebuildFilterBar();
+    this.updateQuestsDisplay();
+  }
+
+  /** Get current filters (for testing) */
+  public getFilters(): QuestFilters {
+    return { ...this.filters };
+  }
+
+  /** Get current sort (for testing) */
+  public getSortBy(): QuestSortBy {
+    return this.sortBy;
   }
 
   public dispose() {
