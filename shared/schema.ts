@@ -661,6 +661,14 @@ export const quests = pgTable("quests", {
   locationName: text("location_name"), // Human-readable place name
   locationPosition: jsonb("location_position").$type<{ x: number; y: number; z: number }>(), // World-space coordinates
 
+  // Recurrence — daily/weekly/monthly repeating quests
+  recurrencePattern: text("recurrence_pattern"), // daily, weekly, monthly (null = one-time)
+  recurrenceResetAt: timestamp("recurrence_reset_at"), // next reset time (UTC)
+  completionCount: integer("completion_count").default(0), // total times completed
+  lastCompletedAt: timestamp("last_completed_at"), // when last completed (for reset logic)
+  sourceQuestId: varchar("source_quest_id"), // for recurring instances, points to template quest
+  streakCount: integer("streak_count").default(0), // consecutive completion streak
+
   // Timing
   assignedAt: timestamp("assigned_at").defaultNow(),
   completedAt: timestamp("completed_at"),
@@ -1086,6 +1094,12 @@ export const insertQuestSchema = createInsertSchema(quests).pick({
   tags: true,
   content: true,
   relatedTruthIds: true,
+  recurrencePattern: true,
+  recurrenceResetAt: true,
+  completionCount: true,
+  lastCompletedAt: true,
+  sourceQuestId: true,
+  streakCount: true,
 });
 
 export const insertItemSchema = createInsertSchema(items).pick({

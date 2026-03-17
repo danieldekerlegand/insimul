@@ -490,6 +490,12 @@ const QuestSchema = new Schema({
   locationId: { type: String, default: null },
   locationName: { type: String, default: null },
   locationPosition: { type: Schema.Types.Mixed, default: null },
+  recurrencePattern: { type: String, default: null }, // daily, weekly, monthly
+  recurrenceResetAt: { type: Date, default: null },
+  completionCount: { type: Number, default: 0 },
+  lastCompletedAt: { type: Date, default: null },
+  sourceQuestId: { type: String, default: null },
+  streakCount: { type: Number, default: 0 },
   assignedAt: { type: Date, default: Date.now },
   completedAt: { type: Date, default: null },
   expiresAt: { type: Date, default: null },

@@ -8345,6 +8345,112 @@ Respond with this JSON structure:
     }
   });
 
+  // ============= DAILY / RECURRING QUESTS =============
+
+  // Get recurring quest status for a player (resets due quests automatically)
+  app.get("/api/worlds/:worldId/quests/recurring/:playerName", async (req, res) => {
+    try {
+      const { worldId, playerName } = req.params;
+      const resetHourUTC = req.query.resetHourUTC ? parseInt(req.query.resetHourUTC as string, 10) : undefined;
+      const quests = await storage.getQuestsByWorld(worldId);
+
+      const { getRecurringQuestStatus } = await import('./services/daily-quest-manager.js');
+      const status = await getRecurringQuestStatus(
+        quests,
+        playerName,
+        worldId,
+        (id, data) => storage.updateQuest(id, data as any),
+        { resetHourUTC },
+      );
+
+      res.json(status);
+    } catch (error) {
+      console.error('[Recurring Quests] Error:', error);
+      res.status(500).json({ error: "Failed to fetch recurring quest status" });
+    }
+  });
+
+  // Generate daily/recurring quests for a player
+  app.post("/api/worlds/:worldId/quests/recurring/generate", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { playerName, pattern = 'daily', count, resetHourUTC } = req.body;
+
+      if (!playerName) {
+        return res.status(400).json({ error: "playerName is required" });
+      }
+
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      const [characters, settlements, existingQuests] = await Promise.all([
+        storage.getCharactersByWorld(worldId),
+        storage.getSettlementsByWorld(worldId),
+        storage.getQuestsByWorld(worldId),
+      ]);
+
+      const { generateRecurringQuests } = await import('./services/daily-quest-manager.js');
+      const created = await generateRecurringQuests(
+        { world, characters, settlements, existingQuests },
+        playerName,
+        pattern,
+        (questData) => storage.createQuest(questData),
+        { dailyQuestCount: count, resetHourUTC },
+      );
+
+      res.status(201).json({ created: created.length, quests: created });
+    } catch (error) {
+      console.error('[Recurring Quests] Generate error:', error);
+      res.status(500).json({ error: "Failed to generate recurring quests" });
+    }
+  });
+
+  // Complete a recurring quest (tracks streak + completion count)
+  app.post("/api/worlds/:worldId/quests/:questId/complete-recurring", async (req, res) => {
+    try {
+      const { worldId, questId } = req.params;
+      const { resetHourUTC } = req.body;
+
+      const quest = await storage.getQuest(questId);
+      if (!quest) {
+        return res.status(404).json({ error: "Quest not found" });
+      }
+      if (quest.worldId !== worldId) {
+        return res.status(400).json({ error: "Quest does not belong to this world" });
+      }
+      if (!quest.recurrencePattern) {
+        return res.status(400).json({ error: "Quest is not a recurring quest" });
+      }
+      if (quest.status === 'completed') {
+        return res.status(400).json({ error: "Quest is already completed for this period" });
+      }
+
+      const { buildRecurringCompletionUpdate, streakBonusMultiplier } = await import('./services/daily-quest-manager.js');
+      const updateData = buildRecurringCompletionUpdate(quest, { resetHourUTC });
+      const updated = await storage.updateQuest(questId, updateData as any);
+
+      const streak = updateData.streakCount ?? 0;
+      const bonusMultiplier = streakBonusMultiplier(streak);
+      const baseXP = quest.experienceReward ?? 0;
+      const bonusXP = Math.round(baseXP * bonusMultiplier) - baseXP;
+
+      res.json({
+        quest: updated,
+        streak,
+        bonusMultiplier,
+        baseXP,
+        bonusXP,
+        totalXP: baseXP + bonusXP,
+        completionCount: updateData.completionCount,
+      });
+    } catch (error) {
+      console.error('[Recurring Quest Complete] Error:', error);
+      res.status(500).json({ error: "Failed to complete recurring quest" });
+    }
+  });
+
   // ============= ITEMS =============
 
   // Get all items for a world (includes matching base items)
