@@ -274,6 +274,22 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'collect_words': 'collect_vocabulary',
   'find_words': 'collect_vocabulary',
 
+  // Business scavenger hunt aliases
+  'visit_business': 'visit_location',
+  'enter_business': 'visit_location',
+  'enter_shop': 'visit_location',
+  'visit_shop': 'visit_location',
+  'identify_business_item': 'identify_object',
+  'name_item': 'identify_object',
+  'name_business_item': 'identify_object',
+  'find_item_in_business': 'identify_object',
+  'point_and_name': 'identify_object',
+  'examine_object': 'identify_object',
+  'get_clue': 'talk_to_npc',
+  'get_clue_from_owner': 'talk_to_npc',
+  'ask_owner': 'talk_to_npc',
+  'collect_business_item': 'collect_item',
+
   // Legacy template types that need normalization
   'learn_new_words': 'collect_vocabulary',
   'find_vocabulary_items': 'identify_object',
