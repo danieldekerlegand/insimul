@@ -8209,6 +8209,119 @@ Respond with this JSON structure:
     }
   });
 
+  // ============= QUEST HINTS =============
+
+  // Request a hint for a specific quest objective
+  app.post("/api/worlds/:worldId/quests/:questId/hint", async (req, res) => {
+    try {
+      const { worldId, questId } = req.params;
+      const { objectiveIndex } = req.body;
+
+      if (typeof objectiveIndex !== 'number' || objectiveIndex < 0) {
+        return res.status(400).json({ error: "objectiveIndex must be a non-negative number" });
+      }
+
+      const quest = await storage.getQuest(questId);
+      if (!quest) {
+        return res.status(404).json({ error: "Quest not found" });
+      }
+      if (quest.worldId !== worldId) {
+        return res.status(400).json({ error: "Quest does not belong to this world" });
+      }
+      if (quest.status !== 'active') {
+        return res.status(400).json({ error: "Can only request hints for active quests" });
+      }
+
+      const objectives = (quest.objectives as any[]) || [];
+      if (objectiveIndex >= objectives.length) {
+        return res.status(400).json({ error: "Invalid objective index" });
+      }
+
+      const { buildQuestHints, requestHint, getTotalHintsUsed, getTotalHintXpCost, calculateHintPenalty } = await import('../shared/quest-hints.js');
+
+      // Retrieve or build hints data from quest progress
+      const progress = (quest.progress as Record<string, any>) || {};
+      let hintsData = progress.hintsData;
+      if (!hintsData) {
+        hintsData = buildQuestHints(questId, objectives);
+      }
+
+      const result = requestHint(hintsData, objectiveIndex);
+      if (!result) {
+        return res.status(400).json({ error: "No more hints available for this objective" });
+      }
+
+      // Persist hints state in quest progress
+      const totalUsed = getTotalHintsUsed(hintsData);
+      const totalXpCost = getTotalHintXpCost(hintsData);
+      const performanceMultiplier = calculateHintPenalty(totalUsed);
+
+      await storage.updateQuest(questId, {
+        progress: {
+          ...progress,
+          hintsData,
+          totalHintsUsed: totalUsed,
+          totalHintXpCost: totalXpCost,
+          performanceMultiplier,
+        },
+      });
+
+      res.json({
+        hint: result.hint,
+        xpCost: result.xpCost,
+        totalHintsUsed: totalUsed,
+        totalHintXpCost: totalXpCost,
+        performanceMultiplier,
+      });
+    } catch (error) {
+      console.error('[Quest Hint] Error:', error);
+      res.status(500).json({ error: "Failed to get quest hint" });
+    }
+  });
+
+  // Get hints status for a quest (without revealing new hints)
+  app.get("/api/worlds/:worldId/quests/:questId/hints", async (req, res) => {
+    try {
+      const { worldId, questId } = req.params;
+
+      const quest = await storage.getQuest(questId);
+      if (!quest) {
+        return res.status(404).json({ error: "Quest not found" });
+      }
+      if (quest.worldId !== worldId) {
+        return res.status(400).json({ error: "Quest does not belong to this world" });
+      }
+
+      const { buildQuestHints, getTotalHintsUsed, getTotalHintXpCost, calculateHintPenalty, HINT_XP_COSTS } = await import('../shared/quest-hints.js');
+
+      const objectives = (quest.objectives as any[]) || [];
+      const progress = (quest.progress as Record<string, any>) || {};
+      const hintsData = progress.hintsData || buildQuestHints(questId, objectives);
+
+      const totalUsed = getTotalHintsUsed(hintsData);
+
+      // Return revealed hints only (don't expose unrevealed ones)
+      const revealedHints = hintsData.objectiveHints.map((oh: any) => ({
+        objectiveIndex: oh.objectiveIndex,
+        hintsUsed: oh.hintsUsed,
+        revealedHints: oh.hints.filter((_: any, i: number) => i < oh.hintsUsed),
+        hasMoreHints: oh.hintsUsed < 3,
+        nextHintCost: oh.hintsUsed < 3 ? HINT_XP_COSTS[(oh.hintsUsed + 1) as 1 | 2 | 3] : null,
+      }));
+
+      res.json({
+        questId,
+        objectiveHints: revealedHints,
+        totalHintsUsed: totalUsed,
+        totalHintXpCost: getTotalHintXpCost(hintsData),
+        performanceMultiplier: calculateHintPenalty(totalUsed),
+      });
+    } catch (error) {
+      console.error('[Quest Hints] Error:', error);
+      res.status(500).json({ error: "Failed to get quest hints" });
+    }
+  });
+
   // ============= ITEMS =============
 
   // Get all items for a world (includes matching base items)

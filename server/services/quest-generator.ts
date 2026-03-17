@@ -14,6 +14,11 @@ import {
   buildObjectiveTypePrompt,
   validateAndNormalizeObjectives,
 } from '../../shared/quest-objective-types.js';
+import {
+  buildHintGenerationPrompt,
+  buildQuestHints,
+  type QuestHintsData,
+} from '../../shared/quest-hints.js';
 
 /**
  * Call LLM for quest generation using Gemini API.
@@ -37,6 +42,7 @@ async function callLLM(prompt: string): Promise<string> {
   const ai = getGenAI();
 
   const objectiveTypeConstraints = buildObjectiveTypePrompt();
+  const hintPrompt = buildHintGenerationPrompt();
 
   const systemPrompt = `You are a quest designer for a language-learning game. Generate a single quest as a JSON object with these fields:
 {
@@ -44,11 +50,13 @@ async function callLLM(prompt: string): Promise<string> {
   "description": "Quest story and goals",
   "category": "combat" | "exploration" | "social" | "crafting" | "vocabulary" | "grammar" | "conversation",
   "difficulty": "beginner" | "easy" | "normal" | "hard" | "expert",
-  "objectives": [{ "type": "string", "description": "string", "target": "string", "required": number }],
+  "objectives": [{ "type": "string", "description": "string", "target": "string", "required": number, "hints": [...] }],
   "rewards": { "experience": number, "gold": number, "items": [{ "name": "string", "quantity": number }] }
 }
 
 ${objectiveTypeConstraints}
+
+${hintPrompt}
 
 Return ONLY valid JSON. No markdown, no code fences, no explanation.`;
 
@@ -133,7 +141,7 @@ export async function generateQuestForType(params: {
   assignedTo?: string;
   assignedBy?: string;
   playerProficiency?: PlayerProficiency;
-}): Promise<InsertQuest> {
+}): Promise<InsertQuest & { hintsData?: QuestHintsData }> {
   const { world, questType, category, difficulty, assignedTo, assignedBy, playerProficiency } = params;
 
   // Build AI prompt using quest type's generation prompt
@@ -166,11 +174,18 @@ Generate a quest following the format specified above.`;
     });
   }
 
+  // Extract AI-generated hints from objectives, then strip them from stored objectives
+  const aiHints = extractAIHints(rawObjectives, validObjectives);
+
   // Get difficulty scaling
   const scaling = questType.difficultyScaling[difficulty] || { xp: 50, multiplier: 1 };
 
+  // Generate a temporary quest ID for hints (will be replaced with real ID after storage)
+  const tempQuestId = `temp-${Date.now()}`;
+  const hintsData = buildQuestHints(tempQuestId, validObjectives, aiHints);
+
   // Map to InsertQuest schema
-  const quest: InsertQuest = {
+  const quest: InsertQuest & { hintsData?: QuestHintsData } = {
     worldId: world.id,
     gameType: questType.id,
     questType: category,
@@ -184,6 +199,7 @@ Generate a quest following the format specified above.`;
     assignedTo: assignedTo || '',
     assignedBy: assignedBy || null,
     targetLanguage: world.targetLanguage || 'English',
+    hintsData,
   };
 
   // Add enhanced rewards if present
@@ -198,6 +214,38 @@ Generate a quest following the format specified above.`;
   }
 
   return quest;
+}
+
+/**
+ * Extract AI-generated hints from raw objectives and map to valid objective indices.
+ */
+function extractAIHints(
+  rawObjectives: any[],
+  validObjectives: any[],
+): Array<{ objectiveIndex: number; hints: Array<{ level: 1 | 2 | 3; text: string }> }> {
+  const result: Array<{ objectiveIndex: number; hints: Array<{ level: 1 | 2 | 3; text: string }> }> = [];
+
+  for (let vi = 0; vi < validObjectives.length; vi++) {
+    const validObj = validObjectives[vi];
+    // Find matching raw objective (by description match since types may have been normalized)
+    const rawObj = rawObjectives.find(r =>
+      r.description === validObj.description || r.target === validObj.target
+    );
+
+    if (rawObj?.hints && Array.isArray(rawObj.hints) && rawObj.hints.length >= 1) {
+      result.push({
+        objectiveIndex: vi,
+        hints: rawObj.hints
+          .filter((h: any) => h && typeof h.text === 'string' && h.level >= 1 && h.level <= 3)
+          .map((h: any) => ({ level: h.level as 1 | 2 | 3, text: h.text })),
+      });
+    }
+
+    // Strip hints from the stored objective to avoid bloating the objectives array
+    delete validObj.hints;
+  }
+
+  return result;
 }
 
 /**
@@ -272,7 +320,7 @@ export async function generateQuestFromDialogue(params: {
     difficulty?: string;
     objectives?: string[];
   };
-}): Promise<InsertQuest> {
+}): Promise<InsertQuest & { hintsData?: QuestHintsData }> {
   const { world, npcId, npcName, playerId, playerName, conversationContext, playerProficiency, questHint } = params;
 
   const questType = getQuestTypeForWorld(world);
@@ -320,9 +368,15 @@ Return JSON format as specified above.`;
     });
   }
 
+  // Extract AI-generated hints
+  const aiHints = extractAIHints(rawObjectives, validObjectives);
+
   const scaling = questType.difficultyScaling[difficulty] || { xp: 50, multiplier: 1 };
 
-  const quest: InsertQuest = {
+  const tempQuestId = `temp-${Date.now()}`;
+  const hintsData = buildQuestHints(tempQuestId, validObjectives, aiHints);
+
+  const quest: InsertQuest & { hintsData?: QuestHintsData } = {
     worldId: world.id,
     gameType: questType.id,
     questType: category,
@@ -338,6 +392,7 @@ Return JSON format as specified above.`;
     assignedByCharacterId: npcId,
     targetLanguage: world.targetLanguage || 'English',
     conversationContext,
+    hintsData,
   };
 
   // Add enhanced rewards
