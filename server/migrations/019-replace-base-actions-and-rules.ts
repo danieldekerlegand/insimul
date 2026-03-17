@@ -448,6 +448,38 @@ const NEW_BASE_ACTIONS = [
     tags: ["language-learning", "vocabulary", "education"],
   },
   {
+    name: "point_and_name",
+    description: "Point at a world object and name it in the target language for vocabulary practice",
+    content: `action point_and_name {
+  requires(
+    near(?actor, ?object),
+    has_vocab_tag(?object, ?word, ?language),
+    not(already_named(?actor, ?object))
+  )
+  effects(
+    mark_named(?actor, ?object),
+    add_vocabulary(?actor, ?word, ?language),
+    add_xp(?actor, language, 5),
+    add_event(?actor, object_named, ?object)
+  )
+  energy_cost: 0
+  target_type: object
+  cooldown: 0
+}`,
+    actionType: "mental",
+    category: "language-learning",
+    duration: 1,
+    difficulty: 0.3,
+    energyCost: 0,
+    targetType: "object",
+    requiresTarget: true,
+    range: 8,
+    cooldown: 0,
+    verbPast: "named",
+    verbPresent: "names",
+    tags: ["language-learning", "vocabulary", "education", "object-interaction"],
+  },
+  {
     name: "solve_puzzle",
     description: "Attempt to solve a puzzle encountered in the world",
     content: `action solve_puzzle {
