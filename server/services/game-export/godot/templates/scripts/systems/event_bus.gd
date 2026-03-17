@@ -63,6 +63,8 @@ const EVENT_VISUAL_VOCAB_ANSWERED := "visual_vocab_answered"
 const EVENT_DIRECTION_STEP_COMPLETED := "direction_step_completed"
 # Pronunciation quest events
 const EVENT_PRONUNCIATION_ASSESSMENT_DATA := "pronunciation_assessment_data"
+# Object examination events
+const EVENT_OBJECT_EXAMINED := "object_examined"
 # Achievement events
 const EVENT_ACHIEVEMENT_UNLOCKED := "achievement_unlocked"
 
@@ -94,6 +96,7 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_VISUAL_VOCAB_ANSWERED,
 	EVENT_DIRECTION_STEP_COMPLETED,
 	EVENT_PRONUNCIATION_ASSESSMENT_DATA,
+	EVENT_OBJECT_EXAMINED,
 	EVENT_ACHIEVEMENT_UNLOCKED,
 ]
 
@@ -162,6 +165,7 @@ var _global_handlers: Array[Callable] = []
 ##   visual_vocab_answered: {type, target_id, quest_id, passed, score, player_answer}
 ##   direction_step_completed: {type, quest_id, objective_id, step_index, steps_completed, steps_required}
 ##   pronunciation_assessment_data: {type, quest_id, average_score, sample_count}
+##   object_examined:     {type, object_id, object_name, target_word, target_language, pronunciation?, category?}
 ##   achievement_unlocked: {type, achievement_id, achievement_name, description, icon}
 ##
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}

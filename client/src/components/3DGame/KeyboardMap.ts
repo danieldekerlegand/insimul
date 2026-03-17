@@ -63,6 +63,9 @@ export const KEY_FULLSCREEN_MAP = 'Tab';
 /** Push-to-talk: hold to record speech to NPC */
 export const KEY_PUSH_TO_TALK = 'KeyR';
 
+/** Examine nearest object (shows target-language label) */
+export const KEY_EXAMINE_OBJECT = 'KeyX';
+
 /** Open/close game menu */
 export const KEY_GAME_MENU = 'KeyM';
 

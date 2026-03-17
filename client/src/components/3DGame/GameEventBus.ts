@@ -25,6 +25,7 @@ export type GameEvent =
   | { type: 'npc_talked'; npcId: string; npcName: string; turnCount: number }
   | { type: 'item_delivered'; npcId: string; itemId: string; itemName: string }
   | { type: 'vocabulary_used'; word: string; correct: boolean }
+  | { type: 'object_examined'; objectId: string; objectName: string; targetWord: string; targetLanguage: string; pronunciation?: string; category?: string }
   | { type: 'conversation_turn'; npcId: string; keywords: string[] }
   | { type: 'quest_accepted'; questId: string; questTitle: string }
   | { type: 'quest_completed'; questId: string }
