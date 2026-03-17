@@ -156,6 +156,97 @@ function eraDescription(world: World): string {
   return world.worldType ?? 'unknown era';
 }
 
+// ── Business-specific context ────────────────────────────────────────
+
+/** Maps business types to conversational role context for shopkeepers/service workers. */
+const BUSINESS_ROLE_CONTEXT: Record<string, string> = {
+  Bakery: 'You bake and sell bread, pastries, and cakes. You can discuss ingredients, recipes, and daily specials.',
+  Restaurant: 'You serve food and drinks. You can recommend dishes, discuss the menu, and chat about local cuisine.',
+  Bar: 'You serve drinks and provide a social atmosphere. You hear lots of gossip and local news.',
+  GroceryStore: 'You sell groceries and household goods. You know about product availability, prices, and local food sources.',
+  Hotel: 'You provide lodging and hospitality. You can recommend local attractions and help with accommodations.',
+  Hospital: 'You provide medical care. You can discuss health, treatments, and wellness advice.',
+  Bank: 'You handle financial transactions. You can discuss savings, loans, and the local economy.',
+  LawFirm: 'You provide legal counsel. You can discuss legal matters, contracts, and local regulations.',
+  Shop: 'You sell merchandise. You can discuss your products, prices, and help customers find what they need.',
+  Pharmacy: 'You dispense medicines and health products. You can advise on remedies and wellness.',
+  School: 'You educate students. You can discuss lessons, student progress, and educational topics.',
+  University: 'You teach and research at the university. You can discuss academic subjects and scholarly work.',
+  Farm: 'You grow crops and raise livestock. You can discuss farming, seasons, and the harvest.',
+  Factory: 'You manufacture goods. You can discuss production, trade, and craftsmanship.',
+  Brewery: 'You brew beer and spirits. You can discuss brewing techniques, flavors, and local drinking culture.',
+  Church: 'You tend to spiritual matters. You can discuss faith, community events, and moral guidance.',
+  PoliceStation: 'You maintain law and order. You can discuss safety, local incidents, and community rules.',
+  FireStation: 'You respond to emergencies and fires. You can discuss safety tips and local incidents.',
+  TownHall: 'You handle civic affairs. You can discuss local governance, events, and community matters.',
+  Daycare: 'You care for children. You can discuss child development, activities, and family matters.',
+  JewelryStore: 'You craft and sell jewelry. You can discuss gems, metalwork, and custom pieces.',
+  TattoParlor: 'You create tattoo art. You can discuss designs, styles, and the art of tattooing.',
+  DentalOffice: 'You provide dental care. You can discuss oral health and dental procedures.',
+  OptometryOffice: 'You provide eye care. You can discuss vision health and eyewear.',
+  RealEstateOffice: 'You handle property sales and rentals. You can discuss the local housing market and available properties.',
+  InsuranceOffice: 'You provide insurance services. You can discuss coverage, claims, and risk management.',
+  Mortuary: 'You handle funeral arrangements with dignity. You can discuss memorial services and offer condolences.',
+  ApartmentComplex: 'You manage rental housing. You can discuss available units, tenant concerns, and building maintenance.',
+};
+
+/** Vocation-specific behavioral hints (applies across business types). */
+const VOCATION_BEHAVIOR: Record<string, string> = {
+  Owner: 'As the owner, you take pride in your business and care about its reputation and success.',
+  Manager: 'As the manager, you oversee daily operations and handle customer issues.',
+  Cashier: 'You handle transactions and greet customers at the counter.',
+  Waiter: 'You take orders, serve food, and ensure guests are comfortable.',
+  Bartender: 'You mix drinks, serve patrons, and lend a listening ear.',
+  Baker: 'You prepare baked goods fresh each day and take pride in your craft.',
+  Cook: 'You prepare meals in the kitchen and take pride in the quality of your food.',
+  Doctor: 'You diagnose and treat patients with professional care and compassion.',
+  Nurse: 'You provide patient care and support the medical team.',
+  Teacher: 'You educate and mentor your students with patience and dedication.',
+  Grocer: 'You keep the shelves stocked and help customers find what they need.',
+  Butcher: 'You prepare and sell cuts of meat with expertise.',
+  Barber: 'You cut hair and groom clients while making friendly conversation.',
+  Farmer: 'You work the land and tend to crops and animals.',
+  Innkeeper: 'You welcome guests and ensure their stay is comfortable.',
+  Concierge: 'You assist guests with information, recommendations, and special requests.',
+};
+
+/**
+ * Builds business-specific conversation context for an NPC's workplace.
+ * Returns null if the NPC has no relevant business context.
+ */
+export function buildBusinessContext(
+  business: Business | null | undefined,
+  vocation: string | null,
+  isOwner: boolean,
+): string | null {
+  if (!business) return null;
+
+  const parts: string[] = [];
+
+  // Business role context
+  const roleCtx = BUSINESS_ROLE_CONTEXT[business.businessType];
+  if (roleCtx) {
+    parts.push(roleCtx);
+  }
+
+  // Vocation-specific behavior
+  if (vocation) {
+    const vocBehavior = VOCATION_BEHAVIOR[vocation];
+    if (vocBehavior) {
+      parts.push(vocBehavior);
+    } else if (isOwner) {
+      parts.push(VOCATION_BEHAVIOR['Owner']!);
+    }
+  }
+
+  // Business founding year for depth
+  if (business.foundedYear) {
+    parts.push(`${business.name} was founded in year ${business.foundedYear}.`);
+  }
+
+  return parts.length > 0 ? parts.join(' ') : null;
+}
+
 function timeOfDayFromDate(): string {
   const hour = new Date().getHours();
   if (hour < 6) return 'night';
@@ -248,13 +339,17 @@ export async function buildContext(
   const friendships = extractRelationships(character, charMap, 0.3, 'positive');
   const enemies = extractRelationships(character, charMap, 0.3, 'negative');
 
-  // Occupation / workplace
+  // Occupation / workplace / business context
   const occupationName = occupation?.vocation ?? character.occupation ?? null;
   let workplace: string | null = null;
+  let business: Business | null = null;
   if (occupation?.businessId) {
     const biz = await storage.getBusiness(occupation.businessId);
+    business = biz ?? null;
     workplace = biz?.name ?? null;
   }
+  const isOwner = !!(business && business.ownerId === characterId);
+  const businessContext = buildBusinessContext(business, occupationName, isOwner);
 
   // Language learning
   const targetLang = languages.find((l: WorldLanguage) => l.isLearningTarget);
@@ -292,6 +387,7 @@ export async function buildContext(
     personality,
     occupationName,
     workplace,
+    businessContext,
     family,
     romantic,
     friendships,
@@ -342,6 +438,7 @@ interface PromptParts {
   personality: BigFivePersonality;
   occupationName: string | null;
   workplace: string | null;
+  businessContext: string | null;
   family: string[];
   romantic: string;
   friendships: RelationshipSummary[];
@@ -367,9 +464,12 @@ function buildSystemPrompt(p: PromptParts): string {
   // Personality
   lines.push(`Personality (Big Five): ${personalitySummary(p.personality)}.`);
 
-  // Occupation
+  // Occupation & workplace context
   if (p.occupationName) {
     lines.push(`Occupation: ${p.occupationName}${p.workplace ? ` at ${p.workplace}` : ''}.`);
+  }
+  if (p.businessContext) {
+    lines.push(`Workplace context: ${p.businessContext}`);
   }
 
   // Location & time
