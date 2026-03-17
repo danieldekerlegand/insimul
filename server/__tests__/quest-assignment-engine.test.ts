@@ -1,8 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   assignQuests,
+  getNPCRoutine,
+  getNPCTimeBlock,
+  isNPCAvailable,
+  getNPCAvailableHours,
   type WorldContext,
   type AssignmentOptions,
+  type ScheduleContext,
 } from '../services/quest-assignment-engine';
 
 // --- Test fixtures ---
@@ -337,6 +342,215 @@ describe('Quest Assignment Engine', () => {
           expect(obj.description).not.toMatch(/\{\{.*?\}\}/);
         }
       }
+    });
+  });
+
+  describe('NPC schedule-aware quest assignment', () => {
+    function makeDayRoutine(blocks: Array<{ startHour: number; endHour: number; location: string; occasion: string }>) {
+      return {
+        day: blocks.map((b) => ({
+          startHour: b.startHour,
+          endHour: b.endHour,
+          location: b.location,
+          locationType: 'work' as const,
+          occasion: b.occasion as any,
+        })),
+        night: [{ startHour: 0, endHour: 24, location: 'home', locationType: 'home' as const, occasion: 'sleeping' as const }],
+      };
+    }
+
+    function makeScheduledCharacter(overrides: Record<string, any> = {}) {
+      const routine = overrides.routine ?? makeDayRoutine([
+        { startHour: 0, endHour: 7, location: 'home', occasion: 'sleeping' },
+        { startHour: 7, endHour: 8, location: 'home', occasion: 'eating' },
+        { startHour: 8, endHour: 9, location: 'commuting', occasion: 'commuting' },
+        { startHour: 9, endHour: 17, location: 'shop', occasion: 'working' },
+        { startHour: 17, endHour: 18, location: 'commuting', occasion: 'commuting' },
+        { startHour: 18, endHour: 22, location: 'home', occasion: 'relaxing' },
+        { startHour: 22, endHour: 24, location: 'home', occasion: 'sleeping' },
+      ]);
+      const { routine: _r, ...rest } = overrides;
+      return makeCharacter({
+        customData: {
+          routine: { characterId: rest.id ?? 'char-test', routine, lastUpdated: Date.now() },
+        },
+        ...rest,
+      });
+    }
+
+    describe('getNPCRoutine', () => {
+      it('returns null for characters without routine data', () => {
+        const char = makeCharacter();
+        expect(getNPCRoutine(char)).toBeNull();
+      });
+
+      it('extracts routine from customData', () => {
+        const char = makeScheduledCharacter({ id: 'sched-1' });
+        const routine = getNPCRoutine(char);
+        expect(routine).not.toBeNull();
+        expect(routine!.day.length).toBeGreaterThan(0);
+      });
+    });
+
+    describe('getNPCTimeBlock', () => {
+      it('returns the correct time block for a given hour', () => {
+        const char = makeScheduledCharacter({ id: 'sched-2' });
+        const block = getNPCTimeBlock(char, { currentHour: 10, timeOfDay: 'day' });
+        expect(block).not.toBeNull();
+        expect(block!.occasion).toBe('working');
+        expect(block!.location).toBe('shop');
+      });
+
+      it('returns null for characters without routines', () => {
+        const char = makeCharacter();
+        const block = getNPCTimeBlock(char, { currentHour: 10, timeOfDay: 'day' });
+        expect(block).toBeNull();
+      });
+
+      it('uses night schedule when timeOfDay is night', () => {
+        const char = makeScheduledCharacter({ id: 'sched-3' });
+        const block = getNPCTimeBlock(char, { currentHour: 3, timeOfDay: 'night' });
+        expect(block).not.toBeNull();
+        expect(block!.occasion).toBe('sleeping');
+      });
+    });
+
+    describe('isNPCAvailable', () => {
+      it('returns true when NPC is working', () => {
+        const char = makeScheduledCharacter({ id: 'avail-1' });
+        expect(isNPCAvailable(char, { currentHour: 10, timeOfDay: 'day' })).toBe(true);
+      });
+
+      it('returns false when NPC is sleeping', () => {
+        const char = makeScheduledCharacter({ id: 'avail-2' });
+        expect(isNPCAvailable(char, { currentHour: 3, timeOfDay: 'day' })).toBe(false);
+      });
+
+      it('returns false when NPC is commuting', () => {
+        const char = makeScheduledCharacter({ id: 'avail-3' });
+        expect(isNPCAvailable(char, { currentHour: 8, timeOfDay: 'day' })).toBe(false);
+      });
+
+      it('returns true when NPC is relaxing', () => {
+        const char = makeScheduledCharacter({ id: 'avail-4' });
+        expect(isNPCAvailable(char, { currentHour: 19, timeOfDay: 'day' })).toBe(true);
+      });
+
+      it('returns true when NPC has no routine (backward compatible)', () => {
+        const char = makeCharacter({ id: 'avail-5' });
+        expect(isNPCAvailable(char, { currentHour: 3, timeOfDay: 'day' })).toBe(true);
+      });
+    });
+
+    describe('getNPCAvailableHours', () => {
+      it('returns available hour ranges excluding sleeping and commuting', () => {
+        const char = makeScheduledCharacter({ id: 'hours-1' });
+        const hours = getNPCAvailableHours(char);
+        // Should include: eating(7-8), working(9-17), relaxing(18-22)
+        expect(hours).toEqual([
+          { start: 7, end: 8 },
+          { start: 9, end: 17 },
+          { start: 18, end: 22 },
+        ]);
+      });
+
+      it('returns full day for characters without routines', () => {
+        const char = makeCharacter({ id: 'hours-2' });
+        expect(getNPCAvailableHours(char)).toEqual([{ start: 0, end: 24 }]);
+      });
+    });
+
+    describe('assignQuests with schedule context', () => {
+      it('prefers available NPCs over sleeping ones', () => {
+        const sleepingNPC = makeScheduledCharacter({
+          id: 'sleep-npc',
+          firstName: 'Sleepy',
+          lastName: 'Head',
+          occupation: 'merchant',
+          routine: makeDayRoutine([
+            { startHour: 0, endHour: 24, location: 'home', occasion: 'sleeping' },
+          ]),
+        });
+        const awakeNPC = makeScheduledCharacter({
+          id: 'awake-npc',
+          firstName: 'Awake',
+          lastName: 'Worker',
+          occupation: 'merchant',
+          routine: makeDayRoutine([
+            { startHour: 0, endHour: 24, location: 'shop', occasion: 'working' },
+          ]),
+        });
+
+        const ctx = makeCtx({ characters: [sleepingNPC, awakeNPC] });
+        const schedule: ScheduleContext = { currentHour: 10, timeOfDay: 'day' };
+        const quests = assignQuests(ctx, makeOptions({ count: 5, schedule }));
+
+        // All quests should be assigned by the awake NPC
+        for (const q of quests) {
+          expect(q.assignedBy).toBe('Awake Worker');
+        }
+      });
+
+      it('falls back to any NPC if all are unavailable', () => {
+        const sleeper1 = makeScheduledCharacter({
+          id: 'sleep-1',
+          firstName: 'Night',
+          lastName: 'Owl',
+          occupation: 'merchant',
+          routine: makeDayRoutine([
+            { startHour: 0, endHour: 24, location: 'home', occasion: 'sleeping' },
+          ]),
+        });
+        const sleeper2 = makeScheduledCharacter({
+          id: 'sleep-2',
+          firstName: 'Deep',
+          lastName: 'Sleeper',
+          occupation: 'teacher',
+          routine: makeDayRoutine([
+            { startHour: 0, endHour: 24, location: 'home', occasion: 'sleeping' },
+          ]),
+        });
+
+        const ctx = makeCtx({ characters: [sleeper1, sleeper2] });
+        const schedule: ScheduleContext = { currentHour: 10, timeOfDay: 'day' };
+        const quests = assignQuests(ctx, makeOptions({ count: 2, schedule }));
+
+        // Should still produce quests (graceful fallback)
+        expect(quests.length).toBeGreaterThan(0);
+        for (const q of quests) {
+          expect(q.assignedBy).toBeTruthy();
+        }
+      });
+
+      it('attaches questGiverSchedule metadata', () => {
+        const npc = makeScheduledCharacter({
+          id: 'meta-npc',
+          firstName: 'Meta',
+          lastName: 'NPC',
+          occupation: 'merchant',
+        });
+
+        const ctx = makeCtx({ characters: [npc] });
+        const schedule: ScheduleContext = { currentHour: 10, timeOfDay: 'day' };
+        const quests = assignQuests(ctx, makeOptions({ count: 1, schedule }));
+
+        expect(quests[0].questGiverSchedule).toBeDefined();
+        expect(quests[0].questGiverSchedule.location).toBe('shop');
+        expect(quests[0].questGiverSchedule.availableHours).toEqual([
+          { start: 7, end: 8 },
+          { start: 9, end: 17 },
+          { start: 18, end: 22 },
+        ]);
+      });
+
+      it('works without schedule context (backward compatible)', () => {
+        const quests = assignQuests(makeCtx(), makeOptions({ count: 2 }));
+        expect(quests.length).toBeGreaterThan(0);
+        // questGiverSchedule should still be present but with default available hours
+        for (const q of quests) {
+          expect(q.questGiverSchedule).toBeDefined();
+        }
+      });
     });
   });
 });
