@@ -10,10 +10,11 @@ import {
   QUEST_TEMPLATES,
   type QuestTemplate,
 } from '../../shared/language/quest-templates.js';
-import type { InsertQuest, Character, Quest, World, Settlement } from '../../shared/schema.js';
+import type { InsertQuest, Character, Quest, World, Settlement, TimeOfDay, ActivityOccasion } from '../../shared/schema.js';
 import type { PlayerProficiency } from '../../shared/language/utils.js';
 import { convertQuestToProlog } from '../../shared/prolog/quest-converter.js';
 import { validateAndNormalizeObjectives } from '../../shared/quest-objective-types.js';
+import type { TimeBlock, DailyRoutine, RoutineData } from '../extensions/tott/routine-system.js';
 
 // --- Types ---
 
@@ -24,6 +25,11 @@ export interface WorldContext {
   existingQuests: Quest[];
 }
 
+export interface ScheduleContext {
+  currentHour: number;  // 0-23
+  timeOfDay: TimeOfDay; // 'day' | 'night'
+}
+
 export interface AssignmentOptions {
   count?: number; // Number of quests to generate (default 3)
   playerName: string;
@@ -31,6 +37,7 @@ export interface AssignmentOptions {
   proficiency?: PlayerProficiency;
   excludeTemplateIds?: string[]; // Templates to skip
   preferredCategories?: string[]; // Bias toward these categories
+  schedule?: ScheduleContext; // Current time for NPC availability filtering
 }
 
 export interface AssignedQuest {
@@ -307,19 +314,81 @@ function buildObjectives(
   });
 }
 
+// --- NPC schedule helpers ---
+
+/** Occasions where an NPC is unavailable for quest-giving. */
+const UNAVAILABLE_OCCASIONS: ActivityOccasion[] = ['sleeping', 'commuting'];
+
+/** Extract routine data from a character's customData. */
+export function getNPCRoutine(character: Character): DailyRoutine | null {
+  const customData = (character as any).customData as Record<string, any> | undefined;
+  const routineData = customData?.routine as RoutineData | undefined;
+  return routineData?.routine ?? null;
+}
+
+/** Get the time block an NPC occupies at a given hour and time of day. */
+export function getNPCTimeBlock(
+  character: Character,
+  schedule: ScheduleContext,
+): TimeBlock | null {
+  const routine = getNPCRoutine(character);
+  if (!routine) return null;
+
+  const blocks = schedule.timeOfDay === 'day' ? routine.day : routine.night;
+  return blocks.find(
+    (b) => schedule.currentHour >= b.startHour && schedule.currentHour < b.endHour,
+  ) ?? null;
+}
+
+/** Check if an NPC is available for quest-giving at the current time. */
+export function isNPCAvailable(
+  character: Character,
+  schedule: ScheduleContext,
+): boolean {
+  const block = getNPCTimeBlock(character, schedule);
+  // No routine data = assume available (backward compatible)
+  if (!block) return true;
+  return !UNAVAILABLE_OCCASIONS.includes(block.occasion);
+}
+
+/** Get available hours when an NPC is not sleeping/commuting (day schedule). */
+export function getNPCAvailableHours(character: Character): { start: number; end: number }[] {
+  const routine = getNPCRoutine(character);
+  if (!routine) return [{ start: 0, end: 24 }];
+
+  const ranges: { start: number; end: number }[] = [];
+  for (const block of routine.day) {
+    if (!UNAVAILABLE_OCCASIONS.includes(block.occasion)) {
+      ranges.push({ start: block.startHour, end: block.endHour });
+    }
+  }
+  return ranges;
+}
+
 // --- NPC assignment ---
 
 /**
  * Pick an NPC to be the quest giver. Prefers NPCs with occupations
- * relevant to the quest category.
+ * relevant to the quest category. When schedule context is provided,
+ * filters out NPCs who are sleeping or commuting.
  */
 function pickQuestGiver(
   template: QuestTemplate,
   ctx: WorldContext,
   playerName: string,
-): { name: string; id?: string } | null {
-  const npcs = getNPCs(ctx.characters, playerName);
+  schedule?: ScheduleContext,
+): { name: string; id?: string; location?: string; availableHours?: { start: number; end: number }[] } | null {
+  let npcs = getNPCs(ctx.characters, playerName);
   if (npcs.length === 0) return null;
+
+  // Filter by schedule availability when time context is provided
+  if (schedule) {
+    const available = npcs.filter((npc) => isNPCAvailable(npc, schedule));
+    if (available.length > 0) {
+      npcs = available;
+    }
+    // If all NPCs are unavailable, fall through to use the full list
+  }
 
   // Simple heuristic: match occupation keywords to quest category
   const categoryKeywords: Record<string, string[]> = {
@@ -339,20 +408,36 @@ function pickQuestGiver(
   const keywords = categoryKeywords[template.category] ?? [];
 
   // Try to find an NPC with a matching occupation
+  let chosen: Character | null = null;
   if (keywords.length > 0) {
     const matched = npcs.filter((npc) => {
       const occ = (npc.occupation ?? '').toLowerCase();
       return keywords.some((kw) => occ.includes(kw));
     });
     if (matched.length > 0) {
-      const npc = pick(matched);
-      return { name: charName(npc), id: npc.id };
+      chosen = pick(matched);
     }
   }
 
-  // Fallback: any NPC
-  const npc = pick(npcs);
-  return { name: charName(npc), id: npc.id };
+  if (!chosen) {
+    chosen = pick(npcs);
+  }
+
+  const result: { name: string; id?: string; location?: string; availableHours?: { start: number; end: number }[] } = {
+    name: charName(chosen),
+    id: chosen.id,
+  };
+
+  // Attach schedule metadata
+  if (schedule) {
+    const block = getNPCTimeBlock(chosen, schedule);
+    if (block) {
+      result.location = block.location;
+    }
+  }
+  result.availableHours = getNPCAvailableHours(chosen);
+
+  return result;
 }
 
 // --- Main engine ---
@@ -378,7 +463,7 @@ export function assignQuests(
     const rewards = scaleRewards(template, difficulty);
     const rawObjectives = buildObjectives(template, params);
     const objectives = validateAndNormalizeObjectives(rawObjectives);
-    const questGiver = pickQuestGiver(template, ctx, options.playerName);
+    const questGiver = pickQuestGiver(template, ctx, options.playerName, options.schedule);
 
     const title = template.name;
     const description = interpolate(template.description, params);
@@ -403,6 +488,10 @@ export function assignQuests(
       tags: [`template:${template.id}`, `category:${template.category}`],
       templateId: template.id,
       filledParameters: params,
+      questGiverSchedule: questGiver ? {
+        location: questGiver.location ?? null,
+        availableHours: questGiver.availableHours ?? [],
+      } : null,
     };
 
     // Generate Prolog content
