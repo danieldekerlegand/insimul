@@ -94,6 +94,7 @@ import { BabylonVocabularyPanel } from "@/components/3DGame/BabylonVocabularyPan
 import { BuildingSignManager, BuildingSignData } from "@/components/3DGame/BuildingSignManager.ts";
 import { LanguageGamificationTracker } from "@/components/3DGame/LanguageGamificationTracker.ts";
 import { QuestCompletionManager } from "@/components/3DGame/QuestCompletionManager.ts";
+import { QuestAutoCompletionDetector } from "@/components/3DGame/QuestAutoCompletionDetector.ts";
 import { BabylonConversationHistoryPanel } from "@/components/3DGame/BabylonConversationHistoryPanel.ts";
 import { BabylonSkillTreePanel } from "@/components/3DGame/BabylonSkillTreePanel.ts";
 import { AssessmentProgressUI } from "@/components/3DGame/AssessmentProgressUI.ts";
@@ -391,6 +392,7 @@ export class BabylonGame {
   private buildingSignManager: BuildingSignManager | null = null;
   private gamificationTracker: LanguageGamificationTracker | null = null;
   private questCompletionManager: QuestCompletionManager | null = null;
+  private questAutoCompletionDetector: QuestAutoCompletionDetector | null = null;
   private environmentalAudio: EnvironmentalAudioManager | null = null;
   private culturalEventManager: CulturalEventManager | null = null;
   private noticeBoardPanel: BabylonNoticeBoardPanel | null = null;
@@ -1743,6 +1745,13 @@ export class BabylonGame {
     if (this.questTracker) {
       this.questCompletionManager.setQuestTracker(this.questTracker);
     }
+
+    // Initialize quest auto-completion detector
+    this.questAutoCompletionDetector = new QuestAutoCompletionDetector(
+      () => this.questObjectManager?.getActiveQuests() ?? [],
+      (quest) => this.handleAutoQuestCompletion(quest),
+    );
+    this.questAutoCompletionDetector.start();
 
     // Initialize rule enforcer
     this.ruleEnforcer = new RuleEnforcer(scene);
@@ -8385,10 +8394,17 @@ export class BabylonGame {
         }
       }
 
-      // Apply quest rewards on completion and emit event
+      // Apply quest rewards on completion and trigger celebration
       if (allObjectivesComplete) {
         this.applyQuestRewards(quest);
-        this.eventBus.emit({ type: 'quest_completed', questId });
+        // Mark in auto-detector to prevent duplicate celebration
+        this.questAutoCompletionDetector?.markCompleted(questId);
+        // Trigger full celebration ceremony + server completion sync
+        this.handleAutoQuestCompletion({
+          id: questId,
+          worldId: quest.worldId || this.config.worldId,
+          title: quest.title,
+        });
       }
 
       this.guiManager?.showToast({
@@ -8400,6 +8416,48 @@ export class BabylonGame {
       });
     } catch (error) {
       console.error('Failed to update quest progress:', error);
+    }
+  }
+
+  /**
+   * Called by QuestAutoCompletionDetector when all objectives are detected complete.
+   * Triggers full celebration ceremony and syncs completion to server.
+   */
+  private async handleAutoQuestCompletion(quest: { id: string; worldId: string; title: string }): Promise<void> {
+    console.log(`[BabylonGame] Auto-detected quest completion: "${quest.title}"`);
+    try {
+      // Fetch full quest data from server for rewards
+      const resp = await fetch(`/api/quests/${quest.id}`);
+      if (!resp.ok) return;
+      const questData = await resp.json();
+
+      // Mark as completed on server
+      await fetch(`/api/worlds/${quest.worldId}/quests/${quest.id}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      // Trigger full celebration ceremony
+      if (this.questCompletionManager) {
+        await this.questCompletionManager.completeQuest({
+          id: questData.id,
+          worldId: questData.worldId || this.config.worldId,
+          title: questData.title,
+          questType: questData.questType,
+          experienceReward: questData.experienceReward || 0,
+          itemRewards: questData.itemRewards,
+          skillRewards: questData.skillRewards,
+          unlocks: questData.unlocks,
+          questChainId: questData.questChainId,
+          questChainOrder: questData.questChainOrder,
+          assignedBy: questData.assignedBy,
+        });
+      }
+
+      this.questTracker?.updateQuests(this.config.worldId);
+      this.updateQuestIndicators();
+    } catch (e) {
+      console.warn('[BabylonGame] Auto quest completion failed:', e);
     }
   }
 
@@ -9075,6 +9133,7 @@ export class BabylonGame {
     this.buildingSignManager?.dispose();
     this.gamificationTracker?.dispose();
     this.questCompletionManager?.dispose();
+    this.questAutoCompletionDetector?.dispose();
     this.environmentalAudio?.dispose();
     this.culturalEventManager?.dispose();
     this.noticeBoardPanel?.dispose();

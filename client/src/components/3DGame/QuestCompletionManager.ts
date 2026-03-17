@@ -14,7 +14,7 @@ import {
   TextBlock,
   TextWrapping,
 } from '@babylonjs/gui';
-import { Scene } from '@babylonjs/core';
+import { Color4, GPUParticleSystem, ParticleSystem, Scene, Texture, Vector3 } from '@babylonjs/core';
 import type { GameEventBus } from './GameEventBus';
 import type { LanguageGamificationTracker } from './LanguageGamificationTracker';
 import type { BabylonQuestTracker } from './BabylonQuestTracker';
@@ -58,6 +58,7 @@ export class QuestCompletionManager {
   private playerProgress: PlayerProgress = { inventory: [], questsCompleted: [] };
   private audioContext: AudioContext | null = null;
   private completionOverlay: Rectangle | null = null;
+  private confettiSystem: ParticleSystem | null = null;
 
   constructor(scene: Scene, advancedTexture: AdvancedDynamicTexture) {
     this.scene = scene;
@@ -95,8 +96,9 @@ export class QuestCompletionManager {
   public async completeQuest(quest: CompletedQuestData): Promise<void> {
     console.log(`[QuestCompletionManager] Completing quest: "${quest.title}"`);
 
-    // 1. Play completion sound
+    // 1. Play completion sound + confetti
     this.playCompletionSound();
+    this.playConfettiCelebration();
 
     // 2. Distribute rewards
     const rewardSummary = this.distributeRewards(quest);
@@ -163,6 +165,65 @@ export class QuestCompletionManager {
       });
     } catch (e) {
       console.warn('[QuestCompletionManager] Audio playback failed:', e);
+    }
+  }
+
+  // ── Confetti Celebration ─────────────────────────────────────────────────
+
+  /**
+   * Spawn a burst of colorful confetti particles at the camera position.
+   */
+  public playConfettiCelebration(): void {
+    try {
+      this.stopConfetti();
+
+      const camera = this.scene.activeCamera;
+      if (!camera) return;
+
+      const emitterPos = camera.position.clone().add(new Vector3(0, 3, 0));
+      const ps = new ParticleSystem('questConfetti', 200, this.scene);
+
+      // Use a small white circle texture generated procedurally
+      ps.createPointEmitter(new Vector3(-3, 1, -3), new Vector3(3, 8, 3));
+
+      ps.emitter = emitterPos;
+      ps.minSize = 0.05;
+      ps.maxSize = 0.15;
+      ps.minLifeTime = 1.5;
+      ps.maxLifeTime = 3.0;
+      ps.emitRate = 150;
+      ps.gravity = new Vector3(0, -4, 0);
+      ps.minEmitPower = 2;
+      ps.maxEmitPower = 5;
+
+      // Colorful confetti: gold, red, blue, green, purple
+      ps.color1 = new Color4(1, 0.84, 0, 1);    // gold
+      ps.color2 = new Color4(0.2, 0.5, 1, 1);    // blue
+      ps.colorDead = new Color4(1, 0.2, 0.2, 0);  // fade to red
+
+      ps.blendMode = ParticleSystem.BLENDMODE_STANDARD;
+      ps.targetStopDuration = 2;
+      ps.disposeOnStop = true;
+
+      ps.start();
+      this.confettiSystem = ps;
+
+      // Cleanup reference after particles finish
+      setTimeout(() => {
+        if (this.confettiSystem === ps) {
+          this.confettiSystem = null;
+        }
+      }, 4000);
+    } catch (e) {
+      console.warn('[QuestCompletionManager] Confetti effect failed:', e);
+    }
+  }
+
+  private stopConfetti(): void {
+    if (this.confettiSystem) {
+      this.confettiSystem.stop();
+      this.confettiSystem.dispose();
+      this.confettiSystem = null;
     }
   }
 
@@ -412,6 +473,7 @@ export class QuestCompletionManager {
 
   public dispose(): void {
     this.removeCompletionOverlay();
+    this.stopConfetti();
     if (this.audioContext) {
       this.audioContext.close().catch(() => {});
       this.audioContext = null;

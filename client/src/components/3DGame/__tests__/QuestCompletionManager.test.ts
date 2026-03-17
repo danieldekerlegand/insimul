@@ -38,6 +38,25 @@ vi.mock('@babylonjs/gui', () => {
 
 vi.mock('@babylonjs/core', () => ({
   Scene: class {},
+  Vector3: class {
+    constructor(public x = 0, public y = 0, public z = 0) {}
+    clone() { return new (this.constructor as any)(this.x, this.y, this.z); }
+    add(v: any) { return new (this.constructor as any)(this.x + v.x, this.y + v.y, this.z + v.z); }
+  },
+  Color4: class { constructor(public r = 0, public g = 0, public b = 0, public a = 1) {} },
+  ParticleSystem: class {
+    static BLENDMODE_STANDARD = 0;
+    createPointEmitter = vi.fn();
+    start = vi.fn();
+    stop = vi.fn();
+    dispose = vi.fn();
+    emitter = null; minSize = 0; maxSize = 0; minLifeTime = 0; maxLifeTime = 0;
+    emitRate = 0; gravity = null; minEmitPower = 0; maxEmitPower = 0;
+    color1 = null; color2 = null; colorDead = null; blendMode = 0;
+    targetStopDuration = 0; disposeOnStop = false;
+  },
+  GPUParticleSystem: class {},
+  Texture: class {},
 }));
 
 // Import after mocks
@@ -369,6 +388,30 @@ describe('QuestCompletionManager', () => {
 
       manager.setPlayerProgress(progress);
       expect(manager.getPlayerProgress()).toBe(progress);
+    });
+  });
+
+  describe('confetti celebration', () => {
+    it('should play confetti without errors when camera exists', () => {
+      (mockScene as any).activeCamera = {
+        position: { clone: () => ({ add: () => ({ x: 0, y: 3, z: 0 }) }) },
+      };
+      expect(() => manager.playConfettiCelebration()).not.toThrow();
+    });
+
+    it('should not throw when no camera available', () => {
+      (mockScene as any).activeCamera = null;
+      expect(() => manager.playConfettiCelebration()).not.toThrow();
+    });
+
+    it('should be triggered during completeQuest', async () => {
+      (mockScene as any).activeCamera = {
+        position: { clone: () => ({ add: () => ({ x: 0, y: 3, z: 0 }) }) },
+      };
+      const spy = vi.spyOn(manager, 'playConfettiCelebration');
+      const quest = createSampleQuest();
+      await manager.completeQuest(quest);
+      expect(spy).toHaveBeenCalled();
     });
   });
 
