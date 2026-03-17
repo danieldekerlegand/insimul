@@ -307,6 +307,15 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'practice_words': 'use_vocabulary',
   'reinforce_vocabulary': 'use_vocabulary',
   'recall_vocabulary': 'use_vocabulary',
+
+  // Grammar-focused objective aliases (map to canonical types)
+  'grammar_pattern': 'use_vocabulary',
+  'grammar_practice': 'use_vocabulary',
+  'grammar_drill': 'use_vocabulary',
+  'conjugation': 'use_vocabulary',
+  'conjugate': 'use_vocabulary',
+  'grammar_conversation': 'complete_conversation',
+  'grammar_focus': 'complete_conversation',
 };
 
 /**
