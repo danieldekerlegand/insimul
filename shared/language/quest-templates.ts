@@ -622,6 +622,144 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
     ],
   },
 
+  // --- Shopping & Economic Vocabulary ---
+  {
+    id: 'shop_vocabulary',
+    name: 'Shopping Basics',
+    category: 'shopping',
+    description: 'Visit {{businessName}} and learn {{wordCount}} shopping vocabulary words.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'visit_location',
+        descriptionTemplate: 'Visit {{businessName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'collect_vocabulary',
+        descriptionTemplate: 'Learn {{wordCount}} shopping words (money, price, to buy, etc.)',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 20, fluency: 3 },
+    parameters: [
+      { name: 'businessName', type: 'location', description: 'Name of the business to visit' },
+      { name: 'wordCount', type: 'number', description: 'Shopping words to learn' },
+    ],
+  },
+  {
+    id: 'bakery_order',
+    name: 'At the Bakery',
+    category: 'shopping',
+    description: 'Visit the bakery and practice ordering food using target-language vocabulary.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'visit_location',
+        descriptionTemplate: 'Visit {{businessName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Order from the baker at {{businessName}} using {{wordCount}} food words',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} food and shopping vocabulary words',
+        requiredCount: 4,
+      },
+    ],
+    rewardScale: { xp: 25, fluency: 3 },
+    parameters: [
+      { name: 'businessName', type: 'location', description: 'Name of the bakery' },
+      { name: 'wordCount', type: 'number', description: 'Food and shopping words to use' },
+    ],
+  },
+  {
+    id: 'price_haggling',
+    name: 'How Much Is That?',
+    category: 'shopping',
+    description: 'Ask about prices at {{businessName}} using numbers and shopping vocabulary.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'visit_location',
+        descriptionTemplate: 'Visit {{businessName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Ask about prices and negotiate at {{businessName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} number and shopping words (how much, expensive, cheap, etc.)',
+        requiredCount: 6,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 4 },
+    parameters: [
+      { name: 'businessName', type: 'location', description: 'Name of the shop' },
+      { name: 'wordCount', type: 'number', description: 'Number/shopping words to use' },
+    ],
+  },
+  {
+    id: 'shopping_list',
+    name: 'The Shopping List',
+    category: 'shopping',
+    description: 'An NPC gives you a shopping list in the target language. Visit {{businessCount}} shops to collect everything.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'collect_item',
+        descriptionTemplate: 'Collect {{itemCount}} items from shops around town',
+        requiredCount: 3,
+      },
+      {
+        type: 'deliver_item',
+        descriptionTemplate: 'Deliver the shopping to {{npcName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use shopping vocabulary while buying items',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 35, fluency: 4 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC who gave the list' },
+      { name: 'itemCount', type: 'number', description: 'Items to collect' },
+      { name: 'businessCount', type: 'number', description: 'Number of shops to visit' },
+    ],
+  },
+  {
+    id: 'merchant_interview',
+    name: 'Meet the Merchants',
+    category: 'shopping',
+    description: 'Interview {{npcCount}} business owners about their shops and learn economic vocabulary.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'talk_to_npc',
+        descriptionTemplate: 'Talk to {{npcCount}} business owners about their trade',
+        requiredCount: 3,
+      },
+      {
+        type: 'collect_vocabulary',
+        descriptionTemplate: 'Collect {{wordCount}} economic and profession vocabulary words',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 4 },
+    parameters: [
+      { name: 'npcCount', type: 'number', description: 'Business owners to interview' },
+      { name: 'wordCount', type: 'number', description: 'Economic words to learn' },
+    ],
+  },
+
   // --- Time-Based Activities ---
   {
     id: 'time_appointment',

@@ -219,6 +219,10 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'acquire': 'collect_item',
   'buy_item': 'collect_item',
   'purchase': 'collect_item',
+  'purchase_item': 'collect_item',
+  'shop': 'collect_item',
+  'shop_for': 'collect_item',
+  'buy_from': 'collect_item',
   'collect_items': 'collect_item',
 
   'deliver': 'deliver_item',
