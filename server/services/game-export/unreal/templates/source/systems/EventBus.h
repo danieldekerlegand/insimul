@@ -65,6 +65,10 @@ enum class EInsimulEventType : uint8
     DirectionStepCompleted UMETA(DisplayName = "Direction Step Completed"),
     // Pronunciation quest events
     PronunciationAssessmentData UMETA(DisplayName = "Pronunciation Assessment Data"),
+    // NPC exam/quiz events
+    NpcExamStarted UMETA(DisplayName = "NPC Exam Started"),
+    NpcExamQuestionAnswered UMETA(DisplayName = "NPC Exam Question Answered"),
+    NpcExamCompleted UMETA(DisplayName = "NPC Exam Completed"),
     // Achievement events
     AchievementUnlocked UMETA(DisplayName = "Achievement Unlocked")
 };
@@ -239,6 +243,13 @@ struct FInsimulGameEvent
     // ── Periodic assessment fields ────────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Level = 0;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Tier;
+
+    // ── NPC exam/quiz fields ────────────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ExamId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 QuestionCount = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString QuestionId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 MaxPoints = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float TotalMaxPoints = 0.0f;
 
     // ── Achievement fields ─────────────────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AchievementId;

@@ -84,7 +84,11 @@ export type GameEvent =
   // Follow directions quest events
   | { type: 'direction_step_completed'; questId: string; objectiveId: string; stepIndex: number; stepsCompleted: number; stepsRequired: number }
   // Achievement events
-  | { type: 'achievement_unlocked'; achievementId: string; achievementName: string; description: string; icon: string };
+  | { type: 'achievement_unlocked'; achievementId: string; achievementName: string; description: string; icon: string }
+  // NPC exam/quiz events
+  | { type: 'npc_exam_started'; examId: string; npcId: string; npcName: string; category: string; questionCount: number }
+  | { type: 'npc_exam_question_answered'; examId: string; questionId: string; correct: boolean; score: number; maxPoints: number }
+  | { type: 'npc_exam_completed'; examId: string; npcId: string; totalScore: number; totalMaxPoints: number; cefrLevel: string; category: string };
 
 export type GameEventType = GameEvent['type'];
 

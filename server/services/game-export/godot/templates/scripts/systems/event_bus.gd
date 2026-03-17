@@ -63,6 +63,10 @@ const EVENT_VISUAL_VOCAB_ANSWERED := "visual_vocab_answered"
 const EVENT_DIRECTION_STEP_COMPLETED := "direction_step_completed"
 # Pronunciation quest events
 const EVENT_PRONUNCIATION_ASSESSMENT_DATA := "pronunciation_assessment_data"
+# NPC exam/quiz events
+const EVENT_NPC_EXAM_STARTED := "npc_exam_started"
+const EVENT_NPC_EXAM_QUESTION_ANSWERED := "npc_exam_question_answered"
+const EVENT_NPC_EXAM_COMPLETED := "npc_exam_completed"
 # Achievement events
 const EVENT_ACHIEVEMENT_UNLOCKED := "achievement_unlocked"
 
@@ -94,6 +98,9 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_VISUAL_VOCAB_ANSWERED,
 	EVENT_DIRECTION_STEP_COMPLETED,
 	EVENT_PRONUNCIATION_ASSESSMENT_DATA,
+	EVENT_NPC_EXAM_STARTED,
+	EVENT_NPC_EXAM_QUESTION_ANSWERED,
+	EVENT_NPC_EXAM_COMPLETED,
 	EVENT_ACHIEVEMENT_UNLOCKED,
 ]
 
@@ -162,6 +169,9 @@ var _global_handlers: Array[Callable] = []
 ##   visual_vocab_answered: {type, target_id, quest_id, passed, score, player_answer}
 ##   direction_step_completed: {type, quest_id, objective_id, step_index, steps_completed, steps_required}
 ##   pronunciation_assessment_data: {type, quest_id, average_score, sample_count}
+##   npc_exam_started:     {type, exam_id, npc_id, npc_name, category, question_count}
+##   npc_exam_question_answered: {type, exam_id, question_id, correct, score, max_points}
+##   npc_exam_completed:  {type, exam_id, npc_id, total_score, total_max_points, cefr_level, category}
 ##   achievement_unlocked: {type, achievement_id, achievement_name, description, icon}
 ##
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}

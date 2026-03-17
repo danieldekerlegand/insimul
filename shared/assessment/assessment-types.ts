@@ -11,7 +11,7 @@
 // Core Enums & Literals
 // ───────────────────────────────────────────────────────────────────────────
 
-export type AssessmentType = 'arrival' | 'departure' | 'periodic' | 'arrival_encounter' | 'departure_encounter';
+export type AssessmentType = 'arrival' | 'departure' | 'periodic' | 'arrival_encounter' | 'departure_encounter' | 'npc_exam';
 
 export type PhaseType = 'reading' | 'writing' | 'listening' | 'conversation';
 
