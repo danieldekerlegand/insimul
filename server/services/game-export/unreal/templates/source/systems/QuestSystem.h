@@ -34,6 +34,12 @@ struct FQuestObjective
 
     /** Vocabulary category for scavenger hunt rotation */
     UPROPERTY(BlueprintReadWrite) FString VocabularyCategory;
+
+    /** Target words for vocabulary objectives (empty = any word counts) */
+    UPROPERTY(BlueprintReadWrite) TArray<FString> TargetWords;
+
+    /** Words already used (for deduplication) */
+    UPROPERTY(BlueprintReadWrite) TArray<FString> WordsUsed;
 };
 
 /**
@@ -87,6 +93,18 @@ public:
     /** Get next scavenger hunt category (round-robin). */
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Quests")
     static FString GetNextScavengerCategory(int32 LastCategoryIndex);
+
+    /** Track vocabulary usage for use_vocabulary / collect_vocabulary objectives. */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    void TrackVocabularyUsage(const FString& Word, const FString& QuestId = TEXT(""));
+
+    /** Track a conversation turn for complete_conversation objectives. */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    void TrackConversationTurn(const TArray<FString>& Keywords, const FString& QuestId = TEXT(""));
+
+    /** Track a pronunciation attempt for pronunciation_check objectives. */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    void TrackPronunciationAttempt(bool bPassed, const FString& QuestId = TEXT(""));
 
     /** Fired when a listening_comprehension objective starts and story should be spoken. */
     UPROPERTY(BlueprintAssignable, Category = "Quests")

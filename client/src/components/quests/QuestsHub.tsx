@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import {
-  CheckCircle2, Clock, XCircle, Trophy, Target, Plus, ChevronRight, ChevronDown, RefreshCw, Edit, Globe,
+  CheckCircle2, Clock, XCircle, Trophy, Target, Plus, ChevronRight, ChevronDown, RefreshCw, Edit, Globe, Trash2,
 } from 'lucide-react';
 import { QuestCreateDialog } from '../QuestCreateDialog';
 import { PredicatePalette } from '../prolog/PredicatePalette';
@@ -218,6 +218,28 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {getStatusIcon(selectedQuest.status)}
                   <span className="text-xs capitalize font-medium">{selectedQuest.status}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    onClick={async () => {
+                      if (!confirm(`Delete quest "${selectedQuest.title}"?`)) return;
+                      try {
+                        const res = await fetch(`/api/quests/${selectedQuest.id}`, { method: 'DELETE' });
+                        if (res.ok) {
+                          setSelectedQuest(null);
+                          queryClient.invalidateQueries({ queryKey: ['/api/worlds', worldId, 'quests'] });
+                          toast({ title: 'Quest deleted' });
+                        } else {
+                          toast({ title: 'Error', description: 'Failed to delete quest', variant: 'destructive' });
+                        }
+                      } catch {
+                        toast({ title: 'Error', description: 'Failed to delete quest', variant: 'destructive' });
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </div>

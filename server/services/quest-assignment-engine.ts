@@ -13,6 +13,7 @@ import {
 import type { InsertQuest, Character, Quest, World, Settlement } from '../../shared/schema.js';
 import type { PlayerProficiency } from '../../shared/language/utils.js';
 import { convertQuestToProlog } from '../../shared/prolog/quest-converter.js';
+import { validateAndNormalizeObjectives } from '../../shared/quest-objective-types.js';
 
 // --- Types ---
 
@@ -375,7 +376,8 @@ export function assignQuests(
     const difficulty = template.difficulty;
     const params = fillParameters(template, ctx, options.playerName, difficulty);
     const rewards = scaleRewards(template, difficulty);
-    const objectives = buildObjectives(template, params);
+    const rawObjectives = buildObjectives(template, params);
+    const objectives = validateAndNormalizeObjectives(rawObjectives);
     const questGiver = pickQuestGiver(template, ctx, options.playerName);
 
     const title = template.name;

@@ -142,6 +142,15 @@ struct FInsimulShopItem
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Material;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString BaseType;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Rarity;
+
+    /** Whether the item can be possessed/owned by NPCs */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bPossessable = false;
+
+    // Language learning data (for vocabulary items)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString TargetWord;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString TargetLanguage;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Pronunciation;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString LanguageCategory;
 };
 
 /**

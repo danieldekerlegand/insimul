@@ -767,9 +767,10 @@ export class BabylonGUIManager {
     zoomRow.addControl(zoomOutBtn);
 
     const zoomLabel = new TextBlock("minimapZoomLabel");
-    zoomLabel.text = "1.0x";
+    zoomLabel.text = "1.00x";
     zoomLabel.color = "rgba(255,255,255,0.7)";
     zoomLabel.fontSize = 11;
+    zoomLabel.isHitTestVisible = false;
     this._minimapZoomLabel = zoomLabel;
     zoomRow.addControl(zoomLabel);
 
@@ -793,17 +794,18 @@ export class BabylonGUIManager {
    */
   public minimapZoom(direction: number): void {
     const step = BabylonGUIManager.MINIMAP_ZOOM_STEP;
-    const newZoom = Math.round((this._minimapZoomLevel + direction * step) * 10) / 10;
+    const newZoom = Math.round((this._minimapZoomLevel + direction * step) * 100) / 100;
     this._minimapZoomLevel = Math.max(
       BabylonGUIManager.MINIMAP_ZOOM_MIN,
       Math.min(BabylonGUIManager.MINIMAP_ZOOM_MAX, newZoom)
     );
     if (this._minimapZoomLabel) {
-      this._minimapZoomLabel.text = `${this._minimapZoomLevel.toFixed(1)}x`;
+      this._minimapZoomLabel.text = `${this._minimapZoomLevel.toFixed(2)}x`;
     }
-    // Force minimap re-render by invalidating the last source position
+    // Force minimap re-render by invalidating the last source position and data URL
     this._minimapLastSrcX = -1;
     this._minimapLastSrcY = -1;
+    this._minimapLastDataUrl = '';
   }
 
   /** Get the current minimap zoom level. */
@@ -1415,9 +1417,9 @@ export class BabylonGUIManager {
   private _minimapDynamicControls: Control[] = [];
   /** Current minimap zoom level. 1.0 = default, higher = more zoomed in. */
   private _minimapZoomLevel = 1.0;
-  private static readonly MINIMAP_ZOOM_MIN = 0.5;
+  private static readonly MINIMAP_ZOOM_MIN = 0.25;
   private static readonly MINIMAP_ZOOM_MAX = 4.0;
-  private static readonly MINIMAP_ZOOM_STEP = 0.5;
+  private static readonly MINIMAP_ZOOM_STEP = 0.25;
   /** Zoom level label displayed on the minimap. */
   private _minimapZoomLabel: TextBlock | null = null;
   /** Last player position used for click-to-navigate calculations. */
@@ -1458,8 +1460,9 @@ export class BabylonGUIManager {
       const playerImgY = ((-pz + worldHalf) / worldSize) * imgH;
       const viewRadiusPx = (viewRadius / worldSize) * imgW;
 
-      const srcX = Math.max(0, Math.min(imgW - viewRadiusPx * 2, playerImgX - viewRadiusPx));
-      const srcY = Math.max(0, Math.min(imgH - viewRadiusPx * 2, playerImgY - viewRadiusPx));
+      // Don't clamp — always center the viewport on the player so markers align.
+      const srcX = playerImgX - viewRadiusPx;
+      const srcY = playerImgY - viewRadiusPx;
       const srcSize = viewRadiusPx * 2;
 
       // Only re-encode when the viewport has shifted enough to matter visually.
@@ -1473,26 +1476,62 @@ export class BabylonGUIManager {
           this._minimapVpCtx = this._minimapVpCanvas.getContext('2d');
         }
         if (this._minimapVpCtx) {
-          this._minimapVpCtx.drawImage(
-            this._minimapFullImage, srcX, srcY, srcSize, srcSize,
-            0, 0, MAP_SIZE, MAP_SIZE
-          );
-          // Draw street network lines on the viewport canvas
-          if (data.streets && data.streets.length > 0) {
-            this.drawMinimapStreets(this._minimapVpCtx, data.streets, viewRadius, data.playerPosition, MAP_SIZE);
+          const ctx = this._minimapVpCtx;
+
+          // Fill with ground color for any area outside the world bounds
+          ctx.clearRect(0, 0, MAP_SIZE, MAP_SIZE);
+          ctx.fillStyle = '#3d5a28';
+          ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
+
+          // Compute the visible intersection between viewport and world image
+          const clampedSrcLeft = Math.max(0, srcX);
+          const clampedSrcTop = Math.max(0, srcY);
+          const clampedSrcRight = Math.min(imgW, srcX + srcSize);
+          const clampedSrcBottom = Math.min(imgH, srcY + srcSize);
+          const clampedSrcW = clampedSrcRight - clampedSrcLeft;
+          const clampedSrcH = clampedSrcBottom - clampedSrcTop;
+
+          if (clampedSrcW > 0 && clampedSrcH > 0) {
+            // Map the clamped source rect to the corresponding destination rect
+            const dstX = ((clampedSrcLeft - srcX) / srcSize) * MAP_SIZE;
+            const dstY = ((clampedSrcTop - srcY) / srcSize) * MAP_SIZE;
+            const dstW = (clampedSrcW / srcSize) * MAP_SIZE;
+            const dstH = (clampedSrcH / srcSize) * MAP_SIZE;
+            ctx.drawImage(
+              this._minimapFullImage,
+              clampedSrcLeft, clampedSrcTop, clampedSrcW, clampedSrcH,
+              dstX, dstY, dstW, dstH
+            );
           }
-          // Draw building footprints on the viewport canvas
-          if (data.buildings && data.buildings.length > 0) {
-            this.drawMinimapBuildings(this._minimapVpCtx, data.buildings, viewRadius, data.playerPosition, MAP_SIZE);
+          // Draw 2D overlays only when zoomed in enough that individual
+          // buildings are distinguishable. When zoomed out, the 3D snapshot
+          // already contains buildings/streets and the overlays would cause
+          // visible doubling due to 3D-vs-2D projection mismatch.
+          if (srcSize < imgW * 0.45) {
+            if (data.streets && data.streets.length > 0) {
+              this.drawMinimapStreets(ctx, data.streets, viewRadius, data.playerPosition, MAP_SIZE);
+            }
+            if (data.buildings && data.buildings.length > 0) {
+              this.drawMinimapBuildings(ctx, data.buildings, viewRadius, data.playerPosition, MAP_SIZE);
+            }
           }
+          // Pre-load the data URL into an HTMLImageElement before assigning
+          // to the GUI Image, so the old frame stays visible until the new
+          // one finishes loading (prevents flicker).
           const dataUrl = this._minimapVpCanvas.toDataURL('image/jpeg', 0.85);
-          // Only assign source when the data URL actually changed, to avoid
-          // triggering an image reload cycle that causes flicker.
           if (dataUrl !== this._minimapLastDataUrl) {
-            this.minimapStaticImage.source = dataUrl;
             this._minimapLastDataUrl = dataUrl;
+            const tmpImg = new window.Image();
+            tmpImg.onload = () => {
+              if (this.minimapStaticImage) {
+                this.minimapStaticImage.domImage = tmpImg;
+                this.minimapStaticImage.isVisible = true;
+              }
+            };
+            tmpImg.src = dataUrl;
+          } else {
+            this.minimapStaticImage.isVisible = true;
           }
-          this.minimapStaticImage.isVisible = true;
         }
         this._minimapLastSrcX = srcX;
         this._minimapLastSrcY = srcY;

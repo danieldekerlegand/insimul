@@ -9,6 +9,7 @@ import tracery from 'tracery-grammar';
 import { storage } from '../db/storage.js';
 
 interface SettlementNameContext {
+  worldId?: string;
   worldName: string;
   worldDescription?: string;
   worldType?: string;
@@ -23,6 +24,7 @@ interface SettlementNameContext {
 }
 
 interface CharacterNameContext {
+  worldId?: string;
   worldName: string;
   worldDescription?: string;
   worldType?: string;
@@ -96,11 +98,44 @@ export class NameGenerator {
    */
   private generateFromGrammar(grammar: any): string {
     try {
-      const traceryGrammar = tracery.createGrammar(grammar.grammar);
-      const result = traceryGrammar.flatten('#origin#');
+      const raw = grammar.grammar;
+      // Validate the grammar has an origin rule before attempting expansion
+      if (!raw || typeof raw !== 'object' || !raw.origin) {
+        return '';
+      }
+
+      // Sanitize LLM-generated grammars that use wrong modifier syntax.
+      // LLMs sometimes produce ((.capitalize)) instead of Tracery's .capitalize
+      const sanitized: Record<string, string[]> = {};
+      for (const [key, value] of Object.entries(raw)) {
+        if (Array.isArray(value)) {
+          sanitized[key] = value.map((v: any) => {
+            if (typeof v !== 'string') return String(v);
+            // Convert ((.modifier)) → Tracery .modifier inside #refs#
+            // e.g. "#syllable#((.capitalize))" → "#syllable.capitalize#"
+            // and "#syllable((.capitalize))#" → "#syllable.capitalize#"
+            return v
+              .replace(/#([^#]+)#\(\(\.(\w+)\)\)/g, '#$1.$2#')
+              .replace(/#([^#(]+)\(\(\.(\w+)\)\)#/g, '#$1.$2#')
+              // Standalone ((.modifier)) not attached to a # ref — just remove
+              .replace(/\(\(\.\w+\)\)/g, '');
+          });
+        } else {
+          sanitized[key] = Array.isArray(value) ? value : [String(value)];
+        }
+      }
+
+      const traceryGrammar = tracery.createGrammar(sanitized);
+      traceryGrammar.addModifiers(tracery.baseEngModifiers);
+      let result = traceryGrammar.flatten('#origin#');
+      // If tracery returned the unexpanded symbol (missing rule), treat as failure
+      if (result.includes('#')) return '';
+      // Safety net: strip any remaining ((.modifier)) literals from output
+      result = result.replace(/\(\(\.\w+\)\)/g, '');
       return result.trim();
-    } catch (error) {
-      console.warn('Failed to generate from grammar:', error);
+    } catch {
+      // Tracery throws when a grammar references undefined symbols — expected for
+      // LLM-generated grammars that may use symbols not in the grammar definition.
       return '';
     }
   }
@@ -108,14 +143,87 @@ export class NameGenerator {
   /**
    * Find the best grammar for a specific purpose
    */
-  private findBestGrammar(grammars: any[], purpose: 'character' | 'settlement' | 'business'): any | null {
-    // Look for grammars with matching tags
+  private findBestGrammar(grammars: any[], purpose: string): any | null {
+    // Look for grammars with matching tags — exact purpose tag match first
     const purposeGrammar = grammars.find((g: any) =>
-      g.tags && Array.isArray(g.tags) &&
-      (g.tags.includes(purpose) || g.tags.includes(`${purpose}_names`) || g.tags.includes('names'))
+      g.tags && Array.isArray(g.tags) && g.tags.includes(purpose)
     );
+    if (purposeGrammar) return purposeGrammar;
 
-    return purposeGrammar || null;
+    // Fallback: check for purpose_names tag or name containing purpose
+    return grammars.find((g: any) =>
+      (g.tags && Array.isArray(g.tags) && g.tags.includes(`${purpose}_names`)) ||
+      (g.name && g.name.includes(`_${purpose}_`))
+    ) || null;
+  }
+
+  /**
+   * Generate a single name from a grammar for any purpose.
+   * Public method for use by routes.ts and other callers.
+   */
+  async generateNameFromGrammar(
+    purpose: string,
+    worldType: string,
+    worldId: string,
+  ): Promise<string | null> {
+    try {
+      const grammars = await this.loadGrammarsForWorldType(worldType, worldId);
+      const grammar = this.findBestGrammar(grammars, purpose);
+      if (grammar) {
+        const name = this.generateFromGrammar(grammar);
+        if (name && name.length > 0 && name.length < 100) {
+          return name;
+        }
+      }
+    } catch (error) {
+      console.warn(`Grammar-based ${purpose} name generation failed:`, error);
+    }
+    return null;
+  }
+
+  /**
+   * Generate multiple unique names from a grammar for any purpose.
+   * Returns as many as possible up to `count`, deduplicating results.
+   */
+  async generateNamesFromGrammar(
+    purpose: string,
+    worldType: string,
+    worldId: string,
+    count: number,
+  ): Promise<string[]> {
+    try {
+      const grammars = await this.loadGrammarsForWorldType(worldType, worldId);
+      const grammar = this.findBestGrammar(grammars, purpose);
+      if (!grammar) return [];
+
+      const names: string[] = [];
+      const seen = new Set<string>();
+      const maxAttempts = count * 3; // avoid infinite loops on small grammars
+
+      for (let attempt = 0; attempt < maxAttempts && names.length < count; attempt++) {
+        const name = this.generateFromGrammar(grammar);
+        if (name && name.length > 0 && name.length < 100 && !seen.has(name)) {
+          seen.add(name);
+          names.push(name);
+        }
+      }
+      return names;
+    } catch (error) {
+      console.warn(`Grammar-based batch ${purpose} name generation failed:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Check if grammars are available for a given purpose + world.
+   */
+  async hasGrammar(purpose: string, worldType: string, worldId: string): Promise<boolean> {
+    try {
+      const grammars = await this.loadGrammarsForWorldType(worldType, worldId);
+      return this.findBestGrammar(grammars, purpose) !== null;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -126,7 +234,7 @@ export class NameGenerator {
     const worldType = context.worldType || context.customLabel;
     if (worldType) {
       try {
-        const grammars = await this.loadGrammarsForWorldType(worldType);
+        const grammars = await this.loadGrammarsForWorldType(worldType, context.worldId);
         const settlementGrammar = this.findBestGrammar(grammars, 'settlement');
 
         if (settlementGrammar) {
@@ -156,7 +264,7 @@ export class NameGenerator {
       const cleanName = this.cleanName(name);
 
       // Validate the name is reasonable
-      if (cleanName.length > 0 && cleanName.length < 50 && /^[a-zA-Z\s'-]+$/.test(cleanName)) {
+      if (cleanName.length > 0 && cleanName.length < 50 && /^[\p{L}\s'-]+$/u.test(cleanName)) {
         console.log(`   🏙️  Generated settlement name from LLM: ${cleanName}`);
         return cleanName;
       } else {
@@ -177,7 +285,7 @@ export class NameGenerator {
     const worldType = context.worldType || context.customLabel;
     if (worldType) {
       try {
-        const grammars = await this.loadGrammarsForWorldType(worldType);
+        const grammars = await this.loadGrammarsForWorldType(worldType, context.worldId);
         const characterGrammar = this.findBestGrammar(grammars, 'character');
 
         if (characterGrammar) {
@@ -328,22 +436,17 @@ export class NameGenerator {
   private cleanName(name: string): string {
     // Remove quotes, parentheses, and extra whitespace
     let cleaned = name
-      .replace(/["'()[\]]/g, '')
-      .replace(/^[^a-zA-Z]+/, '')
-      .replace(/[^a-zA-Z\s'-]+$/, '')
+      .replace(/["()[\]]/g, '')
       .trim();
-    
+
     // Handle multi-line responses (take first line)
     if (cleaned.includes('\n')) {
       cleaned = cleaned.split('\n')[0].trim();
     }
-    
-    // Capitalize properly
-    cleaned = cleaned
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ');
-    
+
+    // Strip leading/trailing punctuation but keep Unicode letters, accents, hyphens, apostrophes, spaces
+    cleaned = cleaned.replace(/^[^\p{L}]+/u, '').replace(/[^\p{L}\s'-]+$/u, '');
+
     return cleaned;
   }
 
@@ -370,7 +473,7 @@ export class NameGenerator {
         const lastName = parts.slice(1).join(' ');
         
         // Validate names
-        if (/^[a-zA-Z'-]+$/.test(firstName) && /^[a-zA-Z\s'-]+$/.test(lastName)) {
+        if (/^[\p{L}'-]+$/u.test(firstName) && /^[\p{L}\s'-]+$/u.test(lastName)) {
           names.push({ firstName, lastName });
         }
       }
@@ -415,10 +518,47 @@ export class NameGenerator {
   }
 
   /**
-   * Generate multiple settlement names in a single batch API call
+   * Generate multiple settlement names — grammar-first, LLM fallback
    */
   async generateSettlementNamesBatch(contexts: SettlementNameContext[]): Promise<string[]> {
-    if (!this.enabled || !this.model || contexts.length === 0) {
+    if (contexts.length === 0) return [];
+
+    // Try grammar-based generation first (fast, no API calls)
+    const firstCtx = contexts[0];
+    const worldType = firstCtx.worldType || firstCtx.customLabel;
+    if (worldType && firstCtx.worldId) {
+      try {
+        const grammars = await this.loadGrammarsForWorldType(worldType, firstCtx.worldId);
+        const settlementGrammar = this.findBestGrammar(grammars, 'settlement');
+        if (settlementGrammar) {
+          const names: string[] = [];
+          const seen = new Set<string>();
+          for (let i = 0; i < contexts.length; i++) {
+            // Generate with dedup — retry up to 5 times for unique names
+            let name = '';
+            for (let attempt = 0; attempt < 5; attempt++) {
+              const candidate = this.generateFromGrammar(settlementGrammar);
+              if (candidate && candidate.length > 0 && candidate.length < 50 && !seen.has(candidate)) {
+                name = candidate;
+                break;
+              }
+            }
+            if (name) {
+              seen.add(name);
+              names.push(name);
+            } else {
+              names.push(this.fallbackSettlementName(contexts[i]));
+            }
+          }
+          console.log(`   🏙️  Generated ${names.length} settlement names from grammar`);
+          return names;
+        }
+      } catch (error) {
+        console.warn('Grammar-based batch settlement names failed, falling back to LLM:', error);
+      }
+    }
+
+    if (!this.enabled || !this.model) {
       return contexts.map(ctx => this.fallbackSettlementName(ctx));
     }
 
@@ -427,14 +567,14 @@ export class NameGenerator {
       const result = await this.model.generateContent(prompt);
       const response = result.response;
       const text = response.text().trim();
-      
+
       const names = this.parseBatchSettlementNames(text, contexts.length);
-      
+
       // Fill in any missing names with fallbacks
       while (names.length < contexts.length) {
         names.push(this.fallbackSettlementName(contexts[names.length]));
       }
-      
+
       return names.slice(0, contexts.length);
     } catch (error) {
       console.error('Error generating batch settlement names:', error);
@@ -443,31 +583,61 @@ export class NameGenerator {
   }
 
   /**
-   * Generate multiple character names in a single batch API call
+   * Generate multiple character names — grammar-first, LLM fallback
    */
   async generateCharacterNamesBatch(
     context: CharacterNameContext,
     count: number
   ): Promise<Array<{firstName: string, lastName: string}>> {
-    if (!this.enabled || !this.model || count === 0) {
+    if (count === 0) return [];
+
+    // Try grammar-based generation first (fast, no API calls)
+    const worldType = context.worldType || context.customLabel;
+    if (worldType && context.worldId) {
+      try {
+        const grammars = await this.loadGrammarsForWorldType(worldType, context.worldId);
+        const characterGrammar = this.findBestGrammar(grammars, 'character');
+        if (characterGrammar) {
+          const names: Array<{firstName: string, lastName: string}> = [];
+          for (let i = 0; i < count; i++) {
+            const fullName = this.generateFromGrammar(characterGrammar);
+            if (fullName) {
+              const parts = fullName.trim().split(/\s+/);
+              if (parts.length >= 2) {
+                names.push({ firstName: parts[0], lastName: parts.slice(1).join(' ') });
+              } else if (parts.length === 1) {
+                names.push({ firstName: parts[0], lastName: 'Unknown' });
+              }
+            }
+          }
+          if (names.length >= count) {
+            console.log(`   👤 Generated ${names.length} character names from grammar`);
+            return names.slice(0, count);
+          }
+        }
+      } catch (error) {
+        console.warn('Grammar-based batch character names failed, falling back to LLM:', error);
+      }
+    }
+
+    if (!this.enabled || !this.model) {
       return this.fallbackCharacterNames(context, count);
     }
 
     try {
-      // Use the existing buildCharacterPrompt which already supports batch generation
       const prompt = this.buildCharacterPrompt(context, count);
       const result = await this.model.generateContent(prompt);
       const response = result.response;
       const text = response.text().trim();
-      
+
       const names = this.parseCharacterNames(text, count);
-      
+
       // Fill in any missing names with fallbacks
       while (names.length < count) {
         const fallbackNames = this.fallbackCharacterNames(context, 1);
         names.push(fallbackNames[0]);
       }
-      
+
       return names.slice(0, count);
     } catch (error) {
       console.error('Error generating batch character names:', error);
@@ -525,7 +695,7 @@ export class NameGenerator {
       
       const cleaned = this.cleanName(line);
       
-      if (cleaned.length > 0 && cleaned.length < 50 && /^[a-zA-Z\s'-]+$/.test(cleaned)) {
+      if (cleaned.length > 0 && cleaned.length < 50 && /^[\p{L}\s'-]+$/u.test(cleaned)) {
         names.push(cleaned);
       }
     }
@@ -577,10 +747,12 @@ export class NameGenerator {
 
         if (characterGrammar && settlementGrammar) {
           console.log(`✅ Found grammars for ${worldType}, generating names offline...`);
+          const countryGrammar = this.findBestGrammar(grammars, 'country');
           return this.generateCompleteWorldNamesFromGrammars(
             request,
             characterGrammar,
-            settlementGrammar
+            settlementGrammar,
+            countryGrammar || undefined
           );
         } else {
           console.log(`⚠️ Grammars incomplete for ${worldType}, falling back to LLM`);
@@ -635,15 +807,19 @@ export class NameGenerator {
   private generateCompleteWorldNamesFromGrammars(
     request: any,
     characterGrammar: any,
-    settlementGrammar: any
+    settlementGrammar: any,
+    countryGrammar?: any
   ): any {
     const numCountries = request.numCountries || 1;
     const numStates = (request.numStatesPerCountry || 0) * numCountries;
     const totalFamilies = request.settlements.reduce((sum: number, s: any) => sum + s.numFamilies, 0);
 
+    // Use dedicated country grammar if available, otherwise fall back to settlement grammar
+    const countryNameGrammar = countryGrammar || settlementGrammar;
+
     // Generate countries
     const countries = Array(numCountries).fill(null).map((_, i) => {
-      const name = this.generateFromGrammar(settlementGrammar) || `Kingdom ${i + 1}`;
+      const name = this.generateFromGrammar(countryNameGrammar) || `Kingdom ${i + 1}`;
       return {
         name,
         description: `A ${request.governmentType || 'monarchial'} realm`
@@ -839,10 +1015,12 @@ export class NameGenerator {
   }
 
   /**
-   * Check if LLM generation is enabled
+   * Check if name generation is available (LLM or grammars).
+   * Always returns true — batch methods have internal fallback chains
+   * that try grammars first, then LLM, then hardcoded pools.
    */
   isEnabled(): boolean {
-    return this.enabled;
+    return true;
   }
 }
 

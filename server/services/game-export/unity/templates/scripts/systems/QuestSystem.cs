@@ -33,6 +33,12 @@ namespace Insimul.Systems
 
         /// <summary>Vocabulary category for scavenger hunt rotation.</summary>
         public string vocabularyCategory;
+
+        /// <summary>Target words for vocabulary objectives (empty = any word counts).</summary>
+        public List<string> targetWords = new();
+
+        /// <summary>Words already used (for deduplication).</summary>
+        public List<string> wordsUsed = new();
     }
 
     public class QuestSystem : MonoBehaviour
@@ -147,6 +153,72 @@ namespace Insimul.Systems
         {
             int next = (lastCategoryIndex + 1) % SCAVENGER_CATEGORIES.Length;
             return SCAVENGER_CATEGORIES[next];
+        }
+
+        /// <summary>Track vocabulary usage for use_vocabulary / collect_vocabulary objectives.</summary>
+        public void TrackVocabularyUsage(string word, string questId = null)
+        {
+            string lowerWord = word.ToLower();
+
+            foreach (var obj in _objectives)
+            {
+                if (obj.completed) continue;
+                if (!string.IsNullOrEmpty(questId) && obj.questId != questId) continue;
+                if (obj.type != "use_vocabulary" && obj.type != "collect_vocabulary") continue;
+
+                // If targetWords specified, only count matching words
+                if (obj.targetWords.Count > 0 && !obj.targetWords.Contains(lowerWord)) continue;
+
+                // Don't double-count the same word
+                if (obj.wordsUsed.Contains(lowerWord)) continue;
+
+                obj.wordsUsed.Add(lowerWord);
+                obj.currentCount++;
+
+                if (obj.currentCount >= (obj.requiredCount > 0 ? obj.requiredCount : 10))
+                {
+                    CompleteObjective(obj.questId, obj.id);
+                }
+            }
+        }
+
+        /// <summary>Track a conversation turn for complete_conversation objectives.</summary>
+        public void TrackConversationTurn(string[] keywords = null, string questId = null)
+        {
+            foreach (var obj in _objectives)
+            {
+                if (obj.completed) continue;
+                if (!string.IsNullOrEmpty(questId) && obj.questId != questId) continue;
+                if (obj.type != "complete_conversation") continue;
+
+                // Every conversation turn counts as progress
+                obj.currentCount++;
+
+                if (obj.currentCount >= (obj.requiredCount > 0 ? obj.requiredCount : 5))
+                {
+                    CompleteObjective(obj.questId, obj.id);
+                }
+            }
+        }
+
+        /// <summary>Track a pronunciation attempt for pronunciation_check objectives.</summary>
+        public void TrackPronunciationAttempt(bool passed, string questId = null)
+        {
+            if (!passed) return;
+
+            foreach (var obj in _objectives)
+            {
+                if (obj.completed) continue;
+                if (!string.IsNullOrEmpty(questId) && obj.questId != questId) continue;
+                if (obj.type != "pronunciation_check") continue;
+
+                obj.currentCount++;
+
+                if (obj.currentCount >= (obj.requiredCount > 0 ? obj.requiredCount : 3))
+                {
+                    CompleteObjective(obj.questId, obj.id);
+                }
+            }
         }
 
         public InsimulQuestData GetQuest(string id) => _allQuests.Find(q => q.id == id);

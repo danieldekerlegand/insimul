@@ -19,7 +19,9 @@ import { getProvider } from './providers/provider-registry.js';
 import { buildContext } from './context-manager.js';
 import type { IStreamingLLMProvider, ConversationContext } from './providers/llm-provider.js';
 import type { ITTSProvider, VoiceProfile } from './tts/tts-provider.js';
-import { splitAtSentenceBoundaries, assignVoiceProfile } from './tts/tts-provider.js';
+import { splitAtSentenceBoundaries, assignVoiceProfile, getTTSProvider } from './tts/tts-provider.js';
+// Side-effect import: registers 'google' TTS provider in the provider registry
+import './tts/google-tts-provider.js';
 import type { IVisemeGenerator, VisemeQuality } from './viseme/viseme-generator.js';
 import { createVisemeGenerator } from './viseme/viseme-generator.js';
 import { PipelineTimer, getConversationMetrics } from './conversation-metrics.js';
@@ -28,6 +30,42 @@ import { PipelineTimer, getConversationMetrics } from './conversation-metrics.js
 
 function sendSSE(res: Response, data: object): void {
   res.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+/** Marker block names and their opening/closing tags */
+const MARKER_BLOCKS = [
+  { open: '**VOCAB_HINTS**', close: '**END_VOCAB**', type: 'vocab_hints' },
+  { open: '**GRAMMAR_FEEDBACK**', close: '**END_GRAMMAR**', type: 'grammar_feedback' },
+  { open: '**QUEST_ASSIGN**', close: '**END_QUEST**', type: 'quest_assign' },
+  { open: '**EVAL**', close: '**END_EVAL**', type: 'eval' },
+] as const;
+
+/**
+ * Strip ALL non-spoken content from text destined for TTS.
+ * TTS reads every character literally — markdown, markers, translations all get spoken.
+ */
+function cleanForTTS(text: string): string {
+  return text
+    // Strip complete marker blocks
+    .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+    .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+    .replace(/\*\*VOCAB_HINTS\*\*[\s\S]*?\*\*END_VOCAB\*\*/g, '')
+    .replace(/\*\*EVAL\*\*[\s\S]*?\*\*END_EVAL\*\*/g, '')
+    // Strip orphaned marker tags
+    .replace(/\*\*(VOCAB_HINTS|END_VOCAB|GRAMMAR_FEEDBACK|END_GRAMMAR|QUEST_ASSIGN|END_QUEST|EVAL|END_EVAL)\*\*/g, '')
+    // Strip markdown bold/italic (***text***, **text**, *text*)
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')
+    // Strip markdown headers
+    .replace(/^#{1,6}\s+/gm, '')
+    // Strip markdown links [text](url) → text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Strip parenthetical English translations
+    .replace(/\s*\([A-Z][^)]{1,60}\)/g, '')
+    // Strip action/stage directions like *points to door*
+    .replace(/\*[^*]{1,80}\*/g, '')
+    // Collapse whitespace
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function addToHistory(
@@ -95,8 +133,7 @@ async function streamTextResponse(
   let ttsProvider: ITTSProvider | null = null;
   let visemeGen: IVisemeGenerator | null = null;
   try {
-    const ttsModule = await import('./tts/tts-provider.js');
-    ttsProvider = ttsModule.getTTSProvider?.() ?? null;
+    ttsProvider = getTTSProvider();
   } catch {
     // TTS not available — text-only mode
   }
@@ -116,6 +153,9 @@ async function streamTextResponse(
 
   const synthesizeSentence = (sentence: string) => {
     if (!ttsProvider) return;
+    // Strip ALL non-spoken content before TTS
+    const stripped = cleanForTTS(sentence);
+    if (!stripped) return;
     // Skip TTS entirely when adaptive quality degrades and latency is very high
     if (metrics.isDegraded) {
       const e2eStats = metrics.getStageStats('end_to_end');
@@ -129,7 +169,7 @@ async function streamTextResponse(
       let firstChunkRecorded = false;
       const ttsFirstChunkTimer = new PipelineTimer('tts_first_chunk');
       try {
-        const audioChunks = ttsProvider!.synthesize(sentence, voice, {
+        const audioChunks = ttsProvider!.synthesize(stripped, voice, {
           languageCode: languageCode || undefined,
         });
         for await (const chunk of audioChunks) {
@@ -141,7 +181,7 @@ async function streamTextResponse(
           // Send viseme data before audio
           if (visemeGen) {
             const visemeTimer = new PipelineTimer('viseme');
-            const facialData = visemeGen.generateVisemes(sentence, chunk.durationMs, effectiveVisemeQuality as any);
+            const facialData = visemeGen.generateVisemes(stripped, chunk.durationMs, effectiveVisemeQuality as any);
             visemeTimer.stop();
             if (facialData.visemes.length > 0) {
               sendSSE(res, { type: 'facial', visemes: facialData.visemes });
@@ -171,6 +211,12 @@ async function streamTextResponse(
   const llmFirstTokenTimer = new PipelineTimer('llm_first_token');
   let firstTokenRecorded = false;
 
+  // Track whether we're inside a marker block so we can route
+  // marker content as metadata events instead of text/TTS.
+  let insideMarkerBlock: (typeof MARKER_BLOCKS)[number] | null = null;
+  let markerBuffer = '';       // accumulates content inside a marker block
+  let dialogueBuffer = '';     // accumulates tokens outside marker blocks (for text SSE)
+
   try {
     const tokens = llmProvider.streamCompletion(text, session.conversationContext!, {
       languageCode,
@@ -183,25 +229,95 @@ async function streamTextResponse(
         firstTokenRecorded = true;
       }
       fullResponse += token;
+      dialogueBuffer += token;
 
-      // Stream text chunk immediately
-      sendSSE(res, { type: 'text', text: token, isFinal: false });
-
-      // TTS pipelining: accumulate into sentences
-      if (ttsProvider) {
-        sentenceBuffer += token;
-        const sentences = splitAtSentenceBoundaries(sentenceBuffer);
-        if (sentences.length > 1) {
-          for (let i = 0; i < sentences.length - 1; i++) {
-            synthesizeSentence(sentences[i]);
+      // Check if we're entering a marker block
+      if (!insideMarkerBlock) {
+        for (const block of MARKER_BLOCKS) {
+          const openIdx = dialogueBuffer.indexOf(block.open);
+          if (openIdx !== -1) {
+            // Send any dialogue text BEFORE the marker as a text event
+            const preMarker = dialogueBuffer.slice(0, openIdx);
+            if (preMarker) {
+              sendSSE(res, { type: 'text', text: preMarker, isFinal: false });
+              // Also feed pre-marker text to TTS sentence buffer
+              if (ttsProvider) {
+                sentenceBuffer += preMarker;
+                const sentences = splitAtSentenceBoundaries(sentenceBuffer);
+                if (sentences.length > 1) {
+                  for (let i = 0; i < sentences.length - 1; i++) {
+                    synthesizeSentence(sentences[i]);
+                  }
+                  sentenceBuffer = sentences[sentences.length - 1];
+                }
+              }
+            }
+            // Start accumulating marker content (after the opening tag)
+            markerBuffer = dialogueBuffer.slice(openIdx + block.open.length);
+            dialogueBuffer = '';
+            insideMarkerBlock = block;
+            break;
           }
-          sentenceBuffer = sentences[sentences.length - 1];
+        }
+
+        // If not inside a marker, stream dialogue text normally
+        if (!insideMarkerBlock) {
+          // Only emit text when we have a reasonable chunk (avoid per-token SSE for markers that may be building)
+          // Check if buffer might be starting a marker (starts with **)
+          const mightBeMarker = dialogueBuffer.trimStart().startsWith('**') && !dialogueBuffer.includes('\n');
+          if (!mightBeMarker || dialogueBuffer.length > 30) {
+            sendSSE(res, { type: 'text', text: dialogueBuffer, isFinal: false });
+            // Feed to TTS sentence buffer
+            if (ttsProvider) {
+              sentenceBuffer += dialogueBuffer;
+              const sentences = splitAtSentenceBoundaries(sentenceBuffer);
+              if (sentences.length > 1) {
+                for (let i = 0; i < sentences.length - 1; i++) {
+                  synthesizeSentence(sentences[i]);
+                }
+                sentenceBuffer = sentences[sentences.length - 1];
+              }
+            }
+            dialogueBuffer = '';
+          }
+        }
+      } else {
+        // Inside a marker block — accumulate content until closing tag
+        markerBuffer += token;
+        dialogueBuffer = ''; // Don't send marker content as dialogue
+
+        if (markerBuffer.includes(insideMarkerBlock.close)) {
+          // Extract content before the closing tag
+          const closeIdx = markerBuffer.indexOf(insideMarkerBlock.close);
+          const content = markerBuffer.slice(0, closeIdx).trim();
+          const afterClose = markerBuffer.slice(closeIdx + insideMarkerBlock.close.length);
+
+          // Send as a metadata event — NOT text, NOT TTS
+          sendSSE(res, { type: insideMarkerBlock.type, content });
+
+          // Reset — anything after the closing tag is regular dialogue
+          insideMarkerBlock = null;
+          markerBuffer = '';
+          dialogueBuffer = afterClose;
         }
       }
     }
   } catch (err: any) {
     console.error('[ConversationBridge] LLM streaming error:', err.message);
     sendSSE(res, { type: 'error', message: 'LLM streaming failed' });
+  }
+
+  // Flush any remaining dialogue buffer as text
+  if (dialogueBuffer.trim()) {
+    sendSSE(res, { type: 'text', text: dialogueBuffer, isFinal: false });
+    if (ttsProvider) {
+      sentenceBuffer += dialogueBuffer;
+    }
+  }
+
+  // If we were still inside a marker block at EOF, send what we have as metadata
+  if (insideMarkerBlock && markerBuffer.trim()) {
+    sendSSE(res, { type: insideMarkerBlock.type, content: markerBuffer.trim() });
   }
   if (!firstTokenRecorded) llmFirstTokenTimer.stop();
   llmTotalTimer.stop();
@@ -214,9 +330,12 @@ async function streamTextResponse(
   // Final text marker
   sendSSE(res, { type: 'text', text: '', isFinal: true });
 
-  // Wait for TTS to complete
+  // Let TTS finish in the background — audio chunks are already sent via SSE
+  // as they complete. Don't block the stream end on TTS completion.
   if (ttsPromises.length > 0) {
-    await Promise.all(ttsPromises);
+    Promise.all(ttsPromises).catch(err => {
+      console.error('[ConversationBridge] Background TTS error:', err);
+    });
   }
 
   // Store response in history
@@ -345,6 +464,73 @@ export function registerConversationRoutes(app: Express): void {
       endSessionFn(sessionId);
     }
     res.json({ ok: true });
+  });
+
+  /**
+   * POST /api/conversation/metadata
+   * Background metadata extraction — runs SEPARATELY from the dialogue.
+   * Analyzes a conversation exchange for vocab hints, grammar feedback, and eval scores.
+   * Body: { playerMessage, npcResponse, targetLanguage, playerProficiency?, includeEval? }
+   * Response: JSON { vocabHints, grammarFeedback, eval? }
+   */
+  app.post('/api/conversation/metadata', async (req: Request, res: Response) => {
+    const { playerMessage, npcResponse, targetLanguage, playerProficiency, includeEval } = req.body;
+
+    if (!playerMessage || !npcResponse || !targetLanguage) {
+      res.status(400).json({ error: 'Missing required fields: playerMessage, npcResponse, targetLanguage' });
+      return;
+    }
+
+    try {
+      const { buildMetadataExtractionPrompt } = await import('../../../shared/language/utils.js');
+      const prompt = buildMetadataExtractionPrompt(targetLanguage, playerMessage, npcResponse, {
+        includeEval: includeEval ?? false,
+        playerProficiency: playerProficiency ?? 'beginner',
+      });
+
+      // Use the conversation LLM provider (fast model) for metadata extraction
+      let llmProvider: IStreamingLLMProvider;
+      try {
+        llmProvider = getProvider();
+      } catch {
+        // Fallback to Gemini directly
+        const { GoogleGenerativeAI } = await import('@google/generative-ai');
+        const { getGeminiApiKey, GEMINI_MODELS } = await import('../../config/gemini.js');
+        const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
+        const model = genAI.getGenerativeModel({
+          model: GEMINI_MODELS.FLASH,
+          generationConfig: { temperature: 0.1, maxOutputTokens: 500 },
+        });
+        const result = await model.generateContent(prompt);
+        const text = result.response.text();
+        try {
+          const parsed = JSON.parse(text.replace(/```json\n?|\n?```/g, '').trim());
+          return res.json(parsed);
+        } catch {
+          return res.json({ vocabHints: [], grammarFeedback: { status: 'no_target_language', errors: [] }, raw: text });
+        }
+      }
+
+      // Stream and collect full response
+      let fullText = '';
+      const tokens = llmProvider.streamCompletion(prompt, {
+        systemPrompt: 'You are a language analysis engine. Return only valid JSON.',
+        characterName: 'system',
+      }, { languageCode: 'en' });
+      for await (const token of tokens) {
+        fullText += token;
+      }
+
+      try {
+        const parsed = JSON.parse(fullText.replace(/```json\n?|\n?```/g, '').trim());
+        res.json(parsed);
+      } catch {
+        res.json({ vocabHints: [], grammarFeedback: { status: 'no_target_language', errors: [] }, raw: fullText });
+      }
+    } catch (err: any) {
+      console.error('[ConversationBridge] Metadata extraction error:', err.message);
+      res.status(500).json({ error: 'Metadata extraction failed' });
+    }
   });
 
   /**

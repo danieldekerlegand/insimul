@@ -6,8 +6,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { useToast } from '@/hooks/use-toast';
 import { useWorldPermissions } from '@/hooks/use-world-permissions';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Globe, ChevronRight, ChevronDown, MapPinned, Plus, Users, Home, Briefcase, GitBranch } from 'lucide-react';
+import { Globe, ChevronRight, ChevronDown, MapPinned, Plus, Users, Home, Briefcase, GitBranch, Trash2 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import type { Character } from '@shared/schema';
+import { useAuth } from '@/contexts/AuthContext';
 import { CountryDialog } from '../dialogs/CountryDialog';
 import { SettlementDialog } from '../dialogs/SettlementDialog';
 import { BusinessDialog } from '../dialogs/BusinessDialog';
@@ -18,7 +20,6 @@ import { CharacterEditDialog } from '../CharacterEditDialog';
 import { CharacterChatDialog } from '../CharacterChatDialog';
 import { FamilyTreeFlow } from '../visualization/FamilyTreeFlow';
 import { LocationMapPreview, type ViewLevel } from './LocationMapPreview';
-import { SettlementMiniMap } from './SettlementMiniMap';
 import { MapLayersPanel, ALL_LAYERS, type MapLayer } from './MapLayersPanel';
 
 interface SettlementHubProps {
@@ -27,6 +28,7 @@ interface SettlementHubProps {
 
 export function SettlementHub({ worldId }: SettlementHubProps) {
   const { toast } = useToast();
+  const { token } = useAuth();
   const { canEdit } = useWorldPermissions(worldId);
 
   // Location tree
@@ -78,6 +80,57 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
   const [showLotDialog, setShowLotDialog] = useState(false);
   const [showBusinessDialog, setShowBusinessDialog] = useState(false);
   const [showResidenceDialog, setShowResidenceDialog] = useState(false);
+
+  // Delete confirmation
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: 'country' | 'settlement' | 'character' | 'business' | 'residence';
+    id: string;
+    name: string;
+  } | null>(null);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    const { type, id } = deleteTarget;
+    const endpoints: Record<string, string> = {
+      country: `/api/countries/${id}`,
+      settlement: `/api/settlements/${id}`,
+      character: `/api/characters/${id}`,
+      business: `/api/businesses/${id}`,
+      residence: `/api/residences/${id}`,
+    };
+    try {
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(endpoints[type], { method: 'DELETE', headers });
+      if (res.ok || res.status === 204) {
+        toast({ title: `${type.charAt(0).toUpperCase() + type.slice(1)} deleted` });
+        if (type === 'country') {
+          fetchCountries();
+          fetchAllSettlements();
+          if (selectedCountry?.id === id) selectWorld();
+        } else if (type === 'settlement') {
+          fetchAllSettlements();
+          if (selectedSettlement?.id === id) {
+            setSelectedSettlement(null);
+            setViewLevel(selectedCountry ? 'country' : 'world');
+          }
+        } else if (type === 'character') {
+          fetchAllCharacters();
+          if (selectedSettlement) fetchResidents(selectedSettlement.id);
+        } else if (type === 'business') {
+          if (selectedSettlement) fetchBusinesses(selectedSettlement.id);
+        } else if (type === 'residence') {
+          if (selectedSettlement) fetchResidences(selectedSettlement.id);
+        }
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: `Failed to delete ${type}`, description: data.error, variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: `Failed to delete ${type}`, variant: 'destructive' });
+    }
+    setDeleteTarget(null);
+  };
 
   useEffect(() => {
     fetchCountries();
@@ -239,7 +292,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
   const unaffiliated = settlementsByCountry.get(null) ?? [];
 
   const renderTree = () => (
-    <div className="flex flex-col h-full border-r">
+    <div className="flex flex-col h-full border-r overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2.5 border-b bg-muted/30 shrink-0">
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Locations</span>
         {canEdit && (
@@ -278,7 +331,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
               const isSelected = viewLevel === 'country' && selectedCountry?.id === country.id;
               return (
                 <div key={country.id}>
-                  <div className="flex items-center">
+                  <div className="flex items-center min-w-0">
                     <button
                       className="p-1 hover:bg-muted rounded shrink-0"
                       onClick={(e) => { e.stopPropagation(); toggleCountry(country.id); }}
@@ -289,16 +342,27 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                         : <ChevronRight className="w-3 h-3 text-muted-foreground" />}
                     </button>
                     <button
-                      className={`flex-1 flex items-center gap-1.5 px-1.5 py-1.5 rounded-md text-sm font-medium text-left transition-colors ${
+                      className={`flex-1 min-w-0 flex items-center gap-1.5 px-1.5 py-1.5 rounded-md text-sm font-medium text-left transition-colors group ${
                         isSelected
                           ? 'bg-primary/10 text-primary'
                           : 'hover:bg-muted'
                       }`}
                       onClick={() => selectCountry(country)}
+                      title={country.name}
                     >
                       <Globe className="w-3.5 h-3.5 shrink-0 text-primary/70" />
-                      <span className="break-words">{country.name}</span>
-                      <span className="ml-auto text-xs text-muted-foreground">{countrySettlements.length}</span>
+                      <span className="truncate">{country.name}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{countrySettlements.length}</span>
+                      {canEdit && (
+                        <span
+                          role="button"
+                          className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-destructive transition-opacity"
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'country', id: country.id, name: country.name }); }}
+                          title="Delete country"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </span>
+                      )}
                     </button>
                   </div>
                   {isExpanded && (
@@ -306,15 +370,26 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                       {countrySettlements.map(s => (
                         <button
                           key={s.id}
-                          className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm text-left transition-colors ${
+                          className={`w-full min-w-0 flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm text-left transition-colors group ${
                             selectedSettlement?.id === s.id
                               ? 'bg-primary/10 text-primary font-medium'
                               : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                           }`}
                           onClick={() => selectSettlement(s)}
+                          title={s.name}
                         >
                           <MapPinned className="w-3.5 h-3.5 shrink-0" />
-                          <span className="break-words">{s.name}</span>
+                          <span className="truncate">{s.name}</span>
+                          {canEdit && (
+                            <span
+                              role="button"
+                              className="ml-auto opacity-0 group-hover:opacity-100 p-0.5 hover:text-destructive transition-opacity"
+                              onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'settlement', id: s.id, name: s.name }); }}
+                              title="Delete settlement"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </span>
+                          )}
                         </button>
                       ))}
                       {canEdit && (
@@ -341,15 +416,26 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                 {unaffiliated.map(s => (
                   <button
                     key={s.id}
-                    className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm text-left transition-colors ${
+                    className={`w-full min-w-0 flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm text-left transition-colors group ${
                       selectedSettlement?.id === s.id
                         ? 'bg-primary/10 text-primary font-medium'
                         : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                     }`}
                     onClick={() => selectSettlement(s)}
+                    title={s.name}
                   >
                     <MapPinned className="w-3.5 h-3.5 shrink-0" />
                     <span className="truncate">{s.name}</span>
+                    {canEdit && (
+                      <span
+                        role="button"
+                        className="ml-auto opacity-0 group-hover:opacity-100 p-0.5 hover:text-destructive transition-opacity"
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'settlement', id: s.id, name: s.name }); }}
+                        title="Delete settlement"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -422,6 +508,15 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${settlementTypeColor(selectedSettlement.settlementType)}`}>
               {selectedSettlement.settlementType}
             </span>
+            {canEdit && (
+              <button
+                className="ml-auto p-1 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-colors"
+                onClick={() => setDeleteTarget({ type: 'settlement', id: selectedSettlement.id, name: selectedSettlement.name })}
+                title="Delete settlement"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
           <div className="flex gap-4 text-xs text-muted-foreground">
             <span>Pop: <strong className="text-foreground">{selectedSettlement.population?.toLocaleString() ?? '—'}</strong></span>
@@ -434,7 +529,18 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
       {/* Country header when at country level */}
       {viewLevel === 'country' && selectedCountry && (
         <div className="px-4 py-3 border-b shrink-0">
-          <h2 className="text-lg font-bold">{selectedCountry.name}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold">{selectedCountry.name}</h2>
+            {canEdit && (
+              <button
+                className="ml-auto p-1 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-colors"
+                onClick={() => setDeleteTarget({ type: 'country', id: selectedCountry.id, name: selectedCountry.name })}
+                title="Delete country"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground">
             {(settlementsByCountry.get(selectedCountry.id) ?? []).length} settlements
           </p>
@@ -459,17 +565,6 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
           visibleLayers={visibleLayers}
           className="w-full h-full"
         />
-        {viewLevel === 'settlement' && selectedSettlement && (
-          <SettlementMiniMap
-            terrain={selectedSettlement.terrain}
-            streets={selectedSettlement.streets ?? []}
-            lots={lots}
-            businesses={businesses}
-            residences={residences}
-            waterFeatures={waterFeatures}
-            settlementType={selectedSettlement.settlementType}
-          />
-        )}
         <MapLayersPanel
           viewLevel={viewLevel}
           visibleLayers={visibleLayers}
@@ -558,46 +653,81 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                       <p className="text-sm text-muted-foreground text-center py-4">No {section.label.toLowerCase()}</p>
                     ) : section.id === 'people' ? (
                       residents.map(c => (
-                        <button
+                        <div
                           key={c.id}
-                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted text-left"
-                          onClick={() => setSelectedChar(c)}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted group"
                         >
-                          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
-                            {(c.firstName ?? '?')[0]}{(c.lastName ?? '')[0]}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{c.firstName} {c.lastName}</p>
-                            {c.occupation && (
-                              <p className="text-xs text-muted-foreground truncate">{c.occupation}</p>
-                            )}
-                          </div>
-                        </button>
+                          <button
+                            className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                            onClick={() => setSelectedChar(c)}
+                          >
+                            <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
+                              {(c.firstName ?? '?')[0]}{(c.lastName ?? '')[0]}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{c.firstName} {c.lastName}</p>
+                              {c.occupation && (
+                                <p className="text-xs text-muted-foreground truncate">{c.occupation}</p>
+                              )}
+                            </div>
+                          </button>
+                          {canEdit && (
+                            <button
+                              className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive transition-opacity shrink-0"
+                              onClick={() => setDeleteTarget({ type: 'character', id: c.id, name: `${c.firstName} ${c.lastName}` })}
+                              title="Delete character"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
                       ))
                     ) : section.id === 'businesses' ? (
                       businesses.map(b => (
-                        <div key={b.id} className="px-2 py-1.5 rounded-md hover:bg-muted">
-                          <p className="text-sm font-medium">{b.name}</p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-xs text-muted-foreground">{b.businessType}</span>
-                            {b.isOutOfBusiness && (
-                              <Badge variant="secondary" className="text-xs py-0 h-4">Closed</Badge>
-                            )}
+                        <div key={b.id} className="px-2 py-1.5 rounded-md hover:bg-muted flex items-start gap-1 group">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{b.name}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-xs text-muted-foreground">{b.businessType}</span>
+                              {b.isOutOfBusiness && (
+                                <Badge variant="secondary" className="text-xs py-0 h-4">Closed</Badge>
+                              )}
+                            </div>
                           </div>
+                          {canEdit && (
+                            <button
+                              className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive transition-opacity shrink-0 mt-0.5"
+                              onClick={() => setDeleteTarget({ type: 'business', id: b.id, name: b.name })}
+                              title="Delete business"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
                         </div>
                       ))
                     ) : section.id === 'residences' ? (
                       residences.map(r => (
-                        <div key={r.id} className="px-2 py-1.5 rounded-md hover:bg-muted">
-                          <p className="text-sm font-medium">{r.address || 'Unnamed Residence'}</p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            {r.residenceType && (
-                              <span className="text-xs text-muted-foreground">{r.residenceType}</span>
-                            )}
-                            {r.occupantCount !== undefined && (
-                              <Badge variant="outline" className="text-xs py-0 h-4">{r.occupantCount} occupants</Badge>
-                            )}
+                        <div key={r.id} className="px-2 py-1.5 rounded-md hover:bg-muted flex items-start gap-1 group">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{r.address || 'Unnamed Residence'}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {r.residenceType && (
+                                <span className="text-xs text-muted-foreground">{r.residenceType}</span>
+                              )}
+                              {r.occupantCount !== undefined && (
+                                <Badge variant="outline" className="text-xs py-0 h-4">{r.occupantCount} occupants</Badge>
+                              )}
+                            </div>
                           </div>
+                          {canEdit && (
+                            <button
+                              className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive transition-opacity shrink-0 mt-0.5"
+                              onClick={() => setDeleteTarget({ type: 'residence', id: r.id, name: r.address || 'Unnamed Residence' })}
+                              title="Delete residence"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
                         </div>
                       ))
                     ) : (
@@ -650,10 +780,10 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
             settlementId={selectedSettlement.id}
             onSubmit={async (data) => {
               try {
+                const h: Record<string, string> = { 'Content-Type': 'application/json' };
+                if (token) h['Authorization'] = `Bearer ${token}`;
                 const res = await fetch(`/api/settlements/${selectedSettlement.id}/businesses`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(data),
+                  method: 'POST', headers: h, body: JSON.stringify(data),
                 });
                 if (res.ok) { fetchBusinesses(selectedSettlement.id); toast({ title: 'Business created' }); }
                 else toast({ title: 'Failed to create business', variant: 'destructive' });
@@ -666,10 +796,10 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
             settlementId={selectedSettlement.id}
             onSubmit={async (data) => {
               try {
+                const h: Record<string, string> = { 'Content-Type': 'application/json' };
+                if (token) h['Authorization'] = `Bearer ${token}`;
                 const res = await fetch(`/api/settlements/${selectedSettlement.id}/residences`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(data),
+                  method: 'POST', headers: h, body: JSON.stringify(data),
                 });
                 if (res.ok) { fetchResidences(selectedSettlement.id); toast({ title: 'Residence created' }); }
                 else toast({ title: 'Failed to create residence', variant: 'destructive' });
@@ -682,10 +812,10 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
             settlementId={selectedSettlement.id}
             onSubmit={async (data) => {
               try {
+                const h: Record<string, string> = { 'Content-Type': 'application/json' };
+                if (token) h['Authorization'] = `Bearer ${token}`;
                 const res = await fetch(`/api/settlements/${selectedSettlement.id}/lots`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(data),
+                  method: 'POST', headers: h, body: JSON.stringify(data),
                 });
                 if (res.ok) { fetchLots(selectedSettlement.id); toast({ title: 'Lot created' }); }
                 else toast({ title: 'Failed to create lot', variant: 'destructive' });
@@ -701,9 +831,9 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
 
   return (
     <>
-      <div className="flex h-[640px] rounded-lg border overflow-hidden bg-background">
+      <div className="flex h-[calc(100vh-10rem)] min-h-[480px] rounded-lg border overflow-hidden bg-background">
         {/* Left: tree */}
-        <div className="w-56 shrink-0 flex flex-col">
+        <div className="w-56 shrink-0 min-w-0 flex flex-col overflow-hidden">
           {renderTree()}
         </div>
 
@@ -768,6 +898,27 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteTarget?.type}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{deleteTarget?.name}</strong>?
+              {deleteTarget?.type === 'country' && ' This will also delete all states and settlements within it.'}
+              {deleteTarget?.type === 'settlement' && ' This will also delete all associated businesses, residences, and lots.'}
+              {' '}This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

@@ -22,6 +22,7 @@ import { visualAssetGenerator } from '../services/visual-asset-generator.js';
 export interface WorldGenerationConfig {
   worldName: string;
   worldDescription?: string;
+  worldType?: string;
   settlementName: string;
   settlementDescription?: string;
   settlementType: 'village' | 'town' | 'city';
@@ -183,6 +184,12 @@ export class WorldGenerator {
     // Generate geography for the settlement
     if (config.generateGeography) {
       console.log('\n🗺️  Generating geography...');
+      // Fetch target language for localized street names
+      const worldForLang = await storage.getWorld(world.id);
+      const worldLanguages = await storage.getWorldLanguagesByWorld(world.id);
+      const learningTarget = worldLanguages?.find((l: any) => l.isLearningTarget);
+      const targetLanguage = learningTarget?.name || worldForLang?.targetLanguage || undefined;
+
       const geographyResult = await this.geographyGen.generate({
         worldId: world.id,
         settlementId: settlement.id,
@@ -191,7 +198,9 @@ export class WorldGenerator {
         population: population || this.estimatePopulation(config.settlementType),
         foundedYear: config.foundedYear,
         terrain: config.terrain,
-        countryId: country.id
+        countryId: country.id,
+        targetLanguage,
+        worldType: config.worldType || world.worldType || undefined,
       });
       
       districts = geographyResult.districts.length;
@@ -424,6 +433,12 @@ export class WorldGenerator {
     
     const characters = await storage.getCharactersByWorld(settlement.worldId);
     
+    // Fetch target language for localized street names
+    const world = await storage.getWorld(settlement.worldId);
+    const worldLanguages = await storage.getWorldLanguagesByWorld(settlement.worldId);
+    const learningTarget = worldLanguages?.find((l: any) => l.isLearningTarget);
+    const targetLanguage = learningTarget?.name || world?.targetLanguage || undefined;
+
     return await this.geographyGen.generate({
       worldId: settlement.worldId,
       settlementId: settlement.id,
@@ -433,7 +448,9 @@ export class WorldGenerator {
       foundedYear: config.foundedYear || settlement.foundedYear || 1900,
       terrain: settlement.terrain as any,
       countryId: settlement.countryId ?? undefined,
-      stateId: settlement.stateId ?? undefined
+      stateId: settlement.stateId ?? undefined,
+      targetLanguage,
+      worldType: world?.worldType || undefined,
     });
   }
 

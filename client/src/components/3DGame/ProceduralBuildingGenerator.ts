@@ -467,9 +467,6 @@ export class ProceduralBuildingGenerator {
     const roof = this.createRoof(spec);
     roof.parent = parent;
 
-    // Add windows
-    this.addWindows(spec, building);
-
     // Add door
     this.addDoor(spec, building);
 

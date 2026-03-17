@@ -50,9 +50,11 @@ export function findSentenceBoundary(text: string): number {
     const punctuation = match[1];
     const dotIndex = match.index;
 
-    // For periods, check if it's an abbreviation
-    if (punctuation === '.' && isAbbreviation(text, dotIndex)) {
-      continue;
+    // For periods, check if it's an abbreviation or part of an ellipsis
+    if (punctuation === '.') {
+      if (isAbbreviation(text, dotIndex)) continue;
+      // Skip ellipsis: check if preceded or followed by another dot
+      if ((dotIndex > 0 && text[dotIndex - 1] === '.') || text[dotIndex + 1] === '.') continue;
     }
 
     // The boundary is right after the punctuation + closing quotes + space

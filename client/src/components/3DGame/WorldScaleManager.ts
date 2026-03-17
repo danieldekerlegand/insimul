@@ -8,6 +8,7 @@
 import { Vector3 } from '@babylonjs/core';
 import {
   generateStreetAlignedLots,
+  type ExistingStreetNetwork,
   sortLotsForZoning,
   type StreetAlignedResult,
   type PlacedLot,
@@ -206,7 +207,8 @@ export class WorldScaleManager {
   public distributeSettlements(
     territory: { bounds: TerritoryBounds; id: string },
     settlements: any[],
-    isState: boolean = false
+    isState: boolean = false,
+    sampleHeight?: (x: number, z: number) => number,
   ): ScaledSettlement[] {
     const scaledSettlements: ScaledSettlement[] = [];
     const rand = this.createSeededRandom(`${this.seed}_${territory.id}`);
@@ -215,59 +217,64 @@ export class WorldScaleManager {
       const population = settlement.population || 100;
       const radius = WorldScaleManager.getSettlementRadius(population);
 
-      // Estimate the building grid half-size so we can inset the settlement
-      // center far enough from the terrain edge to keep most buildings on land.
-      const estBuildingCount = Math.max(
-        WorldScaleManager.getBuildingCount(population),
-        (settlement.businesses?.length || 0) + (settlement.residences?.length || 0),
-        5
-      );
-      const cols = Math.ceil(Math.sqrt(estBuildingCount));
-      const rows = Math.ceil(estBuildingCount / cols);
-      const lotSpacing = 20;
-      const gridHalfW = ((cols - 1) * lotSpacing) / 2;
-      const gridHalfH = ((rows - 1) * lotSpacing) / 2;
-      const inset = Math.max(radius, gridHalfW, gridHalfH) + 10;
+      // Place settlements at the center of the world so the full server-generated
+      // street grid (which can be 500-1000 units wide) never extends past the
+      // terrain edge. For a single settlement, position at origin. For multiple
+      // settlements, use a tight cluster around the center with generous insets.
+      const boundsW = territory.bounds.maxX - territory.bounds.minX;
+      const boundsH = territory.bounds.maxZ - territory.bounds.minZ;
 
-      const safeMinX = territory.bounds.minX + inset;
-      const safeMaxX = territory.bounds.maxX - inset;
-      const safeMinZ = territory.bounds.minZ + inset;
-      const safeMaxZ = territory.bounds.maxZ - inset;
+      // Reserve 25% of the world radius as margin on each side so buildings
+      // never approach the terrain edge (which shows as void/water on the minimap).
+      const margin = Math.min(boundsW, boundsH) * 0.25;
+      const safeMinX = territory.bounds.minX + margin;
+      const safeMaxX = territory.bounds.maxX - margin;
+      const safeMinZ = territory.bounds.minZ + margin;
+      const safeMaxZ = territory.bounds.maxZ - margin;
 
       // Position settlements avoiding overlap
       let position: Vector3;
       let attempts = 0;
       const maxAttempts = 50;
 
-      do {
-        const x = safeMinX + rand() * (Math.max(safeMaxX - safeMinX, 1));
-        const z = safeMinZ + rand() * (Math.max(safeMaxZ - safeMinZ, 1));
-        position = new Vector3(x, 0, z);
-
-        // Check if too close to other settlements
-        const tooClose = scaledSettlements.some(other => {
-          const dist = Vector3.Distance(position, other.position);
-          return dist < (radius + other.radius + 10); // 10 unit buffer
-        });
-
-        if (!tooClose) break;
-        attempts++;
-      } while (attempts < maxAttempts);
-
-      // If couldn't find good position, use grid fallback
-      if (attempts >= maxAttempts) {
-        const cols = Math.ceil(Math.sqrt(settlements.length));
-        const row = Math.floor(index / cols);
-        const col = index % cols;
-
-        const cellWidth = (territory.bounds.maxX - territory.bounds.minX) / cols;
-        const cellHeight = (territory.bounds.maxZ - territory.bounds.minZ) / Math.ceil(settlements.length / cols);
-
+      if (settlements.length === 1) {
+        // Single settlement: place exactly at world center
         position = new Vector3(
-          territory.bounds.minX + col * cellWidth + cellWidth / 2,
+          territory.bounds.centerX,
           0,
-          territory.bounds.minZ + row * cellHeight + cellHeight / 2
+          territory.bounds.centerZ,
         );
+      } else {
+        do {
+          const x = safeMinX + rand() * (Math.max(safeMaxX - safeMinX, 1));
+          const z = safeMinZ + rand() * (Math.max(safeMaxZ - safeMinZ, 1));
+          position = new Vector3(x, 0, z);
+
+          // Check if too close to other settlements
+          const tooClose = scaledSettlements.some(other => {
+            const dist = Vector3.Distance(position, other.position);
+            return dist < (radius + other.radius + 10); // 10 unit buffer
+          });
+
+          if (!tooClose) break;
+          attempts++;
+        } while (attempts < maxAttempts);
+
+        // If couldn't find good position, use grid fallback centered in the safe zone
+        if (attempts >= maxAttempts) {
+          const cols = Math.ceil(Math.sqrt(settlements.length));
+          const row = Math.floor(index / cols);
+          const col = index % cols;
+
+          const cellWidth = (safeMaxX - safeMinX) / cols;
+          const cellHeight = (safeMaxZ - safeMinZ) / Math.ceil(settlements.length / cols);
+
+          position = new Vector3(
+            safeMinX + col * cellWidth + cellWidth / 2,
+            0,
+            safeMinZ + row * cellHeight + cellHeight / 2
+          );
+        }
       }
 
       scaledSettlements.push({
@@ -320,6 +327,7 @@ export class WorldScaleManager {
     lotCount: number,
     bizCount: number = 0,
     streetNames?: string[],
+    existingNetwork?: ExistingStreetNetwork | null,
   ): StreetAlignedResult {
     const half = this.worldSize / 2;
     const result = generateStreetAlignedLots(
@@ -329,6 +337,7 @@ export class WorldScaleManager {
       `${this.seed}_${settlement.id}_lots`,
       half,
       streetNames,
+      existingNetwork,
     );
 
     // Sort lots so commercial-friendly positions come first
@@ -374,13 +383,15 @@ export class WorldScaleManager {
     stateCount: number;
     settlementCount: number;
   }): number {
-    // Base size on largest entity count
+    // Base size on largest entity count.
+    // Minimum 1024 so that a single town's server-generated street grid
+    // (mapSize 500-1000) fits comfortably within the world with margin.
     const maxEntities = Math.max(data.countryCount, data.stateCount / 2, data.settlementCount / 5);
 
-    if (maxEntities <= 4) return 512;
-    if (maxEntities <= 9) return 768;
-    if (maxEntities <= 16) return 1024;
-    if (maxEntities <= 25) return 1536;
-    return 2048;
+    if (maxEntities <= 4) return 1024;
+    if (maxEntities <= 9) return 1536;
+    if (maxEntities <= 16) return 2048;
+    if (maxEntities <= 25) return 2560;
+    return 3072;
   }
 }

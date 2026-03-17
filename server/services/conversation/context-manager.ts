@@ -7,7 +7,7 @@
  */
 
 import { storage as defaultStorage } from '../../db/storage';
-import type { Character, World, Occupation, Business } from '@shared/schema';
+import type { Character, World, Occupation, Business, Settlement } from '@shared/schema';
 import type { WorldLanguage } from '@shared/language';
 import type { ConversationContext } from './providers/llm-provider';
 
@@ -20,6 +20,8 @@ export interface ContextManagerStorage {
   getWorldLanguagesByWorld(worldId: string): Promise<WorldLanguage[]>;
   getCurrentOccupation(characterId: string): Promise<Occupation | undefined>;
   getBusiness(id: string): Promise<Business | undefined>;
+  getSettlementsByWorld(worldId: string): Promise<Settlement[]>;
+  getResidence(id: string): Promise<any | undefined>;
 }
 
 // ── Public types ──────────────────────────────────────────────────────
@@ -192,16 +194,30 @@ export async function buildContext(
   const storage = storageOverride ?? defaultStorage;
 
   // Load data in parallel
-  const [character, world, allCharacters, languages, occupation] = await Promise.all([
+  const [character, world, allCharacters, languages, occupation, allSettlements] = await Promise.all([
     storage.getCharacter(characterId),
     storage.getWorld(worldId),
     storage.getCharactersByWorld(worldId),
     storage.getWorldLanguagesByWorld(worldId),
     storage.getCurrentOccupation(characterId),
+    storage.getSettlementsByWorld(worldId),
   ]);
 
   if (!character) throw new Error(`Character ${characterId} not found`);
   if (!world) throw new Error(`World ${worldId} not found`);
+
+  // Resolve the character's settlement via their residence
+  let characterSettlement: Settlement | undefined;
+  if (character.currentResidenceId) {
+    const residence = await storage.getResidence(character.currentResidenceId);
+    if (residence?.settlementId) {
+      characterSettlement = allSettlements.find(s => s.id === residence.settlementId);
+    }
+  }
+  // Fallback: if only one settlement exists, use it
+  if (!characterSettlement && allSettlements.length === 1) {
+    characterSettlement = allSettlements[0];
+  }
 
   const charMap = new Map<string, Character>();
   for (const c of allCharacters) charMap.set(c.id, c);
@@ -287,6 +303,7 @@ export async function buildContext(
     worldLanguageNames,
     languageLearning,
     playerRel,
+    settlement: characterSettlement ?? null,
   });
 
   return {
@@ -313,6 +330,7 @@ export async function buildContext(
       systemPrompt,
       characterName: `${character.firstName} ${character.lastName}`,
       worldContext: `${world.name} (${era})`,
+      characterGender: character.gender ?? undefined,
     },
   };
 }
@@ -335,6 +353,7 @@ interface PromptParts {
   worldLanguageNames: string[];
   languageLearning: LanguageLearningDirectives | null;
   playerRel: { friendshipLevel: number; romanceStage: string; trust: number; previousTopics: string[] };
+  settlement: Settlement | null;
 }
 
 function buildSystemPrompt(p: PromptParts): string {
@@ -354,6 +373,15 @@ function buildSystemPrompt(p: PromptParts): string {
   }
 
   // Location & time
+  if (p.settlement) {
+    lines.push(`You live in the ${p.settlement.settlementType} of ${p.settlement.name}.`);
+    if (p.settlement.description) {
+      const desc = p.settlement.description.length > 150
+        ? p.settlement.description.slice(0, 150) + '...'
+        : p.settlement.description;
+      lines.push(`About ${p.settlement.name}: ${desc}`);
+    }
+  }
   lines.push(`Current location: ${p.character.currentLocation}. Time: ${p.timeOfDay}.`);
 
   // Family
@@ -420,7 +448,8 @@ function buildSystemPrompt(p: PromptParts): string {
     if (ll.learnedVocabulary.length > 0) {
       lines.push(`Known vocabulary: ${ll.learnedVocabulary.slice(0, 20).join(', ')}.`);
     }
-    lines.push(`Incorporate the target language naturally. For a ${ll.playerProficiency} learner, use simple phrases with translations.`);
+    lines.push(`Incorporate the target language naturally. For a ${ll.playerProficiency} learner, adjust complexity accordingly.`);
+    lines.push(`CRITICAL: Your ENTIRE response is read aloud by TTS. Respond with ONLY natural spoken dialogue — no English translations, no glosses, no parenthetical hints, no vocabulary blocks, no structured data, no markup of any kind.`);
   }
 
   // Behavioral instructions

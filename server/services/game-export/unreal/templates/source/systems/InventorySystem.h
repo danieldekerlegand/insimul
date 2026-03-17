@@ -64,6 +64,18 @@ struct FInsimulInventoryItem
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString BaseType;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Rarity;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Icon;
+
+    /** Whether the item can be possessed/owned by NPCs */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bPossessable = false;
+
+    // ── Language learning data (for vocabulary items) ────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString TargetWord;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString TargetLanguage;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Pronunciation;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString LanguageCategory;
+
+    /** Returns true if this item has valid language-learning data. */
+    bool HasLanguageLearningData() const { return !TargetWord.IsEmpty(); }
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemChanged, const FString&, ItemId, int32, Count);
@@ -92,6 +104,20 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
     int32 MaxSlots = 20;
+
+    // --- Language-Learning Mode ---
+
+    /** Enable language-learning mode so inventory shows target-language item names. */
+    UFUNCTION(BlueprintCallable, Category = "Inventory|LanguageLearning")
+    void SetLanguageLearning(bool bEnabled);
+
+    /** Get whether language-learning mode is active. */
+    UFUNCTION(BlueprintPure, Category = "Inventory|LanguageLearning")
+    bool IsLanguageLearning() const { return bLanguageLearning; }
+
+    /** Get the display name for an item, using target language when available. */
+    UFUNCTION(BlueprintPure, Category = "Inventory|LanguageLearning")
+    FString GetDisplayName(const FInsimulInventoryItem& Item) const;
 
     // --- Item Management ---
 
@@ -188,6 +214,10 @@ private:
 
     UPROPERTY()
     int32 PlayerGold = 100;
+
+    /** Whether language-learning mode is active */
+    UPROPERTY()
+    bool bLanguageLearning = false;
 
     /** Equipped items by slot */
     UPROPERTY()

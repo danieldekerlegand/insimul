@@ -26,7 +26,7 @@ interface LocationMapPreviewProps {
   lots?: any[];
   businesses?: any[];
   residences?: any[];
-  streets?: StreetSegmentData[];
+  streets?: any[];
   waterFeatures?: any[];
   selectedCountryId?: string | null;
   worldId?: string;
@@ -637,36 +637,53 @@ function placeModelInstance(
 export function computeSettlementLayout(
   lots: any[],
   settlementId?: string,
-): { positions: Map<string, { x: number; z: number; angle: number }>; streets: StreetSegment[] } {
+  /** Pass normalized street data so lot positions use the same coordinate space */
+  storedStreets?: StreetSegmentData[],
+): { positions: Map<string, { x: number; z: number; angle: number }>; streets: StreetSegment[]; scale: number } {
   const positions = new Map<string, { x: number; z: number; angle: number }>();
   let streets: StreetSegment[] = [];
+  let layoutScale = 1;
 
-  if (lots.length === 0) return { positions, streets };
+  if (lots.length === 0) return { positions, streets, scale: layoutScale };
 
   // Check if lots have position data from the database
   const hasPositions = lots.some(l => l.positionX != null && l.positionZ != null);
 
   if (hasPositions) {
-    // Use actual positions from database — these match the 3D game
+    // Use actual positions from database — these match the 3D game.
+    // CRITICAL: use the same scale/center as renderStreetNetwork so lots
+    // and streets align in the same coordinate space.
     const lotsWithPos = lots.filter(l => l.positionX != null && l.positionZ != null);
     const lotsWithout = lots.filter(l => l.positionX == null || l.positionZ == null);
 
-    // Compute bounds for scaling
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    for (const l of lotsWithPos) {
-      minX = Math.min(minX, l.positionX);
-      maxX = Math.max(maxX, l.positionX);
-      minZ = Math.min(minZ, l.positionZ);
-      maxZ = Math.max(maxZ, l.positionZ);
+    let scale: number;
+    let centerX: number;
+    let centerZ: number;
+
+    if (storedStreets && storedStreets.length > 0) {
+      // Use the exact same transform as renderStreetNetwork
+      const streetScale = computeStreetScale(storedStreets);
+      scale = streetScale.scale;
+      centerX = streetScale.cx;
+      centerZ = streetScale.cz;
+    } else {
+      // Fallback: compute from lot positions
+      let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      for (const l of lotsWithPos) {
+        minX = Math.min(minX, l.positionX);
+        maxX = Math.max(maxX, l.positionX);
+        minZ = Math.min(minZ, l.positionZ);
+        maxZ = Math.max(maxZ, l.positionZ);
+      }
+      const rangeX = maxX - minX || 1;
+      const rangeZ = maxZ - minZ || 1;
+      const editorSize = 24; // match computeStreetScale
+      scale = editorSize / Math.max(rangeX, rangeZ);
+      centerX = (minX + maxX) / 2;
+      centerZ = (minZ + maxZ) / 2;
     }
 
-    const rangeX = maxX - minX || 1;
-    const rangeZ = maxZ - minZ || 1;
-    const maxRange = Math.max(rangeX, rangeZ);
-    const PREVIEW_SIZE = 20; // target preview units
-    const scale = PREVIEW_SIZE / maxRange;
-    const centerX = (minX + maxX) / 2;
-    const centerZ = (minZ + maxZ) / 2;
+    layoutScale = scale;
 
     for (const l of lotsWithPos) {
       positions.set(l.id, {
@@ -680,39 +697,41 @@ export function computeSettlementLayout(
     lotsWithout.forEach((l, i) => {
       const angle = (i / Math.max(lotsWithout.length, 1)) * Math.PI * 2;
       positions.set(l.id, {
-        x: Math.cos(angle) * (PREVIEW_SIZE / 2 + 2),
-        z: Math.sin(angle) * (PREVIEW_SIZE / 2 + 2),
+        x: Math.cos(angle) * 14,
+        z: Math.sin(angle) * 14,
         angle: 0,
       });
     });
 
     // Reconstruct street segments from lot street names for rendering
-    const streetLots = new Map<string, { x: number; z: number }[]>();
-    for (const l of lotsWithPos) {
-      const sn = l.streetName || 'Main Street';
-      if (!streetLots.has(sn)) streetLots.set(sn, []);
-      streetLots.get(sn)!.push({
-        x: (l.positionX - centerX) * scale,
-        z: (l.positionZ - centerZ) * scale,
+    // (only used when no stored streets are available)
+    if (!storedStreets || storedStreets.length === 0) {
+      const streetLots = new Map<string, { x: number; z: number }[]>();
+      for (const l of lotsWithPos) {
+        const sn = l.streetName || 'Main Street';
+        if (!streetLots.has(sn)) streetLots.set(sn, []);
+        streetLots.get(sn)!.push({
+          x: (l.positionX - centerX) * scale,
+          z: (l.positionZ - centerZ) * scale,
+        });
+      }
+      streetLots.forEach((pts, streetName) => {
+        if (pts.length < 2) return;
+        let sMinX = Infinity, sMaxX = -Infinity, sMinZ = Infinity, sMaxZ = -Infinity;
+        for (const p of pts) {
+          sMinX = Math.min(sMinX, p.x); sMaxX = Math.max(sMaxX, p.x);
+          sMinZ = Math.min(sMinZ, p.z); sMaxZ = Math.max(sMaxZ, p.z);
+        }
+        const margin = 1.5;
+        streets.push({
+          id: `street_preview_${streetName}`,
+          from: new BABYLON.Vector3(sMinX - margin, 0, sMinZ - margin),
+          to: new BABYLON.Vector3(sMaxX + margin, 0, sMaxZ + margin),
+          isMainStreet: streetName.toLowerCase().includes('main'),
+          streetName,
+        });
       });
     }
-    streetLots.forEach((pts, streetName) => {
-      if (pts.length < 2) return;
-      // Street line runs through min/max of lot positions along dominant axis
-      let sMinX = Infinity, sMaxX = -Infinity, sMinZ = Infinity, sMaxZ = -Infinity;
-      for (const p of pts) {
-        sMinX = Math.min(sMinX, p.x); sMaxX = Math.max(sMaxX, p.x);
-        sMinZ = Math.min(sMinZ, p.z); sMaxZ = Math.max(sMaxZ, p.z);
-      }
-      const margin = 1.5;
-      streets.push({
-        id: `street_preview_${streetName}`,
-        from: new BABYLON.Vector3(sMinX - margin, 0, sMinZ - margin),
-        to: new BABYLON.Vector3(sMaxX + margin, 0, sMaxZ + margin),
-        isMainStreet: streetName.toLowerCase().includes('main'),
-        streetName,
-      });
-    });
   } else {
     // No position data — generate layout using same algorithm as 3D game
     const seed = settlementId || lots.map(l => l.id).join('');
@@ -740,6 +759,7 @@ export function computeSettlementLayout(
     const maxRange = Math.max(rangeX, rangeZ);
     const PREVIEW_SIZE = 20;
     const scale = PREVIEW_SIZE / maxRange;
+    layoutScale = scale;
     const cx = (minX + maxX) / 2;
     const cz = (minZ + maxZ) / 2;
 
@@ -771,7 +791,7 @@ export function computeSettlementLayout(
     }));
   }
 
-  return { positions, streets };
+  return { positions, streets, scale: layoutScale };
 }
 
 async function buildSettlementView(
@@ -781,7 +801,7 @@ async function buildSettlementView(
   lots: any[],
   businesses: any[],
   residences: any[],
-  streets: StreetSegmentData[],
+  rawStreets: any[],
   worldId?: string,
   onProgress?: (loaded: number, total: number) => void,
   waterFeatures: any[] = []
@@ -794,8 +814,12 @@ async function buildSettlementView(
   ground.material = groundMat;
   tagMesh(ground, 'terrain');
 
-  // Render street network
-  if (streets.length > 0) {
+  // Normalize raw street data from DB into expected format
+  const streets = normalizeStreets(rawStreets);
+
+  // Render street network from stored DB data (preferred)
+  const hasStoredStreets = streets.length > 0;
+  if (hasStoredStreets) {
     renderStreetNetwork(scene, gui, streets);
   }
 
@@ -809,10 +833,15 @@ async function buildSettlementView(
   if (scene.isDisposed) return;
 
   // Compute street-aligned layout (consistent with 3D game)
-  const { positions, streets: layoutStreets } = computeSettlementLayout(lots, worldId);
+  // Pass normalized streets so lot positions use the exact same coordinate transform
+  const { positions, streets: layoutStreets, scale: layoutScale } = computeSettlementLayout(lots, worldId, hasStoredStreets ? streets : undefined);
 
-  // Render street network
-  renderStreets(scene, gui, layoutStreets);
+  // Only render layout-reconstructed streets if no stored street data exists
+  // (stored streets are already rendered above; layout streets are approximations
+  // that create incorrect diagonals when lots have DB positions)
+  if (!hasStoredStreets) {
+    renderStreets(scene, gui, layoutStreets);
+  }
 
   // Business lookup by lotId
   const bizByLot = new Map<string, any>();
@@ -863,11 +892,47 @@ async function buildSettlementView(
     // Try to use a real model prototype
     const prototype = role ? (prototypes.get(role) || prototypes.get('default')) : null;
 
+    // Lot metadata for hover tooltip
+    const lotMeta = {
+      id: lot.id,
+      address: lot.address,
+      buildingType,
+      streetName: lot.streetName,
+      houseNumber: lot.houseNumber,
+      side: lot.side,
+      lotWidth: lot.lotWidth,
+      lotDepth: lot.lotDepth,
+      bizName: biz?.name,
+      resType: res?.residenceType,
+    };
+
+    // ─── Lot ground plane (hover target + visual boundary) ────────────
+    const rawW = lot.lotWidth || 12;
+    const rawD = lot.lotDepth || 16;
+    const scaledW = rawW * layoutScale;
+    const scaledD = rawD * layoutScale;
+    const lotPlane = BABYLON.MeshBuilder.CreateGround(`lotGround_${lot.id}`, {
+      width: scaledW,
+      height: scaledD, // "height" in CreateGround = depth dimension
+    }, scene);
+    lotPlane.position = new BABYLON.Vector3(lx, 0.005, lz);
+    lotPlane.rotation.y = facingAngle;
+    const lotPlaneMat = new BABYLON.StandardMaterial(`lotGroundMat_${li}`, scene);
+    lotPlaneMat.diffuseColor = tintColor;
+    lotPlaneMat.emissiveColor = BABYLON.Color3.Black();
+    lotPlaneMat.specularColor = BABYLON.Color3.Black();
+    lotPlaneMat.alpha = 0.12;
+    lotPlaneMat.backFaceCulling = false;
+    lotPlane.material = lotPlaneMat;
+    lotPlane.metadata = { lotMeta, tintColor, isLotPlane: true };
+    tagMesh(lotPlane, 'buildings');
+
     if (prototype && buildingType !== 'vacant') {
       // Create parent mesh at the lot position
       const parent = new BABYLON.Mesh(`lot_parent_${lot.id}`, scene);
       parent.position = new BABYLON.Vector3(lx, 0, lz);
       parent.rotation.y = facingAngle;
+      parent.metadata = { ...parent.metadata, lotMeta, tintColor };
       tagMesh(parent, 'buildings');
 
       // Place the real model
@@ -883,6 +948,7 @@ async function buildSettlementView(
       plateMat.specularColor = BABYLON.Color3.Black();
       plateMat.alpha = 0.7;
       plate.material = plateMat;
+      plate.metadata = { ...plate.metadata, lotMeta, tintColor };
       tagMesh(plate, 'buildings');
 
       // Label
@@ -908,6 +974,7 @@ async function buildSettlementView(
       boxMat.diffuseColor = tintColor;
       boxMat.specularColor = new BABYLON.Color3(0.08, 0.08, 0.08);
       box.material = boxMat;
+      box.metadata = { ...box.metadata, lotMeta, tintColor };
       tagMesh(box, 'buildings');
 
       // Roof for non-vacant
@@ -926,6 +993,7 @@ async function buildSettlementView(
           : new BABYLON.Color3(0.3, 0.3, 0.5);
         roofMat.specularColor = BABYLON.Color3.Black();
         roof.material = roofMat;
+        roof.metadata = { ...roof.metadata, lotMeta, tintColor };
         tagMesh(roof, 'buildings');
       }
 
@@ -938,6 +1006,9 @@ async function buildSettlementView(
       addLabel(gui, labelAnchor2, label, 9, isBusiness ? '#FFB86C' : isResidence ? '#8BE9FD' : '#aaa', 15);
     }
   });
+
+  // ─── Hover highlight & tooltip for lots ──────────────────────────────────────
+  setupLotHover(scene, gui);
 
   // If no lots, show placeholder
   if (lots.length === 0) {
@@ -1013,6 +1084,29 @@ function renderStreets(
 }
 
 // ─── Street Network Rendering ────────────────────────────────────────────────
+
+/**
+ * Normalize raw street data from the DB into StreetSegmentData[].
+ * Handles both old format (waypoints in properties) and new format (top-level waypoints).
+ */
+export function normalizeStreets(raw: any[]): StreetSegmentData[] {
+  const result: StreetSegmentData[] = [];
+  for (const seg of raw) {
+    const waypoints: { x: number; z: number }[] =
+      Array.isArray(seg.waypoints) ? seg.waypoints
+      : Array.isArray(seg.properties?.waypoints) ? seg.properties.waypoints
+      : [];
+    if (waypoints.length < 2) continue;
+    result.push({
+      id: seg.id ?? String(result.length),
+      name: seg.name ?? seg.streetName ?? '',
+      direction: seg.direction ?? seg.properties?.direction,
+      waypoints,
+      width: seg.width ?? seg.properties?.width,
+    });
+  }
+  return result;
+}
 
 /** Scale factor to map server-space waypoints into the editor's coordinate space */
 export function computeStreetScale(streets: StreetSegmentData[]): { scale: number; cx: number; cz: number } {
@@ -1271,6 +1365,151 @@ function renderAreaWaterPreview(
   labelAnchor.isPickable = false;
   tagMesh(labelAnchor, 'labels');
   addLabel(gui, labelAnchor, wf.name, 9, '#8BE9FD', 10);
+}
+
+// ─── Lot Hover Highlight ─────────────────────────────────────────────────────
+
+function setupLotHover(scene: BABYLON.Scene, gui: GUI.AdvancedDynamicTexture) {
+  let lastHighlightedMesh: BABYLON.AbstractMesh | null = null;
+  let lastOriginalEmissive: BABYLON.Color3 | null = null;
+  // Track all related meshes for a lot so we can highlight building + ground plane together
+  let lastHighlightedGroup: BABYLON.AbstractMesh[] = [];
+
+  // Tooltip panel (hidden initially)
+  const tooltip = new GUI.Rectangle('lotTooltip');
+  tooltip.width = '220px';
+  tooltip.adaptHeightToChildren = true;
+  tooltip.cornerRadius = 6;
+  tooltip.thickness = 1;
+  tooltip.color = '#666';
+  tooltip.background = 'rgba(20, 20, 30, 0.92)';
+  tooltip.paddingTop = '6px';
+  tooltip.paddingBottom = '6px';
+  tooltip.paddingLeft = '8px';
+  tooltip.paddingRight = '8px';
+  tooltip.isVisible = false;
+  tooltip.isPointerBlocker = false;
+  tooltip.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+  tooltip.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+  gui.addControl(tooltip);
+
+  const tooltipText = new GUI.TextBlock('lotTooltipText');
+  tooltipText.color = '#eee';
+  tooltipText.fontSize = 12;
+  tooltipText.fontFamily = 'system-ui, -apple-system, monospace';
+  tooltipText.textWrapping = true;
+  tooltipText.resizeToFit = true;
+  tooltipText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+  tooltipText.lineSpacing = '2px';
+  tooltip.addControl(tooltipText);
+
+  const clearHighlight = () => {
+    for (const m of lastHighlightedGroup) {
+      if (m.isDisposed()) continue;
+      const mat = m.material as BABYLON.StandardMaterial | null;
+      if (!mat) continue;
+      if (m.metadata?.isLotPlane) {
+        // Restore lot ground plane to near-invisible
+        mat.emissiveColor = BABYLON.Color3.Black();
+        mat.alpha = 0.12;
+      } else {
+        mat.emissiveColor = lastOriginalEmissive ?? BABYLON.Color3.Black();
+      }
+    }
+    lastHighlightedMesh = null;
+    lastOriginalEmissive = null;
+    lastHighlightedGroup = [];
+    tooltip.isVisible = false;
+  };
+
+  scene.onPointerObservable.add((pointerInfo) => {
+    if (pointerInfo.type !== BABYLON.PointerEventTypes.POINTERMOVE) return;
+
+    // Perform manual pick from the pointer position
+    const pickResult = scene.pick(scene.pointerX, scene.pointerY);
+
+    if (!pickResult?.hit || !pickResult.pickedMesh) {
+      clearHighlight();
+      return;
+    }
+
+    // Walk up parent chain to find a mesh with lotMeta
+    let mesh: BABYLON.AbstractMesh | null = pickResult.pickedMesh;
+    let lotMeta: any = null;
+    while (mesh) {
+      if (mesh.metadata?.lotMeta) {
+        lotMeta = mesh.metadata.lotMeta;
+        break;
+      }
+      mesh = mesh.parent as BABYLON.AbstractMesh | null;
+    }
+
+    if (!lotMeta || !mesh) {
+      clearHighlight();
+      return;
+    }
+
+    // Already highlighting this mesh
+    if (mesh === lastHighlightedMesh) {
+      // Update tooltip position to follow cursor
+      const evt = pointerInfo.event as PointerEvent;
+      tooltip.leftInPixels = evt.offsetX + 12;
+      tooltip.topInPixels = evt.offsetY + 12;
+      return;
+    }
+
+    // Clear previous highlight
+    clearHighlight();
+
+    // Find ALL meshes belonging to this lot (ground plane, building, plate, roof, children)
+    const lotId = lotMeta.id;
+    const group: BABYLON.AbstractMesh[] = [];
+    for (const m of scene.meshes) {
+      if (m.metadata?.lotMeta?.id === lotId) {
+        group.push(m);
+        // Also grab child meshes (e.g., model instances parented to lot_parent)
+        m.getChildMeshes(false).forEach(child => {
+          if (child.material) group.push(child);
+        });
+      }
+    }
+
+    for (const m of group) {
+      const mat = m.material as BABYLON.StandardMaterial | null;
+      if (!mat) continue;
+      if (m.metadata?.isLotPlane) {
+        // Make the lot ground plane clearly visible
+        mat.emissiveColor = new BABYLON.Color3(0.3, 0.3, 0.1);
+        mat.alpha = 0.45;
+      } else {
+        if (!lastOriginalEmissive) {
+          lastOriginalEmissive = mat.emissiveColor.clone();
+        }
+        mat.emissiveColor = new BABYLON.Color3(0.5, 0.5, 0.2);
+      }
+    }
+    lastHighlightedMesh = mesh;
+    lastHighlightedGroup = group;
+
+    // Build tooltip content
+    const lines: string[] = [];
+    if (lotMeta.address) lines.push(lotMeta.address);
+    if (lotMeta.bizName) lines.push(`Business: ${lotMeta.bizName}`);
+    if (lotMeta.resType) lines.push(`Type: ${lotMeta.resType}`);
+    lines.push(`Building: ${lotMeta.buildingType}`);
+    if (lotMeta.streetName) lines.push(`Street: ${lotMeta.streetName}`);
+    if (lotMeta.side) lines.push(`Side: ${lotMeta.side}`);
+    if (lotMeta.lotWidth && lotMeta.lotDepth) {
+      lines.push(`Lot: ${lotMeta.lotWidth}x${lotMeta.lotDepth}`);
+    }
+    lines.push(`ID: ${lotMeta.id?.slice(-8) ?? '?'}`);
+
+    tooltipText.text = lines.join('\n');
+    tooltip.isVisible = true;
+    const evt = pointerInfo.event as PointerEvent;
+    tooltip.leftInPixels = evt.offsetX + 12;
+    tooltip.topInPixels = evt.offsetY + 12;
+  });
 }
 
 // ─── Label Helper ────────────────────────────────────────────────────────────

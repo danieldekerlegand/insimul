@@ -24,6 +24,8 @@ export interface NativeAudioChatRequest {
   maxTokens?: number;
   /** Emotional tone to apply to speech (e.g., 'happy', 'sad', 'angry') */
   emotionalTone?: string;
+  /** Whether to return audio in the response */
+  returnAudio?: boolean;
 }
 
 export interface NativeAudioChatResponse {
@@ -33,6 +35,8 @@ export interface NativeAudioChatResponse {
   audioData: string | null;
   /** MIME type of the audio output */
   audioMimeType: string;
+  /** True if audio was requested but generation failed */
+  audioFailed?: boolean;
 }
 
 /**
@@ -149,6 +153,7 @@ export async function nativeAudioChat(request: NativeAudioChatRequest): Promise<
     text: responseText,
     audioData,
     audioMimeType,
+    audioFailed: request.returnAudio && !audioData,
   };
 }
 
@@ -260,5 +265,6 @@ export async function nativeTextToAudioChat(
     text: responseText,
     audioData,
     audioMimeType,
+    audioFailed: !audioData,
   };
 }

@@ -101,6 +101,72 @@ FString UQuestSystem::RequestNavigationHint(const FString& QuestId)
     return FString();
 }
 
+void UQuestSystem::TrackVocabularyUsage(const FString& Word, const FString& QuestId)
+{
+    FString LowerWord = Word.ToLower();
+
+    for (auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+        if (!QuestId.IsEmpty() && Obj.QuestId != QuestId) continue;
+        if (Obj.Type != TEXT("use_vocabulary") && Obj.Type != TEXT("collect_vocabulary")) continue;
+
+        // If targetWords specified, only count matching words
+        if (Obj.TargetWords.Num() > 0 && !Obj.TargetWords.Contains(LowerWord)) continue;
+
+        // Don't double-count the same word
+        if (Obj.WordsUsed.Contains(LowerWord)) continue;
+
+        Obj.WordsUsed.Add(LowerWord);
+        Obj.CurrentCount++;
+
+        if (Obj.CurrentCount >= (Obj.RequiredCount > 0 ? Obj.RequiredCount : 10))
+        {
+            Obj.bCompleted = true;
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Vocabulary objective completed: %s"), *Obj.Id);
+        }
+    }
+}
+
+void UQuestSystem::TrackConversationTurn(const TArray<FString>& Keywords, const FString& QuestId)
+{
+    for (auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+        if (!QuestId.IsEmpty() && Obj.QuestId != QuestId) continue;
+        if (Obj.Type != TEXT("complete_conversation")) continue;
+
+        // Every conversation turn counts as progress
+        Obj.CurrentCount++;
+
+        if (Obj.CurrentCount >= (Obj.RequiredCount > 0 ? Obj.RequiredCount : 5))
+        {
+            Obj.bCompleted = true;
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Conversation objective completed: %s"), *Obj.Id);
+        }
+    }
+}
+
+void UQuestSystem::TrackPronunciationAttempt(bool bPassed, const FString& QuestId)
+{
+    if (!bPassed) return;
+
+    for (auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+        if (!QuestId.IsEmpty() && Obj.QuestId != QuestId) continue;
+        if (Obj.Type != TEXT("pronunciation_check")) continue;
+
+        Obj.CurrentCount++;
+
+        if (Obj.CurrentCount >= (Obj.RequiredCount > 0 ? Obj.RequiredCount : 3))
+        {
+            Obj.bCompleted = true;
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Pronunciation objective completed: %s"), *Obj.Id);
+        }
+    }
+}
+
 FString UQuestSystem::GetNextScavengerCategory(int32 LastCategoryIndex)
 {
     int32 Next = (LastCategoryIndex + 1) % SCAVENGER_CATEGORIES.Num();

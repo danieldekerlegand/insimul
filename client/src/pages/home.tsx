@@ -132,17 +132,19 @@ export default function Home() {
         onOpenAuth={() => setAuthDialogOpen(true)}
       />
 
+      {/* Society Tab - full width, outside max-w constraint */}
+      {activeTab === 'society' && selectedWorld && (
+        <div className="px-6 py-4">
+          <UnifiedWorldExplorerTab worldId={selectedWorld} />
+        </div>
+      )}
+
       <div className="max-w-6xl mx-auto p-6">
         {/* Rules Tab */}
         {activeTab === 'rules' && selectedWorld && (
           <div className="px-2 py-4">
             <RulesHub worldId={selectedWorld} />
           </div>
-        )}
-
-        {/* Society Tab - Unified World Explorer */}
-        {activeTab === 'society' && selectedWorld && (
-          <UnifiedWorldExplorerTab worldId={selectedWorld} />
         )}
 
         {/* Actions Tab */}

@@ -14,11 +14,12 @@ import type { GameEventBus } from './GameEventBus';
 
 // Quest objective types that can be spawned/tracked in the world
 export type QuestObjectiveType =
-  // Language learning
+  // Language learning — conversation
   | 'collect_item'      // Physical object to collect
   | 'visit_location'    // Location marker to visit
   | 'talk_to_npc'       // NPC to talk to
   | 'use_vocabulary'    // Vocabulary words to use in conversation
+  | 'collect_vocabulary' // Collect vocabulary words from labeled world objects
   | 'complete_conversation' // Conversation turns to complete
   | 'perform_action'    // Social action to perform
   // RPG
@@ -34,6 +35,7 @@ export type QuestObjectiveType =
   | 'identify_object'   // Visual vocabulary: identify an object by its target-language name
   | 'follow_directions' // Follow multi-step instructions given in the target language
   | 'find_vocabulary_items' // Scavenger hunt: find objects matching target-language words
+  | 'pronunciation_check' // Pronounce phrases aloud and get accuracy feedback
   // Language learning — advanced exercises
   | 'listening_comprehension' // Listen to NPC speech, answer comprehension questions
   | 'translation_challenge'   // Translate text between languages
@@ -1236,23 +1238,34 @@ export class QuestObjectManager {
   }
 
   /**
-   * Track vocabulary usage for quests
+   * Track vocabulary usage for quests.
+   * Handles both 'use_vocabulary' and 'collect_vocabulary' objectives.
+   * If targetWords is set, only matching words count. Otherwise any unique word counts.
    */
   public trackVocabularyUsage(word: string, questId?: string) {
+    const lowerWord = word.toLowerCase();
+
     this.activeQuests.forEach(quest => {
       if (questId && quest.id !== questId) return;
 
       quest.objectives?.forEach(objective => {
-        if (objective.type === 'use_vocabulary' && !objective.completed) {
-          if (objective.targetWords?.includes(word.toLowerCase()) &&
-              !objective.wordsUsed?.includes(word.toLowerCase())) {
-            objective.wordsUsed = objective.wordsUsed || [];
-            objective.wordsUsed.push(word.toLowerCase());
-            objective.currentCount = (objective.currentCount || 0) + 1;
+        if (objective.completed) return;
 
-            if (objective.currentCount >= (objective.requiredCount || 10)) {
-              this.completeObjective(quest.id, objective.id);
-            }
+        if (objective.type === 'use_vocabulary' || objective.type === 'collect_vocabulary') {
+          // If targetWords specified, only count matching words
+          if (objective.targetWords && objective.targetWords.length > 0) {
+            if (!objective.targetWords.includes(lowerWord)) return;
+          }
+
+          // Don't double-count the same word
+          objective.wordsUsed = objective.wordsUsed || [];
+          if (objective.wordsUsed.includes(lowerWord)) return;
+
+          objective.wordsUsed.push(lowerWord);
+          objective.currentCount = (objective.currentCount || 0) + 1;
+
+          if (objective.currentCount >= (objective.requiredCount || 10)) {
+            this.completeObjective(quest.id, objective.id);
           }
         }
       });
@@ -1260,7 +1273,10 @@ export class QuestObjectManager {
   }
 
   /**
-   * Track conversation turns for quests
+   * Track conversation turns for quests.
+   * Each call represents one conversation exchange (player message + NPC response).
+   * If the objective has targetWords, bonus progress is given for matches,
+   * but every turn counts toward completion regardless.
    */
   public trackConversationTurn(keywords: string[], questId?: string) {
     this.activeQuests.forEach(quest => {
@@ -1268,16 +1284,11 @@ export class QuestObjectManager {
 
       quest.objectives?.forEach(objective => {
         if (objective.type === 'complete_conversation' && !objective.completed) {
-          const matchedKeywords = keywords.filter(k =>
-            objective.targetWords?.some(t => t.toLowerCase() === k.toLowerCase())
-          );
+          // Every conversation turn counts as progress
+          objective.currentCount = (objective.currentCount || 0) + 1;
 
-          if (matchedKeywords.length > 0) {
-            objective.currentCount = (objective.currentCount || 0) + 1;
-
-            if (objective.currentCount >= (objective.requiredCount || 5)) {
-              this.completeObjective(quest.id, objective.id);
-            }
+          if (objective.currentCount >= (objective.requiredCount || 5)) {
+            this.completeObjective(quest.id, objective.id);
           }
         }
       });
@@ -1770,6 +1781,29 @@ export class QuestObjectManager {
       }
     }
     return null;
+  }
+
+  /**
+   * Track pronunciation attempt for pronunciation_check objectives.
+   * Called after the player records voice and receives accuracy feedback.
+   * @param passed Whether the pronunciation met the accuracy threshold
+   */
+  public trackPronunciationAttempt(passed: boolean, questId?: string) {
+    this.activeQuests.forEach(quest => {
+      if (questId && quest.id !== questId) return;
+
+      quest.objectives?.forEach(objective => {
+        if (objective.type === 'pronunciation_check' && !objective.completed) {
+          if (passed) {
+            objective.currentCount = (objective.currentCount || 0) + 1;
+
+            if (objective.currentCount >= (objective.requiredCount || 3)) {
+              this.completeObjective(quest.id, objective.id);
+            }
+          }
+        }
+      });
+    });
   }
 
   /**

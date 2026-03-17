@@ -2389,6 +2389,54 @@ app.get("/api/rules", async (req, res) => {
     }
   });
 
+  app.delete("/api/businesses/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const business = await storage.getBusiness(id);
+      if (!business) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      const token = req.headers.authorization?.split(' ')[1];
+      const payload = token ? AuthService.verifyToken(token) : null;
+      if (!(await canEditWorld(payload?.userId, business.worldId))) {
+        return res.status(403).json({ error: "You don't have permission to edit this world" });
+      }
+
+      const success = await storage.deleteBusiness(id);
+      if (!success) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete business" });
+    }
+  });
+
+  app.delete("/api/residences/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const residence = await storage.getResidence(id);
+      if (!residence) {
+        return res.status(404).json({ error: "Residence not found" });
+      }
+
+      const token = req.headers.authorization?.split(' ')[1];
+      const payload = token ? AuthService.verifyToken(token) : null;
+      if (!(await canEditWorld(payload?.userId, residence.worldId))) {
+        return res.status(403).json({ error: "You don't have permission to edit this world" });
+      }
+
+      const success = await storage.deleteResidence(id);
+      if (!success) {
+        return res.status(404).json({ error: "Residence not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete residence" });
+    }
+  });
+
   // Event System endpoints (TotT Event System)
   app.post("/api/events", async (req, res) => {
     try {
@@ -4009,8 +4057,11 @@ app.get("/api/rules", async (req, res) => {
             if (nameGenerator.isEnabled()) {
               try {
                 const contexts = Array(count).fill(null).map(() => ({
+                  worldId: config.worldId,
                   worldName: world?.name || 'Unknown World',
                   worldDescription: world?.description || undefined,
+                  worldType,
+                  customLabel,
                   countryName: country.name,
                   countryDescription: country.description || undefined,
                   countryGovernment: country.governmentType || undefined,
@@ -4166,8 +4217,10 @@ app.get("/api/rules", async (req, res) => {
           if (nameGenerator.isEnabled()) {
             try {
               const contexts = Array(count).fill(null).map(() => ({
+                worldId: config.worldId,
                 worldName: world?.name || 'Unknown World',
                 worldDescription: world?.description || undefined,
+                worldType: world?.worldType || undefined,
                 countryName: country?.name || undefined,
                 countryDescription: country?.description || undefined,
                 countryGovernment: country?.governmentType || undefined,
@@ -4346,6 +4399,84 @@ app.get("/api/rules", async (req, res) => {
       let numCountries = 0;
       let numSettlements = 0;
       
+      // Step 0: Generate grammars FIRST so name generation can use them
+      try {
+        if (customLabel && customPrompt && isGeminiConfigured()) {
+          console.log(`📝 Step 0: Generating custom grammars for "${customLabel}"...`);
+          progressTracker.updateProgress(taskId, 'grammars', 'Generating procedural name grammars...', 7);
+          const { grammarGenerator } = await import("./services/grammar-generator.js");
+          const generatedGrammars = await grammarGenerator.generateCustomGrammars(
+            customLabel, customPrompt, worldTargetLanguage || undefined,
+            { worldName, worldDescription: enrichedDescription, worldType, gameType, targetLanguage: worldTargetLanguage || undefined, customPrompt },
+            (message, batchIndex, totalBatches) => {
+              const batchProgress = 7 + Math.round((batchIndex / totalBatches) * 3);
+              progressTracker.updateProgress(taskId, 'grammars', message, batchProgress);
+            }
+          );
+          for (const grammar of generatedGrammars) {
+            await storage.createGrammar({
+              worldId, name: grammar.name, description: grammar.description,
+              grammar: grammar.grammar, tags: grammar.tags,
+              worldType: customLabel, gameType, isActive: true,
+            });
+            numGrammars++;
+          }
+          console.log(`✅ Generated ${numGrammars} custom grammars for ${customLabel}`);
+        } else if (worldType) {
+          console.log(`📝 Step 0: Seeding grammars for ${worldType}...`);
+          progressTracker.updateProgress(taskId, 'grammars', `Seeding grammars for ${worldType}`, 7);
+          const nameGrammarTags = ['names', 'character', 'settlement', 'location', 'business', 'establishment', 'country', 'street', 'road', 'item', 'action', 'quest'];
+          const isNameGrammar = (g: any) => g.tags?.some((t: string) => nameGrammarTags.includes(t)) || g.name?.includes('_names');
+          const worldTypeGrammars = seedGrammars.filter((g: any) =>
+            g.worldType === worldType || (g.tags && g.tags.includes(worldType))
+          );
+          let nonNameGrammars = worldTypeGrammars;
+          if (worldTargetLanguage && isGeminiConfigured()) {
+            nonNameGrammars = worldTypeGrammars.filter((g: any) => !isNameGrammar(g));
+            const nameGrammarsCount = worldTypeGrammars.length - nonNameGrammars.length;
+            if (nameGrammarsCount > 0) {
+              try {
+                const { grammarGenerator } = await import("./services/grammar-generator.js");
+                const langGrammars = await grammarGenerator.generateCustomGrammars(
+                  worldType,
+                  `A ${worldType} world set in a ${worldTargetLanguage}-speaking region.`,
+                  worldTargetLanguage,
+                  { worldName, worldDescription: enrichedDescription, worldType, gameType, targetLanguage: worldTargetLanguage, customPrompt },
+                  (message, batchIndex, totalBatches) => {
+                    const batchProgress = 7 + Math.round((batchIndex / totalBatches) * 3);
+                    progressTracker.updateProgress(taskId, 'grammars', message, batchProgress);
+                  }
+                );
+                for (const grammar of langGrammars) {
+                  await storage.createGrammar({
+                    worldId, name: grammar.name, description: grammar.description,
+                    grammar: grammar.grammar, tags: grammar.tags,
+                    worldType, gameType, isActive: true,
+                  });
+                  numGrammars++;
+                }
+                console.log(`  ✅ Generated ${worldTargetLanguage}-specific name grammars`);
+              } catch (error) {
+                console.warn(`  ⚠️ Language-specific name generation failed, falling back to static:`, (error as Error).message);
+                nonNameGrammars = worldTypeGrammars;
+              }
+            }
+          }
+          for (const grammar of nonNameGrammars) {
+            await storage.createGrammar({
+              worldId, name: grammar.name, description: grammar.description,
+              grammar: grammar.grammar, tags: grammar.tags || [],
+              worldType: grammar.worldType || worldType, gameType,
+              isActive: grammar.isActive !== false,
+            });
+            numGrammars++;
+          }
+          console.log(`✅ Seeded ${numGrammars} grammars for ${worldType}`);
+        }
+      } catch (error) {
+        console.warn('⚠️ Grammar generation/seeding failed (will use LLM fallback for names):', (error as Error).message);
+      }
+
       // Step 1: Generate hierarchical geography (countries, states, settlements, characters)
       console.log('📍 Step 1: Generating geography and societies...');
           progressTracker.updateProgress(taskId, 'geography', 'Generating countries, settlements, and societies...', 10);
@@ -4659,18 +4790,70 @@ Make the rule names creative and fitting for the world's theme. Example for cybe
         }
       }
 
-      // Step 4: Generate AI-powered actions
-      if (isGeminiConfigured()) {
+      // Step 4: Generate actions — grammar-first, LLM fallback for descriptions
+      {
         console.log('⚔️ Step 4: Generating actions...');
         progressTracker.updateProgress(taskId, 'actions', 'Generating character actions...', 75);
         try {
-          const { GoogleGenerativeAI } = await import("@google/generative-ai");
-          const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
-          
-          const worldContext = customPrompt || 
-            `A ${worldType || 'medieval-fantasy'} world named "${worldName}". ${worldDescription || ''}`;
-          
-          const actionsPrompt = `Generate 10 character actions for ${worldContext}.
+          const wt = worldType || customLabel || 'medieval-fantasy';
+          const actionNames = await nameGenerator.generateNamesFromGrammar('action', wt, worldId, 10);
+
+          if (actionNames.length >= 5) {
+            // Grammar-first path: use grammar names, generate descriptions with LLM if available
+            console.log(`  ⚡ Got ${actionNames.length} action names from grammar`);
+            const actionTypes = ['social', 'combat', 'movement', 'mental', 'economic', 'social', 'combat', 'mental', 'economic', 'movement'];
+
+            if (isGeminiConfigured()) {
+              // LLM only fills in descriptions for grammar-generated names
+              const { GoogleGenerativeAI } = await import("@google/generative-ai");
+              const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+              const worldCtxStr = customPrompt || `A ${wt} world named "${worldName}". ${worldDescription || ''}`;
+              const descPrompt = `For this world: ${worldCtxStr}
+
+Write a short 1-sentence description for each of these character actions. Return as a JSON array of objects with "name", "description", and "actionType" fields.
+
+Actions:
+${actionNames.map((n, i) => `${i + 1}. "${n}"`).join('\n')}
+
+Return ONLY valid JSON array.`;
+              const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
+              const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.7, responseMimeType: 'application/json' } });
+              const result = await model.generateContent(descPrompt);
+              const described = JSON.parse(result.response.text().trim());
+              if (Array.isArray(described)) {
+                for (const action of described.slice(0, 10)) {
+                  if (action.name) {
+                    const actionData: any = {
+                      worldId, name: action.name, description: action.description || '',
+                      actionType: action.actionType || 'social', sourceFormat: 'prolog',
+                      tags: ['generated', 'grammar'], isActive: true,
+                    };
+                    try { const r = convertActionToProlog(actionData); if (r.prologContent) actionData.content = r.prologContent; } catch (e) { /* skip */ }
+                    await storage.createAction(actionData);
+                    numActions++;
+                  }
+                }
+              }
+            } else {
+              // Grammar-only: save with template descriptions
+              for (let i = 0; i < actionNames.length; i++) {
+                const actionData: any = {
+                  worldId, name: actionNames[i],
+                  description: `A ${actionTypes[i % actionTypes.length]} action in ${worldName}`,
+                  actionType: actionTypes[i % actionTypes.length], sourceFormat: 'prolog',
+                  tags: ['generated', 'grammar'], isActive: true,
+                };
+                try { const r = convertActionToProlog(actionData); if (r.prologContent) actionData.content = r.prologContent; } catch (e) { /* skip */ }
+                await storage.createAction(actionData);
+                numActions++;
+              }
+            }
+          } else if (isGeminiConfigured()) {
+            // Full LLM fallback (no grammars available)
+            const { GoogleGenerativeAI } = await import("@google/generative-ai");
+            const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+            const worldCtxStr = customPrompt || `A ${wt} world named "${worldName}". ${worldDescription || ''}`;
+            const actionsPrompt = `Generate 10 character actions for ${worldCtxStr}.
 
 Include diverse action types:
 - Social interactions (talking, persuading, befriending)
@@ -4687,43 +4870,23 @@ Return as a JSON array with this structure:
   }
 ]
 
-Make the action names thematic and immersive. Example for cyberpunk: "Jack Into Matrix", "Corporate Negotiation", "Street Chase"`;
-          
-          const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-          const model = genAI.getGenerativeModel({ 
-            model: GEMINI_MODELS.PRO,
-            generationConfig: {
-              temperature: 0.9,
-              responseMimeType: 'application/json',
-            }
-          });
-          
-          const result = await model.generateContent(actionsPrompt);
-          const text = result.response.text().trim();
-          const generatedActions = JSON.parse(text);
-          
-          // Parse and save actions
-          if (Array.isArray(generatedActions)) {
-            for (const action of generatedActions.slice(0, 10)) {
-              if (action.name && action.description) {
-                const actionData: any = {
-                  worldId,
-                  name: action.name,
-                  description: action.description,
-                  actionType: action.actionType || 'social',
-                  sourceFormat: 'prolog',
-                  tags: ['generated', 'ai'],
-                  isActive: true,
-                };
-                // Auto-generate Prolog content
-                try {
-                  const result = convertActionToProlog(actionData);
-                  if (result.prologContent) actionData.content = result.prologContent;
-                } catch (e) {
-                  console.warn('[ActionProlog] Failed to convert generated action:', e);
+Make the action names thematic and immersive.`;
+            const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
+            const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.9, responseMimeType: 'application/json' } });
+            const result = await model.generateContent(actionsPrompt);
+            const generatedActions = JSON.parse(result.response.text().trim());
+            if (Array.isArray(generatedActions)) {
+              for (const action of generatedActions.slice(0, 10)) {
+                if (action.name && action.description) {
+                  const actionData: any = {
+                    worldId, name: action.name, description: action.description,
+                    actionType: action.actionType || 'social', sourceFormat: 'prolog',
+                    tags: ['generated', 'ai'], isActive: true,
+                  };
+                  try { const r = convertActionToProlog(actionData); if (r.prologContent) actionData.content = r.prologContent; } catch (e) { /* skip */ }
+                  await storage.createAction(actionData);
+                  numActions++;
                 }
-                await storage.createAction(actionData);
-                numActions++;
               }
             }
           }
@@ -4734,130 +4897,129 @@ Make the action names thematic and immersive. Example for cyberpunk: "Jack Into 
         }
       }
       
-      // Step 5: Generate AI-powered quests
-      if (isGeminiConfigured()) {
+      // Step 5: Generate quests — seed one quest per achievable objective type
+      {
         console.log('🎯 Step 5: Generating quests...');
         progressTracker.updateProgress(taskId, 'quests', 'Generating quest storylines...', 92);
         try {
-          const { generateQuests } = await import("./services/gemini-ai.js");
+          // Seed one quest per canonical objective type using real world data
+          const { generateSeedQuests } = await import('./services/quest-seed-generator.js');
+          const characters = await storage.getCharactersByWorld(worldId);
+          const settlements = await storage.getSettlementsByWorld(worldId);
 
-          const worldContext = customPrompt ||
-            `A ${worldType || 'medieval-fantasy'} world named "${worldName}". ${worldDescription || ''}`;
+          const seedQuests = generateSeedQuests({
+            world: { id: worldId, name: worldName, targetLanguage: worldTargetLanguage || 'English' } as any,
+            characters,
+            settlements,
+          });
 
-          const generatedQuests = await generateQuests(worldContext, 8);
-
-          for (const quest of generatedQuests) {
-            const questData: any = {
-              worldId,
-              title: quest.title,
-              description: quest.description,
-              questType: quest.questType,
-              difficulty: quest.difficulty,
-              targetLanguage: worldTargetLanguage || 'English',
-              assignedTo: 'Player',
-              status: 'active',
-              objectives: quest.objectives,
-              rewards: quest.rewards || {},
-              tags: ['generated', 'ai'],
-            };
-            // Auto-generate Prolog content
-            try {
-              const result = convertQuestToProlog(questData);
-              if (result.prologContent) questData.content = result.prologContent;
-            } catch (e) {
-              console.warn('[QuestProlog] Failed to convert generated quest:', e);
-            }
+          for (const questData of seedQuests) {
             await storage.createQuest(questData);
             numQuests++;
           }
-          console.log(`✅ Generated ${numQuests} quests`);
+
+          console.log(`✅ Generated ${numQuests} seed quests (one per objective type)`);
           progressTracker.updateProgress(taskId, 'quests-complete', `Generated ${numQuests} quests`, 95);
         } catch (error) {
           console.warn('⚠️ Quest generation skipped:', (error as Error).message);
         }
       }
 
-      // Step 6: Generate world-specific items
-      if (isGeminiConfigured()) {
+      // Step 6: Generate world-specific items — grammar-first for names, LLM for stats
+      {
         console.log('🎒 Step 6: Generating world items...');
         progressTracker.updateProgress(taskId, 'items', 'Generating world-specific items...', 96);
         try {
-          const { GoogleGenerativeAI } = await import("@google/generative-ai");
-          const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+          const wt = worldType || customLabel || 'medieval-fantasy';
+          const itemNames = await nameGenerator.generateNamesFromGrammar('item', wt, worldId, 18);
 
-          const worldContext = customPrompt ||
-            `A ${worldType || 'medieval-fantasy'} world named "${worldName}". ${worldDescription || ''}`;
+          if (itemNames.length >= 8 && isGeminiConfigured()) {
+            // Grammar names + LLM for full item definitions
+            console.log(`  ⚡ Got ${itemNames.length} item names from grammar`);
+            const { GoogleGenerativeAI } = await import("@google/generative-ai");
+            const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+            const worldCtxStr = customPrompt || `A ${wt} world named "${worldName}". ${worldDescription || ''}`;
+            const itemsPrompt = `For this world: ${worldCtxStr}
 
-          const itemsPrompt = `Generate 15-20 items unique to this game world: ${worldContext}.
+Create full item definitions for these item names. Return a JSON array where each object has: "name", "description" (1-2 sentences), "itemType" (weapon|armor|consumable|food|drink|tool|material|collectible|key|quest), "icon" (single emoji), "value" (0-100), "sellValue" (0-60), "weight" (0.1-10), "category", "material", "baseType", "rarity" (common|uncommon|rare|epic|legendary), "effects" (object or null), "lootWeight" (0-50), "tags" (array).
 
-These should be world-specific items that would NOT exist in a generic base item list.
-Include a mix of:
-- Themed weapons or tools specific to this world's culture/technology
-- Local food, drink, or consumables with regional flavor
-- Cultural artifacts, collectibles, or quest-worthy objects
-- Crafting materials unique to this world's environment
-- Key/quest items that hint at world lore
+Item names:
+${itemNames.map((n, i) => `${i + 1}. "${n}"`).join('\n')}
 
-For each item, provide ALL of these fields:
-[
-  {
-    "name": "Unique item name fitting the world",
-    "description": "Flavorful 1-2 sentence description",
-    "itemType": "weapon|armor|consumable|food|drink|tool|material|collectible|key|quest",
-    "icon": "single emoji",
-    "value": 0-100,
-    "sellValue": 0-60,
-    "weight": 0.1-10,
-    "category": "melee_weapon|ranged_weapon|light_armor|heavy_armor|shield|potion|ingredient|raw_material|refined_material|ore|tool|container|light_source|food|drink|document|treasure|jewelry|explosive|medical|currency|collectible|key|ammunition|fuel|gemstone|furniture|stimulant|data|component|survival|utility",
-    "material": "iron|steel|wood|leather|stone|cloth|bone|glass|gold|silver|copper|composite|fiber|paper|clay|null",
-    "baseType": "the generic archetype this item belongs to (sword, bow, potion, herb, ore, book, etc.)",
-    "rarity": "common|uncommon|rare|epic|legendary",
-    "effects": {"health": 0, "energy": 0, "attackPower": 0} or null,
-    "lootWeight": 0-50,
-    "tags": ["tag1", "tag2"]
-  }
-]
-
-IMPORTANT: Return ONLY the JSON array, no markdown.`;
-
-          const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
-          const model = genAI.getGenerativeModel({
-            model: GEMINI_MODELS.PRO,
-            generationConfig: {
-              temperature: 0.9,
-              responseMimeType: 'application/json',
+Return ONLY valid JSON array.`;
+            const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
+            const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.8, responseMimeType: 'application/json' } });
+            const result = await model.generateContent(itemsPrompt);
+            const generatedItems = JSON.parse(result.response.text().trim());
+            if (Array.isArray(generatedItems)) {
+              for (const item of generatedItems.slice(0, 20)) {
+                if (item.name && item.itemType) {
+                  await storage.createItem({
+                    worldId, name: item.name, description: item.description || '',
+                    itemType: item.itemType, icon: item.icon || '',
+                    value: item.value ?? 0, sellValue: item.sellValue ?? 0, weight: item.weight ?? 1,
+                    tradeable: item.tradeable !== false, stackable: item.stackable !== false,
+                    maxStack: item.maxStack ?? (item.stackable === false ? 1 : 20),
+                    category: item.category || null, material: item.material || null,
+                    baseType: item.baseType || null, rarity: item.rarity || 'common',
+                    effects: item.effects || null, lootWeight: item.lootWeight ?? 0,
+                    tags: Array.isArray(item.tags) ? [...item.tags, 'generated', 'grammar'] : ['generated', 'grammar'],
+                    worldType: worldType || null,
+                  });
+                  numItems++;
+                }
+              }
             }
-          });
+          } else if (itemNames.length >= 8) {
+            // Grammar-only: save with default stats
+            console.log(`  ⚡ Got ${itemNames.length} item names from grammar (no LLM)`);
+            const itemTypes = ['consumable', 'tool', 'material', 'food', 'collectible', 'weapon', 'drink', 'key'];
+            const rarities = ['common', 'common', 'uncommon', 'common', 'uncommon', 'rare', 'common', 'uncommon'];
+            for (let i = 0; i < itemNames.length; i++) {
+              await storage.createItem({
+                worldId, name: itemNames[i], description: `An item from ${worldName}`,
+                itemType: itemTypes[i % itemTypes.length], icon: '',
+                value: 10 + Math.floor(Math.random() * 90), sellValue: 5 + Math.floor(Math.random() * 45),
+                weight: 0.5 + Math.random() * 5, tradeable: true, stackable: true, maxStack: 20,
+                category: null, material: null, baseType: null,
+                rarity: rarities[i % rarities.length],
+                effects: null, lootWeight: Math.floor(Math.random() * 30),
+                tags: ['generated', 'grammar'], worldType: worldType || null,
+              });
+              numItems++;
+            }
+          } else if (isGeminiConfigured()) {
+            // Full LLM fallback
+            const { GoogleGenerativeAI } = await import("@google/generative-ai");
+            const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+            const worldCtxStr = customPrompt || `A ${wt} world named "${worldName}". ${worldDescription || ''}`;
+            const itemsPrompt = `Generate 15-20 items unique to this game world: ${worldCtxStr}.
 
-          const result = await model.generateContent(itemsPrompt);
-          const text = result.response.text().trim();
-          const generatedItems = JSON.parse(text);
+These should be world-specific items. Include a mix of weapons/tools, food/drink, artifacts, materials, and quest items.
 
-          if (Array.isArray(generatedItems)) {
-            for (const item of generatedItems.slice(0, 20)) {
-              if (item.name && item.itemType) {
-                await storage.createItem({
-                  worldId,
-                  name: item.name,
-                  description: item.description || '',
-                  itemType: item.itemType,
-                  icon: item.icon || '',
-                  value: item.value ?? 0,
-                  sellValue: item.sellValue ?? 0,
-                  weight: item.weight ?? 1,
-                  tradeable: item.tradeable !== false,
-                  stackable: item.stackable !== false,
-                  maxStack: item.maxStack ?? (item.stackable === false ? 1 : 20),
-                  category: item.category || null,
-                  material: item.material || null,
-                  baseType: item.baseType || null,
-                  rarity: item.rarity || 'common',
-                  effects: item.effects || null,
-                  lootWeight: item.lootWeight ?? 0,
-                  tags: Array.isArray(item.tags) ? [...item.tags, 'generated', 'ai'] : ['generated', 'ai'],
-                  worldType: worldType || null,
-                });
-                numItems++;
+Return as JSON array with: "name", "description", "itemType", "icon" (emoji), "value", "sellValue", "weight", "category", "material", "baseType", "rarity", "effects", "lootWeight", "tags".
+Return ONLY valid JSON array.`;
+            const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
+            const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.9, responseMimeType: 'application/json' } });
+            const result = await model.generateContent(itemsPrompt);
+            const generatedItems = JSON.parse(result.response.text().trim());
+            if (Array.isArray(generatedItems)) {
+              for (const item of generatedItems.slice(0, 20)) {
+                if (item.name && item.itemType) {
+                  await storage.createItem({
+                    worldId, name: item.name, description: item.description || '',
+                    itemType: item.itemType, icon: item.icon || '',
+                    value: item.value ?? 0, sellValue: item.sellValue ?? 0, weight: item.weight ?? 1,
+                    tradeable: item.tradeable !== false, stackable: item.stackable !== false,
+                    maxStack: item.maxStack ?? (item.stackable === false ? 1 : 20),
+                    category: item.category || null, material: item.material || null,
+                    baseType: item.baseType || null, rarity: item.rarity || 'common',
+                    effects: item.effects || null, lootWeight: item.lootWeight ?? 0,
+                    tags: Array.isArray(item.tags) ? [...item.tags, 'generated', 'ai'] : ['generated', 'ai'],
+                    worldType: worldType || null,
+                  });
+                  numItems++;
+                }
               }
             }
           }
@@ -4868,118 +5030,65 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         }
       }
 
-      // Step 7: Setup grammars (generate for custom world types, use seeded for preset types)
-      if (customLabel && customPrompt && isGeminiConfigured()) {
-        // Custom world type: Generate custom grammars with LLM
-        console.log(`📝 Step 7: Generating custom grammars for "${customLabel}"...`);
-        progressTracker.updateProgress(taskId, 'grammars', 'Generating custom procedural grammars...', 98);
+      // Step 6b: Pre-translate item names for language-learning worlds
+      if (gameType === 'language-learning' && worldTargetLanguage && isGeminiConfigured()) {
+        console.log(`🌐 Step 6b: Translating item names to ${worldTargetLanguage}...`);
+        progressTracker.updateProgress(taskId, 'item-translation', `Translating items to ${worldTargetLanguage}...`, 97);
         try {
-          const { grammarGenerator } = await import("./services/grammar-generator.js");
-
-          const generatedGrammars = await grammarGenerator.generateCustomGrammars(
-            customLabel,
-            customPrompt,
-            worldTargetLanguage || undefined
+          const { batchTranslateItems } = await import("./services/item-translation.js");
+          const allItems = await storage.getItemsByWorld(worldId);
+          const untranslated = allItems.filter(item =>
+            !item.languageLearningData ||
+            item.languageLearningData.targetLanguage !== worldTargetLanguage
           );
 
-          // Save each grammar to the database with worldId
-          for (const grammar of generatedGrammars) {
-            await storage.createGrammar({
-              worldId,
-              name: grammar.name,
-              description: grammar.description,
-              grammar: grammar.grammar,
-              tags: grammar.tags,
-              worldType: customLabel,
-              gameType: gameType,
-              isActive: true,
-            });
-            numGrammars++;
-          }
+          if (untranslated.length > 0) {
+            const translations = await batchTranslateItems(
+              untranslated.map(item => ({
+                id: item.id,
+                name: item.name,
+                category: item.category || undefined,
+                description: item.description || undefined,
+              })),
+              worldTargetLanguage
+            );
 
-          console.log(`✅ Generated ${numGrammars} custom grammars for ${customLabel}`);
-          progressTracker.updateProgress(taskId, 'grammars-complete', `Generated ${numGrammars} custom grammars`, 99);
-        } catch (error) {
-          console.warn('⚠️ Custom grammar generation failed:', (error as Error).message);
-        }
-      } else if (worldType) {
-        // Preset world type: Seed static grammars from seed-grammars.ts
-        console.log(`📝 Step 7: Seeding static grammars for ${worldType}...`);
-        progressTracker.updateProgress(taskId, 'grammars', `Seeding pre-generated grammars for ${worldType}`, 98);
+            let translatedCount = 0;
+            for (const t of translations) {
+              const originalItem = allItems.find(i => i.id === t.id);
+              if (!originalItem) continue;
 
-        try {
-          // Filter grammars by worldType
-          const worldTypeGrammars = seedGrammars.filter((g: any) =>
-            g.worldType === worldType || (g.tags && g.tags.includes(worldType))
-          );
+              const langData = {
+                targetWord: t.targetWord,
+                targetLanguage: worldTargetLanguage,
+                pronunciation: t.pronunciation,
+                category: t.category,
+              };
 
-          // For language-learning worlds with a target language and Gemini available,
-          // generate language-appropriate name grammars instead of using generic English ones
-          const nameGrammarTags = ['names', 'character', 'settlement', 'location', 'business', 'establishment'];
-          const isNameGrammar = (g: any) => g.tags?.some((t: string) => nameGrammarTags.includes(t)) || g.name?.includes('_names');
-          let nonNameGrammars = worldTypeGrammars;
-          let generatedLangNames = false;
-
-          if (worldTargetLanguage && isGeminiConfigured()) {
-            nonNameGrammars = worldTypeGrammars.filter((g: any) => !isNameGrammar(g));
-            const nameGrammarsCount = worldTypeGrammars.length - nonNameGrammars.length;
-            if (nameGrammarsCount > 0) {
-              console.log(`  🗣️ Generating ${worldTargetLanguage}-appropriate name grammars via LLM (replacing ${nameGrammarsCount} generic ones)...`);
-              try {
-                const { grammarGenerator } = await import("./services/grammar-generator.js");
-                const langGrammars = await grammarGenerator.generateCustomGrammars(
-                  worldType,
-                  `A ${worldType} world set in a ${worldTargetLanguage}-speaking region.`,
-                  worldTargetLanguage
-                );
-                for (const grammar of langGrammars) {
-                  await storage.createGrammar({
-                    worldId,
-                    name: grammar.name,
-                    description: grammar.description,
-                    grammar: grammar.grammar,
-                    tags: grammar.tags,
-                    worldType,
-                    gameType,
-                    isActive: true,
-                  });
-                  numGrammars++;
-                }
-                generatedLangNames = true;
-                console.log(`  ✅ Generated ${langGrammars.length} ${worldTargetLanguage}-specific name grammars`);
-              } catch (error) {
-                console.warn(`  ⚠️ Language-specific name generation failed, falling back to static:`, (error as Error).message);
-                nonNameGrammars = worldTypeGrammars; // Fall back to all static grammars
+              if (originalItem.isBase && !originalItem.worldId) {
+                // Create world-specific copy of base item with translation
+                await storage.createItem({
+                  ...originalItem,
+                  id: undefined as any,
+                  worldId,
+                  isBase: false,
+                  languageLearningData: langData,
+                });
+              } else {
+                await storage.updateItem(originalItem.id, { languageLearningData: langData });
               }
+              translatedCount++;
             }
+            console.log(`✅ Translated ${translatedCount} items to ${worldTargetLanguage}`);
           }
-
-          console.log(`  Found ${nonNameGrammars.length} ${generatedLangNames ? 'non-name ' : ''}grammars for ${worldType}`);
-
-          // Insert each grammar into the database
-          for (const grammar of nonNameGrammars) {
-            await storage.createGrammar({
-              worldId,
-              name: grammar.name,
-              description: grammar.description,
-              grammar: grammar.grammar,
-              tags: grammar.tags || [],
-              worldType: grammar.worldType || worldType,
-              gameType: gameType,
-              isActive: grammar.isActive !== false,
-            });
-            numGrammars++;
-          }
-
-          console.log(`✅ Seeded ${numGrammars} grammars for ${worldType}${generatedLangNames ? ` (with ${worldTargetLanguage} names)` : ''}`);
-          progressTracker.updateProgress(taskId, 'grammars-complete', `Seeded ${numGrammars} grammars`, 99);
         } catch (error) {
-          console.warn('⚠️ Grammar seeding failed:', (error as Error).message);
+          console.warn('⚠️ Item translation skipped:', (error as Error).message);
         }
-      } else {
-        console.log('📝 Step 7: No specific grammars configured');
-        progressTracker.updateProgress(taskId, 'grammars', 'Using default grammars', 99);
       }
+
+      // Step 7: Grammars already generated in Step 0 (before name generation)
+      console.log(`📝 Step 7: Skipped — ${numGrammars} grammars already generated in Step 0`);
+      progressTracker.updateProgress(taskId, 'grammars-complete', `${numGrammars} grammars ready`, 99);
 
       // Step 8: Auto-generate Prolog content for actions/quests that lack it
       try {
@@ -5482,7 +5591,7 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
   app.post("/api/tts", async (req, res) => {
     try {
       const { textToSpeech } = await import("./services/tts-stt.js");
-      const { transcript, text, voice = "Kore", gender = "neutral", encoding = "MP3", emotionalTone } = req.body;
+      const { transcript, text, voice = "Kore", gender = "neutral", encoding = "MP3", emotionalTone, targetLanguage } = req.body;
       const textToConvert = transcript || text;
 
       console.log("TTS request received:", { text: textToConvert?.substring(0, 50), voice, gender, encoding, emotionalTone, bodyKeys: Object.keys(req.body) });
@@ -5492,13 +5601,11 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         return res.status(400).json({ error: "No text provided" });
       }
 
-      // Strip any system markers that shouldn't be spoken
-      const cleanText = textToConvert
-        .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
-        .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
-        .trim();
+      // Strip ALL non-spoken content — markers, markdown, translations
+      const { cleanForSpeech } = await import('./services/streaming-chat.js');
+      const cleanText = cleanForSpeech(textToConvert);
 
-      const audioBuffer = await textToSpeech(cleanText || textToConvert, voice, gender, encoding, emotionalTone);
+      const audioBuffer = await textToSpeech(cleanText || textToConvert, voice, gender, encoding, emotionalTone, targetLanguage);
 
       // Set appropriate content type based on encoding
       const contentType = encoding === "WAV" ? 'audio/wav' : 'audio/mpeg';
@@ -5512,7 +5619,7 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
 
   // Setup multer for file uploads
   const multer = (await import("multer")).default;
-  const upload = multer({ storage: multer.memoryStorage() });
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
   app.post("/api/stt", upload.single('audio'), async (req, res) => {
     try {
@@ -5674,7 +5781,7 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       const chat = model.startChat({
         history: [
           { role: 'user', parts: [{ text: systemPrompt }] },
-          { role: 'model', parts: [{ text: 'I understand. I will roleplay as this character.' }] },
+          { role: 'model', parts: [{ text: 'Understood. I will stay in character and follow all language instructions.' }] },
           ...messages,
         ],
       });
@@ -5724,14 +5831,19 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         audioInput, // Base64 encoded audio
         returnAudio = false, // Whether to return audio response
         voice = 'Kore',
+        gender = 'neutral',
+        targetLanguage, // Explicit language for TTS (avoids per-sentence detection)
         stream = false, // Whether to stream response
         worldId, // Optional: for Prolog-first routing
         npcId, // Optional: NPC being spoken to
         playerId // Optional: player character ID
       } = req.body;
 
-      // Try Prolog-first routing for simple queries (reduces Gemini API calls)
-      if (worldId && !audioInput && messages?.length > 0) {
+      // Try Prolog-first routing for simple queries (reduces Gemini API calls).
+      // Skip for language-learning worlds — template responses are English-only,
+      // so let Gemini handle greetings/farewells in the target language.
+      const skipPrologGreetings = targetLanguage && targetLanguage !== 'English';
+      if (worldId && !audioInput && messages?.length > 0 && !skipPrologGreetings) {
         const lastMsg = messages[messages.length - 1];
         const userText = (lastMsg?.parts?.[0]?.text || '').toLowerCase().trim();
         if (userText) {
@@ -5757,7 +5869,7 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
                 if (returnAudio) {
                   try {
                     const { textToSpeech } = await import("./services/tts-stt.js");
-                    const audioBuffer = await textToSpeech(prologResult.answer!, voice);
+                    const audioBuffer = await textToSpeech(prologResult.answer!, voice, gender, 'MP3', undefined, targetLanguage);
                     if (audioBuffer) {
                       responseData.audio = `data:audio/mp3;base64,${audioBuffer.toString('base64')}`;
                     }
@@ -5780,7 +5892,7 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       // Handle streaming mode with per-sentence TTS
       if (stream && !audioInput) {
         const { streamChatWithTTS } = await import('./services/streaming-chat.js');
-        const gender = voice === 'Kore' || voice === 'Aoede' ? 'female' : 'male';
+        const inferredGender = gender !== 'neutral' ? gender : (voice === 'Kore' || voice === 'Aoede' ? 'female' : 'male');
         return streamChatWithTTS(res, {
           systemPrompt,
           messages,
@@ -5788,7 +5900,8 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
           maxTokens,
           returnAudio,
           voice,
-          gender,
+          gender: inferredGender,
+          targetLanguage,
         });
       }
 
@@ -5863,7 +5976,7 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
           },
           {
             role: 'model',
-            parts: [{ text: 'I understand. I will roleplay as this character.' }]
+            parts: [{ text: 'Understood. I will stay in character and follow all language instructions.' }]
           },
           ...compressedHistory
         ]
@@ -5888,14 +6001,24 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
         res.setHeader('Connection', 'keep-alive');
         res.flushHeaders();
 
+        let clientClosed = false;
+        res.on('close', () => { clientClosed = true; });
+
         const sentenceBuffer = new SentenceBuffer();
         let fullResponse = '';
         let sentenceIndex = 0;
+
+        /** Safe write that checks client connection before writing */
+        const safeWrite = (data: string): boolean => {
+          if (clientClosed || res.writableEnded) return false;
+          try { res.write(data); return true; } catch { return false; }
+        };
 
         try {
           const streamResult = await chat.sendMessageStream(lastMessageContent.text);
 
           for await (const chunk of streamResult.stream) {
+            if (clientClosed) break;
             const chunkText = chunk.text();
             if (!chunkText) continue;
 
@@ -5903,7 +6026,7 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
             const sentences = sentenceBuffer.push(chunkText);
 
             for (const sentence of sentences) {
-              res.write(`data: ${JSON.stringify({ type: 'sentence', text: sentence })}\n\n`);
+              if (!safeWrite(`data: ${JSON.stringify({ type: 'sentence', text: sentence })}\n\n`)) break;
 
               // Generate TTS audio for each sentence
               if (returnAudio) {
@@ -5914,9 +6037,9 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
                 if (cleaned) {
                   try {
                     const { textToSpeech } = await import("./services/tts-stt.js");
-                    const gender = voice === 'Kore' ? 'female' : 'male';
-                    const audioBuffer = await textToSpeech(cleaned, voice, gender, "MP3");
-                    res.write(`data: ${JSON.stringify({ type: 'audio', audio: audioBuffer.toString('base64'), sentenceIndex })}\n\n`);
+                    const ttsGender = gender !== 'neutral' ? gender : (voice === 'Kore' ? 'female' : 'male');
+                    const audioBuffer = await textToSpeech(cleaned, voice, ttsGender, "MP3", undefined, targetLanguage);
+                    safeWrite(`data: ${JSON.stringify({ type: 'audio', audio: audioBuffer.toString('base64'), sentenceIndex })}\n\n`);
                     sentenceIndex++;
                   } catch (audioErr) {
                     console.error("TTS error for sentence chunk:", audioErr);
@@ -5928,8 +6051,8 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
 
           // Flush any remaining buffered text
           const remaining = sentenceBuffer.flush();
-          if (remaining) {
-            res.write(`data: ${JSON.stringify({ type: 'sentence', text: remaining })}\n\n`);
+          if (remaining && !clientClosed) {
+            safeWrite(`data: ${JSON.stringify({ type: 'sentence', text: remaining })}\n\n`);
 
             // TTS for remaining text
             if (returnAudio) {
@@ -5940,15 +6063,17 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
               if (cleaned) {
                 try {
                   const { textToSpeech } = await import("./services/tts-stt.js");
-                  const gender = voice === 'Kore' ? 'female' : 'male';
-                  const audioBuffer = await textToSpeech(cleaned, voice, gender, "MP3");
-                  res.write(`data: ${JSON.stringify({ type: 'audio', audio: audioBuffer.toString('base64'), sentenceIndex })}\n\n`);
+                  const ttsGender = gender !== 'neutral' ? gender : (voice === 'Kore' ? 'female' : 'male');
+                  const audioBuffer = await textToSpeech(cleaned, voice, ttsGender, "MP3", undefined, targetLanguage);
+                  safeWrite(`data: ${JSON.stringify({ type: 'audio', audio: audioBuffer.toString('base64'), sentenceIndex })}\n\n`);
                 } catch (audioErr) {
                   console.error("TTS error for final sentence chunk:", audioErr);
                 }
               }
             }
           }
+
+          if (clientClosed) { res.end(); return; }
 
           // Parse grammar feedback from the full response
           const { parseGrammarFeedbackBlock } = await import('../shared/language/progress.js');
@@ -5964,12 +6089,14 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
           if (grammarFeedback) doneData.grammarFeedback = grammarFeedback;
           if (userTranscript) doneData.userTranscript = userTranscript;
 
-          res.write(`data: ${JSON.stringify(doneData)}\n\n`);
+          safeWrite(`data: ${JSON.stringify(doneData)}\n\n`);
           res.end();
         } catch (streamError) {
           console.error("Streaming error:", streamError);
-          res.write(`data: ${JSON.stringify({ type: 'error', error: streamError instanceof Error ? streamError.message : 'Streaming failed' })}\n\n`);
-          res.end();
+          if (!clientClosed && !res.writableEnded) {
+            safeWrite(`data: ${JSON.stringify({ type: 'error', error: streamError instanceof Error ? streamError.message : 'Streaming failed' })}\n\n`);
+            res.end();
+          }
         }
         return;
       }
@@ -6019,8 +6146,8 @@ IMPORTANT: Return ONLY the JSON array, no markdown.`;
       if (returnAudio) {
         try {
           const { textToSpeech } = await import("./services/tts-stt.js");
-          const gender = voice === 'Kore' ? 'female' : 'male';
-          const audioBuffer = await textToSpeech(cleanedForDisplay, voice, gender, "MP3");
+          const ttsGender = gender !== 'neutral' ? gender : (voice === 'Kore' ? 'female' : 'male');
+          const audioBuffer = await textToSpeech(cleanedForDisplay, voice, ttsGender, "MP3", undefined, targetLanguage);
           responseData.audio = audioBuffer.toString('base64');
         } catch (audioError) {
           console.error("Failed to generate audio:", audioError);
@@ -8199,40 +8326,134 @@ Respond with this JSON structure:
     }
   });
 
-  // Quest Generation Endpoints
-  app.post("/api/worlds/:worldId/quests/generate", async (req, res) => {
+  // Batch-translate item names for a language-learning world
+  app.post("/api/worlds/:worldId/items/translate", async (req, res) => {
     try {
       const { worldId } = req.params;
-      const { count = 5, category, difficulty, assignedTo } = req.body;
+      const { targetLanguage } = req.body;
+
+      if (!targetLanguage) {
+        return res.status(400).json({ error: "targetLanguage is required" });
+      }
 
       const world = await storage.getWorld(worldId);
       if (!world) {
         return res.status(404).json({ error: "World not found" });
       }
 
-      // Import quest generator dynamically
-      const { generateQuestsForWorld } = await import('./services/quest-generator.js');
+      // Get all items for this world (includes base items)
+      const items = await storage.getItemsByWorld(worldId);
 
-      const generatedQuests = await generateQuestsForWorld(world, count, {
-        category,
-        difficulty,
-        assignedTo
-      });
+      // Filter to items that don't already have translations for this language
+      const untranslated = items.filter(item =>
+        !item.languageLearningData ||
+        item.languageLearningData.targetLanguage !== targetLanguage
+      );
 
-      // Save generated quests to database (with Prolog content)
-      const createdQuests = [];
-      for (const questData of generatedQuests) {
-        // Auto-generate Prolog content for each generated quest
-        if (!questData.content && questData.title) {
-          try {
-            const result = convertQuestToProlog(questData as any);
-            (questData as any).content = result.prologContent;
-          } catch (e) {
-            console.warn('[QuestProlog] Failed to convert generated quest:', e);
-          }
+      if (untranslated.length === 0) {
+        return res.json({ translated: 0, message: "All items already translated" });
+      }
+
+      const { batchTranslateItems } = await import("./services/item-translation.js");
+      const translations = await batchTranslateItems(
+        untranslated.map(item => ({
+          id: item.id,
+          name: item.name,
+          category: item.category || undefined,
+          description: item.description || undefined,
+        })),
+        targetLanguage
+      );
+
+      // Save translations: for base items (no worldId), create world-specific copies;
+      // for world items, update in place
+      let translated = 0;
+      for (const t of translations) {
+        const originalItem = items.find(i => i.id === t.id);
+        if (!originalItem) continue;
+
+        const langData = {
+          targetWord: t.targetWord,
+          targetLanguage,
+          pronunciation: t.pronunciation,
+          category: t.category,
+        };
+
+        if (originalItem.isBase && !originalItem.worldId) {
+          // Create a world-specific copy of the base item with translation
+          const { id: _id, ...itemWithoutId } = originalItem;
+          await storage.createItem({
+            ...itemWithoutId,
+            worldId,
+            isBase: false,
+            languageLearningData: langData,
+          });
+        } else {
+          // Update existing world item
+          await storage.updateItem(originalItem.id, { languageLearningData: langData });
         }
-        const created = await storage.createQuest(questData);
-        createdQuests.push(created);
+        translated++;
+      }
+
+      res.json({ translated, total: items.length, targetLanguage });
+    } catch (error) {
+      console.error('[ItemTranslation] Error:', error);
+      res.status(500).json({ error: "Failed to translate items" });
+    }
+  });
+
+  // Quest Generation Endpoints
+  app.post("/api/worlds/:worldId/quests/generate", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { count = 5, category, difficulty, assignedTo, mode } = req.body;
+
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      const createdQuests = [];
+
+      if (mode === 'seed') {
+        // Seed mode: generate one quest per canonical objective type
+        const { generateSeedQuests } = await import('./services/quest-seed-generator.js');
+        const [characters, settlements] = await Promise.all([
+          storage.getCharactersByWorld(worldId),
+          storage.getSettlementsByWorld(worldId),
+        ]);
+
+        const seedQuests = generateSeedQuests({
+          world, characters, settlements,
+          assignedTo: assignedTo || 'Player',
+        });
+
+        for (const questData of seedQuests) {
+          const created = await storage.createQuest(questData);
+          createdQuests.push(created);
+        }
+      } else {
+        // AI generation mode (default)
+        const { generateQuestsForWorld } = await import('./services/quest-generator.js');
+
+        const generatedQuests = await generateQuestsForWorld(world, count, {
+          category,
+          difficulty,
+          assignedTo
+        });
+
+        for (const questData of generatedQuests) {
+          if (!questData.content && questData.title) {
+            try {
+              const result = convertQuestToProlog(questData as any);
+              (questData as any).content = result.prologContent;
+            } catch (e) {
+              console.warn('[QuestProlog] Failed to convert generated quest:', e);
+            }
+          }
+          const created = await storage.createQuest(questData);
+          createdQuests.push(created);
+        }
       }
 
       res.status(201).json({

@@ -706,6 +706,14 @@ export interface InventoryItem {
   material?: string;
   baseType?: string;
   rarity?: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+  possessable?: boolean;
+  // Language learning data (for vocabulary items in language-learning games)
+  languageLearningData?: {
+    targetWord: string;
+    targetLanguage: string;
+    pronunciation: string;
+    category: string;
+  };
 }
 
 // ─── Mercantile ─────────────────────────────────────────────────────────────

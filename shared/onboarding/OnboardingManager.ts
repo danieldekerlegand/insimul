@@ -53,6 +53,18 @@ export class OnboardingManager {
     this.definition = definition;
     this.persistCallback = persistCallback;
 
+    // Validate prerequisite references
+    const stepIds = new Set(definition.steps.map(s => s.id));
+    for (const step of definition.steps) {
+      if (step.prerequisites) {
+        for (const prereqId of step.prerequisites) {
+          if (!stepIds.has(prereqId)) {
+            console.warn(`[OnboardingManager] Step "${step.id}" references non-existent prerequisite "${prereqId}"`);
+          }
+        }
+      }
+    }
+
     if (existingState && existingState.definitionId === definition.id) {
       this.state = existingState;
     } else {

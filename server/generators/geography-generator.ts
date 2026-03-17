@@ -5,9 +5,10 @@
  */
 
 import { storage } from '../db/storage';
+import { nameGenerator } from './name-generator';
 import { AgriculturalZone, AgriculturalZoneGenerator } from './agricultural-zone-generator';
 import { CrossingGenerator } from './crossing-generator';
-import { generateCoastline } from './coastline-generator';
+import { generateCoastline, isOnWaterSide, isInsideBay, type CoastlineData } from './coastline-generator';
 import { generateHarborAndDocks, type HarborZone } from './harbor-dock-generator';
 import {
   generateStreetNetwork,
@@ -44,6 +45,10 @@ export interface GeographyConfig {
   terrain: 'plains' | 'hills' | 'mountains' | 'coast' | 'river' | 'forest' | 'desert';
   countryId?: string;
   stateId?: string;
+  /** Target language for localized street names (language-learning worlds) */
+  targetLanguage?: string;
+  /** World type for grammar-based name generation */
+  worldType?: string;
 }
 
 /** District role types for terrain-influenced placement */
@@ -69,6 +74,7 @@ const ROLE_NAMES: Record<DistrictRole, string[]> = {
 export class GeographyGenerator {
   private streetGenerator = new StreetGenerator();
 
+  /** Default location names — overridden per-generation by grammar names when available */
   private locationNames = {
     districts: ['Downtown', 'Riverside', 'Hillside', 'Old Town', 'Market Quarter', 'Industrial District',
                'Residential Heights', 'West End', 'East Side', 'North Ward', 'South Gate'],
@@ -78,6 +84,27 @@ export class GeographyGenerator {
                 "Restaurant", "Bakery", "Barber Shop", "Salon", "Bank", "Hotel", "Theater",
                 "Bookstore", "Tailor", "Shoe Store", "Auto Repair", "Gas Station"]
   };
+
+  /** Business names pool — populated from grammar when available */
+  private businessNamesPool: string[] = this.locationNames.businesses;
+
+  /**
+   * Load grammar-based business names if available, falling back to defaults.
+   */
+  private async loadBusinessNames(config: GeographyConfig): Promise<void> {
+    if (!config.worldType || !config.worldId) return;
+    try {
+      const grammarNames = await nameGenerator.generateNamesFromGrammar(
+        'business', config.worldType, config.worldId, 30
+      );
+      if (grammarNames.length >= 5) {
+        this.businessNamesPool = grammarNames;
+        console.log(`  📝 Loaded ${grammarNames.length} business names from grammar`);
+      }
+    } catch {
+      // Keep defaults
+    }
+  }
 
   /**
    * Generate complete geography for a settlement.
@@ -95,6 +122,9 @@ export class GeographyGenerator {
     agriculturalZones: AgriculturalZone[];
     harborZones?: HarborZone[];
   }> {
+    // Step 0a: Load grammar-based names if available
+    await this.loadBusinessNames(config);
+
     // Step 0: Infer settlement subtype
     const settlementSubtype = inferSettlementSubtype(config);
     const subtypeConfig = getSubtypeConfig(settlementSubtype);
@@ -103,14 +133,40 @@ export class GeographyGenerator {
     const districts = this.generateDistricts(config);
     const landmarks = this.generateLandmarks(config, districts);
 
+    // Pre-load grammar-based street names if available
+    let grammarStreetNames: string[] | undefined;
+    if (config.worldType && config.worldId) {
+      try {
+        const streetNames = await nameGenerator.generateNamesFromGrammar(
+          'street', config.worldType, config.worldId, 20
+        );
+        if (streetNames.length >= 6) {
+          grammarStreetNames = streetNames;
+          console.log(`  📝 Loaded ${streetNames.length} street names from grammar`);
+        }
+      } catch { /* use defaults */ }
+    }
+
     // Generate street network with actual polyline geometry
     const mapSize = this.getMapSize(config.settlementType);
+
+    // ── Generate water data BEFORE streets so we can avoid placing in water ──
+    const isWaterFn = this.buildWaterTestFunction(config, mapSize);
+
+    // Shift the settlement center away from water so the entire town sits on land.
+    // Coastline occupies ~25-30% of the map from one edge; push the center toward
+    // the opposite edge to maximize land margin.
+    const { centerX, centerZ } = this.computeSettlementCenter(config, mapSize);
+
     const streetNetworkConfig: StreetNetworkConfig = {
-      centerX: mapSize / 2,
-      centerZ: mapSize / 2,
+      centerX,
+      centerZ,
       settlementType: config.settlementType,
       foundedYear: config.foundedYear,
       seed: `${config.worldId}_${config.settlementId}`,
+      targetLanguage: config.targetLanguage,
+      grammarStreetNames,
+      isWater: isWaterFn,
     };
     const streetNetwork = generateStreetNetwork(streetNetworkConfig);
 
@@ -187,7 +243,8 @@ export class GeographyGenerator {
     // Generate harbor and dock infrastructure for coastal settlements
     let harborZones: HarborZone[] | undefined;
     if (config.terrain === 'coast') {
-      const coastline = generateCoastline({
+      // Reuse coastline data generated earlier for water avoidance
+      const coastline: CoastlineData = (config as any)._coastlineData ?? generateCoastline({
         seed: config.settlementName.length * 37 + config.foundedYear,
         mapSize,
         waterSide: 'north',
@@ -243,7 +300,7 @@ export class GeographyGenerator {
     });
 
     // Persist lots, residences, and businesses as proper database records
-    const lotIds = await this.persistLotsAndBuildings(config, districts, streets, buildings, streetNetwork);
+    const lotIds = await this.persistLotsAndBuildings(config, districts, streets, buildings, streetNetwork, isWaterFn);
 
     const harborMsg = harborZones ? `, ${harborZones.length} harbor zones` : '';
     console.log(`✅ Generated ${districts.length} districts, ${streetNetwork.segments.length} streets (${streetNetwork.nodes.length} nodes), ${buildings.length} buildings (${lotIds.length} lots persisted), ${agriculturalZones.length} agricultural zones${harborMsg}`);
@@ -611,7 +668,7 @@ export class GeographyGenerator {
         const isResidence = this.shouldBeResidence(edge.streetType, buildingIndex);
         const name = isResidence
           ? `${(buildingIndex % 200) + 1} ${streetName}`
-          : this.locationNames.businesses[buildingIndex % this.locationNames.businesses.length];
+          : this.businessNamesPool[buildingIndex % this.businessNamesPool.length];
 
         // Lot dimensions by settlement type
         const lotWidth = config.settlementType === 'village' ? 15 : config.settlementType === 'town' ? 12 : 10;
@@ -775,22 +832,36 @@ export class GeographyGenerator {
     districts: Location[],
     streets: Location[],
     buildings: Location[],
-    streetNetwork?: StreetNetwork
+    streetNetwork?: StreetNetwork,
+    isWater?: (x: number, z: number) => boolean,
   ): Promise<string[]> {
     const districtById = new Map(districts.map(d => [d.id, d]));
     const streetById = new Map(streets.map(s => [s.id, s]));
 
-    // Generate lot placements with world-space coordinates
+    // Generate lot placements with world-space coordinates.
+    // Request Infinity so placeLots generates ALL available block slots,
+    // ensuring every building can get a unique placement.
     let lotPlacements: LotPlacement[] = [];
     if (streetNetwork) {
       const seed = `${config.worldId}_${config.settlementId}`;
-      lotPlacements = placeLots(streetNetwork, buildings.length, seed);
+      lotPlacements = placeLots(streetNetwork, Infinity, seed, config.settlementType, isWater);
     }
 
-    // Build a lookup: streetName+houseNumber -> placement for matching
-    const placementByKey = new Map<string, LotPlacement>();
-    for (const p of lotPlacements) {
-      placementByKey.set(`${p.streetName}:${p.houseNumber}`, p);
+    // Clear existing lots, residences, and businesses for this settlement
+    // so regeneration replaces rather than duplicates.
+    const existingLots = await storage.getLotsBySettlement(config.settlementId);
+    if (existingLots.length > 0) {
+      for (const lot of existingLots) {
+        if (lot.buildingId) {
+          if (lot.buildingType === 'residence') {
+            await storage.deleteResidence(lot.buildingId);
+          } else {
+            await storage.deleteBusiness(lot.buildingId);
+          }
+        }
+        await storage.deleteLot(lot.id);
+      }
+      console.log(`🧹 Cleared ${existingLots.length} existing lots for settlement ${config.settlementId}`);
     }
 
     // Prepare bulk-insert arrays
@@ -802,25 +873,35 @@ export class GeographyGenerator {
       const building = buildings[bi];
       const street = building.parentId ? streetById.get(building.parentId) : undefined;
       const district = street?.parentId ? districtById.get(street.parentId) : undefined;
-      const streetName = building.properties?.streetName || street?.name || 'Unknown St';
       const districtId = building.properties?.districtId;
       const districtFromProp = districtId ? districtById.get(districtId) : undefined;
       const districtName = (districtFromProp || district)?.name || 'Unknown District';
-      const houseNumber = (building.properties?.houseNumber as number) ||
-        Math.floor(Math.random() * 200) + 1;
-      const address = `${houseNumber} ${streetName}`;
       const isResidence = building.properties?.buildingType === 'residence';
 
-      // Try to match to a lot placement by streetName+houseNumber, else by index
-      const placement = placementByKey.get(`${streetName}:${houseNumber}`) || lotPlacements[bi];
+      // Assign placement directly by index — each building gets a unique lot.
+      // Skip buildings that have no lot placement to avoid placing them
+      // at the settlement center (which is typically an intersection).
+      const placement = bi < lotPlacements.length
+        ? lotPlacements[bi]
+        : undefined;
+      if (!placement) continue;
 
-      // Extract lot geometry from building properties
-      const edgeId = building.properties?.edgeId || null;
-      const side = building.properties?.side || placement?.side || 'left';
-      const facingAngle = building.properties?.facingAngle ?? placement?.facingAngle ?? 0;
-      const lotWidth = building.properties?.lotWidth || 12;
-      const lotDepth = building.properties?.lotDepth || 16;
-      const distanceAlongStreet = building.properties?.distanceAlongStreet || 0;
+      // Use placement's street/house info as the authoritative address.
+      // For overflow buildings (no placement), generate a unique house number
+      // by continuing from the highest placement number.
+      const maxPlacementHouseNum = lotPlacements.length > 0
+        ? lotPlacements[lotPlacements.length - 1].houseNumber
+        : 0;
+      const streetName = placement?.streetName || building.properties?.streetName || street?.name || 'Unknown St';
+      const houseNumber = placement
+        ? placement.houseNumber
+        : maxPlacementHouseNum + (bi - lotPlacements.length) + 1;
+      const address = `${houseNumber} ${streetName}`;
+
+      const side = placement?.side || 'left';
+      const facingAngle = placement?.facingAngle ?? 0;
+      const lotWidth = placement?.lotWidth || 12;
+      const lotDepth = placement?.lotDepth || 16;
       const elevation = building.properties?.elevation || 0;
       const foundationType = building.properties?.foundationType || 'flat';
       const blockId = building.properties?.blockId || null;
@@ -833,12 +914,12 @@ export class GeographyGenerator {
         streetName,
         districtName,
         buildingType: isResidence ? 'residence' : 'business',
-        positionX: placement?.x ?? null,
-        positionZ: placement?.z ?? null,
+        positionX: placement.x,
+        positionZ: placement.z,
         lotWidth,
         lotDepth,
-        streetEdgeId: edgeId || placement?.streetId || null,
-        distanceAlongStreet,
+        streetEdgeId: placement.streetId,
+        distanceAlongStreet: bi % lotPlacements.length,
         side,
         blockId,
         facingAngle,
@@ -957,6 +1038,127 @@ export class GeographyGenerator {
   }
 
   /**
+   * Build a water test function for the given terrain type.
+   * Returns a function that checks if a world-space point is in water
+   * OR within the padding buffer zone around water, so that streets,
+   * lots, and buildings are kept well away from the water's edge.
+   */
+  private buildWaterTestFunction(
+    config: GeographyConfig,
+    mapSize: number,
+  ): ((x: number, z: number) => boolean) | undefined {
+    // Padding in world units — no streets or lots will be placed
+    // within this distance of any water boundary.
+    const WATER_PADDING = 120;
+
+    if (config.terrain === 'coast') {
+      const coastline = generateCoastline({
+        seed: config.settlementName.length * 37 + config.foundedYear,
+        mapSize,
+        waterSide: 'north',
+        minBays: 1,
+        maxBays: 3,
+      });
+      // Cache coastline data on config so downstream consumers can still use it
+      (config as any)._coastlineData = coastline;
+
+      // Raw water test (no padding)
+      const rawIsWater = (x: number, z: number): boolean => {
+        if (isOnWaterSide(x, z, coastline.contour, coastline.waterSide, coastline.mapSize)) {
+          return true;
+        }
+        for (const bay of coastline.bays) {
+          if (isInsideBay(x, z, bay, coastline.waterSide)) {
+            return true;
+          }
+        }
+        return false;
+      };
+
+      // Padded water test — also returns true for points near water.
+      // Uses 16 sample directions at two distances for thorough boundary detection.
+      return (x: number, z: number) => {
+        if (rawIsWater(x, z)) return true;
+        // Sample at full padding distance
+        for (let a = 0; a < 16; a++) {
+          const angle = (a / 16) * Math.PI * 2;
+          const sx = x + Math.cos(angle) * WATER_PADDING;
+          const sz = z + Math.sin(angle) * WATER_PADDING;
+          if (rawIsWater(sx, sz)) return true;
+        }
+        // Sample at half padding distance to catch narrow inlets
+        for (let a = 0; a < 8; a++) {
+          const angle = (a / 8) * Math.PI * 2;
+          const sx = x + Math.cos(angle) * (WATER_PADDING * 0.5);
+          const sz = z + Math.sin(angle) * (WATER_PADDING * 0.5);
+          if (rawIsWater(sx, sz)) return true;
+        }
+        return false;
+      };
+    }
+
+    if (config.terrain === 'river') {
+      const crossingGen = new CrossingGenerator({
+        seed: config.settlementName.length * 31 + config.foundedYear,
+        mapSize,
+        foundedYear: config.foundedYear,
+      });
+      const river = crossingGen.generateRiverPath('Town River');
+      // Cache river data on config for downstream use
+      (config as any)._riverForWaterTest = river;
+      // Include padding in the exclusion distance
+      const riverExclusionRadius = (river.width || 15) / 2 + WATER_PADDING;
+      return (x: number, z: number) => {
+        // Check distance from point to each river segment
+        for (let i = 0; i < river.points.length - 1; i++) {
+          const ax = river.points[i].x, az = river.points[i].y;
+          const bx = river.points[i + 1].x, bz = river.points[i + 1].y;
+          const dx = bx - ax, dz = bz - az;
+          const lenSq = dx * dx + dz * dz;
+          let t = lenSq > 0 ? ((x - ax) * dx + (z - az) * dz) / lenSq : 0;
+          t = Math.max(0, Math.min(1, t));
+          const cx = ax + t * dx, cz = az + t * dz;
+          const dist = Math.sqrt((x - cx) ** 2 + (z - cz) ** 2);
+          if (dist <= riverExclusionRadius) return true;
+        }
+        return false;
+      };
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Compute the settlement center, shifted away from water for coast/river terrains.
+   * For non-water terrains, returns the map center.
+   */
+  private computeSettlementCenter(
+    config: GeographyConfig,
+    mapSize: number,
+  ): { centerX: number; centerZ: number } {
+    const defaultCenter = { centerX: mapSize / 2, centerZ: mapSize / 2 };
+
+    if (config.terrain === 'coast') {
+      // Coastline uses waterSide='north' (water at low Z).
+      // Push the settlement center toward high Z (away from water).
+      // The coastline sits at ~25-30% from the water edge, so place
+      // the settlement center at ~72% of the map to give maximum margin
+      // and ensure the full settlement footprint stays well inland.
+      return { centerX: mapSize / 2, centerZ: mapSize * 0.72 };
+    }
+
+    if (config.terrain === 'river') {
+      // The river meanders across the map (roughly through the center).
+      // Push the settlement center well off-center to avoid the river path.
+      // The crossing generator's river flows either left→right or top→bottom
+      // through ~mapSize/2, so offset the center further from the river.
+      return { centerX: mapSize * 0.3, centerZ: mapSize * 0.7 };
+    }
+
+    return defaultCenter;
+  }
+
+  /**
    * Get map size based on settlement type
    */
   private getMapSize(type: string): number {
@@ -1064,7 +1266,7 @@ export class GeographyGenerator {
           id: `building-${buildingIndex}`,
           name: isResidence
             ? `${houseNumber} ${streetName}`
-            : this.locationNames.businesses[buildingIndex % this.locationNames.businesses.length],
+            : this.businessNamesPool[buildingIndex % this.businessNamesPool.length],
           type: 'building',
           x: (street.x || 0) + offsetX,
           y: (street.y || 0) + offsetY,

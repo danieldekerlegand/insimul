@@ -124,7 +124,15 @@ export class QuestIndicatorManager {
     const questGiverOccupations = [
       'teacher', 'professor', 'merchant', 'shopkeeper', 'guard',
       'mayor', 'innkeeper', 'blacksmith', 'librarian', 'elder',
-      'captain', 'guide', 'trainer', 'master', 'chief'
+      'captain', 'guide', 'trainer', 'master', 'chief',
+      // Additional occupations common in procedurally generated worlds
+      'baker', 'farmer', 'fisher', 'artisan', 'healer', 'priest',
+      'herbalist', 'tailor', 'weaver', 'potter', 'hunter', 'ranger',
+      'sailor', 'dock', 'harbor', 'stable', 'brewer', 'cook',
+      'barkeep', 'bartender', 'clerk', 'postmaster', 'constable',
+      'sheriff', 'warden', 'monk', 'nun', 'scribe', 'scholar',
+      'apothecary', 'midwife', 'nurse', 'doctor', 'veterinarian',
+      'musician', 'bard', 'storyteller', 'vendor', 'owner', 'keeper',
     ];
 
     if (npc.occupation) {

@@ -31,10 +31,13 @@ const RARITIES: Array[String] = ["common", "uncommon", "rare", "epic", "legendar
 var max_slots := 20
 var player_gold := 100
 
+## Whether language-learning mode is active.
+var _language_learning := false
+
 ## Each slot Dictionary may contain:
 ##   id, name, description, type, quantity, icon, quest_id, value, sell_value,
 ##   weight, tradeable, equipped, effects, equip_slot, category, material,
-##   base_type, rarity
+##   base_type, rarity, possessable, language_learning_data
 var _slots: Array[Dictionary] = []
 
 ## Equipped items by slot name ("weapon", "armor", "accessory")
@@ -44,14 +47,37 @@ func initialize() -> void:
 	_slots.clear()
 	_equipped_slots.clear()
 	player_gold = 100
+	_language_learning = false
 	print("[Insimul] InventorySystem initialized (max slots: %d, gold: %d)" % [max_slots, player_gold])
+
+# --- Language-Learning Mode ---
+
+## Enable language-learning mode so inventory shows target-language item names.
+func set_language_learning(enabled: bool) -> void:
+	_language_learning = enabled
+	print("[Insimul] Language learning mode: %s" % ["ON" if enabled else "OFF"])
+
+## Get whether language-learning mode is active.
+func is_language_learning() -> bool:
+	return _language_learning
+
+## Get the display name for an item, using target language when available.
+## When language-learning mode is active and the item has language_learning_data
+## with a non-empty target_word, returns the target word. Otherwise returns the item name.
+func get_display_name(item: Dictionary) -> String:
+	if _language_learning:
+		var lang_data: Dictionary = item.get("language_learning_data", {})
+		var target_word: String = lang_data.get("target_word", "")
+		if not target_word.is_empty():
+			return target_word
+	return item.get("name", item.get("id", ""))
 
 # --- Item Management ---
 
 ## Add an item to inventory. The item Dictionary should have at minimum an "id" key.
 ## Supported fields: id, name, description, type, quantity, icon, quest_id, value,
 ## sell_value, weight, tradeable, equipped, effects, equip_slot, category, material,
-## base_type, rarity.
+## base_type, rarity, possessable, language_learning_data.
 func add_item(item: Dictionary) -> bool:
 	var item_id: String = item.get("id", item.get("item_id", ""))
 	var qty: int = item.get("quantity", item.get("count", 1))

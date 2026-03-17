@@ -39,21 +39,49 @@ export function buildStreetNetwork(
   return generateLayout(config);
 }
 
-/** Offset a server-generated network to the settlement's world-space center */
+/**
+ * Re-center a server-generated network to the settlement's world-space center.
+ * Server-generated networks have their own local center (e.g., mapSize/2),
+ * so we first find the centroid, subtract it, then add the target center.
+ */
 function offsetNetwork(net: StreetNetwork, cx: number, cz: number): StreetNetwork {
+  // Compute centroid from ALL waypoints (not just nodes) for consistency
+  // with the building offset in BabylonGame.ts which also uses waypoints.
+  let sumX = 0, sumZ = 0, count = 0;
+  for (const s of net.segments) {
+    for (const wp of s.waypoints) {
+      sumX += wp.x;
+      sumZ += wp.z;
+      count++;
+    }
+  }
+  // Fallback to node centroid if no waypoints
+  if (count === 0) {
+    for (const n of net.nodes) {
+      sumX += n.x;
+      sumZ += n.z;
+      count++;
+    }
+  }
+  if (count === 0) return net;
+  const centroidX = sumX / count;
+  const centroidZ = sumZ / count;
+
+  // Re-center: subtract centroid, add target world-space center
+  const dx = cx - centroidX;
+  const dz = cz - centroidZ;
   return {
-    nodes: net.nodes.map(n => ({ ...n, x: n.x + cx, z: n.z + cz })),
+    nodes: net.nodes.map(n => ({ ...n, x: n.x + dx, z: n.z + dz })),
     segments: net.segments.map(s => ({
       ...s,
-      waypoints: s.waypoints.map(w => ({ x: w.x + cx, z: w.z + cz }))
+      waypoints: s.waypoints.map(w => ({ x: w.x + dx, z: w.z + dz }))
     }))
   };
 }
 
 function generateLayout(config: StreetLayoutConfig): StreetNetwork {
-  if (config.settlementType === 'village' || config.population < 200) {
-    return generateOrganicLayout(config);
-  }
+  // Default to grid for all settlement types — consistent with server-side
+  // generator and matches what users see in the Society preview.
   return generateGridLayout(config);
 }
 
@@ -108,7 +136,7 @@ function generateGridLayout(config: StreetLayoutConfig): StreetNetwork {
       direction: 'NS',
       nodeIds: segNodeIds,
       waypoints,
-      width: 2.5
+      width: 12
     });
   }
 
@@ -133,7 +161,7 @@ function generateGridLayout(config: StreetLayoutConfig): StreetNetwork {
       direction: 'EW',
       nodeIds: segNodeIds,
       waypoints,
-      width: 2.5
+      width: 12
     });
   }
 
@@ -209,7 +237,7 @@ function generateOrganicLayout(config: StreetLayoutConfig): StreetNetwork {
       direction: 'radial',
       nodeIds: segNodeIds,
       waypoints,
-      width: 2.0
+      width: 10
     });
   }
 
@@ -237,7 +265,7 @@ function generateOrganicLayout(config: StreetLayoutConfig): StreetNetwork {
       direction: 'ring',
       nodeIds: segNodeIds,
       waypoints,
-      width: 1.8
+      width: 8
     });
   }
 

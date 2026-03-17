@@ -710,6 +710,7 @@ export const items = pgTable("items", {
   lootWeight: integer("loot_weight").default(0), // drop probability weight, 0 = not lootable
   tags: jsonb("tags").$type<string[]>().default([]),
   isBase: boolean("is_base").default(false), // true for global template items
+  possessable: boolean("possessable").default(true), // whether the player can pick up / carry this item
 
   // Extensibility
   metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
@@ -985,12 +986,6 @@ export const insertStateSchema = createInsertSchema(states).omit({
 });
 
 export const insertSettlementSchema = createInsertSchema(settlements).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true
-});
-
-export const insertTerrainFeatureSchema = createInsertSchema(terrainFeatures).omit({
   id: true,
   createdAt: true,
   updatedAt: true

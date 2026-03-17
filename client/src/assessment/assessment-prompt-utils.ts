@@ -94,7 +94,6 @@ const TIER_INSTRUCTIONS: Record<CefrLevel, string> = {
   A1: `The player is a BEGINNER (A1). You MUST:
 - Use 80-90% English in your responses
 - Introduce only 1-2 new target language words per message
-- Provide English translations immediately after target language words
 - Use very short, simple sentences (5-7 words)
 - Be extremely encouraging and patient
 - Use gestures and body language descriptions
@@ -102,7 +101,7 @@ const TIER_INSTRUCTIONS: Record<CefrLevel, string> = {
 
   A2: `The player is ELEMENTARY (A2). You should:
 - Use 30-50% target language in your responses
-- Use short sentences with English translations nearby
+- Use short sentences
 - Introduce 2-4 new words per message
 - Gently correct at most 1 error per message
 - Be warm and encouraging
@@ -113,7 +112,6 @@ const TIER_INSTRUCTIONS: Record<CefrLevel, string> = {
 - Use full sentences in the target language
 - Introduce 3-5 new words including some idioms
 - Correct up to 2 errors with brief explanations
-- Only translate unusual or new words to English
 - Use moderately complex sentence structures`,
 
   B2: `The player is UPPER INTERMEDIATE (B2). You should:
@@ -183,7 +181,7 @@ IMPORTANT RULES:
 - Do NOT tell the player they are being assessed
 - Adapt your language complexity based on the player's responses
 - If the player struggles, simplify; if they excel, increase complexity
-${EVAL_BLOCK_INSTRUCTIONS}`;
+- Your ENTIRE response is read aloud by TTS. Respond with ONLY natural spoken dialogue — no metadata, no structured blocks, no markup of any kind`;
 
   if (phase.timeLimitSeconds) {
     const minutes = Math.round(phase.timeLimitSeconds / 60);

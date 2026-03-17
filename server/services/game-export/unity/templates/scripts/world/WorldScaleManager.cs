@@ -113,17 +113,114 @@ namespace Insimul.World
             return positions;
         }
 
+        /// <summary>
+        /// Distribute settlements within territory bounds, using 25% margin and
+        /// center-placement for single settlements.
+        /// </summary>
+        public static Vector3[] DistributeSettlements(
+            Vector3 boundsMin, Vector3 boundsMax, Vector3 boundsCenter,
+            int settlementCount, float[] radii, int worldSeed)
+        {
+            var positions = new Vector3[settlementCount];
+            if (settlementCount <= 0) return positions;
+
+            float boundsW = boundsMax.x - boundsMin.x;
+            float boundsH = boundsMax.z - boundsMin.z;
+
+            // Reserve 25% of the world radius as margin on each side so buildings
+            // never approach the terrain edge (which shows as void/water on the minimap).
+            float margin = Mathf.Min(boundsW, boundsH) * 0.25f;
+            float safeMinX = boundsMin.x + margin;
+            float safeMaxX = boundsMax.x - margin;
+            float safeMinZ = boundsMin.z + margin;
+            float safeMaxZ = boundsMax.z - margin;
+
+            System.Random rand = new System.Random(worldSeed);
+
+            for (int index = 0; index < settlementCount; index++)
+            {
+                float radius = (index < radii.Length) ? radii[index] : 20f;
+                Vector3 position;
+
+                if (settlementCount == 1)
+                {
+                    // Single settlement: place exactly at world center
+                    position = boundsCenter;
+                }
+                else
+                {
+                    int attempts = 0;
+                    const int maxAttempts = 50;
+                    bool placed = false;
+                    position = Vector3.zero;
+
+                    while (attempts < maxAttempts)
+                    {
+                        float x = safeMinX + (float)rand.NextDouble() * Mathf.Max(safeMaxX - safeMinX, 1f);
+                        float z = safeMinZ + (float)rand.NextDouble() * Mathf.Max(safeMaxZ - safeMinZ, 1f);
+                        position = new Vector3(x, 0f, z);
+
+                        // Check if too close to other settlements
+                        bool tooClose = false;
+                        for (int j = 0; j < index; j++)
+                        {
+                            float dist = Vector3.Distance(position, positions[j]);
+                            float otherRadius = (j < radii.Length) ? radii[j] : 20f;
+                            if (dist < (radius + otherRadius + 10f))
+                            {
+                                tooClose = true;
+                                break;
+                            }
+                        }
+
+                        if (!tooClose)
+                        {
+                            placed = true;
+                            break;
+                        }
+                        attempts++;
+                    }
+
+                    // If couldn't find good position, use grid fallback centered in the safe zone
+                    if (!placed)
+                    {
+                        int cols = Mathf.CeilToInt(Mathf.Sqrt(settlementCount));
+                        int row = index / cols;
+                        int col = index % cols;
+
+                        float cellWidth = (safeMaxX - safeMinX) / cols;
+                        float cellHeight = (safeMaxZ - safeMinZ) / Mathf.CeilToInt((float)settlementCount / cols);
+
+                        position = new Vector3(
+                            safeMinX + col * cellWidth + cellWidth / 2f,
+                            0f,
+                            safeMinZ + row * cellHeight + cellHeight / 2f
+                        );
+                    }
+                }
+
+                positions[index] = position;
+            }
+
+            return positions;
+        }
+
+        /// <summary>
+        /// Calculate recommended world size based on entity counts.
+        /// Minimum 1024 so that a single town's server-generated street grid
+        /// (mapSize 500-1000) fits comfortably within the world with margin.
+        /// </summary>
         public static int CalculateOptimalWorldSize(int countryCount, int stateCount, int settlementCount)
         {
             float maxEntities = Mathf.Max(
                 countryCount,
                 Mathf.Max(stateCount / 2f, settlementCount / 5f));
 
-            if (maxEntities <= 4f) return 512;
-            if (maxEntities <= 9f) return 768;
-            if (maxEntities <= 16f) return 1024;
-            if (maxEntities <= 25f) return 1536;
-            return 2048;
+            if (maxEntities <= 4f) return 1024;
+            if (maxEntities <= 9f) return 1536;
+            if (maxEntities <= 16f) return 2048;
+            if (maxEntities <= 25f) return 2560;
+            return 3072;
         }
     }
 }

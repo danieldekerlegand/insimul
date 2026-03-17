@@ -284,9 +284,10 @@ export class NPCTalkingIndicator {
       { frame: 60, value: 0 },
     ]);
 
-    target.animations = target.animations || [];
-    target.animations.push(swayAnim, bobAnim);
-
-    return this.scene.beginAnimation(target, 0, 80, true, 0.8);
+    // Use beginDirectAnimation to play ONLY the sway/bob animations.
+    // Do NOT push to target.animations or use beginAnimation — that would
+    // replay ALL animations on the mesh (walk, idle, position, etc.),
+    // causing the NPC to snap to unexpected positions and "disappear."
+    return this.scene.beginDirectAnimation(target, [swayAnim, bobAnim], 0, 80, true, 0.8);
   }
 }

@@ -94,7 +94,14 @@ class JitterBuffer {
     return this._playing;
   }
 
+  private static readonly MAX_BUFFER_SIZE = 50;
+
   enqueue(audioBase64: string): void {
+    // Drop oldest chunks if buffer grows too large (prevents unbounded memory growth)
+    if (this.chunks.length >= JitterBuffer.MAX_BUFFER_SIZE) {
+      console.warn('[JitterBuffer] Buffer overflow — dropping oldest chunk');
+      this.chunks.shift();
+    }
     this.chunks.push(audioBase64);
     if (!this._playing && this.chunks.length >= this.bufferSize) {
       this.startPlayback();
@@ -107,6 +114,9 @@ class JitterBuffer {
 
     if (!this.audioContext) {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    if (this.audioContext.state === 'suspended') {
+      await this.audioContext.resume();
     }
 
     while (this.chunks.length > 0) {
@@ -288,11 +298,22 @@ export class VoiceWebSocketClient {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
         sampleRate: 16000,
       });
+      if (this.audioContext.state === 'suspended') {
+        await this.audioContext.resume();
+      }
 
       // Register the PCM worklet processor
       const blob = new Blob([PCM_WORKLET_SOURCE], { type: 'application/javascript' });
       const workletUrl = URL.createObjectURL(blob);
-      await this.audioContext.audioWorklet.addModule(workletUrl);
+      try {
+        await this.audioContext.audioWorklet.addModule(workletUrl);
+      } catch (workletErr) {
+        URL.revokeObjectURL(workletUrl);
+        console.error('[VoiceWSClient] AudioWorklet failed to load (CSP or browser issue):', workletErr);
+        this.callbacks?.onError?.('Audio capture unavailable — worklet failed to load');
+        this.stopCapture();
+        return;
+      }
       URL.revokeObjectURL(workletUrl);
 
       this.sourceNode = this.audioContext.createMediaStreamSource(this.mediaStream);

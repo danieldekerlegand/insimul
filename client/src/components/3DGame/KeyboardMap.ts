@@ -58,10 +58,13 @@ export const KEY_QUEST_LOG = 'KeyJ';
 export const KEY_TOGGLE_VR = 'KeyV'; // Shift+V
 
 /** Toggle full-screen map view */
-export const KEY_FULLSCREEN_MAP = 'KeyM';
+export const KEY_FULLSCREEN_MAP = 'Tab';
+
+/** Push-to-talk: hold to record speech to NPC */
+export const KEY_PUSH_TO_TALK = 'KeyR';
 
 /** Open/close game menu */
-export const KEY_GAME_MENU = 'Escape';
+export const KEY_GAME_MENU = 'KeyM';
 
 // ─── Camera (CameraManager.handleKeyboardShortcut) ────────────────────────
 // These use KeyboardEvent.key (lowercase). Listed here for reference.

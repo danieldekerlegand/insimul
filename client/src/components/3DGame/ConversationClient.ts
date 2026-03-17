@@ -26,6 +26,8 @@ export interface ConversationClientCallbacks {
   onStateChange?: (state: ConversationState) => void;
   /** Error occurred */
   onError?: (error: Error) => void;
+  /** Metadata event — vocab hints, grammar feedback, quest assignments, etc. */
+  onMetadata?: (type: string, content: string) => void;
   /** Full response complete */
   onComplete?: (fullText: string) => void;
 }
@@ -299,6 +301,14 @@ export class ConversationClient {
       case 'transcript':
         // STT transcript of player audio — not used directly by callbacks
         // but could be useful for display
+        break;
+
+      case 'vocab_hints':
+      case 'grammar_feedback':
+      case 'quest_assign':
+      case 'eval':
+        // Metadata events — routed separately from spoken text
+        this.callbacks.onMetadata?.(parsed.type, parsed.content ?? '');
         break;
 
       case 'error':

@@ -35,9 +35,13 @@ public:
     UFUNCTION(BlueprintCallable, Category = "World")
     static TArray<FVector> GenerateLotPositions(FVector SettlementPosition, float SettlementRadius, int32 LotCount, const TArray<FString>& StreetNames = TArray<FString>());
 
+    /** Distribute settlements within territory bounds, using 25% margin and center-placement for single settlements. */
+    UFUNCTION(BlueprintCallable, Category = "World")
+    static TArray<FVector> DistributeSettlements(FVector BoundsMin, FVector BoundsMax, FVector BoundsCenter, int32 SettlementCount, const TArray<float>& Radii, int32 WorldSeed);
+
     /** Generate a full street-aligned layout for a settlement. Returns lot positions, facing angles, and street metadata. */
     UFUNCTION(BlueprintCallable, Category = "World")
-    static void GenerateStreetAlignedSettlement(FVector SettlementPosition, float SettlementRadius, int32 LotCount, int32 BizCount = 0, const TArray<FString>& StreetNames = TArray<FString>());
+    static void GenerateStreetAlignedSettlement(FVector SettlementPosition, float SettlementRadius, int32 LotCount, int32 BizCount = 0, const TArray<FString>& StreetNames = TArray<FString>(), const TArray<FVector>& ExistingStreetPoints = TArray<FVector>());
 
     UFUNCTION(BlueprintCallable, Category = "World")
     static int32 CalculateOptimalWorldSize(int32 CountryCount, int32 StateCount, int32 SettlementCount);

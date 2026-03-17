@@ -114,7 +114,7 @@ export class GenealogyGenerator {
     motherName: string,
     motherMaidenName: string
   }>> {
-    if (!nameGenerator.isEnabled() || !this.worldContext) {
+    if (!this.worldContext) {
       // Fallback to traditional name generation
       return Array(numFamilies).fill(null).map(() => ({
         surname: this.getFallbackName('male') + 'son',
@@ -127,8 +127,10 @@ export class GenealogyGenerator {
     try {
       // Generate all male names (for fathers) in one batch
       const maleNames = await nameGenerator.generateCharacterNamesBatch({
+        worldId: this.worldContext.id,
         worldName: this.worldContext.name,
         worldDescription: this.worldContext.description || undefined,
+        worldType: this.worldContext.worldType || undefined,
         countryName: this.countryContext?.name,
         countryDescription: this.countryContext?.description || undefined,
         settlementName: this.settlementContext?.name,
@@ -140,8 +142,10 @@ export class GenealogyGenerator {
 
       // Generate all female names (for mothers) in one batch
       const femaleNames = await nameGenerator.generateCharacterNamesBatch({
+        worldId: this.worldContext.id,
         worldName: this.worldContext.name,
         worldDescription: this.worldContext.description || undefined,
+        worldType: this.worldContext.worldType || undefined,
         countryName: this.countryContext?.name,
         countryDescription: this.countryContext?.description || undefined,
         settlementName: this.settlementContext?.name,
@@ -380,14 +384,16 @@ export class GenealogyGenerator {
     
     // Batch generate all names at once if LLM is available
     let firstNames: string[];
-    if (nameGenerator.isEnabled() && this.worldContext) {
+    if (this.worldContext) {
       try {
         const maleCount = childrenInfo.filter(c => c.gender === 'male').length;
         const femaleCount = childrenInfo.filter(c => c.gender === 'female').length;
         
         const maleNames = maleCount > 0 ? await nameGenerator.generateCharacterNamesBatch({
+          worldId: this.worldContext.id,
           worldName: this.worldContext.name,
           worldDescription: this.worldContext.description || undefined,
+          worldType: this.worldContext.worldType || undefined,
           countryName: this.countryContext?.name,
           countryDescription: this.countryContext?.description || undefined,
           settlementName: this.settlementContext?.name,
@@ -396,10 +402,12 @@ export class GenealogyGenerator {
           generation,
           isFounder: false
         }, maleCount) : [];
-        
+
         const femaleNames = femaleCount > 0 ? await nameGenerator.generateCharacterNamesBatch({
+          worldId: this.worldContext.id,
           worldName: this.worldContext.name,
           worldDescription: this.worldContext.description || undefined,
+          worldType: this.worldContext.worldType || undefined,
           countryName: this.countryContext?.name,
           countryDescription: this.countryContext?.description || undefined,
           settlementName: this.settlementContext?.name,
@@ -528,7 +536,7 @@ export class GenealogyGenerator {
    */
   private async getUniqueName(gender: 'male' | 'female', generation: number = 0, isFounder: boolean = false): Promise<string> {
     // Try LLM generation if context is available
-    if (nameGenerator.isEnabled() && this.worldContext) {
+    if (this.worldContext) {
       try {
         const names = await nameGenerator.generateCharacterNames({
           worldName: this.worldContext.name,
@@ -577,7 +585,7 @@ export class GenealogyGenerator {
    */
   private async getUniqueSurname(): Promise<string> {
     // Try LLM generation if context is available
-    if (nameGenerator.isEnabled() && this.worldContext) {
+    if (this.worldContext) {
       try {
         const names = await nameGenerator.generateCharacterNames({
           worldName: this.worldContext.name,

@@ -88,6 +88,9 @@ export class BabylonInventory {
   private equipmentSlots: Map<EquipmentSlot, GUI.Rectangle> = new Map();
   private equipmentLabels: Map<EquipmentSlot, GUI.TextBlock> = new Map();
 
+  // Language-learning mode
+  private isLanguageLearning: boolean = false;
+
   // Callbacks
   private onItemAdded: ((item: InventoryItem) => void) | null = null;
   private onItemRemoved: ((itemId: string) => void) | null = null;
@@ -101,6 +104,19 @@ export class BabylonInventory {
     this.advancedTexture = advancedTexture;
 
     this.createInventoryUI();
+  }
+
+  /** Enable language-learning mode so inventory shows target-language item names. */
+  public setLanguageLearning(enabled: boolean): void {
+    this.isLanguageLearning = enabled;
+  }
+
+  /** Get the display name for an item, using target language when available. */
+  private getDisplayName(item: InventoryItem): string {
+    if (this.isLanguageLearning && item.languageLearningData?.targetWord) {
+      return item.languageLearningData.targetWord;
+    }
+    return item.name;
   }
 
   private createInventoryUI(): void {
@@ -431,7 +447,7 @@ export class BabylonInventory {
       if (!label || !rect) continue;
 
       if (item) {
-        label.text = item.name;
+        label.text = this.getDisplayName(item);
         label.color = this.getItemNameColor(item);
         rect.color = this.getItemNameColor(item);
         rect.background = 'rgba(30, 40, 30, 0.9)';
@@ -563,8 +579,10 @@ export class BabylonInventory {
     card.background = 'rgba(30, 30, 30, 0.8)';
 
     // Item name (with [E] badge if equipped)
+    const displayName = this.getDisplayName(item);
+    const hasLangData = this.isLanguageLearning && !!item.languageLearningData?.targetWord;
     const nameText = new GUI.TextBlock(`item_name_${item.id}`);
-    nameText.text = item.equipped ? `[E] ${item.name}` : item.name;
+    nameText.text = item.equipped ? `[E] ${displayName}` : displayName;
     nameText.fontSize = 15;
     nameText.fontWeight = 'bold';
     nameText.color = item.equipped ? '#90EE90' : this.getItemNameColor(item);
@@ -575,6 +593,22 @@ export class BabylonInventory {
     nameText.left = '12px';
     nameText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
     card.addControl(nameText);
+
+    // Show English name as subtitle in language-learning mode
+    if (hasLangData) {
+      const englishLabel = new GUI.TextBlock(`item_eng_${item.id}`);
+      englishLabel.text = `(${item.name})`;
+      englishLabel.fontSize = 11;
+      englishLabel.color = '#888888';
+      englishLabel.fontStyle = 'italic';
+      englishLabel.height = '14px';
+      englishLabel.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+      englishLabel.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+      englishLabel.top = '24px';
+      englishLabel.left = '12px';
+      englishLabel.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+      card.addControl(englishLabel);
+    }
 
     // Quantity badge and value — top right
     const infoRow = new GUI.StackPanel(`item_info_${item.id}`);

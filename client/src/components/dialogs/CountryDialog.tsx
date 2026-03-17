@@ -10,6 +10,7 @@ import { Slider } from '@/components/ui/slider';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Sparkles, Globe2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface CountryDialogProps {
   open: boolean;
@@ -20,6 +21,7 @@ interface CountryDialogProps {
 
 export function CountryDialog({ open, onOpenChange, worldId, onSuccess }: CountryDialogProps) {
   const { toast } = useToast();
+  const { token } = useAuth();
   const [form, setForm] = useState({
     name: '', description: '', governmentType: '', economicSystem: '', foundedYear: new Date().getFullYear()
   });
@@ -34,9 +36,11 @@ export function CountryDialog({ open, onOpenChange, worldId, onSuccess }: Countr
 
   const handleSubmit = async () => {
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(`/api/worlds/${worldId}/countries`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(form)
       });
       if (res.ok) {
@@ -56,19 +60,21 @@ export function CountryDialog({ open, onOpenChange, worldId, onSuccess }: Countr
     setIsGenerating(true);
     try {
       // Use the world generation API endpoint
-      const res = await fetch(`/api/worlds/${worldId}/generate`, {
+      const genHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) genHeaders['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`/api/generate/hierarchical`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: genHeaders,
         body: JSON.stringify({
+          worldId,
           worldName: form.name || 'Generated Kingdom',
-          settlementName: aiPrompt || 'Capital',
+          customPrompt: aiPrompt || undefined,
           numCountries: 1,
           numStatesPerCountry: 0,
           numCitiesPerState: numSettlements,
           numTownsPerState: 0,
           numVillagesPerState: 0,
           terrain: 'plains',
-          cityPopulation: 5000,
           foundedYear: form.foundedYear,
           numFoundingFamilies,
           generations,

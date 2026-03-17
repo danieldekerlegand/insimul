@@ -11,8 +11,12 @@
  */
 
 import type { StreetNetwork, StreetEdge } from '../../shared/game-engine/types';
+import type { StreetNetwork as GeneratorStreetNetwork } from './street-network-generator';
 import type { LotPosition } from './lot-generator';
 import type { Location } from './geography-generator';
+
+/** Accept either IR-format (edges) or generator-format (segments) street networks */
+type AnyStreetNetwork = StreetNetwork | GeneratorStreetNetwork;
 
 /** Lot with address fields (set by assignAddresses) */
 interface AddressedLotLike extends LotPosition {
@@ -34,7 +38,7 @@ export interface ValidationResult {
  */
 export function validateAddresses(
   lots: LotPosition[],
-  streetNetwork: StreetNetwork,
+  streetNetwork: AnyStreetNetwork,
 ): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -44,8 +48,16 @@ export function validateAddresses(
     return { valid: true, errors, warnings, fixesApplied };
   }
 
-  const edgeMap = new Map<string, StreetEdge>();
-  for (const edge of streetNetwork.edges) {
+  // Support both IR-format (edges) and generator-format (segments)
+  const edges: Array<{ id: string; name: string }> =
+    ('edges' in streetNetwork && Array.isArray(streetNetwork.edges))
+      ? streetNetwork.edges
+      : ('segments' in streetNetwork && Array.isArray(streetNetwork.segments))
+        ? streetNetwork.segments.map(s => ({ id: s.id, name: s.name } as any))
+        : [];
+
+  const edgeMap = new Map<string, { id: string; name: string }>();
+  for (const edge of edges) {
     edgeMap.set(edge.id, edge);
   }
 
@@ -53,6 +65,8 @@ export function validateAddresses(
 
   // --- Check 1: All lots reference a valid street edge ---
   for (const lot of addressedLots) {
+    // Skip lots with no street assignment (overflow lots placed at settlement center)
+    if (!lot.streetEdgeId) continue;
     if (!edgeMap.has(lot.streetEdgeId)) {
       errors.push(`Lot at (${lot.position.x.toFixed(1)}, ${lot.position.z.toFixed(1)}) references invalid street edge "${lot.streetEdgeId}"`);
     }
@@ -67,7 +81,7 @@ export function validateAddresses(
     // and the lot's street name doesn't match ANY edge in the network with that name
     if (edge.name && edge.name !== lot.streetName) {
       // Check if there's any edge with the lot's street name (corner lot reassignment)
-      const hasMatchingEdge = streetNetwork.edges.some(e => e.name === lot.streetName);
+      const hasMatchingEdge = edges.some(e => e.name === lot.streetName);
       if (!hasMatchingEdge) {
         errors.push(`Lot "${lot.address}" references street "${lot.streetName}" which doesn't exist in the network`);
       }
@@ -150,7 +164,7 @@ export function validateAddresses(
  */
 export function validateBuildingAddresses(
   buildings: Location[],
-  streetNetwork: StreetNetwork,
+  streetNetwork: AnyStreetNetwork,
   settlementId: string,
 ): ValidationResult {
   // Convert Location buildings to LotPosition-like objects for validation

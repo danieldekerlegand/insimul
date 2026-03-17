@@ -2,6 +2,69 @@ import { getGenAI, isGeminiConfigured, getGeminiApiKey, GEMINI_MODELS } from "..
 import { ttsCache, TTSCache } from "./tts-cache.js";
 import { wrapWithEmotionalProsody } from "@shared/emotional-tone.js";
 
+/** Retry an async operation with exponential backoff on transient failures. */
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3, baseDelayMs = 500): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastError = err;
+      const status = err?.status ?? err?.code ?? err?.statusCode;
+      const isTransient = status === 429 || status === 503 || status === 500 ||
+        (err?.message && /ECONNRESET|ETIMEDOUT|socket hang up|fetch failed/i.test(err.message));
+      if (!isTransient || attempt === maxAttempts - 1) throw err;
+      const delay = baseDelayMs * Math.pow(2, attempt) + Math.random() * 200;
+      console.warn(`[TTS/STT] Transient error (attempt ${attempt + 1}/${maxAttempts}), retrying in ${Math.round(delay)}ms:`, err?.message || err);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw lastError;
+}
+
+/** Map common language names/codes to BCP-47 codes for Google Cloud TTS. */
+const LANGUAGE_CODE_MAP: Record<string, string> = {
+  english: 'en-US', en: 'en-US',
+  french: 'fr-FR', fr: 'fr-FR', français: 'fr-FR',
+  spanish: 'es-ES', es: 'es-ES', español: 'es-ES',
+  german: 'de-DE', de: 'de-DE', deutsch: 'de-DE',
+  italian: 'it-IT', it: 'it-IT', italiano: 'it-IT',
+  portuguese: 'pt-BR', pt: 'pt-BR', português: 'pt-BR',
+  japanese: 'ja-JP', ja: 'ja-JP', 日本語: 'ja-JP',
+  korean: 'ko-KR', ko: 'ko-KR', 한국어: 'ko-KR',
+  chinese: 'zh-CN', zh: 'zh-CN', 中文: 'zh-CN', mandarin: 'zh-CN',
+  arabic: 'ar-XA', ar: 'ar-XA', العربية: 'ar-XA',
+  russian: 'ru-RU', ru: 'ru-RU', русский: 'ru-RU',
+  dutch: 'nl-NL', nl: 'nl-NL',
+  turkish: 'tr-TR', tr: 'tr-TR',
+  hindi: 'hi-IN', hi: 'hi-IN',
+  chitimacha: 'en-US', // No TTS support; fall back to English
+};
+
+function resolveLanguageCode(lang: string): string {
+  const lower = lang.toLowerCase().trim();
+  // Direct match
+  if (LANGUAGE_CODE_MAP[lower]) return LANGUAGE_CODE_MAP[lower];
+  // If it already looks like a BCP-47 code (e.g. "fr-FR"), use it directly
+  if (/^[a-z]{2}(-[A-Za-z]{2,4})?$/.test(lower)) return lang;
+  // Partial match (e.g. "Brazilian Portuguese" → "portuguese")
+  for (const [key, code] of Object.entries(LANGUAGE_CODE_MAP)) {
+    if (lower.includes(key)) return code;
+  }
+  return 'en-US';
+}
+
+/** Fallback: detect language from text content when no explicit language is provided. */
+function detectLanguageFromText(text: string): string {
+  const isFrench = /[àâäéèêëïîôùûüÿçœæ]/i.test(text) || /\b(vous|est|les|des|une|dans)\b/i.test(text);
+  if (isFrench) return 'fr-FR';
+  const isSpanish = /[ñ¿¡]/i.test(text) || /\b(está|usted|gracias|señor)\b/i.test(text);
+  if (isSpanish) return 'es-ES';
+  const isGerman = /[äöüß]/i.test(text) || /\b(ich|und|der|die|das)\b/i.test(text);
+  if (isGerman) return 'de-DE';
+  return 'en-US';
+}
+
 /**
  * Text-to-Speech using Google Cloud Text-to-Speech with gemini-2.5-pro-tts.
  * Results are cached using an LRU cache to avoid redundant API calls.
@@ -12,13 +75,14 @@ export async function textToSpeech(
   voiceName: string = "Kore",
   gender: string = "neutral",
   encoding: "MP3" | "WAV" = "MP3",
-  emotionalTone?: string
+  emotionalTone?: string,
+  targetLanguage?: string
 ): Promise<Buffer> {
   if (!isGeminiConfigured()) {
     throw new Error("Gemini API key is not configured");
   }
 
-  const cacheKey = TTSCache.makeKey(text, voiceName, gender, encoding, emotionalTone);
+  const cacheKey = TTSCache.makeKey(text, voiceName, gender, encoding, emotionalTone) + (targetLanguage ? `:${targetLanguage}` : '');
   const cached = ttsCache.get(cacheKey);
   if (cached) {
     return cached;
@@ -31,9 +95,10 @@ export async function textToSpeech(
       apiKey: getGeminiApiKey()
     });
 
-    // Determine language based on text content (simple heuristic)
-    const isFrench = /[àâäéèêëïîôùûüÿçœæ]/i.test(text) || text.includes('vous') || text.includes('est');
-    const languageCode = isFrench ? "fr-FR" : "en-US";
+    // Determine language code from explicit targetLanguage, falling back to text heuristic
+    const languageCode = targetLanguage
+      ? resolveLanguageCode(targetLanguage)
+      : detectLanguageFromText(text);
 
     // Map gender to SSML gender format
     const ssmlGender = gender.toLowerCase() === 'female' ? 'FEMALE' :
@@ -46,7 +111,7 @@ export async function textToSpeech(
     const { ssml, isSSML } = wrapWithEmotionalProsody(text, emotionalTone);
     const input = isSSML ? { ssml } : { text };
 
-    const [response] = await ttsClient.synthesizeSpeech({
+    const [response] = await withRetry(() => ttsClient.synthesizeSpeech({
       input,
       voice: {
         languageCode: languageCode,
@@ -57,7 +122,7 @@ export async function textToSpeech(
         // For WAV, set sample rate
         ...(encoding === "WAV" && { sampleRateHertz: 24000 })
       }
-    });
+    }));
 
     if (!response.audioContent) {
       throw new Error("No audio content in response");
@@ -128,7 +193,7 @@ export async function speechToText(audioBuffer: Buffer, mimeType: string = 'audi
 
     // For smaller files (< 20MB), use inline audio
     if (audioBuffer.length < 20 * 1024 * 1024) {
-      const response = await client.models.generateContent({
+      const response = await withRetry(() => client.models.generateContent({
         model: GEMINI_MODELS.PRO,
         contents: [
           prompt,
@@ -139,7 +204,7 @@ export async function speechToText(audioBuffer: Buffer, mimeType: string = 'audi
             }
           }
         ]
-      });
+      }));
 
       return response.text || '';
     } else {
@@ -158,13 +223,13 @@ export async function speechToText(audioBuffer: Buffer, mimeType: string = 'audi
           mimeType: mimeType,
         });
 
-        const response = await client.models.generateContent({
+        const response = await withRetry(() => client.models.generateContent({
           model: GEMINI_MODELS.PRO,
           contents: [
             prompt,
             { fileData: { fileUri: uploadedFile.uri, mimeType: mimeType } }
           ]
-        });
+        }));
 
         return response.text || '';
       } finally {

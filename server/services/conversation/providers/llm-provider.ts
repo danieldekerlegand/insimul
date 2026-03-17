@@ -27,6 +27,7 @@ export interface ConversationContext {
   systemPrompt: string;
   characterName?: string;
   worldContext?: string;
+  characterGender?: string;
 }
 
 export interface IStreamingLLMProvider {

@@ -136,12 +136,11 @@ export function clearProviderPool(): void {
 
 const voiceProfileCache = new Map<string, VoiceProfile>();
 
-function getVoiceForSession(sessionId: string, characterId: string): VoiceProfile {
+function getVoiceForSession(sessionId: string, characterId: string, gender?: string): VoiceProfile {
   const key = `${sessionId}:${characterId}`;
   let profile = voiceProfileCache.get(key);
   if (!profile) {
-    // Default voice; real voice assignment uses character attributes
-    profile = VOICE_PROFILES[0];
+    profile = assignVoiceProfile({ gender: gender ?? 'male' });
     voiceProfileCache.set(key, profile);
   }
   return profile;
@@ -275,7 +274,7 @@ function createHandlers(options: GrpcServerOptions) {
         const e2eStats = metrics.getStageStats('end_to_end');
         if (e2eStats && e2eStats.p95 > 4000) return; // skip TTS if extremely slow
       }
-      const voice = getVoiceForSession(sessionId, characterId);
+      const voice = getVoiceForSession(sessionId, characterId, session?.conversationContext?.characterGender);
       const promise = (async () => {
         const ttsTimer = new PipelineTimer('tts_total');
         let firstChunkRecorded = false;
@@ -379,9 +378,11 @@ function createHandlers(options: GrpcServerOptions) {
       },
     });
 
-    // Wait for all TTS synthesis to complete before moving on
+    // Let TTS finish in the background — audio chunks are streamed as they complete
     if (ttsPromises.length > 0) {
-      await Promise.all(ttsPromises);
+      Promise.all(ttsPromises).catch(err => {
+        console.error('[gRPC] Background TTS error:', err);
+      });
     }
 
     // Store assistant response in history

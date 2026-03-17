@@ -17,6 +17,16 @@ const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
 const RATE_LIMIT_MAX = 100;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 
+// Periodically clean up stale rate limit entries to prevent memory leak
+setInterval(() => {
+  const now = Date.now();
+  rateLimitMap.forEach((entry, key) => {
+    if (now - entry.windowStart > RATE_LIMIT_WINDOW_MS * 2) {
+      rateLimitMap.delete(key);
+    }
+  });
+}, 120_000);
+
 function checkRateLimit(apiKey: string): boolean {
   const now = Date.now();
   const entry = rateLimitMap.get(apiKey);

@@ -83,6 +83,12 @@ export interface MenuInventoryItem {
   type: string;
   quantity: number;
   icon?: string;
+  languageLearningData?: {
+    targetWord: string;
+    targetLanguage: string;
+    pronunciation: string;
+    category: string;
+  };
 }
 
 export interface MenuRuleData {
@@ -910,7 +916,8 @@ export class GameMenuSystem {
         card.addControl(nameRow);
 
         const nameText = new TextBlock();
-        nameText.text = `${item.icon || "•"} ${item.name}`;
+        const itemDisplayName = item.languageLearningData?.targetWord || item.name;
+        nameText.text = `${item.icon || "•"} ${itemDisplayName}`;
         nameText.color = COLORS.textPrimary;
         nameText.fontSize = 14;
         nameText.fontWeight = "bold";

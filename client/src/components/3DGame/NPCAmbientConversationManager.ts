@@ -70,6 +70,9 @@ export class NPCAmbientConversationManager {
   // Audio
   private currentlySpeaking: Set<string> = new Set();
 
+  // Pause ambient conversations while the player is talking to an NPC
+  private _paused = false;
+
   // Prolog engine for personality-based conversation matching
   private prologEngine: GamePrologEngine | null = null;
 
@@ -104,6 +107,12 @@ export class NPCAmbientConversationManager {
   public setPrologEngine(engine: GamePrologEngine): void {
     this.prologEngine = engine;
   }
+
+  /** Pause ambient conversations (e.g. while player is in a conversation). */
+  public pause(): void { this._paused = true; }
+
+  /** Resume ambient conversations. */
+  public resume(): void { this._paused = false; }
 
   /**
    * Unregister an NPC
@@ -163,7 +172,7 @@ export class NPCAmbientConversationManager {
    * Check if new conversations should start
    */
   private async checkForNewConversations(): Promise<void> {
-    if (!this.playerMesh) return;
+    if (!this.playerMesh || this._paused) return;
 
     // Don't start more conversations if we're at the limit
     if (this.activeConversations.size >= this.maxSimultaneousConversations) {

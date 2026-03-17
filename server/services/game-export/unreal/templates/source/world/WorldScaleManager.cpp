@@ -74,24 +74,112 @@ TArray<FVector> UWorldScaleManager::GenerateLotPositions(FVector SettlementPosit
     return Positions;
 }
 
-void UWorldScaleManager::GenerateStreetAlignedSettlement(FVector SettlementPosition, float SettlementRadius, int32 LotCount, int32 BizCount, const TArray<FString>& StreetNames)
+TArray<FVector> UWorldScaleManager::DistributeSettlements(FVector BoundsMin, FVector BoundsMax, FVector BoundsCenter, int32 SettlementCount, const TArray<float>& Radii, int32 WorldSeed)
+{
+    TArray<FVector> Positions;
+    if (SettlementCount <= 0) return Positions;
+
+    const float BoundsW = BoundsMax.X - BoundsMin.X;
+    const float BoundsH = BoundsMax.Z - BoundsMin.Z;
+
+    // Reserve 25% of the world radius as margin on each side so buildings
+    // never approach the terrain edge (which shows as void/water on the minimap).
+    const float Margin = FMath::Min(BoundsW, BoundsH) * 0.25f;
+    const float SafeMinX = BoundsMin.X + Margin;
+    const float SafeMaxX = BoundsMax.X - Margin;
+    const float SafeMinZ = BoundsMin.Z + Margin;
+    const float SafeMaxZ = BoundsMax.Z - Margin;
+
+    FRandomStream Rand(WorldSeed);
+
+    for (int32 Index = 0; Index < SettlementCount; Index++)
+    {
+        const float Radius = Radii.IsValidIndex(Index) ? Radii[Index] : 20.f;
+        FVector Position;
+
+        if (SettlementCount == 1)
+        {
+            // Single settlement: place exactly at world center
+            Position = BoundsCenter;
+        }
+        else
+        {
+            int32 Attempts = 0;
+            const int32 MaxAttempts = 50;
+            bool bPlaced = false;
+
+            while (Attempts < MaxAttempts)
+            {
+                const float X = SafeMinX + Rand.FRand() * FMath::Max(SafeMaxX - SafeMinX, 1.f);
+                const float Z = SafeMinZ + Rand.FRand() * FMath::Max(SafeMaxZ - SafeMinZ, 1.f);
+                Position = FVector(X, 0.f, Z);
+
+                // Check if too close to other settlements
+                bool bTooClose = false;
+                for (int32 j = 0; j < Positions.Num(); j++)
+                {
+                    const float Dist = FVector::Dist(Position, Positions[j]);
+                    const float OtherRadius = Radii.IsValidIndex(j) ? Radii[j] : 20.f;
+                    if (Dist < (Radius + OtherRadius + 10.f))
+                    {
+                        bTooClose = true;
+                        break;
+                    }
+                }
+
+                if (!bTooClose)
+                {
+                    bPlaced = true;
+                    break;
+                }
+                Attempts++;
+            }
+
+            // If couldn't find good position, use grid fallback centered in the safe zone
+            if (!bPlaced)
+            {
+                const int32 Cols = FMath::CeilToInt(FMath::Sqrt(static_cast<float>(SettlementCount)));
+                const int32 Row = Index / Cols;
+                const int32 Col = Index % Cols;
+
+                const float CellWidth = (SafeMaxX - SafeMinX) / Cols;
+                const float CellHeight = (SafeMaxZ - SafeMinZ) / FMath::CeilToInt(static_cast<float>(SettlementCount) / Cols);
+
+                Position = FVector(
+                    SafeMinX + Col * CellWidth + CellWidth / 2.f,
+                    0.f,
+                    SafeMinZ + Row * CellHeight + CellHeight / 2.f
+                );
+            }
+        }
+
+        Positions.Add(Position);
+    }
+
+    return Positions;
+}
+
+void UWorldScaleManager::GenerateStreetAlignedSettlement(FVector SettlementPosition, float SettlementRadius, int32 LotCount, int32 BizCount, const TArray<FString>& StreetNames, const TArray<FVector>& ExistingStreetPoints)
 {
     // TODO: Implement street-aligned placement (main street + side streets).
     // For now, falls back to grid+jitter via GenerateLotPositions.
+    // ExistingStreetPoints can be used to align with a pre-existing street network.
     UE_LOG(LogTemp, Warning, TEXT("[Insimul] GenerateStreetAlignedSettlement not yet implemented in export template"));
 }
 
 int32 UWorldScaleManager::CalculateOptimalWorldSize(int32 CountryCount, int32 StateCount, int32 SettlementCount)
 {
+    // Minimum 1024 so that a single town's server-generated street grid
+    // (mapSize 500-1000) fits comfortably within the world with margin.
     const float MaxEntities = FMath::Max3(
         static_cast<float>(CountryCount),
         static_cast<float>(StateCount) / 2.f,
         static_cast<float>(SettlementCount) / 5.f
     );
 
-    if (MaxEntities <= 4.f) return 512;
-    if (MaxEntities <= 9.f) return 768;
-    if (MaxEntities <= 16.f) return 1024;
-    if (MaxEntities <= 25.f) return 1536;
-    return 2048;
+    if (MaxEntities <= 4.f) return 1024;
+    if (MaxEntities <= 9.f) return 1536;
+    if (MaxEntities <= 16.f) return 2048;
+    if (MaxEntities <= 25.f) return 2560;
+    return 3072;
 }

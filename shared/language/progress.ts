@@ -194,12 +194,15 @@ export function stripSystemMarkers(text: string): string {
     // Complete blocks
     .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
     .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+    .replace(/\*\*VOCAB_HINTS\*\*[\s\S]*?\*\*END_VOCAB\*\*/g, '')
     // Partial/incomplete blocks (opening marker without closing, e.g. during streaming)
     .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*/g, '')
     .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*/g, '')
+    .replace(/\*\*VOCAB_HINTS\*\*[\s\S]*/g, '')
     // Orphaned closing markers
     .replace(/\*\*END_GRAMMAR\*\*/g, '')
     .replace(/\*\*END_QUEST\*\*/g, '')
+    .replace(/\*\*END_VOCAB\*\*/g, '')
     .trim();
 }
 

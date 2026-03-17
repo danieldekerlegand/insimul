@@ -77,6 +77,16 @@ function vec2Len(x: number, z: number): number {
 
 // ── Core algorithm ──────────────────────────────────────────────────────────
 
+/** Optional existing street network (from server-generated waypoints) */
+export interface ExistingStreetNetwork {
+  segments: Array<{
+    id: string;
+    name: string;
+    waypoints: { x: number; z: number }[];
+    width?: number;
+  }>;
+}
+
 /**
  * Generate a street network and place lots along the streets.
  *
@@ -86,6 +96,7 @@ function vec2Len(x: number, z: number): number {
  * @param seed          Deterministic seed string
  * @param terrainHalf   Half the terrain size (for clamping)
  * @param streetNames   Optional street names from lot data
+ * @param existingNetwork Optional server-generated street network to use for lot placement
  */
 export function generateStreetAlignedLots(
   center: Vector3,
@@ -94,14 +105,81 @@ export function generateStreetAlignedLots(
   seed: string,
   terrainHalf: number = 512,
   streetNames: string[] = [],
+  existingNetwork?: ExistingStreetNetwork | null,
 ): StreetAlignedResult {
   const rand = createSeededRandom(seed);
 
-  // ── 1. Generate street network ────────────────────────────────────────
+  // ── 1. Generate or adopt street network ─────────────────────────────
 
   const streets: StreetSegment[] = [];
-  const MAIN_STREET_NAME = streetNames[0] || 'Main Street';
   const LOT_SPACING = 14;
+
+  // If we have a server-generated street network, convert its segments
+  // to StreetSegment format so lots are placed along the actual streets.
+  // Server waypoints are in local-space (centered at mapSize/2), so we
+  // re-center them to the settlement's game-world position.
+  //
+  // Multi-waypoint segments (curved ring roads, etc.) are split into
+  // consecutive sub-segments so lots follow the actual road curve rather
+  // than a straight chord from first to last waypoint.
+  if (existingNetwork && existingNetwork.segments.length > 0) {
+    // Compute centroid of all waypoints for re-centering
+    let sumX = 0, sumZ = 0, wpCount = 0;
+    for (const seg of existingNetwork.segments) {
+      if (!seg.waypoints) continue;
+      for (const wp of seg.waypoints) {
+        sumX += wp.x;
+        sumZ += wp.z;
+        wpCount++;
+      }
+    }
+    const dx = wpCount > 0 ? center.x - sumX / wpCount : 0;
+    const dz = wpCount > 0 ? center.z - sumZ / wpCount : 0;
+
+    // Track total length per original segment to find the longest (main street)
+    const segTotalLengths: { firstIdx: number; totalLen: number }[] = [];
+
+    for (let i = 0; i < existingNetwork.segments.length; i++) {
+      const seg = existingNetwork.segments[i];
+      if (!seg.waypoints || seg.waypoints.length < 2) continue;
+      const wps = seg.waypoints;
+      const name = seg.name || streetNames[i] || `Street ${i + 1}`;
+      const firstIdx = streets.length;
+      let totalLen = 0;
+
+      // Create a sub-segment between each consecutive pair of waypoints
+      for (let w = 0; w < wps.length - 1; w++) {
+        const from = new Vector3(wps[w].x + dx, 0, wps[w].z + dz);
+        const to = new Vector3(wps[w + 1].x + dx, 0, wps[w + 1].z + dz);
+        const subLen = vec2Len(to.x - from.x, to.z - from.z);
+        if (subLen < 1) continue; // skip degenerate sub-segments
+        totalLen += subLen;
+        streets.push({
+          id: `${seg.id || `existing_${i}`}_${w}`,
+          from,
+          to,
+          isMainStreet: false, // set below
+          streetName: name,
+        });
+      }
+
+      segTotalLengths.push({ firstIdx, totalLen });
+    }
+
+    // Mark all sub-segments of the longest original segment as main street
+    if (segTotalLengths.length > 0) {
+      const longest = segTotalLengths.reduce((a, b) => b.totalLen > a.totalLen ? b : a);
+      for (let j = longest.firstIdx; j < streets.length; j++) {
+        // Stop when we hit a sub-segment from a different original segment
+        if (j > longest.firstIdx && segTotalLengths.some(s => s.firstIdx === j)) break;
+        streets[j].isMainStreet = true;
+      }
+    }
+  }
+
+  // Fall back to procedural street generation if no existing network
+  if (streets.length === 0) {
+  const MAIN_STREET_NAME = streetNames[0] || 'Main Street';
 
   // Scale the street network to fit the requested number of lots.
   // Each lot takes ~LOT_SPACING along a street (2 lots per segment: left+right).
@@ -169,19 +247,32 @@ export function generateStreetAlignedLots(
       streetName: sName,
     });
   }
+  } // end if (streets.length === 0)
 
   // ── 2. Collect intersection points (for commercial clustering) ────────
+  // Find points where street endpoints are shared (within a small tolerance).
 
   const intersections: Vector3[] = [center.clone()]; // center is always an intersection
-  for (let i = 1; i < streets.length; i++) {
-    // Side streets intersect the main street at their midpoint
-    const mid = new Vector3(
-      (streets[i].from.x + streets[i].to.x) / 2,
-      0,
-      (streets[i].from.z + streets[i].to.z) / 2,
-    );
-    intersections.push(mid);
+  const SNAP = 2; // tolerance for matching endpoints
+  const endpointBuckets = new Map<string, { pt: Vector3; count: number }>();
+  const bucketKey = (x: number, z: number) => `${Math.round(x / SNAP)}:${Math.round(z / SNAP)}`;
+
+  for (const s of streets) {
+    for (const pt of [s.from, s.to]) {
+      const key = bucketKey(pt.x, pt.z);
+      const existing = endpointBuckets.get(key);
+      if (existing) {
+        existing.count++;
+      } else {
+        endpointBuckets.set(key, { pt: pt.clone(), count: 1 });
+      }
+    }
   }
+  endpointBuckets.forEach(({ pt, count }) => {
+    if (count >= 2) {
+      intersections.push(pt);
+    }
+  });
 
   // ── 3. Place lots along both sides of each street ─────────────────────
 

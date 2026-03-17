@@ -52,6 +52,7 @@ export class HandsFreeController {
   private stream: MediaStream | null = null;
   private speechService: SpeechRecognitionService | null = null;
   private serverSTTHandle: { stop: () => void } | null = null;
+  private _serverSTTPromise: Promise<void> | null = null;
   private _active = false;
   private _recognising = false;
   private _interimText = '';
@@ -102,10 +103,10 @@ export class HandsFreeController {
   }
 
   /** Stop everything and release the microphone. */
-  stop(): void {
+  async stop(): Promise<void> {
     this._active = false;
 
-    this.stopRecognition();
+    await this.stopRecognition();
 
     if (this.vad) {
       this.vad.destroy();
@@ -123,10 +124,39 @@ export class HandsFreeController {
     (this as any).lang = lang;
   }
 
+  private _paused = false;
+
+  /** True when listening is temporarily suppressed (e.g. during NPC TTS). */
+  get isPaused(): boolean {
+    return this._paused;
+  }
+
+  /**
+   * Temporarily suppress speech detection without releasing the mic.
+   * Use this while NPC TTS is playing to avoid picking up its audio.
+   */
+  pause(): void {
+    if (!this._active || this._paused) return;
+    this._paused = true;
+    // Stop any in-progress recognition
+    if (this._recognising) {
+      this._recognising = false;
+      this.stopRecognition();
+      this._interimText = '';
+      this._finalText = '';
+    }
+  }
+
+  /** Resume speech detection after a pause. */
+  resume(): void {
+    if (!this._active || !this._paused) return;
+    this._paused = false;
+  }
+
   // -- Internal handlers ------------------------------------------------
 
   private handleSpeechStart(): void {
-    if (!this._active) return;
+    if (!this._active || this._paused) return;
     this._recognising = true;
     this._interimText = '';
     this._finalText = '';
@@ -134,11 +164,11 @@ export class HandsFreeController {
     this.startRecognition();
   }
 
-  private handleSpeechEnd(): void {
-    if (!this._active) return;
+  private async handleSpeechEnd(): Promise<void> {
+    if (!this._active || this._paused) return;
     this._recognising = false;
     this.callbacks.onSpeechEnd?.();
-    this.stopRecognition();
+    await this.stopRecognition();
 
     // Deliver whatever transcript we have
     const transcript = (this._finalText || this._interimText).trim();
@@ -172,10 +202,10 @@ export class HandsFreeController {
       });
       this.speechService.start();
     } else {
-      // Fallback — server-side STT
-      serverSideSTT(
+      // Fallback — server-side STT; track the promise so stopRecognition can await it
+      this._serverSTTPromise = serverSideSTT(
         (transcript) => {
-          this._finalText = transcript;
+          if (this._active) this._finalText = transcript;
         },
         (err) => {
           console.error('[HandsFree] Server STT error:', err);
@@ -183,15 +213,22 @@ export class HandsFreeController {
         },
       ).then((handle) => {
         this.serverSTTHandle = handle;
+      }).catch((err) => {
+        console.error('[HandsFree] Failed to start server STT:', err);
       });
     }
   }
 
-  private stopRecognition(): void {
+  private async stopRecognition(): Promise<void> {
     if (this.speechService) {
       this.speechService.stop();
       this.speechService.dispose();
       this.speechService = null;
+    }
+    // Wait for server STT handle to be ready before stopping
+    if (this._serverSTTPromise) {
+      await this._serverSTTPromise;
+      this._serverSTTPromise = null;
     }
     if (this.serverSTTHandle) {
       this.serverSTTHandle.stop();

@@ -39,6 +39,22 @@ namespace Insimul.Systems
     }
 
     /// <summary>
+    /// Language-learning metadata attached to an inventory item.
+    /// Used when the game is in language-learning mode to display
+    /// target-language item names alongside English names.
+    /// </summary>
+    [System.Serializable]
+    public class LanguageLearningData
+    {
+        public string targetWord;
+        public string targetLanguage;
+        public string pronunciation;
+        public string category;
+
+        public bool IsValid => !string.IsNullOrEmpty(targetWord);
+    }
+
+    /// <summary>
     /// A single inventory item with value/trade metadata, equipment support, and taxonomy.
     /// Matches InventoryItem from shared/game-engine/types.ts.
     /// </summary>
@@ -65,6 +81,10 @@ namespace Insimul.Systems
         public string material;
         public string baseType;
         public string rarity;
+        public bool possessable;
+
+        // Language learning data (for vocabulary items in language-learning games)
+        public LanguageLearningData languageLearningData;
     }
 
     /// <summary>
@@ -87,6 +107,34 @@ namespace Insimul.Systems
 
         private List<InventoryItem> _items = new();
         private Dictionary<EquipmentSlot, string> _equippedSlots = new();
+        private bool _languageLearning = false;
+
+        // ── Language-Learning Mode ──────────────────────────────────────────
+
+        /// <summary>
+        /// Enable language-learning mode so inventory shows target-language item names.
+        /// </summary>
+        public void SetLanguageLearning(bool enabled)
+        {
+            _languageLearning = enabled;
+        }
+
+        /// <summary>
+        /// Get whether language-learning mode is active.
+        /// </summary>
+        public bool IsLanguageLearning => _languageLearning;
+
+        /// <summary>
+        /// Get the display name for an item, using target language when available.
+        /// </summary>
+        public string GetDisplayName(InventoryItem item)
+        {
+            if (_languageLearning && item.languageLearningData != null && item.languageLearningData.IsValid)
+            {
+                return item.languageLearningData.targetWord;
+            }
+            return item.name;
+        }
 
         // ── Item Management ──────────────────────────────────────────────────
 

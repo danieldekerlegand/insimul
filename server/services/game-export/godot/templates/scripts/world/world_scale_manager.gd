@@ -116,18 +116,97 @@ static func generate_lot_positions(settlement_position: Vector3, settlement_radi
 
 	return positions
 
+## Distribute settlements within territory bounds, using 25% margin and
+## center-placement for single settlements.
+static func distribute_settlements(
+	bounds_min: Vector3, bounds_max: Vector3, bounds_center: Vector3,
+	settlement_count: int, radii: Array[float], world_seed: int
+) -> Array[Vector3]:
+	var positions: Array[Vector3] = []
+	if settlement_count <= 0:
+		return positions
+
+	var bounds_w := bounds_max.x - bounds_min.x
+	var bounds_h := bounds_max.z - bounds_min.z
+
+	# Reserve 25% of the world radius as margin on each side so buildings
+	# never approach the terrain edge (which shows as void/water on the minimap).
+	var margin := minf(bounds_w, bounds_h) * 0.25
+	var safe_min_x := bounds_min.x + margin
+	var safe_max_x := bounds_max.x - margin
+	var safe_min_z := bounds_min.z + margin
+	var safe_max_z := bounds_max.z - margin
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = world_seed
+
+	for index in range(settlement_count):
+		var radius: float = radii[index] if index < radii.size() else 20.0
+		var position: Vector3
+
+		if settlement_count == 1:
+			# Single settlement: place exactly at world center
+			position = bounds_center
+		else:
+			var attempts := 0
+			var max_attempts := 50
+			var placed := false
+			position = Vector3.ZERO
+
+			while attempts < max_attempts:
+				var x := safe_min_x + rng.randf() * maxf(safe_max_x - safe_min_x, 1.0)
+				var z := safe_min_z + rng.randf() * maxf(safe_max_z - safe_min_z, 1.0)
+				position = Vector3(x, 0.0, z)
+
+				# Check if too close to other settlements
+				var too_close := false
+				for j in range(positions.size()):
+					var d := position.distance_to(positions[j])
+					var other_radius: float = radii[j] if j < radii.size() else 20.0
+					if d < (radius + other_radius + 10.0):
+						too_close = true
+						break
+
+				if not too_close:
+					placed = true
+					break
+				attempts += 1
+
+			# If couldn't find good position, use grid fallback centered in the safe zone
+			if not placed:
+				var cols := ceili(sqrt(float(settlement_count)))
+				var row := index / cols
+				var col := index % cols
+
+				var cell_width := (safe_max_x - safe_min_x) / cols
+				var cell_height := (safe_max_z - safe_min_z) / ceili(float(settlement_count) / cols)
+
+				position = Vector3(
+					safe_min_x + col * cell_width + cell_width / 2.0,
+					0.0,
+					safe_min_z + row * cell_height + cell_height / 2.0
+				)
+
+		positions.append(position)
+
+	return positions
+
 ## Generate a full street-aligned layout for a settlement.
 ## Returns lot positions, facing angles, and street metadata.
-static func generate_street_aligned_settlement(settlement_position: Vector3, settlement_radius: float, lot_count: int, biz_count: int = 0, street_names: PackedStringArray = PackedStringArray()) -> Dictionary:
+## existing_street_points can be used to align with a pre-existing street network.
+static func generate_street_aligned_settlement(settlement_position: Vector3, settlement_radius: float, lot_count: int, biz_count: int = 0, street_names: PackedStringArray = PackedStringArray(), existing_street_points: Array[Vector3] = []) -> Dictionary:
 	# TODO: Implement street-aligned placement (main street + side streets).
 	# For now, falls back to grid+jitter via generate_lot_positions.
 	push_warning("[Insimul] generate_street_aligned_settlement not yet implemented in export template")
 	return {"streets": [], "lots": []}
 
+## Calculate recommended world size based on entity counts.
+## Minimum 1024 so that a single town's server-generated street grid
+## (mapSize 500-1000) fits comfortably within the world with margin.
 static func calculate_optimal_world_size(country_count: int, state_count: int, settlement_count: int) -> int:
 	var max_entities := maxf(country_count, maxf(state_count / 2.0, settlement_count / 5.0))
-	if max_entities <= 4.0: return 512
-	if max_entities <= 9.0: return 768
-	if max_entities <= 16.0: return 1024
-	if max_entities <= 25.0: return 1536
-	return 2048
+	if max_entities <= 4.0: return 1024
+	if max_entities <= 9.0: return 1536
+	if max_entities <= 16.0: return 2048
+	if max_entities <= 25.0: return 2560
+	return 3072

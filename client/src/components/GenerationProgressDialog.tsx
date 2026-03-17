@@ -77,6 +77,8 @@ export function GenerationProgressDialog({ open, taskId, onComplete }: Generatio
   const getStageDescription = (stage: string) => {
     const stages: Record<string, string> = {
       'initializing': '🔧 Initializing',
+      'grammars': '🎨 Generating Name Grammars',
+      'grammars-complete': '✅ Name Grammars Complete',
       'geography': '🗺️ Creating Geography',
       'geography-complete': '✅ Geography Complete',
       'truths': '📖 Creating Character Truths',
@@ -87,6 +89,9 @@ export function GenerationProgressDialog({ open, taskId, onComplete }: Generatio
       'actions-complete': '✅ Actions Complete',
       'quests': '🎯 Generating Quests',
       'quests-complete': '✅ Quests Complete',
+      'items': '🎒 Generating Items',
+      'items-complete': '✅ Items Complete',
+      'item-translation': '🌐 Translating Items',
       'completed': '🎉 Generation Complete!',
       'failed': '❌ Generation Failed',
     };

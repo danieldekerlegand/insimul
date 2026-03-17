@@ -40,12 +40,12 @@ interface Edge {
 export class RoadGenerator {
   private scene: Scene;
   private roadMeshes: Mesh[] = [];
-  private roadWidth: number = 3;
+  private roadWidth: number = 10;
   private sampleInterval: number = 6;
-  private yOffset: number = 0.08; // Slight offset above ground to prevent z-fighting
+  private yOffset: number = 0.2; // Offset above ground to prevent z-fighting on slopes
 
   // Road appearance
-  private roadColor: Color3 = new Color3(0.45, 0.38, 0.3); // Dirt path default
+  private roadColor: Color3 = new Color3(0.32, 0.28, 0.22); // Packed dirt/gravel default
   private roadTexture: Texture | null = null;
 
   constructor(scene: Scene) {
@@ -117,75 +117,116 @@ export class RoadGenerator {
   ): void {
     if (!network.segments.length) return;
 
-    const sidewalkColor = new Color3(0.6, 0.58, 0.55);
-    const intersectionColor = new Color3(0.42, 0.36, 0.28);
-    const sidewalkWidth = 0.6;
+    const sidewalkColor = new Color3(0.48, 0.46, 0.42); // Concrete sidewalk
+    const intersectionColor = new Color3(0.28, 0.26, 0.23); // Darker pavement
+    const centerLineColor = new Color3(0.7, 0.6, 0.1); // Yellow center stripe
+    const crosswalkColor = new Color3(0.85, 0.85, 0.82); // White crosswalk stripes
+    const sidewalkWidth = 2.0;
+    const centerLineWidth = 0.2;
+    const curbHeight = 0;
 
-    // Render each street segment as a terrain-following ribbon
+    // Build list of intersection positions for proximity-based detection.
+    // This works regardless of whether nodeIds align with waypoints (they don't
+    // for server-reconstructed networks where each segment has only 2 nodeIds).
+    const intersectionPositions: { x: number; z: number }[] = [];
+    for (const node of network.nodes) {
+      if (node.intersectionOf.length >= 2) {
+        intersectionPositions.push({ x: node.x, z: node.z });
+      }
+    }
+
+    const isNearIntersection = (wx: number, wz: number, threshold: number = 2.0): boolean => {
+      for (const ip of intersectionPositions) {
+        const dx = wx - ip.x;
+        const dz = wz - ip.z;
+        if (dx * dx + dz * dz < threshold * threshold) return true;
+      }
+      return false;
+    };
+
+    // Render each street segment
     for (const seg of network.segments) {
       if (seg.waypoints.length < 2) continue;
 
+      // Road surface
       const mesh = this.createPolylineRoad(
-        `street_${seg.id}`,
-        seg.waypoints,
-        sampleHeight,
-        seg.width
+        `street_${seg.id}`, seg.waypoints, sampleHeight, seg.width
       );
       if (mesh) this.roadMeshes.push(mesh);
 
-      // Sidewalks on both sides
-      const leftSidewalk = this.createPolylineRoad(
-        `sidewalk_l_${seg.id}`,
-        this.offsetPolyline(seg.waypoints, seg.width / 2 + sidewalkWidth / 2),
-        sampleHeight,
-        sidewalkWidth,
-        sidewalkColor
+      // Yellow center stripe (dashed)
+      const dashes = this.createDashedCenterLine(
+        `centerline_${seg.id}`, seg.waypoints, sampleHeight, centerLineWidth, centerLineColor
       );
-      if (leftSidewalk) this.roadMeshes.push(leftSidewalk);
+      for (const dash of dashes) this.roadMeshes.push(dash);
 
-      const rightSidewalk = this.createPolylineRoad(
-        `sidewalk_r_${seg.id}`,
-        this.offsetPolyline(seg.waypoints, -(seg.width / 2 + sidewalkWidth / 2)),
-        sampleHeight,
-        sidewalkWidth,
-        sidewalkColor
-      );
-      if (rightSidewalk) this.roadMeshes.push(rightSidewalk);
+      // Sidewalks: one per block (between each pair of adjacent waypoints),
+      // inset from intersection nodes so they don't cross perpendicular streets.
+      const halfStreet = seg.width / 2;
+      const sidewalkCenter = halfStreet + sidewalkWidth / 2;
+      const insetDist = halfStreet;
+
+      for (let i = 0; i < seg.waypoints.length - 1; i++) {
+        const wpA = seg.waypoints[i];
+        const wpB = seg.waypoints[i + 1];
+        const dx = wpB.x - wpA.x;
+        const dz = wpB.z - wpA.z;
+        const spanLen = Math.sqrt(dx * dx + dz * dz);
+        if (spanLen < 0.01) continue;
+
+        const ux = dx / spanLen;
+        const uz = dz / spanLen;
+
+        // Inset from each end if that waypoint is near an intersection
+        const insetA = isNearIntersection(wpA.x, wpA.z) ? insetDist : 0;
+        const insetB = isNearIntersection(wpB.x, wpB.z) ? insetDist : 0;
+
+        if (insetA + insetB >= spanLen) continue;
+
+        const startX = wpA.x + ux * insetA;
+        const startZ = wpA.z + uz * insetA;
+        const endX = wpB.x - ux * insetB;
+        const endZ = wpB.z - uz * insetB;
+
+        const blockWps = [{ x: startX, z: startZ }, { x: endX, z: endZ }];
+
+        // Left sidewalk
+        const leftWps = this.offsetPolyline(blockWps, sidewalkCenter);
+        const leftMesh = this.createPolylineRoad(
+          `sidewalk_l_${seg.id}_${i}`, leftWps, sampleHeight, sidewalkWidth, sidewalkColor, curbHeight
+        );
+        if (leftMesh) this.roadMeshes.push(leftMesh);
+
+        // Right sidewalk
+        const rightWps = this.offsetPolyline(blockWps, -sidewalkCenter);
+        const rightMesh = this.createPolylineRoad(
+          `sidewalk_r_${seg.id}_${i}`, rightWps, sampleHeight, sidewalkWidth, sidewalkColor, curbHeight
+        );
+        if (rightMesh) this.roadMeshes.push(rightMesh);
+      }
     }
 
-    // Render intersection discs at nodes where 2+ streets meet
-    const nodeMap = new Map(network.nodes.map(n => [n.id, n]));
+    // Crosswalks and corner sidewalk pads at intersections
     for (const node of network.nodes) {
       if (node.intersectionOf.length < 2) continue;
 
-      // Use the max width of meeting streets for the disc
       const meetingWidths = node.intersectionOf
         .map(segId => network.segments.find(s => s.id === segId)?.width ?? 2.5)
         .sort((a, b) => b - a);
-      const discRadius = (meetingWidths[0] / 2) + 0.3;
+      const maxWidth = meetingWidths[0];
 
-      const y = sampleHeight(node.x, node.z) + this.yOffset + 0.01;
-      const disc = MeshBuilder.CreateDisc(
-        `intersection_${node.id}`,
-        { radius: discRadius, tessellation: 16 },
-        this.scene
-      );
-      disc.position = new Vector3(node.x, y, node.z);
-      disc.rotation.x = Math.PI / 2;
-      disc.isPickable = false;
-      disc.checkCollisions = false;
+      // Crosswalk stripes on each street arriving at this intersection
+      for (const segId of node.intersectionOf) {
+        const seg = network.segments.find(s => s.id === segId);
+        if (!seg) continue;
+        const crosswalks = this.createCrosswalk(
+          `crosswalk_${node.id}_${segId}`, node, seg, sampleHeight, crosswalkColor
+        );
+        for (const cw of crosswalks) this.roadMeshes.push(cw);
+      }
 
-      const mat = new StandardMaterial(`intersection_mat_${node.id}`, this.scene);
-      mat.disableLighting = true;
-      mat.backFaceCulling = false;
-      mat.emissiveColor = intersectionColor;
-      disc.material = mat;
-      disc.addLODLevel(150, null);
-      disc.freezeWorldMatrix();
-      this.roadMeshes.push(disc);
     }
 
-    // Place street name signs at select intersections
     this.placeStreetSigns(settlementId, network, sampleHeight);
 
     console.log(
@@ -196,6 +237,108 @@ export class RoadGenerator {
   }
 
   /**
+   * Create crosswalk stripes across a street at an intersection node.
+   * Stripes run parallel to the road (and sidewalk edge), spaced across
+   * the road width — like real painted crosswalks.
+   */
+  private createCrosswalk(
+    id: string,
+    node: { x: number; z: number },
+    seg: { waypoints: { x: number; z: number }[]; width: number; nodeIds: string[] },
+    sampleHeight: (x: number, z: number) => number,
+    color: Color3
+  ): Mesh[] {
+    const meshes: Mesh[] = [];
+
+    // Find which waypoint index corresponds to this node
+    let nodeIdx = -1;
+    for (let i = 0; i < seg.waypoints.length; i++) {
+      const wp = seg.waypoints[i];
+      const dx = wp.x - node.x;
+      const dz = wp.z - node.z;
+      if (dx * dx + dz * dz < 1.0) { nodeIdx = i; break; }
+    }
+    if (nodeIdx < 0) return meshes;
+
+    // Get street direction at this node (toward adjacent waypoint)
+    const neighbors: { dx: number; dz: number }[] = [];
+    if (nodeIdx > 0) {
+      const prev = seg.waypoints[nodeIdx - 1];
+      neighbors.push({ dx: prev.x - node.x, dz: prev.z - node.z });
+    }
+    if (nodeIdx < seg.waypoints.length - 1) {
+      const next = seg.waypoints[nodeIdx + 1];
+      neighbors.push({ dx: next.x - node.x, dz: next.z - node.z });
+    }
+
+    for (const dir of neighbors) {
+      const dirLen = Math.sqrt(dir.dx * dir.dx + dir.dz * dir.dz);
+      if (dirLen < 0.001) continue;
+
+      // along = direction of the street, perp = across the street
+      const alongX = dir.dx / dirLen;
+      const alongZ = dir.dz / dirLen;
+      const perpX = -alongZ;
+      const perpZ = alongX;
+
+      // Place crosswalk center just outside the intersection pad
+      const offset = seg.width / 2 + 1.5;
+      const cx = node.x + alongX * offset;
+      const cz = node.z + alongZ * offset;
+
+      // Stripes are spaced across the road (perp direction), each stripe
+      // runs parallel to the road (along direction) with sidewalk-like width.
+      // Dynamically compute count to cover the full road width.
+      const stripeW = 0.35;         // Thin stripe (across-road thickness)
+      const stripeGap = 0.35;       // Gap between stripes
+      const stripeLen = 2.0;        // Length along road — matches sidewalk width
+      const stripeCount = Math.max(4, Math.floor(seg.width / (stripeW + stripeGap)));
+      const totalAcross = stripeCount * stripeW + (stripeCount - 1) * stripeGap;
+      const startPerp = -totalAcross / 2;
+
+      for (let s = 0; s < stripeCount; s++) {
+        // Each stripe is offset across the road (perp direction)
+        const perpOff = startPerp + s * (stripeW + stripeGap) + stripeW / 2;
+        const sx = cx + perpX * perpOff;
+        const sz = cz + perpZ * perpOff;
+        const y = sampleHeight(sx, sz) + this.yOffset + 0.02;
+
+        const halfLen = stripeLen / 2;  // Half-extent along road
+        const halfW = stripeW / 2;      // Half-extent across road
+
+        // Stripe corners: length along road (along), width across road (perp)
+        const p1 = new Vector3(sx + alongX * halfLen + perpX * halfW, y, sz + alongZ * halfLen + perpZ * halfW);
+        const p2 = new Vector3(sx - alongX * halfLen + perpX * halfW, y, sz - alongZ * halfLen + perpZ * halfW);
+        const p3 = new Vector3(sx + alongX * halfLen - perpX * halfW, y, sz + alongZ * halfLen - perpZ * halfW);
+        const p4 = new Vector3(sx - alongX * halfLen - perpX * halfW, y, sz - alongZ * halfLen - perpZ * halfW);
+
+        try {
+          const stripe = MeshBuilder.CreateRibbon(
+            `${id}_${s}_${meshes.length}`,
+            { pathArray: [[p1, p2], [p3, p4]], closeArray: false, closePath: false,
+              sideOrientation: Mesh.DOUBLESIDE, updatable: false },
+            this.scene
+          );
+          stripe.checkCollisions = false;
+          stripe.isPickable = false;
+
+          const mat = new StandardMaterial(`${id}_${s}_${meshes.length}_mat`, this.scene);
+          mat.backFaceCulling = false;
+          mat.diffuseColor = color;
+          mat.emissiveColor = color.scale(0.2);
+          mat.specularColor = new Color3(0.05, 0.05, 0.05);
+          stripe.material = mat;
+          stripe.alwaysSelectAsActiveMesh = true;
+          stripe.freezeWorldMatrix();
+          meshes.push(stripe);
+        } catch { /* skip */ }
+      }
+    }
+
+    return meshes;
+  }
+
+  /**
    * Create a terrain-following ribbon from an ordered polyline of waypoints.
    */
   private createPolylineRoad(
@@ -203,7 +346,8 @@ export class RoadGenerator {
     waypoints: { x: number; z: number }[],
     sampleHeight: (x: number, z: number) => number,
     width: number,
-    colorOverride?: Color3
+    colorOverride?: Color3,
+    extraYOffset: number = 0
   ): Mesh | null {
     if (waypoints.length < 2) return null;
 
@@ -237,8 +381,8 @@ export class RoadGenerator {
       const rx = curr.x - perpX * halfWidth;
       const rz = curr.z - perpZ * halfWidth;
 
-      leftPath.push(new Vector3(lx, sampleHeight(lx, lz) + this.yOffset, lz));
-      rightPath.push(new Vector3(rx, sampleHeight(rx, rz) + this.yOffset, rz));
+      leftPath.push(new Vector3(lx, sampleHeight(lx, lz) + this.yOffset + extraYOffset, lz));
+      rightPath.push(new Vector3(rx, sampleHeight(rx, rz) + this.yOffset + extraYOffset, rz));
 
       // Subdivide long spans between waypoints
       if (i < waypoints.length - 1) {
@@ -257,8 +401,8 @@ export class RoadGenerator {
           const mrx = mx - perpX * halfWidth;
           const mrz = mz - perpZ * halfWidth;
 
-          leftPath.push(new Vector3(mlx, sampleHeight(mlx, mlz) + this.yOffset, mlz));
-          rightPath.push(new Vector3(mrx, sampleHeight(mrx, mrz) + this.yOffset, mrz));
+          leftPath.push(new Vector3(mlx, sampleHeight(mlx, mlz) + this.yOffset + extraYOffset, mlz));
+          rightPath.push(new Vector3(mrx, sampleHeight(mrx, mrz) + this.yOffset + extraYOffset, mrz));
         }
       }
     }
@@ -282,31 +426,195 @@ export class RoadGenerator {
       road.isPickable = false;
 
       const mat = new StandardMaterial(`${id}_mat`, this.scene);
-      mat.disableLighting = true;
       mat.backFaceCulling = false;
+      mat.specularColor = new Color3(0.05, 0.05, 0.05); // Very low specular — matte surface
 
       if (colorOverride) {
-        mat.emissiveColor = colorOverride;
+        mat.diffuseColor = colorOverride;
+        mat.emissiveColor = colorOverride.scale(0.15); // Subtle self-illumination for visibility
       } else if (this.roadTexture) {
         const tex = this.roadTexture.clone();
         if (tex) {
           const totalLen = this.polylineLength(waypoints);
           tex.uScale = Math.max(1, Math.round(totalLen / 8));
           tex.vScale = 1;
+          mat.diffuseTexture = tex;
           mat.emissiveTexture = tex;
+          // Dim the emissive so texture isn't blown out
+          mat.emissiveColor = new Color3(0.15, 0.15, 0.15);
         }
       } else {
-        mat.emissiveColor = this.roadColor;
+        mat.diffuseColor = this.roadColor;
+        mat.emissiveColor = this.roadColor.scale(0.15);
       }
 
       road.material = mat;
-      road.addLODLevel(150, null);
+      road.alwaysSelectAsActiveMesh = true;
       road.freezeWorldMatrix();
       return road;
     } catch (err) {
       console.warn(`[RoadGenerator] Failed to create polyline road ${id}:`, err);
       return null;
     }
+  }
+
+  /**
+   * Create dashed yellow center line segments along a polyline.
+   * Produces short ribbon dashes with gaps between them.
+   */
+  private createDashedCenterLine(
+    id: string,
+    waypoints: { x: number; z: number }[],
+    sampleHeight: (x: number, z: number) => number,
+    width: number,
+    color: Color3,
+    dashLen: number = 2.5,
+    gapLen: number = 2.0
+  ): Mesh[] {
+    const meshes: Mesh[] = [];
+    if (waypoints.length < 2) return meshes;
+
+    // Flatten the polyline into evenly-spaced sample points
+    const totalLen = this.polylineLength(waypoints);
+    if (totalLen < dashLen) return meshes;
+
+    // Walk the polyline, alternating dash / gap
+    let dist = 0;
+    let drawing = true; // start with a dash
+    let dashPoints: { x: number; z: number }[] = [];
+    const step = 0.5; // sample resolution
+
+    for (let d = 0; d <= totalLen; d += step) {
+      const t = d / totalLen;
+      const pt = this.interpolatePolyline(waypoints, t);
+
+      if (drawing) {
+        dashPoints.push(pt);
+        if (d - dist >= dashLen) {
+          // Finish this dash — create a mini ribbon
+          if (dashPoints.length >= 2) {
+            const mesh = this.createCenterLineMesh(
+              `${id}_d${meshes.length}`,
+              dashPoints,
+              sampleHeight,
+              width,
+              color
+            );
+            if (mesh) meshes.push(mesh);
+          }
+          dashPoints = [];
+          dist = d;
+          drawing = false;
+        }
+      } else {
+        if (d - dist >= gapLen) {
+          dist = d;
+          drawing = true;
+          dashPoints = [pt];
+        }
+      }
+    }
+
+    // Flush remaining dash
+    if (drawing && dashPoints.length >= 2) {
+      const mesh = this.createCenterLineMesh(
+        `${id}_d${meshes.length}`,
+        dashPoints,
+        sampleHeight,
+        width,
+        color
+      );
+      if (mesh) meshes.push(mesh);
+    }
+
+    return meshes;
+  }
+
+  /** Create a single center-line dash ribbon. */
+  private createCenterLineMesh(
+    id: string,
+    points: { x: number; z: number }[],
+    sampleHeight: (x: number, z: number) => number,
+    width: number,
+    color: Color3
+  ): Mesh | null {
+    const halfW = width / 2;
+    const leftPath: Vector3[] = [];
+    const rightPath: Vector3[] = [];
+
+    for (let i = 0; i < points.length; i++) {
+      const curr = points[i];
+      let dx: number, dz: number;
+      if (i === 0) {
+        dx = points[1].x - curr.x; dz = points[1].z - curr.z;
+      } else if (i === points.length - 1) {
+        dx = curr.x - points[i - 1].x; dz = curr.z - points[i - 1].z;
+      } else {
+        dx = points[i + 1].x - points[i - 1].x; dz = points[i + 1].z - points[i - 1].z;
+      }
+      const len = Math.sqrt(dx * dx + dz * dz);
+      if (len < 0.001) continue;
+      const px = -dz / len, pz = dx / len;
+
+      const y = sampleHeight(curr.x, curr.z) + this.yOffset + 0.02; // Slightly above road surface
+      leftPath.push(new Vector3(curr.x + px * halfW, y, curr.z + pz * halfW));
+      rightPath.push(new Vector3(curr.x - px * halfW, y, curr.z - pz * halfW));
+    }
+
+    if (leftPath.length < 2) return null;
+
+    try {
+      const mesh = MeshBuilder.CreateRibbon(id, {
+        pathArray: [leftPath, rightPath],
+        closeArray: false,
+        closePath: false,
+        sideOrientation: Mesh.DOUBLESIDE,
+        updatable: false,
+      }, this.scene);
+
+      mesh.checkCollisions = false;
+      mesh.isPickable = false;
+
+      const mat = new StandardMaterial(`${id}_mat`, this.scene);
+      mat.backFaceCulling = false;
+      mat.diffuseColor = color;
+      mat.emissiveColor = color.scale(0.3); // Slightly brighter so stripes are visible
+      mat.specularColor = new Color3(0.05, 0.05, 0.05);
+      mesh.material = mat;
+      mesh.alwaysSelectAsActiveMesh = true;
+      mesh.freezeWorldMatrix();
+      return mesh;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Interpolate a point along a polyline at parameter t in [0,1]. */
+  private interpolatePolyline(
+    waypoints: { x: number; z: number }[],
+    t: number
+  ): { x: number; z: number } {
+    if (waypoints.length < 2 || t <= 0) return waypoints[0];
+    if (t >= 1) return waypoints[waypoints.length - 1];
+
+    const totalLen = this.polylineLength(waypoints);
+    const targetDist = t * totalLen;
+    let accumulated = 0;
+
+    for (let i = 1; i < waypoints.length; i++) {
+      const dx = waypoints[i].x - waypoints[i - 1].x;
+      const dz = waypoints[i].z - waypoints[i - 1].z;
+      const segLen = Math.sqrt(dx * dx + dz * dz);
+      if (accumulated + segLen >= targetDist) {
+        const segT = segLen > 0 ? (targetDist - accumulated) / segLen : 0;
+        return {
+          x: waypoints[i - 1].x + dx * segT,
+          z: waypoints[i - 1].z + dz * segT,
+        };
+      }
+      accumulated += segLen;
+    }
+    return waypoints[waypoints.length - 1];
   }
 
   /**
@@ -425,7 +733,7 @@ export class RoadGenerator {
       sign.parent = pole;
       sign.position = new Vector3(0, 1.25, 0);
 
-      pole.addLODLevel(80, null);
+      pole.alwaysSelectAsActiveMesh = true;
       pole.freezeWorldMatrix();
 
       return pole;
@@ -478,13 +786,13 @@ export class RoadGenerator {
 
   // Colors by street type (emissive)
   private static readonly STREET_COLORS: Record<string, Color3> = {
-    boulevard: new Color3(0.35, 0.32, 0.28),   // Dark paved
-    avenue: new Color3(0.38, 0.34, 0.3),        // Paved
-    main_road: new Color3(0.35, 0.32, 0.28),    // Dark paved
-    highway: new Color3(0.3, 0.3, 0.32),        // Asphalt
-    residential: new Color3(0.48, 0.42, 0.35),  // Lighter packed earth
-    lane: new Color3(0.52, 0.45, 0.36),         // Light dirt
-    alley: new Color3(0.55, 0.48, 0.38),        // Dirt
+    boulevard: new Color3(0.28, 0.26, 0.22),   // Dark paved
+    avenue: new Color3(0.30, 0.28, 0.24),       // Paved
+    main_road: new Color3(0.28, 0.26, 0.22),   // Dark paved
+    highway: new Color3(0.22, 0.22, 0.25),     // Asphalt
+    residential: new Color3(0.35, 0.30, 0.24), // Packed earth
+    lane: new Color3(0.38, 0.33, 0.26),        // Dirt lane
+    alley: new Color3(0.40, 0.35, 0.28),       // Dirt alley
   };
 
   /**
@@ -602,8 +910,8 @@ export class RoadGenerator {
       road.isPickable = false;
 
       const mat = new StandardMaterial(`street_${id}_mat`, this.scene);
-      mat.disableLighting = true;
       mat.backFaceCulling = false;
+      mat.specularColor = new Color3(0.05, 0.05, 0.05);
 
       if (this.roadTexture) {
         const tex = this.roadTexture.clone();
@@ -617,14 +925,16 @@ export class RoadGenerator {
           }
           tex.uScale = Math.max(1, Math.round(totalLen / 8));
           tex.vScale = 1;
-          mat.emissiveTexture = tex;
+          mat.diffuseTexture = tex;
+          mat.emissiveColor = new Color3(0.15, 0.15, 0.15);
         }
       } else {
-        mat.emissiveColor = color;
+        mat.diffuseColor = color;
+        mat.emissiveColor = color.scale(0.15);
       }
 
       road.material = mat;
-      road.addLODLevel(150, null);
+      road.alwaysSelectAsActiveMesh = true;
       road.freezeWorldMatrix();
 
       return road;
@@ -755,24 +1065,23 @@ export class RoadGenerator {
       road.checkCollisions = false;
       road.isPickable = false;
 
-      // Apply material — use disableLighting so roads are always visible
-      // regardless of ribbon normal orientation
       const mat = new StandardMaterial(`${id}_mat`, this.scene);
-      mat.disableLighting = true;
       mat.backFaceCulling = false;
+      mat.specularColor = new Color3(0.05, 0.05, 0.05);
       if (this.roadTexture) {
         const tex = this.roadTexture.clone();
         if (tex) {
           tex.uScale = Math.max(1, Math.round(length / 8));
           tex.vScale = 1;
-          mat.emissiveTexture = tex;
+          mat.diffuseTexture = tex;
+          mat.emissiveColor = new Color3(0.15, 0.15, 0.15);
         }
       } else {
-        mat.emissiveColor = this.roadColor;
+        mat.diffuseColor = this.roadColor;
+        mat.emissiveColor = this.roadColor.scale(0.15);
       }
       road.material = mat;
-      // LOD: hide road at 150+ units
-      road.addLODLevel(150, null);
+      road.alwaysSelectAsActiveMesh = true;
       road.freezeWorldMatrix();
 
       return road;
@@ -787,6 +1096,104 @@ export class RoadGenerator {
    */
   public getRoadMeshes(): Mesh[] {
     return [...this.roadMeshes];
+  }
+
+  /**
+   * Generate short perpendicular walkway paths from each building's front door
+   * straight to the nearest sidewalk edge.
+   */
+  public generateBuildingWalkways(
+    buildings: { position: Vector3; rotation: number; depth: number; width: number }[],
+    network: StreetNetwork,
+    sampleHeight: (x: number, z: number) => number
+  ): void {
+    const walkwayColor = new Color3(0.52, 0.50, 0.46);
+    const walkwayWidth = 1.2;
+    const curbHeight = 0;
+
+    // Pre-compute street segment lines for perpendicular projection
+    const streetLines: { ax: number; az: number; bx: number; bz: number; width: number }[] = [];
+    for (const seg of network.segments) {
+      for (let i = 0; i < seg.waypoints.length - 1; i++) {
+        streetLines.push({
+          ax: seg.waypoints[i].x, az: seg.waypoints[i].z,
+          bx: seg.waypoints[i + 1].x, bz: seg.waypoints[i + 1].z,
+          width: seg.width,
+        });
+      }
+    }
+
+    for (let bi = 0; bi < buildings.length; bi++) {
+      const b = buildings[bi];
+      // Door at front face center
+      const cos = Math.cos(b.rotation);
+      const sin = Math.sin(b.rotation);
+      const doorLocalZ = b.depth / 2 + 0.3;
+      const doorX = b.position.x + sin * doorLocalZ;
+      const doorZ = b.position.z + cos * doorLocalZ;
+
+      // Find the nearest street segment by perpendicular projection of the door point
+      let bestDistSq = Infinity;
+      let bestFootX = 0, bestFootZ = 0;
+      let bestStreetWidth = 12;
+
+      for (const line of streetLines) {
+        const segDx = line.bx - line.ax;
+        const segDz = line.bz - line.az;
+        const segLenSq = segDx * segDx + segDz * segDz;
+        if (segLenSq < 0.01) continue;
+
+        // Project door onto the segment line, clamped to [0,1]
+        let t = ((doorX - line.ax) * segDx + (doorZ - line.az) * segDz) / segLenSq;
+        t = Math.max(0, Math.min(1, t));
+
+        const footX = line.ax + t * segDx;
+        const footZ = line.az + t * segDz;
+        const dx = doorX - footX;
+        const dz = doorZ - footZ;
+        const distSq = dx * dx + dz * dz;
+
+        if (distSq < bestDistSq) {
+          bestDistSq = distSq;
+          bestFootX = footX;
+          bestFootZ = footZ;
+          bestStreetWidth = line.width;
+        }
+      }
+
+      if (bestDistSq > 900) continue; // Too far (> 30 units)
+
+      // The walkway goes from the door perpendicular to the sidewalk edge.
+      // The sidewalk edge is at streetHalfWidth + sidewalkWidth from the centerline.
+      // We draw from door to the sidewalk inner edge (streetHalfWidth from centerline).
+      const dist = Math.sqrt(bestDistSq);
+      const sidewalkEdgeDist = bestStreetWidth / 2 + 2.0; // outer edge of sidewalk
+      if (dist < sidewalkEdgeDist + 0.5) continue; // Already at the sidewalk
+
+      // Direction from street center toward door
+      const toDoorX = doorX - bestFootX;
+      const toDoorZ = doorZ - bestFootZ;
+      const toDoorLen = Math.sqrt(toDoorX * toDoorX + toDoorZ * toDoorZ);
+      if (toDoorLen < 0.01) continue;
+      const udx = toDoorX / toDoorLen;
+      const udz = toDoorZ / toDoorLen;
+
+      // Walkway from sidewalk outer edge to the door
+      const sidewalkX = bestFootX + udx * sidewalkEdgeDist;
+      const sidewalkZ = bestFootZ + udz * sidewalkEdgeDist;
+
+      const walkwayPts = [
+        { x: doorX, z: doorZ },
+        { x: sidewalkX, z: sidewalkZ },
+      ];
+
+      const mesh = this.createPolylineRoad(
+        `walkway_${bi}`, walkwayPts, sampleHeight, walkwayWidth, walkwayColor, curbHeight
+      );
+      if (mesh) {
+        this.roadMeshes.push(mesh);
+      }
+    }
   }
 
   /**

@@ -10,6 +10,10 @@ import { getQuestTypeForWorld, type World } from '../../shared/quest-types/index
 import type { InsertQuest } from '../../shared/schema.js';
 import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from '../config/gemini.js';
 import type { PlayerProficiency } from '../../shared/language/language-utils.js';
+import {
+  buildObjectiveTypePrompt,
+  validateAndNormalizeObjectives,
+} from '../../shared/quest-objective-types.js';
 
 /**
  * Call LLM for quest generation using Gemini API.
@@ -24,7 +28,7 @@ async function callLLM(prompt: string): Promise<string> {
       category: 'exploration',
       difficulty: 'easy',
       objectives: [
-        { type: 'reach_location', description: 'Visit the town square', target: 'town_square' }
+        { type: 'visit_location', description: 'Visit the town square', target: 'town_square', required: 1 }
       ],
       rewards: { experience: 50, gold: 100 }
     });
@@ -32,7 +36,9 @@ async function callLLM(prompt: string): Promise<string> {
 
   const ai = getGenAI();
 
-  const systemPrompt = `You are a quest designer. Generate a single quest as a JSON object with these fields:
+  const objectiveTypeConstraints = buildObjectiveTypePrompt();
+
+  const systemPrompt = `You are a quest designer for a language-learning game. Generate a single quest as a JSON object with these fields:
 {
   "title": "Short quest title",
   "description": "Quest story and goals",
@@ -41,6 +47,8 @@ async function callLLM(prompt: string): Promise<string> {
   "objectives": [{ "type": "string", "description": "string", "target": "string", "required": number }],
   "rewards": { "experience": number, "gold": number, "items": [{ "name": "string", "quantity": number }] }
 }
+
+${objectiveTypeConstraints}
 
 Return ONLY valid JSON. No markdown, no code fences, no explanation.`;
 
@@ -142,6 +150,22 @@ Generate a quest following the format specified above.`;
   const response = await callLLM(fullPrompt);
   const questData = JSON.parse(response);
 
+  // Validate and normalize AI-generated objectives to achievable types
+  const rawObjectives = questData.objectives || [];
+  const validObjectives = validateAndNormalizeObjectives(rawObjectives);
+
+  if (validObjectives.length === 0 && rawObjectives.length > 0) {
+    console.warn(
+      `[QuestGenerator] All ${rawObjectives.length} AI-generated objectives were unachievable, adding fallback`,
+    );
+    validObjectives.push({
+      type: 'talk_to_npc',
+      description: 'Talk to a local to learn more',
+      target: 'any',
+      required: 1,
+    });
+  }
+
   // Get difficulty scaling
   const scaling = questType.difficultyScaling[difficulty] || { xp: 50, multiplier: 1 };
 
@@ -153,7 +177,7 @@ Generate a quest following the format specified above.`;
     difficulty,
     title: questData.title,
     description: questData.description,
-    objectives: questData.objectives || [],
+    objectives: validObjectives,
     experienceReward: questData.rewards?.experience || scaling.xp || 50,
     rewards: questData.rewards || {},
     status: 'available',
@@ -280,6 +304,22 @@ Return JSON format as specified above.`;
   const response = await callLLM(prompt);
   const questData = JSON.parse(response);
 
+  // Validate and normalize AI-generated objectives
+  const rawObjectives = questData.objectives || [];
+  const validObjectives = validateAndNormalizeObjectives(rawObjectives);
+
+  if (validObjectives.length === 0 && rawObjectives.length > 0) {
+    console.warn(
+      `[QuestGenerator] All dialogue-quest objectives were unachievable, adding fallback`,
+    );
+    validObjectives.push({
+      type: 'complete_conversation',
+      description: `Continue your conversation with ${npcName}`,
+      target: npcName,
+      required: 3,
+    });
+  }
+
   const scaling = questType.difficultyScaling[difficulty] || { xp: 50, multiplier: 1 };
 
   const quest: InsertQuest = {
@@ -289,7 +329,7 @@ Return JSON format as specified above.`;
     difficulty,
     title: questData.title,
     description: questData.description,
-    objectives: questData.objectives || [],
+    objectives: validObjectives,
     experienceReward: questData.rewards?.experience || scaling.xp || 50,
     rewards: questData.rewards || {},
     status: 'active',

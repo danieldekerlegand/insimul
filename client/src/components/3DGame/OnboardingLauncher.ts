@@ -137,8 +137,6 @@ export async function launchOnboarding(
   let AssessmentEngineClass: any;
   let OnboardingManagerClass: any;
   let AssessmentProgressUIClass: any;
-  let AssessmentResultsPanelClass: any;
-  let AssessmentInstructionOverlayClass: any;
   let languageOnboarding: any;
 
   try {
@@ -146,15 +144,11 @@ export async function launchOnboarding(
       { AssessmentEngine: AssessmentEngineClass },
       { OnboardingManager: OnboardingManagerClass },
       { AssessmentProgressUI: AssessmentProgressUIClass },
-      { AssessmentResultsPanel: AssessmentResultsPanelClass },
-      { AssessmentInstructionOverlay: AssessmentInstructionOverlayClass },
       { LANGUAGE_LEARNING_ONBOARDING: languageOnboarding },
     ] = await Promise.all([
       import('@/components/3DGame/AssessmentEngine.ts'),
       import('@/components/3DGame/OnboardingManager.ts'),
       import('@/components/3DGame/AssessmentProgressUI.ts'),
-      import('@/components/3DGame/AssessmentResultsPanel.ts'),
-      import('@/components/3DGame/AssessmentInstructionOverlay.ts'),
       import('@shared/onboarding/language-onboarding.ts'),
     ]);
   } catch (err) {
@@ -167,16 +161,13 @@ export async function launchOnboarding(
     return null;
   }
 
-  // Create UI overlays
+  // Create progress UI (small corner panel with phase dots + timer).
+  // Fullscreen fade overlay and results panel removed — they were buggy.
   let progressUI: any = null;
-  let resultsPanel: any = null;
-  let instructionOverlay: any = null;
   try {
     progressUI = new AssessmentProgressUIClass(guiManager.advancedTexture);
-    resultsPanel = new AssessmentResultsPanelClass(guiManager.advancedTexture);
-    instructionOverlay = new AssessmentInstructionOverlayClass(guiManager.advancedTexture);
   } catch (err) {
-    console.warn('[OnboardingLauncher] Failed to create assessment UI:', err);
+    console.warn('[OnboardingLauncher] Failed to create assessment progress UI:', err);
   }
 
   // Create assessment engine with event bus for conversation detection
@@ -186,8 +177,11 @@ export async function launchOnboarding(
     eventBus,
   });
 
-  // Wire phase events to UI + event bus
+  // Track current phase so we can advance the progress UI correctly
+  let currentPhaseIndex = 0;
+
   assessmentEngine.onPhaseStarted((phaseId, phaseIndex, timeRemainingSeconds) => {
+    currentPhaseIndex = phaseIndex;
     progressUI?.show();
     progressUI?.setPhase(phaseIndex, timeRemainingSeconds ?? 0);
     eventBus.emit({
@@ -201,7 +195,8 @@ export async function launchOnboarding(
   });
 
   assessmentEngine.onPhaseCompleted((phaseId, score, maxScore) => {
-    progressUI?.transitionToNextPhase?.(0, 0);
+    // Advance to the next phase index in the progress UI
+    progressUI?.transitionToNextPhase?.(currentPhaseIndex + 1, 0);
     eventBus.emit({
       type: 'assessment_phase_completed',
       sessionId: '',
@@ -213,29 +208,19 @@ export async function launchOnboarding(
     });
   });
 
-  // Wire instruction overlay
+  // Wire instruction callbacks — auto-continue non-conversational placeholder phases.
   assessmentEngine.onShowInstruction((config) => {
-    if (instructionOverlay) {
-      instructionOverlay.show({
-        phaseName: config.phaseName,
-        phaseIndex: config.phaseIndex,
-        totalPhases: config.totalPhases,
-        instruction: config.description,
-        isConversational: config.isConversational,
-        onContinue: config.onContinue,
-      });
-    }
-
-    // Update progress UI status text based on phase type
     if (config.isConversational) {
       progressUI?.setStatusText('Talk to an NPC');
     } else {
-      progressUI?.setStatusText('Read instructions');
+      progressUI?.setStatusText(config.phaseName || 'In progress...');
+      // Auto-continue placeholder phases (they have no real content yet)
+      config.onContinue?.();
     }
   });
 
   assessmentEngine.onHideInstruction(() => {
-    instructionOverlay?.hide();
+    // No overlay to hide
   });
 
   // Return a promise that resolves when the full onboarding completes
@@ -244,30 +229,11 @@ export async function launchOnboarding(
 
     assessmentEngine.onCompleted((result) => {
       assessmentResult = result;
-      progressUI?.hide();
+      // Show completion status instead of hiding the panel
+      progressUI?.setStatusText('Assessment complete!');
 
-      // Show results panel
-      if (resultsPanel) {
-        const scorePct = result.totalMaxScore > 0
-          ? Math.round((result.totalScore / result.totalMaxScore) * 100)
-          : 0;
-        resultsPanel.showResults({
-          overallScorePct: scorePct,
-          cefrLevel: result.cefrLevel as any,
-          dimensions: result.dimensionScores
-            ? Object.entries(result.dimensionScores).map(([id, score]) => ({
-                name: id.charAt(0).toUpperCase() + id.slice(1),
-                score,
-              }))
-            : [],
-        });
-        resultsPanel.setOnAdventureStart(() => {
-          resultsPanel.hide();
-          // Signal the onboarding manager to complete — this resolves the
-          // launchOnboarding promise and cleans up.
-          onboardingManager.completeCurrentStep();
-        });
-      }
+      // Complete onboarding so the game continues.
+      onboardingManager.completeCurrentStep();
 
       eventBus.emit({
         type: 'assessment_completed',
@@ -316,7 +282,7 @@ export async function launchOnboarding(
         assessmentEngine.dispose();
         onboardingManager.dispose();
         progressUI?.dispose();
-        instructionOverlay?.dispose();
+
 
         if (assessmentResult) {
           resolve({
@@ -342,7 +308,6 @@ export async function launchOnboarding(
       assessmentEngine.dispose();
       onboardingManager.dispose();
       progressUI?.dispose();
-      instructionOverlay?.dispose();
       resolve(null);
     });
 

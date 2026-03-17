@@ -338,6 +338,15 @@ function logEndpoints(app: any, port: number): void {
 async function shutdown(signal: string): Promise<void> {
   console.log(`\\n🛑 Received ${signal}, shutting down gracefully...`);
 
+  // Hard deadline: if graceful shutdown takes too long, force-exit.
+  // This prevents nodes from getting stuck in a half-dead state.
+  const SHUTDOWN_TIMEOUT_MS = 10_000;
+  const forceExitTimer = setTimeout(() => {
+    console.error(`❌ Graceful shutdown timed out after ${SHUTDOWN_TIMEOUT_MS / 1000}s — forcing exit`);
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  forceExitTimer.unref(); // Don't let this timer alone keep the process alive
+
   // Stop job queue manager
   try {
     const { jobQueueManager } = await import('./services/job-queue-manager.js');

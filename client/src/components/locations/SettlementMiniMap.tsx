@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback, useState } from 'react';
 import { Map, Minimize2, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { StreetSegmentData } from './LocationMapPreview';
+import { normalizeStreets } from './LocationMapPreview';
 
 /** Terrain background colors (CSS) matching LocationMapPreview palette */
 const TERRAIN_BG: Record<string, string> = {
@@ -35,7 +36,7 @@ const BUILDING_COLORS = {
 
 export interface SettlementMiniMapProps {
   terrain?: string | null;
-  streets: StreetSegmentData[];
+  streets: any[];
   lots: any[];
   businesses: any[];
   residences: any[];
@@ -54,7 +55,7 @@ const SETTLEMENT_EXTENT: Record<string, number> = {
 
 export function SettlementMiniMap({
   terrain,
-  streets,
+  streets: rawStreets,
   lots,
   businesses,
   residences,
@@ -65,6 +66,7 @@ export function SettlementMiniMap({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [collapsed, setCollapsed] = useState(false);
   const size = 180;
+  const streets = normalizeStreets(rawStreets);
 
   const getExtent = useCallback(() => {
     return SETTLEMENT_EXTENT[settlementType ?? 'town'] ?? 45;

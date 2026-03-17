@@ -195,12 +195,19 @@ export async function serverSideSTT(
     try {
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.webm');
-      const response = await fetch('/api/stt', { method: 'POST', body: formData });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      const response = await fetch('/api/stt', { method: 'POST', body: formData, signal: controller.signal });
+      clearTimeout(timeout);
       if (!response.ok) throw new Error('Server STT failed');
       const data = await response.json();
       onTranscript(data.transcript || data.text || '');
     } catch (err) {
-      onError(err instanceof Error ? err.message : 'Server STT failed');
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        onError('Speech recognition timed out');
+      } else {
+        onError(err instanceof Error ? err.message : 'Server STT failed');
+      }
     }
   };
 

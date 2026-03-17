@@ -26,7 +26,7 @@ export class BabylonMinimap {
   private markerElements: Map<string, GUI.Ellipse> = new Map();
 
   // Minimap configuration
-  private mapSize: number = 200; // Size in pixels
+  private mapSize: number = 100; // Size in pixels
   private worldSize: number = 1024; // World size in game units
   private mapScale: number = 1; // Pixels per game unit
 

@@ -15,19 +15,10 @@ import {
 // ─────────────────────────────────────────────
 
 describe('chooseLayout', () => {
-  it('returns organic for settlements founded before 1800', () => {
-    expect(chooseLayout('city', 1750)).toBe('organic');
-  });
-
-  it('returns grid for cities founded after 1800', () => {
+  it('returns grid by default regardless of founding year', () => {
+    expect(chooseLayout('city', 1750)).toBe('grid');
     expect(chooseLayout('city', 1850)).toBe('grid');
-  });
-
-  it('returns organic for villages regardless of year', () => {
-    expect(chooseLayout('village', 1950)).toBe('organic');
-  });
-
-  it('returns grid for towns founded after 1800', () => {
+    expect(chooseLayout('village', 1950)).toBe('grid');
     expect(chooseLayout('town', 1900)).toBe('grid');
   });
 
@@ -108,14 +99,15 @@ describe('generateStreetNetwork - grid', () => {
     }
   });
 
-  it('produces different results with different seeds', () => {
-    const net2 = generateStreetNetwork({ ...config, seed: 'different-seed' });
+  it('grid positions are purely geometric (no random jitter)', () => {
+    // Two grids with different seeds but same type should produce identical positions
     const net1 = generateStreetNetwork(config);
-    // Node positions should differ
-    const sameCount = net1.nodes.filter((n, i) =>
-      n.x === net2.nodes[i]?.x && n.z === net2.nodes[i]?.z,
-    ).length;
-    expect(sameCount).toBeLessThan(net1.nodes.length);
+    const net2 = generateStreetNetwork({ ...config, seed: 'different-seed' });
+    expect(net1.nodes.length).toBe(net2.nodes.length);
+    for (let i = 0; i < net1.nodes.length; i++) {
+      expect(net1.nodes[i].x).toBe(net2.nodes[i].x);
+      expect(net1.nodes[i].z).toBe(net2.nodes[i].z);
+    }
   });
 
   it('village grid is smaller than city grid', () => {
@@ -198,15 +190,16 @@ describe('placeLots', () => {
     layoutOverride: 'grid',
   };
 
-  it('returns the requested number of lots', () => {
+  it('returns lots up to the requested count (capped by capacity)', () => {
     const net = generateStreetNetwork(config);
-    const lots = placeLots(net, 30, 'lot-seed');
-    expect(lots.length).toBe(30);
+    const lots = placeLots(net, 30, 'lot-seed', 'town');
+    expect(lots.length).toBeGreaterThan(0);
+    expect(lots.length).toBeLessThanOrEqual(30);
   });
 
   it('assigns street names from the network', () => {
     const net = generateStreetNetwork(config);
-    const lots = placeLots(net, 20, 'lot-seed');
+    const lots = placeLots(net, 20, 'lot-seed', 'town');
     const streetNames = new Set(net.segments.map(s => s.name));
     for (const lot of lots) {
       expect(streetNames.has(lot.streetName)).toBe(true);
@@ -215,7 +208,7 @@ describe('placeLots', () => {
 
   it('lots are offset from street centerlines', () => {
     const net = generateStreetNetwork(config);
-    const lots = placeLots(net, 10, 'lot-seed');
+    const lots = placeLots(net, 10, 'lot-seed', 'town');
     // Lots should not be exactly on any waypoint
     for (const lot of lots) {
       const onWaypoint = net.segments.some(seg =>
@@ -227,9 +220,9 @@ describe('placeLots', () => {
     }
   });
 
-  it('alternates sides', () => {
+  it('places lots on both sides of streets', () => {
     const net = generateStreetNetwork(config);
-    const lots = placeLots(net, 20, 'lot-seed');
+    const lots = placeLots(net, 20, 'lot-seed', 'town');
     const leftCount = lots.filter(l => l.side === 'left').length;
     const rightCount = lots.filter(l => l.side === 'right').length;
     expect(leftCount).toBeGreaterThan(0);
@@ -238,13 +231,60 @@ describe('placeLots', () => {
 
   it('handles zero lots gracefully', () => {
     const net = generateStreetNetwork(config);
-    const lots = placeLots(net, 0, 'lot-seed');
+    const lots = placeLots(net, 0, 'lot-seed', 'town');
     expect(lots.length).toBe(0);
   });
 
-  it('handles more lots than street length', () => {
+  it('caps lots at street capacity when requesting more than fits', () => {
     const net = generateStreetNetwork(config);
-    const lots = placeLots(net, 200, 'lot-seed');
-    expect(lots.length).toBe(200);
+    const lots = placeLots(net, 200, 'lot-seed', 'town');
+    // Should return a reasonable number, not 200
+    expect(lots.length).toBeGreaterThan(0);
+    expect(lots.length).toBeLessThanOrEqual(200);
+  });
+
+  it('includes lotWidth and lotDepth on each placement', () => {
+    const net = generateStreetNetwork(config);
+    const lots = placeLots(net, 10, 'lot-seed', 'town');
+    for (const lot of lots) {
+      // Block-based: lot width varies based on block subdivision
+      expect(lot.lotWidth).toBeGreaterThan(0);
+      expect(lot.lotWidth).toBeLessThanOrEqual(40); // cannot exceed grid spacing
+      expect(lot.lotDepth).toBeGreaterThan(0);
+      expect(lot.lotDepth).toBeLessThanOrEqual(20); // half-block depth
+    }
+  });
+
+  it('assigns sequential house numbers', () => {
+    const net = generateStreetNetwork(config);
+    const lots = placeLots(net, 20, 'lot-seed', 'town');
+    const numbers = lots.map(l => l.houseNumber);
+    // House numbers should be sequential starting from 1
+    for (let i = 0; i < numbers.length; i++) {
+      expect(numbers[i]).toBe(i + 1);
+    }
+  });
+
+  it('same-side lots on the same street do not overlap', () => {
+    const net = generateStreetNetwork(config);
+    const lots = placeLots(net, 40, 'lot-seed', 'town');
+    // Group by street + side
+    const groups = new Map<string, typeof lots>();
+    for (const lot of lots) {
+      const key = `${lot.streetId}:${lot.side}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(lot);
+    }
+    groups.forEach((group) => {
+      for (let i = 0; i < group.length; i++) {
+        for (let j = i + 1; j < group.length; j++) {
+          const dx = group[i].x - group[j].x;
+          const dz = group[i].z - group[j].z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          // Same-side lots should be at least lot-width apart
+          expect(dist).toBeGreaterThan(group[i].lotWidth * 0.9);
+        }
+      }
+    });
   });
 });

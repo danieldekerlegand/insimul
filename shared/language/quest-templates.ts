@@ -62,7 +62,7 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
     difficulty: 'intermediate',
     objectiveTemplates: [
       {
-        type: 'sustained_conversation',
+        type: 'complete_conversation',
         descriptionTemplate: 'Hold a {{turns}}-turn conversation with {{npcName}}',
         requiredCount: 1,
       },
@@ -83,8 +83,8 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
     difficulty: 'beginner',
     objectiveTemplates: [
       {
-        type: 'learn_new_words',
-        descriptionTemplate: 'Learn {{wordCount}} food words',
+        type: 'collect_vocabulary',
+        descriptionTemplate: 'Collect {{wordCount}} food words by interacting with market items',
         requiredCount: 5,
       },
       {
@@ -107,7 +107,7 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
     difficulty: 'intermediate',
     objectiveTemplates: [
       {
-        type: 'use_vocabulary_category',
+        type: 'use_vocabulary',
         descriptionTemplate: 'Use {{wordCount}} profession words in conversations',
         requiredCount: 5,
       },
@@ -131,8 +131,8 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
     difficulty: 'intermediate',
     objectiveTemplates: [
       {
-        type: 'master_words',
-        descriptionTemplate: 'Master {{wordCount}} vocabulary words through repeated correct usage',
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} vocabulary words correctly multiple times to master them',
         requiredCount: 3,
       },
     ],
@@ -209,8 +209,8 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
     difficulty: 'intermediate',
     objectiveTemplates: [
       {
-        type: 'practice_grammar',
-        descriptionTemplate: 'Use the {{pattern}} pattern correctly {{count}} times',
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use the {{pattern}} grammar pattern correctly {{count}} times in conversation',
         requiredCount: 5,
       },
     ],
@@ -230,8 +230,8 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
     difficulty: 'beginner',
     objectiveTemplates: [
       {
-        type: 'find_vocabulary_items',
-        descriptionTemplate: 'Find {{itemCount}} objects matching their {{language}} names',
+        type: 'identify_object',
+        descriptionTemplate: 'Find {{itemCount}} objects and identify them by their {{language}} names',
         requiredCount: 5,
       },
     ],
@@ -374,8 +374,8 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
         requiredCount: 3,
       },
       {
-        type: 'learn_new_words',
-        descriptionTemplate: 'Learn {{wordCount}} cultural vocabulary words',
+        type: 'collect_vocabulary',
+        descriptionTemplate: 'Collect {{wordCount}} cultural vocabulary words',
         requiredCount: 5,
       },
     ],

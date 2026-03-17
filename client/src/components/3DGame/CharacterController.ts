@@ -1533,6 +1533,21 @@ export class CharacterController {
     private _elasticSteps = 50;
     private _alreadyInvisible: AbstractMesh[];
 
+    /** Meshes excluded from obstruction hiding (e.g. conversation partner NPC). */
+    private _obstructionExclusions: Set<AbstractMesh> = new Set();
+
+    /** Add a mesh (and its children) to the obstruction exclusion list. */
+    public addObstructionExclusion(mesh: AbstractMesh) {
+        this._obstructionExclusions.add(mesh);
+        mesh.getChildMeshes(false).forEach(c => this._obstructionExclusions.add(c));
+    }
+
+    /** Remove a mesh (and its children) from the obstruction exclusion list. */
+    public removeObstructionExclusion(mesh: AbstractMesh) {
+        this._obstructionExclusions.delete(mesh);
+        mesh.getChildMeshes(false).forEach(c => this._obstructionExclusions.delete(c));
+    }
+
     /**
      * The following method handles the use case wherein some mesh
      * comes between the avatar and the camera thus obstructing the view
@@ -1554,12 +1569,13 @@ export class CharacterController {
         this._ray.direction = this._rayDir.normalize();
 
 
-        //do not pick a mesh if it is the avatar or any of its children (like attachments etc)
+        //do not pick a mesh if it is the avatar, its children, or excluded meshes (conversation partners)
         const pis: PickingInfo[] = this._scene.multiPickWithRay(this._ray, (mesh) => {
             if (this._avChildren.includes(mesh)) return false;
+            if (this._obstructionExclusions.has(mesh)) return false;
             if (mesh.isPickable) {
                 return true;
-            }else{ 
+            }else{
                 return false;
             }
         });

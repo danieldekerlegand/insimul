@@ -59,16 +59,18 @@ export class RiverGenerator {
   /**
    * Generate river paths procedurally and render them.
    *
-   * @param terrainSize  Width/depth of terrain in world units
-   * @param sampleHeight Callback to get terrain height at (x, z)
-   * @param riverCount   Number of rivers to generate
-   * @param seed         Optional PRNG seed for determinism
+   * @param terrainSize     Width/depth of terrain in world units
+   * @param sampleHeight    Callback to get terrain height at (x, z)
+   * @param riverCount      Number of rivers to generate
+   * @param seed            Optional PRNG seed for determinism
+   * @param avoidPositions  Settlement centers (with radius) that rivers must flow around
    */
   public generateRivers(
     terrainSize: number,
     sampleHeight: (x: number, z: number) => number,
     riverCount: number = 2,
     seed?: number,
+    avoidPositions?: { x: number; z: number; radius: number }[],
   ): RiverPath[] {
     const rand = mulberry32(seed ?? Date.now());
     const halfSize = terrainSize / 2;
@@ -91,7 +93,7 @@ export class RiverGenerator {
       }
 
       const points = this.traceRiverPath(
-        startX, startZ, halfSize, sampleHeight, rand,
+        startX, startZ, halfSize, sampleHeight, rand, avoidPositions,
       );
 
       if (points.length >= 2) {
@@ -126,6 +128,7 @@ export class RiverGenerator {
 
   /**
    * Trace a river path downhill with natural meandering.
+   * When avoidPositions are provided, the river deflects around settlements.
    */
   private traceRiverPath(
     startX: number,
@@ -133,6 +136,7 @@ export class RiverGenerator {
     halfSize: number,
     sampleHeight: (x: number, z: number) => number,
     rand: () => number,
+    avoidPositions?: { x: number; z: number; radius: number }[],
   ): RiverPoint[] {
     const points: RiverPoint[] = [];
     const step = this.sampleInterval;
@@ -171,8 +175,28 @@ export class RiverGenerator {
       // Add perpendicular meander
       const perpAngle = Math.atan2(bestDz, bestDx) + Math.PI / 2;
       const meander = (rand() - 0.5) * step * 0.4;
-      x += bestDx + Math.cos(perpAngle) * meander;
-      z += bestDz + Math.sin(perpAngle) * meander;
+      let nextX = x + bestDx + Math.cos(perpAngle) * meander;
+      let nextZ = z + bestDz + Math.sin(perpAngle) * meander;
+
+      // Deflect away from settlement/building positions
+      if (avoidPositions) {
+        for (const avoid of avoidPositions) {
+          const dx = nextX - avoid.x;
+          const dz = nextZ - avoid.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist < avoid.radius && dist > 0.01) {
+            // Push outward well past the avoidance radius (1.3x) so the river
+            // edge (which has width) also stays clear of the avoided area.
+            const targetDist = avoid.radius * 1.3;
+            const pushScale = (targetDist - dist) / dist;
+            nextX += dx * pushScale;
+            nextZ += dz * pushScale;
+          }
+        }
+      }
+
+      x = nextX;
+      z = nextZ;
 
       // Widen gradually
       width = Math.min(width + 0.05 + rand() * 0.03, 12);

@@ -29,10 +29,6 @@ const TOTAL_PHASES = 4;
 const AMBER_THRESHOLD = 120; // 2 minutes
 const RED_THRESHOLD = 60;    // 1 minute
 
-// Fade overlay duration (ms) — softened from original values
-const FADE_DURATION = 500;
-const FADE_HOLD = 400;
-
 export class AssessmentProgressUI {
   private advancedTexture: AdvancedDynamicTexture;
   private panel: Rectangle | null = null;
@@ -40,9 +36,6 @@ export class AssessmentProgressUI {
   private phaseLabel: TextBlock | null = null;
   private timerText: TextBlock | null = null;
   private timerInterval: ReturnType<typeof setInterval> | null = null;
-  private fadeOverlay: Rectangle | null = null;
-  private fadeTimeout: ReturnType<typeof setTimeout> | null = null;
-  private fadeAnimInterval: ReturnType<typeof setInterval> | null = null;
   private currentPhase = 0;
   private _isVisible = false;
   private _timeRemaining = 0;
@@ -106,11 +99,9 @@ export class AssessmentProgressUI {
     }
   }
 
-  /** Mark a phase as completed and show the transition fade overlay. */
+  /** Mark a phase as completed and advance to the next phase. */
   public transitionToNextPhase(nextPhaseIndex: number, timeRemainingSeconds: number): void {
-    this.showFadeOverlay(PHASE_LABELS[nextPhaseIndex] ?? `Phase ${nextPhaseIndex + 1}`, () => {
-      this.setPhase(nextPhaseIndex, timeRemainingSeconds);
-    });
+    this.setPhase(nextPhaseIndex, timeRemainingSeconds);
   }
 
   /** Update the timer externally (e.g. from server sync). */
@@ -128,18 +119,6 @@ export class AssessmentProgressUI {
 
   public dispose(): void {
     this.stopTimer();
-    if (this.fadeTimeout) {
-      clearTimeout(this.fadeTimeout);
-      this.fadeTimeout = null;
-    }
-    if (this.fadeAnimInterval) {
-      clearInterval(this.fadeAnimInterval);
-      this.fadeAnimInterval = null;
-    }
-    if (this.fadeOverlay) {
-      this.fadeOverlay.dispose();
-      this.fadeOverlay = null;
-    }
     if (this.panel) {
       this.panel.dispose();
       this.panel = null;
@@ -290,85 +269,4 @@ export class AssessmentProgressUI {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Phase transition fade overlay — smooth, eased
-  // ---------------------------------------------------------------------------
-
-  public showFadeOverlay(phaseName: string, onMidpoint?: () => void): void {
-    this.clearFadeOverlay();
-
-    const overlay = new Rectangle('assessmentFadeOverlay');
-    overlay.width = '100%';
-    overlay.height = '100%';
-    overlay.background = 'rgba(0, 0, 0, 0.6)';
-    overlay.thickness = 0;
-    overlay.alpha = 0;
-    overlay.isPointerBlocker = true;
-    overlay.zIndex = 100;
-    this.advancedTexture.addControl(overlay);
-    this.fadeOverlay = overlay;
-
-    const text = new TextBlock('fadeText', phaseName);
-    text.fontSize = 28;
-    text.fontWeight = 'bold';
-    text.color = '#FFD700';
-    text.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    text.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-    overlay.addControl(text);
-
-    // Fade in with easing
-    this.animateAlpha(overlay, 0, 1, FADE_DURATION).then(() => {
-      onMidpoint?.();
-      // Hold, then fade out
-      this.fadeTimeout = setTimeout(() => {
-        this.animateAlpha(overlay, 1, 0, FADE_DURATION).then(() => {
-          this.clearFadeOverlay();
-        });
-      }, FADE_HOLD);
-    });
-  }
-
-  private clearFadeOverlay(): void {
-    if (this.fadeTimeout) {
-      clearTimeout(this.fadeTimeout);
-      this.fadeTimeout = null;
-    }
-    if (this.fadeAnimInterval) {
-      clearInterval(this.fadeAnimInterval);
-      this.fadeAnimInterval = null;
-    }
-    if (this.fadeOverlay) {
-      this.fadeOverlay.dispose();
-      this.fadeOverlay = null;
-    }
-  }
-
-  private animateAlpha(control: Rectangle, from: number, to: number, durationMs: number): Promise<void> {
-    return new Promise((resolve) => {
-      const steps = Math.max(1, Math.floor(durationMs / 16));
-      let step = 0;
-      control.alpha = from;
-
-      // Clear any previous animation interval
-      if (this.fadeAnimInterval) {
-        clearInterval(this.fadeAnimInterval);
-      }
-
-      this.fadeAnimInterval = setInterval(() => {
-        step++;
-        // Ease-in-out curve for smoother transition
-        const t = step / steps;
-        const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-        control.alpha = from + (to - from) * eased;
-        if (step >= steps) {
-          control.alpha = to;
-          if (this.fadeAnimInterval) {
-            clearInterval(this.fadeAnimInterval);
-            this.fadeAnimInterval = null;
-          }
-          resolve();
-        }
-      }, 16);
-    });
-  }
 }

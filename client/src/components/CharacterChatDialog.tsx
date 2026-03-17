@@ -5,13 +5,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Mic, MicOff, Send, Volume2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { buildGreeting, buildLanguageAwareSystemPrompt, extractLanguageFluencies, getLanguageBCP47 } from '@shared/language/language-utils';
+import { buildLanguageAwareSystemPrompt, extractLanguageFluencies, getLanguageBCP47 } from '@shared/language/language-utils';
 import type { WorldLanguageContext } from '@shared/language/language-utils';
 import { buildWorldLanguageContext } from '@shared/language/language-utils';
 import { parseGrammarFeedbackBlock } from '@shared/language/language-progress';
 import { useSpeechRecognition } from '@/hooks/use-speech-recognition';
 import { processRecordedAudio } from '@/lib/audio-utils';
-import { fetchGreetingAudio } from '@/lib/greeting-audio-cache';
 
 export interface Character {
   id: string;
@@ -107,37 +106,8 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
         }).catch(err => console.error('Failed to fetch world language context:', err));
       }
 
-      // Build greeting dynamically based on all language fluencies
-      const greeting = buildGreeting(character, truths);
-
-      setMessages([{
-        role: 'assistant',
-        content: greeting,
-        timestamp: new Date()
-      }]);
-
-      // Precompute greeting audio so it's ready to play immediately
-      const voice = character.gender === 'female' ? 'Kore' : 'Charon';
-      const gender = character.gender || 'neutral';
-      let cancelled = false;
-      fetchGreetingAudio(character.id, greeting, voice, gender).then((blob) => {
-        if (blob && !cancelled) {
-          const audioUrl = URL.createObjectURL(blob);
-          const audio = new Audio(audioUrl);
-          audioRef.current = audio;
-          setIsSpeaking(true);
-          audio.onended = () => {
-            setIsSpeaking(false);
-            URL.revokeObjectURL(audioUrl);
-          };
-          audio.play().catch(() => {
-            setIsSpeaking(false);
-            URL.revokeObjectURL(audioUrl);
-          });
-        }
-      });
-
-      return () => { cancelled = true; };
+      // No filler greeting — the player speaks first.
+      setMessages([]);
     } else {
       setMessages([]);
       setInputText('');
@@ -221,9 +191,14 @@ export function CharacterChatDialog({ character, truths, open, onOpenChange }: C
     const decoder = new TextDecoder();
     let fullResponse = '';
     let buffer = '';
+    const STREAM_TIMEOUT_MS = 60000;
 
     while (true) {
-      const { done, value } = await reader.read();
+      const readPromise = reader.read();
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Stream response timed out')), STREAM_TIMEOUT_MS)
+      );
+      const { done, value } = await Promise.race([readPromise, timeoutPromise]);
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });

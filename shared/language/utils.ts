@@ -336,22 +336,27 @@ export function buildGreeting(
   const dominant = fluencies[0]; // highest fluency
 
   const { firstName, lastName } = character;
-  const lang = dominant.language;
 
-  // Get greeting in dominant language
+  // Prefer the world's target language when available (language-learning worlds).
+  // Fall back to the NPC's dominant language otherwise.
+  const lang = targetLanguage && GREETINGS[targetLanguage]
+    ? targetLanguage
+    : dominant.language;
+
+  // Get greeting in chosen language
   const greetings = GREETINGS[lang] || GREETINGS['English'];
   const greeting = greetings[Math.floor(Math.random() * greetings.length)];
 
-  // Get introduction in dominant language
+  // Get introduction in chosen language
   const introFn = INTRODUCTIONS[lang] || INTRODUCTIONS['English'];
   const intro = introFn(firstName, lastName);
 
-  // Get help offer in dominant language
+  // Get help offer in chosen language
   const helpOffers = HELP_OFFERS[lang] || HELP_OFFERS['English'];
   const help = helpOffers[Math.floor(Math.random() * helpOffers.length)];
 
   // For low-fluency dominant speakers, simplify
-  if (dominant.fluency < 50) {
+  if (dominant.fluency < 50 && !targetLanguage) {
     // Very basic: just greeting + name
     return `${greeting} ${INTRODUCTIONS['English'](firstName, lastName)}`;
   }
@@ -411,8 +416,10 @@ export function buildLanguageSection(
   // In language-learning worlds, the NPC should speak the TARGET language by default
   if (isLanguageLearning && targetLanguage && targetLanguage !== 'English') {
     section += `1. You live in a ${targetLanguage}-speaking world. Speak ${targetLanguage} by default.\n`;
-    section += `2. When the player struggles, you may include brief English translations in parentheses after key ${targetLanguage} words.\n`;
-    section += `3. Always respond primarily in ${targetLanguage} — this is a language immersion experience.\n`;
+    section += `2. NEVER put English translations, glosses, parenthetical hints, or vocabulary blocks inline in your response. Your ENTIRE response is read aloud by TTS — anything non-dialogue will be spoken.\n`;
+    section += `3. If the player struggles, use simpler ${targetLanguage} words or rephrase — but stay in ${targetLanguage}.\n`;
+    section += `4. Always respond in ${targetLanguage} — this is a language immersion experience.\n`;
+    section += `5. Your response must contain ONLY spoken dialogue. No metadata, no markup, no structured blocks.\n`;
   } else {
     section += `1. Speak ${dominant.language} by default.\n`;
 
@@ -614,6 +621,69 @@ Rules:
 }
 
 /**
+ * Build a prompt for the background metadata extraction call.
+ * This runs SEPARATELY from the dialogue — it analyzes both the player's message
+ * and the NPC's response to extract vocabulary hints, grammar feedback, and eval scores.
+ * Returns structured JSON only.
+ */
+export function buildMetadataExtractionPrompt(
+  targetLanguage: string,
+  playerMessage: string,
+  npcResponse: string,
+  options?: { includeEval?: boolean; playerProficiency?: string }
+): string {
+  let prompt = `You are a language learning analysis engine. Analyze this conversation exchange in ${targetLanguage}.
+
+Player said: "${playerMessage}"
+NPC replied: "${npcResponse}"
+
+Respond with ONLY valid JSON (no markdown, no code fences, no extra text). Use this exact schema:
+
+{
+  "vocabHints": [
+    { "word": "target language word used by NPC", "translation": "English meaning", "context": "brief usage context" }
+  ],
+  "grammarFeedback": {
+    "status": "correct" | "corrected" | "no_target_language",
+    "errors": [
+      {
+        "pattern": "grammar pattern name",
+        "incorrect": "what the player wrote",
+        "corrected": "the correct form",
+        "explanation": "brief explanation"
+      }
+    ]
+  }`;
+
+  if (options?.includeEval) {
+    prompt += `,
+  "eval": {
+    "vocabulary": 1-5,
+    "grammar": 1-5,
+    "fluency": 1-5,
+    "comprehension": 1-5,
+    "taskCompletion": 1-5
+  }`;
+  }
+
+  prompt += `
+}
+
+Rules:
+- "vocabHints": Extract 3-5 key ${targetLanguage} words from the NPC's response that a ${options?.playerProficiency || 'beginner'} learner should know. Include their English translations.
+- "grammarFeedback.status": "correct" if player used ${targetLanguage} correctly, "corrected" if there were errors, "no_target_language" if player wrote in English
+- "grammarFeedback.errors": List the 1-2 most important grammar errors (empty array if correct or no target language)
+- Focus on being helpful and pedagogical`;
+
+  if (options?.includeEval) {
+    prompt += `
+- "eval": Rate the player's most recent message on each dimension (1=no evidence, 2=struggling, 3=adequate, 4=good, 5=excellent)`;
+  }
+
+  return prompt;
+}
+
+/**
  * Build the world language context section for system prompts.
  */
 export function buildWorldLanguageSection(worldContext: WorldLanguageContext): string {
@@ -710,23 +780,22 @@ export function buildPlayerProficiencySection(
   }
 
   section += `\nADAPTIVE DIALOGUE RULES:\n`;
-  section += `IMPORTANT: You must ALWAYS respond primarily in ${targetLanguage}. This is a language immersion experience.\n\n`;
+  section += `IMPORTANT: You must ALWAYS respond in ${targetLanguage}. This is a language immersion experience.\n`;
+  section += `CRITICAL: Your ENTIRE response is read aloud by TTS. NEVER include English translations, glosses, parenthetical hints, vocabulary blocks, structured data, or any markup. Respond with ONLY natural spoken dialogue.\n\n`;
 
   if (effectiveFluency < 20) {
     // Beginner tier
     section += `This player is a BEGINNER. You MUST:\n`;
     section += `- Speak in ${targetLanguage} using very simple words and short sentences (5-7 words)\n`;
-    section += `- Put English translations in parentheses after key ${targetLanguage} words, e.g.: "Bonjour! (Hello!) Comment (How) allez-vous? (are you?)"\n`;
     section += `- Use only basic, high-frequency vocabulary\n`;
     section += `- Be extremely encouraging and patient — celebrate every attempt\n`;
     section += `- Repeat key vocabulary multiple times naturally\n`;
-    section += `- If the player writes in English, respond in ${targetLanguage} with translations and gently encourage them to try ${targetLanguage}\n`;
-    section += `- Use gestures and body language descriptions, e.g.: *points to the bread* "C'est du pain! (This is bread!)"\n`;
+    section += `- Use gestures and body language descriptions to convey meaning, e.g.: *points to the bread* "C'est du pain!"\n`;
+    section += `- If the player writes in English, respond in simple ${targetLanguage} and gently encourage them to try ${targetLanguage}\n`;
   } else if (effectiveFluency < 40) {
     // Elementary tier
     section += `This player is at an ELEMENTARY level. You should:\n`;
     section += `- Speak in ${targetLanguage}, using simple sentence structures\n`;
-    section += `- Provide English translations in parentheses only for new or uncommon words\n`;
     section += `- Use common everyday vocabulary with 2-4 new words per message\n`;
     section += `- Gently correct 1 grammar error per message in-character\n`;
     section += `- Be warm and encouraging\n`;
@@ -734,7 +803,6 @@ export function buildPlayerProficiencySection(
     // Intermediate tier
     section += `This player is at an INTERMEDIATE level. You should:\n`;
     section += `- Speak entirely in ${targetLanguage} with full sentences\n`;
-    section += `- Only translate truly unusual or advanced vocabulary to English\n`;
     section += `- Introduce 3-5 new words, including some idiomatic expressions\n`;
     section += `- Correct up to 2 grammar errors per message with brief in-character explanations\n`;
     section += `- Use more complex sentence structures\n`;
@@ -788,9 +856,15 @@ export function buildLanguageAwareSystemPrompt(
 
   const { firstName, lastName, age, gender, occupation, currentLocation, personality, friendIds, coworkerIds, spouseId } = character;
 
-  // Determine if this is a language-learning world
+  // Determine if this is a language-learning world.
+  // Also treat any world with a non-English target language as language-learning,
+  // since the NPC should speak in that language regardless of gameType label.
   const isLanguageLearning = worldContext?.gameType === 'language-learning' ||
-                             worldContext?.gameType === 'educational';
+                             worldContext?.gameType === 'educational' ||
+                             worldInfo?.gameType === 'language-learning' ||
+                             worldInfo?.gameType === 'educational' ||
+                             !!(worldContext?.targetLanguage && worldContext.targetLanguage !== 'English') ||
+                             !!(worldInfo?.targetLanguage && worldInfo.targetLanguage !== 'English');
 
   let prompt = `You are ${firstName} ${lastName} (${age || '?'} years old, ${gender || 'unknown'}, ${occupation || 'no occupation'}).
 
@@ -894,7 +968,14 @@ Rewards: [${rewardTypes}]
 Only assign quests when natural in conversation. Base difficulty on player's experience level.
 Choose quest types and objectives that fit the world setting and current conversation context.
 
-Stay in character. Show your abilities authentically. You can reference your location, the world, and your life experiences.`;
+Stay in character. Show your abilities authentically. You can reference your location, the world, and your life experiences.
+
+Do NOT open with filler greetings like "Hello! I'm [name]. How can I help you?" — respond naturally and in-character as if continuing daily life.`;
+
+  // Final language reinforcement at the very end of the prompt (highest attention)
+  if (isLanguageLearning && worldContext?.targetLanguage && worldContext.targetLanguage !== 'English') {
+    prompt += `\n\nCRITICAL LANGUAGE RULE: Your ENTIRE response must be in ${worldContext.targetLanguage}. Do NOT use English words, English greetings, or English sentences. Every word you say must be in ${worldContext.targetLanguage}. This is non-negotiable.`;
+  }
 
   return prompt;
 }

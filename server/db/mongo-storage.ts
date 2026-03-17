@@ -520,6 +520,7 @@ const ItemSchema = new Schema({
   lootWeight: { type: Number, default: 0 },
   tags: { type: Schema.Types.Mixed, default: [] },
   isBase: { type: Boolean, default: false },
+  possessable: { type: Boolean, default: true },
   metadata: { type: Schema.Types.Mixed, default: {} },
   craftingRecipe: { type: Schema.Types.Mixed, default: null },
   questRelevance: { type: Schema.Types.Mixed, default: [] },
@@ -1115,6 +1116,12 @@ function docToRule(doc: RuleDoc | any): Rule {
   }
 }
 
+/** Strip broken Tracery modifier syntax from names — e.g. "((.capitalize))" */
+function sanitizeName(name: string | undefined): string | undefined {
+  if (!name || !name.includes('((')) return name;
+  return name.replace(/\(\(\.\w+\)\)/g, '').trim();
+}
+
 function docToGrammar(doc: GrammarDoc | any): Grammar {
   if (doc.toObject) {
     return { ...doc.toObject(), id: doc._id.toString() };
@@ -1124,11 +1131,11 @@ function docToGrammar(doc: GrammarDoc | any): Grammar {
 }
 
 function docToCharacter(doc: CharacterDoc | any): Character {
-  if (doc.toObject) {
-    return { ...doc.toObject(), id: doc._id.toString() };
-  } else {
-    return { ...doc, id: doc._id.toString() };
-  }
+  const obj = doc.toObject ? { ...doc.toObject(), id: doc._id.toString() } : { ...doc, id: doc._id.toString() };
+  obj.name = sanitizeName(obj.name) ?? obj.name;
+  if (obj.firstName) obj.firstName = sanitizeName(obj.firstName) ?? obj.firstName;
+  if (obj.lastName) obj.lastName = sanitizeName(obj.lastName) ?? obj.lastName;
+  return obj;
 }
 
 function docToWorld(doc: WorldDoc | any): World {
@@ -1140,15 +1147,21 @@ function docToWorld(doc: WorldDoc | any): World {
 }
 
 function docToCountry(doc: CountryDoc): Country {
-  return { ...doc.toObject(), id: doc._id.toString() };
+  const obj = { ...doc.toObject(), id: doc._id.toString() };
+  obj.name = sanitizeName(obj.name) ?? obj.name;
+  return obj;
 }
 
 function docToState(doc: StateDoc): State {
-  return { ...doc.toObject(), id: doc._id.toString() };
+  const obj = { ...doc.toObject(), id: doc._id.toString() };
+  obj.name = sanitizeName(obj.name) ?? obj.name;
+  return obj;
 }
 
 function docToSettlement(doc: SettlementDoc): Settlement {
-  return { ...doc.toObject(), id: doc._id.toString() };
+  const obj = { ...doc.toObject(), id: doc._id.toString() };
+  obj.name = sanitizeName(obj.name) ?? obj.name;
+  return obj;
 }
 
 function docToSettlementHistoryEvent(doc: SettlementHistoryEventDoc): SettlementHistoryEvent {
@@ -2288,18 +2301,8 @@ export class MongoStorage implements IStorage {
     await this.connect();
     // Get world-specific items
     const worldItems = await ItemModel.find({ worldId });
-    // Get the world to determine its worldType for base items
-    const world = await WorldModel.findById(worldId);
-    const worldType = world?.worldType || world?.gameType;
-    // Get matching base items
-    const baseItems = await ItemModel.find({
-      isBase: true,
-      $or: [
-        { worldType: worldType },
-        { worldType: null },
-        { worldType: { $exists: false } }
-      ]
-    });
+    // Get ALL base items (available to every world)
+    const baseItems = await ItemModel.find({ isBase: true });
     // Merge: world items override base items with same objectRole
     const worldObjectRoles = new Set(worldItems.map(d => d.objectRole).filter(Boolean));
     const filteredBase = baseItems.filter(b => !b.objectRole || !worldObjectRoles.has(b.objectRole));

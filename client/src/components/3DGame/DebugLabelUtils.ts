@@ -14,7 +14,7 @@ import {
   Vector3,
 } from '@babylonjs/core';
 
-const DEBUG_LABELS_ENABLED = true;
+const DEBUG_LABELS_ENABLED = false;
 
 /**
  * Create a floating billboard text label above a mesh.

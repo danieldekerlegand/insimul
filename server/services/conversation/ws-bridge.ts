@@ -223,8 +223,11 @@ async function handleTextInput(
   sendJSON(ws, { type: 'text', text: '', isFinal: true, languageCode, sessionId });
 
   // Wait for TTS
+  // Let TTS finish in the background — audio is sent as chunks complete
   if (ttsPromises.length > 0) {
-    await Promise.all(ttsPromises);
+    Promise.all(ttsPromises).catch(err => {
+      console.error('[WS-Bridge] Background TTS error:', err);
+    });
   }
 
   // Store response

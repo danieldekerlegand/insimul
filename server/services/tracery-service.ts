@@ -35,6 +35,25 @@ export class TraceryService {
       }
     }
 
+    // Sanitize LLM-generated grammars that use wrong modifier syntax.
+    // LLMs sometimes produce ((.capitalize)) instead of Tracery's .capitalize
+    for (const [key, value] of Object.entries(mergedRules)) {
+      if (Array.isArray(value)) {
+        mergedRules[key] = value.map((v: string) =>
+          v
+            .replace(/#([^#]+)#\(\(\.(\w+)\)\)/g, '#$1.$2#')
+            .replace(/#([^#(]+)\(\(\.(\w+)\)\)#/g, '#$1.$2#')
+            .replace(/\(\(\.\w+\)\)/g, '')
+        );
+      } else if (typeof value === 'string') {
+        mergedRules[key] = [value
+          .replace(/#([^#]+)#\(\(\.(\w+)\)\)/g, '#$1.$2#')
+          .replace(/#([^#(]+)\(\(\.(\w+)\)\)#/g, '#$1.$2#')
+          .replace(/\(\(\.\w+\)\)/g, '')
+        ];
+      }
+    }
+
     // Create Tracery grammar instance
     const grammar = tracery.createGrammar(mergedRules);
 
@@ -42,7 +61,9 @@ export class TraceryService {
     grammar.addModifiers(tracery.baseEngModifiers);
 
     // Flatten/expand starting from the specified symbol
-    const result = grammar.flatten(`#${startSymbol}#`);
+    let result = grammar.flatten(`#${startSymbol}#`);
+    // Safety net: strip any remaining ((.modifier)) literals from output
+    result = result.replace(/\(\(\.\w+\)\)/g, '');
 
     return result;
   }

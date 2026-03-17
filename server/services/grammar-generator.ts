@@ -18,6 +18,21 @@ interface GrammarGenerationRequest {
   };
 }
 
+/** Rich world context for grammar generation */
+export interface GrammarWorldContext {
+  worldName?: string;
+  worldDescription?: string;
+  worldType?: string;
+  gameType?: string;
+  targetLanguage?: string;
+  countryName?: string;
+  countryDescription?: string;
+  governmentType?: string;
+  economicSystem?: string;
+  terrain?: string;
+  customPrompt?: string;
+}
+
 interface GeneratedGrammar {
   name: string;
   description: string;
@@ -161,24 +176,42 @@ Return the grammar as JSON:`;
     }
   }
 
+  /** All grammar categories we generate */
+  static readonly GRAMMAR_CATEGORIES = [
+    'character', 'settlement', 'business', 'country', 'street', 'item', 'action', 'quest'
+  ] as const;
+
   /**
-   * Generate custom grammars for a custom world type
-   * Creates 3 grammars: character names, settlement names, and business names
+   * Generate custom grammars for a world type.
+   * Creates 8 grammars covering all name types: character, settlement, business,
+   * country, street, item, action, and quest.
+   * Uses rich world context to produce culturally specific, expansive grammars.
+   * Generates in parallel batches to minimize wall-clock time.
    */
   async generateCustomGrammars(
     customLabel: string,
     customPrompt: string,
-    targetLanguage?: string
+    targetLanguage?: string,
+    worldContext?: GrammarWorldContext,
+    onProgress?: (message: string, batchIndex: number, totalBatches: number) => void
   ): Promise<GeneratedGrammar[]> {
     if (!this.enabled || !this.model) {
       throw new Error('Grammar generator not available. Please configure Gemini API.');
     }
 
     console.log(`🎨 Generating custom grammars for: ${customLabel}${targetLanguage ? ` (target language: ${targetLanguage})` : ''}`);
-    const grammars: GeneratedGrammar[] = [];
-    const langContext = targetLanguage
-      ? ` All names MUST be culturally authentic ${targetLanguage} names — use real ${targetLanguage} first names, surnames, and naming conventions. Do NOT use generic English names.`
-      : '';
+
+    // Build a rich context block shared across all grammar prompts
+    const ctx = worldContext || {};
+    let contextBlock = '';
+    if (ctx.worldName) contextBlock += `World Name: ${ctx.worldName}\n`;
+    if (ctx.worldDescription) contextBlock += `World Description: ${ctx.worldDescription}\n`;
+    if (ctx.countryName) contextBlock += `Country: ${ctx.countryName}${ctx.countryDescription ? ` — ${ctx.countryDescription}` : ''}\n`;
+    if (ctx.governmentType) contextBlock += `Government: ${ctx.governmentType}\n`;
+    if (ctx.economicSystem) contextBlock += `Economy: ${ctx.economicSystem}\n`;
+    if (ctx.terrain) contextBlock += `Terrain: ${ctx.terrain}\n`;
+    if (ctx.gameType) contextBlock += `Game Type: ${ctx.gameType}\n`;
+    if (customPrompt) contextBlock += `Theme/Setting: ${customPrompt}\n`;
 
     // Helper function for retry with exponential backoff
     const retryWithBackoff = async <T>(
@@ -203,80 +236,237 @@ Return the grammar as JSON:`;
       throw lastError;
     };
 
-    // 1. Character Names Grammar
-    try {
-      console.log('  📝 Generating character names...');
-      const characterGrammar = await retryWithBackoff(
-        () => this.generateGrammar({
-          description: `Character names for a ${customLabel} world. ${customPrompt}${langContext}`,
-          theme: customLabel,
-          complexity: 'complex',
-          symbolCount: 10,
-        }),
-        'character names'
+    const labelSlug = customLabel.toLowerCase().replace(/\s+/g, '_');
+
+    type CategoryType = typeof GrammarGenerator.GRAMMAR_CATEGORIES[number];
+
+    const tagMap: Record<CategoryType, string[]> = {
+      character: ['generated', 'names', 'character', customLabel],
+      settlement: ['generated', 'names', 'settlement', 'location', customLabel],
+      business: ['generated', 'names', 'business', 'establishment', customLabel],
+      country: ['generated', 'names', 'country', customLabel],
+      street: ['generated', 'names', 'street', 'road', customLabel],
+      item: ['generated', 'names', 'item', customLabel],
+      action: ['generated', 'names', 'action', customLabel],
+      quest: ['generated', 'names', 'quest', customLabel],
+    };
+
+    // Generate all 8 grammars in parallel batches of 4 to avoid rate limits
+    const categories = [...GrammarGenerator.GRAMMAR_CATEGORIES];
+    const grammars: GeneratedGrammar[] = [];
+    const batchSize = 4;
+
+    for (let batchStart = 0; batchStart < categories.length; batchStart += batchSize) {
+      const batch = categories.slice(batchStart, batchStart + batchSize);
+      const batchIndex = Math.floor(batchStart / batchSize);
+      const totalBatches = Math.ceil(categories.length / batchSize);
+      console.log(`  📝 Generating batch ${batchIndex + 1}: ${batch.join(', ')}...`);
+      onProgress?.(`Generating batch ${batchIndex + 1}/${totalBatches}: ${batch.join(', ')}...`, batchIndex, totalBatches);
+
+      const results = await Promise.allSettled(
+        batch.map(category =>
+          retryWithBackoff(
+            () => this.generateNameGrammar(category, customLabel, targetLanguage, contextBlock),
+            `${category} names`
+          ).then(grammar => ({
+            category,
+            grammar,
+          }))
+        )
       );
 
-      grammars.push({
-        ...characterGrammar,
-        name: `${customLabel.toLowerCase().replace(/\s+/g, '_')}_character_names`,
-        tags: [...characterGrammar.tags, customLabel, 'character', 'names'],
-      });
-      console.log('  ✅ Character names generated');
-    } catch (error) {
-      console.error(`  ❌ Failed to generate character names: ${error}`);
-      throw error;
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          const { category, grammar } = result.value;
+          grammars.push({
+            name: `${labelSlug}_${category}_names`,
+            description: `${category.charAt(0).toUpperCase() + category.slice(1)} names for ${customLabel} world${ctx.worldName ? ` "${ctx.worldName}"` : ''}`,
+            grammar,
+            tags: tagMap[category as CategoryType],
+          });
+          console.log(`  ✅ ${category} names generated (${Object.keys(grammar).length} symbols)`);
+        } else {
+          console.error(`  ❌ Failed to generate ${(result as any).reason?.category || 'unknown'} names: ${result.reason}`);
+        }
+      }
     }
 
-    // 2. Settlement Names Grammar
-    try {
-      console.log('  📝 Generating settlement names...');
-      const settlementGrammar = await retryWithBackoff(
-        () => this.generateGrammar({
-          description: `Settlement names (cities, towns, villages) for a ${customLabel} world. ${customPrompt}${targetLanguage ? ` Use authentic ${targetLanguage} place naming conventions.` : ''}`,
-          theme: customLabel,
-          complexity: 'medium',
-          symbolCount: 8,
-        }),
-        'settlement names'
-      );
-
-      grammars.push({
-        ...settlementGrammar,
-        name: `${customLabel.toLowerCase().replace(/\s+/g, '_')}_settlement_names`,
-        tags: [...settlementGrammar.tags, customLabel, 'settlement', 'location', 'names'],
-      });
-      console.log('  ✅ Settlement names generated');
-    } catch (error) {
-      console.error(`  ❌ Failed to generate settlement names: ${error}`);
-      throw error;
-    }
-
-    // 3. Business Names Grammar
-    try {
-      console.log('  📝 Generating business names...');
-      const businessGrammar = await retryWithBackoff(
-        () => this.generateGrammar({
-          description: `Business and establishment names (taverns, shops, services) for a ${customLabel} world. ${customPrompt}${targetLanguage ? ` Use authentic ${targetLanguage} business naming conventions.` : ''}`,
-          theme: customLabel,
-          complexity: 'medium',
-          symbolCount: 8,
-        }),
-        'business names'
-      );
-
-      grammars.push({
-        ...businessGrammar,
-        name: `${customLabel.toLowerCase().replace(/\s+/g, '_')}_business_names`,
-        tags: [...businessGrammar.tags, customLabel, 'business', 'establishment', 'names'],
-      });
-      console.log('  ✅ Business names generated');
-    } catch (error) {
-      console.error(`  ❌ Failed to generate business names: ${error}`);
-      throw error;
-    }
-
-    console.log(`✅ All 3 grammars generated for ${customLabel}`);
+    console.log(`✅ ${grammars.length}/${categories.length} grammars generated for ${customLabel}`);
     return grammars;
+  }
+
+  /**
+   * Generate a rich, expansive Tracery grammar for a specific name category.
+   * Produces 12-20 symbols with 10-20+ items each for high combinatorial variety.
+   */
+  private async generateNameGrammar(
+    category: typeof GrammarGenerator.GRAMMAR_CATEGORIES[number],
+    worldLabel: string,
+    targetLanguage?: string,
+    contextBlock?: string
+  ): Promise<Record<string, string | string[]>> {
+    if (!this.model) throw new Error('Model not initialized');
+
+    const langDirective = targetLanguage
+      ? `CRITICAL: All names MUST be in ${targetLanguage}. Use authentic ${targetLanguage} naming conventions, vocabulary, and cultural patterns. Do NOT use English names or anglicized versions.`
+      : '';
+
+    const categoryPrompts: Record<string, string> = {
+      character: `Generate a Tracery grammar for CHARACTER NAMES in this world.
+
+The grammar must produce full names (first + last).
+Include:
+- "origin" — patterns combining first and last names, e.g. ["#maleFirst# #surname#", "#femaleFirst# #surname#"]
+- "maleFirst" — at least 20 male first names authentic to this setting
+- "femaleFirst" — at least 20 female first names authentic to this setting
+- "surname" — at least 15 standalone surnames PLUS compositional patterns like "#surnamePrefix##surnameSuffix#"
+- "surnamePrefix" — at least 10 surname prefixes/roots
+- "surnameSuffix" — at least 10 surname endings
+- Additional symbols for patronymics, nicknames, titles, or cultural naming patterns as appropriate
+- "nickname" — at least 10 common nicknames or diminutives for this culture
+
+Names should reflect the specific cultural/regional setting, NOT generic names.`,
+
+      settlement: `Generate a Tracery grammar for SETTLEMENT NAMES (cities, towns, villages) in this world.
+
+The grammar must produce place names with high variety.
+Include:
+- "origin" — at least 5 structural patterns mixing the symbols below
+- "base" — at least 15 standalone settlement base words
+- "prefix" — at least 12 geographic/cultural prefixes
+- "suffix" — at least 12 settlement type suffixes (equivalent of -ville, -ton, -burg, etc.)
+- "feature" — at least 12 geographic feature words (river, hill, bridge, port, etc.)
+- "modifier" — at least 10 directional/descriptive modifiers
+- "saint" or "notable" — at least 10 culturally significant personal names used in place names
+- "river" — at least 10 river/water body names for this region
+- "region" — at least 10 regional/landscape terms
+- Additional symbols for any culture-specific naming patterns (articles, compound patterns, etc.)
+
+Settlement names should feel like real places from this specific cultural region, not generic fantasy.`,
+
+      business: `Generate a Tracery grammar for BUSINESS/ESTABLISHMENT NAMES in this world.
+
+The grammar must produce shop, restaurant, and service names with variety.
+Include:
+- "origin" — at least 6 structural patterns (e.g. "#ownerSurname#'s #shopType#", "The #adjective# #shopType#", "#article# #adjective# #noun#")
+- "ownerSurname" — at least 15 plausible owner surnames for this culture
+- "shopType" — at least 15 types of businesses (bakery, tavern, smithy, market, etc.) in the target language
+- "adjective" — at least 15 descriptive adjectives (golden, old, grand, little, etc.)
+- "noun" — at least 10 evocative nouns used in business names
+- "article" — articles/determiners appropriate for this language
+- Additional symbols for cultural business naming conventions
+
+Business names should reflect what real businesses would be called in this setting.`,
+
+      country: `Generate a Tracery grammar for COUNTRY/NATION NAMES in this world.
+
+The grammar must produce sovereign nation or kingdom names.
+Include:
+- "origin" — at least 6 structural patterns (e.g. "The #governmentType# of #placeName#", "#adjective# #landTerm#", "#founderName#'s #landTerm#")
+- "placeName" — at least 15 standalone country base names (culturally authentic)
+- "adjective" — at least 12 national adjectives (united, holy, grand, free, etc.)
+- "landTerm" — at least 10 terms for countries/territories (realm, republic, empire, federation, etc.)
+- "governmentType" — at least 8 government type titles (kingdom, duchy, confederation, etc.)
+- "founderName" — at least 10 legendary founder/hero names
+- "prefix" — at least 10 geographic/cultural prefixes
+- "suffix" — at least 10 nation name suffixes (-ia, -land, -stan, etc.)
+
+Country names should feel like real sovereign entities with gravitas and cultural authenticity.`,
+
+      street: `Generate a Tracery grammar for STREET/ROAD NAMES in this world.
+
+The grammar must produce street and road names with variety.
+Include:
+- "origin" — at least 6 structural patterns (e.g. "#personName# #streetType#", "#adjective# #streetType#", "#streetType# #feature#")
+- "personName" — at least 15 culturally authentic personal names used to name streets
+- "streetType" — at least 10 road type words (street, avenue, lane, boulevard, road, way, alley, etc.) in the target language
+- "adjective" — at least 12 descriptive words (main, grand, high, old, new, broad, narrow, etc.)
+- "feature" — at least 12 geographic/landmark features (river, market, church, park, hill, gate, etc.)
+- "number" — at least 10 ordinal numbers in the target language (1st, 2nd, 3rd etc.)
+- "direction" — at least 4 cardinal directions in the target language
+- Additional symbols for culture-specific street naming patterns
+
+Street names should feel like real addresses people would use in this setting.`,
+
+      item: `Generate a Tracery grammar for ITEM NAMES (weapons, tools, food, artifacts, materials) in this world.
+
+The grammar must produce diverse item names across multiple categories.
+Include:
+- "origin" — at least 8 structural patterns (e.g. "#material# #weaponType#", "#adjective# #foodType#", "#article# #artifact#")
+- "material" — at least 12 materials (iron, wood, silver, obsidian, silk, etc.) fitting this world
+- "weaponType" — at least 10 weapon/tool types
+- "foodType" — at least 10 food/drink items authentic to this culture
+- "artifact" — at least 10 artifact/collectible base names
+- "adjective" — at least 15 descriptive modifiers (ancient, enchanted, rusty, fresh, etc.)
+- "craftedBy" — at least 8 maker/origin descriptors
+- "article" — articles appropriate for this language
+- Additional symbols for rarity prefixes, material suffixes, and cultural item naming patterns
+
+Items should feel like real objects that exist in this world's economy and culture.`,
+
+      action: `Generate a Tracery grammar for ACTION NAMES (character activities and interactions) in this world.
+
+The grammar must produce thematic action names that characters perform.
+Include:
+- "origin" — at least 8 structural patterns (e.g. "#verb# #target#", "#adjective# #verb#", "#socialVerb# with #npcRole#")
+- "verb" — at least 15 action verbs fitting this world (trade, duel, enchant, negotiate, etc.)
+- "socialVerb" — at least 10 social interaction verbs (befriend, persuade, gossip, celebrate, etc.)
+- "target" — at least 10 action target objects (goods, information, territory, etc.)
+- "adjective" — at least 10 action modifiers (stealthy, bold, diplomatic, etc.)
+- "npcRole" — at least 10 NPC roles that can be interaction targets (merchant, guard, elder, etc.)
+- "location" — at least 8 locations where actions take place (market, tavern, court, etc.)
+- Additional symbols for world-specific activity patterns
+
+Action names should feel like meaningful activities in this world's daily life and culture.`,
+
+      quest: `Generate a Tracery grammar for QUEST TITLES (mission/storyline names) in this world.
+
+The grammar must produce compelling quest titles with narrative flavor.
+Include:
+- "origin" — at least 8 structural patterns (e.g. "The #adjective# #noun#", "#verb# the #target#", "#npcName#'s #questNoun#")
+- "adjective" — at least 15 evocative adjectives (lost, forbidden, ancient, burning, etc.)
+- "noun" — at least 15 quest-worthy nouns (artifact, secret, legacy, relic, covenant, etc.)
+- "verb" — at least 10 quest action verbs (retrieve, protect, uncover, destroy, etc.)
+- "target" — at least 10 quest target objects (crown, scroll, key, tome, etc.)
+- "npcName" — at least 10 culturally authentic NPC names used in quest titles
+- "questNoun" — at least 10 quest type words (request, trial, bargain, journey, prophecy, etc.)
+- "location" — at least 8 evocative place names for quest destinations
+- Additional symbols for world-specific quest naming conventions
+
+Quest titles should feel like chapter titles from an adventure story set in this world.`,
+    };
+
+    const prompt = `You are an expert in ${targetLanguage || 'English'} naming conventions and Tracery procedural grammar.
+
+WORLD CONTEXT:
+${contextBlock || `World Type: ${worldLabel}`}
+${langDirective}
+
+${categoryPrompts[category]}
+
+TRACERY FORMAT RULES:
+- Use #symbolName# to reference other symbols
+- "origin" is the entry point — it MUST exist
+- Each symbol maps to an array of strings
+- Strings can contain #references# to other symbols
+- Use Tracery modifiers INSIDE the hash marks: #name.capitalize# (NOT ((.capitalize)) — that syntax does not work)
+- Every #referenced# symbol must be defined
+
+QUALITY REQUIREMENTS:
+- Aim for 12-20 symbols total
+- Each leaf symbol (no sub-references) should have 10-20+ items
+- Compositional symbols (with sub-references) should have 4-8 patterns
+- Total combinatorial output should produce 500+ unique names
+- Names must be culturally and linguistically authentic to the setting
+- NO generic English-default names unless the world is explicitly English-speaking
+
+Return ONLY valid JSON. No markdown fences, no explanation, just the JSON object.`;
+
+    const result = await this.model.generateContent(prompt);
+    const response = result.response.text();
+    const grammar = this.extractJSON(response);
+    this.validateGrammar(grammar);
+    return grammar;
   }
 
   /**

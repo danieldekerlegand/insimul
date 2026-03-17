@@ -7,6 +7,7 @@ void UInventorySystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
     PlayerGold = 100;
+    bLanguageLearning = false;
     UE_LOG(LogTemp, Log, TEXT("[Insimul] InventorySystem initialized (gold: %d)"), PlayerGold);
 }
 
@@ -24,6 +25,23 @@ void UInventorySystem::LoadFromIR(const FString& JsonString)
     if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid()) return;
 
     UE_LOG(LogTemp, Log, TEXT("[Insimul] InventorySystem loaded from IR"));
+}
+
+// --- Language-Learning Mode ---
+
+void UInventorySystem::SetLanguageLearning(bool bEnabled)
+{
+    bLanguageLearning = bEnabled;
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Language learning mode: %s"), bEnabled ? TEXT("ON") : TEXT("OFF"));
+}
+
+FString UInventorySystem::GetDisplayName(const FInsimulInventoryItem& Item) const
+{
+    if (bLanguageLearning && Item.HasLanguageLearningData())
+    {
+        return Item.TargetWord;
+    }
+    return Item.Name;
 }
 
 // --- Item helpers ---

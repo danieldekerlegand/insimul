@@ -66,6 +66,9 @@ export class VoiceActivityDetector {
     this.destroy();
 
     this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume().catch(() => {});
+    }
     this.sourceNode = this.audioContext.createMediaStreamSource(stream);
     this.analyser = this.audioContext.createAnalyser();
     this.analyser.fftSize = 2048;

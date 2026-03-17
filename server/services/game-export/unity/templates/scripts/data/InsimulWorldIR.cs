@@ -188,6 +188,24 @@ namespace Insimul.Data
         public string category;
         public string material;
         public string baseType;
+
+        /// <summary>Whether the item can be possessed/owned by NPCs.</summary>
+        public bool possessable;
+
+        /// <summary>Language learning data for vocabulary items.</summary>
+        public InsimulLanguageLearningData languageLearningData;
+    }
+
+    /// <summary>
+    /// Language learning metadata attached to vocabulary items.
+    /// Mirrors InventoryItem.languageLearningData from types.ts.
+    /// </summary>
+    [Serializable] public class InsimulLanguageLearningData
+    {
+        public string targetWord;
+        public string targetLanguage;
+        public string pronunciation;
+        public string category;
     }
 
     // ── Loot Tables ──────────────────────────────────────────────────────
@@ -285,6 +303,9 @@ namespace Insimul.Data
         public int maxStock;
         public float restockRate;
         public string rarity;
+
+        public bool possessable;
+        public InsimulLanguageLearningData languageLearningData;
     }
 
     [Serializable] public class InsimulMerchantInventoryData

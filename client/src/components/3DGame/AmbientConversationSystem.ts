@@ -223,7 +223,7 @@ const DEFAULT_TEMPLATES: ConversationTemplate[] = [
     maxVocabularySlots: 1,
     lines: [
       { speakerSlot: 'A', template: 'Can you believe this weather?', vocabularySlot: false },
-      { speakerSlot: 'B', template: 'I know! In my hometown we say {vocab} ({translation}) when it\'s like this.', vocabularySlot: true, vocabularyCategory: 'weather' },
+      { speakerSlot: 'B', template: 'I know! In my hometown we say {vocab} when it\'s like this.', vocabularySlot: true, vocabularyCategory: 'weather' },
       { speakerSlot: 'A', template: 'Ha! I like that expression.', vocabularySlot: false },
     ],
   },
@@ -232,9 +232,9 @@ const DEFAULT_TEMPLATES: ConversationTemplate[] = [
     topicId: 'market_gossip',
     maxVocabularySlots: 2,
     lines: [
-      { speakerSlot: 'A', template: 'Have you seen the new {vocab} ({translation}) at the market?', vocabularySlot: true, vocabularyCategory: 'food' },
+      { speakerSlot: 'A', template: 'Have you seen the new {vocab} at the market?', vocabularySlot: true, vocabularyCategory: 'food' },
       { speakerSlot: 'B', template: 'Yes! The merchant said they came from far away.', vocabularySlot: false },
-      { speakerSlot: 'A', template: 'The {vocab} ({translation}) is quite reasonable too.', vocabularySlot: true, vocabularyCategory: 'commerce' },
+      { speakerSlot: 'A', template: 'The {vocab} is quite reasonable too.', vocabularySlot: true, vocabularyCategory: 'commerce' },
       { speakerSlot: 'B', template: 'I might pick some up later. Thanks for the tip!', vocabularySlot: false },
     ],
   },
@@ -244,7 +244,7 @@ const DEFAULT_TEMPLATES: ConversationTemplate[] = [
     maxVocabularySlots: 1,
     lines: [
       { speakerSlot: 'A', template: 'What a long day. Ready to relax?', vocabularySlot: false },
-      { speakerSlot: 'B', template: 'Absolutely. As they say, {vocab} ({translation}).', vocabularySlot: true, vocabularyCategory: 'expressions' },
+      { speakerSlot: 'B', template: 'Absolutely. As they say, {vocab}.', vocabularySlot: true, vocabularyCategory: 'expressions' },
       { speakerSlot: 'A', template: 'Couldn\'t agree more. Good night!', vocabularySlot: false },
     ],
   },
@@ -253,9 +253,9 @@ const DEFAULT_TEMPLATES: ConversationTemplate[] = [
     topicId: 'work_discussion',
     maxVocabularySlots: 2,
     lines: [
-      { speakerSlot: 'A', template: 'How is the {vocab} ({translation}) coming along?', vocabularySlot: true, vocabularyCategory: 'work' },
+      { speakerSlot: 'A', template: 'How is the {vocab} coming along?', vocabularySlot: true, vocabularyCategory: 'work' },
       { speakerSlot: 'B', template: 'Slowly but surely. I need more supplies.', vocabularySlot: false },
-      { speakerSlot: 'A', template: 'Try the {vocab} ({translation}) method. It works much better.', vocabularySlot: true, vocabularyCategory: 'work' },
+      { speakerSlot: 'A', template: 'Try the {vocab} method. It works much better.', vocabularySlot: true, vocabularyCategory: 'work' },
       { speakerSlot: 'B', template: 'Great idea, I will try that. Thank you!', vocabularySlot: false },
     ],
   },
@@ -266,7 +266,7 @@ const DEFAULT_TEMPLATES: ConversationTemplate[] = [
     lines: [
       { speakerSlot: 'A', template: 'It\'s been so long! {vocab}! ({translation})', vocabularySlot: true, vocabularyCategory: 'greetings' },
       { speakerSlot: 'B', template: 'I know! How have you been?', vocabularySlot: false },
-      { speakerSlot: 'A', template: 'Busy! But I learned something interesting about {vocab} ({translation}).', vocabularySlot: true, vocabularyCategory: 'culture' },
+      { speakerSlot: 'A', template: 'Busy! But I learned something interesting about {vocab}.', vocabularySlot: true, vocabularyCategory: 'culture' },
       { speakerSlot: 'B', template: 'Tell me more next time! I have to run.', vocabularySlot: false },
     ],
   },
@@ -277,7 +277,7 @@ const DEFAULT_TEMPLATES: ConversationTemplate[] = [
     lines: [
       { speakerSlot: 'A', template: 'Can you believe what happened today?', vocabularySlot: false },
       { speakerSlot: 'B', template: 'No, what?', vocabularySlot: false },
-      { speakerSlot: 'A', template: 'Well, as they say: {vocab} ({translation}). That sums it up.', vocabularySlot: true, vocabularyCategory: 'expressions' },
+      { speakerSlot: 'A', template: 'Well, as they say: {vocab}. That sums it up.', vocabularySlot: true, vocabularyCategory: 'expressions' },
       { speakerSlot: 'B', template: 'I hear you. Hopefully tomorrow will be better.', vocabularySlot: false },
     ],
   },
@@ -286,9 +286,9 @@ const DEFAULT_TEMPLATES: ConversationTemplate[] = [
     topicId: 'food_discussion',
     maxVocabularySlots: 2,
     lines: [
-      { speakerSlot: 'A', template: 'Have you tried making {vocab} ({translation})?', vocabularySlot: true, vocabularyCategory: 'food' },
+      { speakerSlot: 'A', template: 'Have you tried making {vocab}?', vocabularySlot: true, vocabularyCategory: 'food' },
       { speakerSlot: 'B', template: 'Not yet! Is it difficult?', vocabularySlot: false },
-      { speakerSlot: 'A', template: 'Not at all. You just need some {vocab} ({translation}) and patience.', vocabularySlot: true, vocabularyCategory: 'food' },
+      { speakerSlot: 'A', template: 'Not at all. You just need some {vocab} and patience.', vocabularySlot: true, vocabularyCategory: 'food' },
       { speakerSlot: 'B', template: 'I will have to try that this weekend!', vocabularySlot: false },
     ],
   },

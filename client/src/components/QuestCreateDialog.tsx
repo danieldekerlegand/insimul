@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Sparkles, Target, Map, Trophy } from 'lucide-react';
+import { Plus, Sparkles, Target, Map, Trophy, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface QuestCreateDialogProps {
@@ -75,6 +75,38 @@ export function QuestCreateDialog({ open, onOpenChange, worldId, onSuccess, chil
     }
   };
 
+  const handleSeedAllTypes = async () => {
+    setIsGenerating(true);
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/quests/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'seed' }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(err.error || 'Failed to generate seed quests');
+      }
+
+      const data = await res.json();
+      toast({
+        title: 'Seed Quests Generated',
+        description: `Created ${data.count} quests (one per objective type)`,
+      });
+      onSuccess();
+      onOpenChange(false);
+    } catch (error) {
+      toast({
+        title: 'Generation Failed',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleGenerateWithAI = async () => {
     if (!aiPrompt.trim()) {
       toast({
@@ -91,10 +123,10 @@ export function QuestCreateDialog({ open, onOpenChange, worldId, onSuccess, chil
 
       // Generate quests
       const quests = [];
-      
+
       for (let i = 0; i < (useBulk ? numQuests : 1); i++) {
         const questName = `${aiPrompt.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '_')}_${i + 1}`;
-        
+
         // Generate quest steps
         const steps = [];
         for (let j = 0; j < numSteps; j++) {
@@ -275,6 +307,41 @@ export function QuestCreateDialog({ open, onOpenChange, worldId, onSuccess, chil
           </TabsContent>
 
           <TabsContent value="ai" className="space-y-4 mt-4">
+            {/* Seed All Types — one quest per game mechanic */}
+            <Card className="border-primary/50 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-primary" />
+                  Seed All Quest Types
+                </CardTitle>
+                <CardDescription>
+                  Generate one playable quest for every game mechanic: talk to NPCs, collect items,
+                  visit locations, deliver items, translate phrases, listen to stories, and more.
+                  Ensures all 18 objective types are represented.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  onClick={handleSeedAllTypes}
+                  disabled={isGenerating}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Zap className="w-4 h-4 mr-2 animate-spin" />
+                      Seeding All Types...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 mr-2" />
+                      Generate 18 Seed Quests (One Per Type)
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+
             {/* Quest Description */}
             <Card>
               <CardHeader>

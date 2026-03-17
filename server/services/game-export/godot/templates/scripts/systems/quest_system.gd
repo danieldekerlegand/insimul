@@ -126,6 +126,76 @@ static func get_next_scavenger_category(last_category_index: int) -> String:
 	return SCAVENGER_CATEGORIES[next]
 
 
+## Track vocabulary usage for use_vocabulary / collect_vocabulary objectives.
+func track_vocabulary_usage(word: String, quest_id: String = "") -> void:
+	var lower_word := word.to_lower()
+
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		if not quest_id.is_empty() and obj.get("quest_id") != quest_id:
+			continue
+		var obj_type: String = obj.get("type", "")
+		if obj_type != "use_vocabulary" and obj_type != "collect_vocabulary":
+			continue
+
+		# If targetWords specified, only count matching words
+		var target_words: Array = obj.get("target_words", [])
+		if target_words.size() > 0 and lower_word not in target_words:
+			continue
+
+		# Don't double-count the same word
+		var words_used: Array = obj.get("words_used", [])
+		if lower_word in words_used:
+			continue
+
+		words_used.append(lower_word)
+		obj["words_used"] = words_used
+		obj["current_count"] = obj.get("current_count", 0) + 1
+
+		var required: int = obj.get("required_count", 10)
+		if obj["current_count"] >= required:
+			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
+## Track a conversation turn for complete_conversation objectives.
+func track_conversation_turn(keywords: Array[String] = [], quest_id: String = "") -> void:
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		if not quest_id.is_empty() and obj.get("quest_id") != quest_id:
+			continue
+		if obj.get("type", "") != "complete_conversation":
+			continue
+
+		# Every conversation turn counts as progress
+		obj["current_count"] = obj.get("current_count", 0) + 1
+
+		var required: int = obj.get("required_count", 5)
+		if obj["current_count"] >= required:
+			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
+## Track a pronunciation attempt for pronunciation_check objectives.
+func track_pronunciation_attempt(passed: bool, quest_id: String = "") -> void:
+	if not passed:
+		return
+
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		if not quest_id.is_empty() and obj.get("quest_id") != quest_id:
+			continue
+		if obj.get("type", "") != "pronunciation_check":
+			continue
+
+		obj["current_count"] = obj.get("current_count", 0) + 1
+
+		var required: int = obj.get("required_count", 3)
+		if obj["current_count"] >= required:
+			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
 func get_active_quests() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for q in all_quests:

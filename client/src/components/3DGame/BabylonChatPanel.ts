@@ -14,7 +14,7 @@ import { Scene, Mesh } from "@babylonjs/core";
 import { BabylonDialogueActions } from "./BabylonDialogueActions.ts";
 import { Action } from "./types/actions";
 import { NPCTalkingIndicator } from "./NPCTalkingIndicator";
-import { buildGreeting, buildLanguageAwareSystemPrompt, buildWorldLanguageContext, extractLanguageFluencies, getLanguageBCP47 } from "@shared/language/language-utils";
+import { buildLanguageAwareSystemPrompt, buildWorldLanguageContext, extractLanguageFluencies, getLanguageBCP47 } from "@shared/language/language-utils";
 import type { WorldLanguageContext } from "@shared/language/language-utils";
 import { LanguageProgressTracker } from "./LanguageProgressTracker";
 import { scorePronunciation, formatPronunciationFeedback } from "@shared/language/pronunciation-scoring";
@@ -26,7 +26,6 @@ import { LipSyncController } from "./LipSyncController";
 import { SpeechRecognitionService, isSpeechRecognitionSupported, serverSideSTT } from "@/lib/speech-recognition";
 import { processRecordedAudio } from "@/lib/audio-utils";
 import { HandsFreeController } from "@/lib/hands-free-controller";
-import { fetchGreetingAudio } from "@/lib/greeting-audio-cache";
 import { VoiceWebSocketClient } from "@/lib/voice-websocket-client";
 
 interface Message {
@@ -80,7 +79,7 @@ export class BabylonChatPanel {
   private messagesStack: StackPanel | null = null;
   private inputText: InputText | null = null;
   private inputContainer: Container | null = null;
-  private micButton: Button | null = null; // Store reference to mic button
+  private micButton: Rectangle | null = null; // Mic status indicator (non-interactive)
   private titleText: TextBlock | null = null; // Store reference to title text
   private loadingIndicator: TextBlock | null = null; // Loading indicator
   /** Cached message TextBlock controls indexed by position — avoids full rebuild */
@@ -96,6 +95,9 @@ export class BabylonChatPanel {
   private languageTracker: LanguageProgressTracker | null = null;
   private messages: Message[] = [];
   private isVisible = false;
+  private isCollapsed = true;
+  private nearbyNPCName: string | null = null;
+  private collapsedHeader: TextBlock | null = null;
   private _enterKeyHandler: ((e: KeyboardEvent) => void) | null = null;
   private _inputFocused = false;
   private isProcessing = false;
@@ -105,12 +107,16 @@ export class BabylonChatPanel {
   private _sessionGrammarErrors: Map<string, number> = new Map(); // pattern -> error count this session
   private _grammarFocusShown: Set<string> = new Set(); // patterns already shown focus popup
 
-  // Precomputed greeting audio
-  private greetingAudioPromise: Promise<Blob | null> | null = null;
-
   // Audio queue for sentence-level TTS playback
-  private audioQueue: { index: number; blob: Blob }[] = [];
+  private audioQueue: { index: number; blob: Blob; skipped?: boolean }[] = [];
   private isPlayingQueue = false;
+  private expectedSentenceCount = -1; // set by server's totalSentences signal
+  private _receivedStreamingAudio = false; // tracks whether streaming audio arrived during this response
+
+  // Voice locked at conversation start — prevents mid-conversation voice drift
+  // if the character object is mutated by external systems (NPC scheduler, etc.)
+  private _lockedVoice: string = 'Charon';
+  private _lockedGender: string = 'neutral';
 
   // Audio / Speech Recognition
   private speechService: SpeechRecognitionService | null = null;
@@ -130,14 +136,10 @@ export class BabylonChatPanel {
   // WebSocket voice chat
   private voiceWSClient: VoiceWebSocketClient | null = null;
   private voiceMode: 'push-to-talk' | 'always-on' = 'push-to-talk';
-  private voiceModeButton: Button | null = null;
 
-  // Hands-free mode (VAD auto-start/stop)
+  // Always-on mic (VAD auto-start/stop)
   private handsFreeController: HandsFreeController | null = null;
   private isHandsFreeMode = false;
-  private handsFreeButton: Button | null = null;
-  private volumeIndicator: Rectangle | null = null;
-  private volumeBar: Rectangle | null = null;
 
   // Dialogue Actions
   private dialogueActions: BabylonDialogueActions | null = null;
@@ -164,6 +166,9 @@ export class BabylonChatPanel {
   private onChatExchange: ((npcId: string, playerMessage: string, npcResponse: string) => void) | null = null;
   private systemPromptAugmentation: ((npcId: string) => string | null) | null = null;
   private pendingTurnInQuests: any[] = [];
+  private questOfferingContext: { questTitle: string; questDescription: string; questType: string; difficulty: string; objectives: string; category: string } | null = null;
+  private activeQuestFromNPC: { questTitle: string; questDescription: string; questId: string } | null = null;
+  private _targetLanguage: string | null = null;
 
   // Expose advancedTexture for debugging
   public get advancedTexture() {
@@ -185,6 +190,69 @@ export class BabylonChatPanel {
     window.addEventListener('resize', this.handleResize);
   }
 
+  /**
+   * Show the chat panel in collapsed mode — always visible at the bottom-right
+   * but showing only a small header bar. Call this once after initialization.
+   */
+  public showCollapsed(): void {
+    if (!this.chatContainer) {
+      this.createChatUI();
+    }
+    this.isCollapsed = true;
+    this.isVisible = false;
+    this.nearbyNPCName = null;
+    if (this.chatContainer) {
+      this.chatContainer.isVisible = true;
+      this.chatContainer.height = '32px';
+      this.chatContainer.alpha = 0.5;
+    }
+    this.updateCollapsedHeader();
+  }
+
+  /**
+   * Called by BabylonGame each frame with the name of the nearest NPC within
+   * interaction range, or null if none. Updates the collapsed header prompt.
+   */
+  public setNearbyNPC(npcName: string | null): void {
+    if (this.nearbyNPCName === npcName) return;
+    this.nearbyNPCName = npcName;
+    if (this.isCollapsed) {
+      this.updateCollapsedHeader();
+    }
+  }
+
+  private updateCollapsedHeader(): void {
+    if (!this.titleText) return;
+    if (this.isCollapsed) {
+      if (this.nearbyNPCName) {
+        this.titleText.text = `Press G to talk to ${this.nearbyNPCName}`;
+        if (this.chatContainer) this.chatContainer.alpha = 0.8;
+      } else {
+        this.titleText.text = 'No NPC nearby';
+        if (this.chatContainer) this.chatContainer.alpha = 0.4;
+      }
+    }
+  }
+
+  /**
+   * Start push-to-talk recording (called on key down).
+   */
+  public startPushToTalk(): void {
+    if (!this.isVisible || this.isProcessing) return;
+    if (!this.isRecording) {
+      this.startRecording();
+    }
+  }
+
+  /**
+   * Stop push-to-talk recording (called on key up).
+   */
+  public stopPushToTalk(): void {
+    if (this.isRecording) {
+      this.stopRecording();
+    }
+  }
+
   public show(character: Character, truths: Truth[], npcMesh?: Mesh) {
     console.log('[ChatPanel] SHOW() called for:', character.firstName, character.lastName);
     console.log('[ChatPanel] Current time:', Date.now());
@@ -192,6 +260,11 @@ export class BabylonChatPanel {
     this.truths = truths;
     this.npcMesh = npcMesh || null;
     this.isVisible = true;
+
+    // Lock voice/gender at conversation start so it never drifts mid-conversation
+    this._lockedGender = (character.gender || 'neutral').toLowerCase();
+    this._lockedVoice = this._lockedGender === 'female' ? 'Kore' : 'Charon';
+    console.log(`[ChatPanel] Locked voice: ${this._lockedVoice} (gender: ${this._lockedGender}, raw: ${character.gender})`);
 
     // Clear previous messages for new conversation
     this.messages = [];
@@ -211,27 +284,28 @@ export class BabylonChatPanel {
     // Check for quests ready to turn in from this NPC
     this.checkQuestTurnIn(character.id, character.worldId);
 
+    // Expand from collapsed state
+    this.isCollapsed = false;
+
     if (this.chatContainer) {
       // Chat container already exists, just update and show it
-      console.log('[ChatPanel] Chat container exists, updating...');
       this.chatContainer.isVisible = true;
+      this.chatContainer.height = '350px';
       this.chatContainer.alpha = 1;
-      
+
       // Update the character name in the header
       if (this.titleText) {
         this.titleText.text = `${character.firstName} ${character.lastName}`;
-        console.log('[ChatPanel] Updated title to:', this.titleText.text);
       }
-      
-      this.initializeChat(truths);
+
+      this.initializeChat();
       this._advancedTexture.markAsDirty();
       return;
     }
 
     // Create the chat UI for the first time
-    console.log('[ChatPanel] Creating chat UI for first time...');
     this.createChatUI();
-    this.initializeChat(truths);
+    this.initializeChat();
   }
 
   private async fetchWorldData(worldId: string) {
@@ -286,6 +360,8 @@ export class BabylonChatPanel {
           this.talkingIndicator.show(this.character.id, this.npcMesh);
         }
         this.updateConversationStateIndicator('speaking');
+        // Pause mic so we don't pick up NPC TTS audio
+        this.handsFreeController?.pause();
       },
       onComplete: () => {
         this.isSpeaking = false;
@@ -293,6 +369,8 @@ export class BabylonChatPanel {
           this.talkingIndicator.hide(this.character.id);
         }
         this.updateConversationStateIndicator('idle');
+        // Resume mic after NPC finishes speaking
+        this.handsFreeController?.resume();
       },
     });
 
@@ -348,9 +426,12 @@ export class BabylonChatPanel {
     this.clearHintTimer();
     this.disableHandsFreeMode();
     this.isVisible = false;
+    // Return to collapsed state instead of hiding entirely
+    this.isCollapsed = true;
     if (this.chatContainer) {
-      this.chatContainer.isVisible = false;
-      console.log('[ChatPanel] Chat container set to invisible');
+      this.chatContainer.height = '32px';
+      this.chatContainer.isVisible = true;
+      this.updateCollapsedHeader();
     }
     if (this.dialogueActions) {
       this.dialogueActions.hide();
@@ -362,17 +443,21 @@ export class BabylonChatPanel {
     // End language tracking conversation and log results
     if (this.languageTracker) {
       const result = this.languageTracker.endConversation();
-      if (result && result.gain > 0) {
-        console.log(`[LanguageTracker] Fluency: ${result.previousFluency.toFixed(1)} → ${result.newFluency.toFixed(1)} (+${result.gain.toFixed(2)})`);
-        if (result.bonuses.length > 0) {
-          console.log(`[LanguageTracker] Bonuses: ${result.bonuses.join(", ")}`);
+      if (result) {
+        if (result.gain > 0) {
+          console.log(`[LanguageTracker] Fluency: ${result.previousFluency.toFixed(1)} → ${result.newFluency.toFixed(1)} (+${result.gain.toFixed(2)})`);
+          if (result.bonuses.length > 0) {
+            console.log(`[LanguageTracker] Bonuses: ${result.bonuses.join(", ")}`);
+          }
         }
-        // Fire conversation summary callback
+        // Always fire conversation summary — assessment depends on this to advance phases
         this.onConversationSummary?.(result);
       }
     }
-    // Cancel any pending greeting audio
-    this.greetingAudioPromise = null;
+    // Clear quest context so it doesn't bleed into next conversation
+    this.questOfferingContext = null;
+    this.activeQuestFromNPC = null;
+    this._cachedSystemPrompt = null; // Force prompt rebuild for next NPC
     // Hide talking indicator
     if (this.talkingIndicator && this.character) {
       this.talkingIndicator.hide(this.character.id);
@@ -410,7 +495,7 @@ export class BabylonChatPanel {
     this.isSpeaking = false;
   }
 
-  private initializeChat(truths: Truth[]) {
+  private initializeChat() {
     if (!this.character) return;
 
     // Initialize language progress tracker from world languages or legacy targetLanguage
@@ -423,39 +508,12 @@ export class BabylonChatPanel {
         this.character.worldId,
         learningLang
       );
+      // Start tracking this conversation so endConversation() produces a result
+      this.languageTracker.startConversation(this.character.id, this.character.firstName || this.character.name || 'NPC');
     }
 
-    // Add welcome message if no messages exist
-    if (this.messages.length === 0) {
-      this.messages.push({
-        role: 'assistant',
-        content: `Hello! I'm ${this.character.firstName}. How can I help you today?`,
-        timestamp: new Date()
-      });
-    }
-
-    // Build greeting dynamically based on all language fluencies
-    const greeting = buildGreeting(this.character, truths, this.world?.targetLanguage);
-
-    // Add greeting as first message if not already present
-    if (this.messages.length === 1 && this.messages[0].content.includes("How can I help you")) {
-      // Replace the generic welcome with the specific greeting
-      this.messages[0] = {
-        role: 'assistant',
-        content: greeting,
-        timestamp: new Date()
-      };
-    } else if (this.messages.length === 0) {
-      // Add greeting if no messages at all
-      this.messages.push({
-        role: 'assistant',
-        content: greeting,
-        timestamp: new Date()
-      });
-    }
-
-    // Precompute greeting audio so it's ready to play immediately
-    this.precomputeGreetingAudio(greeting);
+    // No filler greeting — the player speaks first.
+    // The NPC will respond naturally via the chat pipeline.
 
     // Set up language tracker callbacks
     if (this.languageTracker) {
@@ -475,26 +533,13 @@ export class BabylonChatPanel {
     }
 
     this.updateMessagesDisplay();
+
+    // Auto-enable always-on mic (VAD-gated speech detection)
+    if (!this.isHandsFreeMode) {
+      this.enableHandsFreeMode();
+    }
   }
 
-  private precomputeGreetingAudio(greeting: string) {
-    if (!this.character) return;
-
-    const voice = this.character.gender === 'female' ? 'Kore' : 'Charon';
-    const gender = this.character.gender || 'neutral';
-    const characterId = this.character.id;
-
-    this.greetingAudioPromise = fetchGreetingAudio(characterId, greeting, voice, gender);
-
-    // Auto-play once ready (if panel is still visible and showing this character)
-    this.greetingAudioPromise.then((blob) => {
-      if (blob && this.isVisible && this.character?.id === characterId) {
-        this.playAudio(blob).catch((err) => {
-          console.warn('[ChatPanel] Failed to play greeting audio:', err);
-        });
-      }
-    });
-  }
 
   private createChatUI() {
     console.log('[ChatPanel] Creating chat UI...');
@@ -613,7 +658,7 @@ export class BabylonChatPanel {
 
     // Input text field
     this.inputText = new InputText("chatInput");
-    this.inputText.width = "58%";
+    this.inputText.width = "72%";
     this.inputText.height = "26px";
     this.inputText.color = "white";
     this.inputText.fontSize = 12;
@@ -650,87 +695,32 @@ export class BabylonChatPanel {
 
     inputArea.addControl(this.inputText);
 
-    // Microphone button
-    this.micButton = Button.CreateSimpleButton("micBtn", "Mic");
-    this.micButton.width = "26px";
-    this.micButton.height = "26px";
-    this.micButton.color = "white";
-    this.micButton.background = this.isRecording ? "rgba(255, 50, 50, 0.8)" : "rgba(60, 60, 60, 0.5)";
-    this.micButton.cornerRadius = 4;
-    this.micButton.fontSize = 9;
-    this.micButton.left = "60%";
-    this.micButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    this.micButton.onPointerClickObservable.add(() => {
-      if (this.isRecording) {
-        this.stopRecording();
-      } else {
-        this.startRecording();
-      }
-    });
+    // Mic status indicator (non-interactive, shows when VAD detects speech)
+    this.micButton = new Rectangle("micStatus");
+    this.micButton.width = "22px";
+    this.micButton.height = "22px";
+    this.micButton.color = "transparent";
+    this.micButton.background = "rgba(60, 60, 60, 0.3)";
+    this.micButton.cornerRadius = 11;
+    this.micButton.thickness = 0;
+    this.micButton.left = "-4px";
+    this.micButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    this.micButton.isHitTestVisible = false;
+    const micIcon = new TextBlock("micIcon", "🎤");
+    micIcon.fontSize = 11;
+    micIcon.color = "white";
+    this.micButton.addControl(micIcon);
     inputArea.addControl(this.micButton);
-
-    // Voice mode toggle button (push-to-talk vs always-on WebSocket)
-    this.voiceModeButton = Button.CreateSimpleButton("voiceModeBtn", "PTT");
-    this.voiceModeButton.width = "26px";
-    this.voiceModeButton.height = "26px";
-    this.voiceModeButton.color = "white";
-    this.voiceModeButton.background = "rgba(60, 60, 60, 0.5)";
-    this.voiceModeButton.cornerRadius = 4;
-    this.voiceModeButton.fontSize = 7;
-    this.voiceModeButton.left = "68%";
-    this.voiceModeButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    this.voiceModeButton.onPointerClickObservable.add(() => {
-      this.toggleVoiceMode();
-    });
-    inputArea.addControl(this.voiceModeButton);
-
-    // Hands-free toggle button (VAD auto-start/stop)
-    this.handsFreeButton = Button.CreateSimpleButton("hfBtn", "HF");
-    this.handsFreeButton.width = "26px";
-    this.handsFreeButton.height = "26px";
-    this.handsFreeButton.color = "white";
-    this.handsFreeButton.background = "rgba(60, 60, 60, 0.5)";
-    this.handsFreeButton.cornerRadius = 4;
-    this.handsFreeButton.fontSize = 8;
-    this.handsFreeButton.left = "72%";
-    this.handsFreeButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    this.handsFreeButton.onPointerClickObservable.add(() => {
-      this.toggleHandsFreeMode();
-    });
-    inputArea.addControl(this.handsFreeButton);
-
-    // Volume indicator (visible only in hands-free mode)
-    this.volumeIndicator = new Rectangle("volumeIndicator");
-    this.volumeIndicator.width = "40px";
-    this.volumeIndicator.height = "4px";
-    this.volumeIndicator.left = "60%";
-    this.volumeIndicator.top = "-2px";
-    this.volumeIndicator.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    this.volumeIndicator.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    this.volumeIndicator.background = "rgba(40, 40, 40, 0.6)";
-    this.volumeIndicator.cornerRadius = 2;
-    this.volumeIndicator.thickness = 0;
-    this.volumeIndicator.isVisible = false;
-
-    this.volumeBar = new Rectangle("volumeBar");
-    this.volumeBar.width = "0%";
-    this.volumeBar.height = "100%";
-    this.volumeBar.background = "#4CAF50";
-    this.volumeBar.cornerRadius = 2;
-    this.volumeBar.thickness = 0;
-    this.volumeBar.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    this.volumeIndicator.addControl(this.volumeBar);
-    inputArea.addControl(this.volumeIndicator);
 
     // Send button
     const sendBtn = Button.CreateSimpleButton("sendBtn", "Send");
-    sendBtn.width = "28%";
+    sendBtn.width = "20%";
     sendBtn.height = "26px";
     sendBtn.color = "white";
     sendBtn.background = "rgba(30, 150, 255, 0.6)";
     sendBtn.cornerRadius = 4;
     sendBtn.fontSize = 12;
-    sendBtn.left = "-4px";
+    sendBtn.left = "-34px";
     sendBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     sendBtn.onPointerClickObservable.add(() => {
       this.sendMessage();
@@ -859,11 +849,7 @@ export class BabylonChatPanel {
       this._messageControls.set(i, ctrl);
       this.messagesStack.addControl(ctrl);
 
-      // Add rating buttons after NPC messages (not system messages)
-      if (this.messages[i].role === 'assistant' && !this.messages[i].content.startsWith('✓ ') && !this.messages[i].content.startsWith('✎ ')) {
-        const ratingRow = this.createRatingRow(i);
-        this.messagesStack.addControl(ratingRow);
-      }
+      // Rating UI disabled for now
     }
 
     // Re-add loading indicator at the end
@@ -1028,6 +1014,7 @@ export class BabylonChatPanel {
       this.updateMessagesDisplay();
 
       let responseText: string;
+      this._receivedStreamingAudio = false;
 
       // Try gRPC streaming service first, fall back to direct Gemini API
       if (this._grpcAvailable && this.conversationClient) {
@@ -1041,58 +1028,12 @@ export class BabylonChatPanel {
         this.loadingIndicator.isVisible = false;
       }
 
-      // Use server-provided cleaned response if available, otherwise parse locally
-      const cleanedResponse = aiResponse.cleanedResponse
-        ? await this.parseAndCreateQuest(aiResponse.cleanedResponse)
-        : await this.parseAndCreateQuest(aiResponse.text);
-
-      // Analyze vocabulary usage
-      if (this.languageTracker) {
-        this.languageTracker.analyzePlayerMessage(userMessage);
-        this.languageTracker.analyzeNPCResponse(cleanedResponse);
-      }
-
-      // Use grammar feedback from streaming done event, or fall back to separate API call
-      const isLanguageLearning = this.world?.gameType === 'language-learning' ||
-                                 this.world?.gameType === 'educational' ||
-                                 this.world?.worldType === 'language-learning' ||
-                                 this.world?.worldType === 'educational';
-      if (isLanguageLearning && this.languageTracker && this.worldLanguageContext?.targetLanguage) {
-        if (aiResponse.grammarFeedback) {
-          this.languageTracker.recordGrammarFeedback(aiResponse.grammarFeedback);
-          if (aiResponse.grammarFeedback.errors?.length > 0) {
-            const corrections = aiResponse.grammarFeedback.errors
-              .map((e: any) => `"${e.incorrect}" → "${e.corrected}" (${e.explanation})`)
-              .join('\n');
-            this.displayGrammarFeedback(corrections, false);
-          } else if (aiResponse.grammarFeedback.status === 'correct') {
-            this.displayGrammarFeedback('Great grammar!', true);
-          }
-        } else {
-          this.requestGrammarAnalysis(userMessage, cleanedResponse);
-        }
-      }
-
-      // Update final cleaned message content and do full display rebuild
-      placeholderMsg.content = cleanedResponse;
-      this.updateMessagesDisplay();
-
-      // Track vocabulary usage for quests
-      this.trackQuestProgress(userMessage, cleanedResponse);
+      // Process the response: grammar feedback, vocabulary, quests, TTS
+      await this.processAssistantResponse(userMessage, responseText, placeholderMsg);
 
       // Notify listeners of the chat exchange (used by listening comprehension)
       if (this.onChatExchange && this.character?.id) {
-        this.onChatExchange(this.character.id, userMessage, cleanedResponse);
-      }
-
-      // Play queued sentence audio, or fall back to full TTS
-      if (this.audioQueue.length > 0) {
-        // Audio queue playback was started during streaming; wait for it to drain
-        while (this.isPlayingQueue) {
-          await new Promise(r => setTimeout(r, 100));
-        }
-      } else {
-        await this.textToSpeech(cleanedResponse);
+        this.onChatExchange(this.character.id, userMessage, placeholderMsg.content);
       }
 
       // Start hint timer for beginner players
@@ -1100,6 +1041,7 @@ export class BabylonChatPanel {
 
     } catch (error) {
       console.error('Chat error:', error);
+      if (this.loadingIndicator) this.loadingIndicator.isVisible = false;
       this.messages.push({
         role: 'assistant',
         content: 'Sorry, I encountered an error. Please try again.',
@@ -1108,6 +1050,7 @@ export class BabylonChatPanel {
       this.updateMessagesDisplay();
     } finally {
       this.isProcessing = false;
+      if (this.loadingIndicator) this.loadingIndicator.isVisible = false;
       this.updateConversationStateIndicator('idle');
     }
   }
@@ -1133,6 +1076,7 @@ export class BabylonChatPanel {
         this.onNPCSpeechUpdate?.(accumulatedText);
       },
       onAudioChunk: (chunk) => {
+        this._receivedStreamingAudio = true;
         if (this.streamingAudioPlayer) {
           this.streamingAudioPlayer.pushChunk(chunk as StreamingAudioChunk);
         }
@@ -1152,6 +1096,11 @@ export class BabylonChatPanel {
         if (this.lipSyncController) {
           this.lipSyncController.start();
         }
+      },
+      onMetadata: (type, content) => {
+        // Metadata extraction now happens via a separate background request.
+        // Log any unexpected inline metadata from the streaming response.
+        console.log(`[ChatPanel] Unexpected metadata in stream: ${type}`, content.substring(0, 80));
       },
       onError: (err) => {
         console.error('[ChatPanel] gRPC streaming error:', err);
@@ -1189,34 +1138,83 @@ export class BabylonChatPanel {
   }
 
   /**
-   * Process assistant response: quests, grammar feedback, vocabulary tracking, TTS.
+   * Process assistant response: display, TTS, then background metadata extraction.
+   * The dialogue response should be pure spoken text — no metadata blocks.
    */
   private async processAssistantResponse(
     userMessage: string,
     responseText: string,
     placeholderMsg: Message,
   ): Promise<void> {
-    // Parse and create quest if present in response
-    let cleanedResponse = await this.parseAndCreateQuest(responseText);
+    // Defensive strip — the LLM should no longer include these, but just in case
+    const cleanedResponse = responseText
+      .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+      .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+      .replace(/\*\*VOCAB_HINTS\*\*[\s\S]*?\*\*END_VOCAB\*\*/g, '')
+      .replace(/\*\*EVAL\*\*[\s\S]*?\*\*END_EVAL\*\*/g, '')
+      .replace(/\*\*(GRAMMAR_FEEDBACK|QUEST_ASSIGN|VOCAB_HINTS|EVAL|END_GRAMMAR|END_QUEST|END_VOCAB|END_EVAL)\*\*/g, '')
+      .trim();
 
-    // Parse grammar feedback for language-learning games only
+    // Update displayed message content
+    placeholderMsg.content = cleanedResponse;
+    this.updateMessagesDisplay();
+
+    // Track vocabulary usage for quests
+    this.trackQuestProgress(userMessage, cleanedResponse);
+
+    // Play audio: if streaming audio was received (gRPC), it's already playing.
+    // Otherwise fall back to queued audio from SSE, or legacy single-shot TTS.
+    if (!this._receivedStreamingAudio) {
+      if (this.audioQueue.length > 0) {
+        await this.playAudioQueue();
+      } else {
+        await this.textToSpeech(cleanedResponse);
+      }
+    }
+
+    // Fire background metadata extraction (vocab hints, grammar feedback)
+    // This is a SEPARATE LLM call — does not block the conversation.
+    this.requestBackgroundMetadata(userMessage, cleanedResponse);
+  }
+
+  /**
+   * Fire a background request to extract vocab hints and grammar feedback
+   * from the conversation exchange. Does not block the UI or TTS.
+   */
+  private requestBackgroundMetadata(playerMessage: string, npcResponse: string): void {
+    const targetLanguage = this._targetLanguage
+      || this.worldLanguageContext?.targetLanguage
+      || this.world?.targetLanguage;
+    if (!targetLanguage || targetLanguage === 'English') return;
+
     const isLanguageLearning = this.world?.gameType === 'language-learning' ||
                                this.world?.gameType === 'educational' ||
                                this.world?.worldType === 'language-learning' ||
                                this.world?.worldType === 'educational';
+    if (!isLanguageLearning) return;
 
-    if (this.languageTracker) {
-      if (isLanguageLearning) {
-        const { feedback, cleanedResponse: afterGrammarClean } =
-          this.languageTracker.parseGrammarFeedback(cleanedResponse);
-        cleanedResponse = afterGrammarClean;
+    // Fire and forget — don't await
+    fetch('/api/conversation/metadata', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        playerMessage,
+        npcResponse,
+        targetLanguage,
+        playerProficiency: this.languageTracker?.getFluency?.() ?? 'beginner',
+      }),
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(metadata => {
+        if (!metadata) return;
 
-        if (feedback) {
-          this.languageTracker.recordGrammarFeedback(feedback);
-
-          if (feedback.status === 'corrected' && feedback.errors.length > 0) {
+        // Process grammar feedback
+        if (metadata.grammarFeedback && this.languageTracker) {
+          const feedback = metadata.grammarFeedback;
+          if (feedback.status === 'corrected' && feedback.errors?.length > 0) {
             console.log(`[LanguageTracker] Grammar corrections: ${feedback.errors.length}`);
-            const corrections = feedback.errors.map(err =>
+            this.languageTracker.recordGrammarFeedback(feedback);
+            const corrections = feedback.errors.map((err: any) =>
               `"${err.incorrect}" → "${err.corrected}" (${err.explanation})`
             ).join('\n');
             this.displayGrammarFeedback(corrections, false);
@@ -1230,32 +1228,22 @@ export class BabylonChatPanel {
               }
             }
           } else if (feedback.status === 'correct') {
-            console.log('[LanguageTracker] Grammar: correct!');
             this.displayGrammarFeedback('Great grammar!', true);
           }
         }
-      }
 
-      this.languageTracker.analyzePlayerMessage(userMessage);
-      this.languageTracker.analyzeNPCResponse(cleanedResponse);
-    }
-
-    // Update final cleaned message content and do full display rebuild
-    placeholderMsg.content = cleanedResponse;
-    this.updateMessagesDisplay();
-
-    // Track vocabulary usage for quests
-    this.trackQuestProgress(userMessage, cleanedResponse);
-
-    // Play audio: if gRPC streaming audio was used, it's already playing.
-    // Otherwise fall back to queued audio or TTS.
-    if (!this._grpcAvailable || !this.streamingAudioPlayer?.getIsPlaying()) {
-      if (this.audioQueue.length > 0) {
-        await this.playAudioQueue();
-      } else {
-        await this.textToSpeech(cleanedResponse);
-      }
-    }
+        // Process vocab hints — log for now, can display as tooltip later
+        if (metadata.vocabHints?.length > 0) {
+          console.log('[VocabHints]', metadata.vocabHints);
+          if (this.languageTracker) {
+            this.languageTracker.analyzePlayerMessage(playerMessage);
+            this.languageTracker.analyzeNPCResponse(npcResponse);
+          }
+        }
+      })
+      .catch(err => {
+        console.warn('[ChatPanel] Background metadata extraction failed:', err);
+      });
   }
 
   private startHintTimer() {
@@ -1360,7 +1348,9 @@ export class BabylonChatPanel {
         temperature: 0.8,
         maxTokens: 2048,
         returnAudio: true,
-        voice: this.character?.gender === 'female' ? 'Kore' : 'Charon',
+        voice: this._lockedVoice,
+        gender: this._lockedGender,
+        targetLanguage: this.world?.targetLanguage,
         stream: true
       })
     });
@@ -1377,6 +1367,7 @@ export class BabylonChatPanel {
     let doneData: any = null;
     // Reset audio queue for this response
     this.audioQueue = [];
+    this.expectedSentenceCount = -1;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -1408,15 +1399,36 @@ export class BabylonChatPanel {
             }
             continue;
           }
+          // Handle per-sentence audio from streaming TTS (sentenceIndex present, no done flag)
+          if (parsed.audio && parsed.sentenceIndex !== undefined && !parsed.done) {
+            const audioBytes = Uint8Array.from(atob(parsed.audio), c => c.charCodeAt(0));
+            const audioBlob = new Blob([audioBytes], { type: 'audio/mp3' });
+            this.audioQueue.push({ index: parsed.sentenceIndex, blob: audioBlob });
+            if (!this.isPlayingQueue) {
+              this.playAudioQueue();
+            }
+          }
+          // Handle totalSentences signal — lets the audio queue know when to stop waiting
+          if (parsed.totalSentences !== undefined) {
+            this.expectedSentenceCount = parsed.totalSentences;
+          }
+          // Handle audioSkipped — mark that a sentence failed TTS so the queue doesn't stall
+          if (parsed.audioSkipped && parsed.sentenceIndex !== undefined) {
+            this.audioQueue.push({ index: parsed.sentenceIndex, blob: new Blob([], { type: 'audio/mp3' }), skipped: true });
+          }
           if (parsed.text) {
             fullText += parsed.text;
-            // Strip system markers before displaying to the player
+            // Strip all marker blocks and formatting before displaying
             const displayText = fullText
+              // Complete marker blocks
               .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
               .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
-              // Also strip partial/incomplete marker blocks mid-stream
-              .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*$/g, '')
-              .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*$/g, '')
+              .replace(/\*\*VOCAB_HINTS\*\*[\s\S]*?\*\*END_VOCAB\*\*/g, '')
+              .replace(/\*\*EVAL\*\*[\s\S]*?\*\*END_EVAL\*\*/g, '')
+              // Partial/incomplete marker blocks mid-stream
+              .replace(/\*\*(GRAMMAR_FEEDBACK|QUEST_ASSIGN|VOCAB_HINTS|EVAL)\*\*[\s\S]*$/g, '')
+              // Orphaned closing markers
+              .replace(/\*\*(END_GRAMMAR|END_QUEST|END_VOCAB|END_EVAL)\*\*/g, '')
               .trim();
             onChunk(displayText);
           }
@@ -1445,26 +1457,37 @@ export class BabylonChatPanel {
   private async playAudioQueue(): Promise<void> {
     if (this.isPlayingQueue) return;
     this.isPlayingQueue = true;
-    // Sort by sentence index
-    this.audioQueue.sort((a, b) => a.index - b.index);
     let nextIndex = 0;
+    let waitCycles = 0;
+    const MAX_WAIT_CYCLES = 100; // 10 seconds max wait for a missing chunk
 
-    while (nextIndex < this.audioQueue.length || this.isProcessing) {
+    while (true) {
+      // Stop if we know the total and have played them all
+      if (this.expectedSentenceCount >= 0 && nextIndex >= this.expectedSentenceCount) break;
+      // Stop if stream is done and no more chunks are expected
+      if (!this.isProcessing && this.expectedSentenceCount < 0 && !this.audioQueue.find(e => e.index >= nextIndex)) break;
+
       const entry = this.audioQueue.find(e => e.index === nextIndex);
       if (entry) {
-        await this.playAudio(entry.blob);
+        // Skip empty/failed TTS chunks
+        if (!entry.skipped && entry.blob.size > 0) {
+          await this.playAudio(entry.blob);
+        }
         nextIndex++;
+        waitCycles = 0;
       } else {
-        // Wait briefly for the next chunk to arrive
+        waitCycles++;
+        if (waitCycles >= MAX_WAIT_CYCLES) {
+          console.warn(`[ChatPanel] Audio queue timed out waiting for chunk ${nextIndex}, skipping`);
+          nextIndex++;
+          waitCycles = 0;
+        }
         await new Promise(r => setTimeout(r, 100));
       }
     }
-    // Drain any remaining chunks that arrived after processing finished
-    this.audioQueue.sort((a, b) => a.index - b.index);
-    for (const entry of this.audioQueue.filter(e => e.index >= nextIndex)) {
-      await this.playAudio(entry.blob);
-    }
+    this.audioQueue = [];
     this.isPlayingQueue = false;
+    this.expectedSentenceCount = -1;
   }
 
   private async streamAudioResponse(audioBlob: Blob, responseText: TextBlock): Promise<void> {
@@ -1495,7 +1518,9 @@ export class BabylonChatPanel {
         temperature: 0.8,
         maxTokens: 2048,
         returnAudio: true,
-        voice: this.character?.gender === 'female' ? 'Kore' : 'Charon',
+        voice: this._lockedVoice,
+        gender: this._lockedGender,
+        targetLanguage: this.world?.targetLanguage,
         stream: true // Enable streaming
       })
     });
@@ -1575,7 +1600,9 @@ export class BabylonChatPanel {
         temperature: 0.8,
         maxTokens: 2048,
         returnAudio: true, // Request audio in the response
-        voice: this.character?.gender === 'female' ? 'Kore' : 'Charon',
+        voice: this._lockedVoice,
+        gender: this._lockedGender,
+        targetLanguage: this.world?.targetLanguage,
         stream: false // Set to true for streaming responses
       })
     });
@@ -1615,7 +1642,9 @@ export class BabylonChatPanel {
         temperature: 0.8,
         maxTokens: 2048,
         returnAudio: true, // Request audio in the response
-        voice: this.character?.gender === 'female' ? 'Kore' : 'Charon'
+        voice: this._lockedVoice,
+        gender: this._lockedGender,
+        targetLanguage: this.world?.targetLanguage
       })
     });
 
@@ -1660,6 +1689,27 @@ export class BabylonChatPanel {
     if (this.playerInventoryContext) {
       prompt += this.playerInventoryContext;
     }
+    // Inject quest offering context — NPC should proactively offer this quest
+    if (this.questOfferingContext) {
+      const q = this.questOfferingContext;
+      prompt += `\n\nIMPORTANT - QUEST OFFERING: You have a quest to offer the player. Early in the conversation (within your first 1-2 responses), naturally work this quest into the dialogue. Stay in character — present it as a personal request, a rumor you've heard, or a task that fits your role.
+Quest to offer:
+- Title: ${q.questTitle}
+- Description: ${q.questDescription}
+- Type: ${q.questType}
+- Difficulty: ${q.difficulty}
+- Category: ${q.category}
+- Objectives: ${q.objectives}
+
+When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN format to formally assign it. If the player declines, respect their choice and continue normal conversation.`;
+    }
+
+    // Inject active quest context — NPC should reference the ongoing quest
+    if (this.activeQuestFromNPC) {
+      const aq = this.activeQuestFromNPC;
+      prompt += `\n\nACTIVE QUEST CONTEXT: You previously gave the player a quest: "${aq.questTitle}" — ${aq.questDescription}. Reference this quest naturally in conversation. Ask about their progress, offer hints or encouragement. Do NOT re-assign the quest.`;
+    }
+
     // Inject listening comprehension or other quest-specific augmentation
     if (this.systemPromptAugmentation && this.character.id) {
       const augmentation = this.systemPromptAugmentation(this.character.id);
@@ -1732,15 +1782,35 @@ export class BabylonChatPanel {
     }
   }
 
+  /** Clean text for spoken output — strip all formatting, markers, stage directions */
+  private cleanTextForSpeech(text: string): string {
+    return text
+      .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
+      .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+      .replace(/\*\*VOCAB_HINTS\*\*[\s\S]*?\*\*END_VOCAB\*\*/g, '')
+      .replace(/\*\*EVAL\*\*[\s\S]*?\*\*END_EVAL\*\*/g, '')
+      .replace(/\*\*(VOCAB_HINTS|END_VOCAB|GRAMMAR_FEEDBACK|END_GRAMMAR|QUEST_ASSIGN|END_QUEST|EVAL|END_EVAL)\*\*/g, '')
+      .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')
+      .replace(/^#{1,6}\s+/gm, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/\s*\([A-Z][^)]{1,60}\)/g, '')
+      .replace(/\*[^*]{1,80}\*/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   private async textToSpeech(text: string) {
+    const cleanText = this.cleanTextForSpeech(text);
+    if (!cleanText) return;
     try {
       const response = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text,
-          voice: this.character?.gender === 'female' ? 'Kore' : 'Charon',
-          gender: this.character?.gender || 'neutral',
+          text: cleanText,
+          voice: this._lockedVoice,
+          gender: this._lockedGender,
+          targetLanguage: this.world?.targetLanguage,
           emotionalTone: this.character?.emotionalTone
         })
       });
@@ -1750,19 +1820,21 @@ export class BabylonChatPanel {
         await this.playAudio(audioBlob);
       } else {
         // Fallback to browser TTS
-        await this.browserTextToSpeech(text);
+        await this.browserTextToSpeech(cleanText);
       }
     } catch (error) {
       console.error('TTS error:', error);
-      await this.browserTextToSpeech(text);
+      await this.browserTextToSpeech(cleanText);
     }
   }
 
   private browserTextToSpeech(text: string): Promise<void> {
     if (!('speechSynthesis' in window)) return Promise.resolve();
+    const cleanText = this.cleanTextForSpeech(text);
+    if (!cleanText) return Promise.resolve();
 
     return new Promise<void>((resolve) => {
-      const utterance = new SpeechSynthesisUtterance(text);
+      const utterance = new SpeechSynthesisUtterance(cleanText);
 
       // Dynamically detect the character's dominant language for TTS
       const fluencies = extractLanguageFluencies(this.truths);
@@ -1777,6 +1849,7 @@ export class BabylonChatPanel {
       if (voice) utterance.voice = voice;
 
       this.isSpeaking = true;
+      this.handsFreeController?.pause(); // Suppress mic during TTS
 
       // Show talking indicator
       if (this.talkingIndicator && this.character && this.npcMesh) {
@@ -1785,6 +1858,7 @@ export class BabylonChatPanel {
 
       utterance.onend = () => {
         this.isSpeaking = false;
+        this.handsFreeController?.resume(); // Resume mic after TTS
 
         // Hide talking indicator
         if (this.talkingIndicator && this.character) {
@@ -1795,6 +1869,7 @@ export class BabylonChatPanel {
 
       utterance.onerror = () => {
         this.isSpeaking = false;
+        this.handsFreeController?.resume();
         if (this.talkingIndicator && this.character) {
           this.talkingIndicator.hide(this.character.id);
         }
@@ -1812,6 +1887,7 @@ export class BabylonChatPanel {
       this.currentAudio = audio;
 
       this.isSpeaking = true;
+      this.handsFreeController?.pause(); // Suppress mic during TTS
 
       // Show talking indicator
       if (this.talkingIndicator && this.character && this.npcMesh) {
@@ -1820,6 +1896,7 @@ export class BabylonChatPanel {
 
       audio.onended = () => {
         this.isSpeaking = false;
+        this.handsFreeController?.resume(); // Resume mic after TTS
         URL.revokeObjectURL(audioUrl);
 
         // Hide talking indicator
@@ -1831,6 +1908,7 @@ export class BabylonChatPanel {
 
       audio.onerror = (e) => {
         this.isSpeaking = false;
+        this.handsFreeController?.resume();
         URL.revokeObjectURL(audioUrl);
         if (this.talkingIndicator && this.character) {
           this.talkingIndicator.hide(this.character.id);
@@ -1861,10 +1939,9 @@ export class BabylonChatPanel {
 
     this.isRecording = true;
 
-    // Update mic button appearance
+    // Update mic status indicator
     if (this.micButton) {
       this.micButton.background = "rgba(255, 50, 50, 0.8)";
-      this.micButton.color = "white";
     }
 
     // Update input text to show recording
@@ -2108,10 +2185,9 @@ export class BabylonChatPanel {
       this.serverSTTHandle = null;
     }
 
-    // Update mic button appearance
+    // Update mic status indicator
     if (this.micButton) {
       this.micButton.background = "rgba(60, 60, 60, 0.8)";
-      this.micButton.color = "white";
     }
   }
 
@@ -2120,7 +2196,6 @@ export class BabylonChatPanel {
     this.isProcessing = false;
     if (this.micButton) {
       this.micButton.background = "rgba(60, 60, 60, 0.8)";
-      this.micButton.color = "white";
     }
     if (this.inputText) {
       this.inputText.text = "Type your message...";
@@ -2137,66 +2212,13 @@ export class BabylonChatPanel {
       return;
     }
 
-    this.isProcessing = true;
-
-    // Show thinking indicator
-    if (this.loadingIndicator) {
-      this.loadingIndicator.isVisible = true;
+    // Route voice transcripts through the same streaming pipeline as typed messages.
+    // This uses gRPC-first (fast streaming text + audio + lip sync) with SSE fallback,
+    // instead of the old non-streaming sendToGemini() which waited for the full response.
+    if (this.inputText) {
+      this.inputText.text = userTranscript;
     }
-
-    try {
-      // Show user message right away
-      this.messages.push({
-        role: 'user',
-        content: userTranscript,
-        timestamp: new Date()
-      });
-      this.updateMessagesDisplay();
-
-      // Update input to show thinking status
-      if (this.inputText) {
-        this.inputText.text = "NPC is thinking...";
-        this.inputText.color = "#ffd93d";
-      }
-
-      // Send to Gemini
-      const response = await this.sendToGemini(userTranscript);
-      const voiceCleanedResponse = response.text;
-
-      // Add AI response
-      this.messages.push({
-        role: 'assistant',
-        content: voiceCleanedResponse,
-        timestamp: new Date()
-      });
-      this.updateMessagesDisplay();
-      this.onNPCSpeechUpdate?.(voiceCleanedResponse);
-
-      // Request grammar analysis asynchronously
-      const isLangLearning = this.world?.gameType === 'language-learning' ||
-                             this.world?.gameType === 'educational' ||
-                             this.world?.worldType === 'language-learning' ||
-                             this.world?.worldType === 'educational';
-      if (isLangLearning && this.languageTracker && this.worldLanguageContext?.targetLanguage) {
-        this.requestGrammarAnalysis(userTranscript, voiceCleanedResponse);
-      }
-
-      // Play audio if available
-      if (response.audio) {
-        const audioBytes = Uint8Array.from(atob(response.audio), c => c.charCodeAt(0));
-        const audioBlob = new Blob([audioBytes], { type: 'audio/mp3' });
-        await this.playAudio(audioBlob);
-      } else {
-        await this.textToSpeech(voiceCleanedResponse);
-      }
-
-      this.resetRecordingUI();
-    } catch (error) {
-      console.error('Audio processing error:', error);
-      this.resetRecordingUI();
-    } finally {
-      this.isProcessing = false;
-    }
+    await this.sendMessage();
   }
 
   /**
@@ -2356,20 +2378,11 @@ export class BabylonChatPanel {
       });
     }
 
-    // Extract keywords for conversation tracking
-    const keywords = words.filter(word => {
-      // French greeting/polite keywords
-      const importantWords = [
-        'bonjour', 'bonsoir', 'salut', 'au revoir', 'merci', 'pardon',
-        'comment', 'pourquoi', 'quand', 'où', 'qui', 'que', 'quel',
-        'sil', 'vous', 'plaît', 'allez'
-      ];
-      return importantWords.includes(word);
-    });
-
-    // Track conversation turn if we have keywords
-    if (this.onConversationTurn && keywords.length > 0) {
-      this.onConversationTurn(keywords);
+    // Track every conversation turn — pass all extracted words as keywords
+    // so that complete_conversation objectives can match any target-language word.
+    // This is language-agnostic (works for French, Spanish, etc.)
+    if (this.onConversationTurn) {
+      this.onConversationTurn(words);
     }
   }
 
@@ -2439,6 +2452,30 @@ export class BabylonChatPanel {
   /** Set a function that provides additional system prompt text for specific NPCs. */
   public setSystemPromptAugmentation(fn: (npcId: string) => string | null) {
     this.systemPromptAugmentation = fn;
+  }
+
+  /**
+   * Set the target language for greetings and display. Call before show() so
+   * the greeting is in the correct language without waiting for async world fetch.
+   */
+  public setTargetLanguage(lang: string | null) {
+    this._targetLanguage = lang;
+  }
+
+  /**
+   * Set quest offering context so the NPC proactively offers a quest at conversation start.
+   * Call before show() when the NPC has an 'available' quest indicator.
+   */
+  public setQuestOfferingContext(context: { questTitle: string; questDescription: string; questType: string; difficulty: string; objectives: string; category: string } | null) {
+    this.questOfferingContext = context;
+  }
+
+  /**
+   * Set active quest context so the NPC references an in-progress quest during conversation.
+   * Call before show() when the NPC has an 'in_progress' quest indicator.
+   */
+  public setActiveQuestFromNPC(context: { questTitle: string; questDescription: string; questId: string } | null) {
+    this.activeQuestFromNPC = context;
   }
 
   private _onExternalNewWord: ((entry: any) => void) | null = null;
@@ -2901,17 +2938,9 @@ export class BabylonChatPanel {
     if (this.voiceMode === 'push-to-talk') {
       this.voiceMode = 'always-on';
       this.activateWebSocketVoice();
-      if (this.voiceModeButton) {
-        this.voiceModeButton.children[0] && ((this.voiceModeButton.children[0] as TextBlock).text = "WS");
-        this.voiceModeButton.background = "rgba(50, 180, 50, 0.8)";
-      }
     } else {
       this.voiceMode = 'push-to-talk';
       this.deactivateWebSocketVoice();
-      if (this.voiceModeButton) {
-        this.voiceModeButton.children[0] && ((this.voiceModeButton.children[0] as TextBlock).text = "PTT");
-        this.voiceModeButton.background = "rgba(60, 60, 60, 0.5)";
-      }
     }
   }
 
@@ -2951,10 +2980,6 @@ export class BabylonChatPanel {
         onFallbackToHTTP: () => {
           console.log('[ChatPanel] WebSocket voice failed, falling back to push-to-talk');
           this.voiceMode = 'push-to-talk';
-          if (this.voiceModeButton) {
-            this.voiceModeButton.children[0] && ((this.voiceModeButton.children[0] as TextBlock).text = "PTT");
-            this.voiceModeButton.background = "rgba(60, 60, 60, 0.5)";
-          }
           if (this.inputText) {
             this.inputText.text = "WS unavailable, using push-to-talk";
             this.inputText.color = "#ff6b6b";
@@ -3006,14 +3031,6 @@ export class BabylonChatPanel {
 
   // -- Hands-free mode (VAD auto-start/stop) --
 
-  private toggleHandsFreeMode(): void {
-    if (this.isHandsFreeMode) {
-      this.disableHandsFreeMode();
-    } else {
-      this.enableHandsFreeMode();
-    }
-  }
-
   private enableHandsFreeMode(): void {
     if (this.isHandsFreeMode) return;
 
@@ -3022,8 +3039,10 @@ export class BabylonChatPanel {
       this.stopRecording();
     }
 
-    const lang = this.worldLanguageContext?.targetLanguage
-      ? getLanguageBCP47(this.worldLanguageContext.targetLanguage)
+    // Use _targetLanguage (set synchronously) or fall back to async world data
+    const targetLang = this._targetLanguage || this.worldLanguageContext?.targetLanguage;
+    const lang = targetLang
+      ? getLanguageBCP47(targetLang)
       : 'en-US';
 
     this.handsFreeController = new HandsFreeController(
@@ -3037,15 +3056,8 @@ export class BabylonChatPanel {
             this.inputText.color = '#ffd93d';
           }
         },
-        onEnergyChange: (energy) => {
-          if (this.volumeBar) {
-            // Scale energy (typically 0-0.1) to 0-100%
-            const pct = Math.min(100, Math.round(energy * 1000));
-            this.volumeBar.width = `${pct}%`;
-            this.volumeBar.background = energy >= 0.015 ? '#4CAF50' : '#666';
-          }
-        },
         onSpeechStart: () => {
+          // Update mic status indicator to show active listening
           if (this.micButton) {
             this.micButton.background = 'rgba(255, 50, 50, 0.8)';
           }
@@ -3056,15 +3068,15 @@ export class BabylonChatPanel {
         },
         onSpeechEnd: () => {
           if (this.micButton) {
-            this.micButton.background = 'rgba(60, 60, 60, 0.8)';
+            this.micButton.background = 'rgba(60, 60, 60, 0.3)';
           }
           if (this.inputText && !this.isProcessing) {
-            this.inputText.text = 'Hands-free: speak to chat...';
+            this.inputText.text = 'Speak or type...';
             this.inputText.color = '#88cc88';
           }
         },
         onError: (err) => {
-          console.error('[BabylonChatPanel] Hands-free error:', err);
+          console.error('[BabylonChatPanel] Always-on mic error:', err);
         },
       },
       { lang },
@@ -3072,15 +3084,8 @@ export class BabylonChatPanel {
 
     this.isHandsFreeMode = true;
 
-    // Update UI
-    if (this.handsFreeButton) {
-      this.handsFreeButton.background = 'rgba(50, 200, 50, 0.8)';
-    }
-    if (this.volumeIndicator) {
-      this.volumeIndicator.isVisible = true;
-    }
     if (this.inputText) {
-      this.inputText.text = 'Hands-free: speak to chat...';
+      this.inputText.text = 'Speak or type...';
       this.inputText.color = '#88cc88';
     }
 
@@ -3097,15 +3102,8 @@ export class BabylonChatPanel {
       this.handsFreeController = null;
     }
 
-    // Reset UI
-    if (this.handsFreeButton) {
-      this.handsFreeButton.background = 'rgba(60, 60, 60, 0.5)';
-    }
-    if (this.volumeIndicator) {
-      this.volumeIndicator.isVisible = false;
-    }
-    if (this.volumeBar) {
-      this.volumeBar.width = '0%';
+    if (this.micButton) {
+      this.micButton.background = 'rgba(60, 60, 60, 0.3)';
     }
     if (this.inputText) {
       this.inputText.text = 'Type your message...';

@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-14T23:05:21.546Z",
+  "lastUpdated": "2026-03-17T09:50:24.196Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -125,7 +125,7 @@
     {
       "path": "client/src/components/3DGame/BabylonInventory.ts",
       "description": "Inventory: stacking, weight, add/remove items.",
-      "hash": "61beacfafa3724ccb358817812d625545dfefab4eb600406e6452d798f177ddd",
+      "hash": "f3a25b9ce31da1349b7262d92ea28a8737f4ed9e05f0755d354954c129cbc29d",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -194,7 +194,7 @@
     {
       "path": "client/src/components/3DGame/ProceduralBuildingGenerator.ts",
       "description": "Procedural building placement and geometry. Changes affect world-generator templates.",
-      "hash": "5a67dbfab6dbeab3e3abb1ba6990d9b10a0c4fc1589bf59f2f035f0df3d7f9c6",
+      "hash": "58282e942db260d0f34af2c2ed74fbe447312c60a6162b790358250864922fed",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -217,7 +217,7 @@
     {
       "path": "client/src/components/3DGame/WorldScaleManager.ts",
       "description": "World-to-scene coordinate scaling, biome setup, terrain parameters.",
-      "hash": "66b52d95b1856b8ad57da42f79e22242a7343388db384bae4b888db7dad24b77",
+      "hash": "6f9db2e4028c527342cb9c583d07bae67e9675a01e001025ead08f16a45c1e86",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -370,7 +370,7 @@
     {
       "path": "shared/game-engine/types.ts",
       "description": "Engine-agnostic type primitives (InventoryItem, LootTableEntry, Action, Rule, etc.) shared across in-app and export systems.",
-      "hash": "5fb3d37bbdc7ce8f48a3cb384228e8b190026e4f90f9662348301cc6385865a9",
+      "hash": "98207bad24da7229c74ca4ddf9ee526a80640e6a27f4c7050446861866c1327b",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -392,7 +392,7 @@
     {
       "path": "client/src/components/3DGame/QuestObjectManager.ts",
       "description": "Quest object lifecycle: 15 objective types, collectible tracking, completion logic. New objective types need handling in exported quest systems.",
-      "hash": "12d9dc096e8b8b7d01ddd451c2c6ecc4084ee00db1878aa6dce0e16c79b58b24",
+      "hash": "e57d89a91ff8936d83250f10ee2f3f0c4e3a5c82488f6d0adabe106df700ff66",
       "engineMappings": [
         {
           "engine": "unreal",
