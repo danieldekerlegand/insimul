@@ -54,6 +54,7 @@ const EVENT_ONBOARDING_STEP_STARTED := "onboarding_step_started"
 const EVENT_ONBOARDING_STEP_COMPLETED := "onboarding_step_completed"
 const EVENT_ONBOARDING_COMPLETED := "onboarding_completed"
 const EVENT_PERIODIC_ASSESSMENT_TRIGGERED := "periodic_assessment_triggered"
+const EVENT_ASSESSMENT_CONVERSATION_QUEST_START := "assessment_conversation_quest_start"
 const EVENT_ASSESSMENT_CONVERSATION_COMPLETED := "assessment_conversation_completed"
 # Visual vocabulary quest events
 const EVENT_VISUAL_VOCAB_PROMPTED := "visual_vocab_prompted"
@@ -87,6 +88,7 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_ASSESSMENT_COMPLETED, EVENT_ONBOARDING_STEP_STARTED,
 	EVENT_ONBOARDING_STEP_COMPLETED, EVENT_ONBOARDING_COMPLETED,
 	EVENT_PERIODIC_ASSESSMENT_TRIGGERED,
+	EVENT_ASSESSMENT_CONVERSATION_QUEST_START,
 	EVENT_ASSESSMENT_CONVERSATION_COMPLETED,
 	EVENT_VISUAL_VOCAB_PROMPTED,
 	EVENT_VISUAL_VOCAB_ANSWERED,
@@ -154,7 +156,8 @@ var _global_handlers: Array[Callable] = []
 ##   onboarding_step_completed: {type, step_id, step_index, total_steps, duration_ms}
 ##   onboarding_completed: {type, total_steps, total_duration_ms}
 ##   periodic_assessment_triggered: {type, level, tier}
-##   assessment_conversation_completed: {type, npc_id}
+##   assessment_conversation_quest_start: {type, phase_id, topics, min_exchanges, max_exchanges}
+##   assessment_conversation_completed: {type, npc_id, score?}
 ##   visual_vocab_prompted: {type, target_id, quest_id, objective_id, is_activity}
 ##   visual_vocab_answered: {type, target_id, quest_id, passed, score, player_answer}
 ##   direction_step_completed: {type, quest_id, objective_id, step_index, steps_completed, steps_required}

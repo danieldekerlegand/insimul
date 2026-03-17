@@ -52,6 +52,7 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("onboarding_step_completed"),         EInsimulEventType::OnboardingStepCompleted },
         { TEXT("onboarding_completed"),              EInsimulEventType::OnboardingCompleted },
         { TEXT("periodic_assessment_triggered"),     EInsimulEventType::PeriodicAssessmentTriggered },
+        { TEXT("assessment_conversation_quest_start"), EInsimulEventType::AssessmentConversationQuestStart },
         { TEXT("assessment_conversation_completed"), EInsimulEventType::AssessmentConversationCompleted },
         { TEXT("visual_vocab_prompted"),             EInsimulEventType::VisualVocabPrompted },
         { TEXT("visual_vocab_answered"),             EInsimulEventType::VisualVocabAnswered },

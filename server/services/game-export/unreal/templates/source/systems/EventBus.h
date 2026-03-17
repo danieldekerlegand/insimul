@@ -56,6 +56,7 @@ enum class EInsimulEventType : uint8
     OnboardingStepCompleted UMETA(DisplayName = "Onboarding Step Completed"),
     OnboardingCompleted     UMETA(DisplayName = "Onboarding Completed"),
     PeriodicAssessmentTriggered UMETA(DisplayName = "Periodic Assessment Triggered"),
+    AssessmentConversationQuestStart UMETA(DisplayName = "Assessment Conversation Quest Start"),
     AssessmentConversationCompleted UMETA(DisplayName = "Assessment Conversation Completed"),
     // Visual vocabulary quest events
     VisualVocabPrompted     UMETA(DisplayName = "Visual Vocab Prompted"),
@@ -224,6 +225,11 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 StepIndex = 0;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 TotalSteps = 0;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 TotalDurationMs = 0;
+
+    // ── Assessment conversation quest fields ─────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> Topics;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 MinExchanges = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 MaxExchanges = 0;
 
     // ── Follow directions fields ───────────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ObjectiveId;

@@ -55,6 +55,7 @@ namespace Insimul.Systems
         OnboardingStepCompleted,
         OnboardingCompleted,
         PeriodicAssessmentTriggered,
+        AssessmentConversationQuestStart,
         AssessmentConversationCompleted,
         // Visual vocabulary quest events
         VisualVocabPrompted,
@@ -467,10 +468,20 @@ namespace Insimul.Systems
         public string tier;
     }
 
+    public class AssessmentConversationQuestStartEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AssessmentConversationQuestStart;
+        public string phaseId;
+        public string[] topics;
+        public int minExchanges;
+        public int maxExchanges;
+    }
+
     public class AssessmentConversationCompletedEvent : GameEvent
     {
         public override GameEventType EventType => GameEventType.AssessmentConversationCompleted;
         public string npcId;
+        public float score;
     }
 
     // ── Visual Vocabulary / Follow Directions Events ────────────────────────
