@@ -7,8 +7,13 @@ import {
   calculateObjectivesProgress,
   calculateCriteriaProgress,
   formatDistance,
+  filterQuests,
+  sortQuests,
+  computeQuestStats,
+  getUniqueQuestGivers,
+  getUniqueQuestTypes,
 } from '../../client/src/components/3DGame/BabylonQuestTracker';
-import type { QuestObjective } from '../../client/src/components/3DGame/BabylonQuestTracker';
+import type { Quest, QuestObjective } from '../../client/src/components/3DGame/BabylonQuestTracker';
 
 describe('BabylonQuestTracker pure functions', () => {
   describe('getQuestTypeColor', () => {
@@ -248,6 +253,243 @@ describe('BabylonQuestTracker pure functions', () => {
 
     it('formats 1 as 1m', () => {
       expect(formatDistance(1)).toBe('1m');
+    });
+  });
+
+  // --- Helper: make a Quest object with defaults ---
+  function makeQuest(overrides: Partial<Quest> = {}): Quest {
+    return {
+      id: 'q1',
+      worldId: 'w1',
+      assignedTo: 'player',
+      assignedBy: null,
+      assignedByCharacterId: null,
+      title: 'Test Quest',
+      description: 'A test quest',
+      questType: 'vocabulary',
+      difficulty: 'beginner',
+      targetLanguage: 'fr',
+      progress: null,
+      status: 'active',
+      completionCriteria: null,
+      experienceReward: 100,
+      assignedAt: new Date('2026-03-01'),
+      completedAt: null,
+      conversationContext: null,
+      ...overrides,
+    };
+  }
+
+  describe('filterQuests', () => {
+    const quests: Quest[] = [
+      makeQuest({ id: '1', questType: 'vocabulary', difficulty: 'beginner', assignedBy: 'Baker', title: 'Learn food words' }),
+      makeQuest({ id: '2', questType: 'grammar', difficulty: 'intermediate', assignedBy: 'Teacher', title: 'Past tense practice' }),
+      makeQuest({ id: '3', questType: 'conversation', difficulty: 'advanced', assignedBy: 'Baker', title: 'Chat with baker' }),
+      makeQuest({ id: '4', questType: 'vocabulary', difficulty: 'intermediate', assignedBy: 'Shopkeeper', title: 'Market vocabulary' }),
+    ];
+
+    it('returns all quests with empty filters', () => {
+      expect(filterQuests(quests, {})).toHaveLength(4);
+    });
+
+    it('filters by questType', () => {
+      const result = filterQuests(quests, { questType: 'vocabulary' });
+      expect(result).toHaveLength(2);
+      expect(result.every(q => q.questType === 'vocabulary')).toBe(true);
+    });
+
+    it('filters by difficulty', () => {
+      const result = filterQuests(quests, { difficulty: 'intermediate' });
+      expect(result).toHaveLength(2);
+      expect(result.every(q => q.difficulty === 'intermediate')).toBe(true);
+    });
+
+    it('filters by assignedBy (NPC giver)', () => {
+      const result = filterQuests(quests, { assignedBy: 'Baker' });
+      expect(result).toHaveLength(2);
+      expect(result.every(q => q.assignedBy === 'Baker')).toBe(true);
+    });
+
+    it('filters by search term in title', () => {
+      const result = filterQuests(quests, { search: 'food' });
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('1');
+    });
+
+    it('filters by search term in description (case insensitive)', () => {
+      const result = filterQuests(quests, { search: 'TEST' });
+      expect(result).toHaveLength(4); // all have "A test quest" description
+    });
+
+    it('combines multiple filters', () => {
+      const result = filterQuests(quests, { questType: 'vocabulary', difficulty: 'beginner' });
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('1');
+    });
+
+    it('returns empty array when no match', () => {
+      expect(filterQuests(quests, { questType: 'combat' })).toHaveLength(0);
+    });
+  });
+
+  describe('sortQuests', () => {
+    const quests: Quest[] = [
+      makeQuest({ id: '1', assignedAt: new Date('2026-03-01'), difficulty: 'beginner', experienceReward: 50 }),
+      makeQuest({ id: '2', assignedAt: new Date('2026-03-10'), difficulty: 'advanced', experienceReward: 200 }),
+      makeQuest({ id: '3', assignedAt: new Date('2026-03-05'), difficulty: 'intermediate', experienceReward: 100 }),
+    ];
+
+    it('sorts by recent (most recent first)', () => {
+      const result = sortQuests(quests, 'recent');
+      expect(result.map(q => q.id)).toEqual(['2', '3', '1']);
+    });
+
+    it('sorts by difficulty (hardest first)', () => {
+      const result = sortQuests(quests, 'difficulty');
+      expect(result.map(q => q.id)).toEqual(['2', '3', '1']);
+    });
+
+    it('sorts by reward (highest first)', () => {
+      const result = sortQuests(quests, 'reward');
+      expect(result.map(q => q.id)).toEqual(['2', '3', '1']);
+    });
+
+    it('does not mutate original array', () => {
+      const original = [...quests];
+      sortQuests(quests, 'reward');
+      expect(quests.map(q => q.id)).toEqual(original.map(q => q.id));
+    });
+
+    it('sorts by recent using completedAt when available', () => {
+      const questsWithDone: Quest[] = [
+        makeQuest({ id: 'a', assignedAt: new Date('2026-01-01'), completedAt: new Date('2026-03-15') }),
+        makeQuest({ id: 'b', assignedAt: new Date('2026-03-10') }),
+      ];
+      const result = sortQuests(questsWithDone, 'recent');
+      expect(result[0].id).toBe('a'); // completedAt is more recent
+    });
+  });
+
+  describe('computeQuestStats', () => {
+    it('returns zeros for empty list', () => {
+      const stats = computeQuestStats([]);
+      expect(stats.totalCompleted).toBe(0);
+      expect(stats.totalActive).toBe(0);
+      expect(stats.completionRate).toBe(0);
+      expect(stats.totalXpEarned).toBe(0);
+    });
+
+    it('counts quests by status', () => {
+      const quests: Quest[] = [
+        makeQuest({ status: 'active' }),
+        makeQuest({ status: 'completed', experienceReward: 100 }),
+        makeQuest({ status: 'completed', experienceReward: 200 }),
+        makeQuest({ status: 'failed' }),
+        makeQuest({ status: 'abandoned' }),
+      ];
+      const stats = computeQuestStats(quests);
+      expect(stats.totalActive).toBe(1);
+      expect(stats.totalCompleted).toBe(2);
+      expect(stats.totalFailed).toBe(1);
+      expect(stats.totalAbandoned).toBe(1);
+    });
+
+    it('calculates completion rate', () => {
+      const quests: Quest[] = [
+        makeQuest({ status: 'completed' }),
+        makeQuest({ status: 'completed' }),
+        makeQuest({ status: 'failed' }),
+        makeQuest({ status: 'active' }), // active doesn't count toward rate
+      ];
+      const stats = computeQuestStats(quests);
+      // 2 completed / 3 with outcome (completed + failed)
+      expect(stats.completionRate).toBeCloseTo(2 / 3);
+    });
+
+    it('calculates total XP earned from completed quests', () => {
+      const quests: Quest[] = [
+        makeQuest({ status: 'completed', experienceReward: 100 }),
+        makeQuest({ status: 'completed', experienceReward: 250 }),
+        makeQuest({ status: 'active', experienceReward: 500 }), // not counted
+      ];
+      expect(computeQuestStats(quests).totalXpEarned).toBe(350);
+    });
+
+    it('calculates average performance rating', () => {
+      const quests: Quest[] = [
+        makeQuest({ status: 'completed', performanceRating: 4 }),
+        makeQuest({ status: 'completed', performanceRating: 2 }),
+        makeQuest({ status: 'completed' }), // no rating, excluded from average
+      ];
+      expect(computeQuestStats(quests).averagePerformance).toBe(3);
+    });
+
+    it('counts unique vocabulary words', () => {
+      const quests: Quest[] = [
+        makeQuest({ status: 'completed', vocabularyUsed: ['pain', 'eau'] }),
+        makeQuest({ status: 'completed', vocabularyUsed: ['eau', 'lait'] }), // 'eau' is duplicate
+      ];
+      expect(computeQuestStats(quests).vocabularyWordsLearned).toBe(3);
+    });
+
+    it('counts grammar quests', () => {
+      const quests: Quest[] = [
+        makeQuest({ status: 'completed', questType: 'grammar' }),
+        makeQuest({ status: 'completed', questType: 'grammar' }),
+        makeQuest({ status: 'completed', questType: 'vocabulary' }),
+      ];
+      expect(computeQuestStats(quests).grammarPatternsCount).toBe(2);
+    });
+
+    it('groups quests by type', () => {
+      const quests: Quest[] = [
+        makeQuest({ questType: 'vocabulary' }),
+        makeQuest({ questType: 'vocabulary' }),
+        makeQuest({ questType: 'grammar' }),
+      ];
+      const stats = computeQuestStats(quests);
+      expect(stats.questsByType).toEqual({ vocabulary: 2, grammar: 1 });
+    });
+
+    it('groups quests by difficulty', () => {
+      const quests: Quest[] = [
+        makeQuest({ difficulty: 'beginner' }),
+        makeQuest({ difficulty: 'beginner' }),
+        makeQuest({ difficulty: 'advanced' }),
+      ];
+      const stats = computeQuestStats(quests);
+      expect(stats.questsByDifficulty).toEqual({ beginner: 2, advanced: 1 });
+    });
+  });
+
+  describe('getUniqueQuestGivers', () => {
+    it('returns empty array for no quests', () => {
+      expect(getUniqueQuestGivers([])).toEqual([]);
+    });
+
+    it('returns unique sorted giver names', () => {
+      const quests: Quest[] = [
+        makeQuest({ assignedBy: 'Baker' }),
+        makeQuest({ assignedBy: 'Teacher' }),
+        makeQuest({ assignedBy: 'Baker' }),
+        makeQuest({ assignedBy: null }),
+      ];
+      expect(getUniqueQuestGivers(quests)).toEqual(['Baker', 'Teacher']);
+    });
+  });
+
+  describe('getUniqueQuestTypes', () => {
+    it('returns empty array for no quests', () => {
+      expect(getUniqueQuestTypes([])).toEqual([]);
+    });
+
+    it('returns unique sorted quest types', () => {
+      const quests: Quest[] = [
+        makeQuest({ questType: 'vocabulary' }),
+        makeQuest({ questType: 'grammar' }),
+        makeQuest({ questType: 'vocabulary' }),
+      ];
+      expect(getUniqueQuestTypes(quests)).toEqual(['grammar', 'vocabulary']);
     });
   });
 });
