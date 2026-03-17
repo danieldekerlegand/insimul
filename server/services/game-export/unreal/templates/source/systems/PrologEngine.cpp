@@ -776,9 +776,17 @@ void UPrologEngine::HandleGameEvent(const FInsimulGameEvent& Event)
             break;
         case EInsimulEventType::QuestAccepted:
             AssertFact(FString::Printf(TEXT("quest_active(player, %s)"), *Sanitize(Event.QuestId)));
+            if (!Event.AssignedByNpcId.IsEmpty())
+            {
+                AssertFact(FString::Printf(TEXT("npc_gave_quest(%s, player, %s)"), *Sanitize(Event.AssignedByNpcId), *Sanitize(Event.QuestId)));
+            }
             break;
         case EInsimulEventType::QuestCompleted:
             AssertFact(FString::Printf(TEXT("quest_completed(player, %s)"), *Sanitize(Event.QuestId)));
+            if (!Event.AssignedByNpcId.IsEmpty())
+            {
+                AssertFact(FString::Printf(TEXT("quest_outcome(%s, player, completed)"), *Sanitize(Event.QuestId)));
+            }
             break;
         case EInsimulEventType::PuzzleSolved:
             AssertFact(FString::Printf(TEXT("puzzle_solved(player, %s)"), *Sanitize(Event.PuzzleId)));
@@ -872,9 +880,17 @@ void UPrologEngine::HandleGameEvent(const FInsimulGameEvent& Event)
             break;
         case EInsimulEventType::QuestFailed:
             AssertFact(FString::Printf(TEXT("quest_failed(player, %s)"), *Sanitize(Event.QuestId)));
+            if (!Event.AssignedByNpcId.IsEmpty())
+            {
+                AssertFact(FString::Printf(TEXT("quest_outcome(%s, player, failed)"), *Sanitize(Event.QuestId)));
+            }
             break;
         case EInsimulEventType::QuestAbandoned:
             AssertFact(FString::Printf(TEXT("quest_abandoned(player, %s)"), *Sanitize(Event.QuestId)));
+            if (!Event.AssignedByNpcId.IsEmpty())
+            {
+                AssertFact(FString::Printf(TEXT("quest_outcome(%s, player, abandoned)"), *Sanitize(Event.QuestId)));
+            }
             RetractPattern(TEXT("quest_active"), TEXT("player"), Sanitize(Event.QuestId));
             break;
         case EInsimulEventType::DirectionStepCompleted:

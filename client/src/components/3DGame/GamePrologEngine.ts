@@ -140,11 +140,21 @@ export class GamePrologEngine {
         await this.engine.assertFact(
           `quest_active(player, ${this.sanitize(event.questId)})`
         );
+        if (event.assignedByNpcId) {
+          await this.engine.assertFact(
+            `npc_gave_quest(${this.sanitize(event.assignedByNpcId)}, player, ${this.sanitize(event.questId)})`
+          );
+        }
         break;
       case 'quest_completed':
         await this.engine.assertFact(
           `quest_completed(player, ${this.sanitize(event.questId)})`
         );
+        if (event.assignedByNpcId) {
+          await this.engine.assertFact(
+            `quest_outcome(${this.sanitize(event.questId)}, player, completed)`
+          );
+        }
         break;
       case 'puzzle_solved':
         await this.engine.assertFact(
@@ -271,11 +281,21 @@ export class GamePrologEngine {
         await this.engine.assertFact(
           `quest_failed(player, ${this.sanitize(event.questId)})`
         );
+        if (event.assignedByNpcId) {
+          await this.engine.assertFact(
+            `quest_outcome(${this.sanitize(event.questId)}, player, failed)`
+          );
+        }
         break;
       case 'quest_abandoned':
         await this.engine.assertFact(
           `quest_abandoned(player, ${this.sanitize(event.questId)})`
         );
+        if (event.assignedByNpcId) {
+          await this.engine.assertFact(
+            `quest_outcome(${this.sanitize(event.questId)}, player, abandoned)`
+          );
+        }
         try {
           await this.engine.retractFact(
             `quest_active(player, ${this.sanitize(event.questId)})`

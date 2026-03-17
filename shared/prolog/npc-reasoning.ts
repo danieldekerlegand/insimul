@@ -37,6 +37,10 @@ const DYNAMIC_DECLARATIONS = [
   'employed/1', 'employed_at/3', 'business_needs_worker/2',
   // Daily schedule
   'schedule/4', 'time_of_day/1',
+  // Quest memory
+  'npc_gave_quest/3', 'quest_outcome/3',
+  'npc_quest_count/3', 'npc_quest_completed_count/3',
+  'npc_quest_failed_count/3', 'npc_quest_abandoned_count/3',
 ];
 
 // ── Lifecycle Rules ───────────────────────────────────────────────────────
@@ -179,6 +183,30 @@ const MEMORY_RULES = [
   'first_meeting(NPC, Player) :- \\+ has_mental_model(NPC, Player)',
 ];
 
+// ── Quest Memory Rules ──────────────────────────────────────────────────
+
+const QUEST_MEMORY_RULES = [
+  // NPC remembers giving a quest to the player
+  'npc_remembers_quest(NPC, Player, QuestId) :- npc_gave_quest(NPC, Player, QuestId)',
+
+  // Player reliability from quest outcomes
+  'player_completed_quest_for(NPC, Player) :- npc_gave_quest(NPC, Player, Q), quest_outcome(Q, Player, completed)',
+  'player_failed_quest_for(NPC, Player) :- npc_gave_quest(NPC, Player, Q), quest_outcome(Q, Player, failed)',
+  'player_abandoned_quest_for(NPC, Player) :- npc_gave_quest(NPC, Player, Q), quest_outcome(Q, Player, abandoned)',
+
+  // NPC disposition toward giving quests
+  'npc_eager_to_give_quest(NPC, Player) :- npc_quest_completed_count(NPC, Player, C), C > 0, \\+ player_failed_quest_for(NPC, Player), \\+ player_abandoned_quest_for(NPC, Player)',
+  'npc_cautious_about_quest(NPC, Player) :- player_failed_quest_for(NPC, Player), player_completed_quest_for(NPC, Player)',
+  'npc_reluctant_to_give_quest(NPC, Player) :- npc_quest_failed_count(NPC, Player, F), F > 0, \\+ player_completed_quest_for(NPC, Player)',
+  'npc_reluctant_to_give_quest(NPC, Player) :- npc_quest_abandoned_count(NPC, Player, A), A >= 2',
+
+  // Quest dialogue hints — NPC references past quest outcomes
+  'should_mention_past_quest(NPC, Player) :- npc_gave_quest(NPC, Player, _)',
+  'should_thank_player(NPC, Player) :- player_completed_quest_for(NPC, Player)',
+  'should_scold_player(NPC, Player) :- player_abandoned_quest_for(NPC, Player), personality(NPC, agreeableness, A), A < 0.5',
+  'should_encourage_player(NPC, Player) :- player_failed_quest_for(NPC, Player), personality(NPC, agreeableness, A), A > 0.5',
+];
+
 // ── Daily Schedule Rules ─────────────────────────────────────────────────
 
 const SCHEDULE_RULES = [
@@ -239,6 +267,7 @@ export function getNPCReasoningRules(): string {
     ...SOCIAL_RULES,
     ...EMOTIONAL_RULES,
     ...MEMORY_RULES,
+    ...QUEST_MEMORY_RULES,
     ...SCHEDULE_RULES,
   ];
 
@@ -337,6 +366,37 @@ export function getEmotionalStateFacts(characterId: string, state: {
 export function getScheduleFacts(timeOfDay: string): string[] {
   const sanitized = sanitize(timeOfDay);
   return [`time_of_day(${sanitized})`];
+}
+
+/**
+ * Generate Prolog facts for an NPC's quest memory with a player.
+ * Assert these into the engine when loading NPC quest history.
+ */
+export function getQuestMemoryFacts(npcId: string, playerId: string, memory: {
+  questInteractions: Array<{ questId: string; outcome: string }>;
+  totalQuestsGiven: number;
+  completedCount: number;
+  failedCount: number;
+  abandonedCount: number;
+}): string[] {
+  const npc = sanitize(npcId);
+  const player = sanitize(playerId);
+  const facts: string[] = [];
+
+  for (const qi of memory.questInteractions) {
+    const qid = sanitize(qi.questId);
+    facts.push(`npc_gave_quest(${npc}, ${player}, ${qid})`);
+    if (qi.outcome !== 'assigned') {
+      facts.push(`quest_outcome(${qid}, ${player}, ${sanitize(qi.outcome)})`);
+    }
+  }
+
+  facts.push(`npc_quest_count(${npc}, ${player}, ${memory.totalQuestsGiven})`);
+  facts.push(`npc_quest_completed_count(${npc}, ${player}, ${memory.completedCount})`);
+  facts.push(`npc_quest_failed_count(${npc}, ${player}, ${memory.failedCount})`);
+  facts.push(`npc_quest_abandoned_count(${npc}, ${player}, ${memory.abandonedCount})`);
+
+  return facts;
 }
 
 function sanitize(str: string): string {

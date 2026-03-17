@@ -134,6 +134,8 @@ struct FInsimulGameEvent
     // ── Quest fields ──────────────────────────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString QuestId;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString QuestTitle;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AssignedByNpcId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AssignedByNpcName;
 
     // ── Combat fields ─────────────────────────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ActionType;
