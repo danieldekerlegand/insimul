@@ -419,6 +419,14 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'describe': 'describe_scene',
   'describe_surroundings': 'describe_scene',
 
+  // Storytelling / narrative quest aliases
+  'tell_story': 'complete_conversation',
+  'retell_story': 'complete_conversation',
+  'narrate': 'complete_conversation',
+  'storytelling': 'complete_conversation',
+  'collaborative_story': 'complete_conversation',
+  'retell': 'complete_conversation',
+
   // Legacy template types that need normalization
   'learn_new_words': 'collect_vocabulary',
   'find_vocabulary_items': 'identify_object',

@@ -84,6 +84,12 @@ export const languageLearningQuestType: QuestTypeDefinition = {
       icon: '🤝',
       description: 'Build relationships with NPCs through language practice',
     },
+    {
+      id: 'storytelling',
+      name: 'Storytelling',
+      icon: '📖',
+      description: 'Practice narrative skills: past tense, sequencing, descriptive and emotional vocabulary',
+    },
   ],
 
   objectiveTypes: [

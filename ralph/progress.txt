@@ -203,4 +203,14 @@ Started: Thu Mar 12 23:35:20 CDT 2026
 - Added 8 SRS normalization entries to `shared/quest-objective-types.ts` (review_vocabulary, srs_review, spaced_repetition, etc.)
 - Files changed: `shared/language/srs-quest-objectives.ts` (new), `shared/language/quest-seed-library.ts`, `shared/quest-objective-types.ts`, `shared/__tests__/srs-quest-objectives.test.ts` (new)
 - All 83 tests pass (28 new SRS + 30 vocabulary-review + 25 quest-seed-library); typecheck clean on modified files
+
+## 2026-03-17 - Add storytelling and narrative quests
+- Added `storytelling` quest category to language-learning quest type definition
+- Created 4 storytelling quest templates in quest-templates.ts: Story Circle (collaborative storytelling), Local Legend (listen + retell folk tale), My Adventure (describe experiences to scribe), Picture This (describe scene to blind NPC)
+- Created 4 matching quest seeds in quest-seed-library.ts with full parameterization and Prolog content generation
+- Added 7 storytelling normalization entries to quest-objective-types.ts (tell_story, retell_story, narrate, storytelling, collaborative_story, describe_scene, retell → complete_conversation)
+- All storytelling quests emphasize: past tense, sequencing words, descriptive adjectives, emotional vocabulary
+- All quests use existing canonical objective types (complete_conversation, use_vocabulary, listening_comprehension, visit_location)
+- Files changed: `shared/quest-types/language-learning.ts`, `shared/language/quest-templates.ts`, `shared/language/quest-seed-library.ts`, `shared/quest-objective-types.ts`, `shared/__tests__/storytelling-quest-templates.test.ts` (new)
+- All 24 new storytelling tests + 25 existing seed library tests pass; TypeScript compiles clean
 ---

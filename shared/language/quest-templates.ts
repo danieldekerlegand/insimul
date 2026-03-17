@@ -894,6 +894,120 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
     ],
   },
 
+  // --- Storytelling & Narrative Quests ---
+  {
+    id: 'story_circle',
+    name: 'Story Circle',
+    category: 'storytelling',
+    description: 'Join a group of NPCs and contribute to a collaborative story in the target language using past tense and sequencing words.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Contribute to a collaborative story with {{npcCount}} NPCs, adding at least {{turns}} story segments',
+        requiredCount: 3,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} sequencing and descriptive words (first, then, finally, beautiful, etc.)',
+        requiredCount: 6,
+      },
+    ],
+    rewardScale: { xp: 35, fluency: 5 },
+    parameters: [
+      { name: 'npcCount', type: 'number', description: 'Number of NPCs in the story circle' },
+      { name: 'turns', type: 'number', description: 'Story segments to contribute' },
+      { name: 'wordCount', type: 'number', description: 'Sequencing/descriptive words to use' },
+    ],
+  },
+  {
+    id: 'local_legend',
+    name: 'Local Legend',
+    category: 'storytelling',
+    description: 'Listen to {{storytellerName}} tell a folk tale, then retell it to {{listenerName}} in the target language.',
+    difficulty: 'advanced',
+    objectiveTemplates: [
+      {
+        type: 'listening_comprehension',
+        descriptionTemplate: 'Listen to {{storytellerName}} tell a folk tale and answer {{questionCount}} comprehension questions',
+        requiredCount: 3,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Retell the folk tale to {{listenerName}} using past tense and narrative vocabulary',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} past tense verbs and emotional vocabulary in your retelling',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 45, fluency: 6 },
+    parameters: [
+      { name: 'storytellerName', type: 'npc', description: 'NPC who tells the folk tale' },
+      { name: 'listenerName', type: 'npc', description: 'NPC to retell the story to' },
+      { name: 'questionCount', type: 'number', description: 'Comprehension questions to answer' },
+      { name: 'wordCount', type: 'number', description: 'Past tense and emotional words to use' },
+    ],
+  },
+  {
+    id: 'my_adventure',
+    name: 'My Adventure',
+    category: 'storytelling',
+    description: 'Describe your in-game experiences to {{npcName}} the scribe using past tense and descriptive vocabulary.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Tell {{npcName}} about your adventures in a {{turns}}-turn conversation',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} past tense verbs and descriptive adjectives',
+        requiredCount: 8,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 4 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC journalist/scribe to narrate to' },
+      { name: 'turns', type: 'number', description: 'Minimum conversation turns' },
+      { name: 'wordCount', type: 'number', description: 'Past tense and descriptive words to use' },
+    ],
+  },
+  {
+    id: 'picture_this',
+    name: 'Picture This',
+    category: 'storytelling',
+    description: 'Visit {{location}} and describe the scene to {{npcName}}, who cannot see it, using vivid descriptive language.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'visit_location',
+        descriptionTemplate: 'Visit {{location}} to observe the scene',
+        requiredCount: 1,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Describe the scene at {{location}} to {{npcName}} in a {{turns}}-turn conversation',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} descriptive adjectives and spatial vocabulary (big, small, near, far, etc.)',
+        requiredCount: 6,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 4 },
+    parameters: [
+      { name: 'location', type: 'location', description: 'Location to visit and describe' },
+      { name: 'npcName', type: 'npc', description: 'NPC who cannot see the scene' },
+      { name: 'turns', type: 'number', description: 'Minimum conversation turns' },
+      { name: 'wordCount', type: 'number', description: 'Descriptive and spatial words to use' },
+    ],
+  },
+
   // --- Time-Based Activities ---
   {
     id: 'time_appointment',
