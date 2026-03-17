@@ -92,9 +92,12 @@ export type GameEvent =
   | { type: 'quest_expired'; questId: string; questTitle: string }
   | { type: 'quest_milestone'; milestoneType: 'first_quest' | 'five_quests' | 'first_chain' | 'first_perfect'; label: string }
   | { type: 'daily_quests_reset' }
-  // NPC exam events
+  // NPC exam events (reading/writing)
   | { type: 'npc_exam_requested'; npcId: string; npcName: string; examType: 'reading' | 'writing' | 'reading_writing'; businessContext?: string }
-  | { type: 'npc_exam_completed'; npcId?: string; examType: 'reading' | 'writing' | 'reading_writing'; totalScore: number; maxScore: number; cefrLevel: string };
+  // NPC exam events (listening comprehension)
+  | { type: 'npc_exam_started'; examId: string; npcId: string; npcName: string; businessType: string; examType: 'listening_comprehension' }
+  | { type: 'npc_exam_listening_ready'; examId: string; audioUrl?: string; passage: string; questions: Array<{ id: string; questionText: string; maxPoints: number }>; maxReplays: number }
+  | { type: 'npc_exam_completed'; examId: string; npcId: string; score: number; maxScore: number; percentage: number; passed: boolean };
 
 export type GameEventType = GameEvent['type'];
 

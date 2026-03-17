@@ -171,6 +171,17 @@ export class BabylonChatPanel {
   private questGuidancePrompt: string | null = null;
   private _targetLanguage: string | null = null;
 
+  // Listening mode — hides NPC text and shows audio waveform during listening exams
+  private _listeningMode = false;
+  private _listeningAudioElement: HTMLAudioElement | null = null;
+  private _listeningWaveformBars: Rectangle[] = [];
+  private _listeningWaveformContainer: StackPanel | null = null;
+  private _listeningStatusText: TextBlock | null = null;
+  private _listeningReplayBtn: Rectangle | null = null;
+  private _listeningReplaysRemaining = 0;
+  private _listeningOnReplay: (() => void) | null = null;
+  private _listeningWaveformInterval: ReturnType<typeof setInterval> | null = null;
+
   // Expose advancedTexture for debugging
   public get advancedTexture() {
     return this._advancedTexture;
@@ -426,6 +437,10 @@ export class BabylonChatPanel {
     console.log('[ChatPanel] Call stack:', new Error().stack);
     this.clearHintTimer();
     this.disableHandsFreeMode();
+    // Clean up listening mode if active
+    if (this._listeningMode) {
+      this.exitListeningMode();
+    }
     this.isVisible = false;
     // Return to collapsed state instead of hiding entirely
     this.isCollapsed = true;
@@ -2473,6 +2488,199 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
   /** Set a function that provides additional system prompt text for specific NPCs. */
   public setSystemPromptAugmentation(fn: (npcId: string) => string | null) {
     this.systemPromptAugmentation = fn;
+  }
+
+  // ── Listening Mode ──────────────────────────────────────────────────────
+
+  /** Whether the chat panel is in listening mode (NPC text hidden, waveform shown). */
+  public get isListeningMode(): boolean {
+    return this._listeningMode;
+  }
+
+  /**
+   * Enter listening mode: hides NPC text display and shows an audio waveform
+   * visualization with playback controls. Used during NPC listening exams.
+   */
+  public enterListeningMode(
+    audioUrl: string,
+    onReplay: () => void,
+    maxReplays: number,
+  ): void {
+    this._listeningMode = true;
+    this._listeningReplaysRemaining = maxReplays;
+    this._listeningOnReplay = onReplay;
+
+    // Hide existing messages
+    if (this.messagesStack) {
+      this.messagesStack.isVisible = false;
+    }
+
+    // Create waveform container in the messages area
+    if (this.messagesScrollViewer) {
+      this._listeningWaveformContainer = new StackPanel('listeningWaveform');
+      this._listeningWaveformContainer.isVertical = true;
+      this._listeningWaveformContainer.spacing = 8;
+      this._listeningWaveformContainer.width = '100%';
+      this._listeningWaveformContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+      this.messagesScrollViewer.addControl(this._listeningWaveformContainer);
+
+      // Listening icon/label
+      const listenLabel = new TextBlock('listenLabel', '\uD83C\uDFA7 Listening...');
+      listenLabel.fontSize = 18;
+      listenLabel.color = '#FFD700';
+      listenLabel.height = '30px';
+      listenLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+      this._listeningWaveformContainer.addControl(listenLabel);
+
+      // Waveform bars row
+      const barsRow = new StackPanel('barsRow');
+      barsRow.isVertical = false;
+      barsRow.height = '60px';
+      barsRow.spacing = 3;
+      barsRow.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+      this._listeningWaveformContainer.addControl(barsRow);
+
+      this._listeningWaveformBars = [];
+      for (let i = 0; i < 20; i++) {
+        const bar = new Rectangle(`waveBar${i}`);
+        bar.width = '8px';
+        bar.height = '10px';
+        bar.background = '#3b82f6';
+        bar.thickness = 0;
+        bar.cornerRadius = 2;
+        bar.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+        barsRow.addControl(bar);
+        this._listeningWaveformBars.push(bar);
+      }
+
+      // Status text
+      this._listeningStatusText = new TextBlock('listenStatus', 'Playing audio...');
+      this._listeningStatusText.fontSize = 13;
+      this._listeningStatusText.color = '#22c55e';
+      this._listeningStatusText.height = '20px';
+      this._listeningStatusText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+      this._listeningWaveformContainer.addControl(this._listeningStatusText);
+
+      // Replay button
+      const replayBtnContainer = new Rectangle('replayBtnContainer');
+      replayBtnContainer.width = '180px';
+      replayBtnContainer.height = '36px';
+      replayBtnContainer.background = maxReplays > 0 ? '#3b82f6' : '#4b5563';
+      replayBtnContainer.cornerRadius = 8;
+      replayBtnContainer.thickness = 0;
+      replayBtnContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+      replayBtnContainer.isPointerBlocker = true;
+      replayBtnContainer.alpha = maxReplays > 0 ? 1.0 : 0.5;
+      this._listeningWaveformContainer.addControl(replayBtnContainer);
+
+      const replayLabel = new TextBlock('replayLabel', `\u{1F501} Replay (${maxReplays} left)`);
+      replayLabel.fontSize = 13;
+      replayLabel.color = 'white';
+      replayBtnContainer.addControl(replayLabel);
+
+      replayBtnContainer.onPointerClickObservable.add(() => {
+        if (this._listeningReplaysRemaining > 0) {
+          this._listeningReplaysRemaining--;
+          this._listeningOnReplay?.();
+          this.playListeningAudio(audioUrl);
+          replayLabel.text = this._listeningReplaysRemaining > 0
+            ? `\u{1F501} Replay (${this._listeningReplaysRemaining} left)`
+            : '\u{1F501} No replays left';
+          replayBtnContainer.alpha = this._listeningReplaysRemaining > 0 ? 1.0 : 0.5;
+          replayBtnContainer.background = this._listeningReplaysRemaining > 0 ? '#3b82f6' : '#4b5563';
+        }
+      });
+
+      this._listeningReplayBtn = replayBtnContainer;
+    }
+
+    // Start audio playback
+    this.playListeningAudio(audioUrl);
+
+    // Start waveform animation
+    this._listeningWaveformInterval = setInterval(() => {
+      this.animateWaveform();
+    }, 100);
+  }
+
+  /**
+   * Exit listening mode: restores normal chat display.
+   */
+  public exitListeningMode(): void {
+    this._listeningMode = false;
+
+    // Stop waveform animation
+    if (this._listeningWaveformInterval) {
+      clearInterval(this._listeningWaveformInterval);
+      this._listeningWaveformInterval = null;
+    }
+
+    // Stop audio
+    if (this._listeningAudioElement) {
+      this._listeningAudioElement.pause();
+      this._listeningAudioElement = null;
+    }
+
+    // Remove waveform container
+    if (this._listeningWaveformContainer) {
+      this._listeningWaveformContainer.dispose();
+      this._listeningWaveformContainer = null;
+    }
+    this._listeningWaveformBars = [];
+    this._listeningStatusText = null;
+    this._listeningReplayBtn = null;
+    this._listeningOnReplay = null;
+
+    // Restore messages visibility
+    if (this.messagesStack) {
+      this.messagesStack.isVisible = true;
+    }
+  }
+
+  private playListeningAudio(audioUrl: string): void {
+    if (this._listeningAudioElement) {
+      this._listeningAudioElement.pause();
+    }
+    this._listeningAudioElement = new Audio(audioUrl);
+
+    if (this._listeningStatusText) {
+      this._listeningStatusText.text = 'Playing audio...';
+      this._listeningStatusText.color = '#22c55e';
+    }
+
+    this._listeningAudioElement.onended = () => {
+      if (this._listeningStatusText) {
+        this._listeningStatusText.text = this._listeningReplaysRemaining > 0
+          ? 'Finished — replay or wait for questions'
+          : 'Finished — questions coming soon';
+        this._listeningStatusText.color = '#9ca3af';
+      }
+    };
+
+    this._listeningAudioElement.onerror = () => {
+      if (this._listeningStatusText) {
+        this._listeningStatusText.text = 'Audio error';
+        this._listeningStatusText.color = '#ef4444';
+      }
+    };
+
+    this._listeningAudioElement.play().catch(() => {
+      if (this._listeningStatusText) {
+        this._listeningStatusText.text = 'Playback failed';
+        this._listeningStatusText.color = '#ef4444';
+      }
+    });
+  }
+
+  private animateWaveform(): void {
+    const isPlaying = this._listeningAudioElement && !this._listeningAudioElement.paused;
+    for (const bar of this._listeningWaveformBars) {
+      const height = isPlaying
+        ? 10 + Math.random() * 45
+        : 10;
+      bar.height = `${height}px`;
+      bar.background = isPlaying ? '#3b82f6' : '#4b5563';
+    }
   }
 
   /**

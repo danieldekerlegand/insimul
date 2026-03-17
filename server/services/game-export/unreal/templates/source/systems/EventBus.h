@@ -67,6 +67,10 @@ enum class EInsimulEventType : uint8
     PronunciationAssessmentData UMETA(DisplayName = "Pronunciation Assessment Data"),
     // Point-and-name vocabulary events
     ObjectNamed UMETA(DisplayName = "Object Named"),
+    // NPC exam events (listening comprehension)
+    NpcExamStarted          UMETA(DisplayName = "NPC Exam Started"),
+    NpcExamListeningReady   UMETA(DisplayName = "NPC Exam Listening Ready"),
+    NpcExamCompleted        UMETA(DisplayName = "NPC Exam Completed"),
     // Achievement events
     AchievementUnlocked UMETA(DisplayName = "Achievement Unlocked"),
     // Quest notification & reminder events
@@ -255,6 +259,13 @@ struct FInsimulGameEvent
     // ── Point-and-name fields ─────────────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ObjectId;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString TargetWord;
+
+    // ── NPC exam fields (listening comprehension) ─────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ExamId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString BusinessType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AudioUrl;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Passage;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 MaxReplays = 0;
 
     // ── Achievement fields ─────────────────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AchievementId;

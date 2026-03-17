@@ -278,25 +278,25 @@
     },
     {
       "title": "Implement emergency/situational quests for practical language",
-      "completed": false,
+      "completed": true,
       "parallel_group": 6,
       "description": "Create time-sensitive situational quests that test practical language skills in business contexts. (1) 'Lost and Found' quest: player finds a lost item and must visit businesses asking if it belongs to anyone, describing the item in target language. (2) 'Medical Emergency' quest: an NPC is feeling ill, player must communicate symptoms to the healer NPC inside the healer's practice. (3) 'Wrong Order' quest: player receives the wrong item at a shop/restaurant and must politely explain the mistake and request the correct item. (4) 'Rush Delivery' quest: a business needs an item from another business urgently, player must relay the order in target language. (5) Situational quests have soft time pressure (bonus XP for quick completion). (6) These quests are triggered semi-randomly during gameplay. (7) Required vocabulary is practical/survival-oriented, high priority in real language learning."
     },
     {
       "title": "Add multi-line writing interface for composition quests",
-      "completed": false,
+      "completed": true,
       "parallel_group": 6,
       "description": "Enhance BabylonChatPanel.ts input to support a multi-line writing mode for composition tasks. (1) When a quest objective or exam requires extended writing, the chat input expands into a larger text area (5-10 lines visible). (2) Show a word count and character count at the bottom. (3) Writing mode includes a 'Submit' button separate from the normal send action. (4) A small sidebar shows: quest prompt, required word count range, vocabulary suggestions. (5) Auto-save drafts every 30 seconds in case of accidental closure. (6) After submission, the NPC responds with detailed feedback displayed in a formatted evaluation panel. (7) Toggle between normal chat mode and writing mode seamlessly. (8) This complements the existing AssessmentModalUI writing phase but is embedded in-conversation rather than modal."
     },
     {
       "title": "Implement pronunciation quest objectives with speech scoring",
-      "completed": false,
+      "completed": true,
       "parallel_group": 6,
       "description": "Enhance pronunciation-related quest objectives using the existing STT pipeline. (1) For pronunciation_check objective type, require the player to speak specific words/phrases via push-to-talk (R key). (2) Compare STT transcription against the expected phrase. (3) NPC models the correct pronunciation first (via TTS), then the player repeats. (4) Repeat cycle: NPC says → Player repeats → Score → NPC corrects if needed → Player tries again (up to 3 attempts). (5) Track pronunciation accuracy per word over time in LanguageProgress. (6) Business-contextualized: practice ordering food items, saying product names, greeting customers. (7) Visual feedback: show expected text and transcribed text side-by-side. (8) Award mastery badges for consistently correct pronunciation."
     },
     {
       "title": "Implement NPC schedule-aware quest assignment",
-      "completed": false,
+      "completed": true,
       "parallel_group": 6,
       "description": "Integrate quest assignment with the NPC schedule system in client/src/components/3DGame/NPCScheduleSystem.ts. (1) When generating quests that reference specific NPCs, check the NPC's schedule to ensure they'll be at the referenced location. Business owner NPCs are at their business during work hours (7-20) per the schedule system. (2) Quest descriptions include contextual time references: 'Visit Maria at the bakery in the morning'. (3) If a quest NPC is not at their expected location, show a hint: '[NPC] is usually at [business] during business hours.' (4) Time-of-day quest variants: morning quests (bakery, market), afternoon quests (workshops, services), evening quests (tavern, inn). (5) Quest feasibility validator checks NPC schedule compatibility. (6) Special quests for following an NPC's daily routine, learning time-of-day and routine vocabulary."
     },
