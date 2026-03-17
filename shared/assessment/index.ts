@@ -43,3 +43,14 @@ export {
 export { DEPARTURE_ENCOUNTER } from './departure-encounter';
 
 export * from './periodic-encounter';
+
+export {
+  buildNPCExamEncounter,
+  buildReadingExamPhase,
+  buildWritingExamPhase,
+  shouldTriggerNPCExam,
+  NPC_EXAM_QUEST_INTERVAL,
+  NPC_EXAM_TIME_INTERVAL_MS,
+  type NPCExamType,
+  type BusinessContext,
+} from './npc-exam-encounter';

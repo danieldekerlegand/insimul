@@ -66,7 +66,10 @@ enum class EInsimulEventType : uint8
     // Pronunciation quest events
     PronunciationAssessmentData UMETA(DisplayName = "Pronunciation Assessment Data"),
     // Achievement events
-    AchievementUnlocked UMETA(DisplayName = "Achievement Unlocked")
+    AchievementUnlocked UMETA(DisplayName = "Achievement Unlocked"),
+    // NPC exam events
+    NpcExamRequested    UMETA(DisplayName = "NPC Exam Requested"),
+    NpcExamCompleted    UMETA(DisplayName = "NPC Exam Completed")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────
@@ -245,6 +248,10 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AchievementName;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Description;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Icon;
+
+    // ── NPC exam fields ──────────────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ExamType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString BusinessContext;
 };
 
 // ── Delegates ────────────────────────────────────────────────────────────────
