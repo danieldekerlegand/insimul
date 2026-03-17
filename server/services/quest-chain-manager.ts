@@ -9,6 +9,7 @@
 import { storage } from '../db/storage.js';
 import type { Quest, InsertQuest } from '../../shared/schema.js';
 import { convertQuestToProlog } from '../../shared/prolog/quest-converter.js';
+import { getChainTemplate, type QuestChainTemplate } from './quest-chain-templates.js';
 
 export interface QuestChain {
   id: string;
@@ -16,8 +17,20 @@ export interface QuestChain {
   description: string;
   worldId: string;
   quests: Quest[];
-  isLinear: boolean; // If true, must complete in order
+  isLinear: boolean;
 }
+
+export interface ChainCompletionResult {
+  isComplete: boolean;
+  bonusXP: number;
+  achievement: string | null;
+  chainName: string;
+  totalQuests: number;
+  completedQuests: number;
+}
+
+/** Chain metadata stored in each quest's tags for reconstruction */
+const CHAIN_META_PREFIX = 'chain_meta:';
 
 export class QuestChainManager {
   /**
@@ -255,6 +268,102 @@ export class QuestChainManager {
 
     return quest;
   }
+
+  /**
+   * Create a quest chain from a predefined template.
+   */
+  async createFromTemplate(
+    templateId: string,
+    worldId: string,
+    targetLanguage: string,
+    assignedTo?: string,
+    assignedToCharacterId?: string,
+  ): Promise<QuestChain | null> {
+    const template = getChainTemplate(templateId, targetLanguage);
+    if (!template) return null;
+
+    const chainMeta = encodeChainMeta(template.name, template.bonusXP, template.achievement);
+
+    const quests: InsertQuest[] = template.quests.map(q => ({
+      ...q,
+      worldId,
+      assignedTo: assignedTo || '',
+      assignedToCharacterId: assignedToCharacterId || null,
+      tags: [...(q.tags || []), chainMeta],
+    }));
+
+    return this.createQuestChain(
+      { id: '', name: template.name, description: template.description, worldId, isLinear: template.isLinear },
+      quests,
+    );
+  }
+
+  /**
+   * Check whether completing a quest finishes the entire chain.
+   * Returns bonus XP and achievement info if the chain is now complete.
+   */
+  async checkChainCompletion(quest: Quest): Promise<ChainCompletionResult> {
+    const noCompletion: ChainCompletionResult = {
+      isComplete: false,
+      bonusXP: 0,
+      achievement: null,
+      chainName: '',
+      totalQuests: 0,
+      completedQuests: 0,
+    };
+
+    if (!quest.questChainId) return noCompletion;
+
+    const allQuests = await storage.getQuestsByWorld(quest.worldId);
+    const chainQuests = allQuests.filter(q => q.questChainId === quest.questChainId);
+
+    if (chainQuests.length === 0) return noCompletion;
+
+    // Count completed (include the just-completed quest)
+    const completedCount = chainQuests.filter(
+      q => q.status === 'completed' || q.id === quest.id
+    ).length;
+
+    // Extract chain metadata from tags
+    const meta = extractChainMeta(chainQuests);
+
+    const result: ChainCompletionResult = {
+      isComplete: completedCount >= chainQuests.length,
+      bonusXP: meta.bonusXP,
+      achievement: meta.achievement,
+      chainName: meta.name,
+      totalQuests: chainQuests.length,
+      completedQuests: completedCount,
+    };
+
+    return result;
+  }
+}
+
+/**
+ * Encode chain metadata into a tag string for storage.
+ */
+export function encodeChainMeta(name: string, bonusXP: number, achievement: string): string {
+  return `${CHAIN_META_PREFIX}${JSON.stringify({ name, bonusXP, achievement })}`;
+}
+
+/**
+ * Extract chain metadata from quest tags.
+ */
+export function extractChainMeta(chainQuests: Quest[]): { name: string; bonusXP: number; achievement: string } {
+  for (const quest of chainQuests) {
+    const tags = quest.tags || [];
+    for (const tag of tags) {
+      if (typeof tag === 'string' && tag.startsWith(CHAIN_META_PREFIX)) {
+        try {
+          return JSON.parse(tag.slice(CHAIN_META_PREFIX.length));
+        } catch {
+          // ignore parse errors
+        }
+      }
+    }
+  }
+  return { name: 'Quest Chain', bonusXP: 0, achievement: '' };
 }
 
 // Export singleton instance
