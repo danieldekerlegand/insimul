@@ -4,12 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { CheckCircle2, Clock, XCircle, Trophy, Target, Plus } from 'lucide-react';
+import { CheckCircle2, Clock, XCircle, Trophy, Target, Plus, Star, Timer } from 'lucide-react';
 import { QuestCreateDialog } from './QuestCreateDialog';
 import { TruthContextPanel } from './TruthContextPanel';
 import { ContentValidationIndicator } from './prolog/ContentValidationIndicator';
 import { validateQuestContent } from '@shared/prolog/content-validators';
 import { QuestChecklist } from './quests/QuestChecklist';
+import { cefrLevelLabel } from '@shared/quest-difficulty';
 
 interface Quest {
   id: string;
@@ -22,6 +23,9 @@ interface Quest {
   description: string;
   questType: string;
   difficulty: string;
+  cefrLevel: string | null;
+  difficultyStars: number | null;
+  estimatedMinutes: number | null;
   targetLanguage: string;
   objectives: any[] | null;
   progress: Record<string, any> | null;
@@ -95,6 +99,25 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
       default:
         return '🎯';
     }
+  };
+
+  const getCefrBadgeColor = (level: string) => {
+    switch (level) {
+      case 'A1': return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200';
+      case 'A2': return 'bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200';
+      case 'B1': return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200';
+      case 'B2': return 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+    }
+  };
+
+  const renderDifficultyStars = (stars: number) => {
+    return Array.from({ length: 5 }, (_, i) => (
+      <Star
+        key={i}
+        className={`w-3 h-3 ${i < stars ? 'fill-amber-400 text-amber-400' : 'text-gray-300 dark:text-gray-600'}`}
+      />
+    ));
   };
 
   // Validation of selected quest's Prolog content
@@ -177,16 +200,32 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
                             <p className="text-sm text-muted-foreground mb-3">
                               {quest.description}
                             </p>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-2 items-center">
                               <Badge className={getDifficultyColor(quest.difficulty)}>
                                 {quest.difficulty}
                               </Badge>
+                              {quest.cefrLevel && (
+                                <Badge className={getCefrBadgeColor(quest.cefrLevel)}>
+                                  {quest.cefrLevel}
+                                </Badge>
+                              )}
+                              {quest.difficultyStars && (
+                                <span className="flex items-center gap-0.5" title={`Difficulty: ${quest.difficultyStars}/5`}>
+                                  {renderDifficultyStars(quest.difficultyStars)}
+                                </span>
+                              )}
                               <Badge variant="outline">
                                 {quest.targetLanguage}
                               </Badge>
                               <Badge variant="outline">
                                 {quest.questType}
                               </Badge>
+                              {quest.estimatedMinutes && (
+                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Timer className="w-3 h-3" />
+                                  ~{quest.estimatedMinutes}m
+                                </span>
+                              )}
                               {quest.assignedBy && (
                                 <Badge variant="secondary">
                                   From: {quest.assignedBy}
@@ -292,10 +331,36 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
 
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Difficulty:</span>
-                  <Badge className={getDifficultyColor(selectedQuest.difficulty)}>
-                    {selectedQuest.difficulty}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge className={getDifficultyColor(selectedQuest.difficulty)}>
+                      {selectedQuest.difficulty}
+                    </Badge>
+                    {selectedQuest.difficultyStars && (
+                      <span className="flex items-center gap-0.5">
+                        {renderDifficultyStars(selectedQuest.difficultyStars)}
+                      </span>
+                    )}
+                  </div>
                 </div>
+
+                {selectedQuest.cefrLevel && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">CEFR Level:</span>
+                    <Badge className={getCefrBadgeColor(selectedQuest.cefrLevel)} title={cefrLevelLabel(selectedQuest.cefrLevel as any)}>
+                      {selectedQuest.cefrLevel}
+                    </Badge>
+                  </div>
+                )}
+
+                {selectedQuest.estimatedMinutes && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Est. Time:</span>
+                    <span className="flex items-center gap-1">
+                      <Timer className="w-3 h-3" />
+                      ~{selectedQuest.estimatedMinutes} min
+                    </span>
+                  </div>
+                )}
 
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Language:</span>

@@ -14,6 +14,7 @@ import {
   buildObjectiveTypePrompt,
   validateAndNormalizeObjectives,
 } from '../../shared/quest-objective-types.js';
+import { getQuestDifficultyInfo } from '../../shared/quest-difficulty.js';
 
 /**
  * Call LLM for quest generation using Gemini API.
@@ -169,12 +170,18 @@ Generate a quest following the format specified above.`;
   // Get difficulty scaling
   const scaling = questType.difficultyScaling[difficulty] || { xp: 50, multiplier: 1 };
 
+  // Compute CEFR alignment and difficulty indicators
+  const difficultyInfo = getQuestDifficultyInfo(difficulty, category, validObjectives.length);
+
   // Map to InsertQuest schema
   const quest: InsertQuest = {
     worldId: world.id,
     gameType: questType.id,
     questType: category,
     difficulty,
+    cefrLevel: difficultyInfo.cefrLevel,
+    difficultyStars: difficultyInfo.stars,
+    estimatedMinutes: difficultyInfo.estimatedMinutes,
     title: questData.title,
     description: questData.description,
     objectives: validObjectives,
@@ -322,11 +329,17 @@ Return JSON format as specified above.`;
 
   const scaling = questType.difficultyScaling[difficulty] || { xp: 50, multiplier: 1 };
 
+  // Compute CEFR alignment and difficulty indicators
+  const difficultyInfo = getQuestDifficultyInfo(difficulty, category, validObjectives.length);
+
   const quest: InsertQuest = {
     worldId: world.id,
     gameType: questType.id,
     questType: category,
     difficulty,
+    cefrLevel: difficultyInfo.cefrLevel,
+    difficultyStars: difficultyInfo.stars,
+    estimatedMinutes: difficultyInfo.estimatedMinutes,
     title: questData.title,
     description: questData.description,
     objectives: validObjectives,
