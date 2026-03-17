@@ -281,6 +281,16 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'master_words': 'use_vocabulary',
   'sustained_conversation': 'complete_conversation',
   'practice_grammar': 'use_vocabulary',
+
+  // SRS / spaced repetition review variations
+  'review_vocabulary': 'use_vocabulary',
+  'vocabulary_review': 'use_vocabulary',
+  'srs_review': 'use_vocabulary',
+  'spaced_repetition': 'use_vocabulary',
+  'review_words': 'use_vocabulary',
+  'practice_words': 'use_vocabulary',
+  'reinforce_vocabulary': 'use_vocabulary',
+  'recall_vocabulary': 'use_vocabulary',
 };
 
 /**

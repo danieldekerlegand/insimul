@@ -457,6 +457,86 @@ export const QUEST_SEEDS: QuestSeed[] = [
     baseXp: 30,
     tags: ['newcomer', 'greeting', 'beginner', 'starter'],
   },
+
+  // ── Spaced Repetition Review ────────────────────────────────────────────
+  {
+    id: 'vocabulary_review',
+    name: 'Vocabulary Review',
+    category: 'vocabulary',
+    difficulty: 'beginner',
+    params: [
+      { name: 'wordCount', type: 'number', description: 'Words to review', defaultValue: 5 },
+      { name: 'reviewWords', type: 'string[]', description: 'Words due for SRS review', defaultValue: [] },
+    ],
+    titleTemplate: 'Vocabulary Review: {{wordCount}} Words',
+    descriptionTemplate: 'Review {{wordCount}} vocabulary words that are due for spaced repetition practice in {{targetLanguage}}.',
+    questType: 'vocabulary',
+    objectiveTemplates: [
+      { type: 'use_vocabulary', descriptionTemplate: 'Use {{wordCount}} review words in conversation', countTemplate: '{{wordCount}}' },
+    ],
+    completionCriteria: { type: 'vocabulary_usage', requiredCount: 5 },
+    baseXp: 15,
+    tags: ['vocabulary', 'review', 'srs', 'spaced-repetition'],
+  },
+  {
+    id: 'srs_identify_review',
+    name: 'Word Recognition',
+    category: 'visual_vocabulary',
+    difficulty: 'beginner',
+    params: [
+      { name: 'wordCount', type: 'number', description: 'Objects to identify', defaultValue: 5 },
+      { name: 'reviewWords', type: 'string[]', description: 'Words due for SRS review', defaultValue: [] },
+    ],
+    titleTemplate: 'Word Recognition: {{wordCount}} Objects',
+    descriptionTemplate: 'Identify {{wordCount}} objects by their {{targetLanguage}} names to reinforce your vocabulary.',
+    questType: 'visual_vocabulary',
+    objectiveTemplates: [
+      { type: 'identify_object', descriptionTemplate: 'Identify {{wordCount}} objects using review vocabulary', countTemplate: '{{wordCount}}' },
+    ],
+    completionCriteria: { type: 'vocabulary_usage', requiredCount: 5 },
+    baseXp: 15,
+    tags: ['vocabulary', 'visual', 'review', 'srs', 'spaced-repetition'],
+  },
+  {
+    id: 'srs_translation_review',
+    name: 'Translation Review',
+    category: 'translation',
+    difficulty: 'intermediate',
+    params: [
+      { name: 'wordCount', type: 'number', description: 'Words to translate', defaultValue: 5 },
+      { name: 'reviewWords', type: 'string[]', description: 'Words due for SRS review', defaultValue: [] },
+    ],
+    titleTemplate: 'Translation Review: {{wordCount}} Words',
+    descriptionTemplate: 'Translate {{wordCount}} review words between English and {{targetLanguage}} to strengthen recall.',
+    questType: 'translation_challenge',
+    objectiveTemplates: [
+      { type: 'translation_challenge', descriptionTemplate: 'Translate {{wordCount}} review words correctly', countTemplate: '{{wordCount}}' },
+    ],
+    completionCriteria: { type: 'vocabulary_usage', requiredCount: 5 },
+    baseXp: 25,
+    tags: ['vocabulary', 'translation', 'review', 'srs', 'spaced-repetition'],
+  },
+  {
+    id: 'srs_mixed_review',
+    name: 'Mixed Review Session',
+    category: 'vocabulary',
+    difficulty: 'intermediate',
+    params: [
+      { name: 'useCount', type: 'number', description: 'Words to use in conversation', defaultValue: 3 },
+      { name: 'identifyCount', type: 'number', description: 'Objects to identify', defaultValue: 3 },
+      { name: 'reviewWords', type: 'string[]', description: 'Words due for SRS review', defaultValue: [] },
+    ],
+    titleTemplate: 'Mixed Review Session',
+    descriptionTemplate: 'Practice review words through multiple activities: use {{useCount}} in conversation and identify {{identifyCount}} objects in {{targetLanguage}}.',
+    questType: 'vocabulary',
+    objectiveTemplates: [
+      { type: 'use_vocabulary', descriptionTemplate: 'Use {{useCount}} review words in conversation', countTemplate: '{{useCount}}' },
+      { type: 'identify_object', descriptionTemplate: 'Identify {{identifyCount}} objects by their target-language names', countTemplate: '{{identifyCount}}' },
+    ],
+    completionCriteria: { type: 'all_objectives' },
+    baseXp: 30,
+    tags: ['vocabulary', 'mixed', 'review', 'srs', 'spaced-repetition'],
+  },
 ];
 
 // ── Instantiation ───────────────────────────────────────────────────────────
