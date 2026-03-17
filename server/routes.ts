@@ -5087,6 +5087,29 @@ Return ONLY valid JSON array.`;
         }
       }
 
+      // Step 6c: Generate and persist merchant inventories (with target-language translations)
+      {
+        console.log('🏪 Step 6c: Generating merchant inventories...');
+        progressTracker.updateProgress(taskId, 'merchant-inventory', 'Generating business inventories...', 98);
+        try {
+          const { generateAndPersistWorldInventories } = await import("./services/merchant-inventory.js");
+          let translateFn;
+          if (gameType === 'language-learning' && worldTargetLanguage && isGeminiConfigured()) {
+            const { batchTranslateItems } = await import("./services/item-translation.js");
+            translateFn = batchTranslateItems;
+          }
+          const { inventoryCount, translatedCount } = await generateAndPersistWorldInventories(
+            worldId,
+            storage as any,
+            worldTargetLanguage,
+            translateFn,
+          );
+          console.log(`✅ Generated ${inventoryCount} merchant inventories${translatedCount > 0 ? `, translated ${translatedCount} items to ${worldTargetLanguage}` : ''}`);
+        } catch (error) {
+          console.warn('⚠️ Merchant inventory generation skipped:', (error as Error).message);
+        }
+      }
+
       // Step 7: Grammars already generated in Step 0 (before name generation)
       console.log(`📝 Step 7: Skipped — ${numGrammars} grammars already generated in Step 0`);
       progressTracker.updateProgress(taskId, 'grammars-complete', `${numGrammars} grammars ready`, 99);
@@ -11375,7 +11398,14 @@ Respond with this JSON structure:
         return res.status(400).json({ error: "Character is not a merchant" });
       }
 
-      // Generate stock based on merchant type
+      // Check for persisted inventory on the merchant's business
+      const businesses = await storage.getBusinessesByWorld(worldId);
+      const ownerBiz = businesses.find((b: any) => b.ownerId === merchantId);
+      if (ownerBiz?.businessData?.inventory) {
+        return res.json(ownerBiz.businessData.inventory);
+      }
+
+      // Fallback: generate stock on the fly
       const merchantStock = generateMerchantStock(occupation, worldId);
 
       // Map occupation to business type for sell validation on client

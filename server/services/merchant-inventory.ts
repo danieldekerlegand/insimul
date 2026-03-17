@@ -17,6 +17,11 @@ export interface MerchantInventoryStorage {
   getItemsByWorld(worldId: string): Promise<Item[]>;
   createItem(item: InsertItem): Promise<Item>;
   getWorldLanguagesByWorld(worldId: string): Promise<Array<{ name: string; isLearningTarget?: boolean }>>;
+  updateBusiness?(id: string, data: any): Promise<any>;
+}
+
+export interface TranslateItemFn {
+  (items: Array<{ id: string; name: string; category?: string; description?: string }>, targetLanguage: string): Promise<Array<{ id: string; targetWord: string; pronunciation: string; category: string }>>;
 }
 
 // ── Item Templates per Business Type ───────────────────────────────────────
@@ -380,4 +385,103 @@ export function getAcceptedItemTypes(businessType: string): Set<string> {
     types.add(item.itemType);
   }
   return types;
+}
+
+/**
+ * Collect all unique item names across all business catalogs.
+ * Returns a deduplicated list with synthetic IDs for translation.
+ */
+export function collectUniqueCatalogItems(): Array<{ id: string; name: string; category: string; description: string }> {
+  const seen = new Set<string>();
+  const items: Array<{ id: string; name: string; category: string; description: string }> = [];
+
+  for (const [, templates] of Object.entries(BUSINESS_ITEM_CATALOG)) {
+    for (const t of templates) {
+      if (!seen.has(t.name)) {
+        seen.add(t.name);
+        items.push({ id: t.name, name: t.name, category: t.category, description: t.description });
+      }
+    }
+  }
+
+  return items;
+}
+
+/**
+ * Generate inventories for all businesses in a world and persist them
+ * with target-language translations in each business's businessData.
+ */
+export async function generateAndPersistWorldInventories(
+  worldId: string,
+  storage: MerchantInventoryStorage,
+  targetLanguage: string | null,
+  translateFn?: TranslateItemFn,
+): Promise<{ inventoryCount: number; translatedCount: number }> {
+  const businesses = await storage.getBusinessesByWorld(worldId);
+
+  const merchantTypes = new Set([
+    'Bakery', 'Bar', 'Restaurant', 'Shop', 'GroceryStore', 'Pharmacy',
+    'JewelryStore', 'Brewery', 'Farm', 'Hotel',
+  ]);
+
+  // Build translation map if target language is set
+  let translationMap: Map<string, { targetWord: string; pronunciation: string }> | undefined;
+  if (targetLanguage && translateFn) {
+    const uniqueItems = collectUniqueCatalogItems();
+    const translations = await translateFn(uniqueItems, targetLanguage);
+    translationMap = new Map();
+    for (const t of translations) {
+      translationMap.set(t.id, { targetWord: t.targetWord, pronunciation: t.pronunciation });
+    }
+  }
+
+  let inventoryCount = 0;
+  let translatedCount = 0;
+
+  for (const biz of businesses) {
+    if (!merchantTypes.has(biz.businessType) && !BUSINESS_TYPE_ALIASES[biz.businessType]) {
+      continue;
+    }
+
+    let agreeableness = 0.5;
+    if (biz.ownerId) {
+      const owner = await storage.getCharacter(biz.ownerId);
+      if (owner?.personality) {
+        agreeableness = (owner.personality as any).agreeableness ?? 0.5;
+      }
+    }
+
+    const inventory = generateMerchantInventory(
+      { id: biz.id, name: biz.name, businessType: biz.businessType },
+      { agreeableness },
+    );
+
+    // Apply translations to items
+    if (translationMap && targetLanguage) {
+      for (const item of inventory.items) {
+        const translation = translationMap.get(item.name);
+        if (translation) {
+          item.languageLearningData = {
+            targetWord: translation.targetWord,
+            targetLanguage,
+            pronunciation: translation.pronunciation,
+            category: item.category || 'general',
+          };
+          translatedCount++;
+        }
+      }
+    }
+
+    // Persist inventory in businessData
+    if (storage.updateBusiness) {
+      const existingData = (biz as any).businessData || {};
+      await storage.updateBusiness(biz.id, {
+        businessData: { ...existingData, inventory },
+      });
+    }
+
+    inventoryCount++;
+  }
+
+  return { inventoryCount, translatedCount };
 }
