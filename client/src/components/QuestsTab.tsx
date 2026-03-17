@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { CheckCircle2, Clock, XCircle, Trophy, Target, Plus, Star, Timer } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { CheckCircle2, Clock, XCircle, Trophy, Target, Plus, Star, Timer, Link2 } from 'lucide-react';
 import { QuestCreateDialog } from './QuestCreateDialog';
 import { TruthContextPanel } from './TruthContextPanel';
 import { ContentValidationIndicator } from './prolog/ContentValidationIndicator';
@@ -39,8 +40,20 @@ interface Quest {
   content: string | null;
   conversationContext: string | null;
   tags: string[] | null;
+  questChainId: string | null;
+  questChainOrder: number | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+interface QuestChainInfo {
+  id: string;
+  name: string;
+  quests: Quest[];
+  completed: number;
+  total: number;
+  bonusXP: number;
+  achievement: string;
 }
 
 interface QuestsTabProps {
@@ -130,6 +143,47 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
   const completedQuests = quests.filter(q => q.status === 'completed');
   const otherQuests = quests.filter(q => q.status !== 'active' && q.status !== 'completed');
 
+  // Build quest chain progress info
+  const questChains = useMemo(() => {
+    const chainMap = new Map<string, Quest[]>();
+    for (const quest of quests) {
+      if (quest.questChainId) {
+        const list = chainMap.get(quest.questChainId) || [];
+        list.push(quest);
+        chainMap.set(quest.questChainId, list);
+      }
+    }
+
+    const chains: QuestChainInfo[] = [];
+    chainMap.forEach((chainQuests, chainId) => {
+      chainQuests.sort((a: Quest, b: Quest) => (a.questChainOrder || 0) - (b.questChainOrder || 0));
+      const completed = chainQuests.filter((q: Quest) => q.status === 'completed').length;
+
+      // Extract chain metadata from tags
+      let name = 'Quest Chain';
+      let bonusXP = 0;
+      let achievement = '';
+      const metaPrefix = 'chain_meta:';
+      for (const q of chainQuests) {
+        for (const tag of q.tags || []) {
+          if (typeof tag === 'string' && tag.startsWith(metaPrefix)) {
+            try {
+              const meta = JSON.parse(tag.slice(metaPrefix.length));
+              name = meta.name || name;
+              bonusXP = meta.bonusXP || bonusXP;
+              achievement = meta.achievement || achievement;
+            } catch { /* ignore */ }
+            break;
+          }
+        }
+        if (name !== 'Quest Chain') break;
+      }
+
+      chains.push({ id: chainId, name, quests: chainQuests, completed, total: chainQuests.length, bonusXP, achievement });
+    });
+    return chains;
+  }, [quests]);
+
   return (
     <div className="space-y-4 p-6">
       {/* Header with Create Button */}
@@ -165,6 +219,67 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Quest List */}
         <div className="lg:col-span-2 space-y-4">
+          {/* Quest Chain Progress */}
+          {questChains.length > 0 && (
+            <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl border-l-4 border-l-purple-500">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <div className="p-1.5 bg-purple-500/10 rounded-lg">
+                    <Link2 className="w-5 h-5 text-purple-500" />
+                  </div>
+                  Quest Chains ({questChains.length})
+                </CardTitle>
+                <CardDescription>
+                  Progressive learning paths
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {questChains.map((chain) => {
+                    const pct = chain.total > 0 ? Math.round((chain.completed / chain.total) * 100) : 0;
+                    const isComplete = chain.completed >= chain.total;
+                    return (
+                      <div
+                        key={chain.id}
+                        className={`p-4 rounded-lg border ${isComplete ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-white/60 dark:bg-white/5 border-white/20 dark:border-white/10'}`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-sm">{chain.name}</h4>
+                          <span className="text-xs text-muted-foreground">
+                            {chain.completed}/{chain.total}
+                            {isComplete && <CheckCircle2 className="w-3 h-3 text-green-500 inline ml-1" />}
+                          </span>
+                        </div>
+                        <Progress value={pct} className="h-2 mb-2" />
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <div className="flex gap-1">
+                            {chain.quests.map((q, i) => (
+                              <span
+                                key={q.id}
+                                className={`w-2 h-2 rounded-full ${
+                                  q.status === 'completed' ? 'bg-green-500' :
+                                  q.status === 'active' ? 'bg-blue-500' :
+                                  'bg-gray-300 dark:bg-gray-600'
+                                }`}
+                                title={`${i + 1}. ${q.title}`}
+                              />
+                            ))}
+                          </div>
+                          {chain.bonusXP > 0 && (
+                            <span className="flex items-center gap-1 text-amber-600">
+                              <Trophy className="w-3 h-3" />
+                              +{chain.bonusXP} bonus XP
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Active Quests */}
         {activeQuests.length > 0 && (
           <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl border-l-4 border-l-blue-500">
@@ -403,6 +518,26 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
               {selectedQuest.objectives && selectedQuest.objectives.length > 0 && (
                 <QuestChecklist objectives={selectedQuest.objectives} />
               )}
+
+              {/* Quest Chain Info */}
+              {selectedQuest.questChainId && (() => {
+                const chain = questChains.find(c => c.id === selectedQuest.questChainId);
+                if (!chain) return null;
+                const pct = chain.total > 0 ? Math.round((chain.completed / chain.total) * 100) : 0;
+                return (
+                  <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Link2 className="w-3 h-3 text-purple-500" />
+                      <span className="text-xs font-semibold text-purple-700 dark:text-purple-300">{chain.name}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                      <span>Step {(selectedQuest.questChainOrder || 0) + 1} of {chain.total}</span>
+                      <span>{pct}%</span>
+                    </div>
+                    <Progress value={pct} className="h-1.5" />
+                  </div>
+                );
+              })()}
 
               {selectedQuest.completionCriteria && (
                 <div className="space-y-3">

@@ -8214,8 +8214,24 @@ Respond with this JSON structure:
         }
       }
 
+      // Check if this completes a quest chain
+      let chainCompletion = null;
+      if (quest.questChainId) {
+        const { questChainManager } = await import('./services/quest-chain-manager.js');
+        const result = await questChainManager.checkChainCompletion(quest);
+        if (result.isComplete) {
+          chainCompletion = {
+            chainName: result.chainName,
+            bonusXP: result.bonusXP,
+            achievement: result.achievement,
+            totalQuests: result.totalQuests,
+          };
+        }
+      }
+
       res.json({
         quest: updated,
+        chainCompletion,
         depletion: depletionResult
           ? {
               depleted: depletionResult.depleted,
@@ -9011,6 +9027,52 @@ Respond with this JSON structure:
     } catch (error) {
       console.error('[Quest Chain Progress] Error:', error);
       res.status(500).json({ error: "Failed to fetch chain progress" });
+    }
+  });
+
+  // Create quest chain from a predefined template
+  app.post("/api/worlds/:worldId/quest-chains/from-template", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { templateId, targetLanguage, assignedTo, assignedToCharacterId } = req.body;
+
+      if (!templateId) {
+        return res.status(400).json({ error: "templateId is required" });
+      }
+
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      const { questChainManager } = await import('./services/quest-chain-manager.js');
+      const chain = await questChainManager.createFromTemplate(
+        templateId,
+        worldId,
+        targetLanguage || world.targetLanguage || '',
+        assignedTo,
+        assignedToCharacterId,
+      );
+
+      if (!chain) {
+        return res.status(404).json({ error: `Template '${templateId}' not found` });
+      }
+
+      res.status(201).json({ chain });
+    } catch (error) {
+      console.error('[Quest Chain Template] Error:', error);
+      res.status(500).json({ error: "Failed to create quest chain from template" });
+    }
+  });
+
+  // List available quest chain templates
+  app.get("/api/quest-chain-templates", async (_req, res) => {
+    try {
+      const { listChainTemplates } = await import('./services/quest-chain-templates.js');
+      res.json({ templates: listChainTemplates() });
+    } catch (error) {
+      console.error('[Quest Chain Templates] Error:', error);
+      res.status(500).json({ error: "Failed to list templates" });
     }
   });
 

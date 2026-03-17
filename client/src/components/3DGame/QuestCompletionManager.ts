@@ -124,7 +124,13 @@ export class QuestCompletionManager {
 
     // 8. Handle quest chain progression
     if (quest.questChainId) {
-      await this.assignNextChainQuest(quest);
+      const chainResult = await this.handleChainProgression(quest);
+      if (chainResult?.chainComplete) {
+        // Delay chain overlay so it shows after the quest overlay
+        setTimeout(() => {
+          this.showChainCompletionOverlay(chainResult);
+        }, 3500);
+      }
     }
   }
 
@@ -426,16 +432,21 @@ export class QuestCompletionManager {
   // ── Quest Chain Progression ──────────────────────────────────────────────
 
   /**
-   * If the completed quest is part of a chain, fetch and auto-assign the next quest.
+   * Handle chain progression: assign next quest or detect chain completion.
    */
-  private async assignNextChainQuest(quest: CompletedQuestData): Promise<void> {
-    if (!quest.questChainId || !quest.worldId) return;
+  private async handleChainProgression(quest: CompletedQuestData): Promise<{
+    chainComplete: boolean;
+    chainName: string;
+    bonusXP: number;
+    achievement: string | null;
+  } | null> {
+    if (!quest.questChainId || !quest.worldId) return null;
 
     try {
       const response = await fetch(`/api/worlds/${quest.worldId}/quests`);
-      if (!response.ok) return;
+      if (!response.ok) return null;
 
-      const allQuests: CompletedQuestData[] = await response.json();
+      const allQuests: Array<CompletedQuestData & { status?: string; tags?: string[] }> = await response.json();
       const chainQuests = allQuests
         .filter(q => q.questChainId === quest.questChainId)
         .sort((a, b) => (a.questChainOrder || 0) - (b.questChainOrder || 0));
@@ -457,16 +468,156 @@ export class QuestCompletionManager {
           questTitle: nextQuest.title,
         });
 
-        // Refresh tracker to show new quest
         if (this.questTracker) {
           this.questTracker.updateQuests(quest.worldId);
         }
 
         console.log(`[QuestCompletionManager] Auto-assigned next chain quest: "${nextQuest.title}"`);
+        return null; // Chain not complete yet
       }
+
+      // No next quest — check if the chain is fully complete
+      const allCompleted = chainQuests.every(
+        q => q.status === 'completed' || q.id === quest.id
+      );
+
+      if (allCompleted) {
+        // Extract chain metadata from tags
+        const meta = this.extractChainMeta(chainQuests);
+        console.log(`[QuestCompletionManager] Chain complete: "${meta.name}"`);
+
+        this.eventBus?.emit({
+          type: 'quest_chain_completed',
+          chainId: quest.questChainId,
+          chainName: meta.name,
+          bonusXP: meta.bonusXP,
+          achievement: meta.achievement,
+        } as any);
+
+        return {
+          chainComplete: true,
+          chainName: meta.name,
+          bonusXP: meta.bonusXP,
+          achievement: meta.achievement || null,
+        };
+      }
+
+      return null;
     } catch (e) {
-      console.warn('[QuestCompletionManager] Failed to assign next chain quest:', e);
+      console.warn('[QuestCompletionManager] Failed to handle chain progression:', e);
+      return null;
     }
+  }
+
+  private extractChainMeta(quests: Array<{ tags?: string[] }>): { name: string; bonusXP: number; achievement: string } {
+    const prefix = 'chain_meta:';
+    for (const quest of quests) {
+      for (const tag of quest.tags || []) {
+        if (typeof tag === 'string' && tag.startsWith(prefix)) {
+          try {
+            return JSON.parse(tag.slice(prefix.length));
+          } catch { /* ignore */ }
+        }
+      }
+    }
+    return { name: 'Quest Chain', bonusXP: 0, achievement: '' };
+  }
+
+  /**
+   * Show a special overlay when an entire quest chain is completed.
+   */
+  private showChainCompletionOverlay(result: {
+    chainName: string;
+    bonusXP: number;
+    achievement: string | null;
+  }): void {
+    this.removeCompletionOverlay();
+
+    const overlay = new Rectangle('chainCompletionOverlay');
+    overlay.width = '100%';
+    overlay.height = '100%';
+    overlay.background = 'rgba(0, 0, 0, 0.7)';
+    overlay.thickness = 0;
+    overlay.zIndex = 310;
+    this.completionOverlay = overlay;
+
+    const panel = new Rectangle('chainPanel');
+    panel.width = '420px';
+    panel.adaptHeightToChildren = true;
+    panel.background = 'rgba(20, 10, 50, 0.95)';
+    panel.color = '#9B59B6';
+    panel.thickness = 4;
+    panel.cornerRadius = 15;
+    panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    panel.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    overlay.addControl(panel);
+
+    const stack = new StackPanel();
+    stack.width = '100%';
+    stack.paddingTop = '25px';
+    stack.paddingBottom = '25px';
+    stack.paddingLeft = '20px';
+    stack.paddingRight = '20px';
+    panel.addControl(stack);
+
+    const icon = new TextBlock();
+    icon.text = '\u{1F31F}'; // star emoji
+    icon.fontSize = 56;
+    icon.height = '70px';
+    stack.addControl(icon);
+
+    const header = new TextBlock();
+    header.text = 'Quest Chain Complete!';
+    header.color = '#9B59B6';
+    header.fontSize = 26;
+    header.fontWeight = 'bold';
+    header.height = '40px';
+    stack.addControl(header);
+
+    const chainName = new TextBlock();
+    chainName.text = result.chainName;
+    chainName.color = 'white';
+    chainName.fontSize = 18;
+    chainName.height = '30px';
+    chainName.textWrapping = TextWrapping.WordWrap;
+    stack.addControl(chainName);
+
+    const sep = new Rectangle();
+    sep.width = '80%';
+    sep.height = '2px';
+    sep.background = '#9B59B6';
+    sep.thickness = 0;
+    sep.paddingTop = '10px';
+    sep.paddingBottom = '10px';
+    stack.addControl(sep);
+
+    if (result.bonusXP > 0) {
+      const bonusText = new TextBlock();
+      bonusText.text = `\u2B50 Bonus: +${result.bonusXP} XP`;
+      bonusText.color = '#FFD700';
+      bonusText.fontSize = 22;
+      bonusText.fontWeight = 'bold';
+      bonusText.height = '35px';
+      stack.addControl(bonusText);
+
+      this.gamificationTracker?.onQuestCompleted('chain_bonus', result.bonusXP);
+    }
+
+    if (result.achievement) {
+      const achievementText = new TextBlock();
+      achievementText.text = `\u{1F3C5} Achievement: ${result.achievement}`;
+      achievementText.color = '#90EE90';
+      achievementText.fontSize = 16;
+      achievementText.height = '28px';
+      achievementText.textWrapping = TextWrapping.WordWrap;
+      stack.addControl(achievementText);
+    }
+
+    this.advancedTexture.addControl(overlay);
+
+    setTimeout(() => {
+      this.removeCompletionOverlay();
+    }, 4000);
   }
 
   // ── Cleanup ──────────────────────────────────────────────────────────────
