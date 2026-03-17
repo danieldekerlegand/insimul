@@ -10,6 +10,7 @@ import { createDebugLabel } from './DebugLabelUtils';
 import * as GUI from '@babylonjs/gui';
 import { ProceduralQuestObjects } from './ProceduralQuestObjects';
 import { VisualVocabularyDetector, type VocabularyTarget, type IdentificationPrompt, type IdentificationResult } from './VisualVocabularyDetector';
+import { QuestCompletionEngine } from './QuestCompletionEngine';
 import type { GameEventBus } from './GameEventBus';
 
 // Quest objective types that can be spawned/tracked in the world
@@ -170,6 +171,9 @@ export class QuestObjectManager {
   // Visual vocabulary detection
   private visualVocabDetector: VisualVocabularyDetector;
 
+  // Unified completion engine (pure logic, no Babylon deps)
+  private completionEngine: QuestCompletionEngine;
+
   // Callbacks
   private onObjectCollected?: (questId: string, objectiveId: string) => void;
   private onLocationVisited?: (questId: string, objectiveId: string) => void;
@@ -180,10 +184,25 @@ export class QuestObjectManager {
   constructor(scene: Scene, eventBus?: GameEventBus) {
     this.scene = scene;
     this.proceduralObjects = new ProceduralQuestObjects(scene);
+    this.completionEngine = new QuestCompletionEngine();
+
+    // Wire engine callbacks back to this manager
+    this.completionEngine.setOnObjectiveCompleted((questId, objectiveId) => {
+      this.onObjectiveCompleted?.(questId, objectiveId);
+    });
+    this.completionEngine.setOnQuestCompleted((questId) => {
+      this.completeQuest(questId);
+    });
+
     this.visualVocabDetector = new VisualVocabularyDetector(eventBus);
     this.visualVocabDetector.setOnObjectiveCompleted((questId, objectiveId) => {
-      this.completeObjective(questId, objectiveId);
+      this.completionEngine.completeObjective(questId, objectiveId);
     });
+  }
+
+  /** Get the underlying completion engine for direct access or testing. */
+  public getCompletionEngine(): QuestCompletionEngine {
+    return this.completionEngine;
   }
 
   /**
@@ -232,6 +251,9 @@ export class QuestObjectManager {
 
     // Add to active quests
     this.activeQuests.push(quest);
+
+    // Register with completion engine
+    this.completionEngine.addQuest(quest);
 
     // Parse and spawn objectives from quest data
     const objectives = this.parseQuestObjectives(quest);
@@ -1220,21 +1242,16 @@ export class QuestObjectManager {
     if (this.onLocationVisited) {
       this.onLocationVisited(questId, objectiveId);
     }
+
+    // Mark objective complete via engine
+    this.completionEngine.completeObjective(questId, objectiveId);
   }
 
   /**
    * Track NPC conversation for quest
    */
   public trackNPCConversation(npcId: string, questId?: string) {
-    this.activeQuests.forEach(quest => {
-      if (questId && quest.id !== questId) return;
-
-      quest.objectives?.forEach(objective => {
-        if (objective.type === 'talk_to_npc' && objective.npcId === npcId && !objective.completed) {
-          this.completeObjective(quest.id, objective.id);
-        }
-      });
-    });
+    this.completionEngine.trackNPCConversation(npcId, questId);
   }
 
   /**
@@ -1243,33 +1260,7 @@ export class QuestObjectManager {
    * If targetWords is set, only matching words count. Otherwise any unique word counts.
    */
   public trackVocabularyUsage(word: string, questId?: string) {
-    const lowerWord = word.toLowerCase();
-
-    this.activeQuests.forEach(quest => {
-      if (questId && quest.id !== questId) return;
-
-      quest.objectives?.forEach(objective => {
-        if (objective.completed) return;
-
-        if (objective.type === 'use_vocabulary' || objective.type === 'collect_vocabulary') {
-          // If targetWords specified, only count matching words
-          if (objective.targetWords && objective.targetWords.length > 0) {
-            if (!objective.targetWords.includes(lowerWord)) return;
-          }
-
-          // Don't double-count the same word
-          objective.wordsUsed = objective.wordsUsed || [];
-          if (objective.wordsUsed.includes(lowerWord)) return;
-
-          objective.wordsUsed.push(lowerWord);
-          objective.currentCount = (objective.currentCount || 0) + 1;
-
-          if (objective.currentCount >= (objective.requiredCount || 10)) {
-            this.completeObjective(quest.id, objective.id);
-          }
-        }
-      });
-    });
+    this.completionEngine.trackVocabularyUsage(word, questId);
   }
 
   /**
@@ -1279,103 +1270,32 @@ export class QuestObjectManager {
    * but every turn counts toward completion regardless.
    */
   public trackConversationTurn(keywords: string[], questId?: string) {
-    this.activeQuests.forEach(quest => {
-      if (questId && quest.id !== questId) return;
-
-      quest.objectives?.forEach(objective => {
-        if (objective.type === 'complete_conversation' && !objective.completed) {
-          // Every conversation turn counts as progress
-          objective.currentCount = (objective.currentCount || 0) + 1;
-
-          if (objective.currentCount >= (objective.requiredCount || 5)) {
-            this.completeObjective(quest.id, objective.id);
-          }
-        }
-      });
-    });
+    this.completionEngine.trackConversationTurn(keywords, questId);
   }
 
   public trackCollectedItemByName(itemName: string, questId?: string) {
-    const key = itemName.toLowerCase();
-
-    this.activeQuests.forEach(quest => {
-      if (questId && quest.id !== questId) return;
-
-      quest.objectives?.forEach(objective => {
-        if (objective.type === 'collect_item' && !objective.completed) {
-          const objName = (objective.itemName || '').toLowerCase();
-          if (objName && objName === key) {
-            this.completeObjective(quest.id, objective.id);
-          }
-        }
-      });
-    });
+    this.completionEngine.trackCollectedItemByName(itemName, questId);
   }
 
   /**
    * Track item delivery - when talking to an NPC while holding the quest item
    */
   public trackItemDelivery(npcId: string, playerItemNames: string[]): void {
-    const normalizedItems = playerItemNames.map(n => n.toLowerCase());
-
-    this.activeQuests.forEach(quest => {
-      quest.objectives?.forEach(objective => {
-        if (objective.type === 'deliver_item' && !objective.completed) {
-          const matchesNpc = objective.npcId === npcId || !objective.npcId;
-          const matchesItem = objective.itemName &&
-            normalizedItems.includes(objective.itemName.toLowerCase());
-
-          if (matchesNpc && matchesItem) {
-            objective.delivered = true;
-            this.completeObjective(quest.id, objective.id);
-          }
-        }
-      });
-    });
+    this.completionEngine.trackItemDelivery(npcId, playerItemNames);
   }
 
   /**
    * Check ownership-based objectives against current inventory
    */
   public checkInventoryObjectives(playerItemNames: string[]): void {
-    const normalizedItems = playerItemNames.map(n => n.toLowerCase());
-
-    this.activeQuests.forEach(quest => {
-      quest.objectives?.forEach(objective => {
-        if (objective.completed) return;
-
-        if (objective.type === 'collect_item' || objective.type === 'collect_items') {
-          const objName = (objective.itemName || '').toLowerCase();
-          if (objName && normalizedItems.includes(objName)) {
-            this.completeObjective(quest.id, objective.id);
-          }
-        }
-      });
-    });
+    this.completionEngine.checkInventoryObjectives(playerItemNames);
   }
 
   /**
-   * Complete an objective
+   * Complete an objective (delegates to completion engine)
    */
   private completeObjective(questId: string, objectiveId: string) {
-    const quest = this.activeQuests.find(q => q.id === questId);
-    if (!quest) return;
-
-    const objective = quest.objectives?.find(o => o.id === objectiveId);
-    if (!objective) return;
-
-    objective.completed = true;
-
-    // Notify callback
-    if (this.onObjectiveCompleted) {
-      this.onObjectiveCompleted(questId, objectiveId);
-    }
-
-    // Check if all objectives are complete
-    const allComplete = quest.objectives?.every(o => o.completed);
-    if (allComplete) {
-      this.completeQuest(questId);
-    }
+    this.completionEngine.completeObjective(questId, objectiveId);
   }
 
   /**
@@ -1387,11 +1307,12 @@ export class QuestObjectManager {
     // Remove quest objects
     this.cleanupQuest(questId);
 
-    // Remove from active quests
+    // Remove from active quests and completion engine
     const index = this.activeQuests.findIndex(q => q.id === questId);
     if (index !== -1) {
       this.activeQuests.splice(index, 1);
     }
+    this.completionEngine.removeQuest(questId);
   }
 
   /**
@@ -1498,102 +1419,35 @@ export class QuestObjectManager {
    * Track enemy defeat for combat quests
    */
   public trackEnemyDefeat(enemyType: string, questId?: string) {
-    this.activeQuests.forEach(quest => {
-      if (questId && quest.id !== questId) return;
-
-      quest.objectives?.forEach(objective => {
-        if (objective.type === 'defeat_enemies' && !objective.completed) {
-          if (objective.enemyType === enemyType || !objective.enemyType) {
-            objective.enemiesDefeated = (objective.enemiesDefeated || 0) + 1;
-
-            if (objective.enemiesDefeated >= (objective.enemiesRequired || 1)) {
-              this.completeObjective(quest.id, objective.id);
-            }
-          }
-        }
-      });
-    });
+    this.completionEngine.trackEnemyDefeat(enemyType, questId);
   }
 
   /**
    * Track item crafting for crafting quests
    */
   public trackItemCrafted(itemId: string, questId?: string) {
-    this.activeQuests.forEach(quest => {
-      if (questId && quest.id !== questId) return;
-
-      quest.objectives?.forEach(objective => {
-        if (objective.type === 'craft_item' && !objective.completed) {
-          if (objective.craftedItemId === itemId) {
-            objective.craftedCount = (objective.craftedCount || 0) + 1;
-
-            if (objective.craftedCount >= (objective.requiredCount || 1)) {
-              this.completeObjective(quest.id, objective.id);
-            }
-          }
-        }
-      });
-    });
+    this.completionEngine.trackItemCrafted(itemId, questId);
   }
 
   /**
    * Track location discovery for exploration quests
    */
   public trackLocationDiscovery(locationId: string, questId?: string) {
-    this.activeQuests.forEach(quest => {
-      if (questId && quest.id !== questId) return;
-
-      quest.objectives?.forEach(objective => {
-        if (objective.type === 'discover_location' && !objective.completed) {
-          if (objective.locationName === locationId) {
-            this.completeObjective(quest.id, objective.id);
-          }
-        }
-      });
-    });
+    this.completionEngine.trackLocationDiscovery(locationId, questId);
   }
 
   /**
    * Track escort/delivery completion
    */
   public trackArrival(npcOrItemId: string, destinationReached: boolean, questId?: string) {
-    this.activeQuests.forEach(quest => {
-      if (questId && quest.id !== questId) return;
-
-      quest.objectives?.forEach(objective => {
-        if ((objective.type === 'escort_npc' || objective.type === 'deliver_item') && !objective.completed) {
-          if (destinationReached) {
-            if (objective.type === 'escort_npc') {
-              objective.arrived = true;
-            } else {
-              objective.delivered = true;
-            }
-            this.completeObjective(quest.id, objective.id);
-          }
-        }
-      });
-    });
+    this.completionEngine.trackArrival(npcOrItemId, destinationReached, questId);
   }
 
   /**
    * Track reputation gains
    */
   public trackReputationGain(factionId: string, amount: number, questId?: string) {
-    this.activeQuests.forEach(quest => {
-      if (questId && quest.id !== questId) return;
-
-      quest.objectives?.forEach(objective => {
-        if (objective.type === 'gain_reputation' && !objective.completed) {
-          if (objective.factionId === factionId) {
-            objective.reputationGained = (objective.reputationGained || 0) + amount;
-
-            if (objective.reputationGained >= (objective.reputationRequired || 100)) {
-              this.completeObjective(quest.id, objective.id);
-            }
-          }
-        }
-      });
-    });
+    this.completionEngine.trackReputationGain(factionId, amount, questId);
   }
 
   /**
@@ -1602,24 +1456,7 @@ export class QuestObjectManager {
    * @param isCorrect Whether the AI determined the answer was correct
    */
   public trackListeningAnswer(isCorrect: boolean, questId?: string) {
-    this.activeQuests.forEach(quest => {
-      if (questId && quest.id !== questId) return;
-
-      quest.objectives?.forEach(objective => {
-        if (objective.type === 'listening_comprehension' && !objective.completed) {
-          objective.questionsAnswered = (objective.questionsAnswered || 0) + 1;
-          if (isCorrect) {
-            objective.questionsCorrect = (objective.questionsCorrect || 0) + 1;
-          }
-          objective.currentCount = objective.questionsAnswered;
-
-          const required = objective.requiredCount || objective.comprehensionQuestions?.length || 3;
-          if (objective.questionsCorrect! >= required) {
-            this.completeObjective(quest.id, objective.id);
-          }
-        }
-      });
-    });
+    this.completionEngine.trackListeningAnswer(isCorrect, questId);
   }
 
   /**
@@ -1628,24 +1465,7 @@ export class QuestObjectManager {
    * @param isCorrect Whether the translation was accepted
    */
   public trackTranslationAttempt(isCorrect: boolean, questId?: string) {
-    this.activeQuests.forEach(quest => {
-      if (questId && quest.id !== questId) return;
-
-      quest.objectives?.forEach(objective => {
-        if (objective.type === 'translation_challenge' && !objective.completed) {
-          if (isCorrect) {
-            objective.translationsCorrect = (objective.translationsCorrect || 0) + 1;
-          }
-          objective.translationsCompleted = (objective.translationsCompleted || 0) + 1;
-          objective.currentCount = objective.translationsCorrect || 0;
-
-          const required = objective.requiredCount || objective.translationPhrases?.length || 3;
-          if (objective.translationsCorrect! >= required) {
-            this.completeObjective(quest.id, objective.id);
-          }
-        }
-      });
-    });
+    this.completionEngine.trackTranslationAttempt(isCorrect, questId);
   }
 
   /**
@@ -1653,64 +1473,65 @@ export class QuestObjectManager {
    * Called when the player reaches a waypoint position.
    */
   public trackNavigationWaypoint(questId?: string) {
-    this.activeQuests.forEach(quest => {
-      if (questId && quest.id !== questId) return;
-
-      quest.objectives?.forEach(objective => {
-        if (objective.type === 'navigate_language' && !objective.completed) {
-          objective.waypointsReached = (objective.waypointsReached || 0) + 1;
-          objective.stepsCompleted = objective.waypointsReached;
-
-          const waypoints = objective.navigationWaypoints || [];
-          const nextIdx = objective.waypointsReached;
-
-          // Remove current waypoint marker
-          const prevMarkerId = `${objective.id}_nav_${nextIdx - 1}`;
-          const prevMarker = this.locationMarkers.get(prevMarkerId);
-          if (prevMarker) {
-            prevMarker.dispose();
-            this.locationMarkers.delete(prevMarkerId);
-          }
-
-          if (nextIdx >= (objective.stepsRequired || waypoints.length)) {
-            // All waypoints reached
-            this.completeObjective(quest.id, objective.id);
-          } else if (nextIdx < waypoints.length && waypoints[nextIdx].targetPosition) {
-            // Spawn next waypoint
-            const wp = waypoints[nextIdx];
-            const markerId = `${objective.id}_nav_${nextIdx}`;
-            const beacon = MeshBuilder.CreateCylinder(
-              `nav_beacon_${markerId}`,
-              { height: 8, diameter: 1.5, tessellation: 24 },
-              this.scene
-            );
-            beacon.position = wp.targetPosition!.clone();
-            beacon.position.y += 4;
-
-            const material = new StandardMaterial(`nav_mat_${markerId}`, this.scene);
-            material.diffuseColor = new Color3(0.2, 0.5, 0.95);
-            material.emissiveColor = new Color3(0.1, 0.25, 0.5);
-            material.alpha = 0.35;
-            beacon.material = material;
-
-            const pulseAnim = new Animation(
-              `nav_pulse_${markerId}`, 'material.alpha', 30,
-              Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CYCLE
-            );
-            pulseAnim.setKeys([
-              { frame: 0, value: 0.2 },
-              { frame: 30, value: 0.5 },
-              { frame: 60, value: 0.2 }
-            ]);
-            beacon.animations.push(pulseAnim);
-            this.scene.beginAnimation(beacon, 0, 60, true);
-
-            this.locationMarkers.set(markerId, beacon);
-            console.log(`[QuestObjectManager] Next navigation waypoint: step ${nextIdx} "${wp.instruction}"`);
-          }
+    const result = this.completionEngine.trackNavigationWaypoint(questId);
+    if (!result || result.completed) {
+      // Remove previous marker if completed
+      if (result?.objective) {
+        const prevMarkerId = `${result.objective.id}_nav_${result.nextWaypointIndex - 1}`;
+        const prevMarker = this.locationMarkers.get(prevMarkerId);
+        if (prevMarker) {
+          prevMarker.dispose();
+          this.locationMarkers.delete(prevMarkerId);
         }
-      });
-    });
+      }
+      return;
+    }
+
+    const objective = result.objective!;
+    const nextIdx = result.nextWaypointIndex;
+
+    // Remove previous waypoint marker
+    const prevMarkerId = `${objective.id}_nav_${nextIdx - 1}`;
+    const prevMarker = this.locationMarkers.get(prevMarkerId);
+    if (prevMarker) {
+      prevMarker.dispose();
+      this.locationMarkers.delete(prevMarkerId);
+    }
+
+    // Spawn next waypoint beacon
+    const waypoints = objective.navigationWaypoints || [];
+    if (nextIdx < waypoints.length && waypoints[nextIdx].targetPosition) {
+      const wp = waypoints[nextIdx];
+      const markerId = `${objective.id}_nav_${nextIdx}`;
+      const beacon = MeshBuilder.CreateCylinder(
+        `nav_beacon_${markerId}`,
+        { height: 8, diameter: 1.5, tessellation: 24 },
+        this.scene
+      );
+      beacon.position = wp.targetPosition!.clone();
+      beacon.position.y += 4;
+
+      const material = new StandardMaterial(`nav_mat_${markerId}`, this.scene);
+      material.diffuseColor = new Color3(0.2, 0.5, 0.95);
+      material.emissiveColor = new Color3(0.1, 0.25, 0.5);
+      material.alpha = 0.35;
+      beacon.material = material;
+
+      const pulseAnim = new Animation(
+        `nav_pulse_${markerId}`, 'material.alpha', 30,
+        Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CYCLE
+      );
+      pulseAnim.setKeys([
+        { frame: 0, value: 0.2 },
+        { frame: 30, value: 0.5 },
+        { frame: 60, value: 0.2 }
+      ]);
+      beacon.animations.push(pulseAnim);
+      this.scene.beginAnimation(beacon, 0, 60, true);
+
+      this.locationMarkers.set(markerId, beacon);
+      console.log(`[QuestObjectManager] Next navigation waypoint: step ${nextIdx} "${wp.instruction}"`);
+    }
   }
 
   /**
@@ -1719,38 +1540,14 @@ export class QuestObjectManager {
    * Returns descriptions of any expired objectives for UI notification.
    */
   public checkTimedObjectives(): string[] {
-    const expired: string[] = [];
-    const now = Date.now();
-
-    this.activeQuests.forEach(quest => {
-      quest.objectives?.forEach(objective => {
-        if (objective.completed) return;
-        if (!objective.timeLimitSeconds || !objective.startedAt) return;
-
-        const elapsedSec = (now - objective.startedAt) / 1000;
-        if (elapsedSec > objective.timeLimitSeconds) {
-          objective.completed = true;
-          expired.push(`Time expired: ${objective.description}`);
-          console.log(`[QuestObjectManager] Timed objective expired: ${objective.id}`);
-        }
-      });
-    });
-
-    return expired;
+    return this.completionEngine.checkTimedObjectives();
   }
 
   /**
    * Get remaining time for a timed objective in seconds, or null if untimed.
    */
   public getObjectiveTimeRemaining(objectiveId: string): number | null {
-    for (const quest of this.activeQuests) {
-      const obj = quest.objectives?.find(o => o.id === objectiveId);
-      if (obj?.timeLimitSeconds && obj.startedAt) {
-        const elapsed = (Date.now() - obj.startedAt) / 1000;
-        return Math.max(0, obj.timeLimitSeconds - elapsed);
-      }
-    }
-    return null;
+    return this.completionEngine.getObjectiveTimeRemaining(objectiveId);
   }
 
   /**
@@ -1789,21 +1586,7 @@ export class QuestObjectManager {
    * @param passed Whether the pronunciation met the accuracy threshold
    */
   public trackPronunciationAttempt(passed: boolean, questId?: string) {
-    this.activeQuests.forEach(quest => {
-      if (questId && quest.id !== questId) return;
-
-      quest.objectives?.forEach(objective => {
-        if (objective.type === 'pronunciation_check' && !objective.completed) {
-          if (passed) {
-            objective.currentCount = (objective.currentCount || 0) + 1;
-
-            if (objective.currentCount >= (objective.requiredCount || 3)) {
-              this.completeObjective(quest.id, objective.id);
-            }
-          }
-        }
-      });
-    });
+    this.completionEngine.trackPronunciationAttempt(passed, questId);
   }
 
   /**
@@ -1847,6 +1630,7 @@ export class QuestObjectManager {
     this.proceduralObjects.dispose();
 
     this.activeQuests = [];
+    this.completionEngine.clear();
     this.visualVocabDetector.dispose();
   }
 }
