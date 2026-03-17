@@ -79,6 +79,8 @@ const EVENT_DAILY_QUESTS_RESET := "daily_quests_reset"
 # NPC exam events
 const EVENT_NPC_EXAM_REQUESTED := "npc_exam_requested"
 const EVENT_NPC_EXAM_COMPLETED := "npc_exam_completed"
+# NPC-initiated conversation events
+const EVENT_NPC_INITIATED_CONVERSATION := "npc_initiated_conversation"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -119,6 +121,7 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_DAILY_QUESTS_RESET,
 	EVENT_NPC_EXAM_REQUESTED,
 	EVENT_NPC_EXAM_COMPLETED,
+	EVENT_NPC_INITIATED_CONVERSATION,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
@@ -197,6 +200,7 @@ var _global_handlers: Array[Callable] = []
 ##   daily_quests_reset:  {type}
 ##   npc_exam_requested:  {type, npc_id, npc_name, exam_type, business_context?}
 ##   npc_exam_completed:  {type, npc_id?, exam_type, total_score, max_score, cefr_level}
+##   npc_initiated_conversation: {type, npc_id, npc_name, accepted}
 ##
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}
 func emit_event(event: Dictionary) -> void:

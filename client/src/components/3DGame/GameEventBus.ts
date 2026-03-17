@@ -97,7 +97,9 @@ export type GameEvent =
   // NPC exam events (listening comprehension)
   | { type: 'npc_exam_started'; examId: string; npcId: string; npcName: string; businessType: string; examType: 'listening_comprehension' }
   | { type: 'npc_exam_listening_ready'; examId: string; audioUrl?: string; passage: string; questions: Array<{ id: string; questionText: string; maxPoints: number }>; maxReplays: number }
-  | { type: 'npc_exam_completed'; examId: string; npcId: string; score: number; maxScore: number; percentage: number; passed: boolean };
+  | { type: 'npc_exam_completed'; examId: string; npcId: string; score: number; maxScore: number; percentage: number; passed: boolean }
+  // NPC-initiated conversation events
+  | { type: 'npc_initiated_conversation'; npcId: string; npcName: string; accepted: boolean };
 
 export type GameEventType = GameEvent['type'];
 
