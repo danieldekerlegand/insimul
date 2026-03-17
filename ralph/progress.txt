@@ -173,3 +173,17 @@ Started: Thu Mar 12 23:35:20 CDT 2026
   - Coast boundary uses `coastDot > 0.3` threshold to flatten the coastline side — this produces a natural-looking semi-circular shape
   - All 37 boundary tests + 12,215 geography tests pass; typecheck clean on modified files
 ---
+
+## 2026-03-17 - Bridge departure assessment to quest system with improvement report
+- Created `server/services/assessment-quest-bridge.ts` — bridges the Departure assessment into the quest tracking system
+- `createDepartureAssessmentQuest()` wraps DEPARTURE_ENCOUNTER into a Quest record with 4 phase-based objectives (reading, writing, listening, conversation)
+- `markPhaseCompleted()` updates quest objectives as assessment phases complete, reports allComplete when all 4 done
+- `isDepartureEligible()` checks completion threshold (10 quests) before offering departure assessment
+- `generateReportCard()` compares arrival vs departure AssessmentSession scores to produce a LearningReportCard with:
+  - CEFR level change (A1→B2)
+  - Per-phase score deltas (reading, writing, listening, conversation)
+  - Per-dimension deltas (comprehension, fluency, vocabulary, grammar, pronunciation)
+  - Periodic assessment snapshots for mid-game progress trajectory
+- Created `server/__tests__/assessment-quest-bridge.test.ts` with 24 tests covering quest creation, phase completion, eligibility, and report generation
+- All 24 tests pass; no new typecheck errors
+---
