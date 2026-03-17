@@ -174,6 +174,9 @@ export class QuestObjectManager {
   // Unified completion engine (pure logic, no Babylon deps)
   private completionEngine: QuestCompletionEngine;
 
+  // Event bus for emitting game events
+  private eventBus?: GameEventBus;
+
   // Callbacks
   private onObjectCollected?: (questId: string, objectiveId: string) => void;
   private onLocationVisited?: (questId: string, objectiveId: string) => void;
@@ -183,6 +186,7 @@ export class QuestObjectManager {
 
   constructor(scene: Scene, eventBus?: GameEventBus) {
     this.scene = scene;
+    this.eventBus = eventBus;
     this.proceduralObjects = new ProceduralQuestObjects(scene);
     this.completionEngine = new QuestCompletionEngine();
 
@@ -1245,6 +1249,86 @@ export class QuestObjectManager {
 
     // Mark objective complete via engine
     this.completionEngine.completeObjective(questId, objectiveId);
+  }
+
+  /**
+   * Check if player has reached the current direction step's waypoint.
+   * Handles both follow_directions and navigate_language objectives.
+   */
+  public checkDirectionProximity(playerPosition: Vector3): void {
+    this.activeQuests.forEach(quest => {
+      quest.objectives?.forEach(objective => {
+        if (objective.completed) return;
+
+        if (objective.type === 'follow_directions' && objective.directionSteps) {
+          const stepIndex = objective.stepsCompleted || 0;
+          if (stepIndex >= objective.directionSteps.length) return;
+
+          const step = objective.directionSteps[stepIndex];
+          if (!step.targetPosition) return;
+
+          const target = step.targetPosition;
+          const distance = Vector3.Distance(
+            playerPosition,
+            new Vector3(target.x, target.y ?? playerPosition.y, target.z),
+          );
+          const radius = (objective as any).stepRadius || 6;
+
+          if (distance <= radius) {
+            objective.stepsCompleted = stepIndex + 1;
+            const stepsRequired = objective.stepsRequired || objective.directionSteps.length;
+
+            // Emit direction_step_completed event
+            this.eventBus?.emit({
+              type: 'direction_step_completed',
+              questId: quest.id,
+              objectiveId: objective.id,
+              stepIndex,
+              stepsCompleted: objective.stepsCompleted,
+              stepsRequired,
+            });
+
+            // Check if all steps done
+            if (objective.stepsCompleted >= stepsRequired) {
+              this.completeObjective(quest.id, objective.id);
+            }
+          }
+        }
+
+        if (objective.type === 'navigate_language' && objective.navigationWaypoints) {
+          const wpIndex = objective.waypointsReached || 0;
+          if (wpIndex >= objective.navigationWaypoints.length) return;
+
+          const waypoint = objective.navigationWaypoints[wpIndex];
+          if (!waypoint.targetPosition) return;
+
+          const target = waypoint.targetPosition;
+          const distance = Vector3.Distance(
+            playerPosition,
+            new Vector3(target.x, target.y ?? playerPosition.y, target.z),
+          );
+          const radius = (objective as any).stepRadius || 6;
+
+          if (distance <= radius) {
+            objective.waypointsReached = wpIndex + 1;
+            objective.stepsCompleted = objective.waypointsReached;
+
+            this.eventBus?.emit({
+              type: 'direction_step_completed',
+              questId: quest.id,
+              objectiveId: objective.id,
+              stepIndex: wpIndex,
+              stepsCompleted: objective.waypointsReached,
+              stepsRequired: objective.navigationWaypoints.length,
+            });
+
+            if (objective.waypointsReached >= objective.navigationWaypoints.length) {
+              this.completeObjective(quest.id, objective.id);
+            }
+          }
+        }
+      });
+    });
   }
 
   /**

@@ -358,12 +358,22 @@ function buildSeedQuests(): SeedQuestDef[] {
       xp: 40,
       buildObjectives: (ctx) => {
         const dest = pick(ctx.locations);
+        // Pick up to 2 intermediate waypoints plus the destination
+        const intermediates = ctx.locations
+          .filter(l => l !== dest)
+          .slice(0, 2);
+        const allWaypoints = [...intermediates, dest];
         return [{
           id: 'obj_0', type: 'navigate_language',
           description: `Follow ${ctx.targetLanguage} directions to reach ${dest}`,
           target: dest,
           requiredCount: 1, currentCount: 0, completed: false,
           waypointsReached: 0, stepsCompleted: 0,
+          stepsRequired: allWaypoints.length,
+          navigationWaypoints: allWaypoints.map(name => ({
+            instruction: `Walk toward ${name}`,
+            locationName: name,
+          })),
         }];
       },
     },
@@ -374,12 +384,23 @@ function buildSeedQuests(): SeedQuestDef[] {
       questType: 'follow_instructions',
       difficulty: 'intermediate',
       xp: 30,
-      buildObjectives: (ctx) => [{
-        id: 'obj_0', type: 'follow_directions',
-        description: `Follow 3 steps of ${ctx.targetLanguage} directions`,
-        requiredCount: 3, currentCount: 0, completed: false,
-        stepsCompleted: 0,
-      }],
+      buildObjectives: (ctx) => {
+        // Pick 3 locations as direction step targets
+        const stepLocations = ctx.locations.slice(0, 3);
+        const stepCount = stepLocations.length || 3;
+        return [{
+          id: 'obj_0', type: 'follow_directions',
+          description: `Follow ${stepCount} steps of ${ctx.targetLanguage} directions`,
+          requiredCount: stepCount, currentCount: 0, completed: false,
+          stepsCompleted: 0,
+          stepsRequired: stepCount,
+          directionSteps: stepLocations.map(name => ({
+            instruction: `Go to ${name}`,
+            englishHint: `Go to ${name}`,
+            locationName: name,
+          })),
+        }];
+      },
     },
     {
       objectiveType: 'pronunciation_check',
