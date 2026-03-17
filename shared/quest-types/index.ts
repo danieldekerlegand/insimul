@@ -12,6 +12,7 @@ import { survivalQuestType } from './survival';
 import { platformerQuestType } from './platformer';
 import { puzzleQuestType } from './puzzle';
 import { shooterQuestType } from './shooter';
+import { businessScavengerHuntQuestType } from './business-scavenger-hunt';
 import type { QuestTypeDefinition, World } from './types';
 
 /**
@@ -25,6 +26,7 @@ export const QUEST_TYPE_REGISTRY: Record<string, QuestTypeDefinition> = {
   'platformer': platformerQuestType,
   'puzzle': puzzleQuestType,
   'shooter': shooterQuestType,
+  'business-scavenger-hunt': businessScavengerHuntQuestType,
 };
 
 /**
@@ -80,6 +82,11 @@ export function getQuestTypeForWorld(world: World): QuestTypeDefinition {
     return QUEST_TYPE_REGISTRY['shooter'];
   }
 
+  // Business / commerce games
+  if (worldType.includes('business') || worldType.includes('commerce') || worldType.includes('market') || worldType.includes('shop')) {
+    return QUEST_TYPE_REGISTRY['business-scavenger-hunt'];
+  }
+
   // Default to language-learning
   return QUEST_TYPE_REGISTRY['language-learning'];
 }
@@ -122,3 +129,4 @@ export { survivalQuestType } from './survival';
 export { platformerQuestType } from './platformer';
 export { puzzleQuestType } from './puzzle';
 export { shooterQuestType } from './shooter';
+export { businessScavengerHuntQuestType } from './business-scavenger-hunt';
