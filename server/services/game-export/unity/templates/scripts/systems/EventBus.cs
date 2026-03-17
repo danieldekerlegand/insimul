@@ -65,6 +65,7 @@ namespace Insimul.Systems
         // NPC exam events
         NpcExamStarted,
         NpcExamListeningReady,
+        NpcExamQuestionAnswered,
         NpcExamCompleted
     }
 
@@ -529,6 +530,8 @@ namespace Insimul.Systems
         public string npcName;
         public string businessType;
         public string examType;
+        public string category;
+        public int questionCount;
     }
 
     [System.Serializable]
@@ -549,6 +552,16 @@ namespace Insimul.Systems
         public int maxReplays;
     }
 
+    public class NpcExamQuestionAnsweredEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.NpcExamQuestionAnswered;
+        public string examId;
+        public string questionId;
+        public bool correct;
+        public float score;
+        public int maxPoints;
+    }
+
     public class NpcExamCompletedEvent : GameEvent
     {
         public override GameEventType EventType => GameEventType.NpcExamCompleted;
@@ -558,6 +571,10 @@ namespace Insimul.Systems
         public float maxScore;
         public float percentage;
         public bool passed;
+        public float totalScore;
+        public float totalMaxPoints;
+        public string cefrLevel;
+        public string category;
     }
 
     // ── Event Bus ────────────────────────────────────────────────────────────

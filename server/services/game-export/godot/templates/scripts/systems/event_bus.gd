@@ -67,9 +67,10 @@ const EVENT_PRONUNCIATION_ASSESSMENT_DATA := "pronunciation_assessment_data"
 const EVENT_OBJECT_NAMED := "object_named"
 # Object examination events
 const EVENT_OBJECT_EXAMINED := "object_examined"
-# NPC exam events (listening comprehension)
+# NPC exam events
 const EVENT_NPC_EXAM_STARTED := "npc_exam_started"
 const EVENT_NPC_EXAM_LISTENING_READY := "npc_exam_listening_ready"
+const EVENT_NPC_EXAM_QUESTION_ANSWERED := "npc_exam_question_answered"
 # Achievement events
 const EVENT_ACHIEVEMENT_UNLOCKED := "achievement_unlocked"
 # Quest notification & reminder events
@@ -117,6 +118,7 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_OBJECT_EXAMINED,
 	EVENT_NPC_EXAM_STARTED,
 	EVENT_NPC_EXAM_LISTENING_READY,
+	EVENT_NPC_EXAM_QUESTION_ANSWERED,
 	EVENT_ACHIEVEMENT_UNLOCKED,
 	EVENT_QUEST_REMINDER,
 	EVENT_QUEST_EXPIRED,
@@ -195,8 +197,9 @@ var _global_handlers: Array[Callable] = []
 ##   pronunciation_assessment_data: {type, quest_id, average_score, sample_count}
 ##   object_named:        {type, object_id, target_word, category, correct, attempts}
 ##   object_examined:     {type, object_id, object_name, target_word, target_language, pronunciation?, category?}
-##   npc_exam_started:     {type, exam_id, npc_id, npc_name, business_type, exam_type}
+##   npc_exam_started:     {type, exam_id, npc_id, npc_name, business_type?, exam_type?, category?, question_count?}
 ##   npc_exam_listening_ready: {type, exam_id, audio_url?, passage, questions, max_replays}
+##   npc_exam_question_answered: {type, exam_id, question_id, correct, score, max_points}
 ##   achievement_unlocked: {type, achievement_id, achievement_name, description, icon}
 ##   quest_reminder:      {type, quest_id, quest_title, message, reminder_type}
 ##   quest_expired:       {type, quest_id, quest_title}

@@ -62,6 +62,7 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("object_examined"),                    EInsimulEventType::ObjectExamined },
         { TEXT("npc_exam_started"),                   EInsimulEventType::NpcExamStarted },
         { TEXT("npc_exam_listening_ready"),           EInsimulEventType::NpcExamListeningReady },
+        { TEXT("npc_exam_question_answered"),          EInsimulEventType::NpcExamQuestionAnswered },
         { TEXT("achievement_unlocked"),              EInsimulEventType::AchievementUnlocked },
         { TEXT("quest_reminder"),                    EInsimulEventType::QuestReminder },
         { TEXT("quest_expired"),                     EInsimulEventType::QuestExpired },

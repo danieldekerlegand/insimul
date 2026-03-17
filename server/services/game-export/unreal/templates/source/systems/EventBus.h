@@ -69,9 +69,10 @@ enum class EInsimulEventType : uint8
     ObjectNamed UMETA(DisplayName = "Object Named"),
     // Object examination events
     ObjectExamined UMETA(DisplayName = "Object Examined"),
-    // NPC exam events (listening comprehension)
+    // NPC exam events
     NpcExamStarted          UMETA(DisplayName = "NPC Exam Started"),
     NpcExamListeningReady   UMETA(DisplayName = "NPC Exam Listening Ready"),
+    NpcExamQuestionAnswered UMETA(DisplayName = "NPC Exam Question Answered"),
     // Achievement events
     AchievementUnlocked UMETA(DisplayName = "Achievement Unlocked"),
     // Quest notification & reminder events
@@ -268,12 +269,16 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString TargetLanguage;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Pronunciation;
 
-    // ── NPC exam fields (listening comprehension) ─────────────────
+    // ── NPC exam fields ──────────────────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ExamId;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString BusinessType;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AudioUrl;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Passage;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 MaxReplays = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 QuestionCount = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString QuestionId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 MaxPoints = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float TotalMaxPoints = 0.0f;
 
     // ── Achievement fields ─────────────────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AchievementId;
