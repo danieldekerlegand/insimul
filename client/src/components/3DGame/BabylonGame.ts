@@ -6939,6 +6939,9 @@ export class BabylonGame {
       // Set target language so NPC speaks in the correct language
       this.chatPanel.setTargetLanguage(getTargetLanguage(this.worldData) || (this.worldData as any)?.targetLanguage || null);
 
+      // Fetch NPC quest guidance (non-blocking — sets context before or shortly after show)
+      this.fetchQuestGuidance(npcId, this.config.worldId);
+
       // Open the chat panel — this is the core action
       this.chatPanel.show(character, truths, npcMesh);
       console.log('[Chat] Chat panel shown for character:', character.firstName, character.lastName);
@@ -6951,6 +6954,24 @@ export class BabylonGame {
         variant: "destructive",
         duration: 3000
       });
+    }
+  }
+
+  /**
+   * Fetch quest guidance context for an NPC and apply it to the chat panel.
+   * Runs async — the chat panel will update its system prompt when guidance arrives.
+   */
+  private async fetchQuestGuidance(npcId: string, worldId: string): Promise<void> {
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/quests/npc-guidance/${npcId}`);
+      if (!res.ok) return;
+      const guidance = await res.json();
+      if (guidance.hasGuidance && guidance.systemPromptAddition) {
+        this.chatPanel.setQuestGuidancePrompt(guidance.systemPromptAddition);
+      }
+    } catch (e) {
+      // Non-critical — NPC will work without quest guidance
+      console.warn('[BabylonGame] Failed to fetch quest guidance:', e);
     }
   }
 
