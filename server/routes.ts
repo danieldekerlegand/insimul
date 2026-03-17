@@ -8434,13 +8434,28 @@ Respond with this JSON structure:
           createdQuests.push(created);
         }
       } else {
-        // AI generation mode (default)
+        // AI generation mode (default) — gather rich world state for context-aware generation
         const { generateQuestsForWorld } = await import('./services/quest-generator.js');
+        const { buildWorldStateContext } = await import('./services/world-state-context.js');
+
+        const [aiCharacters, aiSettlements, aiBusinesses, aiItems, aiExistingQuests] = await Promise.all([
+          storage.getCharactersByWorld(worldId),
+          storage.getSettlementsByWorld(worldId),
+          storage.getBusinessesByWorld(worldId),
+          storage.getItemsByWorld(worldId),
+          storage.getQuestsByWorld(worldId),
+        ]);
+
+        const worldStateContext = buildWorldStateContext({
+          world, characters: aiCharacters, settlements: aiSettlements,
+          businesses: aiBusinesses, items: aiItems, existingQuests: aiExistingQuests,
+        });
 
         const generatedQuests = await generateQuestsForWorld(world, count, {
           category,
           difficulty,
-          assignedTo
+          assignedTo,
+          worldStateContext,
         });
 
         for (const questData of generatedQuests) {
@@ -8464,6 +8479,50 @@ Respond with this JSON structure:
     } catch (error) {
       console.error('[Quest Generation] Error:', error);
       res.status(500).json({ error: "Failed to generate quests" });
+    }
+  });
+
+  // Business Role-Play Quest Generation
+  app.post("/api/worlds/:worldId/quests/generate-business-roleplay", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { assignedTo, businessTypeFilter, maxQuests, difficulty } = req.body;
+
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      const { generateBusinessRoleplayQuests } = await import('./services/business-roleplay-quest-generator.js');
+
+      const [businesses, characters] = await Promise.all([
+        storage.getBusinessesByWorld(worldId),
+        storage.getCharactersByWorld(worldId),
+      ]);
+
+      const quests = generateBusinessRoleplayQuests({
+        world,
+        businesses,
+        characters,
+        assignedTo: assignedTo || 'Player',
+        businessTypeFilter,
+        maxQuests,
+        difficulty,
+      });
+
+      const createdQuests = [];
+      for (const questData of quests) {
+        const created = await storage.createQuest(questData as any);
+        createdQuests.push(created);
+      }
+
+      res.status(201).json({
+        count: createdQuests.length,
+        quests: createdQuests,
+      });
+    } catch (error) {
+      console.error('[Business Roleplay Quest Generation] Error:', error);
+      res.status(500).json({ error: "Failed to generate business roleplay quests" });
     }
   });
 
