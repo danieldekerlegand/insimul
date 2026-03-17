@@ -8570,13 +8570,28 @@ Respond with this JSON structure:
           createdQuests.push(created);
         }
       } else {
-        // AI generation mode (default)
+        // AI generation mode (default) — gather rich world state for context-aware generation
         const { generateQuestsForWorld } = await import('./services/quest-generator.js');
+        const { buildWorldStateContext } = await import('./services/world-state-context.js');
+
+        const [aiCharacters, aiSettlements, aiBusinesses, aiItems, aiExistingQuests] = await Promise.all([
+          storage.getCharactersByWorld(worldId),
+          storage.getSettlementsByWorld(worldId),
+          storage.getBusinessesByWorld(worldId),
+          storage.getItemsByWorld(worldId),
+          storage.getQuestsByWorld(worldId),
+        ]);
+
+        const worldStateContext = buildWorldStateContext({
+          world, characters: aiCharacters, settlements: aiSettlements,
+          businesses: aiBusinesses, items: aiItems, existingQuests: aiExistingQuests,
+        });
 
         const generatedQuests = await generateQuestsForWorld(world, count, {
           category,
           difficulty,
-          assignedTo
+          assignedTo,
+          worldStateContext,
         });
 
         for (const questData of generatedQuests) {

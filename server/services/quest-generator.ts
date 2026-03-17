@@ -20,6 +20,11 @@ import {
   buildQuestHints,
   type QuestHintsData,
 } from '../../shared/quest-hints.js';
+import {
+  type WorldStateContext,
+  buildWorldContextPrompt,
+  bindQuestToWorldEntities,
+} from './world-state-context.js';
 
 /**
  * Call LLM for quest generation using Gemini API.
@@ -142,14 +147,17 @@ export async function generateQuestForType(params: {
   assignedTo?: string;
   assignedBy?: string;
   playerProficiency?: PlayerProficiency;
+  worldStateContext?: WorldStateContext;
 }): Promise<InsertQuest & { hintsData?: QuestHintsData }> {
-  const { world, questType, category, difficulty, assignedTo, assignedBy, playerProficiency } = params;
+  const { world, questType, category, difficulty, assignedTo, assignedBy, playerProficiency, worldStateContext } = params;
 
   // Build AI prompt using quest type's generation prompt
   const basePrompt = questType.generationPrompt(world);
   const proficiencyContext = playerProficiency ? buildProficiencyPrompt(playerProficiency) : '';
+  const worldContext = worldStateContext ? buildWorldContextPrompt(worldStateContext) : '';
   const fullPrompt = `${basePrompt}
 ${proficiencyContext}
+${worldContext}
 Category: ${category}
 Difficulty: ${difficulty}
 
@@ -157,7 +165,12 @@ Generate a quest following the format specified above.`;
 
   // Call LLM to generate quest
   const response = await callLLM(fullPrompt);
-  const questData = JSON.parse(response);
+  let questData = JSON.parse(response);
+
+  // Bind generated quest to real world entities
+  if (worldStateContext) {
+    questData = bindQuestToWorldEntities(questData, worldStateContext);
+  }
 
   // Validate and normalize AI-generated objectives to achievable types
   const rawObjectives = questData.objectives || [];
@@ -266,6 +279,7 @@ export async function generateQuestsForWorld(
     difficulty?: string;
     assignedTo?: string;
     playerProficiency?: PlayerProficiency;
+    worldStateContext?: WorldStateContext;
   }
 ): Promise<InsertQuest[]> {
   const questType = getQuestTypeForWorld(world);
@@ -294,6 +308,7 @@ export async function generateQuestsForWorld(
       difficulty,
       assignedTo: options?.assignedTo,
       playerProficiency: options?.playerProficiency,
+      worldStateContext: options?.worldStateContext,
     });
 
     quests.push(quest);
@@ -322,13 +337,14 @@ export async function generateQuestFromDialogue(params: {
   playerName: string;
   conversationContext: string;
   playerProficiency?: PlayerProficiency;
+  worldStateContext?: WorldStateContext;
   questHint?: {
     category?: string;
     difficulty?: string;
     objectives?: string[];
   };
 }): Promise<InsertQuest & { hintsData?: QuestHintsData }> {
-  const { world, npcId, npcName, playerId, playerName, conversationContext, playerProficiency, questHint } = params;
+  const { world, npcId, npcName, playerId, playerName, conversationContext, playerProficiency, worldStateContext, questHint } = params;
 
   const questType = getQuestTypeForWorld(world);
 
@@ -337,9 +353,11 @@ export async function generateQuestFromDialogue(params: {
   const difficulty = questHint?.difficulty
     || (playerProficiency ? fluencyToDifficulty(playerProficiency.overallFluency) : 'normal');
   const proficiencyContext = playerProficiency ? buildProficiencyPrompt(playerProficiency) : '';
+  const worldContext = worldStateContext ? buildWorldContextPrompt(worldStateContext) : '';
 
   const prompt = `${questType.generationPrompt(world)}
 ${proficiencyContext}
+${worldContext}
 NPC: ${npcName}
 Player: ${playerName}
 Conversation Context: ${conversationContext}
@@ -351,13 +369,19 @@ Generate a quest that fits naturally with the conversation context. The quest sh
 - Be related to topics discussed in the conversation
 - Match the NPC's role and personality
 - Have 2-3 objectives that make sense in the context
+- Reference ACTUAL NPCs and locations from the world context above
 ${questHint?.objectives ? `- Include objectives related to: ${questHint.objectives.join(', ')}` : ''}
 ${playerProficiency ? '- Match difficulty to the player\'s current proficiency level' : ''}
 
 Return JSON format as specified above.`;
 
   const response = await callLLM(prompt);
-  const questData = JSON.parse(response);
+  let questData = JSON.parse(response);
+
+  // Bind generated quest to real world entities
+  if (worldStateContext) {
+    questData = bindQuestToWorldEntities(questData, worldStateContext);
+  }
 
   // Validate and normalize AI-generated objectives
   const rawObjectives = questData.objectives || [];
