@@ -393,6 +393,88 @@ export const QUEST_SEEDS: QuestSeed[] = [
     tags: ['cultural', 'listening', 'comprehension', 'advanced'],
   },
 
+  // ── Social / Relationships ─────────────────────────────────────────
+  {
+    id: 'make_a_friend',
+    name: 'Making Friends',
+    category: 'social',
+    difficulty: 'beginner',
+    params: [
+      { name: 'npcName', type: 'string', description: 'NPC to befriend' },
+      { name: 'conversationCount', type: 'number', description: 'Conversations needed', defaultValue: 3 },
+    ],
+    titleTemplate: 'Befriend {{npcName}}',
+    descriptionTemplate: 'Build a friendship with {{npcName}} by having {{conversationCount}} conversations in {{targetLanguage}}.',
+    questType: 'social',
+    objectiveTemplates: [
+      { type: 'build_friendship', descriptionTemplate: 'Have {{conversationCount}} conversations with {{npcName}}', countTemplate: '{{conversationCount}}' },
+      { type: 'use_vocabulary', descriptionTemplate: 'Use social vocabulary during your conversations', countTemplate: 3 },
+    ],
+    completionCriteria: { type: 'all_objectives' },
+    baseXp: 25,
+    tags: ['social', 'friendship', 'conversation', 'beginner'],
+  },
+  {
+    id: 'gift_giving',
+    name: 'A Thoughtful Gift',
+    category: 'social',
+    difficulty: 'intermediate',
+    params: [
+      { name: 'npcName', type: 'string', description: 'NPC to give a gift to' },
+    ],
+    titleTemplate: 'A Gift for {{npcName}}',
+    descriptionTemplate: 'Find a thoughtful gift and present it to {{npcName}} to strengthen your bond.',
+    questType: 'social',
+    objectiveTemplates: [
+      { type: 'collect_item', descriptionTemplate: 'Find a gift for {{npcName}}', countTemplate: 1 },
+      { type: 'give_gift', descriptionTemplate: 'Present the gift to {{npcName}}', countTemplate: 1 },
+    ],
+    completionCriteria: { type: 'all_objectives' },
+    baseXp: 30,
+    tags: ['social', 'gift', 'relationship', 'intermediate'],
+  },
+  {
+    id: 'community_welcome',
+    name: 'Community Welcome',
+    category: 'social',
+    difficulty: 'beginner',
+    params: [
+      { name: 'npcCount', type: 'number', description: 'Community members to meet', defaultValue: 5 },
+    ],
+    titleTemplate: 'Meet the Community ({{npcCount}} people)',
+    descriptionTemplate: 'Introduce yourself to {{npcCount}} community members and learn social vocabulary in {{targetLanguage}}.',
+    questType: 'social',
+    objectiveTemplates: [
+      { type: 'talk_to_npc', descriptionTemplate: 'Talk to {{npcCount}} community members', countTemplate: '{{npcCount}}' },
+      { type: 'use_vocabulary', descriptionTemplate: 'Use social and greeting vocabulary', countTemplate: 5 },
+    ],
+    completionCriteria: { type: 'all_objectives' },
+    baseXp: 25,
+    tags: ['social', 'community', 'greeting', 'beginner'],
+  },
+  {
+    id: 'language_partner',
+    name: 'Language Partner',
+    category: 'social',
+    difficulty: 'advanced',
+    params: [
+      { name: 'npcName', type: 'string', description: 'Language partner NPC' },
+      { name: 'turns', type: 'number', description: 'Conversation turns', defaultValue: 8 },
+      { name: 'wordCount', type: 'number', description: 'Words to use', defaultValue: 8 },
+    ],
+    titleTemplate: 'Language Partner: {{npcName}}',
+    descriptionTemplate: 'Build a deep friendship with {{npcName}} through sustained {{targetLanguage}} conversation.',
+    questType: 'social',
+    objectiveTemplates: [
+      { type: 'build_friendship', descriptionTemplate: 'Build rapport with {{npcName}} through conversations', countTemplate: 3 },
+      { type: 'complete_conversation', descriptionTemplate: 'Have a {{turns}}-turn conversation with {{npcName}}', countTemplate: '{{turns}}' },
+      { type: 'use_vocabulary', descriptionTemplate: 'Use {{wordCount}} vocabulary words while chatting', countTemplate: '{{wordCount}}' },
+    ],
+    completionCriteria: { type: 'all_objectives' },
+    baseXp: 50,
+    tags: ['social', 'friendship', 'conversation', 'advanced'],
+  },
+
   // ── Time & Schedule ─────────────────────────────────────────────────────
   {
     id: 'time_keeper',
