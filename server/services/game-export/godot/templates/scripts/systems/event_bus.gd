@@ -65,6 +65,8 @@ const EVENT_DIRECTION_STEP_COMPLETED := "direction_step_completed"
 const EVENT_PRONUNCIATION_ASSESSMENT_DATA := "pronunciation_assessment_data"
 # Achievement events
 const EVENT_ACHIEVEMENT_UNLOCKED := "achievement_unlocked"
+# Skill reward events
+const EVENT_SKILL_REWARDS_APPLIED := "skill_rewards_applied"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -95,6 +97,7 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_DIRECTION_STEP_COMPLETED,
 	EVENT_PRONUNCIATION_ASSESSMENT_DATA,
 	EVENT_ACHIEVEMENT_UNLOCKED,
+	EVENT_SKILL_REWARDS_APPLIED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.

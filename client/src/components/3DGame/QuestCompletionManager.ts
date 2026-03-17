@@ -18,6 +18,7 @@ import { Scene } from '@babylonjs/core';
 import type { GameEventBus } from './GameEventBus';
 import type { LanguageGamificationTracker } from './LanguageGamificationTracker';
 import type { BabylonQuestTracker } from './BabylonQuestTracker';
+import { computeSkillRewards, applySkillRewards, type SkillReward } from '@shared/language/quest-skill-rewards';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ export interface CompletedQuestData {
   worldId: string;
   title: string;
   questType: string;
+  difficulty?: string;
   experienceReward: number;
   itemRewards?: QuestRewards['itemRewards'];
   skillRewards?: QuestRewards['skillRewards'];
@@ -45,6 +47,7 @@ export interface CompletedQuestData {
 export interface PlayerProgress {
   inventory: Array<{ itemId: string; quantity: number; name: string }>;
   questsCompleted: string[];
+  skills: Record<string, number>;
 }
 
 // ── Manager ──────────────────────────────────────────────────────────────────
@@ -55,7 +58,7 @@ export class QuestCompletionManager {
   private eventBus: GameEventBus | null = null;
   private gamificationTracker: LanguageGamificationTracker | null = null;
   private questTracker: BabylonQuestTracker | null = null;
-  private playerProgress: PlayerProgress = { inventory: [], questsCompleted: [] };
+  private playerProgress: PlayerProgress = { inventory: [], questsCompleted: [], skills: {} };
   private audioContext: AudioContext | null = null;
   private completionOverlay: Rectangle | null = null;
 
@@ -191,11 +194,24 @@ export class QuestCompletionManager {
       }
     }
 
-    // Skill rewards
-    if (quest.skillRewards && quest.skillRewards.length > 0) {
-      for (const reward of quest.skillRewards) {
+    // Skill rewards — compute from quest metadata or use explicit rewards
+    const skillRewards = computeSkillRewards({
+      questType: quest.questType,
+      difficulty: quest.difficulty ?? 'beginner',
+      skillRewards: quest.skillRewards,
+    });
+    if (skillRewards.length > 0) {
+      const result = applySkillRewards(this.playerProgress.skills, skillRewards);
+      this.playerProgress.skills = result.skills;
+      for (const reward of result.applied) {
         summary.push(`${reward.name} +${reward.level}`);
       }
+      this.gamificationTracker?.onSkillRewardsApplied(skillRewards);
+      this.eventBus?.emit({
+        type: 'skill_rewards_applied',
+        questId: quest.id,
+        rewards: skillRewards,
+      });
     }
 
     // Unlocks

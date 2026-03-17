@@ -8167,6 +8167,27 @@ Respond with this JSON structure:
         progress: { percentComplete: 100 },
       });
 
+      // Apply skill rewards to the assigned character
+      let skillRewardsApplied: Array<{ skillId: string; name: string; level: number }> = [];
+      const characterId = quest.assignedToCharacterId;
+      if (characterId) {
+        const { computeSkillRewards, applySkillRewards } = await import('../shared/language/quest-skill-rewards.js');
+        const rewards = computeSkillRewards({
+          questType: quest.questType,
+          difficulty: quest.difficulty,
+          skillRewards: quest.skillRewards as any,
+        });
+        if (rewards.length > 0) {
+          const character = await storage.getCharacter(characterId);
+          if (character) {
+            const currentSkills = (character.skills as Record<string, number>) ?? {};
+            const result = applySkillRewards(currentSkills, rewards);
+            await storage.updateCharacter(characterId, { skills: result.skills });
+            skillRewardsApplied = result.applied;
+          }
+        }
+      }
+
       // Check depletion and auto-generate if needed
       const playerName = quest.assignedTo;
       let depletionResult = null;
@@ -8193,6 +8214,7 @@ Respond with this JSON structure:
 
       res.json({
         quest: updated,
+        skillRewards: skillRewardsApplied,
         depletion: depletionResult
           ? {
               depleted: depletionResult.depleted,

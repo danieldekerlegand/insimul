@@ -84,7 +84,9 @@ export type GameEvent =
   // Follow directions quest events
   | { type: 'direction_step_completed'; questId: string; objectiveId: string; stepIndex: number; stepsCompleted: number; stepsRequired: number }
   // Achievement events
-  | { type: 'achievement_unlocked'; achievementId: string; achievementName: string; description: string; icon: string };
+  | { type: 'achievement_unlocked'; achievementId: string; achievementName: string; description: string; icon: string }
+  // Skill reward events
+  | { type: 'skill_rewards_applied'; questId: string; rewards: Array<{ skillId: string; name: string; level: number }> };
 
 export type GameEventType = GameEvent['type'];
 
