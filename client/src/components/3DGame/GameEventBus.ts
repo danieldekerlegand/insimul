@@ -84,7 +84,12 @@ export type GameEvent =
   // Follow directions quest events
   | { type: 'direction_step_completed'; questId: string; objectiveId: string; stepIndex: number; stepsCompleted: number; stepsRequired: number }
   // Achievement events
-  | { type: 'achievement_unlocked'; achievementId: string; achievementName: string; description: string; icon: string };
+  | { type: 'achievement_unlocked'; achievementId: string; achievementName: string; description: string; icon: string }
+  // Quest notification & reminder events
+  | { type: 'quest_reminder'; questId: string; questTitle: string; message: string; reminderType: 'idle' | 'proximity' | 'expiring' }
+  | { type: 'quest_expired'; questId: string; questTitle: string }
+  | { type: 'quest_milestone'; milestoneType: 'first_quest' | 'five_quests' | 'first_chain' | 'first_perfect'; label: string }
+  | { type: 'daily_quests_reset' };
 
 export type GameEventType = GameEvent['type'];
 

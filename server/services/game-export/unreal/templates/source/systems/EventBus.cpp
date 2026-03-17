@@ -59,6 +59,10 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("direction_step_completed"),          EInsimulEventType::DirectionStepCompleted },
         { TEXT("pronunciation_assessment_data"),     EInsimulEventType::PronunciationAssessmentData },
         { TEXT("achievement_unlocked"),              EInsimulEventType::AchievementUnlocked },
+        { TEXT("quest_reminder"),                    EInsimulEventType::QuestReminder },
+        { TEXT("quest_expired"),                     EInsimulEventType::QuestExpired },
+        { TEXT("quest_milestone"),                   EInsimulEventType::QuestMilestone },
+        { TEXT("daily_quests_reset"),                EInsimulEventType::DailyQuestsReset },
     };
     return Map;
 }

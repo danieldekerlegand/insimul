@@ -66,7 +66,12 @@ enum class EInsimulEventType : uint8
     // Pronunciation quest events
     PronunciationAssessmentData UMETA(DisplayName = "Pronunciation Assessment Data"),
     // Achievement events
-    AchievementUnlocked UMETA(DisplayName = "Achievement Unlocked")
+    AchievementUnlocked UMETA(DisplayName = "Achievement Unlocked"),
+    // Quest notification & reminder events
+    QuestReminder       UMETA(DisplayName = "Quest Reminder"),
+    QuestExpired        UMETA(DisplayName = "Quest Expired"),
+    QuestMilestone      UMETA(DisplayName = "Quest Milestone"),
+    DailyQuestsReset    UMETA(DisplayName = "Daily Quests Reset")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────
@@ -245,6 +250,12 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString AchievementName;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Description;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Icon;
+
+    // ── Quest notification / reminder fields ─────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Message;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ReminderType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString MilestoneType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Label;
 };
 
 // ── Delegates ────────────────────────────────────────────────────────────────
