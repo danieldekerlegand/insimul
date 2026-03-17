@@ -26,8 +26,8 @@ export type GameEvent =
   | { type: 'item_delivered'; npcId: string; itemId: string; itemName: string }
   | { type: 'vocabulary_used'; word: string; correct: boolean }
   | { type: 'conversation_turn'; npcId: string; keywords: string[] }
-  | { type: 'quest_accepted'; questId: string; questTitle: string }
-  | { type: 'quest_completed'; questId: string }
+  | { type: 'quest_accepted'; questId: string; questTitle: string; assignedByNpcId?: string; assignedByNpcName?: string }
+  | { type: 'quest_completed'; questId: string; assignedByNpcId?: string }
   | { type: 'combat_action'; actionType: string; targetId: string }
   | { type: 'reputation_changed'; factionId: string; delta: number }
   | { type: 'item_crafted'; itemId: string; itemName: string; quantity: number; taxonomy?: ItemTaxonomy }
@@ -56,8 +56,8 @@ export type GameEvent =
   // Puzzle events
   | { type: 'puzzle_failed'; puzzleId: string; puzzleType: string; attempts: number }
   // Quest events
-  | { type: 'quest_failed'; questId: string }
-  | { type: 'quest_abandoned'; questId: string }
+  | { type: 'quest_failed'; questId: string; assignedByNpcId?: string }
+  | { type: 'quest_abandoned'; questId: string; assignedByNpcId?: string }
   // Conversation eavesdrop
   | { type: 'conversation_overheard'; npcId1: string; npcId2: string; topic: string; languageUsed: string }
   // Truth creation (emitted when game events should be recorded as world truths)

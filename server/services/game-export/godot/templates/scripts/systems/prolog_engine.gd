@@ -568,9 +568,17 @@ func _handle_game_event(event: Dictionary) -> void:
 		"reputation_changed":
 			_assert_internal("reputation_change(player, %s, %s)" % [_sanitize(str(event.get("faction_id", ""))), str(event.get("delta", 0))])
 		"quest_accepted":
-			_assert_internal("quest_active(player, %s)" % _sanitize(str(event.get("quest_id", ""))))
+			var qid: String = _sanitize(str(event.get("quest_id", "")))
+			_assert_internal("quest_active(player, %s)" % qid)
+			var npc_id: String = str(event.get("assigned_by_npc_id", ""))
+			if npc_id != "":
+				_assert_internal("npc_gave_quest(%s, player, %s)" % [_sanitize(npc_id), qid])
 		"quest_completed":
-			_assert_internal("quest_completed(player, %s)" % _sanitize(str(event.get("quest_id", ""))))
+			var qid: String = _sanitize(str(event.get("quest_id", "")))
+			_assert_internal("quest_completed(player, %s)" % qid)
+			var npc_id: String = str(event.get("assigned_by_npc_id", ""))
+			if npc_id != "":
+				_assert_internal("quest_outcome(%s, player, completed)" % qid)
 		"puzzle_solved":
 			_assert_internal("puzzle_solved(player, %s)" % _sanitize(str(event.get("puzzle_id", ""))))
 		"item_removed", "item_dropped":
@@ -630,10 +638,17 @@ func _handle_game_event(event: Dictionary) -> void:
 		"puzzle_failed":
 			_assert_internal("puzzle_failed(player, %s, %s)" % [_sanitize(str(event.get("puzzle_id", ""))), str(event.get("attempts", 0))])
 		"quest_failed":
-			_assert_internal("quest_failed(player, %s)" % _sanitize(str(event.get("quest_id", ""))))
+			var qid: String = _sanitize(str(event.get("quest_id", "")))
+			_assert_internal("quest_failed(player, %s)" % qid)
+			var npc_id: String = str(event.get("assigned_by_npc_id", ""))
+			if npc_id != "":
+				_assert_internal("quest_outcome(%s, player, failed)" % qid)
 		"quest_abandoned":
 			var qid: String = _sanitize(str(event.get("quest_id", "")))
 			_assert_internal("quest_abandoned(player, %s)" % qid)
+			var npc_id: String = str(event.get("assigned_by_npc_id", ""))
+			if npc_id != "":
+				_assert_internal("quest_outcome(%s, player, abandoned)" % qid)
 			_retract_pattern("quest_active(player, %s" % qid)
 		"direction_step_completed":
 			var dqid: String = _sanitize(str(event.get("quest_id", "")))

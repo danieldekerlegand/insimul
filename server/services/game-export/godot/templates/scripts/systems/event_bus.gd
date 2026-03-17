@@ -118,8 +118,8 @@ var _global_handlers: Array[Callable] = []
 ##   item_delivered:      {type, npc_id, item_id, item_name}
 ##   vocabulary_used:     {type, word, correct}
 ##   conversation_turn:   {type, npc_id, keywords}
-##   quest_accepted:      {type, quest_id, quest_title}
-##   quest_completed:     {type, quest_id}
+##   quest_accepted:      {type, quest_id, quest_title, assigned_by_npc_id?, assigned_by_npc_name?}
+##   quest_completed:     {type, quest_id, assigned_by_npc_id?}
 ##   combat_action:       {type, action_type, target_id}
 ##   reputation_changed:  {type, faction_id, delta}
 ##   item_crafted:        {type, item_id, item_name, quantity, taxonomy?}
@@ -143,8 +143,8 @@ var _global_handlers: Array[Callable] = []
 ##   romance_stage_changed: {type, npc_id, npc_name, from_stage, to_stage}
 ##   npc_volition_action: {type, npc_id, action_id, target_id, score}
 ##   puzzle_failed:       {type, puzzle_id, puzzle_type, attempts}
-##   quest_failed:        {type, quest_id}
-##   quest_abandoned:     {type, quest_id}
+##   quest_failed:        {type, quest_id, assigned_by_npc_id?}
+##   quest_abandoned:     {type, quest_id, assigned_by_npc_id?}
 ##   conversation_overheard: {type, npc_id_1, npc_id_2, topic, language_used}
 ##   create_truth:        {type, character_id, title, content, entry_type, category?}
 ##   assessment_started:  {type, session_id, instrument_id, phase, participant_id, assessment_type?, player_id?}
