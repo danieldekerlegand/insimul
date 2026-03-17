@@ -86,7 +86,12 @@ export type GameEvent =
   // Point-and-name vocabulary events
   | { type: 'object_named'; objectId: string; targetWord: string; category: string; correct: boolean; attempts: number }
   // Achievement events
-  | { type: 'achievement_unlocked'; achievementId: string; achievementName: string; description: string; icon: string };
+  | { type: 'achievement_unlocked'; achievementId: string; achievementName: string; description: string; icon: string }
+  // Quest notification & reminder events
+  | { type: 'quest_reminder'; questId: string; questTitle: string; message: string; reminderType: 'idle' | 'proximity' | 'expiring' }
+  | { type: 'quest_expired'; questId: string; questTitle: string }
+  | { type: 'quest_milestone'; milestoneType: 'first_quest' | 'five_quests' | 'first_chain' | 'first_perfect'; label: string }
+  | { type: 'daily_quests_reset' };
 
 export type GameEventType = GameEvent['type'];
 

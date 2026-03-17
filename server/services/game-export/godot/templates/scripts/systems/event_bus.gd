@@ -67,6 +67,11 @@ const EVENT_PRONUNCIATION_ASSESSMENT_DATA := "pronunciation_assessment_data"
 const EVENT_OBJECT_NAMED := "object_named"
 # Achievement events
 const EVENT_ACHIEVEMENT_UNLOCKED := "achievement_unlocked"
+# Quest notification & reminder events
+const EVENT_QUEST_REMINDER := "quest_reminder"
+const EVENT_QUEST_EXPIRED := "quest_expired"
+const EVENT_QUEST_MILESTONE := "quest_milestone"
+const EVENT_DAILY_QUESTS_RESET := "daily_quests_reset"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -98,6 +103,10 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_PRONUNCIATION_ASSESSMENT_DATA,
 	EVENT_OBJECT_NAMED,
 	EVENT_ACHIEVEMENT_UNLOCKED,
+	EVENT_QUEST_REMINDER,
+	EVENT_QUEST_EXPIRED,
+	EVENT_QUEST_MILESTONE,
+	EVENT_DAILY_QUESTS_RESET,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
@@ -167,6 +176,10 @@ var _global_handlers: Array[Callable] = []
 ##   pronunciation_assessment_data: {type, quest_id, average_score, sample_count}
 ##   object_named:        {type, object_id, target_word, category, correct, attempts}
 ##   achievement_unlocked: {type, achievement_id, achievement_name, description, icon}
+##   quest_reminder:      {type, quest_id, quest_title, message, reminder_type}
+##   quest_expired:       {type, quest_id, quest_title}
+##   quest_milestone:     {type, milestone_type, label}
+##   daily_quests_reset:  {type}
 ##
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}
 func emit_event(event: Dictionary) -> void:

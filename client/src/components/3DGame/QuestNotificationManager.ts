@@ -62,6 +62,30 @@ const TOAST_CONFIGS: Record<string, QuestToastConfig> = {
     background: "rgba(20, 60, 20, 0.95)",
     duration: 4000,
   },
+  quest_reminder: {
+    icon: "💡",
+    color: "#FFA726",
+    background: "rgba(60, 40, 10, 0.95)",
+    duration: 4000,
+  },
+  quest_expired: {
+    icon: "⏰",
+    color: "#F44336",
+    background: "rgba(60, 15, 15, 0.95)",
+    duration: 5000,
+  },
+  quest_milestone: {
+    icon: "🌟",
+    color: "#E040FB",
+    background: "rgba(50, 15, 60, 0.95)",
+    duration: 6000,
+  },
+  daily_quests_reset: {
+    icon: "🔄",
+    color: "#29B6F6",
+    background: "rgba(10, 30, 60, 0.95)",
+    duration: 4000,
+  },
 };
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -259,6 +283,27 @@ export class QuestNotificationManager {
           "Objective Complete!",
           `+${e.xpAwarded} XP (Score: ${e.finalScore})`
         );
+      }),
+
+      this.eventBus.on("quest_reminder", (e) => {
+        this.showQuestToast("quest_reminder", "Quest Reminder", e.message);
+      }),
+
+      this.eventBus.on("quest_expired", (e) => {
+        this.showQuestToast("quest_expired", "Quest Expired", `"${e.questTitle}" has expired`);
+        this.activeQuestCount = Math.max(0, this.activeQuestCount - 1);
+        if (this.trackedQuest?.id === e.questId) {
+          this.trackedQuest = null;
+        }
+        this.updateHud();
+      }),
+
+      this.eventBus.on("quest_milestone", (e) => {
+        this.showQuestToast("quest_milestone", "Milestone!", e.label);
+      }),
+
+      this.eventBus.on("daily_quests_reset", () => {
+        this.showQuestToast("daily_quests_reset", "Daily Quests", "New daily quests are available!");
       }),
     );
   }

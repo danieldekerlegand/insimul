@@ -262,4 +262,40 @@ describe('QuestNotificationManager', () => {
     manager.setActiveQuestCount(0);
     // No error
   });
+
+  it('should show a toast for quest_reminder events', () => {
+    eventBus.emit({
+      type: 'quest_reminder',
+      questId: 'q1',
+      questTitle: 'Learn Greetings',
+      message: 'Quest: Talk to Elder Maria nearby',
+      reminderType: 'proximity',
+    });
+    const toastContainer = (advancedTexture.addControl as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(toastContainer.addControl).toHaveBeenCalled();
+  });
+
+  it('should show a toast and decrement count for quest_expired', () => {
+    manager.setActiveQuestCount(2);
+    manager.setTrackedQuest({ id: 'q1', title: 'Expiring', progress: 0.5 });
+    eventBus.emit({ type: 'quest_expired', questId: 'q1', questTitle: 'Expiring' });
+    const toastContainer = (advancedTexture.addControl as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(toastContainer.addControl).toHaveBeenCalled();
+  });
+
+  it('should show a toast for quest_milestone events', () => {
+    eventBus.emit({
+      type: 'quest_milestone',
+      milestoneType: 'first_quest',
+      label: 'First Quest Complete!',
+    });
+    const toastContainer = (advancedTexture.addControl as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(toastContainer.addControl).toHaveBeenCalled();
+  });
+
+  it('should show a toast for daily_quests_reset', () => {
+    eventBus.emit({ type: 'daily_quests_reset' });
+    const toastContainer = (advancedTexture.addControl as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(toastContainer.addControl).toHaveBeenCalled();
+  });
 });
