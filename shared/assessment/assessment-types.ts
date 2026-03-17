@@ -11,7 +11,7 @@
 // Core Enums & Literals
 // ───────────────────────────────────────────────────────────────────────────
 
-export type AssessmentType = 'arrival' | 'departure' | 'periodic' | 'arrival_encounter' | 'departure_encounter';
+export type AssessmentType = 'arrival' | 'departure' | 'periodic' | 'npc_exam' | 'arrival_encounter' | 'departure_encounter';
 
 export type PhaseType = 'reading' | 'writing' | 'listening' | 'conversation';
 
@@ -22,7 +22,8 @@ export type TaskType =
   | 'reading_comprehension'
   | 'writing_prompt'
   | 'listening_comprehension'
-  | 'conversation_quest';
+  | 'conversation_quest'
+  | 'object_recognition';
 
 export type CEFRLevel = 'A1' | 'A2' | 'B1' | 'B2';
 
