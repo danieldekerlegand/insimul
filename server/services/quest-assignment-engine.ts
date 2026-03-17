@@ -127,6 +127,9 @@ const VOCABULARY_CATEGORIES: Record<string, string[]> = {
   family: ['mother', 'father', 'sister', 'brother', 'child', 'grandmother'],
   directions: ['left', 'right', 'straight', 'turn', 'stop', 'go'],
   time: ['morning', 'afternoon', 'evening', 'today', 'tomorrow', 'yesterday'],
+  celebration: ['festival', 'celebration', 'music', 'dance', 'tradition', 'feast'],
+  cooking: ['stir', 'boil', 'chop', 'bake', 'recipe', 'ingredient', 'measure', 'taste'],
+  crafts: ['hammer', 'thread', 'clay', 'forge', 'weave', 'carve', 'tool', 'workshop'],
 };
 
 /** Grammar patterns by difficulty. */
