@@ -1,0 +1,431 @@
+/**
+ * NPCInitiatedConversationController
+ *
+ * Enables NPCs to proactively approach the player and initiate conversation.
+ * Evaluates nearby NPCs periodically using personality traits (extroversion,
+ * agreeableness), relationship strength, mood, and time of day to determine
+ * if an NPC wants to talk to the player. When an NPC approaches, a greeting
+ * prompt is shown and the player can accept (G key) or ignore.
+ */
+
+import { Vector3 } from '@babylonjs/core';
+
+// ── Types ──────────────────────────────────────────────────────────────
+
+/** NPC data needed for approach evaluation */
+export interface ApproachableNPC {
+  id: string;
+  name: string;
+  position: Vector3;
+  personality: {
+    openness: number;
+    conscientiousness: number;
+    extroversion: number;
+    agreeableness: number;
+    neuroticism: number;
+  };
+  relationships: Record<string, { type?: string; strength?: number; trust?: number }>;
+  mood: string;
+  isInConversation: boolean;
+  occupation?: string;
+}
+
+/** State of an NPC approach attempt */
+export interface ApproachAttempt {
+  npcId: string;
+  npcName: string;
+  startTime: number;
+  greeting: string;
+  /** Whether the NPC has reached the player */
+  hasReached: boolean;
+  /** Whether the greeting prompt is visible */
+  promptShown: boolean;
+}
+
+/** Callbacks for approach events */
+export interface ApproachCallbacks {
+  /** Move NPC toward a position */
+  onMoveTo: (npcId: string, targetPosition: Vector3, speed: 'stroll' | 'walk') => void;
+  /** Face NPC toward a position */
+  onFaceDirection: (npcId: string, targetPosition: Vector3) => void;
+  /** Change NPC animation */
+  onAnimationChange: (npcId: string, state: string) => void;
+  /** Show greeting notification to the player */
+  onShowGreeting: (npcId: string, npcName: string, greeting: string) => void;
+  /** Dismiss greeting notification */
+  onDismissGreeting: (npcId: string) => void;
+  /** Open chat with NPC (player accepted) */
+  onOpenChat: (npcId: string) => Promise<void>;
+  /** Get current game hour (0-23) */
+  getGameHour: () => number;
+  /** Get player position */
+  getPlayerPosition: () => Vector3 | null;
+  /** Check if player is already in a conversation */
+  isPlayerInConversation: () => boolean;
+  /** Emit event to GameEventBus */
+  onEmitEvent?: (event: any) => void;
+}
+
+// ── Constants ──────────────────────────────────────────────────────────
+
+/** How often to evaluate NPC approach desire (in game-minutes) */
+const EVAL_INTERVAL_GAME_MINUTES = 3;
+
+/** Max distance to consider an NPC for approach */
+const APPROACH_EVAL_RADIUS = 15;
+
+/** Distance at which the NPC stops and greets */
+const GREETING_DISTANCE = 3.0;
+
+/** How long the greeting prompt stays visible (ms) */
+const GREETING_TIMEOUT_MS = 15000;
+
+/** Cooldown after an NPC approaches (successful or not), in ms */
+const APPROACH_COOLDOWN_MS = 120000;
+
+/** Max simultaneous approach attempts */
+const MAX_APPROACHES = 1;
+
+// ── Greetings ──────────────────────────────────────────────────────────
+
+const GREETINGS_BY_MOOD: Record<string, string[]> = {
+  happy: [
+    'Hey there! Got a moment?',
+    'Oh, hello! I was hoping to run into you.',
+    'Hi! Mind if we chat?',
+  ],
+  excited: [
+    'You won\'t believe what happened!',
+    'Hey! I\'ve got something to tell you!',
+    'Oh good, I found you!',
+  ],
+  sad: [
+    'Hey... do you have a minute?',
+    'I could really use someone to talk to...',
+    'Mind if I bend your ear?',
+  ],
+  angry: [
+    'We need to talk.',
+    'Hey. Got a minute?',
+    'I need to get something off my chest.',
+  ],
+  neutral: [
+    'Hello! Do you have a moment?',
+    'Hey, got a second to chat?',
+    'Hi there! Can we talk?',
+    'Excuse me, do you have a moment?',
+  ],
+};
+
+function getGreeting(mood: string, npcName: string): string {
+  const moodGreetings = GREETINGS_BY_MOOD[mood] || GREETINGS_BY_MOOD.neutral;
+  const greeting = moodGreetings[Math.floor(Math.random() * moodGreetings.length)];
+  return greeting;
+}
+
+// ── Controller ─────────────────────────────────────────────────────────
+
+export class NPCInitiatedConversationController {
+  private callbacks: ApproachCallbacks;
+  private npcs: Map<string, ApproachableNPC> = new Map();
+  private activeApproach: ApproachAttempt | null = null;
+  private approachCooldowns: Map<string, number> = new Map();
+  private accumulatedGameMinutes = 0;
+  private lastEvalGameMinute = 0;
+  private greetingTimer: ReturnType<typeof setTimeout> | null = null;
+  private _paused = false;
+
+  constructor(callbacks: ApproachCallbacks) {
+    this.callbacks = callbacks;
+  }
+
+  /** Register an NPC for approach evaluation. */
+  registerNPC(npc: ApproachableNPC): void {
+    this.npcs.set(npc.id, npc);
+  }
+
+  /** Update NPC data. */
+  updateNPC(npcId: string, updates: Partial<ApproachableNPC>): void {
+    const npc = this.npcs.get(npcId);
+    if (npc) {
+      Object.assign(npc, updates);
+    }
+  }
+
+  /** Unregister an NPC. */
+  unregisterNPC(npcId: string): void {
+    this.npcs.delete(npcId);
+    if (this.activeApproach?.npcId === npcId) {
+      this.cancelApproach();
+    }
+  }
+
+  /** Pause evaluation (e.g., during player conversation). */
+  pause(): void {
+    this._paused = true;
+  }
+
+  /** Resume evaluation. */
+  resume(): void {
+    this._paused = false;
+  }
+
+  /** Whether an NPC is currently approaching the player. */
+  hasActiveApproach(): boolean {
+    return this.activeApproach !== null;
+  }
+
+  /** Get the ID of the NPC currently approaching. */
+  getApproachingNPCId(): string | null {
+    return this.activeApproach?.npcId ?? null;
+  }
+
+  /**
+   * Player accepted the NPC's conversation request (pressed G near approaching NPC).
+   * Opens chat and cleans up the approach state.
+   */
+  async acceptApproach(): Promise<boolean> {
+    if (!this.activeApproach?.promptShown) return false;
+
+    const npcId = this.activeApproach.npcId;
+    this.clearGreetingTimer();
+    this.callbacks.onDismissGreeting(npcId);
+
+    this.callbacks.onEmitEvent?.({
+      type: 'npc_initiated_conversation',
+      npcId,
+      npcName: this.activeApproach.npcName,
+      accepted: true,
+    });
+
+    this.activeApproach = null;
+    await this.callbacks.onOpenChat(npcId);
+    return true;
+  }
+
+  /**
+   * Frame update. Call every frame with delta time.
+   * @param deltaTimeMs Real time since last frame
+   * @param msPerGameHour Real ms per game hour
+   */
+  update(deltaTimeMs: number, msPerGameHour: number): void {
+    if (this._paused) return;
+
+    const gameMinutesDelta = (deltaTimeMs / msPerGameHour) * 60;
+    this.accumulatedGameMinutes += gameMinutesDelta;
+
+    // Evaluate approach periodically
+    if (this.accumulatedGameMinutes - this.lastEvalGameMinute >= EVAL_INTERVAL_GAME_MINUTES) {
+      this.lastEvalGameMinute = this.accumulatedGameMinutes;
+      this.evaluateApproach();
+    }
+
+    // Update active approach (check if NPC reached player)
+    if (this.activeApproach && !this.activeApproach.hasReached) {
+      this.updateApproach();
+    }
+  }
+
+  /** Calculate approach probability for a single NPC toward the player. */
+  calculateApproachProbability(
+    npc: ApproachableNPC,
+    playerRelationship: { strength?: number; trust?: number } | undefined,
+    gameHour: number,
+  ): number {
+    // Base from extroversion (0–0.35)
+    let prob = npc.personality.extroversion * 0.35;
+
+    // Agreeableness bonus (0–0.15)
+    prob += npc.personality.agreeableness * 0.15;
+
+    // Relationship bonus (0–0.25)
+    const relStrength = playerRelationship?.strength ?? 0;
+    prob += relStrength * 0.25;
+
+    // Mood modifier
+    const positiveMoods = new Set(['happy', 'excited', 'content', 'grateful', 'amused']);
+    const negativeMoods = new Set(['angry', 'sad', 'fearful', 'disgusted', 'anxious']);
+    if (positiveMoods.has(npc.mood)) {
+      prob += 0.1;
+    } else if (negativeMoods.has(npc.mood)) {
+      prob -= 0.05;
+    }
+
+    // Neuroticism penalty (shy/anxious NPCs less likely to approach)
+    prob -= npc.personality.neuroticism * 0.15;
+
+    // Time of day: more social during day
+    if (gameHour >= 8 && gameHour <= 20) {
+      prob += 0.05;
+    } else {
+      prob -= 0.15;
+    }
+
+    return Math.max(0, Math.min(1, prob));
+  }
+
+  /** Evaluate whether any NPC should approach the player. */
+  private evaluateApproach(): void {
+    if (this.activeApproach) return;
+    if (this.callbacks.isPlayerInConversation()) return;
+
+    const playerPos = this.callbacks.getPlayerPosition();
+    if (!playerPos) return;
+
+    const gameHour = this.callbacks.getGameHour();
+    const now = Date.now();
+
+    let bestNpc: ApproachableNPC | null = null;
+    let bestScore = 0;
+
+    const npcList = Array.from(this.npcs.values());
+    for (const npc of npcList) {
+      // Skip unavailable NPCs
+      if (npc.isInConversation) continue;
+
+      // Skip if on cooldown
+      const lastApproach = this.approachCooldowns.get(npc.id) ?? 0;
+      if (now - lastApproach < APPROACH_COOLDOWN_MS) continue;
+
+      // Check distance
+      const dx = playerPos.x - npc.position.x;
+      const dz = playerPos.z - npc.position.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist > APPROACH_EVAL_RADIUS) continue;
+
+      // Calculate probability
+      const playerRel = npc.relationships['player'];
+      const prob = this.calculateApproachProbability(npc, playerRel, gameHour);
+
+      if (prob > bestScore) {
+        bestScore = prob;
+        bestNpc = npc;
+      }
+    }
+
+    // Roll against probability
+    if (bestNpc && Math.random() < bestScore) {
+      this.startApproach(bestNpc);
+    }
+  }
+
+  /** Start an NPC approach toward the player. */
+  private startApproach(npc: ApproachableNPC): void {
+    const playerPos = this.callbacks.getPlayerPosition();
+    if (!playerPos) return;
+
+    const greeting = getGreeting(npc.mood, npc.name);
+
+    this.activeApproach = {
+      npcId: npc.id,
+      npcName: npc.name,
+      startTime: Date.now(),
+      greeting,
+      hasReached: false,
+      promptShown: false,
+    };
+
+    this.approachCooldowns.set(npc.id, Date.now());
+
+    // Walk NPC toward a point near the player
+    const dirToPlayer = playerPos.subtract(npc.position).normalize();
+    const approachTarget = playerPos.subtract(dirToPlayer.scale(GREETING_DISTANCE));
+    this.callbacks.onMoveTo(npc.id, approachTarget, 'walk');
+
+    this.callbacks.onEmitEvent?.({
+      type: 'npc_initiated_conversation',
+      npcId: npc.id,
+      npcName: npc.name,
+      accepted: false,
+    });
+  }
+
+  /** Check if the approaching NPC has reached the player. */
+  private updateApproach(): void {
+    if (!this.activeApproach) return;
+
+    const npc = this.npcs.get(this.activeApproach.npcId);
+    const playerPos = this.callbacks.getPlayerPosition();
+    if (!npc || !playerPos) {
+      this.cancelApproach();
+      return;
+    }
+
+    // Check distance
+    const dx = playerPos.x - npc.position.x;
+    const dz = playerPos.z - npc.position.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+
+    if (dist <= GREETING_DISTANCE * 1.5) {
+      this.activeApproach.hasReached = true;
+      this.activeApproach.promptShown = true;
+
+      // Face the player
+      this.callbacks.onFaceDirection(npc.id, playerPos);
+      this.callbacks.onAnimationChange(npc.id, 'talk');
+
+      // Show greeting
+      this.callbacks.onShowGreeting(
+        npc.id,
+        this.activeApproach.npcName,
+        this.activeApproach.greeting,
+      );
+
+      // Auto-dismiss after timeout
+      this.greetingTimer = setTimeout(() => {
+        this.dismissApproach();
+      }, GREETING_TIMEOUT_MS);
+    }
+
+    // If NPC has been walking for too long without reaching, cancel
+    const elapsed = Date.now() - this.activeApproach.startTime;
+    if (elapsed > 10000 && !this.activeApproach.hasReached) {
+      this.cancelApproach();
+    }
+  }
+
+  /** Dismiss the current approach (timeout or player walked away). */
+  private dismissApproach(): void {
+    if (!this.activeApproach) return;
+
+    const npcId = this.activeApproach.npcId;
+    this.clearGreetingTimer();
+    this.callbacks.onDismissGreeting(npcId);
+    this.callbacks.onAnimationChange(npcId, 'idle');
+
+    this.callbacks.onEmitEvent?.({
+      type: 'npc_initiated_conversation',
+      npcId,
+      npcName: this.activeApproach.npcName,
+      accepted: false,
+    });
+
+    this.activeApproach = null;
+  }
+
+  /** Cancel the approach entirely (NPC unregistered, etc.). */
+  private cancelApproach(): void {
+    if (!this.activeApproach) return;
+
+    const npcId = this.activeApproach.npcId;
+    this.clearGreetingTimer();
+    this.callbacks.onDismissGreeting(npcId);
+    this.callbacks.onAnimationChange(npcId, 'idle');
+    this.activeApproach = null;
+  }
+
+  private clearGreetingTimer(): void {
+    if (this.greetingTimer !== null) {
+      clearTimeout(this.greetingTimer);
+      this.greetingTimer = null;
+    }
+  }
+
+  /** Clean up all resources. */
+  dispose(): void {
+    this.clearGreetingTimer();
+    this.activeApproach = null;
+    this.npcs.clear();
+    this.approachCooldowns.clear();
+  }
+}

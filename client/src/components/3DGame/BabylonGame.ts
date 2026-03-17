@@ -110,6 +110,7 @@ import { createDebugLabel } from "@/components/3DGame/DebugLabelUtils.ts";
 import { VRAccessibilityManager } from "@/components/3DGame/VRAccessibilityManager.ts";
 import { NPCTalkingIndicator } from "@/components/3DGame/NPCTalkingIndicator.ts";
 import { NPCAmbientConversationManager } from "@/components/3DGame/NPCAmbientConversationManager.ts";
+import { NPCInitiatedConversationController } from "@/components/3DGame/NPCInitiatedConversationController.ts";
 import { BuildingInteriorGenerator, InteriorLayout } from "@/components/3DGame/BuildingInteriorGenerator.ts";
 import { GameMenuSystem, GameMenuCallbacks } from "@/components/3DGame/GameMenuSystem.ts";
 import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts";
@@ -413,6 +414,7 @@ export class BabylonGame {
   private combatUI: CombatUI | null = null;
   private npcTalkingIndicator: NPCTalkingIndicator | null = null;
   private ambientConversationManager: NPCAmbientConversationManager | null = null;
+  private npcInitiatedConversationController: NPCInitiatedConversationController | null = null;
   private vrManager: VRManager | null = null;
   private gameMenuSystem: GameMenuSystem | null = null;
 
@@ -1865,6 +1867,61 @@ export class BabylonGame {
       this.config.worldId,
       this.npcTalkingIndicator
     );
+
+    // Initialize NPC-initiated conversation controller
+    this.npcInitiatedConversationController = new NPCInitiatedConversationController({
+      onMoveTo: (npcId, targetPos, _speed) => {
+        const instance = this.npcMeshes.get(npcId);
+        if (instance?.mesh && instance.controller) {
+          // Point NPC toward target and start walking
+          const dir = targetPos.subtract(instance.mesh.position);
+          dir.y = 0;
+          if (dir.lengthSquared() > 0.001) {
+            instance.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+            instance.controller.walk(true);
+          }
+        }
+      },
+      onFaceDirection: (npcId, targetPos) => {
+        const instance = this.npcMeshes.get(npcId);
+        if (instance?.mesh) {
+          const dir = targetPos.subtract(instance.mesh.position);
+          dir.y = 0;
+          if (dir.lengthSquared() > 0.001) {
+            instance.mesh.rotation.y = Math.atan2(dir.x, dir.z) + Math.PI;
+          }
+        }
+      },
+      onAnimationChange: (npcId, state) => {
+        const instance = this.npcMeshes.get(npcId);
+        if (instance?.controller) {
+          instance.controller.walk(false);
+          instance.controller.turnLeft(false);
+          instance.controller.turnRight(false);
+        }
+        if (instance?.animController) {
+          instance.animController.setState(state as any);
+        }
+      },
+      onShowGreeting: (npcId, npcName, greeting) => {
+        this.guiManager?.showToast({
+          title: `${npcName} approaches`,
+          description: `"${greeting}" [G to talk]`,
+          duration: 15000,
+        });
+      },
+      onDismissGreeting: (_npcId) => {
+        // Toast auto-dismisses; no explicit dismiss needed
+      },
+      onOpenChat: async (npcId) => {
+        this.setSelectedNPC(npcId);
+        await this.handleOpenChat();
+      },
+      getGameHour: () => 12, // Default to noon; no global clock tracked
+      getPlayerPosition: () => this.playerMesh?.position ?? null,
+      isPlayerInConversation: () => this.conversationNPCId !== null,
+      onEmitEvent: (event) => this.eventBus?.emit(event),
+    });
 
     // Initialize procedural generators
     this.buildingGenerator = new ProceduralBuildingGenerator(scene);
@@ -5170,6 +5227,24 @@ export class BabylonGame {
           npcInstance.state
         );
       }
+
+      // Register NPC for NPC-initiated conversations
+      if (this.npcInitiatedConversationController) {
+        const personality = character.personality || {
+          openness: 0.5, conscientiousness: 0.5, extroversion: 0.5,
+          agreeableness: 0.5, neuroticism: 0.5,
+        };
+        this.npcInitiatedConversationController.registerNPC({
+          id: character.id,
+          name: npcName,
+          position: root.position.clone(),
+          personality,
+          relationships: character.relationships || {},
+          mood: character.mood || 'neutral',
+          isInConversation: false,
+          occupation: character.occupation,
+        });
+      }
     } catch (error) {
       console.error(`Failed to load NPC ${character.id}:`, error);
     }
@@ -5926,6 +6001,22 @@ export class BabylonGame {
             }
           });
         }
+      }
+
+      // Update NPC-initiated conversation controller (position sync throttled to 500ms via ground snap timer)
+      if (this.npcInitiatedConversationController) {
+        if (this._npcGroundSnapTimer === 0) {
+          // Sync NPC positions alongside ground snapping
+          this.npcMeshes.forEach((instance, npcId) => {
+            if (instance?.mesh) {
+              this.npcInitiatedConversationController!.updateNPC(npcId, {
+                position: instance.mesh.position.clone(),
+                isInConversation: instance.isInConversation || false,
+              });
+            }
+          });
+        }
+        this.npcInitiatedConversationController.update(dt, 60000);
       }
 
       // Update minimap markers at most every 250ms
@@ -6766,8 +6857,12 @@ export class BabylonGame {
           duration: 1500
         });
       } else {
-        // Otherwise, try to interact with nearest NPC
-        await this.handleProximityInteraction();
+        // Check if an NPC is approaching and accept their conversation
+        const accepted = await this.npcInitiatedConversationController?.acceptApproach();
+        if (!accepted) {
+          // Otherwise, try to interact with nearest NPC
+          await this.handleProximityInteraction();
+        }
       }
     }
 
@@ -6910,6 +7005,7 @@ export class BabylonGame {
 
       // Pause ambient NPC conversations so their TTS doesn't overlap with the player's chat
       this.ambientConversationManager?.pause();
+      this.npcInitiatedConversationController?.pause();
 
       // Switch to first-person view for conversation immersion
       if (this.cameraManager) {
@@ -7191,6 +7287,7 @@ export class BabylonGame {
 
       // Resume ambient NPC conversations
       this.ambientConversationManager?.resume();
+      this.npcInitiatedConversationController?.resume();
     }
 
     // Restore player mesh visibility
@@ -9056,6 +9153,7 @@ export class BabylonGame {
     this.assessmentActive = false;
     this.onboardingResult = null;
     this.ambientConversationManager?.dispose();
+    this.npcInitiatedConversationController?.dispose();
     this.ambientConversationManager = null;
     this.npcTalkingIndicator?.dispose();
     this.npcTalkingIndicator = null;

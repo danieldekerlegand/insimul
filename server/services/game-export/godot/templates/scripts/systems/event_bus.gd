@@ -65,6 +65,8 @@ const EVENT_DIRECTION_STEP_COMPLETED := "direction_step_completed"
 const EVENT_PRONUNCIATION_ASSESSMENT_DATA := "pronunciation_assessment_data"
 # Achievement events
 const EVENT_ACHIEVEMENT_UNLOCKED := "achievement_unlocked"
+# NPC-initiated conversation events
+const EVENT_NPC_INITIATED_CONVERSATION := "npc_initiated_conversation"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -95,6 +97,7 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_DIRECTION_STEP_COMPLETED,
 	EVENT_PRONUNCIATION_ASSESSMENT_DATA,
 	EVENT_ACHIEVEMENT_UNLOCKED,
+	EVENT_NPC_INITIATED_CONVERSATION,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
@@ -163,6 +166,7 @@ var _global_handlers: Array[Callable] = []
 ##   direction_step_completed: {type, quest_id, objective_id, step_index, steps_completed, steps_required}
 ##   pronunciation_assessment_data: {type, quest_id, average_score, sample_count}
 ##   achievement_unlocked: {type, achievement_id, achievement_name, description, icon}
+##   npc_initiated_conversation: {type, npc_id, npc_name, accepted}
 ##
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}
 func emit_event(event: Dictionary) -> void:

@@ -66,7 +66,9 @@ enum class EInsimulEventType : uint8
     // Pronunciation quest events
     PronunciationAssessmentData UMETA(DisplayName = "Pronunciation Assessment Data"),
     // Achievement events
-    AchievementUnlocked UMETA(DisplayName = "Achievement Unlocked")
+    AchievementUnlocked UMETA(DisplayName = "Achievement Unlocked"),
+    // NPC-initiated conversation events
+    NpcInitiatedConversation UMETA(DisplayName = "NPC Initiated Conversation")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────
