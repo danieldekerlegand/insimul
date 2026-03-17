@@ -653,6 +653,14 @@ export const quests = pgTable("quests", {
   // Failure conditions
   failureConditions: jsonb("failure_conditions").$type<Record<string, any>>(),
 
+  // Abandonment, failure, and retry tracking
+  attemptCount: integer("attempt_count").default(1),
+  maxAttempts: integer("max_attempts").default(3),
+  abandonedAt: timestamp("abandoned_at"),
+  failedAt: timestamp("failed_at"),
+  failureReason: text("failure_reason"),
+  abandonReason: text("abandon_reason"),
+
   // Location binding — ties the quest to a specific place in the world
   locationId: varchar("location_id"), // Settlement or lot ID
   locationName: text("location_name"), // Human-readable place name
@@ -1080,6 +1088,13 @@ export const insertQuestSchema = createInsertSchema(quests).pick({
   tags: true,
   content: true,
   relatedTruthIds: true,
+  attemptCount: true,
+  maxAttempts: true,
+  abandonedAt: true,
+  failedAt: true,
+  failureReason: true,
+  abandonReason: true,
+  completedAt: true,
 });
 
 export const insertItemSchema = createInsertSchema(items).pick({

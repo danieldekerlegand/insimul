@@ -8209,6 +8209,68 @@ Respond with this JSON structure:
     }
   });
 
+  // Abandon a quest
+  app.patch("/api/worlds/:worldId/quests/:questId/abandon", async (req, res) => {
+    try {
+      const { abandonQuest, QuestLifecycleError } = await import('./services/quest-lifecycle.js');
+      const result = await abandonQuest(storage, req.params.questId, req.params.worldId, req.body.reason);
+      res.json(result);
+    } catch (error: any) {
+      if (error.code === 'NOT_FOUND') return res.status(404).json({ error: error.message });
+      if (error.code === 'WRONG_WORLD' || error.code === 'INVALID_STATUS')
+        return res.status(400).json({ error: error.message });
+      console.error('[Quest Abandon] Error:', error);
+      res.status(500).json({ error: "Failed to abandon quest" });
+    }
+  });
+
+  // Fail a quest
+  app.patch("/api/worlds/:worldId/quests/:questId/fail", async (req, res) => {
+    try {
+      const { failQuest } = await import('./services/quest-lifecycle.js');
+      const reason = req.body.reason || 'Quest failed';
+      const result = await failQuest(storage, req.params.questId, req.params.worldId, reason);
+      res.json(result);
+    } catch (error: any) {
+      if (error.code === 'NOT_FOUND') return res.status(404).json({ error: error.message });
+      if (error.code === 'WRONG_WORLD' || error.code === 'INVALID_STATUS')
+        return res.status(400).json({ error: error.message });
+      console.error('[Quest Fail] Error:', error);
+      res.status(500).json({ error: "Failed to fail quest" });
+    }
+  });
+
+  // Retry a failed or abandoned quest
+  app.post("/api/worlds/:worldId/quests/:questId/retry", async (req, res) => {
+    try {
+      const { retryQuest } = await import('./services/quest-lifecycle.js');
+      const result = await retryQuest(storage, req.params.questId, req.params.worldId);
+      res.json(result);
+    } catch (error: any) {
+      if (error.code === 'NOT_FOUND') return res.status(404).json({ error: error.message });
+      if (error.code === 'WRONG_WORLD' || error.code === 'INVALID_STATUS' || error.code === 'MAX_ATTEMPTS')
+        return res.status(400).json({ error: error.message });
+      console.error('[Quest Retry] Error:', error);
+      res.status(500).json({ error: "Failed to retry quest" });
+    }
+  });
+
+  // Check quest expiration
+  app.post("/api/worlds/:worldId/quests/:questId/check-expiration", async (req, res) => {
+    try {
+      const { checkQuestExpiration } = await import('./services/quest-lifecycle.js');
+      const result = await checkQuestExpiration(storage, req.params.questId, req.params.worldId);
+      if (result) {
+        res.json({ expired: true, ...result });
+      } else {
+        res.json({ expired: false });
+      }
+    } catch (error: any) {
+      console.error('[Quest Expiration Check] Error:', error);
+      res.status(500).json({ error: "Failed to check quest expiration" });
+    }
+  });
+
   // ============= ITEMS =============
 
   // Get all items for a world (includes matching base items)
