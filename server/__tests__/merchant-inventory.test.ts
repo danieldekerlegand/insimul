@@ -12,7 +12,10 @@ import {
   restockInventory,
   getAcceptedItemTypes,
   getItemCatalogForBusiness,
+  collectUniqueCatalogItems,
+  generateAndPersistWorldInventories,
   type MerchantInventoryStorage,
+  type TranslateItemFn,
 } from '../services/merchant-inventory.js';
 
 // ── Mock Storage ────────────────────────────────────────────────────────────
@@ -337,6 +340,132 @@ describe('Merchant Inventory Auto-Generation', () => {
       expect(inventories.length).toBe(1);
       // Very agreeable merchant should have higher sell multiplier
       expect(inventories[0].sellMultiplier).toBeGreaterThan(0.5);
+    });
+  });
+
+  describe('collectUniqueCatalogItems', () => {
+    it('returns deduplicated items across all catalogs', () => {
+      const items = collectUniqueCatalogItems();
+      const names = items.map(i => i.name);
+      const uniqueNames = new Set(names);
+      expect(names.length).toBe(uniqueNames.size);
+      expect(items.length).toBeGreaterThan(50); // we have many items across catalogs
+    });
+
+    it('each item has id, name, category, and description', () => {
+      const items = collectUniqueCatalogItems();
+      for (const item of items) {
+        expect(item.id).toBeTruthy();
+        expect(item.name).toBeTruthy();
+        expect(item.category).toBeTruthy();
+        expect(item.description).toBeTruthy();
+      }
+    });
+  });
+
+  describe('generateAndPersistWorldInventories', () => {
+    it('generates inventories and persists them via updateBusiness', async () => {
+      const updates: Array<{ id: string; data: any }> = [];
+      const storage = createMockStorage({
+        getBusinessesByWorld: async () => [
+          { id: 'b1', name: 'Corner Bakery', businessType: 'Bakery', ownerId: 'c1', settlementId: 's1' } as any,
+          { id: 'b2', name: 'Town Bar', businessType: 'Bar', ownerId: null, settlementId: 's1' } as any,
+        ],
+        getCharacter: async (id: string) => {
+          if (id === 'c1') return { id: 'c1', personality: { agreeableness: 0.7 } } as any;
+          return undefined;
+        },
+        updateBusiness: async (id: string, data: any) => {
+          updates.push({ id, data });
+          return data;
+        },
+      });
+
+      const result = await generateAndPersistWorldInventories('world-1', storage, null);
+      expect(result.inventoryCount).toBe(2);
+      expect(result.translatedCount).toBe(0);
+      expect(updates.length).toBe(2);
+      expect(updates[0].data.businessData.inventory.merchantId).toBe('b1');
+      expect(updates[1].data.businessData.inventory.merchantId).toBe('b2');
+    });
+
+    it('translates items when targetLanguage and translateFn are provided', async () => {
+      const updates: Array<{ id: string; data: any }> = [];
+      const storage = createMockStorage({
+        getBusinessesByWorld: async () => [
+          { id: 'b1', name: 'Boulangerie', businessType: 'Bakery', ownerId: null, settlementId: 's1' } as any,
+        ],
+        updateBusiness: async (id: string, data: any) => {
+          updates.push({ id, data });
+          return data;
+        },
+      });
+
+      const mockTranslate: TranslateItemFn = async (items, _lang) => {
+        return items.map(item => ({
+          id: item.id,
+          targetWord: `fr_${item.name}`,
+          pronunciation: `pron_${item.name}`,
+          category: item.category || 'general',
+        }));
+      };
+
+      const result = await generateAndPersistWorldInventories('world-1', storage, 'French', mockTranslate);
+      expect(result.inventoryCount).toBe(1);
+      expect(result.translatedCount).toBeGreaterThan(0);
+
+      const inventory = updates[0].data.businessData.inventory;
+      const translatedItems = inventory.items.filter((i: any) => i.languageLearningData);
+      expect(translatedItems.length).toBeGreaterThan(0);
+      expect(translatedItems[0].languageLearningData.targetLanguage).toBe('French');
+      expect(translatedItems[0].languageLearningData.targetWord).toMatch(/^fr_/);
+    });
+
+    it('skips non-merchant business types', async () => {
+      const updates: Array<{ id: string; data: any }> = [];
+      const storage = createMockStorage({
+        getBusinessesByWorld: async () => [
+          { id: 'b1', name: 'Bakery', businessType: 'Bakery', ownerId: null, settlementId: 's1' } as any,
+          { id: 'b2', name: 'Church', businessType: 'Church', ownerId: null, settlementId: 's1' } as any,
+        ],
+        updateBusiness: async (id: string, data: any) => {
+          updates.push({ id, data });
+          return data;
+        },
+      });
+
+      const result = await generateAndPersistWorldInventories('world-1', storage, null);
+      // Church has a BUSINESS_TYPE_ALIASES entry (-> Shop), so it should be included
+      expect(result.inventoryCount).toBe(2);
+    });
+
+    it('preserves existing businessData when persisting inventory', async () => {
+      const updates: Array<{ id: string; data: any }> = [];
+      const storage = createMockStorage({
+        getBusinessesByWorld: async () => [
+          { id: 'b1', name: 'Apartments', businessType: 'ApartmentComplex', ownerId: null, settlementId: 's1', businessData: { units: 12 } } as any,
+        ],
+        updateBusiness: async (id: string, data: any) => {
+          updates.push({ id, data });
+          return data;
+        },
+      });
+
+      await generateAndPersistWorldInventories('world-1', storage, null);
+      expect(updates[0].data.businessData.units).toBe(12);
+      expect(updates[0].data.businessData.inventory).toBeDefined();
+    });
+
+    it('works without updateBusiness (no persistence)', async () => {
+      const storage = createMockStorage({
+        getBusinessesByWorld: async () => [
+          { id: 'b1', name: 'Shop', businessType: 'Shop', ownerId: null, settlementId: 's1' } as any,
+        ],
+      });
+
+      // Should not throw even without updateBusiness
+      const result = await generateAndPersistWorldInventories('world-1', storage, null);
+      expect(result.inventoryCount).toBe(1);
     });
   });
 });
