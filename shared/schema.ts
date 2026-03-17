@@ -612,6 +612,9 @@ export const quests = pgTable("quests", {
   description: text("description").notNull(),
   questType: text("quest_type").notNull(), // conversation, translation, vocabulary, grammar, cultural
   difficulty: text("difficulty").notNull(), // beginner, intermediate, advanced
+  cefrLevel: text("cefr_level"), // A1, A2, B1, B2 — CEFR alignment
+  difficultyStars: integer("difficulty_stars"), // 1–5 star rating
+  estimatedMinutes: integer("estimated_minutes"), // Estimated completion time
   targetLanguage: text("target_language").notNull(), // French, English
 
   // Game type and quest chains (for abstraction)
@@ -1068,6 +1071,9 @@ export const insertQuestSchema = createInsertSchema(quests).pick({
   description: true,
   questType: true,
   difficulty: true,
+  cefrLevel: true,
+  difficultyStars: true,
+  estimatedMinutes: true,
   targetLanguage: true,
   objectives: true,
   progress: true,

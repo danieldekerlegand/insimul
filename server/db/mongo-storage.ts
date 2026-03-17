@@ -466,6 +466,9 @@ const QuestSchema = new Schema({
   description: { type: String, required: true },
   questType: { type: String, required: true },
   difficulty: { type: String, required: true },
+  cefrLevel: { type: String, default: null }, // A1, A2, B1, B2
+  difficultyStars: { type: Number, default: null }, // 1–5
+  estimatedMinutes: { type: Number, default: null },
   targetLanguage: { type: String, required: true },
   gameType: { type: String, default: 'language-learning' },
   questChainId: { type: String, default: null },
