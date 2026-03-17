@@ -370,7 +370,7 @@
     {
       "path": "shared/game-engine/types.ts",
       "description": "Engine-agnostic type primitives (InventoryItem, LootTableEntry, Action, Rule, etc.) shared across in-app and export systems.",
-      "hash": "98207bad24da7229c74ca4ddf9ee526a80640e6a27f4c7050446861866c1327b",
+      "hash": "73856df30763eec76cf4a80af1089df9003dbc22c9cb62b320c0fa311ca2c79f",
       "engineMappings": [
         {
           "engine": "unreal",
