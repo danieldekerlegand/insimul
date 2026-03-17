@@ -72,6 +72,9 @@ const EVENT_QUEST_REMINDER := "quest_reminder"
 const EVENT_QUEST_EXPIRED := "quest_expired"
 const EVENT_QUEST_MILESTONE := "quest_milestone"
 const EVENT_DAILY_QUESTS_RESET := "daily_quests_reset"
+# NPC exam events
+const EVENT_NPC_EXAM_REQUESTED := "npc_exam_requested"
+const EVENT_NPC_EXAM_COMPLETED := "npc_exam_completed"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -107,6 +110,8 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_QUEST_EXPIRED,
 	EVENT_QUEST_MILESTONE,
 	EVENT_DAILY_QUESTS_RESET,
+	EVENT_NPC_EXAM_REQUESTED,
+	EVENT_NPC_EXAM_COMPLETED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
@@ -180,6 +185,8 @@ var _global_handlers: Array[Callable] = []
 ##   quest_expired:       {type, quest_id, quest_title}
 ##   quest_milestone:     {type, milestone_type, label}
 ##   daily_quests_reset:  {type}
+##   npc_exam_requested:  {type, npc_id, npc_name, exam_type, business_context?}
+##   npc_exam_completed:  {type, npc_id?, exam_type, total_score, max_score, cefr_level}
 ##
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}
 func emit_event(event: Dictionary) -> void:

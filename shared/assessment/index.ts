@@ -65,3 +65,14 @@ export {
   buildObjectRecognitionExam,
   scoreObjectRecognitionExam,
 } from './object-recognition-exam';
+
+export {
+  buildNPCExamEncounter,
+  buildReadingExamPhase,
+  buildWritingExamPhase,
+  shouldTriggerNPCExam,
+  NPC_EXAM_QUEST_INTERVAL,
+  NPC_EXAM_TIME_INTERVAL_MS,
+  type NPCExamType,
+  type BusinessContext,
+} from './npc-exam-encounter';

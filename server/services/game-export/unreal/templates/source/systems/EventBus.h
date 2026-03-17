@@ -73,7 +73,10 @@ enum class EInsimulEventType : uint8
     QuestReminder       UMETA(DisplayName = "Quest Reminder"),
     QuestExpired        UMETA(DisplayName = "Quest Expired"),
     QuestMilestone      UMETA(DisplayName = "Quest Milestone"),
-    DailyQuestsReset    UMETA(DisplayName = "Daily Quests Reset")
+    DailyQuestsReset    UMETA(DisplayName = "Daily Quests Reset"),
+    // NPC exam events
+    NpcExamRequested    UMETA(DisplayName = "NPC Exam Requested"),
+    NpcExamCompleted    UMETA(DisplayName = "NPC Exam Completed")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────
@@ -264,6 +267,10 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ReminderType;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString MilestoneType;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Label;
+
+    // ── NPC exam fields ──────────────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ExamType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString BusinessContext;
 };
 
 // ── Delegates ────────────────────────────────────────────────────────────────
