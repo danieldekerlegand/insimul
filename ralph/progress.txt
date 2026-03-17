@@ -186,4 +186,21 @@ Started: Thu Mar 12 23:35:20 CDT 2026
   - Periodic assessment snapshots for mid-game progress trajectory
 - Created `server/__tests__/assessment-quest-bridge.test.ts` with 24 tests covering quest creation, phase completion, eligibility, and report generation
 - All 24 tests pass; no new typecheck errors
+
+## 2026-03-17 - Vocabulary-Focused Quest Objectives with Spaced Repetition
+- Created `shared/language/srs-quest-objectives.ts` — bridges SRS system with quest objectives
+  - `generateSRSObjectives()`: selects words due for review via SRS scheduler, generates quest objectives targeting those words
+  - `generateCategorizedSRSObjectives()`: splits review objectives by vocabulary category
+  - `selectReviewMode()`: auto-selects objective type (use_vocabulary, identify_object, translation_challenge, collect_vocabulary) based on mastery distribution
+  - `recommendDifficulty()`: determines quest difficulty from weighted mastery average
+  - `shouldGenerateReviewQuest()`: checks if enough words are due to warrant a review quest
+  - `calculateReviewXPBonus()`: awards more XP for lower-mastery words (new=5, learning=3, familiar=2, mastered=1)
+- Added 4 SRS-focused quest seeds to `shared/language/quest-seed-library.ts`:
+  - `vocabulary_review`: use review words in conversation
+  - `srs_identify_review`: identify objects by target-language names
+  - `srs_translation_review`: translate review words between languages
+  - `srs_mixed_review`: multi-objective combining conversation use + object identification
+- Added 8 SRS normalization entries to `shared/quest-objective-types.ts` (review_vocabulary, srs_review, spaced_repetition, etc.)
+- Files changed: `shared/language/srs-quest-objectives.ts` (new), `shared/language/quest-seed-library.ts`, `shared/quest-objective-types.ts`, `shared/__tests__/srs-quest-objectives.test.ts` (new)
+- All 83 tests pass (28 new SRS + 30 vocabulary-review + 25 quest-seed-library); typecheck clean on modified files
 ---
