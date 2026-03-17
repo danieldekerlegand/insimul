@@ -70,6 +70,7 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("npc_exam_requested"),                EInsimulEventType::NpcExamRequested },
         { TEXT("npc_exam_completed"),                EInsimulEventType::NpcExamCompleted },
         { TEXT("npc_initiated_conversation"),        EInsimulEventType::NpcInitiatedConversation },
+        { TEXT("skill_rewards_applied"),             EInsimulEventType::SkillRewardsApplied },
     };
     return Map;
 }

@@ -83,7 +83,9 @@ enum class EInsimulEventType : uint8
     NpcExamRequested    UMETA(DisplayName = "NPC Exam Requested"),
     NpcExamCompleted    UMETA(DisplayName = "NPC Exam Completed"),
     // NPC-initiated conversation events
-    NpcInitiatedConversation UMETA(DisplayName = "NPC Initiated Conversation")
+    NpcInitiatedConversation UMETA(DisplayName = "NPC Initiated Conversation"),
+    // Skill reward events
+    SkillRewardsApplied UMETA(DisplayName = "Skill Rewards Applied")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────

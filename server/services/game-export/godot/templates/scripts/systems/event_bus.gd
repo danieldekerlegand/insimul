@@ -82,6 +82,8 @@ const EVENT_NPC_EXAM_REQUESTED := "npc_exam_requested"
 const EVENT_NPC_EXAM_COMPLETED := "npc_exam_completed"
 # NPC-initiated conversation events
 const EVENT_NPC_INITIATED_CONVERSATION := "npc_initiated_conversation"
+# Skill reward events
+const EVENT_SKILL_REWARDS_APPLIED := "skill_rewards_applied"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -123,6 +125,7 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_NPC_EXAM_REQUESTED,
 	EVENT_NPC_EXAM_COMPLETED,
 	EVENT_NPC_INITIATED_CONVERSATION,
+	EVENT_SKILL_REWARDS_APPLIED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.

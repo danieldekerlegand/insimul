@@ -207,6 +207,7 @@ describe('XP Awards Wiring', () => {
 
       mockGamification = {
         onQuestCompleted: vi.fn(),
+        onSkillRewardsApplied: vi.fn(),
       };
       manager.setGamificationTracker(mockGamification);
       manager.setEventBus({

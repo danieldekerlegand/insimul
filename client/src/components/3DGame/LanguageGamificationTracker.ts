@@ -20,6 +20,7 @@ import {
 } from '@shared/language/language-gamification';
 import type { Achievement, DailyChallenge } from '@shared/language/language-gamification';
 import type { FluencyGainResult, VocabularyEntry, GrammarFeedback } from '@shared/language/language-progress';
+import type { SkillReward } from '@shared/language/quest-skill-rewards';
 import {
   isPeriodicAssessmentLevel,
   isPeriodicAssessmentCooldownMet,
@@ -40,6 +41,11 @@ export interface LevelUpEvent {
 
 export interface AchievementUnlockedEvent {
   achievement: Achievement;
+}
+
+export interface SkillRewardsAppliedEvent {
+  rewards: SkillReward[];
+  totalPoints: number;
 }
 
 export interface PeriodicAssessmentEvent {
@@ -67,6 +73,7 @@ export class LanguageGamificationTracker {
   private onLevelUp: ((event: LevelUpEvent) => void) | null = null;
   private onAchievementUnlocked: ((event: AchievementUnlockedEvent) => void) | null = null;
   private onDailyChallengeCompleted: ((challenge: DailyChallenge) => void) | null = null;
+  private onSkillRewardsAppliedCb: ((event: SkillRewardsAppliedEvent) => void) | null = null;
   private onPeriodicAssessmentTriggered: ((event: PeriodicAssessmentEvent) => void) | null = null;
 
   constructor() {
@@ -233,6 +240,18 @@ export class LanguageGamificationTracker {
 
     this.trackDailyProgress('quest_count', 1);
     this.checkAchievements();
+  }
+
+  /**
+   * Called when skill rewards are applied from quest completion.
+   * Awards bonus XP based on total skill points earned.
+   */
+  public onSkillRewardsApplied(rewards: SkillReward[]): void {
+    const totalPoints = rewards.reduce((sum, r) => sum + r.level, 0);
+    if (totalPoints > 0) {
+      this.addXP(totalPoints * 2, 'Skill reward');
+    }
+    this.onSkillRewardsAppliedCb?.({ rewards, totalPoints });
   }
 
   /**
@@ -510,6 +529,7 @@ export class LanguageGamificationTracker {
   public setOnLevelUp(cb: (event: LevelUpEvent) => void): void { this.onLevelUp = cb; }
   public setOnAchievementUnlocked(cb: (event: AchievementUnlockedEvent) => void): void { this.onAchievementUnlocked = cb; }
   public setOnDailyChallengeCompleted(cb: (challenge: DailyChallenge) => void): void { this.onDailyChallengeCompleted = cb; }
+  public setOnSkillRewardsApplied(cb: (event: SkillRewardsAppliedEvent) => void): void { this.onSkillRewardsAppliedCb = cb; }
   public setOnPeriodicAssessmentTriggered(cb: (event: PeriodicAssessmentEvent) => void): void { this.onPeriodicAssessmentTriggered = cb; }
 
   public dispose(): void {
@@ -518,6 +538,7 @@ export class LanguageGamificationTracker {
     this.onLevelUp = null;
     this.onAchievementUnlocked = null;
     this.onDailyChallengeCompleted = null;
+    this.onSkillRewardsAppliedCb = null;
     this.onPeriodicAssessmentTriggered = null;
   }
 }
