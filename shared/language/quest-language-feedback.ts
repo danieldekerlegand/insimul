@@ -7,6 +7,7 @@
  */
 
 import type { GrammarFeedback, GrammarCorrection, VocabularyUsage } from './progress';
+import { GrammarTriggerAnalyzer, type ObjectiveGrammarProgress } from './grammar-quest-objectives';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -68,6 +69,12 @@ export interface QuestObjective {
   required?: number;
   vocabularyWords?: string[];
   grammarPatterns?: string[];
+  /** Grammar focus area for grammar-focused objectives (e.g. 'past_tense', 'question_formation') */
+  grammarFocus?: string;
+  /** Minimum accuracy (0-100) required for grammar-focused objectives */
+  requiredAccuracy?: number;
+  /** Minimum correct grammar uses required */
+  requiredCorrectUses?: number;
   category?: string;
 }
 
@@ -77,6 +84,7 @@ export class QuestLanguageFeedbackTracker {
   private state: QuestLanguageFeedbackState;
   private vocabularyLookup: Map<string, QuestVocabularyTarget> = new Map();
   private grammarLookup: Map<string, QuestGrammarTarget> = new Map();
+  private grammarAnalyzer: GrammarTriggerAnalyzer | null = null;
   private feedbackIdCounter = 0;
   private onFeedbackUpdate: ((state: QuestLanguageFeedbackState) => void) | null = null;
   private onFeedbackItem: ((item: FeedbackItem) => void) | null = null;
@@ -108,6 +116,8 @@ export class QuestLanguageFeedbackTracker {
 
   /** Extract vocabulary and grammar targets from quest objectives. */
   private initializeFromObjectives(objectives: QuestObjective[], vocabMeanings?: Record<string, string>): void {
+    const hasGrammarFocus = objectives.some(o => o.grammarFocus || o.grammarPatterns?.length);
+
     for (const obj of objectives) {
       // Vocabulary objectives
       if (obj.vocabularyWords && obj.vocabularyWords.length > 0) {
@@ -128,7 +138,7 @@ export class QuestLanguageFeedbackTracker {
         this.state.vocabularyRequiredCount += obj.required ?? obj.vocabularyWords.length;
       }
 
-      // Grammar objectives
+      // Grammar objectives — from grammarPatterns array
       if (obj.grammarPatterns && obj.grammarPatterns.length > 0) {
         for (const pattern of obj.grammarPatterns) {
           if (!this.grammarLookup.has(pattern.toLowerCase())) {
@@ -144,6 +154,21 @@ export class QuestLanguageFeedbackTracker {
         }
       }
 
+      // Grammar objectives — from grammarFocus (grammar-focused quests)
+      if (obj.grammarFocus && !obj.grammarPatterns?.length) {
+        const pattern = obj.grammarFocus;
+        if (!this.grammarLookup.has(pattern.toLowerCase())) {
+          const target: QuestGrammarTarget = {
+            pattern,
+            description: obj.description,
+            correctUses: 0,
+            incorrectUses: 0,
+          };
+          this.state.grammarTargets.push(target);
+          this.grammarLookup.set(pattern.toLowerCase(), target);
+        }
+      }
+
       // Infer targets from objective type
       if (obj.type === 'use_vocabulary' && !obj.vocabularyWords) {
         this.state.vocabularyRequiredCount += obj.required ?? 5;
@@ -156,6 +181,11 @@ export class QuestLanguageFeedbackTracker {
           incorrectUses: 0,
         });
       }
+    }
+
+    // Initialize grammar trigger analyzer for grammar-focused objectives
+    if (hasGrammarFocus) {
+      this.grammarAnalyzer = new GrammarTriggerAnalyzer(objectives);
     }
   }
 
@@ -239,9 +269,29 @@ export class QuestLanguageFeedbackTracker {
       }
     }
 
+    // Feed into per-objective grammar analyzer
+    if (this.grammarAnalyzer) {
+      this.grammarAnalyzer.processGrammarFeedback(feedback);
+    }
+
     this.updateGrammarAccuracy();
     if (items.length > 0) this.notify();
     return items;
+  }
+
+  /**
+   * Get per-objective grammar progress from the analyzer.
+   * Returns null if no grammar-focused objectives exist.
+   */
+  public getGrammarObjectiveProgress(): ObjectiveGrammarProgress[] | null {
+    return this.grammarAnalyzer?.getAllProgress() ?? null;
+  }
+
+  /**
+   * Check if a grammar-focused objective is complete.
+   */
+  public isGrammarObjectiveComplete(objectiveIndex: number, requiredAccuracy?: number, requiredCorrectUses?: number): boolean {
+    return this.grammarAnalyzer?.isObjectiveComplete(objectiveIndex, requiredAccuracy, requiredCorrectUses) ?? false;
   }
 
   /**

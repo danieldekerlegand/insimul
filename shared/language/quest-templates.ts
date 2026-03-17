@@ -220,6 +220,72 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
       { name: 'count', type: 'number', description: 'Correct uses required' },
     ],
   },
+  {
+    id: 'past_tense_tales',
+    name: 'Past Tense Tales',
+    category: 'grammar',
+    description: 'Tell {{npcName}} about what you did yesterday, using past tense verbs throughout.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Have a conversation with {{npcName}} about yesterday using past tense',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{count}} past tense verb forms correctly',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 4 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC to tell your story to' },
+      { name: 'count', type: 'number', description: 'Past tense verbs to use correctly' },
+    ],
+  },
+  {
+    id: 'question_master',
+    name: 'Question Master',
+    category: 'grammar',
+    description: 'Ask {{count}} questions to NPCs using correct question formation in {{language}}.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Ask NPCs {{count}} questions using correct question grammar',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 4 },
+    parameters: [
+      { name: 'count', type: 'number', description: 'Questions to ask with correct formation' },
+      { name: 'language', type: 'category', description: 'Target language name' },
+    ],
+  },
+  {
+    id: 'polite_requests',
+    name: 'Polite Requests',
+    category: 'grammar',
+    description: 'Visit {{shopCount}} different shops and make formal requests using polite grammar forms.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Make polite requests at {{shopCount}} different shops',
+        requiredCount: 3,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use formal/polite grammar forms correctly',
+        requiredCount: 3,
+      },
+    ],
+    rewardScale: { xp: 35, fluency: 4 },
+    parameters: [
+      { name: 'shopCount', type: 'number', description: 'Number of shops to visit' },
+    ],
+  },
 
   // --- Visual / Exploration Quests ---
   {

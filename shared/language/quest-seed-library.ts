@@ -270,6 +270,63 @@ export const QUEST_SEEDS: QuestSeed[] = [
     baseXp: 55,
     tags: ['grammar', 'conjugation', 'advanced'],
   },
+  {
+    id: 'past_tense_tales',
+    name: 'Past Tense Tales',
+    category: 'grammar',
+    difficulty: 'intermediate',
+    params: [
+      { name: 'npcName', type: 'string', description: 'NPC to tell your story to' },
+      { name: 'verbCount', type: 'number', description: 'Past tense verbs to use', defaultValue: 5 },
+    ],
+    titleTemplate: 'Past Tense Tales with {{npcName}}',
+    descriptionTemplate: 'Tell {{npcName}} about what you did yesterday, using {{verbCount}} past tense verbs in {{targetLanguage}}.',
+    questType: 'grammar',
+    objectiveTemplates: [
+      { type: 'complete_conversation', descriptionTemplate: 'Tell {{npcName}} about yesterday using past tense', countTemplate: 1, extra: { grammarFocus: 'past_tense', grammarPatterns: '{{targetLanguage}} past tense' } },
+      { type: 'use_vocabulary', descriptionTemplate: 'Use {{verbCount}} past tense verb forms correctly', countTemplate: '{{verbCount}}', extra: { grammarPatterns: 'past tense' } },
+    ],
+    completionCriteria: { type: 'grammar_accuracy', requiredAccuracy: 60, requiredCorrectUses: 5 },
+    baseXp: 35,
+    tags: ['grammar', 'past_tense', 'conversation', 'intermediate'],
+  },
+  {
+    id: 'question_master',
+    name: 'Question Master',
+    category: 'grammar',
+    difficulty: 'intermediate',
+    params: [
+      { name: 'questionCount', type: 'number', description: 'Questions to ask', defaultValue: 5 },
+    ],
+    titleTemplate: 'Question Master ({{questionCount}} questions)',
+    descriptionTemplate: 'Ask {{questionCount}} questions to NPCs using correct question formation in {{targetLanguage}}.',
+    questType: 'grammar',
+    objectiveTemplates: [
+      { type: 'complete_conversation', descriptionTemplate: 'Ask NPCs {{questionCount}} questions with correct grammar', countTemplate: '{{questionCount}}', extra: { grammarFocus: 'question_formation', grammarPatterns: 'question formation' } },
+    ],
+    completionCriteria: { type: 'grammar_accuracy', requiredAccuracy: 60, requiredCorrectUses: 5 },
+    baseXp: 35,
+    tags: ['grammar', 'questions', 'conversation', 'intermediate'],
+  },
+  {
+    id: 'polite_requests',
+    name: 'Polite Requests',
+    category: 'grammar',
+    difficulty: 'intermediate',
+    params: [
+      { name: 'shopCount', type: 'number', description: 'Shops to visit', defaultValue: 3 },
+    ],
+    titleTemplate: 'Polite Requests ({{shopCount}} shops)',
+    descriptionTemplate: 'Visit {{shopCount}} different shops and make formal requests using polite grammar forms in {{targetLanguage}}.',
+    questType: 'grammar',
+    objectiveTemplates: [
+      { type: 'complete_conversation', descriptionTemplate: 'Make polite requests at {{shopCount}} different shops', countTemplate: '{{shopCount}}', extra: { grammarFocus: 'formal_register', grammarPatterns: 'formal register,polite forms' } },
+      { type: 'use_vocabulary', descriptionTemplate: 'Use formal/polite grammar forms correctly', countTemplate: 3, extra: { grammarPatterns: 'formal register' } },
+    ],
+    completionCriteria: { type: 'grammar_accuracy', requiredAccuracy: 60, requiredCorrectUses: 3 },
+    baseXp: 40,
+    tags: ['grammar', 'polite_forms', 'formal', 'shopping', 'intermediate'],
+  },
 
   // ── Translation ─────────────────────────────────────────────────────────
   {
