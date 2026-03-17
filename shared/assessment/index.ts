@@ -43,3 +43,25 @@ export {
 export { DEPARTURE_ENCOUNTER } from './departure-encounter';
 
 export * from './periodic-encounter';
+
+export {
+  type NpcExamType,
+  type NpcExamTrigger,
+  type NpcExam,
+  type ObjectRecognitionResult,
+  type NpcExamResult,
+  type ObjectVocabularyItem,
+  type BusinessVocabulary,
+} from './npc-exam-types';
+
+export {
+  BUSINESS_VOCABULARIES,
+  GENERIC_VOCABULARY,
+  CLOSE_MATCH_THRESHOLD,
+  levenshteinDistance,
+  scoreObjectAnswer,
+  getBusinessVocabulary,
+  selectExamObjects,
+  buildObjectRecognitionExam,
+  scoreObjectRecognitionExam,
+} from './object-recognition-exam';
