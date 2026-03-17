@@ -360,7 +360,7 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
     ],
   },
 
-  // --- Cultural Quests ---
+  // --- Cultural Immersion Quests ---
   {
     id: 'cultural_exploration',
     name: 'Cultural Explorer',
@@ -383,6 +383,156 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
     parameters: [
       { name: 'npcCount', type: 'number', description: 'NPCs to talk to' },
       { name: 'wordCount', type: 'number', description: 'Cultural words to learn' },
+    ],
+  },
+  {
+    id: 'festival_day',
+    name: 'Festival Day',
+    category: 'cultural',
+    description: 'The village is celebrating! Join the festivities by talking to {{npcCount}} villagers and learning {{wordCount}} celebration-related words.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Talk to {{npcCount}} villagers about the festival',
+        requiredCount: 3,
+      },
+      {
+        type: 'collect_vocabulary',
+        descriptionTemplate: 'Learn {{wordCount}} celebration vocabulary words',
+        requiredCount: 5,
+      },
+      {
+        type: 'visit_location',
+        descriptionTemplate: 'Visit the festival at {{location}}',
+        requiredCount: 1,
+      },
+    ],
+    rewardScale: { xp: 25, fluency: 3 },
+    parameters: [
+      { name: 'npcCount', type: 'number', description: 'Villagers to talk to' },
+      { name: 'wordCount', type: 'number', description: 'Celebration words to learn' },
+      { name: 'location', type: 'location', description: 'Festival location' },
+    ],
+  },
+  {
+    id: 'recipe_quest',
+    name: 'Traditional Recipe',
+    category: 'cultural',
+    description: 'Visit {{npcName}} to learn a traditional recipe. Follow cooking instructions given in the target language.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Learn the recipe from {{npcName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'follow_directions',
+        descriptionTemplate: 'Follow {{stepCount}} cooking instructions in the target language',
+        requiredCount: 4,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} cooking vocabulary words',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 35, fluency: 5 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'Chef or baker NPC' },
+      { name: 'stepCount', type: 'number', description: 'Cooking steps to follow' },
+      { name: 'wordCount', type: 'number', description: 'Cooking words to use' },
+    ],
+  },
+  {
+    id: 'cultural_exchange',
+    name: 'Cultural Exchange',
+    category: 'cultural',
+    description: 'Share aspects of your own culture with {{npcName}} while learning about theirs. Use both formal and informal registers.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Have a cultural exchange conversation with {{npcName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} cultural comparison words and phrases',
+        requiredCount: 6,
+      },
+    ],
+    rewardScale: { xp: 35, fluency: 5 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC interested in cultural exchange' },
+      { name: 'wordCount', type: 'number', description: 'Cultural vocabulary to use' },
+    ],
+  },
+  {
+    id: 'proverb_hunter',
+    name: 'Proverb Hunter',
+    category: 'cultural',
+    description: 'Seek out {{npcCount}} elders to collect local proverbs and explain their meanings.',
+    difficulty: 'advanced',
+    objectiveTemplates: [
+      {
+        type: 'talk_to_npc',
+        descriptionTemplate: 'Visit {{npcCount}} elders to collect proverbs',
+        requiredCount: 3,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} idiomatic expressions in conversation',
+        requiredCount: 5,
+      },
+      {
+        type: 'listening_comprehension',
+        descriptionTemplate: 'Explain the meaning of {{proverbCount}} proverbs',
+        requiredCount: 3,
+      },
+    ],
+    rewardScale: { xp: 45, fluency: 6 },
+    parameters: [
+      { name: 'npcCount', type: 'number', description: 'Elders to visit' },
+      { name: 'wordCount', type: 'number', description: 'Idiomatic expressions to use' },
+      { name: 'proverbCount', type: 'number', description: 'Proverbs to explain' },
+    ],
+  },
+  {
+    id: 'traditional_craft',
+    name: 'Traditional Craft',
+    category: 'cultural',
+    description: 'Visit {{npcName}} at their workshop to learn about a traditional craft. Describe the process in the target language.',
+    difficulty: 'advanced',
+    objectiveTemplates: [
+      {
+        type: 'visit_location',
+        descriptionTemplate: 'Visit the workshop at {{location}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Learn about the craft from {{npcName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} craft-related vocabulary words',
+        requiredCount: 6,
+      },
+      {
+        type: 'identify_object',
+        descriptionTemplate: 'Identify {{objectCount}} tools or materials by their target-language names',
+        requiredCount: 4,
+      },
+    ],
+    rewardScale: { xp: 45, fluency: 6 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'Artisan NPC (blacksmith, tailor, potter)' },
+      { name: 'location', type: 'location', description: 'Workshop location' },
+      { name: 'wordCount', type: 'number', description: 'Craft vocabulary to use' },
+      { name: 'objectCount', type: 'number', description: 'Tools/materials to identify' },
     ],
   },
 
