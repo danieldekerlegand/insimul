@@ -9,6 +9,7 @@ import { QuestCreateDialog } from './QuestCreateDialog';
 import { TruthContextPanel } from './TruthContextPanel';
 import { ContentValidationIndicator } from './prolog/ContentValidationIndicator';
 import { validateQuestContent } from '@shared/prolog/content-validators';
+import { QuestChecklist } from './quests/QuestChecklist';
 
 interface Quest {
   id: string;
@@ -192,6 +193,9 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
                                 </Badge>
                               )}
                             </div>
+                            {quest.objectives && quest.objectives.length > 0 && (
+                              <QuestChecklist objectives={quest.objectives} compact className="mt-2" />
+                            )}
                           </div>
                           <div className="flex flex-col items-end gap-2">
                             {getStatusIcon(quest.status)}
@@ -330,6 +334,10 @@ export function QuestsTab({ worldId }: QuestsTabProps) {
                   </div>
                 )}
               </div>
+
+              {selectedQuest.objectives && selectedQuest.objectives.length > 0 && (
+                <QuestChecklist objectives={selectedQuest.objectives} />
+              )}
 
               {selectedQuest.completionCriteria && (
                 <div className="space-y-3">

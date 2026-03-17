@@ -13,6 +13,7 @@ import { PrologQueryTester } from '../prolog/PrologQueryTester';
 import { PrologSyntaxHighlight } from '../prolog/PrologSyntaxHighlight';
 import { ContentValidationIndicator } from '../prolog/ContentValidationIndicator';
 import { validateQuestContent } from '@shared/prolog/content-validators';
+import { QuestChecklist } from './QuestChecklist';
 
 interface Quest {
   id: string;
@@ -397,20 +398,7 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
 
               {/* Objectives */}
               {selectedQuest.objectives && selectedQuest.objectives.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                    Objectives ({selectedQuest.objectives.length})
-                  </h4>
-                  <div className="space-y-1.5">
-                    {selectedQuest.objectives.map((obj: any, i: number) => (
-                      <div key={i} className="p-2 bg-muted/30 rounded-lg">
-                        <pre className="text-[10px] whitespace-pre-wrap break-all font-mono">
-                          {typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2)}
-                        </pre>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <QuestChecklist objectives={selectedQuest.objectives} compact />
               )}
 
               {/* Completion Criteria & Progress */}
