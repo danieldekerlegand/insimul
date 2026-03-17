@@ -16,6 +16,7 @@ import {
   DynamicTexture,
 } from '@babylonjs/core';
 import { BuildingInteriorGenerator, InteriorLayout } from './BuildingInteriorGenerator';
+import type { InteriorNPCManager, BuildingMetadata } from './InteriorNPCManager';
 
 /** Data for a registered building */
 export interface BuildingEntryData {
@@ -28,6 +29,8 @@ export interface BuildingEntryData {
   businessType?: string;
   buildingName?: string;
   mesh: Mesh;
+  /** Building metadata for NPC placement (ownerId, employees, occupants, etc.) */
+  metadata?: BuildingMetadata;
 }
 
 /** Callback interface for BuildingEntrySystem events */
@@ -86,6 +89,11 @@ export class BuildingEntrySystem {
   // NPC pause tracking
   private npcPauseCallbacks: Array<{ pause: () => void; resume: () => void }> = [];
 
+  // Interior NPC management
+  private interiorNPCManager: InteriorNPCManager | null = null;
+  private npcDataSource: (() => Map<string, { mesh: Mesh; characterData?: any }>) | null = null;
+  private playerCharacterIdSource: (() => string | undefined) | null = null;
+
   /** Override fade transition for testing — set to a function that returns a resolved Promise */
   public _fadeOverride: ((fadeOut: boolean) => Promise<void>) | null = null;
 
@@ -140,6 +148,29 @@ export class BuildingEntrySystem {
    */
   registerNPCPauseCallback(pause: () => void, resume: () => void): void {
     this.npcPauseCallbacks.push({ pause, resume });
+  }
+
+  /**
+   * Wire an InteriorNPCManager for automatic NPC placement on building entry/exit.
+   * @param manager The InteriorNPCManager instance
+   * @param getNPCs Function that returns the current NPC mesh map
+   * @param getPlayerCharacterId Optional function returning the player's character ID
+   */
+  setInteriorNPCManager(
+    manager: InteriorNPCManager,
+    getNPCs: () => Map<string, { mesh: Mesh; characterData?: any }>,
+    getPlayerCharacterId?: () => string | undefined
+  ): void {
+    this.interiorNPCManager = manager;
+    this.npcDataSource = getNPCs;
+    this.playerCharacterIdSource = getPlayerCharacterId ?? null;
+  }
+
+  /**
+   * Get the wired InteriorNPCManager, if any.
+   */
+  getInteriorNPCManager(): InteriorNPCManager | null {
+    return this.interiorNPCManager;
   }
 
   /**
@@ -206,6 +237,23 @@ export class BuildingEntrySystem {
       cb.pause();
     }
 
+    // Populate interior with NPCs via wired InteriorNPCManager
+    if (this.interiorNPCManager && this.npcDataSource) {
+      const metadata: BuildingMetadata = data.metadata ?? {
+        buildingType: data.buildingType,
+        businessType: data.businessType,
+      };
+      const npcMap = this.npcDataSource();
+      const playerCharId = this.playerCharacterIdSource?.();
+      this.interiorNPCManager.populateInterior(
+        buildingId,
+        interior,
+        metadata,
+        npcMap,
+        playerCharId
+      );
+    }
+
     // Notify callback
     this.callbacks.onEnterBuilding?.(buildingId, interior);
 
@@ -246,6 +294,9 @@ export class BuildingEntrySystem {
 
     // Hide building name indicator
     this.hideBuildingNameIndicator();
+
+    // Clear interior NPCs via wired InteriorNPCManager
+    this.interiorNPCManager?.clearInterior();
 
     // Resume overworld NPC movement
     for (const cb of this.npcPauseCallbacks) {
@@ -587,6 +638,9 @@ export class BuildingEntrySystem {
     this.buildings.clear();
     this.doorEntryPoints.clear();
     this.npcPauseCallbacks = [];
+    this.interiorNPCManager = null;
+    this.npcDataSource = null;
+    this.playerCharacterIdSource = null;
     this.isInsideBuilding = false;
     this.activeInterior = null;
     this.savedOverworldPosition = null;

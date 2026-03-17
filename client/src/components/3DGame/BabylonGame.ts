@@ -1881,24 +1881,13 @@ export class BabylonGame {
       onEnterBuilding: (buildingId: string, interior: InteriorLayout) => {
         this.activeInterior = interior;
         this.isInsideBuilding = true;
-        // Populate interior with NPCs
-        const buildingInfo = this.buildingData.get(buildingId);
-        if (buildingInfo && this.interiorNPCManager) {
-          this.interiorNPCManager.populateInterior(
-            buildingId,
-            interior,
-            buildingInfo.metadata || {},
-            this.npcMeshes as any,
-            undefined
-          );
-        }
+        // NPC population is now handled internally by BuildingEntrySystem
       },
       onExitBuilding: () => {
         this.activeInterior = null;
         this.isInsideBuilding = false;
         this.savedOverworldPosition = null;
-        // Clear interior NPCs
-        this.interiorNPCManager?.clearInterior();
+        // NPC cleanup is now handled internally by BuildingEntrySystem
       },
       onShowToast: (title: string, description?: string, duration?: number) => {
         this.guiManager?.showToast({ title, description, duration });
@@ -1931,6 +1920,13 @@ export class BabylonGame {
         });
       },
     });
+
+    // Wire InteriorNPCManager into BuildingEntrySystem for automatic NPC placement
+    this.buildingEntrySystem.setInteriorNPCManager(
+      this.interiorNPCManager,
+      () => this.npcMeshes as any,
+      () => undefined
+    );
 
     // Pause/resume overworld NPC movement when entering/exiting buildings
     this.buildingEntrySystem.registerNPCPauseCallback(
@@ -2760,6 +2756,7 @@ export class BabylonGame {
             businessType: business.businessType,
             buildingName: business.name,
             mesh: building,
+            metadata: building.metadata,
           });
 
           // Register building for hover info display
@@ -2880,6 +2877,7 @@ export class BabylonGame {
             buildingType: 'residence',
             buildingName: 'Residence',
             mesh: building,
+            metadata: building.metadata,
           });
 
           // Register building for hover info display
@@ -3048,6 +3046,7 @@ export class BabylonGame {
               businessType: biz.businessType,
               buildingName: biz.name,
               mesh: building,
+              metadata: building.metadata,
             });
 
             this.buildingInfoDisplay?.registerBuilding(building);
@@ -3127,6 +3126,7 @@ export class BabylonGame {
             buildingType: 'residence',
             buildingName: 'Residence',
             mesh: building,
+            metadata: building.metadata,
           });
 
           // Register building for hover info display

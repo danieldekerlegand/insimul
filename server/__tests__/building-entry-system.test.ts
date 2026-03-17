@@ -388,6 +388,166 @@ describe('BuildingEntrySystem', () => {
     });
   });
 
+  describe('InteriorNPCManager integration', () => {
+    function createMockInteriorNPCManager() {
+      return {
+        populateInterior: vi.fn(() => []),
+        clearInterior: vi.fn(),
+        getPlacedNPCs: vi.fn(() => []),
+        getPlacedCount: vi.fn(() => 0),
+        getActiveBuildingId: vi.fn(() => null),
+        isNPCInside: vi.fn(() => false),
+        dispose: vi.fn(),
+      } as any;
+    }
+
+    function createMockNPCMap() {
+      const map = new Map();
+      map.set('owner1', {
+        mesh: { position: new Vector3(5, 0, 5), isEnabled: () => true, setEnabled: vi.fn() },
+        characterData: { firstName: 'Owner', personality: { extroversion: 0.5 } },
+      });
+      map.set('emp1', {
+        mesh: { position: new Vector3(6, 0, 6), isEnabled: () => true, setEnabled: vi.fn() },
+        characterData: { firstName: 'Employee', personality: { extroversion: 0.5 } },
+      });
+      return map;
+    }
+
+    it('should call populateInterior on enter when InteriorNPCManager is wired', async () => {
+      const npcManager = createMockInteriorNPCManager();
+      const npcMap = createMockNPCMap();
+      system.setInteriorNPCManager(npcManager, () => npcMap);
+
+      const data = createBuildingData({
+        metadata: {
+          buildingType: 'business',
+          businessType: 'Bakery',
+          ownerId: 'owner1',
+          employees: ['emp1'],
+        },
+      });
+      system.registerBuilding(data);
+      await system.enterBuilding('building1');
+
+      expect(npcManager.populateInterior).toHaveBeenCalledWith(
+        'building1',
+        expect.any(Object), // interior layout
+        expect.objectContaining({ ownerId: 'owner1', employees: ['emp1'] }),
+        npcMap,
+        undefined
+      );
+    });
+
+    it('should call clearInterior on exit when InteriorNPCManager is wired', async () => {
+      const npcManager = createMockInteriorNPCManager();
+      system.setInteriorNPCManager(npcManager, () => new Map());
+
+      system.registerBuilding(createBuildingData());
+      await system.enterBuilding('building1');
+      await system.exitBuilding();
+
+      expect(npcManager.clearInterior).toHaveBeenCalled();
+    });
+
+    it('should use building metadata from registration data', async () => {
+      const npcManager = createMockInteriorNPCManager();
+      const npcMap = createMockNPCMap();
+      system.setInteriorNPCManager(npcManager, () => npcMap);
+
+      const metadata = {
+        buildingType: 'business',
+        businessType: 'Bar',
+        ownerId: 'owner1',
+        employees: ['emp1'],
+      };
+      system.registerBuilding(createBuildingData({ metadata }));
+      await system.enterBuilding('building1');
+
+      const passedMetadata = npcManager.populateInterior.mock.calls[0][2];
+      expect(passedMetadata.ownerId).toBe('owner1');
+      expect(passedMetadata.employees).toEqual(['emp1']);
+    });
+
+    it('should fall back to buildingType/businessType when no metadata provided', async () => {
+      const npcManager = createMockInteriorNPCManager();
+      system.setInteriorNPCManager(npcManager, () => new Map());
+
+      system.registerBuilding(createBuildingData({ metadata: undefined }));
+      await system.enterBuilding('building1');
+
+      const passedMetadata = npcManager.populateInterior.mock.calls[0][2];
+      expect(passedMetadata.buildingType).toBe('business');
+      expect(passedMetadata.businessType).toBe('Bakery');
+    });
+
+    it('should pass playerCharacterId from source function', async () => {
+      const npcManager = createMockInteriorNPCManager();
+      system.setInteriorNPCManager(
+        npcManager,
+        () => new Map(),
+        () => 'player-char-123'
+      );
+
+      system.registerBuilding(createBuildingData());
+      await system.enterBuilding('building1');
+
+      const passedPlayerId = npcManager.populateInterior.mock.calls[0][4];
+      expect(passedPlayerId).toBe('player-char-123');
+    });
+
+    it('should not call populateInterior when no InteriorNPCManager is wired', async () => {
+      // No setInteriorNPCManager called
+      system.registerBuilding(createBuildingData());
+      await system.enterBuilding('building1');
+
+      // Should not throw — just skips NPC population
+      expect(system.isInside).toBe(true);
+    });
+
+    it('should expose getInteriorNPCManager', () => {
+      expect(system.getInteriorNPCManager()).toBeNull();
+
+      const npcManager = createMockInteriorNPCManager();
+      system.setInteriorNPCManager(npcManager, () => new Map());
+
+      expect(system.getInteriorNPCManager()).toBe(npcManager);
+    });
+
+    it('should clear InteriorNPCManager reference on dispose', () => {
+      const npcManager = createMockInteriorNPCManager();
+      system.setInteriorNPCManager(npcManager, () => new Map());
+
+      system.dispose();
+
+      expect(system.getInteriorNPCManager()).toBeNull();
+    });
+
+    it('should still call onEnterBuilding callback alongside NPC population', async () => {
+      const npcManager = createMockInteriorNPCManager();
+      system.setInteriorNPCManager(npcManager, () => new Map());
+
+      system.registerBuilding(createBuildingData());
+      await system.enterBuilding('building1');
+
+      // Both should be called
+      expect(npcManager.populateInterior).toHaveBeenCalled();
+      expect(callbacks.onEnterBuilding).toHaveBeenCalled();
+    });
+
+    it('should still call onExitBuilding callback alongside NPC cleanup', async () => {
+      const npcManager = createMockInteriorNPCManager();
+      system.setInteriorNPCManager(npcManager, () => new Map());
+
+      system.registerBuilding(createBuildingData());
+      await system.enterBuilding('building1');
+      await system.exitBuilding();
+
+      expect(npcManager.clearInterior).toHaveBeenCalled();
+      expect(callbacks.onExitBuilding).toHaveBeenCalled();
+    });
+  });
+
   describe('building name display', () => {
     it('should show building name on enter', async () => {
       system.registerBuilding(createBuildingData({ buildingName: 'Town Bakery' }));
