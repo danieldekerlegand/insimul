@@ -5900,9 +5900,10 @@ export class BabylonGame {
         this._settlementCheckTimer = 0;
         this.checkSettlementTransition();
 
-        // Check quest location proximity while we have the timer
+        // Check quest location and direction proximity while we have the timer
         if (this.questObjectManager && this.playerMesh) {
           this.questObjectManager.checkLocationProximity(this.playerMesh.position);
+          this.questObjectManager.checkDirectionProximity(this.playerMesh.position);
         }
       }
 

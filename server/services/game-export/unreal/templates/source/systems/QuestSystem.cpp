@@ -167,6 +167,21 @@ void UQuestSystem::TrackPronunciationAttempt(bool bPassed, const FString& QuestI
     }
 }
 
+void UQuestSystem::CheckDirectionProximity(const FVector& PlayerPos)
+{
+    for (auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+
+        if (Obj.Type == TEXT("follow_directions") || Obj.Type == TEXT("navigate_language"))
+        {
+            // Direction step proximity checking stub.
+            // Game implementation should deserialize direction_steps/navigation_waypoints
+            // from quest data and check player distance against each waypoint target.
+        }
+    }
+}
+
 FString UQuestSystem::GetNextScavengerCategory(int32 LastCategoryIndex)
 {
     int32 Next = (LastCategoryIndex + 1) % SCAVENGER_CATEGORIES.Num();

@@ -106,6 +106,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Quests")
     void TrackPronunciationAttempt(bool bPassed, const FString& QuestId = TEXT(""));
 
+    /** Check if player is near a direction/navigation waypoint. Call from Tick(). */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    void CheckDirectionProximity(const FVector& PlayerPos);
+
     /** Fired when a listening_comprehension objective starts and story should be spoken. */
     UPROPERTY(BlueprintAssignable, Category = "Quests")
     FOnStoryTTS OnStoryTTS;

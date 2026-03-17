@@ -196,6 +196,65 @@ func track_pronunciation_attempt(passed: bool, quest_id: String = "") -> void:
 			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
 
 
+## Check if player is near a direction/navigation waypoint.
+## Call this from _physics_process with the player's position.
+func check_direction_proximity(player_pos: Vector3) -> void:
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		var obj_type: String = obj.get("type", "")
+
+		if obj_type == "follow_directions":
+			var steps: Array = obj.get("direction_steps", [])
+			var step_idx: int = obj.get("steps_completed", 0)
+			if step_idx >= steps.size():
+				continue
+			var step: Dictionary = steps[step_idx]
+			var target: Dictionary = step.get("target_position", {})
+			if target.is_empty():
+				continue
+			var target_vec := Vector3(target.get("x", 0.0), player_pos.y, target.get("z", 0.0))
+			var radius: float = obj.get("step_radius", 6.0)
+			if player_pos.distance_to(target_vec) <= radius:
+				obj["steps_completed"] = step_idx + 1
+				var steps_required: int = obj.get("steps_required", steps.size())
+				EventBus.emit_event({
+					"type": "direction_step_completed",
+					"quest_id": obj.get("quest_id", ""),
+					"objective_id": obj.get("id", ""),
+					"step_index": step_idx,
+					"steps_completed": obj["steps_completed"],
+					"steps_required": steps_required,
+				})
+				if obj["steps_completed"] >= steps_required:
+					complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+		elif obj_type == "navigate_language":
+			var waypoints: Array = obj.get("navigation_waypoints", [])
+			var wp_idx: int = obj.get("waypoints_reached", 0)
+			if wp_idx >= waypoints.size():
+				continue
+			var wp: Dictionary = waypoints[wp_idx]
+			var target: Dictionary = wp.get("target_position", {})
+			if target.is_empty():
+				continue
+			var target_vec := Vector3(target.get("x", 0.0), player_pos.y, target.get("z", 0.0))
+			var radius: float = obj.get("step_radius", 6.0)
+			if player_pos.distance_to(target_vec) <= radius:
+				obj["waypoints_reached"] = wp_idx + 1
+				obj["steps_completed"] = obj["waypoints_reached"]
+				EventBus.emit_event({
+					"type": "direction_step_completed",
+					"quest_id": obj.get("quest_id", ""),
+					"objective_id": obj.get("id", ""),
+					"step_index": wp_idx,
+					"steps_completed": obj["waypoints_reached"],
+					"steps_required": waypoints.size(),
+				})
+				if obj["waypoints_reached"] >= waypoints.size():
+					complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
 func get_active_quests() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for q in all_quests:

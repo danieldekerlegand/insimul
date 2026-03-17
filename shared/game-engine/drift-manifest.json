@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-17T10:52:32.206Z",
+  "lastUpdated": "2026-03-17T12:11:19.319Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -392,7 +392,7 @@
     {
       "path": "client/src/components/3DGame/QuestObjectManager.ts",
       "description": "Quest object lifecycle: 15 objective types, collectible tracking, completion logic. New objective types need handling in exported quest systems.",
-      "hash": "e57d89a91ff8936d83250f10ee2f3f0c4e3a5c82488f6d0adabe106df700ff66",
+      "hash": "8d71184f1ecaed872d332db80d3e6e247504fc275bcb9d360208338d58ac761e",
       "engineMappings": [
         {
           "engine": "unreal",
