@@ -435,6 +435,111 @@ export const QUEST_SEEDS: QuestSeed[] = [
     tags: ['visual', 'vocabulary', 'beginner'],
   },
 
+  // ── Business Tour Chain ────────────────────────────────────────────────
+  {
+    id: 'business_tour_intro',
+    name: 'Welcome to the Settlement',
+    category: 'exploration',
+    difficulty: 'beginner',
+    params: [
+      { name: 'guideName', type: 'string', description: 'NPC guide who introduces the tour' },
+      { name: 'settlementName', type: 'string', description: 'Name of the settlement', defaultValue: 'town' },
+    ],
+    titleTemplate: 'Welcome to {{settlementName}}',
+    descriptionTemplate: '{{guideName}} offers to show you around {{settlementName}}. Meet them to begin a tour of the local businesses.',
+    questType: 'conversation',
+    objectiveTemplates: [
+      { type: 'talk_to_npc', descriptionTemplate: 'Meet {{guideName}} to start the tour', countTemplate: 1 },
+      { type: 'use_vocabulary', descriptionTemplate: 'Use greeting words in {{targetLanguage}}', countTemplate: 2 },
+    ],
+    completionCriteria: { type: 'all_objectives' },
+    baseXp: 15,
+    tags: ['business_tour', 'beginner', 'exploration', 'greeting', 'chain_start'],
+  },
+  {
+    id: 'business_tour_market',
+    name: 'The Local Market',
+    category: 'exploration',
+    difficulty: 'beginner',
+    params: [
+      { name: 'merchantName', type: 'string', description: 'Market merchant NPC' },
+      { name: 'marketName', type: 'string', description: 'Name of the market', defaultValue: 'the market' },
+    ],
+    titleTemplate: 'Visit {{marketName}}',
+    descriptionTemplate: 'Visit {{marketName}} and meet {{merchantName}}. Learn the names of common goods in {{targetLanguage}}.',
+    questType: 'vocabulary',
+    objectiveTemplates: [
+      { type: 'visit_location', descriptionTemplate: 'Go to {{marketName}}', countTemplate: 1 },
+      { type: 'talk_to_npc', descriptionTemplate: 'Talk to {{merchantName}} about their wares', countTemplate: 1 },
+      { type: 'collect_vocabulary', descriptionTemplate: 'Learn 3 market vocabulary words', countTemplate: 3 },
+    ],
+    completionCriteria: { type: 'all_objectives' },
+    baseXp: 20,
+    tags: ['business_tour', 'beginner', 'vocabulary', 'market', 'shopping'],
+  },
+  {
+    id: 'business_tour_tavern',
+    name: 'The Local Tavern',
+    category: 'exploration',
+    difficulty: 'beginner',
+    params: [
+      { name: 'tavernKeeper', type: 'string', description: 'Tavern keeper NPC' },
+      { name: 'tavernName', type: 'string', description: 'Name of the tavern', defaultValue: 'the tavern' },
+    ],
+    titleTemplate: 'Visit {{tavernName}}',
+    descriptionTemplate: 'Stop by {{tavernName}} and chat with {{tavernKeeper}}. Order a drink using {{targetLanguage}} and learn food vocabulary.',
+    questType: 'vocabulary',
+    objectiveTemplates: [
+      { type: 'visit_location', descriptionTemplate: 'Go to {{tavernName}}', countTemplate: 1 },
+      { type: 'complete_conversation', descriptionTemplate: 'Have a conversation with {{tavernKeeper}}', countTemplate: 1 },
+      { type: 'use_vocabulary', descriptionTemplate: 'Use food and drink vocabulary', countTemplate: 3 },
+    ],
+    completionCriteria: { type: 'all_objectives' },
+    baseXp: 20,
+    tags: ['business_tour', 'beginner', 'vocabulary', 'food', 'tavern'],
+  },
+  {
+    id: 'business_tour_workshop',
+    name: 'The Workshop',
+    category: 'exploration',
+    difficulty: 'beginner',
+    params: [
+      { name: 'crafterName', type: 'string', description: 'Crafter/workshop owner NPC' },
+      { name: 'workshopName', type: 'string', description: 'Name of the workshop', defaultValue: 'the workshop' },
+    ],
+    titleTemplate: 'Visit {{workshopName}}',
+    descriptionTemplate: 'Tour {{workshopName}} and talk to {{crafterName}} about their craft. Learn the names of tools and materials in {{targetLanguage}}.',
+    questType: 'vocabulary',
+    objectiveTemplates: [
+      { type: 'visit_location', descriptionTemplate: 'Go to {{workshopName}}', countTemplate: 1 },
+      { type: 'talk_to_npc', descriptionTemplate: 'Ask {{crafterName}} about their craft', countTemplate: 1 },
+      { type: 'collect_vocabulary', descriptionTemplate: 'Learn 3 tool and material words', countTemplate: 3 },
+    ],
+    completionCriteria: { type: 'all_objectives' },
+    baseXp: 20,
+    tags: ['business_tour', 'beginner', 'vocabulary', 'crafting', 'workshop'],
+  },
+  {
+    id: 'business_tour_finale',
+    name: 'Tour Complete',
+    category: 'exploration',
+    difficulty: 'beginner',
+    params: [
+      { name: 'guideName', type: 'string', description: 'NPC guide from the intro' },
+      { name: 'settlementName', type: 'string', description: 'Name of the settlement', defaultValue: 'town' },
+    ],
+    titleTemplate: 'Tour of {{settlementName}} Complete',
+    descriptionTemplate: 'Return to {{guideName}} and tell them about your favorite business. Use the vocabulary you learned to describe your experience in {{targetLanguage}}.',
+    questType: 'conversation',
+    objectiveTemplates: [
+      { type: 'talk_to_npc', descriptionTemplate: 'Return to {{guideName}} and share your experience', countTemplate: 1 },
+      { type: 'use_vocabulary', descriptionTemplate: 'Use vocabulary from the tour in conversation', countTemplate: 5 },
+    ],
+    completionCriteria: { type: 'all_objectives' },
+    baseXp: 25,
+    tags: ['business_tour', 'beginner', 'conversation', 'review', 'chain_end'],
+  },
+
   // ── Multi-stage Quest Chains ────────────────────────────────────────────
   {
     id: 'newcomer_arc',
@@ -608,6 +713,77 @@ export function instantiateStarterQuests(params: InstantiateParams & { npcNames:
     }
 
     quests.push(instantiateSeed(seed, { ...params, values }));
+  }
+
+  return quests;
+}
+
+// ── Business Tour Chain ─────────────────────────────────────────────────────
+
+/** IDs of the seeds that make up the business tour chain, in order. */
+export const BUSINESS_TOUR_SEED_IDS = [
+  'business_tour_intro',
+  'business_tour_market',
+  'business_tour_tavern',
+  'business_tour_workshop',
+  'business_tour_finale',
+] as const;
+
+export interface BusinessTourParams extends InstantiateParams {
+  settlementName: string;
+  /** NPC who acts as the tour guide (intro + finale) */
+  guideName: string;
+  /** Business-specific NPCs — must have at least 3 entries (merchant, tavernKeeper, crafter) */
+  businessNpcs: { merchantName: string; tavernKeeper: string; crafterName: string };
+  /** Business-specific location names */
+  businessLocations?: { marketName?: string; tavernName?: string; workshopName?: string };
+}
+
+/**
+ * Instantiate the full business tour quest chain.
+ * Returns an ordered array of quests ready to be saved as a linear chain.
+ * Each quest includes a `questChainOrder` field for chain ordering.
+ */
+export function instantiateBusinessTourChain(params: BusinessTourParams): (InstantiatedQuest & { questChainOrder: number })[] {
+  const valuesByStep: Record<string, Record<string, string | number | string[]>> = {
+    business_tour_intro: {
+      guideName: params.guideName,
+      settlementName: params.settlementName,
+    },
+    business_tour_market: {
+      merchantName: params.businessNpcs.merchantName,
+      ...(params.businessLocations?.marketName ? { marketName: params.businessLocations.marketName } : {}),
+    },
+    business_tour_tavern: {
+      tavernKeeper: params.businessNpcs.tavernKeeper,
+      ...(params.businessLocations?.tavernName ? { tavernName: params.businessLocations.tavernName } : {}),
+    },
+    business_tour_workshop: {
+      crafterName: params.businessNpcs.crafterName,
+      ...(params.businessLocations?.workshopName ? { workshopName: params.businessLocations.workshopName } : {}),
+    },
+    business_tour_finale: {
+      guideName: params.guideName,
+      settlementName: params.settlementName,
+    },
+  };
+
+  const quests: (InstantiatedQuest & { questChainOrder: number })[] = [];
+
+  for (let i = 0; i < BUSINESS_TOUR_SEED_IDS.length; i++) {
+    const seedId = BUSINESS_TOUR_SEED_IDS[i];
+    const seed = getSeedById(seedId);
+    if (!seed) continue;
+
+    const quest = instantiateSeed(seed, {
+      worldId: params.worldId,
+      targetLanguage: params.targetLanguage,
+      assignedTo: params.assignedTo,
+      assignedBy: params.assignedBy ?? params.guideName,
+      values: { ...params.values, ...valuesByStep[seedId] },
+    });
+
+    quests.push({ ...quest, questChainOrder: i });
   }
 
   return quests;
