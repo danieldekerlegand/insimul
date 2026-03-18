@@ -48,9 +48,6 @@ export const KEY_SKILL_TREE = 'KeyK';
 /** Toggle notice board */
 export const KEY_NOTICE_BOARD = 'KeyN';
 
-/** Toggle assessment progress panel */
-export const KEY_ASSESSMENT_PANEL = 'KeyL';
-
 /** Toggle quest log panel */
 export const KEY_QUEST_LOG = 'KeyJ';
 

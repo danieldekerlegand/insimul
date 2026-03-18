@@ -12,6 +12,8 @@ import {
 } from "@babylonjs/gui";
 import { Scene } from "@babylonjs/core";
 import type { Action } from "./types/actions.ts";
+import { NotificationStore } from "./NotificationStore";
+import { createTickerText, disposeTickers, type TickerHandle } from "./GUITickerText";
 
 export interface GUIConfig {
   worldName: string;
@@ -130,26 +132,34 @@ export class BabylonGUIManager {
   private cameraButton: Button | null = null;
   private fullscreenButton: Button | null = null;
   private menuPanel: Rectangle | null = null;
-  private static readonly MINIMAP_SIZE = 133;
+  private static readonly MINIMAP_SIZE = 166;
   private minimapPanel: Container | null = null;
   private _minimapExpanded = true;
   private _minimapTitle: TextBlock | null = null;
+  private _minimapToggleIcon: TextBlock | null = null;
   private _onMinimapCollapsedChanged: ((expanded: boolean) => void) | null = null;
+  private _onHudLayoutChanged: ((npcIndicatorTop: number) => void) | null = null;
+
+  // Notifications HUD panel (below minimap, right side)
+  private _notifPanel: Rectangle | null = null;
+  private _notifStack: StackPanel | null = null;
+  private _notifScrollViewer: ScrollViewer | null = null;
+  private _notifExpanded = true;
+  private _notifToggleIcon: TextBlock | null = null;
+  private _notifTickerHandles: TickerHandle[] = [];
+  private _notifSubId: (() => void) | null = null;
   private minimapStaticRendered: boolean = false;
   private minimapStaticImage: Image | null = null;
   private minimapTerrainImage: Image | null = null;
   private reputationPanel: Container | null = null;
   private settlementDetailsPanel: Container | null = null;
   private helpPanel: Container | null = null;
-  private toastContainer: StackPanel | null = null;
-  private activeToasts: Map<string, Container> = new Map();
   private fluencyPanel: Rectangle | null = null;
   private _gameType: string | null = null;
 
   // State
   private isMenuOpen = false;
   private selectedNPCId: string | null = null;
-  private toastIdCounter = 0;
 
   // Callbacks
   private onActionSelected: ((actionId: string) => void) | null = null;
@@ -188,6 +198,7 @@ export class BabylonGUIManager {
     this.createActionPanel();
     this.createFeedbackPanel();
     this.createMinimapPanel();
+    this.createNotificationsPanel();
     this.createReputationPanel();
     this.createFluencyPanel();
   }
@@ -669,10 +680,10 @@ export class BabylonGUIManager {
     const MAP_SIZE = BabylonGUIManager.MINIMAP_SIZE;
 
     const panel = new Rectangle("minimapPanel");
-    panel.width = `${MAP_SIZE + 14}px`;
+    panel.width = `${BabylonGUIManager.NOTIF_PANEL_WIDTH}px`;
     panel.height = `${MAP_SIZE + 56}px`;
-    panel.background = "rgba(0, 0, 0, 0.75)";
-    panel.color = "rgba(255,255,255,0.5)";
+    panel.background = "rgba(0, 0, 0, 0.78)";
+    panel.color = "rgba(255, 255, 255, 0.15)";
     panel.thickness = 1;
     panel.cornerRadius = 6;
     panel.top = "8px";
@@ -680,18 +691,45 @@ export class BabylonGUIManager {
     panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     panel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
 
-    // Title — click to collapse/expand
+    // Header row — toggle button + title (matches Notifications style)
+    const headerRow = new Rectangle("minimapHeaderRow");
+    headerRow.width = "100%";
+    headerRow.height = "21px";
+    headerRow.thickness = 0;
+    headerRow.background = "transparent";
+    headerRow.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    headerRow.top = "2px";
+    headerRow.isPointerBlocker = true;
+    headerRow.onPointerClickObservable.add(() => this.toggleMinimapCollapse());
+    panel.addControl(headerRow);
+
+    // Toggle button (left side)
+    const toggleBtn = new Rectangle("minimapToggleBtn");
+    toggleBtn.width = "20px";
+    toggleBtn.height = "20px";
+    toggleBtn.background = "transparent";
+    toggleBtn.thickness = 0;
+    toggleBtn.left = "4px";
+    toggleBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    toggleBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    const toggleIcon = new TextBlock("minimapToggleIcon");
+    toggleIcon.text = "▼";
+    toggleIcon.color = "rgba(255,255,255,0.6)";
+    toggleIcon.fontSize = 9;
+    toggleBtn.addControl(toggleIcon);
+    headerRow.addControl(toggleBtn);
+    this._minimapToggleIcon = toggleIcon;
+
+    // Title text — matches Notifications header style
     const title = new TextBlock();
-    title.text = "▼ Map";
-    title.color = "white";
-    title.fontSize = 13;
-    title.height = "21px";
+    title.text = "Map";
+    title.color = "rgba(255,255,255,0.7)";
+    title.fontSize = 10;
     title.fontWeight = "bold";
-    title.top = "2px";
-    title.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    title.isPointerBlocker = true;
-    title.onPointerClickObservable.add(() => this.toggleMinimapCollapse());
-    panel.addControl(title);
+    title.left = "26px";
+    title.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    title.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    headerRow.addControl(title);
     this._minimapTitle = title;
 
     // Map background (terrain color)
@@ -778,8 +816,8 @@ export class BabylonGUIManager {
     panel.addControl(zoomRow);
 
     const zoomOutBtn = Button.CreateSimpleButton("minimapZoomOut", "−");
-    zoomOutBtn.width = "29px";
-    zoomOutBtn.height = "21px";
+    zoomOutBtn.width = "14px";
+    zoomOutBtn.height = "14px";
     zoomOutBtn.color = "white";
     zoomOutBtn.background = "rgba(80,80,80,0.8)";
     zoomOutBtn.cornerRadius = 3;
@@ -797,8 +835,8 @@ export class BabylonGUIManager {
     zoomRow.addControl(zoomLabel);
 
     const zoomInBtn = Button.CreateSimpleButton("minimapZoomIn", "+");
-    zoomInBtn.width = "29px";
-    zoomInBtn.height = "21px";
+    zoomInBtn.width = "14px";
+    zoomInBtn.height = "14px";
     zoomInBtn.color = "white";
     zoomInBtn.background = "rgba(80,80,80,0.8)";
     zoomInBtn.cornerRadius = 3;
@@ -816,6 +854,12 @@ export class BabylonGUIManager {
     this._onMinimapCollapsedChanged = cb;
   }
 
+  /** Register a callback fired whenever the right-side HUD stack changes height.
+   *  The callback receives the Y position where the NPC indicator should be placed. */
+  public onHudLayoutChanged(cb: (npcIndicatorTop: number) => void): void {
+    this._onHudLayoutChanged = cb;
+  }
+
   /** Whether the minimap is currently expanded. */
   public get isMinimapExpanded(): boolean {
     return this._minimapExpanded;
@@ -827,20 +871,31 @@ export class BabylonGUIManager {
     const MAP_SIZE = BabylonGUIManager.MINIMAP_SIZE;
     this._minimapExpanded = !this._minimapExpanded;
 
+    // Find the header row so we can keep it (and its children) always visible
+    const headerRow = this.minimapPanel.getChildByName("minimapHeaderRow");
+
     if (this._minimapExpanded) {
       (this.minimapPanel as Rectangle).height = `${MAP_SIZE + 56}px`;
-      if (this._minimapTitle) this._minimapTitle.text = "▼ Map";
+      (this.minimapPanel as Rectangle).alpha = 1.0;
+      if (this._minimapToggleIcon) this._minimapToggleIcon.text = "▼";
       for (const child of this.minimapPanel.getDescendants(true)) {
-        if (child !== this._minimapTitle) child.isVisible = true;
+        if (child !== headerRow && (!headerRow || !headerRow.getDescendants(true).includes(child))) {
+          child.isVisible = true;
+        }
       }
     } else {
       (this.minimapPanel as Rectangle).height = "26px";
-      if (this._minimapTitle) this._minimapTitle.text = "▶ Map";
+      (this.minimapPanel as Rectangle).alpha = 0.5;
+      if (this._minimapToggleIcon) this._minimapToggleIcon.text = "▲";
       for (const child of this.minimapPanel.getDescendants(true)) {
-        if (child !== this._minimapTitle) child.isVisible = false;
+        if (child !== headerRow && (!headerRow || !headerRow.getDescendants(true).includes(child))) {
+          child.isVisible = false;
+        }
       }
     }
     this._onMinimapCollapsedChanged?.(this._minimapExpanded);
+    // Reposition notifications panel below minimap
+    this.updateNotifPanelPosition();
   }
 
   /**
@@ -880,6 +935,226 @@ export class BabylonGUIManager {
   /** Clear the highlighted NPC marker. */
   public clearHighlightedNpc(): void {
     this._highlightedNpcId = null;
+  }
+
+  // ── Notifications HUD Panel ──────────────────────────────────────────────
+
+  private static readonly NOTIF_PANEL_WIDTH = 190;
+  private static readonly NOTIF_LIST_HEIGHT = 140;
+
+  private createNotificationsPanel(): void {
+    const W = BabylonGUIManager.NOTIF_PANEL_WIDTH;
+    const MAP_SIZE = BabylonGUIManager.MINIMAP_SIZE;
+    // Position below the minimap (minimap panel height = MAP_SIZE + 56, top = 8)
+    const panelTop = MAP_SIZE + 56 + 8 + 4; // 4px gap
+
+    const panel = new Rectangle("notifHudPanel");
+    panel.width = `${W}px`;
+    panel.adaptHeightToChildren = true;
+    panel.background = "rgba(0, 0, 0, 0.78)";
+    panel.color = "rgba(255, 255, 255, 0.15)";
+    panel.thickness = 1;
+    panel.cornerRadius = 6;
+    panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    panel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    panel.top = `${panelTop}px`;
+    panel.left = "-8px";
+    panel.zIndex = 9;
+    panel.paddingTop = "3px";
+    panel.paddingBottom = "3px";
+    this._notifPanel = panel;
+
+    // Inner stack holds header + scrollable list
+    const outerStack = new StackPanel("notifOuterStack");
+    outerStack.width = "100%";
+    panel.addControl(outerStack);
+
+    // Header row — toggle + title (matches minimap style)
+    const headerRow = new Rectangle("notifHeaderRow");
+    headerRow.width = "100%";
+    headerRow.height = "29px";
+    headerRow.thickness = 0;
+    headerRow.background = "transparent";
+    headerRow.isPointerBlocker = true;
+    headerRow.onPointerClickObservable.add(() => this.toggleNotifCollapse());
+    outerStack.addControl(headerRow);
+
+    // Toggle icon (left side)
+    const toggleBtn = new Rectangle("notifToggleBtn");
+    toggleBtn.width = "20px";
+    toggleBtn.height = "20px";
+    toggleBtn.background = "transparent";
+    toggleBtn.thickness = 0;
+    toggleBtn.left = "4px";
+    toggleBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    headerRow.addControl(toggleBtn);
+
+    const toggleIcon = new TextBlock("notifToggleIcon");
+    toggleIcon.text = "▼";
+    toggleIcon.color = "rgba(255,255,255,0.6)";
+    toggleIcon.fontSize = 10;
+    this._notifToggleIcon = toggleIcon;
+    toggleBtn.addControl(toggleIcon);
+
+    // Title
+    const title = new TextBlock("notifTitle");
+    title.text = "Notifications";
+    title.color = "rgba(255,255,255,0.7)";
+    title.fontSize = 10;
+    title.fontWeight = "bold";
+    title.left = "26px";
+    title.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    title.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    headerRow.addControl(title);
+
+    // Scroll viewer for list
+    const sv = new ScrollViewer("notifScrollViewer");
+    sv.width = "100%";
+    sv.height = `${BabylonGUIManager.NOTIF_LIST_HEIGHT}px`;
+    sv.thickness = 0;
+    sv.barSize = 4;
+    sv.barColor = "rgba(255,255,255,0.2)";
+    sv.barBackground = "transparent";
+    this._notifScrollViewer = sv;
+    outerStack.addControl(sv);
+
+    const stack = new StackPanel("notifStack");
+    stack.width = "100%";
+    this._notifStack = stack;
+    sv.addControl(stack);
+
+    this.advancedTexture.addControl(panel);
+
+    // Initial build + subscribe to changes
+    this.rebuildNotificationList();
+    this._notifSubId = NotificationStore.subscribe(() => this.rebuildNotificationList());
+  }
+
+  private toggleNotifCollapse(): void {
+    if (!this._notifPanel || !this._notifScrollViewer) return;
+    this._notifExpanded = !this._notifExpanded;
+
+    if (this._notifExpanded) {
+      this._notifScrollViewer.isVisible = true;
+      (this._notifPanel as Rectangle).alpha = 1.0;
+      if (this._notifToggleIcon) this._notifToggleIcon.text = "▼";
+    } else {
+      this._notifScrollViewer.isVisible = false;
+      (this._notifPanel as Rectangle).alpha = 0.5;
+      if (this._notifToggleIcon) this._notifToggleIcon.text = "▲";
+    }
+    // Notify so downstream panels (NPC indicator) can reposition
+    this.updateNotifPanelPosition();
+  }
+
+  /** Recalculate notifications panel position based on minimap state,
+   *  then notify downstream consumers (NPC indicator) of the new layout. */
+  private updateNotifPanelPosition(): void {
+    if (!this._notifPanel) return;
+    const MAP_SIZE = BabylonGUIManager.MINIMAP_SIZE;
+    const minimapHeight = this._minimapExpanded ? MAP_SIZE + 56 : 26;
+    this._notifPanel.top = `${8 + minimapHeight + 4}px`;
+    this._onHudLayoutChanged?.(this.getNotifPanelBottom());
+  }
+
+  /** Get the bottom edge of the notifications panel for downstream positioning. */
+  public getNotifPanelBottom(): number {
+    if (!this._notifPanel) return 240;
+    const MAP_SIZE = BabylonGUIManager.MINIMAP_SIZE;
+    const minimapHeight = this._minimapExpanded ? MAP_SIZE + 56 : 26;
+    const notifHeight = this._notifExpanded ? 35 + BabylonGUIManager.NOTIF_LIST_HEIGHT : 35;
+    return 8 + minimapHeight + 4 + notifHeight + 4;
+  }
+
+  private rebuildNotificationList(): void {
+    if (!this._notifStack) return;
+
+    // Clean up ticker handles
+    disposeTickers(this._notifTickerHandles);
+
+    // Clear existing items
+    this._notifStack.children.slice().forEach((c) => {
+      this._notifStack!.removeControl(c);
+      c.dispose();
+    });
+
+    const items = NotificationStore.recent(20);
+    if (items.length === 0) {
+      const empty = new TextBlock("notifEmpty");
+      empty.text = "No notifications yet";
+      empty.color = "rgba(255,255,255,0.4)";
+      empty.fontSize = 10;
+      empty.height = "30px";
+      this._notifStack.addControl(empty);
+      return;
+    }
+
+    for (const n of items) {
+      const row = new Rectangle(`notif_${n.id}`);
+      row.width = "100%";
+      row.height = "28px";
+      row.background = "transparent";
+      row.thickness = 0;
+      row.paddingLeft = "6px";
+      row.paddingRight = "4px";
+
+      // Time ago
+      const ago = this.formatTimeAgo(n.timestamp);
+      const timeText = new TextBlock();
+      timeText.text = ago;
+      timeText.color = "rgba(255,255,255,0.35)";
+      timeText.fontSize = 8;
+      timeText.width = "30px";
+      timeText.left = "2px";
+      timeText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      timeText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      row.addControl(timeText);
+
+      // Icon
+      if (n.icon) {
+        const iconTb = new TextBlock();
+        iconTb.text = n.icon;
+        iconTb.fontSize = 10;
+        iconTb.width = "16px";
+        iconTb.left = "32px";
+        iconTb.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        row.addControl(iconTb);
+      }
+
+      // Title + description — ticker-enabled
+      const text = n.description ? `${n.title}: ${n.description}` : n.title;
+      const textLeft = n.icon ? 50 : 34;
+      const textWidth = n.icon ? 110 : 126;
+      const tickerClip = createTickerText({
+        id: `notif_text_${n.id}`,
+        text,
+        color: n.color || "rgba(255,255,255,0.8)",
+        fontSize: 9,
+        containerWidth: textWidth,
+        height: 28,
+      }, this._notifTickerHandles);
+      tickerClip.left = `${textLeft}px`;
+      tickerClip.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      row.addControl(tickerClip);
+
+      this._notifStack.addControl(row);
+
+      // Divider
+      const div = new Rectangle();
+      div.width = "90%";
+      div.height = "1px";
+      div.background = "rgba(255,255,255,0.08)";
+      div.thickness = 0;
+      this._notifStack.addControl(div);
+    }
+  }
+
+  private formatTimeAgo(ts: number): string {
+    const diff = Math.floor((Date.now() - ts) / 1000);
+    if (diff < 60) return `${diff}s`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+    return `${Math.floor(diff / 86400)}d`;
   }
 
   private createReputationPanel() {
@@ -2030,82 +2305,13 @@ export class BabylonGUIManager {
     }
   }
 
-  // Toast notification system
+  // Notification system — routes to the shared NotificationStore
   public showToast(options: { title: string; description?: string; variant?: 'default' | 'destructive'; duration?: number }) {
-    if (!this.toastContainer) {
-      this.createToastContainer();
-    }
-
-    const toastId = `toast_${this.toastIdCounter++}`;
-    const duration = options.duration || 3000;
-
-    // Create toast — compact style matching the Quest panel width
-    const toast = new Rectangle(toastId);
-    toast.width = "360px";
-    toast.height = options.description ? "52px" : "30px";
-    toast.background = options.variant === 'destructive' ? "rgba(220, 38, 38, 0.9)" : "rgba(0, 0, 0, 0.85)";
-    toast.color = "rgba(255, 255, 255, 0.3)";
-    toast.thickness = 1;
-    toast.cornerRadius = 6;
-    toast.paddingTop = "4px";
-    toast.paddingBottom = "4px";
-
-    const stack = new StackPanel();
-    stack.paddingLeft = "10px";
-    stack.paddingRight = "10px";
-    toast.addControl(stack);
-
-    // Title
-    const title = new TextBlock();
-    title.text = options.title;
-    title.color = "white";
-    title.fontSize = 12;
-    title.fontWeight = "bold";
-    title.height = "18px";
-    title.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    stack.addControl(title);
-
-    // Description
-    if (options.description) {
-      const desc = new TextBlock();
-      desc.text = options.description;
-      desc.color = "rgba(255, 255, 255, 0.7)";
-      desc.fontSize = 11;
-      desc.height = "22px";
-      desc.textWrapping = true;
-      desc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      desc.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-      stack.addControl(desc);
-    }
-
-    this.toastContainer!.addControl(toast);
-    this.activeToasts.set(toastId, toast);
-
-    // Auto-dismiss after duration
-    setTimeout(() => {
-      this.dismissToast(toastId);
-    }, duration);
-  }
-
-  private createToastContainer() {
-    this.toastContainer = new StackPanel("toastContainer");
-    this.toastContainer.width = "380px";
-    this.toastContainer.spacing = 4;
-    this.toastContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    this.toastContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    // Position below the Quest panel (380×500 at top:10) with a small gap
-    this.toastContainer.top = "520px";
-    this.toastContainer.left = "-10px";
-    this.advancedTexture.addControl(this.toastContainer);
-  }
-
-  private dismissToast(toastId: string) {
-    const toast = this.activeToasts.get(toastId);
-    if (toast && this.toastContainer) {
-      this.toastContainer.removeControl(toast);
-      this.activeToasts.delete(toastId);
-      toast.dispose();
-    }
+    NotificationStore.push({
+      title: options.title,
+      description: options.description,
+      category: options.variant === 'destructive' ? 'system' : 'general',
+    });
   }
 
   // Help panel
@@ -2295,7 +2501,6 @@ export class BabylonGUIManager {
     if (this.menuButton) this.menuButton.isVisible = visible;
     if (this.cameraButton) this.cameraButton.isVisible = visible;
     if (this.fullscreenButton) this.fullscreenButton.isVisible = visible;
-    if (this.toastContainer) this.toastContainer.isVisible = visible;
     if (this.minimapPanel) this.minimapPanel.isVisible = visible && this.minimapPanel.isVisible;
 
     // Hide any open panels when going invisible

@@ -24,7 +24,6 @@ import {
     MeshBuilder,
     Color3
 } from "@babylonjs/core";
-import { assessmentModalOpen } from "@/components/3DGame/AssessmentModalUI.ts";
 
 
 export class CharacterController {
@@ -1158,8 +1157,7 @@ export class CharacterController {
                         //if slope is less steeper than acceptable then walk else slide
                         //if (this._verticalSlope(actDisp) <= this._sl1) {
                             if (_ng.slope <= this._sl1) {
-                               // this._endFreeFall();
-                                this._inFreeFall = false;
+                                this._endFreeFall();
                             } else {
                                 //av is on a steep slope , keep the moveFallTIme non zero to continue deaccelerate it vertically
                                 this._inFreeFall = false;
@@ -1167,8 +1165,7 @@ export class CharacterController {
                     }
                 } else {
                     //AV is walking on a flat surface
-                    //this._endFreeFall();
-                    this._inFreeFall = false;
+                    this._endFreeFall();
                 }
             }
         }
@@ -1688,7 +1685,6 @@ export class CharacterController {
     private _onKeyDown(e: KeyboardEvent) {
         if (!e.key) return;
         if (e.repeat) return;
-        if (assessmentModalOpen) return;
         switch (e.key.toLowerCase()) {
             case this._actionMap.idleJump.key:
                 this._act._jump = true;

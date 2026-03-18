@@ -235,3 +235,11 @@ FVector UQuestSystem::GenerateLocationPosition() const
     float Dist = 4000.f + FMath::FRandRange(0.f, 1000.f);
     return FVector(FMath::Cos(Angle) * Dist, FMath::Sin(Angle) * Dist, 0.f);
 }
+
+void UQuestSystem::SetMarkerDebugLabel(AActor* Marker, const FString& Label)
+{
+    if (!Marker) return;
+    // Store debug label as an actor tag for hover tooltip / debug display.
+    // Replaces floating 3D text labels with lightweight metadata.
+    Marker->Tags.AddUnique(*FString::Printf(TEXT("DebugLabel:%s"), *Label));
+}

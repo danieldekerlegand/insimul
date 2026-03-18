@@ -242,6 +242,12 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 	notifier.aabb = AABB(Vector3(-width / 2, 0, -depth / 2), Vector3(width, total_height + 1.0, depth))
 	building.add_child(notifier)
 
+	# Propagate LOD cull distance to all child meshes so unmerged children
+	# (e.g. door, roof) don't remain visible when the parent building is LOD-hidden.
+	for child in building.get_children():
+		if child is MeshInstance3D and child.visibility_range_end <= 0.0:
+			child.visibility_range_end = lod_cull_distance
+
 	# Freeze transforms — buildings are static geometry
 	building.set_notify_transform(false)
 

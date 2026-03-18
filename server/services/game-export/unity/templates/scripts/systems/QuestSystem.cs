@@ -272,10 +272,30 @@ namespace Insimul.Systems
             return new Vector3(Mathf.Cos(fallbackAngle) * fallbackDist, 0f, Mathf.Sin(fallbackAngle) * fallbackDist);
         }
 
+        /// <summary>
+        /// Attach debug metadata to a quest marker GameObject (used for hover tooltips).
+        /// Replaces floating 3D text labels with lightweight metadata.
+        /// </summary>
+        public static void SetMarkerDebugLabel(GameObject marker, string label)
+        {
+            if (marker == null) return;
+            var meta = marker.GetComponent<QuestMarkerMeta>();
+            if (meta == null) meta = marker.AddComponent<QuestMarkerMeta>();
+            meta.debugLabel = label;
+        }
+
         public InsimulQuestData GetQuest(string id) => _allQuests.Find(q => q.id == id);
         public List<InsimulQuestData> GetActiveQuests() =>
             _allQuests.FindAll(q => _activeQuestIds.Contains(q.id));
 
         private Func<float, float, bool> _pointInBuildingCheck;
+    }
+
+    /// <summary>
+    /// Lightweight metadata component for quest markers (debug labels, tooltips).
+    /// </summary>
+    public class QuestMarkerMeta : MonoBehaviour
+    {
+        public string debugLabel;
     }
 }

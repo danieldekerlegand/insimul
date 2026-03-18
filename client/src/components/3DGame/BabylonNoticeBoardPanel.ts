@@ -22,6 +22,32 @@ export interface NoticeArticle {
     options: string[];
     correctIndex: number;
   };
+  /** NPC who "wrote" this notice */
+  author?: {
+    characterId: string;
+    name: string;
+    occupation?: string;
+  };
+  /** Settlement this notice belongs to */
+  settlementId?: string;
+  /** Quest unlocked by reading this notice */
+  questHook?: {
+    questId: string;
+    questTitle: string;
+    questTitleTranslation: string;
+  };
+  /** Style of the notice on the board */
+  noticeType?: 'letter' | 'flyer' | 'official' | 'wanted' | 'advertisement';
+  /** Reading skill XP awarded when first read */
+  readingXp?: number;
+  /** Whether this is a short notice or a longer document */
+  documentType?: 'notice' | 'story' | 'poem' | 'document';
+  /** Assessment hook — clicking this notice launches an assessment */
+  assessmentHook?: {
+    assessmentType: 'arrival' | 'departure';
+    buttonLabel: string;
+    buttonLabelTranslation: string;
+  };
 }
 
 // Sample articles by difficulty (would be AI-generated in production)
@@ -45,6 +71,9 @@ export const SAMPLE_ARTICLES: NoticeArticle[] = [
       options: ['Le lundi', 'Tous les jours', 'Le weekend'],
       correctIndex: 1,
     },
+    author: { characterId: 'npc_merchant_1', name: 'Pierre Dupont', occupation: 'Merchant' },
+    noticeType: 'flyer',
+    readingXp: 10,
   },
   {
     id: 'notice_2',
@@ -64,6 +93,14 @@ export const SAMPLE_ARTICLES: NoticeArticle[] = [
       questionTranslation: 'Where will the meeting take place?',
       options: ['Au marché', 'À la mairie', 'À l\'église'],
       correctIndex: 1,
+    },
+    author: { characterId: 'npc_mayor_1', name: 'Marie Laurent', occupation: 'Mayor' },
+    noticeType: 'official',
+    readingXp: 15,
+    questHook: {
+      questId: 'quest_town_meeting',
+      questTitle: 'Assister à la réunion',
+      questTitleTranslation: 'Attend the meeting',
     },
   },
   {
@@ -86,6 +123,9 @@ export const SAMPLE_ARTICLES: NoticeArticle[] = [
       options: ['Un jour', 'Une semaine', 'Deux semaines'],
       correctIndex: 2,
     },
+    author: { characterId: 'npc_builder_1', name: 'Jacques Martin', occupation: 'Builder' },
+    noticeType: 'official',
+    readingXp: 20,
   },
 ];
 
@@ -101,9 +141,14 @@ export class BabylonNoticeBoardPanel {
   private articles: NoticeArticle[] = [];
   private answeredQuestions: Set<string> = new Set();
 
+  private readArticles: Set<string> = new Set();
+
   private onClose: (() => void) | null = null;
   private onWordClicked: ((word: string, meaning: string) => void) | null = null;
   private onQuestionAnswered: ((correct: boolean, articleId: string) => void) | null = null;
+  private onArticleRead: ((article: NoticeArticle) => void) | null = null;
+  private onQuestAccepted: ((questId: string, questTitle: string) => void) | null = null;
+  private onAssessmentClicked: ((assessmentType: 'arrival' | 'departure') => void) | null = null;
 
   constructor(advancedTexture: GUI.AdvancedDynamicTexture) {
     this.advancedTexture = advancedTexture;
@@ -200,13 +245,17 @@ export class BabylonNoticeBoardPanel {
   }
 
   private getFilteredArticles(): NoticeArticle[] {
-    // Filter by difficulty based on fluency
-    return this.articles.filter(a => {
+    // Assessment notices always appear first, regardless of fluency
+    const assessmentArticles = this.articles.filter(a => a.assessmentHook);
+    // Filter remaining by difficulty based on fluency
+    const regularArticles = this.articles.filter(a => {
+      if (a.assessmentHook) return false;
       if (a.difficulty === 'beginner') return true;
       if (a.difficulty === 'intermediate') return this.playerFluency >= 25;
       if (a.difficulty === 'advanced') return this.playerFluency >= 55;
       return true;
     });
+    return [...assessmentArticles, ...regularArticles];
   }
 
   private refreshContent(): void {
@@ -236,27 +285,49 @@ export class BabylonNoticeBoardPanel {
     }
   }
 
+  private getNoticeTypeStyle(noticeType?: string): { border: string; bg: string; icon: string } {
+    switch (noticeType) {
+      case 'letter': return { border: '#8b7355', bg: 'rgba(60, 45, 25, 0.9)', icon: '\u2709' };
+      case 'flyer': return { border: '#c9a14a', bg: 'rgba(55, 45, 20, 0.9)', icon: '\u2606' };
+      case 'official': return { border: '#a86832', bg: 'rgba(50, 35, 20, 0.9)', icon: '\u2691' };
+      case 'wanted': return { border: '#c44', bg: 'rgba(60, 30, 30, 0.9)', icon: '!' };
+      case 'advertisement': return { border: '#4a9', bg: 'rgba(30, 50, 40, 0.9)', icon: '\u2605' };
+      default: return { border: 'rgba(200, 160, 80, 0.4)', bg: 'rgba(50, 40, 25, 0.8)', icon: '' };
+    }
+  }
+
   private createArticleCard(article: NoticeArticle): GUI.Rectangle {
+    // Mark article as read and fire callback on first view
+    if (!this.readArticles.has(article.id)) {
+      this.readArticles.add(article.id);
+      this.onArticleRead?.(article);
+    }
+
     const hasQuestion = article.comprehensionQuestion && !this.answeredQuestions.has(article.id);
     const bodyLines = Math.ceil(article.body.length / 55);
     const translationLines = this.showTranslations ? Math.ceil(article.bodyTranslation.length / 60) : 0;
     const vocabHeight = article.vocabularyWords.length > 0 ? 30 : 0;
     const questionHeight = hasQuestion ? 90 : 0;
-    const cardHeight = 50 + bodyLines * 16 + translationLines * 14 + vocabHeight + questionHeight + 20;
+    const authorHeight = article.author ? 18 : 0;
+    const questHeight = article.questHook ? 34 : 0;
+    const assessHeight = article.assessmentHook ? 44 : 0;
+    const cardHeight = 50 + authorHeight + bodyLines * 16 + translationLines * 14 + vocabHeight + questionHeight + questHeight + assessHeight + 20;
+
+    const style = this.getNoticeTypeStyle(article.noticeType);
 
     const card = new GUI.Rectangle(`article_${article.id}`);
     card.width = '530px';
     card.height = `${cardHeight}px`;
     card.cornerRadius = 6;
-    card.thickness = 1;
-    card.color = 'rgba(200, 160, 80, 0.4)';
-    card.background = 'rgba(50, 40, 25, 0.8)';
+    card.thickness = 2;
+    card.color = style.border;
+    card.background = style.bg;
 
     const diffColor = article.difficulty === 'beginner' ? '#6bbd5b' : (article.difficulty === 'intermediate' ? '#f39c12' : '#e74c3c');
 
-    // Title
+    // Notice type icon + Title
     const titleText = new GUI.TextBlock(`articleTitle_${article.id}`);
-    titleText.text = article.title;
+    titleText.text = style.icon ? `${style.icon} ${article.title}` : article.title;
     titleText.fontSize = 15;
     titleText.fontWeight = 'bold';
     titleText.color = '#f5e6c8';
@@ -288,6 +359,26 @@ export class BabylonNoticeBoardPanel {
     diffText.color = diffColor;
     diffBadge.addControl(diffText);
 
+    let yOffset = 28;
+
+    // Author line
+    if (article.author) {
+      const authorLine = new GUI.TextBlock(`articleAuthor_${article.id}`);
+      const occupation = article.author.occupation ? ` (${article.author.occupation})` : '';
+      authorLine.text = `\u2014 ${article.author.name}${occupation}`;
+      authorLine.fontSize = 10;
+      authorLine.color = 'rgba(200, 180, 140, 0.7)';
+      authorLine.fontStyle = 'italic';
+      authorLine.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+      authorLine.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+      authorLine.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+      authorLine.left = '12px';
+      authorLine.top = `${yOffset}px`;
+      authorLine.height = '14px';
+      card.addControl(authorLine);
+      yOffset += 16;
+    }
+
     // Title translation
     if (this.showTranslations) {
       const titleTrans = new GUI.TextBlock(`articleTitleTrans_${article.id}`);
@@ -299,13 +390,11 @@ export class BabylonNoticeBoardPanel {
       titleTrans.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
       titleTrans.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
       titleTrans.left = '12px';
-      titleTrans.top = '28px';
+      titleTrans.top = `${yOffset}px`;
       titleTrans.height = '16px';
       card.addControl(titleTrans);
+      yOffset += 18;
     }
-
-    // Body text
-    let yOffset = this.showTranslations ? 48 : 34;
     const bodyText = new GUI.TextBlock(`articleBody_${article.id}`);
     bodyText.text = article.body;
     bodyText.fontSize = 13;
@@ -425,6 +514,63 @@ export class BabylonNoticeBoardPanel {
       }
     }
 
+    // Assessment hook button
+    if (article.assessmentHook) {
+      const assessBtn = GUI.Button.CreateSimpleButton(
+        `assessBtn_${article.id}`,
+        this.showTranslations
+          ? `${article.assessmentHook.buttonLabel} (${article.assessmentHook.buttonLabelTranslation})`
+          : article.assessmentHook.buttonLabel
+      );
+      assessBtn.width = '510px';
+      assessBtn.height = '34px';
+      assessBtn.fontSize = 13;
+      assessBtn.fontWeight = 'bold';
+      assessBtn.color = '#fff';
+      assessBtn.background = 'rgba(180, 120, 40, 0.8)';
+      assessBtn.cornerRadius = 6;
+      assessBtn.thickness = 2;
+      assessBtn.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+      assessBtn.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+      assessBtn.left = '12px';
+      assessBtn.top = `${yOffset + 4}px`;
+      const assessType = article.assessmentHook.assessmentType;
+      assessBtn.onPointerUpObservable.add(() => {
+        this.hide();
+        this.onAssessmentClicked?.(assessType);
+      });
+      assessBtn.onPointerEnterObservable.add(() => { assessBtn.background = 'rgba(200, 140, 50, 0.9)'; });
+      assessBtn.onPointerOutObservable.add(() => { assessBtn.background = 'rgba(180, 120, 40, 0.8)'; });
+      card.addControl(assessBtn);
+      yOffset += 40;
+    }
+
+    // Quest hook button
+    if (article.questHook) {
+      const questBtn = GUI.Button.CreateSimpleButton(
+        `questBtn_${article.id}`,
+        this.showTranslations
+          ? `${article.questHook.questTitle} (${article.questHook.questTitleTranslation})`
+          : article.questHook.questTitle
+      );
+      questBtn.width = '510px';
+      questBtn.height = '28px';
+      questBtn.fontSize = 11;
+      questBtn.fontWeight = 'bold';
+      questBtn.color = '#f5e6c8';
+      questBtn.background = 'rgba(80, 120, 60, 0.6)';
+      questBtn.cornerRadius = 4;
+      questBtn.thickness = 1;
+      questBtn.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+      questBtn.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+      questBtn.left = '12px';
+      questBtn.top = `${yOffset + 4}px`;
+      questBtn.onPointerUpObservable.add(() => {
+        this.onQuestAccepted?.(article.questHook!.questId, article.questHook!.questTitle);
+      });
+      card.addControl(questBtn);
+    }
+
     return card;
   }
 
@@ -441,6 +587,11 @@ export class BabylonNoticeBoardPanel {
 
   public addArticle(article: NoticeArticle): void {
     this.articles.push(article);
+    if (this.isVisible) this.refreshContent();
+  }
+
+  public removeArticle(articleId: string): void {
+    this.articles = this.articles.filter(a => a.id !== articleId);
     if (this.isVisible) this.refreshContent();
   }
 
@@ -468,6 +619,9 @@ export class BabylonNoticeBoardPanel {
   public setOnClose(cb: () => void): void { this.onClose = cb; }
   public setOnWordClicked(cb: (word: string, meaning: string) => void): void { this.onWordClicked = cb; }
   public setOnQuestionAnswered(cb: (correct: boolean, articleId: string) => void): void { this.onQuestionAnswered = cb; }
+  public setOnArticleRead(cb: (article: NoticeArticle) => void): void { this.onArticleRead = cb; }
+  public setOnQuestAccepted(cb: (questId: string, questTitle: string) => void): void { this.onQuestAccepted = cb; }
+  public setOnAssessmentClicked(cb: (assessmentType: 'arrival' | 'departure') => void): void { this.onAssessmentClicked = cb; }
 
   public dispose(): void {
     if (this.container) {

@@ -6,7 +6,7 @@
  */
 
 import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3, Animation, ActionManager, ExecuteCodeAction } from '@babylonjs/core';
-import { createDebugLabel } from './DebugLabelUtils';
+
 import * as GUI from '@babylonjs/gui';
 import { ProceduralQuestObjects } from './ProceduralQuestObjects';
 import { VisualVocabularyDetector, type VocabularyTarget, type IdentificationPrompt, type IdentificationResult } from './VisualVocabularyDetector';
@@ -906,7 +906,7 @@ export class QuestObjectManager {
       );
       beacon.position = objective.locationPosition.clone();
       beacon.position.y += 5; // Raise it up
-      createDebugLabel(this.scene, beacon, 'QUEST LOCATION (marker)', 12);
+      beacon.metadata = { ...(beacon.metadata || {}), debugLabel: 'Quest Location (marker)' };
     }
 
     // Create glowing material

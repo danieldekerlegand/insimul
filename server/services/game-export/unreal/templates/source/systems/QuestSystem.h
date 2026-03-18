@@ -125,6 +125,10 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Quests")
     FVector GenerateLocationPosition() const;
 
+    /** Attach debug metadata to a quest marker actor (used for hover tooltips). */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    static void SetMarkerDebugLabel(AActor* Marker, const FString& Label);
+
     /** Fired when a listening_comprehension objective starts and story should be spoken. */
     UPROPERTY(BlueprintAssignable, Category = "Quests")
     FOnStoryTTS OnStoryTTS;

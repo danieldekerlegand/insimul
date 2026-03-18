@@ -140,7 +140,6 @@ export async function launchOnboarding(
   // Dynamic imports — these modules exist on sibling branches
   let AssessmentEngineClass: any;
   let OnboardingManagerClass: any;
-  let AssessmentProgressUIClass: any;
   let AssessmentModalUIClass: any;
   let languageOnboarding: any;
 
@@ -148,13 +147,11 @@ export async function launchOnboarding(
     [
       { AssessmentEngine: AssessmentEngineClass },
       { OnboardingManager: OnboardingManagerClass },
-      { AssessmentProgressUI: AssessmentProgressUIClass },
       { AssessmentModalUI: AssessmentModalUIClass },
       { LANGUAGE_LEARNING_ONBOARDING: languageOnboarding },
     ] = await Promise.all([
       import('@/components/3DGame/AssessmentEngine.ts'),
       import('@/components/3DGame/OnboardingManager.ts'),
-      import('@/components/3DGame/AssessmentProgressUI.ts'),
       import('@/components/3DGame/AssessmentModalUI.ts'),
       import('@shared/onboarding/language-onboarding.ts'),
     ]);
@@ -166,14 +163,6 @@ export async function launchOnboarding(
       duration: 3000,
     });
     return null;
-  }
-
-  // Create progress UI (small corner panel with phase dots + timer).
-  let progressUI: any = null;
-  try {
-    progressUI = new AssessmentProgressUIClass(guiManager.advancedTexture);
-  } catch (err) {
-    console.warn('[OnboardingLauncher] Failed to create assessment progress UI:', err);
   }
 
   // Create modal UI for reading/writing/listening sections
@@ -196,8 +185,6 @@ export async function launchOnboarding(
 
   assessmentEngine.onPhaseStarted((phaseId, phaseIndex, timeRemainingSeconds) => {
     currentPhaseIndex = phaseIndex;
-    progressUI?.show();
-    progressUI?.setPhase(phaseIndex, timeRemainingSeconds ?? 0);
     eventBus.emit({
       type: 'assessment_phase_started',
       sessionId: '',
@@ -209,8 +196,6 @@ export async function launchOnboarding(
   });
 
   assessmentEngine.onPhaseCompleted((phaseId, score, maxScore) => {
-    // Advance to the next phase index in the progress UI
-    progressUI?.transitionToNextPhase?.(currentPhaseIndex + 1, 0);
     eventBus.emit({
       type: 'assessment_phase_completed',
       sessionId: '',
@@ -225,22 +210,9 @@ export async function launchOnboarding(
     // For now, phase completion is tracked via assessment events only.
   });
 
-  // Wire instruction callbacks — conversation phases show instruction overlay
-  assessmentEngine.onShowInstruction((config) => {
-    if (config.phaseId === 'arrival_initiate_conversation') {
-      progressUI?.setStatusText('Talk to the marked NPC');
-    } else if (config.phaseId === 'arrival_conversation') {
-      progressUI?.setStatusText("Answer the NPC's questions");
-    } else if (config.isConversational) {
-      progressUI?.setStatusText(config.phaseName);
-    } else {
-      progressUI?.setStatusText(config.phaseName || 'In progress...');
-    }
-  });
-
-  assessmentEngine.onHideInstruction(() => {
-    // No overlay to hide
-  });
+  // Wire instruction callbacks
+  assessmentEngine.onShowInstruction(() => {});
+  assessmentEngine.onHideInstruction(() => {});
 
   // Wire modal callbacks — reading/writing/listening phases defer until user clicks
   let pendingModalConfig: AssessmentModalConfig | null = null;
@@ -253,17 +225,13 @@ export async function launchOnboarding(
 
   assessmentEngine.onShowModal((config: AssessmentModalConfig) => {
     pendingModalConfig = config;
-    progressUI?.setStatusText('Click here to begin');
+    // Auto-show the modal immediately (no progress UI to click)
+    showPendingModal();
   });
 
   assessmentEngine.onHideModal(() => {
     pendingModalConfig = null;
     modalUI?.hide();
-  });
-
-  // When the user clicks the progress tracker, open the pending modal
-  progressUI?.onClicked(() => {
-    showPendingModal();
   });
 
   // Find the existing assessment quest (created in the world editor) so it appears in the quest log (J key)
@@ -275,9 +243,6 @@ export async function launchOnboarding(
 
     assessmentEngine.onCompleted((result) => {
       assessmentResult = result;
-      // Show completion status instead of hiding the panel
-      progressUI?.setStatusText('Assessment complete!');
-
       // Complete onboarding so the game continues.
       onboardingManager.completeCurrentStep();
 
@@ -330,9 +295,7 @@ export async function launchOnboarding(
         // Clean up
         assessmentEngine.dispose();
         onboardingManager.dispose();
-        progressUI?.dispose();
         modalUI?.dispose();
-
 
         if (assessmentResult) {
           resolve({
@@ -357,7 +320,6 @@ export async function launchOnboarding(
       console.error('[OnboardingLauncher] Assessment engine failed to start:', err);
       assessmentEngine.dispose();
       onboardingManager.dispose();
-      progressUI?.dispose();
       modalUI?.dispose();
       resolve(null);
     });

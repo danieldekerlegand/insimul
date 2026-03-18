@@ -214,6 +214,21 @@ void AProceduralBuildingGenerator::GenerateBuilding(FVector Position, float Rota
     {
         RootComp->SetCullDistance(LODCullDistance);
     }
+
+    // Propagate LOD cull distance to all child components so unmerged children
+    // (e.g. door, roof) don't remain visible when the parent building is LOD-hidden.
+    TArray<USceneComponent*> Children;
+    GetRootComponent()->GetChildrenComponents(true, Children);
+    for (auto* Child : Children)
+    {
+        if (auto* PrimComp = Cast<UPrimitiveComponent>(Child))
+        {
+            if (PrimComp->LDMaxDrawDistance <= 0.f)
+            {
+                PrimComp->SetCullDistance(LODCullDistance);
+            }
+        }
+    }
 }
 
 float AProceduralBuildingGenerator::CreateRoof(USceneComponent* Parent, const FString& ArchStyle,

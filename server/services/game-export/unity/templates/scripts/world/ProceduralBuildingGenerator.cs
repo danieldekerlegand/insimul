@@ -301,6 +301,8 @@ namespace Insimul.World
             building.isStatic = true;
             roof.isStatic = true;
 
+            // LOD group covers all child renderers (door, roof, etc.) so unmerged
+            // children don't remain visible when the parent building is LOD-hidden.
             var lodGroup = building.AddComponent<LODGroup>();
             var renderers = building.GetComponentsInChildren<Renderer>();
             lodGroup.SetLODs(new LOD[] {

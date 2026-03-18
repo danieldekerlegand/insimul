@@ -5,7 +5,7 @@
  * fullscreen overlay that has tabbed navigation, similar to AAA games like
  * The Witcher 3. Opens with ESC, closes with ESC or clicking the close button.
  *
- * Tabs: Character, Quests, Inventory, Map, Rules, World Info, NPCs
+ * Tabs: Character, Quests, Inventory, Map, Vocabulary, Skill Tree, Notice Board, Contact List, System
  *
  * HUD elements (minimap, health bar, energy/gold) remain always visible
  * and are NOT part of this menu system.
@@ -18,6 +18,7 @@ import {
   Control,
   Ellipse,
   Grid,
+  Image,
   Rectangle,
   ScrollViewer,
   StackPanel,
@@ -26,26 +27,17 @@ import {
 } from "@babylonjs/gui";
 
 import type { ConversationRecord, VocabularyEntry, GrammarPattern } from '@shared/language/language-progress';
+import type { MinimapData } from './BabylonGUIManager';
+import { NotificationStore } from './NotificationStore';
 import type { SkillTreeStats } from './BabylonSkillTreePanel';
-import { type NoticeArticle, SAMPLE_ARTICLES } from './BabylonNoticeBoardPanel';
+import type { NoticeArticle } from './BabylonNoticeBoardPanel';
 import type { PlayerAssessmentData } from '@shared/assessment-types';
 import {
   SKILL_TIERS,
   createDefaultSkillTreeState,
   updateSkillProgress,
   type SkillTreeState,
-  type SkillNode,
 } from '@shared/language/language-skill-tree';
-import {
-  ASSESSMENT_DIMENSIONS,
-  CEFR_COLORS,
-  CEFR_DESCRIPTIONS,
-  DIMENSION_ICONS,
-  DIMENSION_LABELS,
-  getImprovementArrow,
-  getImprovementColor,
-  getScoreColor,
-} from '@shared/assessment-types';
 
 // ─── Data interfaces ────────────────────────────────────────────────────────
 
@@ -141,6 +133,18 @@ export interface MenuNPCData {
   distance?: number;
 }
 
+export interface MenuContactData {
+  id: string;
+  name: string;
+  occupation?: string;
+  disposition?: string;
+  role?: string;
+  questGiver: boolean;
+  conversationCount: number;
+  lastSpokenTimestamp: number;
+  knownDetails: string[];
+}
+
 export interface MenuSettlementData {
   id: string;
   name: string;
@@ -177,6 +181,8 @@ export interface GameMenuCallbacks {
   getNPCs: () => MenuNPCData[];
   getSettlements: () => MenuSettlementData[];
   getMapData: () => MenuMapData | null;
+  getMinimapData?: () => MinimapData | null;
+  getWorldSnapshot?: () => HTMLCanvasElement | null;
   // Language learning panel data
   getVocabularyData?: () => { vocabulary: VocabularyEntry[]; grammarPatterns: GrammarPattern[]; overallFluency: number; totalCorrectUsages: number; dueForReview: VocabularyEntry[] } | null;
   getConversationHistory?: () => ConversationRecord[];
@@ -186,7 +192,10 @@ export interface GameMenuCallbacks {
   onNoticeWordClicked?: (word: string, meaning: string) => void;
   onNoticeQuestionAnswered?: (correct: boolean, articleId: string) => void;
   onVocabWordSpeak?: (word: string) => void;
+  getContacts?: () => MenuContactData[];
   onNPCSelected?: (npcId: string) => void;
+  onNPCCalled?: (npcId: string) => void;
+  onQuestSetActive?: (questId: string) => void;
   onPayFines?: () => void;
   onBackToEditor?: () => void;
   onToggleFullscreen?: () => void;
@@ -201,13 +210,10 @@ export type MenuTab =
   | "inventory"
   | "map"
   | "vocabulary"
-  | "conversations"
   | "skills"
   | "notices"
-  | "assessment"
-  | "rules"
-  | "world"
-  | "npcs"
+  | "contacts"
+  | "notifications"
   | "system";
 
 interface TabDef {
@@ -221,14 +227,11 @@ const TABS: TabDef[] = [
   { id: "quests", label: "Quests", icon: "📜" },
   { id: "inventory", label: "Inventory", icon: "🎒" },
   { id: "map", label: "Map", icon: "🗺️" },
-  { id: "vocabulary", label: "Vocabulary", icon: "📚" },
-  { id: "conversations", label: "Conversations", icon: "💬" },
+  { id: "vocabulary", label: "Knowledge", icon: "📚" },
   { id: "skills", label: "Skill Tree", icon: "🌳" },
-  { id: "notices", label: "Notice Board", icon: "📌" },
-  { id: "assessment", label: "Assessment", icon: "📊" },
-  { id: "rules", label: "Rules", icon: "📖" },
-  { id: "world", label: "World", icon: "🌍" },
-  { id: "npcs", label: "NPCs", icon: "🧑‍🤝‍🧑" },
+  { id: "notices", label: "Library", icon: "📖" },
+  { id: "contacts", label: "Contact List", icon: "📱" },
+  { id: "notifications", label: "Notifications", icon: "🔔" },
   { id: "system", label: "System", icon: "⚙️" },
 ];
 
@@ -540,26 +543,17 @@ export class GameMenuSystem {
       case "vocabulary":
         this.renderVocabularyTab();
         break;
-      case "conversations":
-        this.renderConversationsTab();
-        break;
       case "skills":
         this.renderSkillsTab();
         break;
       case "notices":
         this.renderNoticesTab();
         break;
-      case "assessment":
-        this.renderAssessmentTab();
+      case "contacts":
+        this.renderContactsTab();
         break;
-      case "rules":
-        this.renderRulesTab();
-        break;
-      case "world":
-        this.renderWorldTab();
-        break;
-      case "npcs":
-        this.renderNPCsTab();
+      case "notifications":
+        this.renderNotificationsTab();
         break;
       case "system":
         this.renderSystemTab();
@@ -612,7 +606,7 @@ export class GameMenuSystem {
     sub.text = text;
     sub.color = COLORS.textSecondary;
     sub.fontSize = 12;
-    sub.height = "20px";
+    sub.height = "30px";
     sub.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     sub.paddingBottom = "11px";
     parent.addControl(sub);
@@ -824,17 +818,15 @@ export class GameMenuSystem {
     const { stack } = this.makeScrollableContent("quests");
     const allQuests = this.callbacks.getQuests();
 
-    // Separate active vs available
+    // active = currently pursued (only one), available = selectable, unavailable = locked
     const active = allQuests.filter(q => q.status === "active");
     const available = allQuests.filter(q => q.status === "available");
-    const completed = allQuests.filter(q => q.status === "completed");
 
     this.addSectionHeader(stack, "Quests");
 
     const counts: string[] = [];
-    if (active.length > 0) counts.push(`${active.length} active`);
+    if (active.length > 0) counts.push(`1 active`);
     if (available.length > 0) counts.push(`${available.length} available`);
-    if (completed.length > 0) counts.push(`${completed.length} completed`);
     this.addSubHeader(stack, counts.length > 0 ? counts.join("  ·  ") : "No quests yet");
 
     if (allQuests.length === 0) {
@@ -868,7 +860,6 @@ export class GameMenuSystem {
 
     renderGroup("Active", active, COLORS.accentGreen);
     renderGroup("Available", available, COLORS.accent);
-    renderGroup("Completed", completed, COLORS.textMuted);
   }
 
   private renderQuestCard(parent: StackPanel, quest: MenuQuestData): void {
@@ -1011,6 +1002,73 @@ export class GameMenuSystem {
       }
     }
 
+    // "Make Active" button for available quests
+    if (quest.status === "available" && this.callbacks.onQuestSetActive) {
+      const btnRow = new Rectangle();
+      btnRow.width = 1;
+      btnRow.height = "26px";
+      btnRow.thickness = 0;
+      btnRow.background = "transparent";
+      btnRow.paddingTop = "4px";
+      card.addControl(btnRow);
+
+      const btn = new Rectangle();
+      btn.width = "100px";
+      btn.height = "22px";
+      btn.background = "rgba(66, 165, 245, 0.25)";
+      btn.color = COLORS.accent;
+      btn.thickness = 1;
+      btn.cornerRadius = 4;
+      btn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      btn.isPointerBlocker = true;
+      btn.hoverCursor = "pointer";
+
+      const btnLabel = new TextBlock();
+      btnLabel.text = "▶ Make Active";
+      btnLabel.color = COLORS.accent;
+      btnLabel.fontSize = 10;
+      btnLabel.fontWeight = "bold";
+      btn.addControl(btnLabel);
+
+      btn.onPointerEnterObservable.add(() => { btn.background = "rgba(66, 165, 245, 0.45)"; });
+      btn.onPointerOutObservable.add(() => { btn.background = "rgba(66, 165, 245, 0.25)"; });
+      btn.onPointerClickObservable.add(() => {
+        this.callbacks.onQuestSetActive!(quest.id);
+        // Re-render the tab to reflect the change
+        this.renderQuestsTab();
+      });
+
+      btnRow.addControl(btn);
+    }
+
+    // Status badge for active quests
+    if (quest.status === "active") {
+      const activeBadgeRow = new Rectangle();
+      activeBadgeRow.width = 1;
+      activeBadgeRow.height = "22px";
+      activeBadgeRow.thickness = 0;
+      activeBadgeRow.background = "transparent";
+      activeBadgeRow.paddingTop = "4px";
+      card.addControl(activeBadgeRow);
+
+      const badge = new Rectangle();
+      badge.width = "80px";
+      badge.height = "18px";
+      badge.background = "rgba(76, 175, 80, 0.2)";
+      badge.cornerRadius = 3;
+      badge.thickness = 0;
+      badge.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+
+      const badgeLabel = new TextBlock();
+      badgeLabel.text = "● Active";
+      badgeLabel.color = COLORS.accentGreen;
+      badgeLabel.fontSize = 10;
+      badgeLabel.fontWeight = "bold";
+      badge.addControl(badgeLabel);
+
+      activeBadgeRow.addControl(badge);
+    }
+
     // Card bottom spacer
     const spacer = new Rectangle();
     spacer.width = 1;
@@ -1122,13 +1180,19 @@ export class GameMenuSystem {
 
   // ─── MAP TAB ────────────────────────────────────────────────────────────
 
+  /** Reusable canvas for compositing the menu map view. */
+  private _menuMapCanvas: HTMLCanvasElement | null = null;
+  private _menuMapCtx: CanvasRenderingContext2D | null = null;
+
   private renderMapTab(): void {
     const { stack } = this.makeScrollableContent("map");
-    const mapData = this.callbacks.getMapData();
+
+    const minimapData = this.callbacks.getMinimapData?.() ?? null;
+    const snapshot = this.callbacks.getWorldSnapshot?.() ?? null;
 
     this.addSectionHeader(stack, "World Map");
 
-    if (!mapData) {
+    if (!minimapData || minimapData.settlements.length === 0) {
       const empty = new TextBlock();
       empty.text = "Map data not available";
       empty.color = COLORS.textMuted;
@@ -1138,92 +1202,202 @@ export class GameMenuSystem {
       return;
     }
 
-    this.addSubHeader(stack, `${mapData.settlements.length} settlements discovered`);
+    this.addSubHeader(stack, `${minimapData.settlements.length} settlements discovered`);
 
-    // Large map display
+    // ── Large rendered map (reuses world snapshot like FullscreenMap) ────
+    const MAP_PX = 480;
+
     const mapFrame = new Rectangle("fullMap");
-    mapFrame.width = 1;
-    mapFrame.height = "413px";
+    mapFrame.width = `${MAP_PX + 4}px`;
+    mapFrame.height = `${MAP_PX + 4}px`;
     mapFrame.background = "rgba(20, 20, 30, 0.95)";
     mapFrame.cornerRadius = 6;
     mapFrame.color = COLORS.cardBorder;
     mapFrame.thickness = 1;
     stack.addControl(mapFrame);
 
-    const mapContainer = new Container("fullMapContainer");
-    mapContainer.width = 1;
-    mapContainer.height = 1;
+    // Render the snapshot + overlays onto a canvas, then display as Image
+    const mapImage = new Image("menuMapImage");
+    mapImage.width = `${MAP_PX}px`;
+    mapImage.height = `${MAP_PX}px`;
+    mapFrame.addControl(mapImage);
+
+    // Container for dynamic GUI markers on top of the image
+    const mapContainer = new Container("menuMapMarkerContainer");
+    mapContainer.width = `${MAP_PX}px`;
+    mapContainer.height = `${MAP_PX}px`;
     mapFrame.addControl(mapContainer);
 
-    const mapSize = 480;
-    const scale = mapSize / mapData.worldSize;
+    // Composit the snapshot + streets onto the canvas
+    if (!this._menuMapCanvas) {
+      this._menuMapCanvas = document.createElement("canvas");
+      this._menuMapCanvas.width = MAP_PX;
+      this._menuMapCanvas.height = MAP_PX;
+      this._menuMapCtx = this._menuMapCanvas.getContext("2d");
+    }
+    const ctx = this._menuMapCtx;
+    if (ctx) {
+      ctx.clearRect(0, 0, MAP_PX, MAP_PX);
+      if (snapshot) {
+        ctx.drawImage(snapshot, 0, 0, MAP_PX, MAP_PX);
+      } else {
+        ctx.fillStyle = "rgba(20, 20, 30, 1)";
+        ctx.fillRect(0, 0, MAP_PX, MAP_PX);
+      }
+      // Draw streets
+      if (minimapData.streets && minimapData.streets.length > 0) {
+        const worldSize = minimapData.worldSize;
+        const worldHalf = worldSize / 2;
+        ctx.save();
+        ctx.strokeStyle = "rgba(200, 200, 200, 0.5)";
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        for (const street of minimapData.streets) {
+          if (street.waypoints.length < 2) continue;
+          ctx.lineWidth = Math.max(1, (street.width / worldSize) * MAP_PX);
+          ctx.beginPath();
+          const sx = ((street.waypoints[0].x + worldHalf) / worldSize) * MAP_PX;
+          const sy = ((-street.waypoints[0].z + worldHalf) / worldSize) * MAP_PX;
+          ctx.moveTo(sx, sy);
+          for (let i = 1; i < street.waypoints.length; i++) {
+            const px = ((street.waypoints[i].x + worldHalf) / worldSize) * MAP_PX;
+            const py = ((-street.waypoints[i].z + worldHalf) / worldSize) * MAP_PX;
+            ctx.lineTo(px, py);
+          }
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+      // Draw buildings
+      if (minimapData.buildings && minimapData.buildings.length > 0) {
+        const worldSize = minimapData.worldSize;
+        const worldHalf = worldSize / 2;
+        ctx.save();
+        for (const b of minimapData.buildings) {
+          const bx = ((b.position.x + worldHalf) / worldSize) * MAP_PX;
+          const by = ((-b.position.z + worldHalf) / worldSize) * MAP_PX;
+          const bw = Math.max(2, ((b.width ?? 6) / worldSize) * MAP_PX);
+          const bh = Math.max(2, ((b.depth ?? 6) / worldSize) * MAP_PX);
+          ctx.fillStyle = b.type === "business" ? "rgba(100,149,237,0.6)"
+            : b.type === "residence" ? "rgba(210,180,140,0.6)"
+            : "rgba(160,160,160,0.5)";
+          ctx.fillRect(bx - bw / 2, by - bh / 2, bw, bh);
+        }
+        ctx.restore();
+      }
+      mapImage.source = this._menuMapCanvas.toDataURL("image/jpeg", 0.9);
+    }
 
-    // Draw settlement zones and markers
-    mapData.settlements.forEach((settlement) => {
-      const x = settlement.position.x * scale;
-      const z = -settlement.position.z * scale;
+    // ── Helper: world coords → map pixel offset ──
+    const worldSize = minimapData.worldSize;
+    const worldHalf = worldSize / 2;
+    const mapHalf = MAP_PX / 2;
+    const toMap = (wx: number, wz: number): [number, number] => {
+      const mx = ((wx + worldHalf) / worldSize) * MAP_PX - mapHalf;
+      const mz = ((-wz + worldHalf) / worldSize) * MAP_PX - mapHalf;
+      return [mx, mz];
+    };
 
-      let zoneColor = COLORS.accentGreen;
-      if (settlement.zoneType === "neutral") zoneColor = COLORS.accent;
-      else if (settlement.zoneType === "caution") zoneColor = "#FF9800";
-
-      // Zone circle
-      const baseRadius = settlement.type === "city" ? 20 : settlement.type === "village" ? 10 : 15;
-      const zone = new Ellipse(`mapZone_${settlement.id}`);
-      zone.width = `${baseRadius * 2}px`;
-      zone.height = `${baseRadius * 2}px`;
-      zone.color = zoneColor;
-      zone.thickness = 2;
-      zone.background = `${zoneColor}22`;
-      zone.left = `${x}px`;
-      zone.top = `${z}px`;
-      mapContainer.addControl(zone);
-
-      // Settlement dot
-      const dot = new Ellipse(`mapDot_${settlement.id}`);
-      dot.width = "9px";
-      dot.height = "9px";
+    // ── Settlement markers ──
+    for (const s of minimapData.settlements) {
+      const [sx, sz] = toMap(s.position.x, s.position.z);
+      const dot = new Ellipse(`menuMapSettDot_${s.id}`);
+      dot.width = "10px";
+      dot.height = "10px";
+      dot.background = s.type === "city" ? "#9C27B0" : s.type === "town" ? "#2196F3" : "#4CAF50";
       dot.color = "white";
-      dot.background = zoneColor;
       dot.thickness = 1;
-      dot.left = `${x}px`;
-      dot.top = `${z}px`;
+      dot.left = `${sx}px`;
+      dot.top = `${sz}px`;
       mapContainer.addControl(dot);
 
-      // Label
-      const label = new TextBlock(`mapLabel_${settlement.id}`);
-      label.text = settlement.name;
-      label.color = COLORS.textPrimary;
-      label.fontSize = 12;
-      label.height = "14px";
-      label.left = `${x}px`;
-      label.top = `${z + baseRadius + 6}px`;
+      const label = new TextBlock(`menuMapSettLabel_${s.id}`, s.name);
+      label.fontSize = 10;
+      label.color = "white";
+      label.left = `${sx}px`;
+      label.top = `${sz - 13}px`;
+      label.resizeToFit = true;
       mapContainer.addControl(label);
-    });
+    }
 
-    // Player marker
-    const px = mapData.playerPosition.x * scale;
-    const pz = -mapData.playerPosition.z * scale;
-    const playerDot = new Rectangle("mapPlayerDot");
-    playerDot.width = "9px";
-    playerDot.height = "9px";
-    playerDot.background = COLORS.accentYellow;
+    // ── NPC markers ──
+    if (minimapData.npcPositions) {
+      for (const npc of minimapData.npcPositions) {
+        const [nx, nz] = toMap(npc.position.x, npc.position.z);
+        const dot = new Ellipse(`menuMapNpc_${npc.id}`);
+        dot.width = "6px";
+        dot.height = "6px";
+        dot.thickness = 0;
+        dot.background = npc.role === "guard" ? "#F44336"
+          : npc.role === "merchant" ? "#4CAF50"
+          : npc.role === "questgiver" ? "#FFC107"
+          : "rgba(200,200,200,0.7)";
+        dot.left = `${nx}px`;
+        dot.top = `${nz}px`;
+        mapContainer.addControl(dot);
+      }
+    }
+
+    // ── Quest markers ──
+    if (minimapData.questMarkers) {
+      for (const quest of minimapData.questMarkers) {
+        const [qx, qz] = toMap(quest.position.x, quest.position.z);
+        const marker = new Rectangle(`menuMapQuest_${quest.id}`);
+        marker.width = "12px";
+        marker.height = "12px";
+        marker.background = "#E040FB";
+        marker.color = "#FFFFFF";
+        marker.thickness = 1;
+        marker.cornerRadius = 2;
+        marker.rotation = Math.PI / 4;
+        marker.left = `${qx}px`;
+        marker.top = `${qz}px`;
+        mapContainer.addControl(marker);
+
+        const qlabel = new TextBlock(`menuMapQuestLabel_${quest.id}`, quest.title);
+        qlabel.fontSize = 9;
+        qlabel.color = "#E040FB";
+        qlabel.left = `${qx}px`;
+        qlabel.top = `${qz - 13}px`;
+        qlabel.resizeToFit = true;
+        mapContainer.addControl(qlabel);
+      }
+    }
+
+    // ── Player marker (always on top) ──
+    const [ppx, ppz] = toMap(minimapData.playerPosition.x, minimapData.playerPosition.z);
+    const playerOuter = new Ellipse("menuMapPlayerOuter");
+    playerOuter.width = "18px";
+    playerOuter.height = "18px";
+    playerOuter.background = "rgba(0,0,0,0.4)";
+    playerOuter.color = "transparent";
+    playerOuter.thickness = 0;
+    playerOuter.left = `${ppx}px`;
+    playerOuter.top = `${ppz}px`;
+    mapContainer.addControl(playerOuter);
+
+    const playerDot = new Ellipse("menuMapPlayerDot");
+    playerDot.width = "14px";
+    playerDot.height = "14px";
+    playerDot.background = "#FFC107";
     playerDot.color = "white";
     playerDot.thickness = 2;
-    playerDot.cornerRadius = 5;
-    playerDot.left = `${px}px`;
-    playerDot.top = `${pz}px`;
+    playerDot.left = `${ppx}px`;
+    playerDot.top = `${ppz}px`;
     mapContainer.addControl(playerDot);
 
-    // Legend
+    // ── Legend ──
     this.addDivider(stack);
     const legendCard = this.makeCard(stack);
-    this.addStatRow(legendCard, "🟢 Green", "Safe Zone", COLORS.accentGreen);
-    this.addStatRow(legendCard, "🔵 Blue", "Neutral Zone", COLORS.accent);
-    this.addStatRow(legendCard, "🟠 Amber", "Caution Zone", "#FF9800");
-    this.addStatRow(legendCard, "🟡 Yellow", "You", COLORS.accentYellow);
+    this.addStatRow(legendCard, "Yellow dot", "You", "#FFC107");
+    this.addStatRow(legendCard, "Purple dot", "City", "#9C27B0");
+    this.addStatRow(legendCard, "Blue dot", "Town", "#2196F3");
+    this.addStatRow(legendCard, "Green dot", "Village", "#4CAF50");
+    this.addStatRow(legendCard, "Pink diamond", "Quest", "#E040FB");
+    this.addStatRow(legendCard, "Red dot", "Guard", "#F44336");
+    this.addStatRow(legendCard, "Green dot", "Merchant", "#4CAF50");
 
-    // Settlement list below map
+    // ── Settlement list below map ──
     this.addDivider(stack);
     const settlements = this.callbacks.getSettlements();
     if (settlements.length > 0) {
@@ -1249,144 +1423,34 @@ export class GameMenuSystem {
     }
   }
 
-  // ─── RULES TAB ──────────────────────────────────────────────────────────
+  // ─── CONTACT LIST TAB ───────────────────────────────────────────────────
 
-  private renderRulesTab(): void {
-    const { stack } = this.makeScrollableContent("rules");
-    const rules = this.callbacks.getRules();
+  private renderContactsTab(): void {
+    const { stack } = this.makeScrollableContent("contacts");
+    const contacts = this.callbacks.getContacts?.() || [];
 
-    this.addSectionHeader(stack, "Rules");
-    this.addSubHeader(stack, `${rules.length} rule${rules.length !== 1 ? "s" : ""} active in this world`);
+    this.addSectionHeader(stack, "Contact List");
 
-    if (rules.length === 0) {
+    if (contacts.length === 0) {
       const empty = new TextBlock();
-      empty.text = "No rules defined for this world.";
+      empty.text = "No contacts yet.\nSpeak with NPCs in person to add them to your contact list.";
       empty.color = COLORS.textMuted;
       empty.fontSize = 12;
-      empty.height = "33px";
+      empty.height = "50px";
+      empty.textWrapping = true;
       stack.addControl(empty);
       return;
     }
 
-    // Group by category
-    const grouped = new Map<string, MenuRuleData[]>();
-    rules.forEach((rule) => {
-      const cat = rule.category || rule.ruleType || "general";
-      if (!grouped.has(cat)) grouped.set(cat, []);
-      grouped.get(cat)!.push(rule);
-    });
+    this.addSubHeader(stack, `${contacts.length} contact${contacts.length !== 1 ? "s" : ""}`);
 
-    grouped.forEach((catRules, category) => {
-      const catHeader = new TextBlock();
-      catHeader.text = category.charAt(0).toUpperCase() + category.slice(1);
-      catHeader.color = COLORS.accent;
-      catHeader.fontSize = 12;
-      catHeader.fontWeight = "bold";
-      catHeader.height = "24px";
-      catHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      catHeader.paddingTop = "6px";
-      stack.addControl(catHeader);
+    // Sort: most recently spoken to first
+    const sorted = [...contacts].sort((a, b) => b.lastSpokenTimestamp - a.lastSpokenTimestamp);
 
-      catRules.forEach((rule) => {
-        const card = this.makeCard(stack);
-
-        const nameRow = new Rectangle();
-        nameRow.width = 1;
-        nameRow.height = "21px";
-        nameRow.thickness = 0;
-        nameRow.background = "transparent";
-        card.addControl(nameRow);
-
-        const nameText = new TextBlock();
-        nameText.text = rule.name;
-        nameText.color = COLORS.textPrimary;
-        nameText.fontSize = 12;
-        nameText.fontWeight = "bold";
-        nameText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        nameRow.addControl(nameText);
-
-        const typeBadge = new TextBlock();
-        typeBadge.text = rule.isBase ? "BASE" : rule.ruleType.toUpperCase();
-        typeBadge.color = rule.isBase ? COLORS.textMuted : COLORS.accent;
-        typeBadge.fontSize = 12;
-        typeBadge.fontWeight = "bold";
-        typeBadge.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-        nameRow.addControl(typeBadge);
-
-        if (rule.description) {
-          const desc = new TextBlock();
-          desc.text = rule.description;
-          desc.color = COLORS.textSecondary;
-          desc.fontSize = 12;
-          desc.height = "30px";
-          desc.textWrapping = true;
-          desc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-          desc.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-          card.addControl(desc);
-        }
-      });
-    });
-  }
-
-  // ─── WORLD TAB ──────────────────────────────────────────────────────────
-
-  private renderWorldTab(): void {
-    const { stack } = this.makeScrollableContent("world");
-    const world = this.callbacks.getWorldData();
-
-    this.addSectionHeader(stack, "World Information");
-
-    if (!world) {
-      const empty = new TextBlock();
-      empty.text = "World data not available";
-      empty.color = COLORS.textMuted;
-      empty.fontSize = 12;
-      empty.height = "33px";
-      stack.addControl(empty);
-      return;
-    }
-
-    this.addSubHeader(stack, world.worldName);
-
-    const statsCard = this.makeCard(stack);
-    this.addStatRow(statsCard, "Countries", `${world.countries}`, COLORS.textPrimary);
-    this.addStatRow(statsCard, "Settlements", `${world.settlements}`, COLORS.textPrimary);
-    this.addStatRow(statsCard, "Characters", `${world.characters}`, COLORS.textPrimary);
-    this.addStatRow(statsCard, "Rules", `${world.rules + world.baseRules}`, COLORS.textPrimary);
-    this.addStatRow(statsCard, "Actions", `${world.actions + world.baseActions}`, COLORS.textPrimary);
-    this.addStatRow(statsCard, "Quests", `${world.quests}`, COLORS.textPrimary);
-  }
-
-  // ─── NPCs TAB ───────────────────────────────────────────────────────────
-
-  private renderNPCsTab(): void {
-    const { stack } = this.makeScrollableContent("npcs");
-    const npcs = this.callbacks.getNPCs();
-
-    this.addSectionHeader(stack, "NPCs");
-    this.addSubHeader(stack, `${npcs.length} NPC${npcs.length !== 1 ? "s" : ""} in the world`);
-
-    if (npcs.length === 0) {
-      const empty = new TextBlock();
-      empty.text = "No NPCs found nearby.";
-      empty.color = COLORS.textMuted;
-      empty.fontSize = 12;
-      empty.height = "33px";
-      stack.addControl(empty);
-      return;
-    }
-
-    // Sort: quest givers first, then by distance
-    const sorted = [...npcs].sort((a, b) => {
-      if (a.questGiver && !b.questGiver) return -1;
-      if (!a.questGiver && b.questGiver) return 1;
-      return (a.distance || 999) - (b.distance || 999);
-    });
-
-    sorted.forEach((npc) => {
+    sorted.forEach((contact) => {
       const card = this.makeCard(stack);
 
-      // Name row
+      // Name row with role badge
       const nameRow = new Rectangle();
       nameRow.width = 1;
       nameRow.height = "21px";
@@ -1395,31 +1459,32 @@ export class GameMenuSystem {
       card.addControl(nameRow);
 
       const roleIcon =
-        npc.role === "guard" ? "🛡️" :
-        npc.role === "merchant" ? "🪙" :
-        npc.role === "questgiver" ? "❗" : "🧑";
+        contact.role === "guard" ? "🛡️" :
+        contact.role === "merchant" ? "🪙" :
+        contact.role === "questgiver" ? "❗" : "🧑";
 
       const nameText = new TextBlock();
-      nameText.text = `${roleIcon} ${npc.name}`;
-      nameText.color = npc.questGiver ? COLORS.accentYellow : COLORS.textPrimary;
-      nameText.fontSize = 12;
+      nameText.text = `${roleIcon} ${contact.name}`;
+      nameText.color = contact.questGiver ? COLORS.accentYellow : COLORS.textPrimary;
+      nameText.fontSize = 13;
       nameText.fontWeight = "bold";
       nameText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       nameRow.addControl(nameText);
 
-      if (npc.role) {
+      if (contact.role) {
         const roleBadge = new TextBlock();
-        roleBadge.text = npc.role.toUpperCase();
+        roleBadge.text = contact.role.toUpperCase();
         roleBadge.color = COLORS.textMuted;
-        roleBadge.fontSize = 12;
+        roleBadge.fontSize = 10;
         roleBadge.fontWeight = "bold";
         roleBadge.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
         nameRow.addControl(roleBadge);
       }
 
-      if (npc.occupation) {
+      // Occupation
+      if (contact.occupation) {
         const occText = new TextBlock();
-        occText.text = npc.occupation;
+        occText.text = contact.occupation;
         occText.color = COLORS.textSecondary;
         occText.fontSize = 12;
         occText.height = "17px";
@@ -1427,24 +1492,61 @@ export class GameMenuSystem {
         card.addControl(occText);
       }
 
-      if (npc.distance !== undefined) {
-        this.addStatRow(card, "Distance", `${npc.distance.toFixed(0)}m`, COLORS.textSecondary);
+      // Known details
+      if (contact.knownDetails.length > 0) {
+        const detailsHeader = new TextBlock();
+        detailsHeader.text = "What you know:";
+        detailsHeader.color = COLORS.textMuted;
+        detailsHeader.fontSize = 10;
+        detailsHeader.height = "16px";
+        detailsHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        card.addControl(detailsHeader);
+
+        for (const detail of contact.knownDetails.slice(0, 4)) {
+          const detailText = new TextBlock();
+          detailText.text = `  · ${detail}`;
+          detailText.color = COLORS.textSecondary;
+          detailText.fontSize = 11;
+          detailText.height = "15px";
+          detailText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+          card.addControl(detailText);
+        }
+        if (contact.knownDetails.length > 4) {
+          const moreText = new TextBlock();
+          moreText.text = `  +${contact.knownDetails.length - 4} more...`;
+          moreText.color = COLORS.textMuted;
+          moreText.fontSize = 10;
+          moreText.height = "14px";
+          moreText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+          card.addControl(moreText);
+        }
       }
 
-      // Talk button
-      const talkBtn = Button.CreateSimpleButton(`talkNPC_${npc.id}`, "Talk");
-      talkBtn.width = "66px";
-      talkBtn.height = "23px";
-      talkBtn.color = "white";
-      talkBtn.background = COLORS.accent;
-      talkBtn.cornerRadius = 5;
-      talkBtn.fontSize = 12;
-      talkBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      talkBtn.onPointerClickObservable.add(() => {
-        this.callbacks.onNPCSelected?.(npc.id);
+      // Stats row
+      const timeAgo = this.formatTimeAgo(contact.lastSpokenTimestamp);
+      this.addStatRow(card, "Conversations", `${contact.conversationCount}`, COLORS.textSecondary);
+      this.addStatRow(card, "Last spoken", timeAgo, COLORS.textMuted);
+
+      // Call button
+      const callBtn = Button.CreateSimpleButton(`callNPC_${contact.id}`, "📞 Call");
+      callBtn.width = "80px";
+      callBtn.height = "25px";
+      callBtn.color = "white";
+      callBtn.background = COLORS.accentGreen;
+      callBtn.cornerRadius = 5;
+      callBtn.fontSize = 12;
+      callBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      callBtn.onPointerClickObservable.add(() => {
+        this.callbacks.onNPCCalled?.(contact.id);
         this.close();
       });
-      card.addControl(talkBtn);
+      callBtn.onPointerEnterObservable.add(() => {
+        callBtn.background = "#2E9348";
+      });
+      callBtn.onPointerOutObservable.add(() => {
+        callBtn.background = COLORS.accentGreen;
+      });
+      card.addControl(callBtn);
 
       // Spacer
       const spacer = new Rectangle();
@@ -1454,6 +1556,112 @@ export class GameMenuSystem {
       spacer.background = "transparent";
       stack.addControl(spacer);
     });
+  }
+
+  private formatTimeAgo(timestamp: number): string {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return "Just now";
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  }
+
+  // ─── NOTIFICATIONS TAB ──────────────────────────────────────────────────
+
+  private renderNotificationsTab(): void {
+    const { stack } = this.makeScrollableContent("notifications");
+
+    this.addSectionHeader(stack, "Notifications");
+
+    const items = NotificationStore.all();
+
+    if (items.length === 0) {
+      const empty = new TextBlock();
+      empty.text = "No notifications yet.";
+      empty.color = COLORS.textMuted;
+      empty.fontSize = 12;
+      empty.height = "40px";
+      empty.textWrapping = true;
+      stack.addControl(empty);
+      return;
+    }
+
+    this.addSubHeader(stack, `${items.length} notification${items.length !== 1 ? "s" : ""}`);
+
+    // Clear all button
+    const clearBtn = Button.CreateSimpleButton("clearNotifs", "Clear All");
+    clearBtn.width = "90px";
+    clearBtn.height = "26px";
+    clearBtn.color = COLORS.textSecondary;
+    clearBtn.background = COLORS.cardBg;
+    clearBtn.fontSize = 11;
+    clearBtn.cornerRadius = 4;
+    clearBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    clearBtn.onPointerClickObservable.add(() => {
+      NotificationStore.clear();
+      this.refreshActiveTab();
+    });
+    stack.addControl(clearBtn);
+
+    this.addDivider(stack);
+
+    for (const n of items) {
+      const card = this.makeCard(stack);
+
+      // Header row: icon + title + time
+      const headerRow = new Rectangle();
+      headerRow.width = 1;
+      headerRow.height = "20px";
+      headerRow.thickness = 0;
+      headerRow.background = "transparent";
+      card.addControl(headerRow);
+
+      const titleText = new TextBlock();
+      titleText.text = `${n.icon ? n.icon + " " : ""}${n.title}`;
+      titleText.color = n.color || COLORS.textPrimary;
+      titleText.fontSize = 12;
+      titleText.fontWeight = "bold";
+      titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      headerRow.addControl(titleText);
+
+      // Timestamp
+      const timeText = new TextBlock();
+      const date = new Date(n.timestamp);
+      const h = date.getHours().toString().padStart(2, "0");
+      const m = date.getMinutes().toString().padStart(2, "0");
+      timeText.text = `${h}:${m}`;
+      timeText.color = COLORS.textMuted;
+      timeText.fontSize = 10;
+      timeText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      headerRow.addControl(timeText);
+
+      // Description
+      if (n.description) {
+        const descText = new TextBlock();
+        descText.text = n.description;
+        descText.color = COLORS.textSecondary;
+        descText.fontSize = 11;
+        descText.height = "18px";
+        descText.textWrapping = TextWrapping.WordWrap;
+        descText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        card.addControl(descText);
+      }
+
+      // Category badge
+      if (n.category) {
+        const badge = new TextBlock();
+        badge.text = n.category.toUpperCase();
+        badge.color = COLORS.textMuted;
+        badge.fontSize = 9;
+        badge.height = "14px";
+        badge.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        card.addControl(badge);
+      }
+    }
   }
 
   // ─── SYSTEM TAB ─────────────────────────────────────────────────────────
@@ -1475,17 +1683,20 @@ export class GameMenuSystem {
     stack.addControl(shortcutsTitle);
 
     const shortcuts = [
-      { key: "ESC", action: "Open / Close this menu" },
+      { key: "ESC / M", action: "Open / Close this menu" },
       { key: "W / A / S / D", action: "Move" },
       { key: "Q / E", action: "Strafe left / right" },
       { key: "Shift", action: "Sprint" },
       { key: "Space", action: "Jump" },
       { key: "Enter", action: "Enter / Exit building" },
-      { key: "G", action: "Interact / Talk to nearest NPC" },
+      { key: "G", action: "Talk to nearest NPC" },
       { key: "F", action: "Attack" },
       { key: "T", action: "Target nearest enemy" },
-      { key: "1 / 2 / 3", action: "Camera: Follow / Orbit / Free" },
-      { key: "Shift+V", action: "Toggle VR Mode" },
+      { key: "Y", action: "Eavesdrop on NPC conversation" },
+      { key: "X", action: "Examine nearby object" },
+      { key: "R", action: "Push-to-talk (hold to record)" },
+      { key: "J", action: "Quest log" },
+      { key: "Tab", action: "Full-screen map" },
     ];
 
     const shortcutCard = this.makeCard(stack);
@@ -1495,46 +1706,43 @@ export class GameMenuSystem {
 
     this.addDivider(stack);
 
-    // System buttons
-    const buttonsTitle = new TextBlock();
-    buttonsTitle.text = "Actions";
-    buttonsTitle.color = COLORS.textPrimary;
-    buttonsTitle.fontSize = 15;
-    buttonsTitle.fontWeight = "bold";
-    buttonsTitle.height = "29px";
-    buttonsTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    stack.addControl(buttonsTitle);
+    // System buttons — horizontal row
+    const buttonRow = new StackPanel("sysButtonRow");
+    buttonRow.isVertical = false;
+    buttonRow.width = 1;
+    buttonRow.height = "32px";
+    buttonRow.paddingTop = "4px";
+    stack.addControl(buttonRow);
 
     const buttonDefs = [
-      { label: "🖥️  Toggle Fullscreen", cb: () => this.callbacks.onToggleFullscreen?.() },
-      { label: "🥽  Toggle VR Mode", cb: () => this.callbacks.onToggleVR?.() },
-      { label: "🔧  Toggle Debug Info", cb: () => this.callbacks.onToggleDebug?.() },
-      { label: "⬅️  Back to Editor", cb: () => { this.close(); this.callbacks.onBackToEditor?.(); } },
+      { label: "Fullscreen", icon: "\u{1F5A5}\uFE0F", cb: () => this.callbacks.onToggleFullscreen?.() },
+      { label: "VR Mode", icon: "\u{1F97D}", cb: () => this.callbacks.onToggleVR?.() },
+      { label: "Debug", icon: "\u{1F527}", cb: () => this.callbacks.onToggleDebug?.() },
     ];
 
     buttonDefs.forEach((def) => {
-      const btn = Button.CreateSimpleButton(`sys_${def.label}`, def.label);
-      btn.width = "231px";
-      btn.height = "38px";
-      btn.color = COLORS.textPrimary;
+      const btn = Button.CreateSimpleButton(`sys_${def.label}`, `${def.icon} ${def.label}`);
+      btn.width = "110px";
+      btn.height = "28px";
+      btn.color = COLORS.textSecondary;
       btn.background = COLORS.cardBg;
-      btn.cornerRadius = 6;
-      btn.fontSize = 12;
+      btn.cornerRadius = 4;
+      btn.fontSize = 10;
       btn.thickness = 1;
       (btn as any).borderColor = COLORS.cardBorder;
-      btn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      btn.paddingTop = "5px";
-      btn.paddingBottom = "5px";
+      btn.paddingRight = "4px";
 
       btn.onPointerEnterObservable.add(() => {
         btn.background = COLORS.tabHover;
+        btn.color = COLORS.textPrimary;
       });
       btn.onPointerOutObservable.add(() => {
         btn.background = COLORS.cardBg;
+        btn.color = COLORS.textSecondary;
       });
 
       btn.onPointerClickObservable.add(() => def.cb());
-      stack.addControl(btn);
+      buttonRow.addControl(btn);
     });
 
     // Feature Modules section
@@ -1682,6 +1890,40 @@ export class GameMenuSystem {
     this.addStatRow(statsCard, "Accuracy", `${accuracy}%`, accuracy >= 80 ? COLORS.accentGreen : COLORS.accentYellow);
     this.addStatRow(statsCard, "Fluency", `${Math.round(data.overallFluency)}%`, COLORS.accent);
     this.addProgressBar(statsCard, data.overallFluency, 100, COLORS.accent, `${Math.round(data.overallFluency)}% fluency`);
+
+    // ── Per-category mastery breakdown bars ──
+    const categoryMap = new Map<string, { total: number; mastered: number; familiar: number; learning: number }>();
+    for (const v of data.vocabulary) {
+      const cat = v.category || 'general';
+      if (!categoryMap.has(cat)) categoryMap.set(cat, { total: 0, mastered: 0, familiar: 0, learning: 0 });
+      const entry = categoryMap.get(cat)!;
+      entry.total++;
+      if (v.masteryLevel === 'mastered') entry.mastered++;
+      else if (v.masteryLevel === 'familiar') entry.familiar++;
+      else if (v.masteryLevel === 'learning') entry.learning++;
+    }
+    if (categoryMap.size > 1) {
+      this.addDivider(stack);
+      const breakdownTitle = new TextBlock();
+      breakdownTitle.text = "Category Mastery";
+      breakdownTitle.color = COLORS.textPrimary;
+      breakdownTitle.fontSize = 14;
+      breakdownTitle.fontWeight = "bold";
+      breakdownTitle.height = "24px";
+      breakdownTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      stack.addControl(breakdownTitle);
+
+      const sortedCats = Array.from(categoryMap.entries())
+        .sort((a, b) => b[1].total - a[1].total);
+      for (const [cat, counts] of sortedCats) {
+        const label = cat.charAt(0).toUpperCase() + cat.slice(1);
+        const pct = counts.total > 0 ? Math.round(((counts.mastered + counts.familiar) / counts.total) * 100) : 0;
+        const color = pct >= 80 ? COLORS.accentGreen : pct >= 50 ? COLORS.accentYellow : COLORS.accentRed;
+        const catCard = this.makeCard(stack);
+        this.addStatRow(catCard, label, `${counts.mastered + counts.familiar}/${counts.total} known (${pct}%)`, color);
+        this.addProgressBar(catCard, counts.mastered + counts.familiar, counts.total, color);
+      }
+    }
 
     if (this.vocabSubTab === 'vocabulary') {
       this.renderVocabularySubTab(stack, data);
@@ -2084,98 +2326,6 @@ export class GameMenuSystem {
 
   // ── CONVERSATIONS TAB ───────────────────────────────────────────────────
 
-  private renderConversationsTab(): void {
-    const { stack } = this.makeScrollableContent("convhist");
-    const conversations = this.callbacks.getConversationHistory?.() || [];
-
-    this.addSectionHeader(stack, "Conversation History");
-    this.addSubHeader(stack, "Recent NPC conversations and language stats");
-
-    if (conversations.length === 0) {
-      const noData = new TextBlock();
-      noData.text = "No conversations yet.\nTalk to NPCs to start learning!";
-      noData.color = COLORS.textMuted;
-      noData.fontSize = 12;
-      noData.height = "50px";
-      noData.textWrapping = true;
-      stack.addControl(noData);
-      return;
-    }
-
-    // Summary stats
-    const totalFluency = conversations.reduce((s, c) => s + c.fluencyGained, 0);
-    const totalWords = new Set(conversations.flatMap(c => c.wordsUsed)).size;
-    const summaryCard = this.makeCard(stack);
-    this.addStatRow(summaryCard, "Conversations", `${conversations.length}`);
-    this.addStatRow(summaryCard, "Total Fluency Gained", `+${totalFluency.toFixed(1)}`, COLORS.accentGreen);
-    this.addStatRow(summaryCard, "Unique Words Used", `${totalWords}`, COLORS.accent);
-
-    this.addDivider(stack);
-
-    // Conversation cards (most recent first)
-    const sorted = [...conversations].sort((a, b) => b.timestamp - a.timestamp);
-    for (const conv of sorted) {
-      const grammarTotal = conv.grammarCorrectCount + conv.grammarErrorCount;
-      const grammarAccuracy = grammarTotal > 0
-        ? Math.round((conv.grammarCorrectCount / grammarTotal) * 100) : 0;
-      const tlColor = conv.targetLanguagePercentage >= 80 ? COLORS.accentGreen
-        : (conv.targetLanguagePercentage >= 50 ? COLORS.accentYellow : COLORS.accentRed);
-
-      const card = this.makeCard(stack);
-
-      // NPC name and date
-      const nameRow = new Rectangle();
-      nameRow.width = 1;
-      nameRow.height = "20px";
-      nameRow.thickness = 0;
-      card.addControl(nameRow);
-
-      const nameText = new TextBlock();
-      nameText.text = conv.characterName;
-      nameText.color = COLORS.accent;
-      nameText.fontSize = 12;
-      nameText.fontWeight = "bold";
-      nameText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      nameRow.addControl(nameText);
-
-      const date = new Date(conv.timestamp);
-      const dateText = new TextBlock();
-      dateText.text = `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-      dateText.color = COLORS.textMuted;
-      dateText.fontSize = 12;
-      dateText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      nameRow.addControl(dateText);
-
-      // Stats
-      this.addStatRow(card, "Turns", `${conv.turns}`);
-      this.addStatRow(card, "Fluency Gained", `+${conv.fluencyGained.toFixed(1)}`,
-        conv.fluencyGained >= 1.5 ? COLORS.accentGreen : COLORS.textSecondary);
-      this.addStatRow(card, "Target Language", `${Math.round(conv.targetLanguagePercentage)}%`, tlColor);
-      if (grammarTotal > 0) {
-        this.addStatRow(card, "Grammar Accuracy", `${grammarAccuracy}%`,
-          grammarAccuracy >= 80 ? COLORS.accentGreen : COLORS.accentYellow);
-      }
-
-      // Target language usage bar
-      this.addProgressBar(card, conv.targetLanguagePercentage, 100, tlColor);
-
-      // Words used
-      if (conv.wordsUsed.length > 0) {
-        const wordsStr = conv.wordsUsed.slice(0, 8).join(', ') +
-          (conv.wordsUsed.length > 8 ? ` +${conv.wordsUsed.length - 8} more` : '');
-        const wordsText = new TextBlock();
-        wordsText.text = `Words: ${wordsStr}`;
-        wordsText.color = COLORS.textMuted;
-        wordsText.fontSize = 12;
-        wordsText.fontStyle = "italic";
-        wordsText.height = "17px";
-        wordsText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        wordsText.textWrapping = true;
-        card.addControl(wordsText);
-      }
-    }
-  }
-
   // ── SKILL TREE TAB ──────────────────────────────────────────────────────
 
   private renderSkillsTab(): void {
@@ -2304,18 +2454,31 @@ export class GameMenuSystem {
     const { stack } = this.makeScrollableContent("notices");
     const noticeData = this.callbacks.getNoticeArticles?.();
 
-    this.addSectionHeader(stack, "Notice Board");
-    this.addSubHeader(stack, "Articles in the target language");
+    this.addSectionHeader(stack, "Library");
+    this.addSubHeader(stack, "Collected readings from notice boards and documents found in the world");
 
     if (!noticeData || noticeData.articles.length === 0) {
       const noData = new TextBlock();
-      noData.text = "No notices available yet.";
+      noData.text = "No readings collected yet. Find notice boards in settlements or documents in the world to start your collection!";
       noData.color = COLORS.textMuted;
       noData.fontSize = 12;
-      noData.height = "33px";
+      noData.height = "50px";
+      noData.textWrapping = TextWrapping.WordWrap;
       stack.addControl(noData);
       return;
     }
+
+    // Stats header
+    const statsText = new TextBlock();
+    const totalArticles = noticeData.articles.length;
+    const stories = noticeData.articles.filter((a: any) => a.documentType === 'story' || a.documentType === 'poem').length;
+    const notices = totalArticles - stories;
+    statsText.text = `${totalArticles} collected: ${notices} notices, ${stories} stories/poems`;
+    statsText.color = COLORS.textMuted;
+    statsText.fontSize = 11;
+    statsText.height = "20px";
+    statsText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    stack.addControl(statsText);
 
     // Toggle translations button
     const toggleBtn = Button.CreateSimpleButton("noticeToggleTrans", this.noticeShowTranslations ? "Hide Translations" : "Show Translations");
@@ -2469,132 +2632,4 @@ export class GameMenuSystem {
     }
   }
 
-  // ── ASSESSMENT TAB ──────────────────────────────────────────────────────
-
-  private renderAssessmentTab(): void {
-    const { stack } = this.makeScrollableContent("assessment");
-    const assessData = this.callbacks.getAssessmentData?.();
-
-    this.addSectionHeader(stack, "Language Assessment");
-    this.addSubHeader(stack, "CEFR proficiency level and dimension scores");
-
-    if (!assessData || !assessData.data) {
-      const noData = new TextBlock();
-      noData.text = "No assessment data yet.\nComplete your first assessment to see your progress!";
-      noData.color = COLORS.textMuted;
-      noData.fontSize = 12;
-      noData.height = "50px";
-      noData.textWrapping = true;
-      stack.addControl(noData);
-      return;
-    }
-
-    const { data, playerLevel } = assessData;
-
-    // CEFR badge
-    const cefrCard = this.makeCard(stack);
-
-    const cefrRow = new Rectangle();
-    cefrRow.width = 1;
-    cefrRow.height = "42px";
-    cefrRow.thickness = 0;
-    cefrCard.addControl(cefrRow);
-
-    const cefrLevel = new TextBlock();
-    cefrLevel.text = data.cefrLevel;
-    cefrLevel.fontSize = 23;
-    cefrLevel.fontWeight = "bold";
-    cefrLevel.color = CEFR_COLORS[data.cefrLevel];
-    cefrLevel.width = "50px";
-    cefrLevel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    cefrRow.addControl(cefrLevel);
-
-    const cefrDesc = new TextBlock();
-    cefrDesc.text = CEFR_DESCRIPTIONS[data.cefrLevel];
-    cefrDesc.fontSize = 14;
-    cefrDesc.color = COLORS.textPrimary;
-    cefrDesc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    cefrDesc.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    cefrDesc.left = "57px";
-    cefrDesc.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    cefrDesc.top = "5px";
-    cefrDesc.height = "20px";
-    cefrRow.addControl(cefrDesc);
-
-    const cefrSub = new TextBlock();
-    cefrSub.text = "CEFR Proficiency Level";
-    cefrSub.fontSize = 12;
-    cefrSub.color = COLORS.textMuted;
-    cefrSub.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    cefrSub.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    cefrSub.left = "57px";
-    cefrSub.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    cefrSub.top = "23px";
-    cefrSub.height = "15px";
-    cefrRow.addControl(cefrSub);
-
-    // Dimension bars
-    this.addDivider(stack);
-    const dimTitle = new TextBlock();
-    dimTitle.text = "Assessment Dimensions";
-    dimTitle.color = COLORS.textPrimary;
-    dimTitle.fontSize = 15;
-    dimTitle.fontWeight = "bold";
-    dimTitle.height = "29px";
-    dimTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    stack.addControl(dimTitle);
-
-    const scoreMap = new Map(data.dimensionScores.map(s => [s.dimension, s]));
-    for (const dim of ASSESSMENT_DIMENSIONS) {
-      const scoreData = scoreMap.get(dim);
-      const score = scoreData?.score ?? 0;
-      const previousScore = scoreData?.previousScore;
-      const arrow = getImprovementArrow(score, previousScore);
-
-      const dimCard = this.makeCard(stack);
-
-      const dimRow = new Rectangle();
-      dimRow.width = 1;
-      dimRow.height = "23px";
-      dimRow.thickness = 0;
-      dimCard.addControl(dimRow);
-
-      const dimIcon = new TextBlock();
-      dimIcon.text = DIMENSION_ICONS[dim];
-      dimIcon.fontSize = 14;
-      dimIcon.width = "20px";
-      dimIcon.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      dimRow.addControl(dimIcon);
-
-      const dimLabel = new TextBlock();
-      dimLabel.text = DIMENSION_LABELS[dim];
-      dimLabel.color = COLORS.textPrimary;
-      dimLabel.fontSize = 12;
-      dimLabel.fontWeight = "bold";
-      dimLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      dimLabel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      dimLabel.left = "23px";
-      dimRow.addControl(dimLabel);
-
-      const scoreText = new TextBlock();
-      scoreText.text = score > 0 ? `${score}/5${arrow ? ' ' + arrow : ''}` : '-';
-      scoreText.fontSize = 12;
-      scoreText.fontWeight = "bold";
-      scoreText.color = score > 0 ? getScoreColor(score) : COLORS.textMuted;
-      scoreText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      dimRow.addControl(scoreText);
-
-      this.addProgressBar(dimCard, score, 5, getScoreColor(score));
-    }
-
-    // Next assessment info
-    this.addDivider(stack);
-    const infoCard = this.makeCard(stack);
-    if (data.nextAssessmentLevel && playerLevel < data.nextAssessmentLevel) {
-      this.addStatRow(infoCard, "Next Assessment", `Level ${data.nextAssessmentLevel}`, COLORS.textSecondary);
-      this.addStatRow(infoCard, "Current Level", `${playerLevel}`, COLORS.accent);
-    } else {
-      this.addStatRow(infoCard, "Status", "Assessment available!", COLORS.accentGreen);
-    }
-  }
 }

@@ -97,17 +97,26 @@ import { QuestCompletionManager } from "@/components/3DGame/QuestCompletionManag
 import { QuestAutoCompletionDetector } from "@/components/3DGame/QuestAutoCompletionDetector.ts";
 import { BabylonConversationHistoryPanel } from "@/components/3DGame/BabylonConversationHistoryPanel.ts";
 import { BabylonSkillTreePanel } from "@/components/3DGame/BabylonSkillTreePanel.ts";
-import { AssessmentProgressUI } from "@/components/3DGame/AssessmentProgressUI.ts";
-import { PlayerAssessmentPanel } from "@/components/3DGame/PlayerAssessmentPanel.ts";
 import { EnvironmentalAudioManager } from "@/components/3DGame/EnvironmentalAudioManager.ts";
 import { CulturalEventManager } from "@/components/3DGame/CulturalEventManager.ts";
-import { BabylonNoticeBoardPanel, SAMPLE_ARTICLES } from "@/components/3DGame/BabylonNoticeBoardPanel.ts";
+import { BabylonNoticeBoardPanel, SAMPLE_ARTICLES, type NoticeArticle } from "@/components/3DGame/BabylonNoticeBoardPanel.ts";
 import { ContentGatingManager } from "@/components/3DGame/ContentGatingManager.ts";
 import { generateQuestSuggestions, selectQuestForNPC } from "@/components/3DGame/DynamicQuestBoard.ts";
 import { VRChatPanel } from "@/components/3DGame/VRChatPanel.ts";
 import { VRVocabularyLabels } from "@/components/3DGame/VRVocabularyLabels.ts";
 import { VRHandTrackingManager } from "@/components/3DGame/VRHandTrackingManager.ts";
-import { createDebugLabel } from "@/components/3DGame/DebugLabelUtils.ts";
+import {
+  createDebugLabel,
+  isDebugLabelsEnabled,
+  setDebugLabelsEnabled,
+  createDebugHoverTooltip,
+  showDebugHoverTooltip,
+  hideDebugHoverTooltip,
+  disposeDebugHoverTooltip,
+  applyDebugHighlight,
+  clearDebugHighlight,
+  buildDebugLabel,
+} from "@/components/3DGame/DebugLabelUtils.ts";
 import { VRAccessibilityManager } from "@/components/3DGame/VRAccessibilityManager.ts";
 import { NPCTalkingIndicator } from "@/components/3DGame/NPCTalkingIndicator.ts";
 import { NPCAmbientConversationManager } from "@/components/3DGame/NPCAmbientConversationManager.ts";
@@ -132,7 +141,6 @@ import {
   launchOnboarding,
 } from "@/components/3DGame/OnboardingLauncher.ts";
 import type { OnboardingLaunchResult } from "@/components/3DGame/OnboardingLauncher.ts";
-import { assessmentModalOpen } from "@/components/3DGame/AssessmentModalUI.ts";
 import {
   KEY_NPC_INTERACT,
   KEY_BUILDING_INTERACT,
@@ -390,8 +398,6 @@ export class BabylonGame {
   private vocabularyPanel: BabylonVocabularyPanel | null = null;
   private conversationHistoryPanel: BabylonConversationHistoryPanel | null = null;
   private skillTreePanel: BabylonSkillTreePanel | null = null;
-  private assessmentProgressUI: AssessmentProgressUI | null = null;
-  private assessmentPanel: PlayerAssessmentPanel | null = null;
   private buildingSignManager: BuildingSignManager | null = null;
   private gamificationTracker: LanguageGamificationTracker | null = null;
   private questCompletionManager: QuestCompletionManager | null = null;
@@ -556,6 +562,7 @@ export class BabylonGame {
   private activeInterior: InteriorLayout | null = null;
   private savedOverworldPosition: Vector3 | null = null;
   private savedOverworldRotationY: number = 0;
+  private savedOverworldCameraAlpha: number = 0;
   private isInsideBuilding: boolean = false;
   private interiorDoorTrigger: Mesh | null = null;
   private buildingEntrySystem: BuildingEntrySystem | null = null;
@@ -576,6 +583,7 @@ export class BabylonGame {
   private keyUpHandler: ((event: KeyboardEvent) => void) | null = null;
   private resizeHandler: (() => void) | null = null;
   private pointerObserver: Observer<PointerInfo> | null = null;
+  private debugHoverObserver: Observer<PointerInfo> | null = null;
   private renderObserver: Observer<Scene> | null = null;
   private npcBehaviorInterval: number | null = null;
   // Phase 7: batched NPC update state
@@ -1271,6 +1279,7 @@ export class BabylonGame {
         this.chatPanel?.speakWord(word);
       },
       onNPCSelected: (npcId: string) => this.setSelectedNPC(npcId),
+      onQuestSetActive: (questId: string) => this.handleSetActiveQuest(questId),
       onPayFines: () => this.handlePayFines(),
       onBackToEditor: () => this.config.onBack?.(),
       onToggleFullscreen: () => this.handleToggleFullscreen(),
@@ -1294,15 +1303,15 @@ export class BabylonGame {
 
     // Initialize chat panel
     this.chatPanel = new BabylonChatPanel(this.guiManager.advancedTexture, scene);
-    // Show chat panel in collapsed mode — positioned below minimap
-    this.chatPanel.showCollapsed();
+    // Initialize chat panel UI (hidden until player talks to an NPC)
+    this.chatPanel.initialize();
 
-    // Move chat panel when minimap collapses/expands
-    this.guiManager.onMinimapCollapsedChanged((expanded) => {
-      // Minimap expanded: 8px top + 189px height + 2px gap = 199px
-      // Minimap collapsed: 8px top + 26px height + 2px gap = 36px
-      this.chatPanel?.setCollapsedTop(expanded ? '199px' : '36px');
+    // Keep NPC indicator positioned below minimap + notifications
+    this.guiManager.onHudLayoutChanged((npcIndicatorTop: number) => {
+      this.chatPanel?.setNpcIndicatorTop(npcIndicatorTop);
     });
+    // Set initial position
+    this.chatPanel.setNpcIndicatorTop(this.guiManager.getNotifPanelBottom());
 
     this.chatPanel.setOnClose(() => {
       this.handleConversationEnd();
@@ -1310,9 +1319,31 @@ export class BabylonGame {
     this.chatPanel.setOnTalkRequested(() => {
       this.handleProximityInteraction();
     });
-    this.chatPanel.setOnQuestAssigned((questData) => {
+    this.chatPanel.setOnQuestAssigned(async (questData) => {
+      // Enforce one-active-at-a-time: demote existing active quests
+      const currentActive = (this.quests || []).filter((q: any) => q.status === 'active' && q.id !== questData.id);
+      for (const q of currentActive) {
+        try {
+          await fetch(`/api/quests/${q.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'available' }),
+          });
+          q.status = 'available';
+        } catch (e) {
+          console.warn('[BabylonGame] Failed to demote quest:', q.id, e);
+        }
+      }
+
+      // Add new quest to local list
+      if (!this.quests) this.quests = [];
+      if (!this.quests.find((q: any) => q.id === questData.id)) {
+        this.quests.push(questData);
+      }
+
+      this.syncActiveQuestToHud();
       this.questTracker?.updateQuests(this.config.worldId);
-      this.updateQuestIndicators(); // Update NPC indicators
+      this.updateQuestIndicators();
       this.guiManager?.showToast({
         title: 'New Quest!',
         description: questData.title || 'Quest assigned',
@@ -1606,9 +1637,6 @@ export class BabylonGame {
     this.conversationHistoryPanel = new BabylonConversationHistoryPanel(this.guiManager.advancedTexture);
     this.conversationHistoryPanel.setOnClose(() => {});
 
-    // Initialize assessment progress UI overlay
-    this.assessmentProgressUI = new AssessmentProgressUI(this.guiManager.advancedTexture);
-
     // Initialize skill tree panel (K key)
     this.skillTreePanel = new BabylonSkillTreePanel(this.guiManager.advancedTexture);
     this.skillTreePanel.setOnClose(() => {});
@@ -1619,10 +1647,6 @@ export class BabylonGame {
         duration: 4000,
       });
     });
-
-    // Initialize assessment progress panel (L key)
-    this.assessmentPanel = new PlayerAssessmentPanel(this.guiManager.advancedTexture);
-    this.assessmentPanel.setOnClose(() => {});
 
     // Initialize environmental audio manager
     this.environmentalAudio = new EnvironmentalAudioManager(scene);
@@ -2213,15 +2237,8 @@ export class BabylonGame {
       this.characters = characters;
       this.actions = [...actions, ...baseActions];
       this.quests = quests;
-      // Sync active quest count to HUD indicator
-      const activeCount = quests?.filter((q: any) => q.status === 'active').length ?? 0;
-      this.questNotificationManager?.setActiveQuestCount(activeCount);
-      if (activeCount > 0) {
-        const first = quests.find((q: any) => q.status === 'active');
-        if (first) {
-          this.questNotificationManager?.setTrackedQuest({ id: first.id, title: first.title });
-        }
-      }
+      // Sync active quest to HUD panel (with full objectives for task tracker)
+      this.syncActiveQuestToHud();
       // Load quests into the quest tracker panel
       this.questTracker?.updateQuests(this.config.worldId);
       this.settlements = settlements;
@@ -4734,40 +4751,139 @@ export class BabylonGame {
       return;
     }
 
-    this.onboardingActive = true;
-    this.assessmentActive = true;
-
-    const result = await launchOnboarding({
-      eventBus: this.eventBus,
-      worldId: this.config.worldId,
-      playerId,
-      authToken,
-      targetLanguage: getTargetLanguage(this.worldData),
-      guiManager: this.guiManager,
-    });
-
-    this.onboardingActive = false;
-    this.assessmentActive = false;
-    this._assessmentTargetNpcId = null;
-
-    if (result) {
-      this.onboardingResult = result;
-
-      // Apply CEFR-based content gating if available
-      if (this.contentGatingManager) {
-        try {
-          (this.contentGatingManager as any).setCefrLevel?.(result.cefrLevel);
-        } catch {
-          // Content gating may not support setCefrLevel yet
-        }
-      }
-
-      this.guiManager?.showToast({
-        title: `Language Level: ${result.cefrLevel}`,
-        description: 'Your adventure begins! Talk to NPCs to practice.',
-        duration: 5000,
+    // Add exclamation marker on the minimap at the first settlement's position
+    // to guide the player toward the notice board
+    const firstSettlementMesh = this.settlementMeshes.values().next().value;
+    if (firstSettlementMesh && this.minimap) {
+      this.minimap.addMarker({
+        id: 'assessment_notice_board',
+        position: firstSettlementMesh.position.clone(),
+        type: 'exclamation',
+        label: 'Notice Board',
+        color: '#ffcc00',
       });
     }
+
+    // Add a special assessment notice to the notice board panel
+    const targetLang = getTargetLanguage(this.worldData);
+    const assessmentNotice = this.createAssessmentNotice('arrival', targetLang);
+    this.noticeBoardPanel?.addArticle(assessmentNotice);
+
+    // Set up callback: when assessment notice is clicked, launch the assessment
+    this.noticeBoardPanel?.setOnAssessmentClicked(async (assessmentType) => {
+      if (assessmentType !== 'arrival') return;
+
+      // Remove the marker and notice
+      this.minimap?.removeMarker('assessment_notice_board');
+      this.noticeBoardPanel?.removeArticle('assessment_arrival');
+
+      // Launch the actual assessment
+      this.onboardingActive = true;
+      this.assessmentActive = true;
+
+      const result = await launchOnboarding({
+        eventBus: this.eventBus,
+        worldId: this.config.worldId,
+        playerId,
+        authToken,
+        targetLanguage: targetLang,
+        guiManager: this.guiManager!,
+      });
+
+      this.onboardingActive = false;
+      this.assessmentActive = false;
+      this._assessmentTargetNpcId = null;
+
+      if (result) {
+        this.onboardingResult = result;
+
+        // Apply CEFR-based content gating if available
+        if (this.contentGatingManager) {
+          try {
+            (this.contentGatingManager as any).setCefrLevel?.(result.cefrLevel);
+          } catch {
+            // Content gating may not support setCefrLevel yet
+          }
+        }
+
+        this.guiManager?.showToast({
+          title: `Language Level: ${result.cefrLevel}`,
+          description: 'Your adventure begins! Talk to NPCs to practice.',
+          duration: 5000,
+        });
+      }
+    });
+
+    // Show a toast directing the player to the notice board
+    this.guiManager?.showToast({
+      title: 'Welcome!',
+      description: 'Visit the Notice Board (N) to begin your language assessment.',
+      duration: 6000,
+    });
+  }
+
+  /**
+   * Create a special NoticeArticle for an assessment (arrival or departure).
+   */
+  private createAssessmentNotice(
+    assessmentType: 'arrival' | 'departure',
+    targetLanguage: string,
+  ): NoticeArticle {
+    if (assessmentType === 'arrival') {
+      return {
+        id: 'assessment_arrival',
+        title: 'Évaluation des Nouveaux Arrivants',
+        titleTranslation: 'Newcomer Assessment',
+        body: `Bienvenue, voyageur! Avant de commencer votre aventure, nous devons évaluer votre connaissance de la langue. Cette évaluation nous aidera à adapter votre expérience à votre niveau.`,
+        bodyTranslation: `Welcome, traveler! Before you begin your adventure, we need to assess your language knowledge. This assessment will help us tailor your experience to your level.`,
+        difficulty: 'beginner',
+        vocabularyWords: [
+          { word: 'évaluation', meaning: 'assessment' },
+          { word: 'voyageur', meaning: 'traveler' },
+          { word: 'aventure', meaning: 'adventure' },
+          { word: 'connaissance', meaning: 'knowledge' },
+        ],
+        noticeType: 'official',
+        readingXp: 5,
+        author: {
+          characterId: 'village_elder',
+          name: 'Le Conseil du Village',
+          occupation: 'Village Council',
+        },
+        assessmentHook: {
+          assessmentType: 'arrival',
+          buttonLabel: 'Commencer l\'Évaluation',
+          buttonLabelTranslation: 'Begin Assessment',
+        },
+      };
+    }
+    // Departure assessment
+    return {
+      id: 'assessment_departure',
+      title: 'Évaluation de Départ',
+      titleTranslation: 'Departure Assessment',
+      body: `Votre séjour touche à sa fin. Avant de partir, passez cette évaluation finale pour mesurer vos progrès dans la langue.`,
+      bodyTranslation: `Your stay is coming to an end. Before you leave, take this final assessment to measure your progress in the language.`,
+      difficulty: 'beginner',
+      vocabularyWords: [
+        { word: 'départ', meaning: 'departure' },
+        { word: 'séjour', meaning: 'stay' },
+        { word: 'progrès', meaning: 'progress' },
+        { word: 'langue', meaning: 'language' },
+      ],
+      noticeType: 'official',
+      readingXp: 5,
+      author: {
+        characterId: 'village_elder',
+        name: 'Le Conseil du Village',
+        occupation: 'Village Council',
+      },
+      assessmentHook: {
+        assessmentType: 'departure',
+        buttonLabel: 'Commencer l\'Évaluation Finale',
+        buttonLabelTranslation: 'Begin Final Assessment',
+      },
+    };
   }
 
   private async loadPlayer(): Promise<void> {
@@ -5589,9 +5705,12 @@ export class BabylonGame {
   ): Promise<void> {
     if (!this.playerMesh || !this.scene || !this.interiorGenerator || this.isInsideBuilding) return;
 
-    // Save current overworld position and rotation
+    // Save current overworld position, rotation, and camera state
     this.savedOverworldPosition = this.playerMesh.position.clone();
     this.savedOverworldRotationY = this.playerMesh.rotation.y;
+    if (this.camera) {
+      this.savedOverworldCameraAlpha = this.camera.alpha;
+    }
 
     // Generate interior (or retrieve cached)
     const interior = this.interiorGenerator.generateInterior(
@@ -5605,9 +5724,25 @@ export class BabylonGame {
     // Fade to black
     await this.performFadeTransition(true);
 
+    // Hide the sky dome and set a dark clear color so no void is visible
+    const skyDome = this.scene.getMeshByName('sky-dome');
+    if (skyDome) skyDome.setEnabled(false);
+    this.scene.clearColor = new Color4(0.05, 0.04, 0.03, 1);
+
     // Teleport player to interior door position and face inward (north / +Z)
     this.playerMesh.position = interior.doorPosition.clone();
     this.playerMesh.rotation.y = 0; // face +Z (into the room)
+
+    // Adjust camera for interior: bring it close to the player so walls
+    // fill the view and no void is visible outside the room
+    if (this.camera) {
+      this.camera.alpha = -Math.PI / 2;
+      const interiorRadius = Math.min(interior.width, interior.depth) / 4;
+      const clampedRadius = Math.max(2, Math.min(interiorRadius, 5));
+      this.camera.lowerRadiusLimit = clampedRadius;
+      this.camera.upperRadiusLimit = clampedRadius;
+      this.camera.radius = clampedRadius;
+    }
     this.playerController?.resetPhysicsState();
     this.isInsideBuilding = true;
 
@@ -5667,10 +5802,28 @@ export class BabylonGame {
     // Fade to black
     await this.performFadeTransition(true);
 
+    // Restore sky dome and clear color for the overworld
+    if (this.scene) {
+      const skyDome = this.scene.getMeshByName('sky-dome');
+      if (skyDome) skyDome.setEnabled(true);
+      this.scene.clearColor = new Color4(0.75, 0.75, 0.75, 1);
+    }
+
+    // Restore camera to overworld settings
+    if (this.camera) {
+      this.camera.lowerRadiusLimit = 10;
+      this.camera.upperRadiusLimit = 10;
+      this.camera.radius = 10;
+    }
+
     // Teleport player back to overworld
     if (this.savedOverworldPosition) {
       this.playerMesh.position = this.savedOverworldPosition.clone();
       this.playerMesh.rotation.y = this.savedOverworldRotationY;
+      // Restore camera angle to where it was before entering
+      if (this.camera) {
+        this.camera.alpha = this.savedOverworldCameraAlpha;
+      }
     } else {
       // Fallback: use the exit position stored in the interior layout
       this.playerMesh.position = this.activeInterior.exitPosition.clone();
@@ -7120,11 +7273,6 @@ export class BabylonGame {
       return;
     }
 
-    // Block all game input while the assessment modal is open
-    if (assessmentModalOpen) {
-      return;
-    }
-
     // M - Close full-screen map first, then toggle game menu
     if (event.code === KEY_GAME_MENU && !event.repeat) {
       event.preventDefault();
@@ -8005,17 +8153,6 @@ export class BabylonGame {
     this.skillTreePanel.toggle();
   }
 
-  private handleToggleAssessmentPanel(): void {
-    if (!this.assessmentPanel) return;
-
-    // Refresh with latest gamification data before showing
-    const gamState = this.gamificationTracker?.getState();
-    if (gamState) {
-      this.assessmentPanel.updateData(null, gamState.xp.level);
-    }
-    this.assessmentPanel.toggle();
-  }
-
   private handleToggleNoticeBoard(): void {
     if (!this.noticeBoardPanel) return;
 
@@ -8415,11 +8552,94 @@ export class BabylonGame {
   private handleToggleDebug(): void {
     if (!this.scene) return;
 
-    if (this.scene.debugLayer.isVisible()) {
-      this.scene.debugLayer.hide();
-    } else {
-      this.scene.debugLayer.show({ overlay: true });
+    const enabling = !isDebugLabelsEnabled();
+
+    // Toggle perf overlay
+    if (this._perfDiv) {
+      this._perfDiv.style.display = enabling ? 'block' : 'none';
     }
+
+    // Toggle debug labels on all procedural fallback meshes
+    setDebugLabelsEnabled(enabling);
+
+    // Toggle Babylon inspector
+    if (enabling) {
+      this.scene.debugLayer.show({ overlay: true });
+    } else {
+      this.scene.debugLayer.hide();
+    }
+
+    // Toggle debug hover tooltip system
+    if (enabling) {
+      this.enableDebugHover();
+    } else {
+      this.disableDebugHover();
+    }
+  }
+
+  private enableDebugHover(): void {
+    if (!this.scene || this.debugHoverObserver) return;
+
+    // Create tooltip element if needed
+    const canvas = this.scene.getEngine().getRenderingCanvas();
+    if (canvas?.parentElement) {
+      createDebugHoverTooltip(canvas.parentElement);
+    }
+
+    // Allow pointer-move picking while debug is active — include
+    // non-pickable meshes so trees, rocks, etc. can be inspected.
+    this.scene.skipPointerMovePicking = false;
+    this.scene.pointerMovePredicate = (mesh) =>
+      mesh.isEnabled() && mesh.isVisible;
+
+    this.debugHoverObserver = this.scene.onPointerObservable.add((pointerInfo) => {
+      if (pointerInfo.type !== PointerEventTypes.POINTERMOVE) return;
+      const pickInfo = pointerInfo.pickInfo;
+      if (!pickInfo?.hit || !pickInfo.pickedMesh) {
+        hideDebugHoverTooltip();
+        clearDebugHighlight();
+        return;
+      }
+
+      // Walk up parent chain, but only while the current mesh has no
+      // metadata AND no recognisable name. Stop as soon as we hit
+      // something identifiable so we don't overshoot to a scene root.
+      let mesh = pickInfo.pickedMesh;
+      while (mesh.parent) {
+        const md = mesh.metadata;
+        if (md?.buildingId || md?.npcId || md?.objectRole || md?.interiorExit || md?.settlementId) break;
+        // Also stop if the mesh itself has a meaningful name (tree, rock, etc.)
+        if (mesh.name && buildDebugLabel(mesh)) break;
+        mesh = mesh.parent as Mesh;
+      }
+
+      const label = buildDebugLabel(mesh);
+      if (!label) {
+        hideDebugHoverTooltip();
+        clearDebugHighlight();
+        return;
+      }
+
+      const evt = pointerInfo.event as PointerEvent;
+      const cvs = this.scene!.getEngine().getRenderingCanvas();
+      const rect = cvs?.getBoundingClientRect();
+      const x = rect ? evt.clientX - rect.left : evt.clientX;
+      const y = rect ? evt.clientY - rect.top : evt.clientY;
+
+      showDebugHoverTooltip(x, y, label);
+      applyDebugHighlight(mesh);
+    });
+  }
+
+  private disableDebugHover(): void {
+    if (this.scene && this.debugHoverObserver) {
+      this.scene.onPointerObservable.remove(this.debugHoverObserver);
+      this.debugHoverObserver = null;
+      // Restore performance optimization
+      this.scene.skipPointerMovePicking = true;
+    }
+    hideDebugHoverTooltip();
+    clearDebugHighlight();
   }
 
   private getAvailableActions(npcId: string): Action[] {
@@ -8962,6 +9182,9 @@ export class BabylonGame {
 
       this.questTracker?.updateQuests(this.config.worldId);
 
+      // Refresh HUD task tracker with updated objectives
+      this.syncActiveQuestToHud();
+
       // Sync quest state changes to Prolog knowledge base
       if (this.prologEngine) {
         const qId = questId.toLowerCase().replace(/[^a-z0-9_]/g, '_');
@@ -8997,6 +9220,71 @@ export class BabylonGame {
       });
     } catch (error) {
       console.error('Failed to update quest progress:', error);
+    }
+  }
+
+  /**
+   * Set a quest as the single active quest. Demotes the current active quest
+   * to 'available' first, then promotes the selected one.
+   */
+  private async handleSetActiveQuest(questId: string): Promise<void> {
+    try {
+      const worldId = this.config.worldId;
+
+      // Demote current active quest(s) to 'available'
+      const currentActive = (this.quests || []).filter((q: any) => q.status === 'active');
+      for (const q of currentActive) {
+        await fetch(`/api/quests/${q.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'available' }),
+        });
+        q.status = 'available';
+      }
+
+      // Promote selected quest to 'active'
+      await fetch(`/api/quests/${questId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' }),
+      });
+      const promoted = (this.quests || []).find((q: any) => q.id === questId);
+      if (promoted) promoted.status = 'active';
+
+      // Refresh HUD and quest tracker
+      this.syncActiveQuestToHud();
+      this.questTracker?.updateQuests(worldId);
+      this.updateQuestIndicators();
+
+      this.guiManager?.showToast({
+        title: 'Quest Activated',
+        description: promoted?.title || 'Quest set as active',
+      });
+    } catch (error) {
+      console.error('[BabylonGame] Failed to set active quest:', error);
+    }
+  }
+
+  /** Push the current active quest (with full objectives) to the HUD task tracker. */
+  private syncActiveQuestToHud(): void {
+    const activeQuest = (this.quests || []).find((q: any) => q.status === 'active');
+    if (activeQuest) {
+      this.questNotificationManager?.setActiveQuest({
+        id: activeQuest.id,
+        title: activeQuest.title || activeQuest.name || activeQuest.id,
+        questType: activeQuest.questType || '',
+        objectives: (activeQuest.objectives || []).map((obj: any) => ({
+          type: obj.type || '',
+          description: obj.description || obj.type?.replace(/_/g, ' ') || '',
+          completed: !!obj.completed,
+          current: obj.current,
+          required: obj.required,
+          hint: obj.hint,
+        })),
+        progress: activeQuest.progress,
+      });
+    } else {
+      this.questNotificationManager?.setActiveQuest(null);
     }
   }
 
@@ -9441,6 +9729,8 @@ export class BabylonGame {
       this.scene.onPointerObservable.remove(this.pointerObserver);
       this.pointerObserver = null;
     }
+    this.disableDebugHover();
+    disposeDebugHoverTooltip();
   }
 
   private disposeUpdateLoop(): void {
@@ -9692,8 +9982,6 @@ export class BabylonGame {
     this.vocabularyPanel?.dispose();
     this.conversationHistoryPanel?.dispose();
     this.skillTreePanel?.dispose();
-    this.assessmentProgressUI?.dispose();
-    this.assessmentPanel?.dispose();
     this.buildingSignManager?.dispose();
     this.gamificationTracker?.dispose();
     this.questCompletionManager?.dispose();

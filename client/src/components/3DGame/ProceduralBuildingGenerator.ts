@@ -6,7 +6,7 @@
  */
 
 import { Scene, Mesh, AbstractMesh, MeshBuilder, Vector3, StandardMaterial, Color3, Texture, VertexData, DynamicTexture, SceneLoader } from '@babylonjs/core';
-import { createDebugLabel } from './DebugLabelUtils';
+
 import { FoundationData, createFoundationMesh } from './TerrainFoundationRenderer';
 import type { ZoneType } from './StreetAlignedPlacement';
 import "@babylonjs/loaders/glTF";
@@ -481,9 +481,9 @@ export class ProceduralBuildingGenerator {
       balcony.parent = parent;
     }
 
-    // Debug label for procedural building fallback
+    // Attach debug metadata for hover tooltip
     const label = spec.businessType || spec.type;
-    createDebugLabel(this.scene, parent, `BUILDING: ${label}`, (spec.floors * 4) + 6);
+    parent.metadata = { ...(parent.metadata || {}), debugLabel: `Building: ${label}` };
 
     // Phase 2: Merge all procedural building sub-meshes that share the same
     // material into fewer meshes to reduce draw calls.
@@ -535,6 +535,15 @@ export class ProceduralBuildingGenerator {
     });
 
     this.buildingMeshes.set(spec.id, parent);
+
+    // Ensure all child meshes have LOD matching the parent (500u).
+    // Unmerged children (e.g. door with skipMerge, or sole-material meshes)
+    // would otherwise remain visible when the parent building is LOD-hidden.
+    parent.getChildMeshes().forEach(m => {
+      if (m instanceof Mesh && m.getLODLevels().length === 0) {
+        m.addLODLevel(500, null);
+      }
+    });
 
     // Freeze world matrices on all procedural building parts (static geometry)
     parent.getChildMeshes().forEach(m => {

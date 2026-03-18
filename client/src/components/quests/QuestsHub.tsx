@@ -52,9 +52,10 @@ interface QuestsHubProps {
   worldId: string;
 }
 
-const STATUS_GROUPS: Record<string, { label: string; icon: typeof Clock; color: string }> = {
-  available: { label: 'Available', icon: Target, color: 'text-blue-500' },
-  active: { label: 'Active', icon: Clock, color: 'text-blue-500' },
+const STATUS_GROUPS: Record<string, { label: string; icon: typeof Clock; color: string; description: string }> = {
+  active: { label: 'Active', icon: Play, color: 'text-green-500', description: 'Currently pursued quest (only one at a time)' },
+  available: { label: 'Available', icon: Eye, color: 'text-blue-500', description: 'Unlocked and selectable at game start' },
+  unavailable: { label: 'Unavailable', icon: Lock, color: 'text-gray-400', description: 'Hidden until preconditions are met' },
 };
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -75,7 +76,7 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
   const { toast } = useToast();
   const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['available', 'active']));
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['active', 'available', 'unavailable']));
   const [expandedSection, setExpandedSection] = useState<'details' | 'predicates' | 'query' | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -145,17 +146,51 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
     }
   };
 
+  const handleStatusChange = async (questId: string, newStatus: string) => {
+    try {
+      // If setting a quest to active, first demote any existing active quest to available
+      if (newStatus === 'active') {
+        const currentActive = quests.find(q => q.status === 'active' && q.id !== questId);
+        if (currentActive) {
+          await fetch(`/api/quests/${currentActive.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'available' }),
+          });
+        }
+      }
+
+      const res = await fetch(`/api/quests/${questId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        await queryClient.invalidateQueries({ queryKey: ['/api/worlds', worldId, 'quests'] });
+        if (selectedQuest?.id === questId) {
+          setSelectedQuest(updated);
+        }
+        toast({ title: `Quest set to ${newStatus}` });
+      } else {
+        toast({ title: 'Failed to update status', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Failed to update status', variant: 'destructive' });
+    }
+  };
+
   const getDifficultyColor = (difficulty: string) =>
     DIFFICULTY_COLORS[difficulty] || 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20';
 
   const getTypeIcon = (type: string) => TYPE_ICONS[type] || '🎯';
 
-  // Group quests by status — editor only shows "available" and "active" buckets.
-  // Completed/failed/pending quests are shown under "available" since completion
-  // state is per-playthrough, not per-world.
+  // Group quests by canonical starting status.
+  // active = pursued at game start (only one), available = selectable, unavailable = locked
   const questGroups: Record<string, Quest[]> = {};
   quests.forEach(q => {
-    const key = (q.status === 'active') ? 'active' : 'available';
+    const key = q.status === 'active' ? 'active' : q.status === 'unavailable' ? 'unavailable' : 'available';
     if (!questGroups[key]) questGroups[key] = [];
     questGroups[key].push(q);
   });
@@ -206,7 +241,7 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
             <div className="p-3 text-xs text-muted-foreground text-center">No quests yet</div>
           ) : (
             <div className="p-2 space-y-1">
-              {(['available', 'active'] as const).map(status => {
+              {(['active', 'available', 'unavailable'] as const).map(status => {
                 const group = questGroups[status];
                 if (!group || group.length === 0) return null;
                 const statusConfig = STATUS_GROUPS[status];
@@ -419,6 +454,33 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
                     <Badge className={`text-[10px] border ${getDifficultyColor(selectedQuest.difficulty)}`}>
                       {selectedQuest.difficulty}
                     </Badge>
+                  </div>
+                  <div className="p-1.5 bg-muted/30 rounded space-y-1.5">
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Starting Status</span>
+                    <div className="flex gap-1">
+                      {(['active', 'available', 'unavailable'] as const).map(s => {
+                        const cfg = STATUS_GROUPS[s];
+                        const Icon = cfg.icon;
+                        const isSelected = selectedQuest.status === s;
+                        return (
+                          <button
+                            key={s}
+                            title={cfg.description}
+                            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                              isSelected
+                                ? s === 'active' ? 'bg-green-500/20 text-green-600 dark:text-green-400 ring-1 ring-green-500/30'
+                                : s === 'available' ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/30'
+                                : 'bg-gray-500/20 text-gray-500 ring-1 ring-gray-500/30'
+                                : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                            }`}
+                            onClick={() => !isSelected && handleStatusChange(selectedQuest.id, s)}
+                          >
+                            <Icon className="h-3 w-3" />
+                            {cfg.label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                   <div className="flex justify-between items-center p-1.5 bg-muted/30 rounded">
                     <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Reward</span>

@@ -142,4 +142,7 @@ private:
     /** Add door with frame and handle to building. */
     void AddDoor(USceneComponent* Parent, float Width, float Depth, int32 Floors,
                  FLinearColor DoorColor, UMaterialInterface* BaseMaterial);
+
+    /** Propagate LOD cull distance to child components that don't already have one. */
+    void PropagateChildLOD();
 };

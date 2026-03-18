@@ -535,6 +535,43 @@ export class LanguageProgressTracker {
     }
   }
 
+  /**
+   * Directly add a vocabulary word (e.g., from reading a notice or document).
+   * If the word already exists, increments its encounter count and marks it as correctly used.
+   */
+  public addVocabularyWord(word: string, meaning: string, category?: string, usedCorrectly?: boolean): VocabularyEntry {
+    let entry = this.progress.vocabulary.find(v => v.word === word);
+    if (entry) {
+      entry.timesEncountered++;
+      entry.lastEncountered = Date.now();
+      if (usedCorrectly) {
+        entry.timesUsedCorrectly++;
+        this.progress.totalCorrectUsages++;
+      }
+      const oldMastery = entry.masteryLevel;
+      entry.masteryLevel = calculateMasteryLevel(entry.timesEncountered, entry.timesUsedCorrectly);
+      if (oldMastery !== 'mastered' && entry.masteryLevel === 'mastered') {
+        this.onWordMastered?.(entry);
+      }
+    } else {
+      entry = {
+        word,
+        language: this.progress.language,
+        meaning,
+        category: category || 'general',
+        timesEncountered: 1,
+        timesUsedCorrectly: usedCorrectly ? 1 : 0,
+        timesUsedIncorrectly: 0,
+        lastEncountered: Date.now(),
+        masteryLevel: 'new',
+      };
+      this.progress.vocabulary.push(entry);
+      this.progress.totalWordsLearned++;
+      this.onNewWordLearned?.(entry);
+    }
+    return entry;
+  }
+
   // Callback setters
   public setOnFluencyGain(cb: (result: FluencyGainResult) => void): void { this.onFluencyGain = cb; }
   public setOnNewWordLearned(cb: (entry: VocabularyEntry) => void): void { this.onNewWordLearned = cb; }

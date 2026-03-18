@@ -299,6 +299,14 @@ func generate_location_position() -> Vector3:
 	return Vector3(cos(angle) * dist, 0.0, sin(angle) * dist)
 
 
+## Attach debug metadata to a quest marker node (used for hover tooltips).
+## Replaces floating 3D text labels with lightweight metadata.
+static func set_marker_debug_label(marker: Node3D, label: String) -> void:
+	if marker == null:
+		return
+	marker.set_meta("debug_label", label)
+
+
 func get_active_quests() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for q in all_quests:

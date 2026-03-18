@@ -670,14 +670,90 @@ export class RoadGenerator {
       if (!seg) continue;
       placedNames.add(seg.name);
 
-      const y = sampleHeight(node.x, node.z) + this.yOffset;
+      // Compute corner offset using segment directions at this intersection
+      const cornerOffset = this.computeCornerOffset(node, network);
+
+      const signX = node.x + cornerOffset.x;
+      const signZ = node.z + cornerOffset.z;
+      const y = sampleHeight(signX, signZ) + this.yOffset;
       const signMesh = this.createStreetSign(
         `sign_${settlementId}_${node.id}`,
         seg.name,
-        new Vector3(node.x + 1.5, y + 2.5, node.z + 1.5)
+        new Vector3(signX, y + 2.5, signZ)
       );
       if (signMesh) this.roadMeshes.push(signMesh);
     }
+  }
+
+  /**
+   * Compute an offset from the intersection center to a corner position,
+   * using the perpendiculars of the meeting street segments.
+   */
+  private computeCornerOffset(
+    node: { x: number; z: number; intersectionOf: string[] },
+    network: StreetNetwork
+  ): { x: number; z: number } {
+    const margin = 0.5; // extra clearance beyond road edge
+
+    // Get up to 2 segments at this intersection
+    const segs = network.segments.filter(s => node.intersectionOf.includes(s.id));
+    if (segs.length < 2) {
+      // Fallback: single segment, offset perpendicular to it
+      const s = segs[0];
+      const dir = this.segmentDirectionAtNode(s, node);
+      const hw = (s.width || this.roadWidth) / 2 + margin;
+      return { x: -dir.z * hw, z: dir.x * hw };
+    }
+
+    const s1 = segs[0];
+    const s2 = segs[1];
+    const d1 = this.segmentDirectionAtNode(s1, node);
+    const d2 = this.segmentDirectionAtNode(s2, node);
+    const hw1 = (s1.width || this.roadWidth) / 2 + margin;
+    const hw2 = (s2.width || this.roadWidth) / 2 + margin;
+
+    // Perpendiculars (rotated 90° clockwise): (dx,dz) → (dz, -dx)
+    // We pick the corner where both perpendiculars point "outward"
+    // by using a consistent rotation direction
+    const perp1x = d1.z;
+    const perp1z = -d1.x;
+    const perp2x = d2.z;
+    const perp2z = -d2.x;
+
+    return {
+      x: perp1x * hw1 + perp2x * hw2,
+      z: perp1z * hw1 + perp2z * hw2
+    };
+  }
+
+  /**
+   * Get the normalized direction vector of a segment going away from a node.
+   */
+  private segmentDirectionAtNode(
+    seg: { waypoints: { x: number; z: number }[]; nodeIds: string[] },
+    node: { x: number; z: number }
+  ): { x: number; z: number } {
+    const wp = seg.waypoints;
+    if (wp.length < 2) return { x: 1, z: 0 };
+
+    // Determine which end of the segment is closest to the node
+    const dFirst = (wp[0].x - node.x) ** 2 + (wp[0].z - node.z) ** 2;
+    const dLast = (wp[wp.length - 1].x - node.x) ** 2 + (wp[wp.length - 1].z - node.z) ** 2;
+
+    let dx: number, dz: number;
+    if (dFirst <= dLast) {
+      // Node is near the start — direction goes from start toward next point
+      dx = wp[1].x - wp[0].x;
+      dz = wp[1].z - wp[0].z;
+    } else {
+      // Node is near the end — direction goes from end toward previous point
+      dx = wp[wp.length - 2].x - wp[wp.length - 1].x;
+      dz = wp[wp.length - 2].z - wp[wp.length - 1].z;
+    }
+
+    const len = Math.sqrt(dx * dx + dz * dz);
+    if (len < 0.001) return { x: 1, z: 0 };
+    return { x: dx / len, z: dz / len };
   }
 
   /**
@@ -1187,8 +1263,28 @@ export class RoadGenerator {
         { x: sidewalkX, z: sidewalkZ },
       ];
 
+      // Create a height sampler that ramps from the building's base Y at the
+      // door to the normal terrain height at the sidewalk, so the walkway
+      // meets the door threshold flush instead of floating above it.
+      const walkwayLen = Math.sqrt(
+        (sidewalkX - doorX) ** 2 + (sidewalkZ - doorZ) ** 2
+      );
+      const buildingBaseY = b.position.y - this.yOffset; // cancel the yOffset added later
+      const walkwaySampleHeight = (x: number, z: number): number => {
+        if (walkwayLen < 0.01) return sampleHeight(x, z);
+        const dx = x - doorX;
+        const dz = z - doorZ;
+        // Project onto door→sidewalk direction to get 0..1 parameter
+        const t = Math.max(0, Math.min(1,
+          (dx * (sidewalkX - doorX) + dz * (sidewalkZ - doorZ)) / (walkwayLen * walkwayLen)
+        ));
+        const terrainY = sampleHeight(x, z);
+        // t=0 at door (use building base), t=1 at sidewalk (use terrain)
+        return buildingBaseY * (1 - t) + terrainY * t;
+      };
+
       const mesh = this.createPolylineRoad(
-        `walkway_${bi}`, walkwayPts, sampleHeight, walkwayWidth, walkwayColor, curbHeight
+        `walkway_${bi}`, walkwayPts, walkwaySampleHeight, walkwayWidth, walkwayColor, curbHeight
       );
       if (mesh) {
         this.roadMeshes.push(mesh);

@@ -6,7 +6,7 @@
  */
 
 import { Scene, Mesh, MeshBuilder, Vector3, StandardMaterial, Color3, InstancedMesh, Matrix, AbstractMesh, SceneLoader, Quaternion } from '@babylonjs/core';
-import { createDebugLabel } from './DebugLabelUtils';
+
 import "@babylonjs/loaders/glTF";
 import { generateTerrainAwarePlacements, type HeightSampler, type PlacementBounds, type TerrainSample } from './TerrainVegetationPlacer';
 import { type NatureLODProfile, type NatureObjectType, type LODStats, DEFAULT_LOD_PROFILE, getLODProfileForBiome, createLODStats } from './NatureLODConfig';
@@ -554,13 +554,6 @@ export class ProceduralNatureGenerator {
         collider.freezeWorldMatrix();
         this.treeMeshes.push(collider);
 
-        // Debug label on first procedural tree only
-        if (isProceduralFallback && this.treeMeshes.length === 0) {
-          const labelAnchor = new Mesh(`tree_label_anchor`, this.scene);
-          labelAnchor.position = position.clone();
-          createDebugLabel(this.scene, labelAnchor, `TREE (${biome.treeType})`, 14);
-          this.treeMeshes.push(labelAnchor);
-        }
       }
     }
   }
@@ -988,13 +981,6 @@ export class ProceduralNatureGenerator {
       rockCollider.freezeWorldMatrix();
       this.rockMeshes.push(rockCollider);
 
-      // Debug label on first procedural rock only
-      if (i === 0) {
-        const labelAnchor = new Mesh(`rock_label_anchor`, this.scene);
-        labelAnchor.position = rock.position.clone();
-        createDebugLabel(this.scene, labelAnchor, 'ROCK (procedural)', 4);
-        this.rockMeshes.push(labelAnchor);
-      }
 
       this.rockMeshes.push(rock);
     }
@@ -1092,13 +1078,6 @@ export class ProceduralNatureGenerator {
       bush.isPickable = false;
       bush.freezeWorldMatrix();
 
-      // Debug label on first procedural shrub only
-      if (i === 0) {
-        const labelAnchor = new Mesh(`shrub_label_anchor`, this.scene);
-        labelAnchor.position = bush.position.clone();
-        createDebugLabel(this.scene, labelAnchor, 'SHRUB (procedural)', 3);
-        this.vegetationMeshes.push(labelAnchor);
-      }
 
       this.vegetationMeshes.push(bush);
     }
@@ -1495,12 +1474,6 @@ export class ProceduralNatureGenerator {
       collider.freezeWorldMatrix();
       this.geologicalMeshes.push(collider);
 
-      if (i === 0) {
-        const labelAnchor = new Mesh(`geo_label_anchor`, this.scene);
-        labelAnchor.position = mesh.position.clone();
-        createDebugLabel(this.scene, labelAnchor, `GEO: ${featureType}`, 6);
-        this.geologicalMeshes.push(labelAnchor);
-      }
 
       this.geologicalMeshes.push(mesh);
     }

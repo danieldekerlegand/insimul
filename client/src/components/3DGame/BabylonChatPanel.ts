@@ -97,9 +97,9 @@ export class BabylonChatPanel {
   private languageTracker: LanguageProgressTracker | null = null;
   private messages: Message[] = [];
   private isVisible = false;
-  private isCollapsed = true;
   private nearbyNPCName: string | null = null;
-  private collapsedHeader: TextBlock | null = null;
+  private _npcIndicator: Rectangle | null = null;
+  private _npcIndicatorText: TextBlock | null = null;
   private _enterKeyHandler: ((e: KeyboardEvent) => void) | null = null;
   private _inputFocused = false;
   private isProcessing = false;
@@ -208,70 +208,41 @@ export class BabylonChatPanel {
   }
 
   /**
-   * Show the chat panel in collapsed mode — always visible at the bottom-right
-   * but showing only a small header bar. Call this once after initialization.
+   * Initialize the chat panel UI (hidden by default).
+   * Call this once after construction so the NPC indicator is available.
    */
-  public showCollapsed(): void {
+  public initialize(): void {
     if (!this.chatContainer) {
       this.createChatUI();
     }
-    this.isCollapsed = true;
-    this.isVisible = false;
-    this.nearbyNPCName = null;
-    if (this.chatContainer) {
-      this.chatContainer.isVisible = true;
-      this.chatContainer.height = '29px';
-      // Position below minimap: top-right
-      this.chatContainer.width = '180px';
-      this.chatContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      this.chatContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-      this.chatContainer.left = '-8px';
-      this.chatContainer.top = this._collapsedTop;
-      this.chatContainer.alpha = 0.5;
-      this.chatContainer.zIndex = 10;
-    }
-    this.updateCollapsedHeader();
+    this.updateNPCIndicator();
   }
-
-  /** Update the collapsed panel's vertical position (call when minimap collapses/expands). */
-  public setCollapsedTop(top: string): void {
-    if (this.isCollapsed && this.chatContainer) {
-      this.chatContainer.top = top;
-    }
-    this._collapsedTop = top;
-  }
-  private _collapsedTop = '201px';
 
   /**
    * Called by BabylonGame each frame with the name of the nearest NPC within
-   * interaction range, or null if none. Updates the collapsed header prompt.
+   * interaction range, or null if none. Updates the NPC indicator.
    */
   public setNearbyNPC(npcName: string | null): void {
     if (this.nearbyNPCName === npcName) return;
     this.nearbyNPCName = npcName;
-    if (this.isCollapsed) {
-      this.updateCollapsedHeader();
+    this.updateNPCIndicator();
+  }
+
+  /** Update the NPC indicator widget visibility and text. */
+  private updateNPCIndicator(): void {
+    if (!this._npcIndicator || !this._npcIndicatorText) return;
+    if (this.nearbyNPCName && !this.isVisible) {
+      this._npcIndicatorText.text = `[G]: Talk to ${this.nearbyNPCName}`;
+      this._npcIndicator.isVisible = true;
+    } else {
+      this._npcIndicator.isVisible = false;
     }
   }
 
-  private updateCollapsedHeader(): void {
-    if (!this.titleText) return;
-    if (this.isCollapsed) {
-      this.titleText.fontSize = 11;
-      this.titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-      this.titleText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-      if (this._closeBtn) this._closeBtn.isVisible = false;
-      if (this.nearbyNPCName) {
-        this.titleText.text = `[G]: Talk to ${this.nearbyNPCName}`;
-        if (this.chatContainer) this.chatContainer.alpha = 0.8;
-      } else {
-        this.titleText.text = 'No NPC nearby';
-        if (this.chatContainer) this.chatContainer.alpha = 0.4;
-      }
-    } else {
-      this.titleText.fontSize = 13;
-      this.titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-      if (this._closeBtn) this._closeBtn.isVisible = true;
+  /** Reposition the NPC indicator to the given top offset (called when HUD layout changes). */
+  public setNpcIndicatorTop(top: number): void {
+    if (this._npcIndicator) {
+      this._npcIndicator.top = `${top}px`;
     }
   }
 
@@ -325,8 +296,7 @@ export class BabylonChatPanel {
     // Check for quests ready to turn in from this NPC
     this.checkQuestTurnIn(character.id, character.worldId);
 
-    // Expand from collapsed state
-    this.isCollapsed = false;
+    if (this._npcIndicator) this._npcIndicator.isVisible = false;
 
     if (this.chatContainer) {
       // Chat container already exists — restore full size and bottom-right position
@@ -481,20 +451,10 @@ export class BabylonChatPanel {
       this.exitListeningMode();
     }
     this.isVisible = false;
-    // Return to collapsed state instead of hiding entirely
-    this.isCollapsed = true;
     if (this.chatContainer) {
-      // Return to collapsed state below minimap
-      this.chatContainer.width = '180px';
-      this.chatContainer.height = '29px';
-      this.chatContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      this.chatContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-      this.chatContainer.left = '-8px';
-      this.chatContainer.top = this._collapsedTop;
-      this.chatContainer.isVisible = true;
-      this.chatContainer.zIndex = 10;
-      this.updateCollapsedHeader();
+      this.chatContainer.isVisible = false;
     }
+    this.updateNPCIndicator();
     if (this.dialogueActions) {
       this.dialogueActions.hide();
     }
@@ -618,7 +578,7 @@ export class BabylonChatPanel {
     this.chatContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     this.chatContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
     this.chatContainer.zIndex = 50;
-    this.chatContainer.isVisible = true;
+    this.chatContainer.isVisible = false;
     this.chatContainer.alpha = 1;
 
     // Add to texture
@@ -648,12 +608,6 @@ export class BabylonChatPanel {
     this.titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     this.titleText.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
     this.titleText.name = "chatTitle";
-    this.titleText.isPointerBlocker = true;
-    this.titleText.onPointerClickObservable.add(() => {
-      if (this.isCollapsed && this.nearbyNPCName) {
-        this.onTalkRequested?.();
-      }
-    });
     header.addControl(this.titleText);
 
     // Conversation state indicator (thinking/speaking/listening)
@@ -684,10 +638,43 @@ export class BabylonChatPanel {
     closeBtn.onPointerClickObservable.add(() => {
       this.hide(true);
     });
-    closeBtn.isVisible = !this.isCollapsed;
     this._closeBtn = closeBtn;
     header.addControl(closeBtn);
 
+    // NPC-nearby indicator — separate widget positioned top-right, below minimap + notifications
+    this._npcIndicator = new Rectangle("npcIndicator");
+    this._npcIndicator.width = "190px";
+    this._npcIndicator.height = "29px";
+    this._npcIndicator.background = "rgba(0, 0, 0, 0.78)";
+    this._npcIndicator.color = "rgba(255, 255, 255, 0.15)";
+    this._npcIndicator.thickness = 1;
+    this._npcIndicator.cornerRadius = 6;
+    this._npcIndicator.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    this._npcIndicator.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    this._npcIndicator.left = "-8px";
+    this._npcIndicator.top = "234px"; // overridden dynamically by setNpcIndicatorTop()
+    this._npcIndicator.alpha = 0.8;
+    this._npcIndicator.zIndex = 10;
+    this._npcIndicator.isVisible = false;
+    this._npcIndicator.isPointerBlocker = true;
+    this._npcIndicator.onPointerClickObservable.add(() => {
+      if (this.nearbyNPCName) {
+        this.onTalkRequested?.();
+      }
+    });
+
+    this._npcIndicatorText = new TextBlock("npcIndicatorText");
+    this._npcIndicatorText.text = "";
+    this._npcIndicatorText.color = "rgba(255,255,255,0.7)";
+    this._npcIndicatorText.fontSize = 10;
+    this._npcIndicatorText.fontWeight = "bold";
+    this._npcIndicatorText.left = "8px";
+    this._npcIndicatorText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this._npcIndicatorText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this._npcIndicatorText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    this._npcIndicator.addControl(this._npcIndicatorText);
+
+    this._advancedTexture.addControl(this._npcIndicator);
 
     // Messages area — ScrollViewer wrapping a StackPanel
     // Height is "stretch" — fills remaining space between header (32px) and input (36px)
