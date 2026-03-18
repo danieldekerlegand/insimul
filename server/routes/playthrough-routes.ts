@@ -3,6 +3,12 @@ import { storage } from '../db/storage';
 import { AuthService } from "../services/auth-service";
 import { canAccessWorld, canEditWorld } from "../middleware/permissions";
 import * as ReputationService from "../services/reputation-service";
+import {
+  setRelationship,
+  getRelationshipStrength,
+  getCharacterRelationships,
+  modifyRelationship,
+} from "../extensions/tott/relationship-utils";
 
 export function registerPlaythroughRoutes(app: Express) {
 
@@ -687,6 +693,128 @@ export function registerPlaythroughRoutes(app: Express) {
     } catch (error) {
       console.error("Check access error:", error);
       res.status(500).json({ message: "Failed to check access" });
+    }
+  });
+
+  // ===== PLAYTHROUGH RELATIONSHIP ROUTES =====
+
+  // Get all relationships for a character within a playthrough (merged base + overlay)
+  app.get("/api/playthroughs/:id/relationships/:characterId", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) return res.status(404).json({ message: "Playthrough not found" });
+      if (playthrough.userId !== payload.userId) {
+        const canEdit = await canEditWorld(payload.userId, playthrough.worldId);
+        if (!canEdit) return res.status(403).json({ message: "Access denied" });
+      }
+
+      const relationships = await getCharacterRelationships(req.params.characterId, req.params.id);
+      res.json(relationships);
+    } catch (error) {
+      console.error("Get playthrough relationships error:", error);
+      res.status(500).json({ message: "Failed to get relationships" });
+    }
+  });
+
+  // Get relationship strength between two characters within a playthrough
+  app.get("/api/playthroughs/:id/relationships/:fromId/:toId", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) return res.status(404).json({ message: "Playthrough not found" });
+      if (playthrough.userId !== payload.userId) {
+        const canEdit = await canEditWorld(payload.userId, playthrough.worldId);
+        if (!canEdit) return res.status(403).json({ message: "Access denied" });
+      }
+
+      const strength = await getRelationshipStrength(req.params.fromId, req.params.toId, req.params.id);
+      res.json({ fromCharacterId: req.params.fromId, toCharacterId: req.params.toId, strength });
+    } catch (error) {
+      console.error("Get relationship strength error:", error);
+      res.status(500).json({ message: "Failed to get relationship strength" });
+    }
+  });
+
+  // Set a relationship within a playthrough (writes to overlay, not base world)
+  app.put("/api/playthroughs/:id/relationships/:fromId/:toId", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) return res.status(404).json({ message: "Playthrough not found" });
+      if (playthrough.userId !== payload.userId) return res.status(403).json({ message: "Access denied" });
+
+      const { type, strength, reciprocal } = req.body;
+      if (!type || typeof strength !== 'number') {
+        return res.status(400).json({ message: "type and strength are required" });
+      }
+
+      await setRelationship(req.params.fromId, req.params.toId, type, strength, reciprocal, req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Set playthrough relationship error:", error);
+      res.status(500).json({ message: "Failed to set relationship" });
+    }
+  });
+
+  // Modify a relationship within a playthrough (incremental change to overlay)
+  app.post("/api/playthroughs/:id/relationships/:fromId/:toId/modify", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) return res.status(404).json({ message: "Playthrough not found" });
+      if (playthrough.userId !== payload.userId) return res.status(403).json({ message: "Access denied" });
+
+      const { change, cause } = req.body;
+      if (typeof change !== 'number') {
+        return res.status(400).json({ message: "change (number) is required" });
+      }
+
+      await modifyRelationship(req.params.fromId, req.params.toId, change, cause, req.params.id);
+      const newStrength = await getRelationshipStrength(req.params.fromId, req.params.toId, req.params.id);
+      res.json({ success: true, newStrength });
+    } catch (error) {
+      console.error("Modify playthrough relationship error:", error);
+      res.status(500).json({ message: "Failed to modify relationship" });
+    }
+  });
+
+  // Get all relationship overlays for a playthrough (raw overlay data)
+  app.get("/api/playthroughs/:id/relationship-overlays", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) return res.status(404).json({ message: "Playthrough not found" });
+      if (playthrough.userId !== payload.userId) {
+        const canEdit = await canEditWorld(payload.userId, playthrough.worldId);
+        if (!canEdit) return res.status(403).json({ message: "Access denied" });
+      }
+
+      const overlays = await storage.getPlaythroughRelationshipsByPlaythrough(req.params.id);
+      res.json(overlays);
+    } catch (error) {
+      console.error("Get relationship overlays error:", error);
+      res.status(500).json({ message: "Failed to get relationship overlays" });
     }
   });
 

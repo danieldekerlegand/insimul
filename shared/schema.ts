@@ -1914,3 +1914,31 @@ export type InsertPlayTrace = z.infer<typeof insertPlayTraceSchema>;
 
 export type Reputation = typeof reputations.$inferSelect;
 export type InsertReputation = z.infer<typeof insertReputationSchema>;
+
+// Playthrough-scoped relationship overlay
+// Stores relationship changes that occur during a specific playthrough,
+// layered on top of base world relationships via copy-on-write
+export interface PlaythroughRelationship {
+  id: string;
+  playthroughId: string;
+  fromCharacterId: string;
+  toCharacterId: string;
+  type: string; // romantic, friendship, rivalry, acquaintance, etc.
+  strength: number; // -1.0 to 1.0
+  reciprocal?: number; // Strength in opposite direction
+  lastModified: number;
+  metadata?: Record<string, any>; // Extra context (e.g., cause of change)
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface InsertPlaythroughRelationship {
+  playthroughId: string;
+  fromCharacterId: string;
+  toCharacterId: string;
+  type: string;
+  strength: number;
+  reciprocal?: number;
+  lastModified: number;
+  metadata?: Record<string, any>;
+}

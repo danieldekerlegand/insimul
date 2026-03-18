@@ -46,7 +46,11 @@ import {
   type PlayTrace,
   type InsertPlayTrace,
   type Item,
-  type InsertItem
+  type InsertItem,
+  type Reputation,
+  type InsertReputation,
+  type PlaythroughRelationship,
+  type InsertPlaythroughRelationship
 } from "@shared/schema";
 import type {
   WorldLanguage,
@@ -159,6 +163,14 @@ interface WorldLanguageDoc extends Omit<WorldLanguage, 'id'>, Document {
 }
 
 interface LanguageChatMessageDoc extends Omit<LanguageChatMessage, 'id'>, Document {
+  _id: string;
+}
+
+interface ReputationDoc extends Omit<Reputation, 'id'>, Document {
+  _id: string;
+}
+
+interface PlaythroughRelationshipDoc extends Omit<PlaythroughRelationship, 'id'>, Document {
   _id: string;
 }
 
@@ -751,6 +763,46 @@ const PlayTraceSchema = new Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+const ReputationSchema = new Schema({
+  playthroughId: { type: String, required: true },
+  userId: { type: String, required: true },
+  entityType: { type: String, required: true },
+  entityId: { type: String, required: true },
+  score: { type: Number, default: 0 },
+  violationCount: { type: Number, default: 0 },
+  warningCount: { type: Number, default: 0 },
+  lastViolation: { type: Date, default: null },
+  violationHistory: { type: Schema.Types.Mixed, default: [] },
+  standing: { type: String, default: 'neutral' },
+  isBanned: { type: Boolean, default: false },
+  banExpiry: { type: Date, default: null },
+  totalFinesPaid: { type: Number, default: 0 },
+  outstandingFines: { type: Number, default: 0 },
+  hasDiscounts: { type: Boolean, default: false },
+  hasSpecialAccess: { type: Boolean, default: false },
+  notes: { type: String, default: null },
+  tags: { type: [String], default: [] },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+ReputationSchema.index({ playthroughId: 1, entityType: 1, entityId: 1 }, { unique: true });
+ReputationSchema.index({ playthroughId: 1, userId: 1 });
+
+const PlaythroughRelationshipSchema = new Schema({
+  playthroughId: { type: String, required: true },
+  fromCharacterId: { type: String, required: true },
+  toCharacterId: { type: String, required: true },
+  type: { type: String, required: true },
+  strength: { type: Number, required: true },
+  reciprocal: { type: Number, default: null },
+  lastModified: { type: Number, required: true },
+  metadata: { type: Schema.Types.Mixed, default: null },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+PlaythroughRelationshipSchema.index({ playthroughId: 1, fromCharacterId: 1, toCharacterId: 1 }, { unique: true });
+PlaythroughRelationshipSchema.index({ playthroughId: 1, fromCharacterId: 1 });
+
 const WorldLanguageSchema = new Schema({
   worldId: { type: String, required: true },
   scopeType: { type: String, required: true },
@@ -1087,6 +1139,8 @@ const AchievementModel = mongoose.model<AchievementDoc>('Achievement', Achieveme
 const PlaythroughModel = mongoose.model<PlaythroughDoc>('Playthrough', PlaythroughSchema);
 const PlaythroughDeltaModel = mongoose.model<PlaythroughDeltaDoc>('PlaythroughDelta', PlaythroughDeltaSchema);
 const PlayTraceModel = mongoose.model<PlayTraceDoc>('PlayTrace', PlayTraceSchema);
+const ReputationModel = mongoose.model<ReputationDoc>('Reputation', ReputationSchema);
+const PlaythroughRelationshipModel = mongoose.model<PlaythroughRelationshipDoc>('PlaythroughRelationship', PlaythroughRelationshipSchema);
 const WorldLanguageModel = mongoose.model<WorldLanguageDoc>('WorldLanguage', WorldLanguageSchema);
 const LotModel = mongoose.model('Lot', LotSchema);
 const ResidenceModel = mongoose.model('Residence', ResidenceSchema);
@@ -1243,6 +1297,14 @@ function docToPlaythroughDelta(doc: PlaythroughDeltaDoc): PlaythroughDelta {
 }
 
 function docToPlayTrace(doc: PlayTraceDoc): PlayTrace {
+  return { ...doc.toObject(), id: doc._id.toString() };
+}
+
+function docToReputation(doc: ReputationDoc): Reputation {
+  return { ...doc.toObject(), id: doc._id.toString() };
+}
+
+function docToPlaythroughRelationship(doc: PlaythroughRelationshipDoc): PlaythroughRelationship {
   return { ...doc.toObject(), id: doc._id.toString() };
 }
 
@@ -3257,6 +3319,105 @@ export class MongoStorage implements IStorage {
     await this.connect();
     const result = await WaterFeatureModel.findByIdAndDelete(id);
     return !!result;
+  }
+
+  // ===== Reputations (playthrough-scoped) =====
+
+  async getReputation(id: string): Promise<Reputation | undefined> {
+    await this.connect();
+    const doc = await ReputationModel.findById(id);
+    return doc ? docToReputation(doc) : undefined;
+  }
+
+  async getReputationsByPlaythrough(playthroughId: string): Promise<Reputation[]> {
+    await this.connect();
+    const docs = await ReputationModel.find({ playthroughId });
+    return docs.map(docToReputation);
+  }
+
+  async getReputationForEntity(playthroughId: string, entityType: string, entityId: string): Promise<Reputation | undefined> {
+    await this.connect();
+    const doc = await ReputationModel.findOne({ playthroughId, entityType, entityId });
+    return doc ? docToReputation(doc) : undefined;
+  }
+
+  async createReputation(reputation: InsertReputation): Promise<Reputation> {
+    await this.connect();
+    const doc = await ReputationModel.create(reputation);
+    return docToReputation(doc);
+  }
+
+  async updateReputation(id: string, updates: Partial<InsertReputation>): Promise<Reputation | undefined> {
+    await this.connect();
+    const doc = await ReputationModel.findByIdAndUpdate(id, { ...updates, updatedAt: new Date() }, { new: true });
+    return doc ? docToReputation(doc) : undefined;
+  }
+
+  async upsertReputation(playthroughId: string, entityType: string, entityId: string, updates: Partial<InsertReputation>): Promise<Reputation> {
+    await this.connect();
+    const doc = await ReputationModel.findOneAndUpdate(
+      { playthroughId, entityType, entityId },
+      { $set: { ...updates, updatedAt: new Date() }, $setOnInsert: { createdAt: new Date() } },
+      { new: true, upsert: true }
+    );
+    return docToReputation(doc);
+  }
+
+  async deleteReputation(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await ReputationModel.findByIdAndDelete(id);
+    return !!result;
+  }
+
+  async deleteReputationsByPlaythrough(playthroughId: string): Promise<number> {
+    await this.connect();
+    const result = await ReputationModel.deleteMany({ playthroughId });
+    return result.deletedCount;
+  }
+
+  // ===== Playthrough Relationships (playthrough-scoped overlays) =====
+
+  async getPlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string): Promise<PlaythroughRelationship | undefined> {
+    await this.connect();
+    const doc = await PlaythroughRelationshipModel.findOne({ playthroughId, fromCharacterId, toCharacterId });
+    return doc ? docToPlaythroughRelationship(doc) : undefined;
+  }
+
+  async getPlaythroughRelationshipsForCharacter(playthroughId: string, characterId: string): Promise<PlaythroughRelationship[]> {
+    await this.connect();
+    const docs = await PlaythroughRelationshipModel.find({
+      playthroughId,
+      $or: [{ fromCharacterId: characterId }, { toCharacterId: characterId }]
+    });
+    return docs.map(docToPlaythroughRelationship);
+  }
+
+  async getPlaythroughRelationshipsByPlaythrough(playthroughId: string): Promise<PlaythroughRelationship[]> {
+    await this.connect();
+    const docs = await PlaythroughRelationshipModel.find({ playthroughId });
+    return docs.map(docToPlaythroughRelationship);
+  }
+
+  async upsertPlaythroughRelationship(rel: InsertPlaythroughRelationship): Promise<PlaythroughRelationship> {
+    await this.connect();
+    const doc = await PlaythroughRelationshipModel.findOneAndUpdate(
+      { playthroughId: rel.playthroughId, fromCharacterId: rel.fromCharacterId, toCharacterId: rel.toCharacterId },
+      { $set: { ...rel, updatedAt: new Date() }, $setOnInsert: { createdAt: new Date() } },
+      { new: true, upsert: true }
+    );
+    return docToPlaythroughRelationship(doc);
+  }
+
+  async deletePlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string): Promise<boolean> {
+    await this.connect();
+    const result = await PlaythroughRelationshipModel.findOneAndDelete({ playthroughId, fromCharacterId, toCharacterId });
+    return !!result;
+  }
+
+  async deletePlaythroughRelationshipsByPlaythrough(playthroughId: string): Promise<number> {
+    await this.connect();
+    const result = await PlaythroughRelationshipModel.deleteMany({ playthroughId });
+    return result.deletedCount;
   }
 
 }
