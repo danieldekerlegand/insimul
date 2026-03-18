@@ -10,6 +10,7 @@ import type { WorldLanguage } from './types';
 import { getQuestTypeForWorld, type QuestTypeDefinition } from '../quest-types';
 import type { CEFRLevel } from '../assessment/cefr-mapping';
 import { cefrToFluencyTier } from '../assessment/cefr-mapping';
+import { getSpeechComplexity, buildDialogueRulesFromComplexity } from './speech-complexity';
 
 // ==========================================
 // Types
@@ -746,6 +747,7 @@ export function getOccupationDifficultyModifier(occupation?: string | null): num
 /**
  * Build the player proficiency section of a system prompt.
  * Adapts NPC dialogue complexity based on the player's current language level.
+ * Uses the speech-complexity module for structured parameter computation.
  */
 export function buildPlayerProficiencySection(
   proficiency: PlayerProficiency,
@@ -755,10 +757,8 @@ export function buildPlayerProficiencySection(
 ): string {
   const { overallFluency, vocabularyCount, masteredWordCount, weakGrammarPatterns, strongGrammarPatterns, conversationCount } = proficiency;
 
-  // Compute effective difficulty: CEFR level overrides fluency-based tier if provided
-  const occupationMod = getOccupationDifficultyModifier(npcOccupation);
-  const baseFluency = cefrLevel ? cefrToFluencyTier(cefrLevel).effective : overallFluency;
-  const effectiveFluency = Math.max(0, Math.min(100, baseFluency + occupationMod));
+  // Compute structured speech complexity parameters
+  const complexity = getSpeechComplexity(proficiency, npcOccupation, cefrLevel);
 
   let section = `\nPLAYER LANGUAGE PROFICIENCY (${targetLanguage}):\n`;
   section += `- Fluency: ${overallFluency.toFixed(0)}/100\n`;
@@ -773,60 +773,18 @@ export function buildPlayerProficiencySection(
   }
 
   // Add occupation-based difficulty note
+  const occupationMod = getOccupationDifficultyModifier(npcOccupation);
   if (occupationMod < 0) {
     section += `\nAs a ${npcOccupation}, you are naturally patient and accommodating with language learners. Simplify your speech more than usual.\n`;
   } else if (occupationMod > 0) {
     section += `\nAs a ${npcOccupation}, you naturally use formal and complex language. You may be less accommodating but still helpful.\n`;
   }
 
-  section += `\nADAPTIVE DIALOGUE RULES:\n`;
-  section += `IMPORTANT: You must ALWAYS respond in ${targetLanguage}. This is a language immersion experience.\n`;
-  section += `CRITICAL: Your ENTIRE response is read aloud by TTS. NEVER include English translations, glosses, parenthetical hints, vocabulary blocks, structured data, or any markup. Respond with ONLY natural spoken dialogue.\n\n`;
-
-  if (effectiveFluency < 20) {
-    // Beginner tier
-    section += `This player is a BEGINNER. You MUST:\n`;
-    section += `- Speak in ${targetLanguage} using very simple words and short sentences (5-7 words)\n`;
-    section += `- Use only basic, high-frequency vocabulary\n`;
-    section += `- Be extremely encouraging and patient — celebrate every attempt\n`;
-    section += `- Repeat key vocabulary multiple times naturally\n`;
-    section += `- Use gestures and body language descriptions to convey meaning, e.g.: *points to the bread* "C'est du pain!"\n`;
-    section += `- If the player writes in English, respond in simple ${targetLanguage} and gently encourage them to try ${targetLanguage}\n`;
-  } else if (effectiveFluency < 40) {
-    // Elementary tier
-    section += `This player is at an ELEMENTARY level. You should:\n`;
-    section += `- Speak in ${targetLanguage}, using simple sentence structures\n`;
-    section += `- Use common everyday vocabulary with 2-4 new words per message\n`;
-    section += `- Gently correct 1 grammar error per message in-character\n`;
-    section += `- Be warm and encouraging\n`;
-  } else if (effectiveFluency < 60) {
-    // Intermediate tier
-    section += `This player is at an INTERMEDIATE level. You should:\n`;
-    section += `- Speak entirely in ${targetLanguage} with full sentences\n`;
-    section += `- Introduce 3-5 new words, including some idiomatic expressions\n`;
-    section += `- Correct up to 2 grammar errors per message with brief in-character explanations\n`;
-    section += `- Use more complex sentence structures\n`;
-  } else if (effectiveFluency < 80) {
-    // Advanced tier
-    section += `This player is at an ADVANCED level. You should:\n`;
-    section += `- Speak 100% in ${targetLanguage} — no English at all\n`;
-    section += `- Speak naturally with idioms, humor, and cultural references\n`;
-    section += `- Correct grammar errors with explanations in ${targetLanguage}\n`;
-    section += `- Challenge the player with varied vocabulary and structures\n`;
-    section += `- Speak at natural speed — use longer, complex sentences\n`;
-    section += `- You may playfully challenge or tease the player about mistakes\n`;
-  } else {
-    // Near-native tier
-    section += `This player is NEAR-NATIVE. You should:\n`;
-    section += `- Speak 100% in ${targetLanguage} with full natural complexity\n`;
-    section += `- Use slang, colloquialisms, and cultural subtleties\n`;
-    section += `- Discuss nuanced topics and wordplay\n`;
-    section += `- Only correct subtle errors or offer style improvements\n`;
-    section += `- Treat them as a fellow speaker, not a learner\n`;
-  }
+  // Build dialogue rules from speech complexity params
+  section += '\n' + buildDialogueRulesFromComplexity(complexity, targetLanguage);
 
   // Target weak patterns
-  if (weakGrammarPatterns.length > 0 && effectiveFluency >= 20) {
+  if (weakGrammarPatterns.length > 0 && complexity.effectiveFluency >= 20) {
     section += `\nFOCUS AREA: The player struggles with ${weakGrammarPatterns.slice(0, 2).join(' and ')}. `;
     section += `Try to naturally use these patterns in your speech so the player can learn by example.\n`;
   }

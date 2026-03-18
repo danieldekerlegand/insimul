@@ -15,3 +15,4 @@ export * from './phonetic-similarity';
 export * from './character-profile';
 export * from './bilingual-names';
 export * from './vocabulary-review';
+export * from './speech-complexity';
