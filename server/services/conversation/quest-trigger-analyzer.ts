@@ -57,6 +57,7 @@ export interface AnalysisResult {
 export interface AnalysisContext {
   playerMessage: string;
   npcCharacterId?: string;
+  npcName?: string;
   conversationTurnCount: number;
   activeQuests: ActiveQuest[];
 }
@@ -300,6 +301,51 @@ export function analyzeConversation(ctx: AnalysisContext): AnalysisResult {
               newCount,
               requiredCount,
               completed: newCount >= requiredCount,
+            });
+          }
+          break;
+        }
+
+        // Conversation-only objective types — progress on each conversation turn
+        case 'ask_for_directions':
+        case 'order_food':
+        case 'haggle_price':
+        case 'listen_and_repeat':
+        case 'describe_scene':
+        case 'write_response':
+        case 'build_friendship': {
+          // These objectives progress when the player sends a relevant message
+          if (playerMessage.trim().length > 0) {
+            const newCount = Math.min(currentCount + 1, requiredCount);
+            if (newCount > currentCount) {
+              triggers.push({
+                questId: quest.id,
+                objectiveId: obj.id,
+                objectiveType: obj.type,
+                trigger: `conversation turn for ${obj.type}`,
+                incrementBy: 1,
+                newCount,
+                requiredCount,
+                completed: newCount >= requiredCount,
+              });
+            }
+          }
+          break;
+        }
+
+        case 'introduce_self': {
+          // Detect self-introduction patterns (name mentions, greetings)
+          const introPatterns = /\b(my name|i am|i'm|je m'appelle|me llamo|ich bin|ich heiße)\b/i;
+          if (introPatterns.test(playerMessage)) {
+            triggers.push({
+              questId: quest.id,
+              objectiveId: obj.id,
+              objectiveType: obj.type,
+              trigger: `introduced self`,
+              incrementBy: 1,
+              newCount: requiredCount,
+              requiredCount,
+              completed: true,
             });
           }
           break;

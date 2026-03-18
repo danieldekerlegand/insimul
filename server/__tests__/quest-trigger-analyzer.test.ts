@@ -488,4 +488,182 @@ describe('analyzeConversation', () => {
       "ObjectiveId: obj1, Progress: 2/3, Trigger: 'used words: bonjour'",
     );
   });
+
+  // ── Conversation-only objective type triggers ─────────────────────────
+
+  it('detects order_food trigger on non-empty message', () => {
+    const quest: ActiveQuest = {
+      id: 'q1',
+      title: 'Order at Café',
+      questType: 'conversation',
+      objectives: [
+        {
+          id: 'obj1',
+          type: 'order_food',
+          requiredCount: 1,
+          currentCount: 0,
+        },
+      ],
+    };
+
+    const result = analyzeConversation({
+      playerMessage: 'Je voudrais un café, s\'il vous plaît',
+      conversationTurnCount: 1,
+      activeQuests: [quest],
+    });
+
+    expect(result.triggers).toHaveLength(1);
+    expect(result.triggers[0].objectiveType).toBe('order_food');
+    expect(result.triggers[0].completed).toBe(true);
+  });
+
+  it('detects haggle_price trigger', () => {
+    const quest: ActiveQuest = {
+      id: 'q1',
+      title: 'Market Bargaining',
+      questType: 'conversation',
+      objectives: [
+        {
+          id: 'obj1',
+          type: 'haggle_price',
+          requiredCount: 2,
+          currentCount: 0,
+        },
+      ],
+    };
+
+    const result = analyzeConversation({
+      playerMessage: 'C\'est trop cher, je vous offre cinq euros',
+      conversationTurnCount: 1,
+      activeQuests: [quest],
+    });
+
+    expect(result.triggers).toHaveLength(1);
+    expect(result.triggers[0].newCount).toBe(1);
+    expect(result.triggers[0].completed).toBe(false);
+  });
+
+  it('detects introduce_self trigger with introduction pattern', () => {
+    const quest: ActiveQuest = {
+      id: 'q1',
+      title: 'Meet the Neighbors',
+      questType: 'conversation',
+      objectives: [
+        {
+          id: 'obj1',
+          type: 'introduce_self',
+          requiredCount: 1,
+          currentCount: 0,
+        },
+      ],
+    };
+
+    const result = analyzeConversation({
+      playerMessage: 'Je m\'appelle Pierre, enchanté!',
+      conversationTurnCount: 1,
+      activeQuests: [quest],
+    });
+
+    expect(result.triggers).toHaveLength(1);
+    expect(result.triggers[0].completed).toBe(true);
+  });
+
+  it('detects introduce_self with English pattern', () => {
+    const quest: ActiveQuest = {
+      id: 'q1',
+      title: 'Introductions',
+      questType: 'conversation',
+      objectives: [
+        {
+          id: 'obj1',
+          type: 'introduce_self',
+          requiredCount: 1,
+          currentCount: 0,
+        },
+      ],
+    };
+
+    const result = analyzeConversation({
+      playerMessage: 'My name is Daniel',
+      conversationTurnCount: 1,
+      activeQuests: [quest],
+    });
+
+    expect(result.triggers).toHaveLength(1);
+    expect(result.triggers[0].completed).toBe(true);
+  });
+
+  it('does not trigger introduce_self without introduction pattern', () => {
+    const quest: ActiveQuest = {
+      id: 'q1',
+      title: 'Introductions',
+      questType: 'conversation',
+      objectives: [
+        {
+          id: 'obj1',
+          type: 'introduce_self',
+          requiredCount: 1,
+          currentCount: 0,
+        },
+      ],
+    };
+
+    const result = analyzeConversation({
+      playerMessage: 'The weather is nice today',
+      conversationTurnCount: 1,
+      activeQuests: [quest],
+    });
+
+    expect(result.triggers).toHaveLength(0);
+  });
+
+  it('does not trigger conversation-only types on empty message', () => {
+    const quest: ActiveQuest = {
+      id: 'q1',
+      title: 'Order Food',
+      questType: 'conversation',
+      objectives: [
+        {
+          id: 'obj1',
+          type: 'order_food',
+          requiredCount: 1,
+          currentCount: 0,
+        },
+      ],
+    };
+
+    const result = analyzeConversation({
+      playerMessage: '   ',
+      conversationTurnCount: 1,
+      activeQuests: [quest],
+    });
+
+    expect(result.triggers).toHaveLength(0);
+  });
+
+  it('tracks build_friendship progress over multiple turns', () => {
+    const quest: ActiveQuest = {
+      id: 'q1',
+      title: 'Befriend the Baker',
+      questType: 'conversation',
+      objectives: [
+        {
+          id: 'obj1',
+          type: 'build_friendship',
+          requiredCount: 3,
+          currentCount: 1,
+        },
+      ],
+    };
+
+    const result = analyzeConversation({
+      playerMessage: 'Tell me about your baking secrets!',
+      conversationTurnCount: 2,
+      activeQuests: [quest],
+    });
+
+    expect(result.triggers).toHaveLength(1);
+    expect(result.triggers[0].newCount).toBe(2);
+    expect(result.triggers[0].completed).toBe(false);
+  });
 });

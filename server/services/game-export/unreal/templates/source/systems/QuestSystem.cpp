@@ -130,11 +130,18 @@ void UQuestSystem::TrackVocabularyUsage(const FString& Word, const FString& Ques
 
 void UQuestSystem::TrackConversationTurn(const TArray<FString>& Keywords, const FString& QuestId)
 {
+    // Conversation-only objective types that progress on each conversation turn
+    static const TSet<FString> ConversationOnlyTypes = {
+        TEXT("complete_conversation"), TEXT("order_food"), TEXT("haggle_price"),
+        TEXT("listen_and_repeat"), TEXT("ask_for_directions"), TEXT("describe_scene"),
+        TEXT("write_response"), TEXT("build_friendship")
+    };
+
     for (auto& Obj : Objectives)
     {
         if (Obj.bCompleted) continue;
         if (!QuestId.IsEmpty() && Obj.QuestId != QuestId) continue;
-        if (Obj.Type != TEXT("complete_conversation")) continue;
+        if (!ConversationOnlyTypes.Contains(Obj.Type)) continue;
 
         // Every conversation turn counts as progress
         Obj.CurrentCount++;

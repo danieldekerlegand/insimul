@@ -12,6 +12,7 @@ import { ProceduralQuestObjects } from './ProceduralQuestObjects';
 import { VisualVocabularyDetector, type VocabularyTarget, type IdentificationPrompt, type IdentificationResult } from './VisualVocabularyDetector';
 import { QuestCompletionEngine } from './QuestCompletionEngine';
 import type { GameEventBus } from './GameEventBus';
+import { isConversationOnlyQuest } from '@shared/quest-objective-types';
 
 // Quest objective types that can be spawned/tracked in the world
 export type QuestObjectiveType =
@@ -145,6 +146,7 @@ export interface Quest {
   assignedTo?: string;
   assignedBy?: string;
   assignedByCharacterId?: string;
+  conversationOnly?: boolean;
 }
 
 interface QuestObject {
@@ -263,6 +265,15 @@ export class QuestObjectManager {
 
     // Parse and spawn objectives from quest data
     const objectives = this.parseQuestObjectives(quest);
+
+    // Conversation-only quests skip physical object spawning entirely —
+    // all objectives are completed through NPC dialogue
+    const questObjectives = quest.objectives as Array<{ type: string }> | undefined;
+    const convOnly = quest.conversationOnly || (questObjectives && isConversationOnlyQuest(questObjectives));
+    if (convOnly) {
+      console.log(`[QuestObjectManager] Conversation-only quest "${quest.title}" — skipping physical object spawning`);
+      return;
+    }
 
     for (const objective of objectives) {
       await this.spawnObjective(objective);

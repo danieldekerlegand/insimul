@@ -40,6 +40,9 @@ struct FQuestObjective
 
     /** Words already used (for deduplication) */
     UPROPERTY(BlueprintReadWrite) TArray<FString> WordsUsed;
+
+    /** Whether this objective is conversation-only (no physical actions needed) */
+    UPROPERTY(BlueprintReadWrite) bool bConversationOnly = false;
 };
 
 /**

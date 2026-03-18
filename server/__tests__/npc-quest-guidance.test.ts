@@ -321,4 +321,89 @@ describe('getQuestGuidanceForNPC', () => {
     expect(result.systemPromptAddition).toContain('listening comprehension');
     expect(result.systemPromptAddition).toContain('story');
   });
+
+  it('adds conversation-only mode context for purely verbal quests', () => {
+    const quests = [
+      makeQuest({
+        assignedByCharacterId: 'npc-1',
+        objectives: [
+          { type: 'talk_to_npc', targetId: 'npc-1', required: 1, current: 0 },
+          { type: 'use_vocabulary', vocabulary: ['hola'], required: 1, current: 0 },
+          { type: 'complete_conversation', required: 3, current: 0 },
+        ],
+      }),
+    ];
+    const result = getQuestGuidanceForNPC('npc-1', 'John Smith', quests);
+    expect(result.hasGuidance).toBe(true);
+    expect(result.systemPromptAddition).toContain('CONVERSATION-ONLY QUEST ACTIVE');
+    expect(result.systemPromptAddition).toContain('entirely through dialogue');
+    expect(result.systemPromptAddition).toContain('CONVERSATION-ONLY');
+  });
+
+  it('does not add conversation-only context for mixed quests', () => {
+    const quests = [
+      makeQuest({
+        objectives: [
+          { type: 'talk_to_npc', targetId: 'npc-1', target: 'John Smith' },
+          { type: 'collect_item', targetId: 'npc-1', target: 'John Smith', description: 'Collect bread' },
+        ],
+      }),
+    ];
+    const result = getQuestGuidanceForNPC('npc-1', 'John Smith', quests);
+    expect(result.hasGuidance).toBe(true);
+    expect(result.systemPromptAddition).not.toContain('CONVERSATION-ONLY QUEST ACTIVE');
+  });
+
+  it('generates order_food guidance', () => {
+    const quests = [
+      makeQuest({
+        objectives: [
+          { type: 'order_food', targetId: 'npc-1', required: 1, current: 0 },
+        ],
+      }),
+    ];
+    const result = getQuestGuidanceForNPC('npc-1', 'John Smith', quests);
+    expect(result.hasGuidance).toBe(true);
+    expect(result.systemPromptAddition).toContain('order');
+    expect(result.systemPromptAddition).toContain('menu');
+  });
+
+  it('generates introduce_self guidance', () => {
+    const quests = [
+      makeQuest({
+        objectives: [
+          { type: 'introduce_self', targetId: 'npc-1' },
+        ],
+      }),
+    ];
+    const result = getQuestGuidanceForNPC('npc-1', 'John Smith', quests);
+    expect(result.hasGuidance).toBe(true);
+    expect(result.systemPromptAddition).toContain('introduce');
+  });
+
+  it('generates haggle_price guidance', () => {
+    const quests = [
+      makeQuest({
+        objectives: [
+          { type: 'haggle_price', targetId: 'npc-1' },
+        ],
+      }),
+    ];
+    const result = getQuestGuidanceForNPC('npc-1', 'John Smith', quests);
+    expect(result.hasGuidance).toBe(true);
+    expect(result.systemPromptAddition).toContain('negotiate');
+  });
+
+  it('generates build_friendship guidance with remaining count', () => {
+    const quests = [
+      makeQuest({
+        objectives: [
+          { type: 'build_friendship', targetId: 'npc-1', required: 5, current: 2 },
+        ],
+      }),
+    ];
+    const result = getQuestGuidanceForNPC('npc-1', 'John Smith', quests);
+    expect(result.hasGuidance).toBe(true);
+    expect(result.systemPromptAddition).toContain('3 more meaningful exchange(s)');
+  });
 });
