@@ -1008,6 +1008,36 @@ export function createTelemetryRoutes(storage: any): Router {
     }
   });
 
+  // ============= QUEST PEER COMPARISON =============
+
+  // GET /api/worlds/:worldId/quest-peer-stats — anonymized aggregate quest performance
+  router.get('/worlds/:worldId/quest-peer-stats', async (req: Request, res: Response) => {
+    try {
+      const { worldId } = req.params;
+      const { computePeerStats } = await import('../services/quest-peer-comparison');
+      const quests = await storage.getQuestsByWorld(worldId);
+      const stats = computePeerStats(quests);
+      res.json(stats);
+    } catch (error) {
+      console.error('Quest peer stats error:', error);
+      res.status(500).json({ message: 'Failed to get quest peer stats' });
+    }
+  });
+
+  // GET /api/worlds/:worldId/quest-peer-comparison/:playerName — player's comparison vs peers
+  router.get('/worlds/:worldId/quest-peer-comparison/:playerName', async (req: Request, res: Response) => {
+    try {
+      const { worldId, playerName } = req.params;
+      const { computePlayerComparison } = await import('../services/quest-peer-comparison');
+      const quests = await storage.getQuestsByWorld(worldId);
+      const comparison = computePlayerComparison(quests, playerName);
+      res.json(comparison);
+    } catch (error) {
+      console.error('Quest peer comparison error:', error);
+      res.status(500).json({ message: 'Failed to get quest peer comparison' });
+    }
+  });
+
   return router;
 }
 
