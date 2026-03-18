@@ -9384,6 +9384,61 @@ Respond with this JSON structure:
     }
   });
 
+  // Quest Vocabulary Introduction — get vocabulary words to pre-teach before quest practice
+  app.get("/api/worlds/:worldId/quests/:questId/vocab-introduction", async (req, res) => {
+    try {
+      const { worldId, questId } = req.params;
+      const { playerId, playthroughId } = req.query;
+
+      if (!playerId || typeof playerId !== 'string') {
+        return res.status(400).json({ error: "playerId query parameter is required" });
+      }
+
+      const quest = await storage.getQuest(questId);
+      if (!quest || quest.worldId !== worldId) {
+        return res.status(404).json({ error: "Quest not found" });
+      }
+
+      const { buildVocabularyIntroduction, createNewVocabularyEntries, generateFlashcards } =
+        await import('../shared/language/quest-vocabulary-introduction.js');
+
+      // Get player's language progress for vocabulary filtering
+      const langProgress = await storage.getLanguageProgress(
+        playerId, worldId, typeof playthroughId === 'string' ? playthroughId : undefined,
+      );
+      const playerVocabulary = langProgress?.vocabulary ?? [];
+      const cefrLevel = langProgress?.cefrLevel;
+
+      // Extract quest vocab input from quest data
+      const objectives = (quest.objectives as any[]) ?? [];
+      const vocabularyWords: string[] = [];
+      for (const obj of objectives) {
+        if (obj.vocabularyWords) vocabularyWords.push(...obj.vocabularyWords);
+        if (obj.targetWords) vocabularyWords.push(...obj.targetWords);
+      }
+
+      const tags = (quest as any).tags ?? [];
+      const questInput = {
+        questId: quest.id,
+        questTitle: quest.title,
+        questType: quest.questType,
+        difficulty: quest.difficulty,
+        vocabularyWords: vocabularyWords.length > 0 ? vocabularyWords : undefined,
+        vocabularyCategory: (quest as any).vocabularyCategory,
+        tags,
+        businessType: (quest as any).businessType,
+      };
+
+      const introduction = buildVocabularyIntroduction(questInput, playerVocabulary, cefrLevel);
+      const flashcards = introduction.shouldShow ? generateFlashcards(introduction.words) : [];
+
+      res.json({ introduction, flashcards });
+    } catch (error) {
+      console.error('[Quest Vocab Introduction] Error:', error);
+      res.status(500).json({ error: "Failed to generate vocabulary introduction" });
+    }
+  });
+
   // NPC Quest Guidance — get conversation guidance for an NPC based on active quests
   app.get("/api/worlds/:worldId/quests/npc-guidance/:npcId", async (req, res) => {
     try {
