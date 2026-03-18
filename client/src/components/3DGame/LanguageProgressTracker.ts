@@ -58,10 +58,11 @@ export class LanguageProgressTracker {
   private onVocabularyUsed: ((usages: VocabularyUsage[]) => void) | null = null;
   private onGrammarFeedback: ((feedback: GrammarFeedback) => void) | null = null;
 
-  constructor(playerId: string, worldId: string, language: string) {
+  constructor(playerId: string, worldId: string, language: string, playthroughId?: string) {
     this.progress = {
       playerId,
       worldId,
+      playthroughId,
       language,
       overallFluency: 0,
       vocabulary: [],
@@ -672,6 +673,7 @@ export class LanguageProgressTracker {
   private buildSyncPayload(): {
     playerId: string;
     worldId: string;
+    playthroughId?: string;
     progress: Record<string, unknown>;
     vocabulary: Array<Record<string, unknown>>;
     grammarPatterns: Array<Record<string, unknown>>;
@@ -685,6 +687,7 @@ export class LanguageProgressTracker {
     return {
       playerId: this.progress.playerId,
       worldId: this.progress.worldId,
+      ...(this.progress.playthroughId ? { playthroughId: this.progress.playthroughId } : {}),
       progress: {
         targetLanguage: this.progress.language,
         overallFluency: this.progress.overallFluency,

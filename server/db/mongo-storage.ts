@@ -600,6 +600,7 @@ const UserSchema = new Schema({
 const PlayerProgressSchema = new Schema({
   userId: { type: String, required: true },
   worldId: { type: String, required: true },
+  playthroughId: { type: String, default: null },
   characterId: { type: String, default: null },
   level: { type: Number, default: 1 },
   experience: { type: Number, default: 0 },
@@ -883,6 +884,7 @@ const LanguageChatMessageSchema = new Schema({
 const LanguageProgressSchema = new Schema({
   playerId: { type: String, required: true },
   worldId: { type: String, required: true },
+  playthroughId: { type: String, default: null },
   targetLanguage: { type: String, required: true },
   overallFluency: { type: Number, default: 0 }, // 0-100
   totalConversations: { type: Number, default: 0 },
@@ -896,11 +898,12 @@ const LanguageProgressSchema = new Schema({
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
-LanguageProgressSchema.index({ playerId: 1, worldId: 1 });
+LanguageProgressSchema.index({ playerId: 1, worldId: 1, playthroughId: 1 });
 
 const VocabularyEntrySchema = new Schema({
   playerId: { type: String, required: true },
   worldId: { type: String, required: true },
+  playthroughId: { type: String, default: null },
   word: { type: String, required: true },
   meaning: { type: String, required: true },
   category: { type: String, default: null },
@@ -912,11 +915,12 @@ const VocabularyEntrySchema = new Schema({
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
-VocabularyEntrySchema.index({ playerId: 1, worldId: 1 });
+VocabularyEntrySchema.index({ playerId: 1, worldId: 1, playthroughId: 1 });
 
 const GrammarPatternSchema = new Schema({
   playerId: { type: String, required: true },
   worldId: { type: String, required: true },
+  playthroughId: { type: String, default: null },
   pattern: { type: String, required: true },
   correctUsages: { type: Number, default: 0 },
   incorrectUsages: { type: Number, default: 0 },
@@ -925,11 +929,12 @@ const GrammarPatternSchema = new Schema({
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
-GrammarPatternSchema.index({ playerId: 1, worldId: 1 });
+GrammarPatternSchema.index({ playerId: 1, worldId: 1, playthroughId: 1 });
 
 const ConversationRecordSchema = new Schema({
   playerId: { type: String, required: true },
   worldId: { type: String, required: true },
+  playthroughId: { type: String, default: null },
   characterId: { type: String, required: true },
   turns: { type: Number, default: 0 },
   wordsUsed: { type: [String], default: [] },
@@ -939,7 +944,7 @@ const ConversationRecordSchema = new Schema({
   duration: { type: Number, default: 0 }, // seconds
   createdAt: { type: Date, default: Date.now }
 });
-ConversationRecordSchema.index({ playerId: 1, worldId: 1 });
+ConversationRecordSchema.index({ playerId: 1, worldId: 1, playthroughId: 1 });
 
 const LanguageAssessmentSchema = new Schema({
   playerId: { type: String, required: true },
@@ -1045,6 +1050,7 @@ WaterFeatureSchema.index({ settlementId: 1 });
 const AssessmentSessionSchema = new Schema({
   playerId: { type: String, required: true },
   worldId: { type: String, required: true },
+  playthroughId: { type: String, default: null },
   assessmentDefinitionId: { type: String, required: true },
   assessmentType: { type: String, required: true }, // arrival, departure, periodic
   targetLanguage: { type: String, required: true },
@@ -1060,7 +1066,7 @@ const AssessmentSessionSchema = new Schema({
   completedAt: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now }
 });
-AssessmentSessionSchema.index({ playerId: 1, worldId: 1, assessmentType: 1 });
+AssessmentSessionSchema.index({ playerId: 1, worldId: 1, playthroughId: 1, assessmentType: 1 });
 AssessmentSessionSchema.index({ worldId: 1, status: 1 });
 
 // Mongoose Models
@@ -2617,9 +2623,11 @@ export class MongoStorage implements IStorage {
     return doc ? docToPlayerProgress(doc) : undefined;
   }
 
-  async getPlayerProgressByUser(userId: string, worldId: string): Promise<PlayerProgress | undefined> {
+  async getPlayerProgressByUser(userId: string, worldId: string, playthroughId?: string): Promise<PlayerProgress | undefined> {
     await this.connect();
-    const doc = await PlayerProgressModel.findOne({ userId, worldId });
+    const query: any = { userId, worldId };
+    if (playthroughId) query.playthroughId = playthroughId;
+    const doc = await PlayerProgressModel.findOne(query);
     return doc ? docToPlayerProgress(doc) : undefined;
   }
 
@@ -2826,15 +2834,19 @@ export class MongoStorage implements IStorage {
 
   // ============= LANGUAGE PROGRESS =============
 
-  async getLanguageProgress(playerId: string, worldId: string): Promise<any | null> {
-    const doc = await LanguageProgressModel.findOne({ playerId, worldId });
+  async getLanguageProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any | null> {
+    const query: any = { playerId, worldId };
+    if (playthroughId) query.playthroughId = playthroughId;
+    const doc = await LanguageProgressModel.findOne(query);
     return doc ? { id: doc._id.toString(), ...doc.toObject() } : null;
   }
 
-  async upsertLanguageProgress(playerId: string, worldId: string, data: any): Promise<any> {
+  async upsertLanguageProgress(playerId: string, worldId: string, data: any, playthroughId?: string): Promise<any> {
+    const query: any = { playerId, worldId };
+    if (playthroughId) query.playthroughId = playthroughId;
     const doc = await LanguageProgressModel.findOneAndUpdate(
-      { playerId, worldId },
-      { $set: { ...data, updatedAt: new Date() } },
+      query,
+      { $set: { ...data, ...(playthroughId ? { playthroughId } : {}), updatedAt: new Date() } },
       { upsert: true, new: true }
     );
     return { id: doc._id.toString(), ...doc.toObject() };
@@ -2842,15 +2854,19 @@ export class MongoStorage implements IStorage {
 
   // ============= VOCABULARY =============
 
-  async getVocabularyEntries(playerId: string, worldId: string): Promise<any[]> {
-    const docs = await VocabularyEntryModel.find({ playerId, worldId });
+  async getVocabularyEntries(playerId: string, worldId: string, playthroughId?: string): Promise<any[]> {
+    const query: any = { playerId, worldId };
+    if (playthroughId) query.playthroughId = playthroughId;
+    const docs = await VocabularyEntryModel.find(query);
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
-  async upsertVocabularyEntry(playerId: string, worldId: string, word: string, data: any): Promise<any> {
+  async upsertVocabularyEntry(playerId: string, worldId: string, word: string, data: any, playthroughId?: string): Promise<any> {
+    const query: any = { playerId, worldId, word };
+    if (playthroughId) query.playthroughId = playthroughId;
     const doc = await VocabularyEntryModel.findOneAndUpdate(
-      { playerId, worldId, word },
-      { $set: { ...data, updatedAt: new Date() } },
+      query,
+      { $set: { ...data, ...(playthroughId ? { playthroughId } : {}), updatedAt: new Date() } },
       { upsert: true, new: true }
     );
     return { id: doc._id.toString(), ...doc.toObject() };
@@ -2858,15 +2874,19 @@ export class MongoStorage implements IStorage {
 
   // ============= GRAMMAR PATTERNS =============
 
-  async getGrammarPatterns(playerId: string, worldId: string): Promise<any[]> {
-    const docs = await GrammarPatternModel.find({ playerId, worldId });
+  async getGrammarPatterns(playerId: string, worldId: string, playthroughId?: string): Promise<any[]> {
+    const query: any = { playerId, worldId };
+    if (playthroughId) query.playthroughId = playthroughId;
+    const docs = await GrammarPatternModel.find(query);
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
-  async upsertGrammarPattern(playerId: string, worldId: string, pattern: string, data: any): Promise<any> {
+  async upsertGrammarPattern(playerId: string, worldId: string, pattern: string, data: any, playthroughId?: string): Promise<any> {
+    const query: any = { playerId, worldId, pattern };
+    if (playthroughId) query.playthroughId = playthroughId;
     const doc = await GrammarPatternModel.findOneAndUpdate(
-      { playerId, worldId, pattern },
-      { $set: { ...data, updatedAt: new Date() } },
+      query,
+      { $set: { ...data, ...(playthroughId ? { playthroughId } : {}), updatedAt: new Date() } },
       { upsert: true, new: true }
     );
     return { id: doc._id.toString(), ...doc.toObject() };
@@ -2874,8 +2894,10 @@ export class MongoStorage implements IStorage {
 
   // ============= CONVERSATION RECORDS =============
 
-  async getConversationRecords(playerId: string, worldId: string): Promise<any[]> {
-    const docs = await ConversationRecordModel.find({ playerId, worldId }).sort({ createdAt: -1 });
+  async getConversationRecords(playerId: string, worldId: string, playthroughId?: string): Promise<any[]> {
+    const query: any = { playerId, worldId };
+    if (playthroughId) query.playthroughId = playthroughId;
+    const docs = await ConversationRecordModel.find(query).sort({ createdAt: -1 });
     return docs.map(d => ({ id: d._id.toString(), ...d.toObject() }));
   }
 
@@ -3101,11 +3123,12 @@ export class MongoStorage implements IStorage {
     return doc ? docToAssessmentSession(doc) : undefined;
   }
 
-  async getPlayerAssessments(playerId: string, worldId?: string, assessmentType?: string): Promise<AssessmentSession[]> {
+  async getPlayerAssessments(playerId: string, worldId?: string, assessmentType?: string, playthroughId?: string): Promise<AssessmentSession[]> {
     await this.connect();
     const query: any = { playerId };
     if (worldId) query.worldId = worldId;
     if (assessmentType) query.assessmentType = assessmentType;
+    if (playthroughId) query.playthroughId = playthroughId;
     const docs = await AssessmentSessionModel.find(query).sort({ createdAt: -1 });
     return docs.map(d => docToAssessmentSession(d));
   }

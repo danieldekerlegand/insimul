@@ -15,7 +15,7 @@ export function createAssessmentRoutes(storage: IStorage): Router {
   // POST /api/assessments — create a new assessment session
   router.post('/assessments', async (req: Request, res: Response) => {
     try {
-      const { playerId, worldId, assessmentType, assessmentDefinitionId, targetLanguage, totalMaxPoints } = req.body;
+      const { playerId, worldId, playthroughId, assessmentType, assessmentDefinitionId, targetLanguage, totalMaxPoints } = req.body;
 
       if (!playerId || !worldId || !assessmentType) {
         return res.status(400).json({ message: 'Missing required fields: playerId, worldId, assessmentType' });
@@ -24,6 +24,7 @@ export function createAssessmentRoutes(storage: IStorage): Router {
       const session = await storage.createAssessmentSession({
         playerId,
         worldId,
+        ...(playthroughId ? { playthroughId } : {}),
         assessmentDefinitionId: assessmentDefinitionId || assessmentType,
         assessmentType,
         targetLanguage: targetLanguage || 'unknown',
@@ -135,8 +136,8 @@ export function createAssessmentRoutes(storage: IStorage): Router {
   router.get('/assessments/player/:playerId', async (req: Request, res: Response) => {
     try {
       const { playerId } = req.params;
-      const { worldId } = req.query;
-      const sessions = await storage.getPlayerAssessments(playerId, worldId as string | undefined);
+      const { worldId, playthroughId } = req.query;
+      const sessions = await storage.getPlayerAssessments(playerId, worldId as string | undefined, undefined, playthroughId as string | undefined);
       res.json(sessions);
     } catch (error) {
       console.error('Get player assessments error:', error);

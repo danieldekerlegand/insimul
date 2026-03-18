@@ -47,15 +47,17 @@ export function createTelemetryRoutes(storage: any): Router {
   // ============= LANGUAGE PROGRESS (US-5.01) =============
 
   // GET /api/language-progress/:playerId/:worldId — get full progress
+  // Supports ?playthroughId=... query param to scope to a specific playthrough
   router.get('/language-progress/:playerId/:worldId', async (req: Request, res: Response) => {
     try {
       const { playerId, worldId } = req.params;
+      const playthroughId = req.query.playthroughId as string | undefined;
 
       const [progress, vocabulary, grammarPatterns, conversations] = await Promise.all([
-        storage.getLanguageProgress(playerId, worldId),
-        storage.getVocabularyEntries(playerId, worldId),
-        storage.getGrammarPatterns(playerId, worldId),
-        storage.getConversationRecords(playerId, worldId),
+        storage.getLanguageProgress(playerId, worldId, playthroughId),
+        storage.getVocabularyEntries(playerId, worldId, playthroughId),
+        storage.getGrammarPatterns(playerId, worldId, playthroughId),
+        storage.getConversationRecords(playerId, worldId, playthroughId),
       ]);
 
       res.json({
@@ -71,9 +73,10 @@ export function createTelemetryRoutes(storage: any): Router {
   });
 
   // POST /api/language-progress/sync — batch upsert from client
+  // Accepts optional playthroughId to scope data to a specific playthrough
   router.post('/language-progress/sync', async (req: Request, res: Response) => {
     try {
-      const { playerId, worldId, progress, vocabulary, grammarPatterns, conversations } = req.body;
+      const { playerId, worldId, playthroughId, progress, vocabulary, grammarPatterns, conversations } = req.body;
 
       if (!playerId || !worldId) {
         return res.status(400).json({ message: 'Missing required fields: playerId, worldId' });
@@ -83,7 +86,7 @@ export function createTelemetryRoutes(storage: any): Router {
 
       // Upsert progress if provided
       if (progress) {
-        results.progress = await storage.upsertLanguageProgress(playerId, worldId, progress);
+        results.progress = await storage.upsertLanguageProgress(playerId, worldId, progress, playthroughId);
       }
 
       // Upsert vocabulary entries
@@ -91,7 +94,7 @@ export function createTelemetryRoutes(storage: any): Router {
         results.vocabulary = [];
         for (const entry of vocabulary) {
           if (!entry.word) continue;
-          const upserted = await storage.upsertVocabularyEntry(playerId, worldId, entry.word, entry);
+          const upserted = await storage.upsertVocabularyEntry(playerId, worldId, entry.word, entry, playthroughId);
           results.vocabulary.push(upserted);
         }
       }
@@ -101,7 +104,7 @@ export function createTelemetryRoutes(storage: any): Router {
         results.grammarPatterns = [];
         for (const entry of grammarPatterns) {
           if (!entry.pattern) continue;
-          const upserted = await storage.upsertGrammarPattern(playerId, worldId, entry.pattern, entry);
+          const upserted = await storage.upsertGrammarPattern(playerId, worldId, entry.pattern, entry, playthroughId);
           results.grammarPatterns.push(upserted);
         }
       }
@@ -110,7 +113,7 @@ export function createTelemetryRoutes(storage: any): Router {
       if (conversations && Array.isArray(conversations)) {
         results.conversations = [];
         for (const conv of conversations) {
-          const created = await storage.createConversationRecord({ ...conv, playerId, worldId });
+          const created = await storage.createConversationRecord({ ...conv, playerId, worldId, ...(playthroughId ? { playthroughId } : {}) });
           results.conversations.push(created);
         }
       }

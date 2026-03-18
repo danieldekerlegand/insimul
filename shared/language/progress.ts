@@ -71,6 +71,7 @@ export interface ConversationRecord {
 export interface LanguageProgress {
   playerId: string;
   worldId: string;
+  playthroughId?: string;
   language: string;
   overallFluency: number;           // 0-100
   cefrLevel?: CEFRLevel;            // from most recent assessment
