@@ -1,323 +1,416 @@
 /**
- * NPCExamEngine — Orchestrates NPC-triggered reading and writing exams.
+ * NPC Exam Engine
  *
- * Lightweight wrapper around the existing assessment infrastructure that:
- * 1. Builds a CEFR-adaptive exam encounter (1-2 phases: reading/writing)
- * 2. Generates content via POST /api/assessments/generate-content
- * 3. Displays phases via AssessmentModalUI
- * 4. Scores answers via POST /api/assessments/score-phase
- * 5. Emits results on the GameEventBus
+ * Bridges NPC-initiated quizzes with the assessment engine. When an NPC
+ * triggers a quiz, this engine:
+ *   1. Presents questions to the player via callbacks
+ *   2. Scores answers using shared scoring logic
+ *   3. Emits results through the GameEventBus
+ *   4. Persists results as assessment sessions via the server API
  *
- * Triggered by teacher/professor NPCs, quest milestones, or time intervals.
+ * This allows NPC quizzes during regular gameplay to feed into the
+ * player's proficiency tracking alongside formal assessments.
  */
 
 import type { GameEventBus } from './GameEventBus';
-import type { AssessmentModalConfig } from './AssessmentModalUI';
-import type { CEFRLevel, ContentTemplate, PhaseType } from '../../../../shared/assessment/assessment-types';
+import type {
+  NpcExamConfig,
+  NpcExamQuestion,
+  NpcExamResult,
+  NpcExamQuestionResult,
+} from '../../../../shared/assessment/npc-exam-types';
 import {
-  buildNPCExamEncounter,
-  type BusinessContext,
-  type NPCExamType,
-} from '../../../../shared/assessment/npc-exam-encounter';
+  scoreNpcExamQuestion,
+  scorePronunciationQuestion,
+  scorePronunciationExamQuestion,
+  npcExamResultToPhaseResult,
+} from '../../../../shared/assessment/npc-exam-types';
 import { mapScoreToCEFR } from '../../../../shared/assessment/cefr-mapping';
+import type { AudioPronunciationResult } from '../../../../shared/language/pronunciation-scoring';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────────────────────────
 
-export interface NPCExamConfig {
-  /** Auth token for API calls */
-  authToken: string;
-  /** Target language being assessed */
-  targetLanguage: string;
-  /** City name for content generation context */
-  cityName: string;
-  /** Player's current CEFR level */
-  cefrLevel: CEFRLevel;
-  /** Which phases to include */
-  examType: NPCExamType;
-  /** Optional business context for themed prompts */
-  businessContext?: BusinessContext;
-  /** NPC who triggered the exam (for event emission) */
-  npcId?: string;
-  /** NPC name (for UI display) */
-  npcName?: string;
-  /** Player ID */
-  playerId?: string;
-  /** World ID */
-  worldId?: string;
+/** Audio answer data for pronunciation questions */
+export interface AudioAnswer {
+  /** Raw audio as a Blob or base64 string */
+  audio: Blob | string;
+  /** MIME type of the audio (default: 'audio/wav') */
+  mimeType?: string;
 }
 
-export interface NPCExamResult {
-  examType: NPCExamType;
-  totalScore: number;
-  maxScore: number;
-  cefrLevel: CEFRLevel;
-  phaseResults: Array<{
-    phaseId: string;
-    phaseType: PhaseType;
-    score: number;
-    maxScore: number;
-    dimensionScores?: Record<string, number>;
-  }>;
-  npcId?: string;
-  completedAt: number;
+export interface NpcExamCallbacks {
+  /** Called when a question should be displayed to the player */
+  onQuestion?: (question: {
+    questionId: string;
+    questionIndex: number;
+    totalQuestions: number;
+    prompt: string;
+    hint?: string;
+    timeRemainingSeconds: number;
+    /** Whether this question expects an audio answer */
+    isPronunciation: boolean;
+    /** Submit a text answer */
+    onAnswer: (answer: string) => void;
+    /** Submit an audio answer (for pronunciation questions) */
+    onAudioAnswer: (audio: AudioAnswer) => void;
+  }) => void;
+  /** Called after each question is answered */
+  onQuestionResult?: (result: NpcExamQuestionResult, questionIndex: number) => void;
+  /** Called when the exam is complete */
+  onComplete?: (result: NpcExamResult) => void;
+  /** Called when the exam is aborted */
+  onAborted?: () => void;
 }
 
-interface GeneratedContent {
-  passage?: string;
-  questions?: Array<{ id: string; questionText: string; maxPoints: number }>;
-  writingPrompts?: string[];
-}
+// ── Engine ───────────────────────────────────────────────────────────────────
 
-interface ScoringResult {
-  totalScore: number;
-  maxScore: number;
-  questionScores?: Array<{ questionId: string; score: number; maxScore: number; rationale: string }>;
-  dimensionScores?: Record<string, { score: number; maxScore: number; rationale: string }>;
-  overallRationale: string;
-}
+/** Internal answer type — text or audio */
+type ExamAnswer = { type: 'text'; text: string } | { type: 'audio'; audio: AudioAnswer };
 
-// ─── Engine ──────────────────────────────────────────────────────────────────
-
-export class NPCExamEngine {
+export class NpcExamEngine {
   private eventBus: GameEventBus | null;
+  private authToken: string;
   private _aborted = false;
-  private _onShowModal?: (config: AssessmentModalConfig) => void;
-  private _onHideModal?: () => void;
-  private _onExamStarted?: (examType: NPCExamType, npcName?: string) => void;
-  private _onPhaseCompleted?: (phaseId: string, score: number, maxScore: number) => void;
-  private _onExamCompleted?: (result: NPCExamResult) => void;
+  private _answerResolver: ((answer: ExamAnswer) => void) | null = null;
 
-  constructor(eventBus?: GameEventBus) {
-    this.eventBus = eventBus ?? null;
+  constructor(config: { eventBus?: GameEventBus; authToken: string }) {
+    this.eventBus = config.eventBus ?? null;
+    this.authToken = config.authToken;
   }
 
-  // ── Callback registration ──────────────────────────────────────────────
-
-  onShowModal(cb: (config: AssessmentModalConfig) => void): void { this._onShowModal = cb; }
-  onHideModal(cb: () => void): void { this._onHideModal = cb; }
-  onExamStarted(cb: (examType: NPCExamType, npcName?: string) => void): void { this._onExamStarted = cb; }
-  onPhaseCompleted(cb: (phaseId: string, score: number, maxScore: number) => void): void { this._onPhaseCompleted = cb; }
-  onExamCompleted(cb: (result: NPCExamResult) => void): void { this._onExamCompleted = cb; }
-
-  // ── Main entry point ───────────────────────────────────────────────────
-
-  async runExam(config: NPCExamConfig): Promise<NPCExamResult | null> {
+  /**
+   * Run an NPC exam from start to finish.
+   * Returns the exam result, or null if aborted.
+   */
+  async runExam(
+    examConfig: NpcExamConfig,
+    callbacks: NpcExamCallbacks,
+  ): Promise<NpcExamResult | null> {
     this._aborted = false;
-    const encounter = buildNPCExamEncounter(config.examType, config.cefrLevel, config.businessContext);
+    const startedAt = Date.now();
 
-    console.log(`[NPCExamEngine] Starting ${config.examType} exam at ${config.cefrLevel} level`);
-    this._onExamStarted?.(config.examType, config.npcName);
-
+    // Emit exam started event
     this.eventBus?.emit({
-      type: 'assessment_started',
-      sessionId: encounter.id,
-      instrumentId: 'npc_exam',
-      phase: 'npc_exam',
-      participantId: config.playerId ?? '',
-      assessmentType: `npc_exam_${config.examType}`,
-      playerId: config.playerId,
+      type: 'npc_exam_started',
+      examId: examConfig.examId,
+      npcId: examConfig.npcId,
+      npcName: examConfig.npcName,
+      category: examConfig.category,
+      questionCount: examConfig.questions.length,
     });
 
-    const phaseResults: NPCExamResult['phaseResults'] = [];
-    let totalScore = 0;
+    const questionResults: NpcExamQuestionResult[] = [];
+    const deadline = examConfig.timeLimitSeconds > 0
+      ? startedAt + examConfig.timeLimitSeconds * 1000
+      : Infinity;
 
-    for (let i = 0; i < encounter.phases.length; i++) {
-      if (this._aborted) return null;
-
-      const phase = encounter.phases[i];
-      const task = phase.tasks[0];
-      if (!task?.contentTemplate) continue;
-
-      this.eventBus?.emit({
-        type: 'assessment_phase_started',
-        sessionId: encounter.id,
-        instrumentId: 'npc_exam',
-        phase: phase.type,
-        phaseId: phase.id,
-        phaseIndex: i,
-      });
-
-      // Generate content
-      let content: GeneratedContent = {};
-      try {
-        content = await this._generateContent(
-          phase.type as PhaseType,
-          task.contentTemplate,
-          config,
-        );
-      } catch (err) {
-        console.warn('[NPCExamEngine] Content generation failed:', err);
+    for (let i = 0; i < examConfig.questions.length; i++) {
+      if (this._aborted) {
+        callbacks.onAborted?.();
+        return null;
       }
 
-      if (this._aborted) return null;
+      const question = examConfig.questions[i];
+      const timeRemaining = deadline === Infinity
+        ? 0
+        : Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
 
-      // Show modal and wait for answers
-      const answers = await this._showModalAndWait(phase, i, encounter.phases.length, content);
-      if (this._aborted || !answers) continue;
-
-      // Score
-      let phaseScore = 0;
-      let dimensionScores: Record<string, number> | undefined;
-      try {
-        const scoring = await this._scorePhase(phase.type as PhaseType, content, answers, config);
-        phaseScore = Math.min(phase.maxScore ?? 0, scoring.totalScore);
-        if (scoring.dimensionScores) {
-          dimensionScores = {};
-          for (const [key, val] of Object.entries(scoring.dimensionScores)) {
-            dimensionScores[key] = val.score;
-          }
+      if (deadline !== Infinity && Date.now() >= deadline) {
+        // Time's up — score remaining questions as unanswered
+        for (let j = i; j < examConfig.questions.length; j++) {
+          questionResults.push({
+            questionId: examConfig.questions[j].id,
+            playerAnswer: '',
+            score: 0,
+            maxPoints: examConfig.questions[j].maxPoints,
+            correct: false,
+            rationale: 'Time expired',
+          });
         }
-      } catch (err) {
-        console.warn('[NPCExamEngine] Scoring failed, estimating:', err);
-        const nonEmpty = Object.values(answers).filter(a => a.length > 0).length;
-        const totalFields = Object.keys(answers).length || 1;
-        phaseScore = Math.round((nonEmpty / totalFields) * (phase.maxScore ?? 0) * 0.5);
+        break;
       }
 
-      totalScore += phaseScore;
-      phaseResults.push({
-        phaseId: phase.id,
-        phaseType: phase.type as PhaseType,
-        score: phaseScore,
-        maxScore: phase.maxScore ?? 0,
-        dimensionScores,
-      });
+      // Present question and wait for answer
+      const answer = await this._presentQuestion(question, i, examConfig.questions.length, timeRemaining, callbacks);
 
-      this._onPhaseCompleted?.(phase.id, phaseScore, phase.maxScore ?? 0);
-      this._onHideModal?.();
+      if (this._aborted) {
+        callbacks.onAborted?.();
+        return null;
+      }
 
+      // Score the answer — use audio pronunciation scoring if applicable
+      let questionResult: NpcExamQuestionResult;
+      const usePronunciation = examConfig.category === 'pronunciation_quiz' || question.scoringType === 'pronunciation' || question.isPronunciation;
+      if (answer.type === 'audio' && usePronunciation) {
+        questionResult = await this._scorePronunciationAnswer(question, answer.audio, examConfig.targetLanguage);
+      } else if (usePronunciation) {
+        const textAnswer = answer.type === 'text' ? answer.text : '';
+        questionResult = scorePronunciationExamQuestion(question, textAnswer);
+      } else {
+        const textAnswer = answer.type === 'text' ? answer.text : '';
+        questionResult = scoreNpcExamQuestion(question, textAnswer);
+      }
+      questionResults.push(questionResult);
+
+      // Emit per-question event
       this.eventBus?.emit({
-        type: 'assessment_phase_completed',
-        sessionId: encounter.id,
-        instrumentId: 'npc_exam',
-        phase: phase.type,
-        score: phaseScore,
-        phaseId: phase.id,
-        maxScore: phase.maxScore,
+        type: 'npc_exam_question_answered',
+        examId: examConfig.examId,
+        questionId: question.id,
+        correct: questionResult.correct,
+        score: questionResult.score,
+        maxPoints: questionResult.maxPoints,
       });
+
+      // For pronunciation quizzes, emit pronunciation_attempt for quest tracking
+      if (examConfig.category === 'pronunciation_quiz') {
+        const pctScore = questionResult.maxPoints > 0
+          ? Math.round((questionResult.score / questionResult.maxPoints) * 100)
+          : 0;
+        this.eventBus?.emit({
+          type: 'utterance_evaluated',
+          objectiveId: `npc_exam_${examConfig.examId}_q${i}`,
+          input: answer,
+          score: pctScore,
+          passed: questionResult.correct,
+          feedback: questionResult.rationale || '',
+        });
+      }
+
+      callbacks.onQuestionResult?.(questionResult, i);
     }
 
-    if (this._aborted) return null;
+    if (this._aborted) {
+      callbacks.onAborted?.();
+      return null;
+    }
 
-    const cefrResult = mapScoreToCEFR(totalScore, encounter.totalMaxPoints);
-    const result: NPCExamResult = {
-      examType: config.examType,
+    // Build final result
+    const totalScore = questionResults.reduce((sum, qr) => sum + qr.score, 0);
+    const cefrResult = mapScoreToCEFR(totalScore, examConfig.totalMaxPoints);
+
+    const result: NpcExamResult = {
+      examId: examConfig.examId,
+      npcId: examConfig.npcId,
+      npcName: examConfig.npcName,
+      category: examConfig.category,
+      difficulty: examConfig.difficulty,
+      targetLanguage: examConfig.targetLanguage,
+      questionResults,
       totalScore,
-      maxScore: encounter.totalMaxPoints,
+      totalMaxPoints: examConfig.totalMaxPoints,
+      percentage: cefrResult.score,
       cefrLevel: cefrResult.level,
-      phaseResults,
-      npcId: config.npcId,
+      durationMs: Date.now() - startedAt,
       completedAt: Date.now(),
     };
 
-    console.log(`[NPCExamEngine] Exam complete — ${totalScore}/${encounter.totalMaxPoints} (${cefrResult.level})`);
-    this._onExamCompleted?.(result);
-
+    // Emit completion event
     this.eventBus?.emit({
-      type: 'assessment_completed',
-      sessionId: encounter.id,
-      instrumentId: 'npc_exam',
-      totalScore,
-      totalMaxScore: encounter.totalMaxPoints,
-      cefrLevel: cefrResult.level,
+      type: 'npc_exam_completed',
+      examId: examConfig.examId,
+      npcId: examConfig.npcId,
+      totalScore: result.totalScore,
+      totalMaxPoints: result.totalMaxPoints,
+      cefrLevel: result.cefrLevel,
+      category: examConfig.category,
+    });
+
+    // For pronunciation quizzes, emit assessment data for quest integration
+    if (examConfig.category === 'pronunciation_quiz' && questionResults.length > 0) {
+      const avgScore = Math.round(
+        questionResults.reduce((sum, qr) => sum + (qr.maxPoints > 0 ? (qr.score / qr.maxPoints) * 100 : 0), 0)
+        / questionResults.length,
+      );
+      this.eventBus?.emit({
+        type: 'pronunciation_assessment_data',
+        questId: `npc_exam_${examConfig.examId}`,
+        averageScore: avgScore,
+        sampleCount: questionResults.length,
+      });
+    }
+
+    callbacks.onComplete?.(result);
+
+    // Persist to server as an assessment session (fire and forget)
+    this._persistResult(examConfig, result).catch(err => {
+      console.warn('[NpcExamEngine] Failed to persist exam result:', err);
     });
 
     return result;
   }
 
+  /**
+   * Abort the current exam.
+   */
   abort(): void {
     this._aborted = true;
-    this._onHideModal?.();
+    if (this._answerResolver) {
+      this._answerResolver({ type: 'text', text: '' });
+      this._answerResolver = null;
+    }
   }
 
   dispose(): void {
     this.abort();
-    this._onShowModal = undefined;
-    this._onHideModal = undefined;
-    this._onExamStarted = undefined;
-    this._onPhaseCompleted = undefined;
-    this._onExamCompleted = undefined;
   }
 
-  // ── Private helpers ────────────────────────────────────────────────────
+  // ── Private ──────────────────────────────────────────────────────────────────
 
-  private async _generateContent(
-    phaseType: PhaseType,
-    template: ContentTemplate,
-    config: NPCExamConfig,
-  ): Promise<GeneratedContent> {
-    const res = await fetch('/api/assessments/generate-content', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(config.authToken ? { Authorization: `Bearer ${config.authToken}` } : {}),
-      },
-      body: JSON.stringify({
-        phaseType,
-        targetLanguage: config.targetLanguage,
-        cityName: config.cityName,
-        contentTemplate: template,
-      }),
-    });
+  private _presentQuestion(
+    question: NpcExamQuestion,
+    index: number,
+    total: number,
+    timeRemaining: number,
+    callbacks: NpcExamCallbacks,
+  ): Promise<ExamAnswer> {
+    return new Promise<ExamAnswer>((resolve) => {
+      this._answerResolver = resolve;
 
-    if (!res.ok) throw new Error(`Content generation failed: ${res.status}`);
-    return await res.json();
-  }
-
-  private _showModalAndWait(
-    phase: { id: string; name: string; type: string },
-    phaseIndex: number,
-    totalPhases: number,
-    content: GeneratedContent,
-  ): Promise<Record<string, string> | null> {
-    return new Promise<Record<string, string> | null>((resolve) => {
-      if (!this._onShowModal) {
-        console.warn('[NPCExamEngine] No modal handler registered');
-        resolve(null);
-        return;
+      if (callbacks.onQuestion) {
+        callbacks.onQuestion({
+          questionId: question.id,
+          questionIndex: index,
+          totalQuestions: total,
+          prompt: question.prompt,
+          hint: question.hint,
+          timeRemainingSeconds: timeRemaining,
+          isPronunciation: !!question.isPronunciation,
+          onAnswer: (answer: string) => {
+            this._answerResolver = null;
+            resolve({ type: 'text', text: answer });
+          },
+          onAudioAnswer: (audio: AudioAnswer) => {
+            this._answerResolver = null;
+            resolve({ type: 'audio', audio });
+          },
+        });
+      } else {
+        console.warn('[NpcExamEngine] No onQuestion callback — skipping question');
+        this._answerResolver = null;
+        resolve({ type: 'text', text: '' });
       }
-
-      const modalConfig: AssessmentModalConfig = {
-        phaseType: phase.type as 'reading' | 'writing',
-        phaseName: phase.name,
-        phaseIndex,
-        totalPhases,
-        passage: content.passage,
-        questions: content.questions,
-        writingPrompts: content.writingPrompts,
-        onSubmit: (answers: Record<string, string>) => {
-          this._onHideModal?.();
-          resolve(answers);
-        },
-      };
-
-      this._onShowModal(modalConfig);
     });
   }
 
-  private async _scorePhase(
-    phaseType: PhaseType,
-    content: GeneratedContent,
-    answers: Record<string, string>,
-    config: NPCExamConfig,
-  ): Promise<ScoringResult> {
-    const res = await fetch('/api/assessments/score-phase', {
+  /**
+   * Score a pronunciation question by sending audio to the server endpoint.
+   * Falls back to text-based scoring if the API call fails.
+   */
+  private async _scorePronunciationAnswer(
+    question: NpcExamQuestion,
+    audioAnswer: AudioAnswer,
+    targetLanguage?: string,
+  ): Promise<NpcExamQuestionResult> {
+    const expectedPhrase = question.expectedPhrase || question.expectedAnswer || question.prompt;
+    const languageHint = question.languageHint || targetLanguage;
+
+    try {
+      const result = await this._callPronunciationApi(audioAnswer, expectedPhrase, languageHint);
+      return scorePronunciationQuestion(question, result);
+    } catch (err) {
+      console.warn('[NpcExamEngine] Pronunciation scoring failed, falling back to text:', err);
+      return scoreNpcExamQuestion(question, '');
+    }
+  }
+
+  /**
+   * Call the server pronunciation scoring endpoint.
+   */
+  private async _callPronunciationApi(
+    audioAnswer: AudioAnswer,
+    expectedPhrase: string,
+    languageHint?: string,
+  ): Promise<AudioPronunciationResult> {
+    let audioBase64: string;
+    let mimeType = audioAnswer.mimeType || 'audio/wav';
+
+    if (typeof audioAnswer.audio === 'string') {
+      audioBase64 = audioAnswer.audio;
+    } else {
+      const arrayBuffer = await audioAnswer.audio.arrayBuffer();
+      audioBase64 = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''),
+      );
+      mimeType = audioAnswer.audio.type || mimeType;
+    }
+
+    const res = await fetch('/api/pronunciation/score', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(config.authToken ? { Authorization: `Bearer ${config.authToken}` } : {}),
+        ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
       },
       body: JSON.stringify({
-        phaseType,
-        targetLanguage: config.targetLanguage,
-        passage: content.passage,
-        questions: content.questions?.map(q => ({ id: q.id, text: q.questionText, maxPoints: q.maxPoints })),
-        writingPrompts: content.writingPrompts,
-        answers,
+        audio: audioBase64,
+        expectedPhrase,
+        mimeType,
+        languageHint,
       }),
     });
 
-    if (!res.ok) throw new Error(`Scoring failed: ${res.status}`);
+    if (!res.ok) {
+      throw new Error(`Pronunciation API error: ${res.status}`);
+    }
+
     return await res.json();
+  }
+
+  /**
+   * Persist the NPC exam result as an assessment session via the server API.
+   * This integrates NPC quiz results into the player's assessment history.
+   */
+  private async _persistResult(
+    config: NpcExamConfig,
+    result: NpcExamResult,
+  ): Promise<void> {
+    const phaseResult = npcExamResultToPhaseResult(result);
+
+    // Create assessment session
+    const createRes = await fetch('/api/assessments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
+      },
+      body: JSON.stringify({
+        playerId: 'current', // Server resolves from auth
+        worldId: 'current',
+        assessmentType: 'npc_exam',
+        assessmentDefinitionId: `npc_exam_${config.category}`,
+        targetLanguage: config.targetLanguage,
+        totalMaxPoints: config.totalMaxPoints,
+      }),
+    });
+
+    if (!createRes.ok) {
+      throw new Error(`Failed to create assessment session: ${createRes.status}`);
+    }
+
+    const session = await createRes.json();
+
+    // Update with phase result
+    await fetch(`/api/assessments/${session.id}/phases/npc_exam_${result.examId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
+      },
+      body: JSON.stringify(phaseResult),
+    });
+
+    // Complete the session
+    await fetch(`/api/assessments/${session.id}/complete`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
+      },
+      body: JSON.stringify({
+        totalScore: result.totalScore,
+        maxScore: result.totalMaxPoints,
+        cefrLevel: result.cefrLevel,
+      }),
+    });
   }
 }

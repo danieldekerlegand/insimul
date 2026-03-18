@@ -220,8 +220,8 @@ export class BabylonChatPanel {
     if (this.chatContainer) {
       this.chatContainer.isVisible = true;
       this.chatContainer.height = '29px';
-      // Position below minimap: top-right, matching minimap width (150px)
-      this.chatContainer.width = '150px';
+      // Position below minimap: top-right
+      this.chatContainer.width = '180px';
       this.chatContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
       this.chatContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
       this.chatContainer.left = '-8px';
@@ -487,7 +487,7 @@ export class BabylonChatPanel {
     this.isCollapsed = true;
     if (this.chatContainer) {
       // Return to collapsed state below minimap
-      this.chatContainer.width = '150px';
+      this.chatContainer.width = '180px';
       this.chatContainer.height = '29px';
       this.chatContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
       this.chatContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
@@ -650,6 +650,12 @@ export class BabylonChatPanel {
     this.titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     this.titleText.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
     this.titleText.name = "chatTitle";
+    this.titleText.isPointerBlocker = true;
+    this.titleText.onPointerClickObservable.add(() => {
+      if (this.isCollapsed && this.nearbyNPCName) {
+        this.onTalkRequested?.();
+      }
+    });
     header.addControl(this.titleText);
 
     // Conversation state indicator (thinking/speaking/listening)
@@ -2554,6 +2560,11 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
   /** Set callback invoked after each player↔NPC message exchange. */
   public setOnChatExchange(callback: (npcId: string, playerMessage: string, npcResponse: string) => void) {
     this.onChatExchange = callback;
+  }
+
+  /** Set callback invoked when the player clicks the collapsed header to initiate a conversation. */
+  public setOnTalkRequested(callback: () => void) {
+    this.onTalkRequested = callback;
   }
 
   /** Set a function that provides additional system prompt text for specific NPCs. */

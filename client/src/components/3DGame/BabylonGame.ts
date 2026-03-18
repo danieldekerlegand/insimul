@@ -1301,6 +1301,9 @@ export class BabylonGame {
     this.chatPanel.setOnClose(() => {
       this.handleConversationEnd();
     });
+    this.chatPanel.setOnTalkRequested(() => {
+      this.handleProximityInteraction();
+    });
     this.chatPanel.setOnQuestAssigned((questData) => {
       this.questTracker?.updateQuests(this.config.worldId);
       this.updateQuestIndicators(); // Update NPC indicators
