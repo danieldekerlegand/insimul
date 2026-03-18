@@ -157,6 +157,21 @@ export class NpcExamEngine {
         maxPoints: questionResult.maxPoints,
       });
 
+      // For pronunciation quizzes, emit pronunciation_attempt for quest tracking
+      if (examConfig.category === 'pronunciation_quiz') {
+        const pctScore = questionResult.maxPoints > 0
+          ? Math.round((questionResult.score / questionResult.maxPoints) * 100)
+          : 0;
+        this.eventBus?.emit({
+          type: 'utterance_evaluated',
+          objectiveId: `npc_exam_${examConfig.examId}_q${i}`,
+          input: answer,
+          score: pctScore,
+          passed: questionResult.correct,
+          feedback: questionResult.rationale || '',
+        });
+      }
+
       callbacks.onQuestionResult?.(questionResult, i);
     }
 
@@ -195,6 +210,20 @@ export class NpcExamEngine {
       cefrLevel: result.cefrLevel,
       category: examConfig.category,
     });
+
+    // For pronunciation quizzes, emit assessment data for quest integration
+    if (examConfig.category === 'pronunciation_quiz' && questionResults.length > 0) {
+      const avgScore = Math.round(
+        questionResults.reduce((sum, qr) => sum + (qr.maxPoints > 0 ? (qr.score / qr.maxPoints) * 100 : 0), 0)
+        / questionResults.length,
+      );
+      this.eventBus?.emit({
+        type: 'pronunciation_assessment_data',
+        questId: `npc_exam_${examConfig.examId}`,
+        averageScore: avgScore,
+        sampleCount: questionResults.length,
+      });
+    }
 
     callbacks.onComplete?.(result);
 

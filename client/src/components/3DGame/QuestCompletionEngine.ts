@@ -74,6 +74,11 @@ export interface CompletionObjective {
   // deliver_item
   itemId?: string;
 
+  // pronunciation
+  pronunciationScores?: number[];
+  pronunciationBestScore?: number;
+  targetPhrase?: string;
+
   // timed objectives
   timeLimitSeconds?: number;
   startedAt?: number;
@@ -104,7 +109,7 @@ export type CompletionEvent =
   | { type: 'listening_answer'; isCorrect: boolean; questId?: string }
   | { type: 'translation_attempt'; isCorrect: boolean; questId?: string }
   | { type: 'navigation_waypoint'; questId?: string }
-  | { type: 'pronunciation_attempt'; passed: boolean; questId?: string }
+  | { type: 'pronunciation_attempt'; passed: boolean; score?: number; phrase?: string; questId?: string }
   | { type: 'location_visit'; questId: string; objectiveId: string }
   | { type: 'objective_direct_complete'; questId: string; objectiveId: string };
 
@@ -191,7 +196,7 @@ export class QuestCompletionEngine {
         this.trackNavigationWaypoint(event.questId);
         break;
       case 'pronunciation_attempt':
-        this.trackPronunciationAttempt(event.passed, event.questId);
+        this.trackPronunciationAttempt(event.passed, event.questId, event.score, event.phrase);
         break;
       case 'location_visit':
         this.completeObjective(event.questId, event.objectiveId);
@@ -407,8 +412,19 @@ export class QuestCompletionEngine {
     return result;
   }
 
-  trackPronunciationAttempt(passed: boolean, questId?: string): void {
-    this.forEachObjective(questId, 'pronunciation_check', (quest, obj) => {
+  trackPronunciationAttempt(passed: boolean, questId?: string, score?: number, phrase?: string): void {
+    const pronunciationTypes = ['pronunciation_check', 'listen_and_repeat', 'speak_phrase'];
+
+    this.forEachObjective(questId, pronunciationTypes, (quest, obj) => {
+      // Store pronunciation score data
+      if (score !== undefined) {
+        if (!obj.pronunciationScores) obj.pronunciationScores = [];
+        obj.pronunciationScores.push(score);
+        if (score > (obj.pronunciationBestScore ?? 0)) {
+          obj.pronunciationBestScore = score;
+        }
+      }
+
       if (passed) {
         obj.currentCount = (obj.currentCount || 0) + 1;
 
