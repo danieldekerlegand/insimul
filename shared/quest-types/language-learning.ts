@@ -99,6 +99,12 @@ export const languageLearningQuestType: QuestTypeDefinition = {
       icon: '📖',
       description: 'Practice narrative skills: past tense, sequencing, descriptive and emotional vocabulary',
     },
+    {
+      id: 'teaching',
+      name: 'Teaching',
+      icon: '🎓',
+      description: 'Reinforce your knowledge by teaching vocabulary and phrases to NPC learners',
+    },
   ],
 
   objectiveTypes: [
@@ -281,6 +287,22 @@ export const languageLearningQuestType: QuestTypeDefinition = {
       trackingLogic: (context) => context.giftGiven || false,
       completionCheck: (progress) => progress.giftGiven === true,
     },
+    {
+      id: 'teach_vocabulary',
+      name: 'Teach Vocabulary',
+      trackingLogic: (context) => context.wordsTaught || 0,
+      completionCheck: (progress) => {
+        return (progress.wordsTaught || 0) >= (progress.required || 3);
+      },
+    },
+    {
+      id: 'teach_phrase',
+      name: 'Teach Phrase',
+      trackingLogic: (context) => context.phrasesTaught || 0,
+      completionCheck: (progress) => {
+        return (progress.phrasesTaught || 0) >= (progress.required || 1);
+      },
+    },
   ],
 
   rewardTypes: ['experience', 'fluency', 'items', 'unlock'],
@@ -372,6 +394,8 @@ export const LANGUAGE_OBJECTIVE_TYPE_MAP: Record<string, string> = {
   identify_object: 'apply_knowledge',
   listening_comprehension: 'complete_assessment',
   translation_challenge: 'demonstrate_pattern',
+  teach_vocabulary: 'demonstrate_knowledge',
+  teach_phrase: 'demonstrate_knowledge',
 };
 
 /**

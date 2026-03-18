@@ -1087,6 +1087,90 @@ export const QUEST_SEEDS: QuestSeed[] = [
     baseXp: 30,
     tags: ['vocabulary', 'mixed', 'review', 'srs', 'spaced-repetition'],
   },
+
+  // ── Teaching-Back (player teaches NPC) ──────────────────────────────────
+  {
+    id: 'teach_greetings',
+    name: 'Teaching Greetings',
+    category: 'teaching',
+    difficulty: 'intermediate',
+    params: [
+      { name: 'npcName', type: 'string', description: 'NPC learner name' },
+      { name: 'wordCount', type: 'number', description: 'Greeting words to teach', defaultValue: 4 },
+    ],
+    titleTemplate: 'Teach {{npcName}} to Say Hello',
+    descriptionTemplate: 'A newcomer named {{npcName}} needs help learning basic greetings in {{targetLanguage}}. Teach them {{wordCount}} greeting words and model a simple introduction phrase.',
+    questType: 'teaching',
+    objectiveTemplates: [
+      { type: 'teach_vocabulary', descriptionTemplate: 'Teach {{npcName}} {{wordCount}} greeting words', countTemplate: '{{wordCount}}' },
+      { type: 'teach_phrase', descriptionTemplate: 'Model a greeting phrase for {{npcName}} to repeat', countTemplate: 1 },
+    ],
+    completionCriteria: { type: 'all_objectives' },
+    baseXp: 35,
+    tags: ['teaching', 'greeting', 'teaching-back'],
+  },
+  {
+    id: 'teach_shopping_words',
+    name: 'Market Teacher',
+    category: 'teaching',
+    difficulty: 'intermediate',
+    params: [
+      { name: 'npcName', type: 'string', description: 'NPC learner name' },
+      { name: 'wordCount', type: 'number', description: 'Shopping words to teach', defaultValue: 5 },
+    ],
+    titleTemplate: 'Help {{npcName}} at the Market',
+    descriptionTemplate: '{{npcName}} is struggling at the market because they don\'t know shopping vocabulary in {{targetLanguage}}. Teach them {{wordCount}} essential shopping words.',
+    questType: 'teaching',
+    objectiveTemplates: [
+      { type: 'teach_vocabulary', descriptionTemplate: 'Teach {{npcName}} {{wordCount}} shopping words (price, buy, sell, etc.)', countTemplate: '{{wordCount}}' },
+      { type: 'complete_conversation', descriptionTemplate: 'Practice a mock shopping dialogue with {{npcName}}', countTemplate: 1 },
+    ],
+    completionCriteria: { type: 'all_objectives' },
+    baseXp: 35,
+    tags: ['teaching', 'shopping', 'teaching-back'],
+  },
+  {
+    id: 'teach_directions',
+    name: 'Direction Teacher',
+    category: 'teaching',
+    difficulty: 'intermediate',
+    params: [
+      { name: 'npcName', type: 'string', description: 'NPC learner name' },
+      { name: 'phraseCount', type: 'number', description: 'Direction phrases to teach', defaultValue: 3 },
+    ],
+    titleTemplate: 'Teach {{npcName}} to Navigate',
+    descriptionTemplate: '{{npcName}} keeps getting lost because they can\'t understand directions in {{targetLanguage}}. Teach them {{phraseCount}} direction phrases so they can find their way.',
+    questType: 'teaching',
+    objectiveTemplates: [
+      { type: 'teach_phrase', descriptionTemplate: 'Teach {{npcName}} {{phraseCount}} direction phrases (left, right, straight, etc.)', countTemplate: '{{phraseCount}}' },
+      { type: 'teach_vocabulary', descriptionTemplate: 'Teach {{npcName}} basic direction words', countTemplate: 3 },
+    ],
+    completionCriteria: { type: 'all_objectives' },
+    baseXp: 35,
+    tags: ['teaching', 'directions', 'navigation', 'teaching-back'],
+  },
+  {
+    id: 'teach_advanced_conversation',
+    name: 'Advanced Teaching',
+    category: 'teaching',
+    difficulty: 'advanced',
+    params: [
+      { name: 'npcName', type: 'string', description: 'NPC student name' },
+      { name: 'wordCount', type: 'number', description: 'Advanced words to teach', defaultValue: 6 },
+      { name: 'phraseCount', type: 'number', description: 'Complex phrases to model', defaultValue: 3 },
+    ],
+    titleTemplate: 'Advanced Lesson for {{npcName}}',
+    descriptionTemplate: '{{npcName}} has progressed past basics and wants to learn more complex {{targetLanguage}}. Teach them {{wordCount}} advanced words and {{phraseCount}} complex phrases.',
+    questType: 'teaching',
+    objectiveTemplates: [
+      { type: 'teach_vocabulary', descriptionTemplate: 'Teach {{npcName}} {{wordCount}} advanced vocabulary words', countTemplate: '{{wordCount}}' },
+      { type: 'teach_phrase', descriptionTemplate: 'Model {{phraseCount}} complex phrases for {{npcName}}', countTemplate: '{{phraseCount}}' },
+      { type: 'complete_conversation', descriptionTemplate: 'Have a practice conversation with {{npcName}} using the new vocabulary', countTemplate: 1 },
+    ],
+    completionCriteria: { type: 'all_objectives' },
+    baseXp: 50,
+    tags: ['teaching', 'advanced', 'teaching-back'],
+  },
 ];
 
 // ── Instantiation ───────────────────────────────────────────────────────────

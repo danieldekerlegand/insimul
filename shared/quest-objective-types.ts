@@ -264,6 +264,22 @@ export const ACHIEVABLE_OBJECTIVE_TYPES: ObjectiveTypeInfo[] = [
     requiresTarget: 'none',
     countable: true,
   },
+
+  // ── Teaching (player teaches NPC) ────────────────────────────────────────
+  {
+    type: 'teach_vocabulary',
+    description: 'Teach vocabulary words to an NPC by using them in conversation and confirming the NPC learned them',
+    playerAction: 'Talk to an NPC learner and use target-language words until the NPC demonstrates understanding',
+    requiresTarget: 'npc',
+    countable: true,
+  },
+  {
+    type: 'teach_phrase',
+    description: 'Teach a phrase or sentence to an NPC by modeling it and having the NPC repeat it',
+    playerAction: 'Talk to an NPC learner, model a phrase, and confirm they can repeat it',
+    requiresTarget: 'npc',
+    countable: true,
+  },
 ];
 
 // ── Lookup set for fast validation ───────────────────────────────────────────
@@ -444,6 +460,19 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'practice_words': 'use_vocabulary',
   'reinforce_vocabulary': 'use_vocabulary',
   'recall_vocabulary': 'use_vocabulary',
+
+  // Teaching-back objective aliases
+  'teach_word': 'teach_vocabulary',
+  'teach_words': 'teach_vocabulary',
+  'teach_npc_vocabulary': 'teach_vocabulary',
+  'teach_npc_words': 'teach_vocabulary',
+  'teach_npc': 'teach_vocabulary',
+  'tutor_vocabulary': 'teach_vocabulary',
+  'teach_sentence': 'teach_phrase',
+  'teach_npc_phrase': 'teach_phrase',
+  'teach_expression': 'teach_phrase',
+  'model_phrase': 'teach_phrase',
+  'tutor_phrase': 'teach_phrase',
 
   // Grammar-focused objective aliases (map to canonical types)
   'grammar_pattern': 'use_vocabulary',

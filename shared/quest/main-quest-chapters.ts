@@ -205,8 +205,8 @@ export const MAIN_QUEST_CHAPTERS: MainQuestChapter[] = [
       {
         id: 'ch5_teaching',
         title: 'Passing It On',
-        description: 'Help newcomers learn the basics of the language.',
-        questType: 'conversation',
+        description: 'Help newcomers learn the basics of the language by teaching them vocabulary and phrases.',
+        questType: 'teaching',
         requiredCount: 3,
       },
     ],

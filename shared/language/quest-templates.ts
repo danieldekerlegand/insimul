@@ -1008,6 +1008,115 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
     ],
   },
 
+  // --- Teaching-Back Quests (player teaches NPC) ---
+  {
+    id: 'vocabulary_tutor',
+    name: 'Vocabulary Tutor',
+    category: 'teaching',
+    description: 'Teach {{npcName}} {{wordCount}} new vocabulary words by using them in conversation.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'teach_vocabulary',
+        descriptionTemplate: 'Teach {{npcName}} {{wordCount}} vocabulary words',
+        requiredCount: 5,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use each word in a sentence to demonstrate meaning',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 40, fluency: 5 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC learner to teach' },
+      { name: 'wordCount', type: 'number', description: 'Words to teach' },
+    ],
+  },
+  {
+    id: 'phrase_coach',
+    name: 'Phrase Coach',
+    category: 'teaching',
+    description: 'Teach {{npcName}} {{phraseCount}} useful phrases by modeling them in conversation.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'teach_phrase',
+        descriptionTemplate: 'Model {{phraseCount}} phrases for {{npcName}} to learn',
+        requiredCount: 3,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Have a practice conversation with {{npcName}} using the taught phrases',
+        requiredCount: 1,
+      },
+    ],
+    rewardScale: { xp: 35, fluency: 5 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC learner to teach' },
+      { name: 'phraseCount', type: 'number', description: 'Phrases to teach' },
+    ],
+  },
+  {
+    id: 'newcomer_welcome',
+    name: 'Welcome the Newcomer',
+    category: 'teaching',
+    description: 'A newcomer has arrived in town. Teach them basic greetings and help them learn {{wordCount}} essential words.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'talk_to_npc',
+        descriptionTemplate: 'Meet the newcomer {{npcName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'teach_vocabulary',
+        descriptionTemplate: 'Teach {{npcName}} {{wordCount}} greeting and essential words',
+        requiredCount: 4,
+      },
+      {
+        type: 'teach_phrase',
+        descriptionTemplate: 'Teach {{npcName}} a basic introduction phrase',
+        requiredCount: 1,
+      },
+    ],
+    rewardScale: { xp: 40, fluency: 5 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'Newcomer NPC to help' },
+      { name: 'wordCount', type: 'number', description: 'Essential words to teach' },
+    ],
+  },
+  {
+    id: 'advanced_tutor',
+    name: 'The Advanced Lesson',
+    category: 'teaching',
+    description: 'Prepare and deliver an advanced lesson to {{npcName}} covering {{wordCount}} words and {{phraseCount}} complex phrases.',
+    difficulty: 'advanced',
+    objectiveTemplates: [
+      {
+        type: 'teach_vocabulary',
+        descriptionTemplate: 'Teach {{npcName}} {{wordCount}} advanced vocabulary words',
+        requiredCount: 8,
+      },
+      {
+        type: 'teach_phrase',
+        descriptionTemplate: 'Model {{phraseCount}} complex phrases for {{npcName}}',
+        requiredCount: 4,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Have an advanced practice conversation with {{npcName}}',
+        requiredCount: 1,
+      },
+    ],
+    rewardScale: { xp: 50, fluency: 7 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC student' },
+      { name: 'wordCount', type: 'number', description: 'Advanced words to teach' },
+      { name: 'phraseCount', type: 'number', description: 'Complex phrases to model' },
+    ],
+  },
+
   // --- Time-Based Activities ---
   {
     id: 'time_appointment',
