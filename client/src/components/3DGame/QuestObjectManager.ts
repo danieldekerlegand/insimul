@@ -1714,6 +1714,26 @@ export class QuestObjectManager {
   }
 
   /**
+   * Get positions of uncollected quest items for minimap markers.
+   * Returns items from collect_item, identify_object, and find_vocabulary_items objectives.
+   */
+  public getCollectibleItemPositions(): Array<{ id: string; questId: string; itemName: string; position: { x: number; z: number } }> {
+    const items: Array<{ id: string; questId: string; itemName: string; position: { x: number; z: number } }> = [];
+    this.questObjects.forEach((obj, id) => {
+      if (obj.isCollected) return;
+      if (obj.type !== 'collect_item' && obj.type !== 'identify_object' && obj.type !== 'find_vocabulary_items') return;
+      if (!obj.mesh || obj.mesh.isDisposed()) return;
+      items.push({
+        id,
+        questId: obj.questId,
+        itemName: obj.mesh.name,
+        position: { x: obj.mesh.position.x, z: obj.mesh.position.z }
+      });
+    });
+    return items;
+  }
+
+  /**
    * Dispose all quest objects
    */
   public dispose() {

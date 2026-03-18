@@ -236,6 +236,20 @@ FVector UQuestSystem::GenerateLocationPosition() const
     return FVector(FMath::Cos(Angle) * Dist, FMath::Sin(Angle) * Dist, 0.f);
 }
 
+TArray<FVector> UQuestSystem::GetCollectibleItemPositions() const
+{
+    TArray<FVector> Positions;
+    for (const auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+        if (Obj.Type != TEXT("collect_item") && Obj.Type != TEXT("identify_object") && Obj.Type != TEXT("find_vocabulary_items")) continue;
+        // Use generated positions for uncollected objectives
+        TArray<FVector> ItemPositions = GenerateItemPositions(FMath::Max(1, Obj.RequiredCount - Obj.CurrentCount));
+        Positions.Append(ItemPositions);
+    }
+    return Positions;
+}
+
 void UQuestSystem::SetMarkerDebugLabel(AActor* Marker, const FString& Label)
 {
     if (!Marker) return;

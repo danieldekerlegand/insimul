@@ -125,6 +125,10 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Quests")
     FVector GenerateLocationPosition() const;
 
+    /** Get world positions of uncollected quest items for minimap markers. */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Quests")
+    TArray<FVector> GetCollectibleItemPositions() const;
+
     /** Attach debug metadata to a quest marker actor (used for hover tooltips). */
     UFUNCTION(BlueprintCallable, Category = "Quests")
     static void SetMarkerDebugLabel(AActor* Marker, const FString& Label);

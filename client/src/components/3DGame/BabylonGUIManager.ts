@@ -77,6 +77,11 @@ export interface MinimapData {
     title: string;
     position: { x: number; z: number };
   }>;
+  questItemMarkers?: Array<{
+    id: string;
+    itemName: string;
+    position: { x: number; z: number };
+  }>;
   npcPositions?: Array<{
     id: string;
     position: { x: number; z: number };
@@ -2008,6 +2013,26 @@ export class BabylonGUIManager {
         questMarker.top = `${qz}px`;
         mapContainer.addControl(questMarker);
         this._minimapDynamicControls.push(questMarker);
+      }
+    }
+
+    // Draw quest item markers (gold circles for fetch quest collectibles)
+    if (data.questItemMarkers) {
+      for (const item of data.questItemMarkers) {
+        const [ix, iz] = toMap(item.position.x, item.position.z);
+        if (Math.abs(ix) > mapHalf || Math.abs(iz) > mapHalf) continue;
+
+        const itemDotSize = Math.max(3, Math.round(7 * zoomDotScale));
+        const itemMarker = new Ellipse(`quest-item-${item.id}`);
+        itemMarker.width = `${itemDotSize}px`;
+        itemMarker.height = `${itemDotSize}px`;
+        itemMarker.background = "#FFD700";
+        itemMarker.color = "#FFFFFF";
+        itemMarker.thickness = 1;
+        itemMarker.left = `${ix}px`;
+        itemMarker.top = `${iz}px`;
+        mapContainer.addControl(itemMarker);
+        this._minimapDynamicControls.push(itemMarker);
       }
     }
 
