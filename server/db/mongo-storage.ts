@@ -2315,7 +2315,7 @@ export class MongoStorage implements IStorage {
     return doc ? docToItem(doc) : undefined;
   }
 
-  async getItemsByWorld(worldId: string): Promise<Item[]> {
+  async getItemsByWorld(worldId: string, disabledBaseItemIds?: string[]): Promise<Item[]> {
     await this.connect();
     // Get world-specific items
     const worldItems = await ItemModel.find({ worldId });
@@ -2323,7 +2323,11 @@ export class MongoStorage implements IStorage {
     const baseItems = await ItemModel.find({ isBase: true });
     // Merge: world items override base items with same objectRole
     const worldObjectRoles = new Set(worldItems.map(d => d.objectRole).filter(Boolean));
-    const filteredBase = baseItems.filter(b => !b.objectRole || !worldObjectRoles.has(b.objectRole));
+    const disabledSet = new Set(disabledBaseItemIds || []);
+    const filteredBase = baseItems.filter(b =>
+      (!b.objectRole || !worldObjectRoles.has(b.objectRole)) &&
+      !disabledSet.has(b._id.toString())
+    );
     return [...worldItems.map(docToItem), ...filteredBase.map(docToItem)];
   }
 

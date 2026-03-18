@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { BookOpen, Sword, Loader2 } from "lucide-react";
+import { BookOpen, Sword, Package, Loader2 } from "lucide-react";
 
 interface BaseResourcesConfigProps {
   worldId: string;
@@ -18,6 +18,7 @@ interface BaseResource {
   category?: string;
   ruleType?: string;
   actionType?: string;
+  itemType?: string;
 }
 
 interface Config {
@@ -25,16 +26,21 @@ interface Config {
   disabledBaseRules: string[];
   enabledBaseActions: string[];
   disabledBaseActions: string[];
+  enabledBaseItems: string[];
+  disabledBaseItems: string[];
 }
 
 export function BaseResourcesConfig({ worldId }: BaseResourcesConfigProps) {
   const [baseRules, setBaseRules] = useState<BaseResource[]>([]);
   const [baseActions, setBaseActions] = useState<BaseResource[]>([]);
+  const [baseItems, setBaseItems] = useState<BaseResource[]>([]);
   const [config, setConfig] = useState<Config>({
     enabledBaseRules: [],
     disabledBaseRules: [],
     enabledBaseActions: [],
-    disabledBaseActions: []
+    disabledBaseActions: [],
+    enabledBaseItems: [],
+    disabledBaseItems: []
   });
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -66,6 +72,16 @@ export function BaseResourcesConfig({ worldId }: BaseResourcesConfigProps) {
         setBaseActions([]);
       }
 
+      // Fetch base items
+      const itemsRes = await fetch('/api/items/base');
+      if (itemsRes.ok) {
+        const itemsData = await itemsRes.json();
+        setBaseItems(Array.isArray(itemsData) ? itemsData : []);
+      } else {
+        console.warn('Failed to fetch base items:', itemsRes.status);
+        setBaseItems([]);
+      }
+
       // Fetch world config
       const configRes = await fetch(`/api/worlds/${worldId}/base-resources/config`);
       if (configRes.ok) {
@@ -85,24 +101,26 @@ export function BaseResourcesConfig({ worldId }: BaseResourcesConfigProps) {
       // Ensure arrays are set even on error
       setBaseRules([]);
       setBaseActions([]);
+      setBaseItems([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const isEnabled = (resourceId: string, resourceType: 'rule' | 'action'): boolean => {
+  const isEnabled = (resourceId: string, resourceType: 'rule' | 'action' | 'item'): boolean => {
     if (resourceType === 'rule') {
-      // If explicitly disabled, return false
       if (config.disabledBaseRules.includes(resourceId)) return false;
-      // If explicitly enabled or no config, return true (default enabled)
       return config.enabledBaseRules.includes(resourceId) || config.enabledBaseRules.length === 0;
-    } else {
+    } else if (resourceType === 'action') {
       if (config.disabledBaseActions.includes(resourceId)) return false;
       return config.enabledBaseActions.includes(resourceId) || config.enabledBaseActions.length === 0;
+    } else {
+      if (config.disabledBaseItems.includes(resourceId)) return false;
+      return config.enabledBaseItems.includes(resourceId) || config.enabledBaseItems.length === 0;
     }
   };
 
-  const handleToggle = async (resourceId: string, resourceType: 'rule' | 'action', enabled: boolean) => {
+  const handleToggle = async (resourceId: string, resourceType: 'rule' | 'action' | 'item', enabled: boolean) => {
     try {
       const response = await fetch(`/api/worlds/${worldId}/base-resources/toggle`, {
         method: 'POST',
@@ -130,7 +148,7 @@ export function BaseResourcesConfig({ worldId }: BaseResourcesConfigProps) {
     }
   };
 
-  const renderResourceList = (resources: BaseResource[], resourceType: 'rule' | 'action') => {
+  const renderResourceList = (resources: BaseResource[], resourceType: 'rule' | 'action' | 'item') => {
     if (loading) {
       return (
         <div className="flex items-center justify-center p-8">
@@ -161,7 +179,7 @@ export function BaseResourcesConfig({ worldId }: BaseResourcesConfigProps) {
                       <div className="flex items-center gap-2 mb-1">
                         <h4 className="font-medium">{resource.name}</h4>
                         <Badge variant="outline" className="text-xs">
-                          🌐 Global
+                          Global
                         </Badge>
                         {resource.category && (
                           <Badge variant="secondary" className="text-xs">
@@ -176,6 +194,11 @@ export function BaseResourcesConfig({ worldId }: BaseResourcesConfigProps) {
                         {resource.actionType && (
                           <Badge variant="secondary" className="text-xs">
                             {resource.actionType}
+                          </Badge>
+                        )}
+                        {resource.itemType && (
+                          <Badge variant="secondary" className="text-xs">
+                            {resource.itemType}
                           </Badge>
                         )}
                       </div>
@@ -210,13 +233,13 @@ export function BaseResourcesConfig({ worldId }: BaseResourcesConfigProps) {
           Base Resources Configuration
         </CardTitle>
         <CardDescription>
-          Enable or disable global rules and actions for this world. 
+          Enable or disable global rules, actions, and items for this world.
           By default, all base resources are enabled.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="rules">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="rules" className="gap-2">
               <BookOpen className="w-4 h-4" />
               Base Rules ({baseRules.length})
@@ -225,12 +248,19 @@ export function BaseResourcesConfig({ worldId }: BaseResourcesConfigProps) {
               <Sword className="w-4 h-4" />
               Base Actions ({baseActions.length})
             </TabsTrigger>
+            <TabsTrigger value="items" className="gap-2">
+              <Package className="w-4 h-4" />
+              Base Items ({baseItems.length})
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="rules" className="mt-4">
             {renderResourceList(baseRules, 'rule')}
           </TabsContent>
           <TabsContent value="actions" className="mt-4">
             {renderResourceList(baseActions, 'action')}
+          </TabsContent>
+          <TabsContent value="items" className="mt-4">
+            {renderResourceList(baseItems, 'item')}
           </TabsContent>
         </Tabs>
       </CardContent>

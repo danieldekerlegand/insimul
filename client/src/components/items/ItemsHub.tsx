@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -11,7 +12,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useWorldPermissions } from '@/hooks/use-world-permissions';
 import {
-  Package, Plus, ChevronRight, ChevronDown, Edit, Save, X, Trash2, Copy, Download,
+  Package, Plus, ChevronRight, ChevronDown, Edit, Save, X, Trash2, Copy,
   BookOpen, Scroll, Languages,
 } from 'lucide-react';
 
@@ -47,6 +48,11 @@ const ITEM_TYPE_COLORS: Record<string, string> = {
 
 type TreeSection = 'world' | 'base';
 
+interface BaseResourceConfig {
+  enabledBaseItems: string[];
+  disabledBaseItems: string[];
+}
+
 export function ItemsHub({ worldId }: ItemsHubProps) {
   const { toast } = useToast();
   const { canEdit } = useWorldPermissions(worldId);
@@ -64,6 +70,10 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [truths, setTruths] = useState<any[]>([]);
   const [quests, setQuests] = useState<any[]>([]);
+  const [baseConfig, setBaseConfig] = useState<BaseResourceConfig>({
+    enabledBaseItems: [],
+    disabledBaseItems: [],
+  });
 
   // Load truths and quests for detail sections
   useEffect(() => {
@@ -77,22 +87,54 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
     }).catch(() => {});
   }, [worldId]);
 
-  // Load items
+  // Load items and base config
   useEffect(() => {
     if (!worldId) return;
     setLoading(true);
     Promise.all([
       fetch(`/api/worlds/${worldId}/items`).then(r => r.ok ? r.json() : []),
       fetch('/api/items/base').then(r => r.ok ? r.json() : []),
-    ]).then(([worldItems, base]) => {
-      // Split: world items are those with worldId, base items are those with isBase
+      fetch(`/api/worlds/${worldId}/base-resources/config`).then(r => r.ok ? r.json() : null),
+    ]).then(([worldItems, base, config]) => {
       const ownItems = worldItems.filter((i: any) => i.worldId === worldId);
-      const inherited = worldItems.filter((i: any) => i.isBase);
       setItems(ownItems);
-      setBaseItems(inherited.length > 0 ? inherited : base);
+      setBaseItems(base);
+      if (config) {
+        setBaseConfig({
+          enabledBaseItems: config.enabledBaseItems || [],
+          disabledBaseItems: config.disabledBaseItems || [],
+        });
+      }
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [worldId]);
+
+  const isBaseItemEnabled = (itemId: string): boolean => {
+    if (baseConfig.disabledBaseItems.includes(itemId)) return false;
+    return baseConfig.enabledBaseItems.includes(itemId) || baseConfig.enabledBaseItems.length === 0;
+  };
+
+  const handleToggleBaseItem = async (itemId: string, enabled: boolean) => {
+    try {
+      const response = await fetch(`/api/worlds/${worldId}/base-resources/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resourceId: itemId, resourceType: 'item', enabled }),
+      });
+      if (!response.ok) throw new Error('Failed to toggle');
+      const { config } = await response.json();
+      setBaseConfig({
+        enabledBaseItems: config.enabledBaseItems || [],
+        disabledBaseItems: config.disabledBaseItems || [],
+      });
+      toast({
+        title: 'Success',
+        description: `Base item ${enabled ? 'enabled' : 'disabled'} for this world`,
+      });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to toggle base item', variant: 'destructive' });
+    }
+  };
 
   // Group items by type
   const groupedWorldItems = useMemo(() => {
@@ -387,7 +429,7 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
     </div>
   );
 
-  const renderTreeSection = (section: TreeSection, grouped: Record<string, any[]>, showImport: boolean) => (
+  const renderTreeSection = (section: TreeSection, grouped: Record<string, any[]>) => (
     <div className="space-y-1">
       {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([type, typeItems]) => (
         <div key={type}>
@@ -401,33 +443,42 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
           </button>
           {expandedGroups.has(`${section}-${type}`) && (
             <div className="ml-5 space-y-0.5">
-              {typeItems.map((item: any) => (
-                <button
-                  key={item.id}
-                  className={`w-full flex items-center gap-2 px-2 py-1 text-xs rounded transition-colors ${
-                    selectedItem?.id === item.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted/30 text-muted-foreground'
-                  }`}
-                  onClick={() => { setSelectedItem(item); setIsEditing(false); setShowCreateForm(false); }}
-                >
-                  {!showImport && canEdit && (
-                    <Checkbox
-                      checked={selectedIds.has(item.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      onCheckedChange={() => toggleSelection(item.id)}
-                      className="h-3 w-3 flex-shrink-0"
-                    />
-                  )}
-                  <span>{item.icon || '?'}</span>
-                  <span className="truncate">{item.name}</span>
-                  {showImport && (
-                    <Button size="sm" variant="ghost" className="ml-auto h-5 w-5 p-0"
-                      onClick={(e) => { e.stopPropagation(); handleImportBase(item); }}
-                      title="Import to world">
-                      <Download className="h-3 w-3" />
-                    </Button>
-                  )}
-                </button>
-              ))}
+              {typeItems.map((item: any) => {
+                const isBase = section === 'base';
+                const enabled = isBase ? isBaseItemEnabled(item.id) : true;
+                return (
+                  <div
+                    key={item.id}
+                    className={`w-full flex items-center gap-2 px-2 py-1 text-xs rounded transition-colors ${
+                      selectedItem?.id === item.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted/30 text-muted-foreground'
+                    } ${isBase && !enabled ? 'opacity-50' : ''}`}
+                  >
+                    {!isBase && canEdit && (
+                      <Checkbox
+                        checked={selectedIds.has(item.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        onCheckedChange={() => toggleSelection(item.id)}
+                        className="h-3 w-3 flex-shrink-0"
+                      />
+                    )}
+                    <button
+                      className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                      onClick={() => { setSelectedItem(item); setIsEditing(false); setShowCreateForm(false); }}
+                    >
+                      <span>{item.icon || '?'}</span>
+                      <span className="truncate">{item.name}</span>
+                    </button>
+                    {isBase && canEdit && (
+                      <Switch
+                        checked={enabled}
+                        onCheckedChange={(checked) => handleToggleBaseItem(item.id, checked)}
+                        className="ml-auto flex-shrink-0 scale-75"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -489,16 +540,16 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
             {activeSection === 'world' && (
               items.length === 0 ? (
                 <div className="text-center text-muted-foreground text-xs py-8">
-                  No custom items yet. Click "New Item" or import from base items.
+                  No custom items yet. Click "New Item" to create one.
                 </div>
-              ) : renderTreeSection('world', groupedWorldItems, false)
+              ) : renderTreeSection('world', groupedWorldItems)
             )}
             {activeSection === 'base' && (
               baseItems.length === 0 ? (
                 <div className="text-center text-muted-foreground text-xs py-8">
                   No base items available. Run the seed migration first.
                 </div>
-              ) : renderTreeSection('base', groupedBaseItems, true)
+              ) : renderTreeSection('base', groupedBaseItems)
             )}
           </div>
         </ScrollArea>
@@ -538,9 +589,18 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
                   </div>
                 )}
                 {selectedItem.isBase && canEdit && (
-                  <Button size="sm" variant="outline" onClick={() => handleImportBase(selectedItem)}>
-                    <Copy className="h-3 w-3 mr-1" /> Import to World
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      {isBaseItemEnabled(selectedItem.id) ? 'Enabled' : 'Disabled'}
+                    </span>
+                    <Switch
+                      checked={isBaseItemEnabled(selectedItem.id)}
+                      onCheckedChange={(checked) => handleToggleBaseItem(selectedItem.id, checked)}
+                    />
+                    <Button size="sm" variant="outline" onClick={() => handleImportBase(selectedItem)}>
+                      <Copy className="h-3 w-3 mr-1" /> Copy to World
+                    </Button>
+                  </div>
                 )}
               </div>
 
