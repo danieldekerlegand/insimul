@@ -580,7 +580,7 @@ export async function generateWorldIR(
   console.log(`[Export] Fetching world data (11 parallel queries, skipping base rules/actions for performance)...`);
   const startTime = Date.now();
   
-  const [
+  let [
     world,
     countries,
     states,
@@ -619,6 +619,12 @@ export async function generateWorldIR(
 
   if (!world) {
     throw new Error(`World ${worldId} not found`);
+  }
+
+  // Filter out disabled base items from the export
+  const disabledBaseItems = new Set<string>(world.config?.disabledBaseItems || []);
+  if (disabledBaseItems.size > 0) {
+    worldItems = worldItems.filter((item: any) => !item.isBase || !disabledBaseItems.has(item.id));
   }
 
   // Fetch asset collection snapshot and visual assets

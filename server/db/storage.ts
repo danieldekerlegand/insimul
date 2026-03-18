@@ -182,7 +182,7 @@ export interface IStorage {
 
   // Items
   getItem(id: string): Promise<Item | undefined>;
-  getItemsByWorld(worldId: string): Promise<Item[]>;
+  getItemsByWorld(worldId: string, disabledBaseItemIds?: string[]): Promise<Item[]>;
   getBaseItems(worldType?: string): Promise<Item[]>;
   createItem(item: InsertItem): Promise<Item>;
   updateItem(id: string, item: Partial<InsertItem>): Promise<Item | undefined>;

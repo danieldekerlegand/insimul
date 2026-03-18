@@ -8033,7 +8033,9 @@ Respond with this JSON structure:
         enabledBaseRules: world.config?.enabledBaseRules || [],
         disabledBaseRules: world.config?.disabledBaseRules || [],
         enabledBaseActions: world.config?.enabledBaseActions || [],
-        disabledBaseActions: world.config?.disabledBaseActions || []
+        disabledBaseActions: world.config?.disabledBaseActions || [],
+        enabledBaseItems: world.config?.enabledBaseItems || [],
+        disabledBaseItems: world.config?.disabledBaseItems || []
       };
       
       res.json(config);
@@ -8067,13 +8069,24 @@ Respond with this JSON structure:
       } else if (resourceType === 'action') {
         if (!config.enabledBaseActions) config.enabledBaseActions = [];
         if (!config.disabledBaseActions) config.disabledBaseActions = [];
-        
+
         if (enabled) {
           config.enabledBaseActions = [...config.enabledBaseActions.filter((id: string) => id !== resourceId), resourceId];
           config.disabledBaseActions = config.disabledBaseActions.filter((id: string) => id !== resourceId);
         } else {
           config.disabledBaseActions = [...config.disabledBaseActions.filter((id: string) => id !== resourceId), resourceId];
           config.enabledBaseActions = config.enabledBaseActions.filter((id: string) => id !== resourceId);
+        }
+      } else if (resourceType === 'item') {
+        if (!config.enabledBaseItems) config.enabledBaseItems = [];
+        if (!config.disabledBaseItems) config.disabledBaseItems = [];
+
+        if (enabled) {
+          config.enabledBaseItems = [...config.enabledBaseItems.filter((id: string) => id !== resourceId), resourceId];
+          config.disabledBaseItems = config.disabledBaseItems.filter((id: string) => id !== resourceId);
+        } else {
+          config.disabledBaseItems = [...config.disabledBaseItems.filter((id: string) => id !== resourceId), resourceId];
+          config.enabledBaseItems = config.enabledBaseItems.filter((id: string) => id !== resourceId);
         }
       }
 
@@ -8990,10 +9003,12 @@ Respond with this JSON structure:
 
   // ============= ITEMS =============
 
-  // Get all items for a world (includes matching base items)
+  // Get all items for a world (includes matching base items, respecting disabled config)
   app.get("/api/worlds/:worldId/items", async (req, res) => {
     try {
-      const items = await storage.getItemsByWorld(req.params.worldId);
+      const world = await storage.getWorld(req.params.worldId);
+      const disabledBaseItems: string[] = world?.config?.disabledBaseItems || [];
+      const items = await storage.getItemsByWorld(req.params.worldId, disabledBaseItems);
       res.json(items);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch items" });
