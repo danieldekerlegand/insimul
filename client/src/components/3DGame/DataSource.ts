@@ -52,6 +52,8 @@ export interface DataSource {
   loadWorldItems(worldId: string): Promise<any[]>;
   saveGameState(worldId: string, playthroughId: string, slotIndex: number, state: any): Promise<void>;
   loadGameState(worldId: string, playthroughId: string, slotIndex: number): Promise<any | null>;
+  saveQuestProgress(playthroughId: string, questProgress: any): Promise<void>;
+  loadQuestProgress(playthroughId: string): Promise<any | null>;
   loadGeography(worldId: string): Promise<{ heightmap?: number[][]; terrainSize?: number } | null>;
 }
 
@@ -100,6 +102,13 @@ export class ApiDataSource implements DataSource {
         const { playthroughId, settlementId } = op.payload;
         url = `/api/playthroughs/${playthroughId}/reputations/settlement/${settlementId}/pay-fines`;
         body = '{}';
+        break;
+      }
+      case 'saveQuestProgress': {
+        const { playthroughId: ptId, questProgress } = op.payload;
+        url = `/api/playthroughs/${ptId}/quest-progress`;
+        method = 'PUT';
+        body = JSON.stringify({ questProgress });
         break;
       }
       default:
@@ -306,6 +315,24 @@ export class ApiDataSource implements DataSource {
     if (!res.ok) return null;
     const data = await res.json();
     return data.state || null;
+  }
+
+  async saveQuestProgress(playthroughId: string, questProgress: any): Promise<void> {
+    await this.saveQueue.enqueue(
+      'saveQuestProgress',
+      `questProgress:${playthroughId}`,
+      { playthroughId, questProgress },
+    );
+  }
+
+  async loadQuestProgress(playthroughId: string): Promise<any | null> {
+    const res = await fetch(
+      `/api/playthroughs/${playthroughId}/quest-progress`,
+      { headers: this.getHeaders() }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.questProgress || null;
   }
 
   async loadGeography(worldId: string): Promise<{ heightmap?: number[][]; terrainSize?: number } | null> {
@@ -931,6 +958,23 @@ export class FileDataSource implements DataSource {
   async loadGameState(_worldId: string, _playthroughId: string, slotIndex: number): Promise<any | null> {
     try {
       const raw = localStorage.getItem(`insimul_save_${slotIndex}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async saveQuestProgress(_playthroughId: string, questProgress: any): Promise<void> {
+    try {
+      localStorage.setItem('insimul_quest_progress', JSON.stringify(questProgress));
+    } catch (err) {
+      console.error('Failed to save quest progress to localStorage:', err);
+    }
+  }
+
+  async loadQuestProgress(_playthroughId: string): Promise<any | null> {
+    try {
+      const raw = localStorage.getItem('insimul_quest_progress');
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;

@@ -7,6 +7,7 @@ import {
   type SaveStateAuditResult,
 } from '../WorldStateManager';
 import { GameEventBus } from '../GameEventBus';
+import { PlaythroughQuestOverlay } from '../PlaythroughQuestOverlay';
 import type { DataSource } from '../DataSource';
 import type { GameSaveState } from '@shared/game-engine/types';
 
@@ -87,6 +88,8 @@ function makeDataSource(): DataSource {
     loadPrologContent: vi.fn().mockResolvedValue(null),
     loadWorldItems: vi.fn().mockResolvedValue([]),
     loadGeography: vi.fn().mockResolvedValue(null),
+    saveQuestProgress: vi.fn().mockResolvedValue(undefined),
+    loadQuestProgress: vi.fn().mockResolvedValue(null),
   };
 }
 
@@ -364,14 +367,29 @@ describe('WorldStateManager', () => {
     });
 
     it('registers all expected trigger events', () => {
+      expect(AUTO_SAVE_TRIGGER_EVENTS).toContain('quest_accepted');
       expect(AUTO_SAVE_TRIGGER_EVENTS).toContain('quest_completed');
+      expect(AUTO_SAVE_TRIGGER_EVENTS).toContain('quest_failed');
+      expect(AUTO_SAVE_TRIGGER_EVENTS).toContain('quest_abandoned');
       expect(AUTO_SAVE_TRIGGER_EVENTS).toContain('assessment_completed');
       expect(AUTO_SAVE_TRIGGER_EVENTS).toContain('settlement_entered');
       expect(AUTO_SAVE_TRIGGER_EVENTS).toContain('achievement_unlocked');
       expect(AUTO_SAVE_TRIGGER_EVENTS).toContain('romance_stage_changed');
       expect(AUTO_SAVE_TRIGGER_EVENTS).toContain('npc_exam_completed');
       expect(AUTO_SAVE_TRIGGER_EVENTS).toContain('onboarding_completed');
-      expect(AUTO_SAVE_TRIGGER_EVENTS).toContain('quest_failed');
+    });
+
+    it('triggers save on quest_accepted event', async () => {
+      manager.setGameSource(makeSource());
+      const eventBus = new GameEventBus();
+      manager.attachTriggers(eventBus);
+
+      eventBus.emit({ type: 'quest_accepted', questId: 'q1', questTitle: 'Test' });
+      vi.advanceTimersByTime(5_000);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(ds.saveGameState).toHaveBeenCalled();
     });
   });
 
@@ -476,6 +494,84 @@ describe('WorldStateManager', () => {
       expect(slots[0]).toEqual({ slotIndex: 0, savedAt: '2026-01-01', gameTime: 10 });
       expect(slots[1]).toBeNull();
       expect(slots[2]).toEqual({ slotIndex: 2, savedAt: '2026-01-02', gameTime: 20 });
+    });
+  });
+
+  // ── Quest overlay integration ─────────────────────────────────────────────
+
+  describe('quest overlay integration', () => {
+    it('captures quest overlay state when overlay is attached', () => {
+      const overlay = new PlaythroughQuestOverlay();
+      overlay.updateQuest('q1', { status: 'completed' });
+      overlay.createQuest({ id: 'dyn-1', title: 'Dynamic', status: 'active' });
+
+      manager.setGameSource(makeSource());
+      manager.setQuestOverlay(overlay);
+
+      const state = manager.captureState(0);
+      expect(state.questProgress).toEqual({
+        overrides: { q1: { status: 'completed' } },
+        created: { 'dyn-1': { id: 'dyn-1', title: 'Dynamic', status: 'active' } },
+      });
+    });
+
+    it('falls back to getQuestProgress when no overlay', () => {
+      const progress = { q1: { status: 'done' } };
+      manager.setGameSource(makeSource({ getQuestProgress: () => progress }));
+      const state = manager.captureState(0);
+      expect(state.questProgress).toEqual(progress);
+    });
+
+    it('deserializes overlay on load', async () => {
+      const overlay = new PlaythroughQuestOverlay();
+      manager.setQuestOverlay(overlay);
+
+      const savedState: GameSaveState = {
+        version: 2, slotIndex: 0, savedAt: '2026-01-01T00:00:00Z', gameTime: 10,
+        player: { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, gold: 0, health: 100, energy: 100, inventory: [] },
+        npcs: [], relationships: {}, romance: null, merchants: [], currentZone: null,
+        questProgress: { overrides: { q1: { status: 'completed' } }, created: {} },
+      };
+      (ds.loadGameState as any).mockResolvedValue(savedState);
+
+      const target = makeTarget();
+      await manager.load(target, 'world-1', 'pt-1', 0);
+
+      expect(overlay.getOverride('q1')).toEqual({ status: 'completed' });
+      expect(target.restoreQuestProgress).toHaveBeenCalled();
+    });
+  });
+
+  // ── saveQuestProgress ──────────────────────────────────────────────────────
+
+  describe('saveQuestProgress', () => {
+    it('saves quest overlay state via dataSource', async () => {
+      const overlay = new PlaythroughQuestOverlay();
+      overlay.updateQuest('q1', { status: 'active', progress: { step: 2 } });
+
+      manager.setGameSource(makeSource());
+      manager.setQuestOverlay(overlay);
+
+      const saved = await manager.saveQuestProgress();
+      expect(saved).toBe(true);
+      expect(ds.saveQuestProgress).toHaveBeenCalledWith('pt-1', {
+        overrides: { q1: { status: 'active', progress: { step: 2 } } },
+        created: {},
+      });
+    });
+
+    it('returns false when no overlay', async () => {
+      manager.setGameSource(makeSource());
+      const saved = await manager.saveQuestProgress();
+      expect(saved).toBe(false);
+    });
+
+    it('returns false when no playthroughId', async () => {
+      manager.setGameSource(makeSource({ getPlaythroughId: () => null }));
+      manager.setQuestOverlay(new PlaythroughQuestOverlay());
+
+      const saved = await manager.saveQuestProgress();
+      expect(saved).toBe(false);
     });
   });
 

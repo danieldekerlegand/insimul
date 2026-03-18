@@ -14,7 +14,7 @@
 
 export interface QueuedOperation {
   id: string;
-  type: 'saveGameState' | 'updateQuest' | 'transferItem' | 'payFines';
+  type: 'saveGameState' | 'updateQuest' | 'transferItem' | 'payFines' | 'saveQuestProgress';
   /** Deduplication key — operations with the same key replace earlier ones. */
   dedupeKey: string;
   payload: any;

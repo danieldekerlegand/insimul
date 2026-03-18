@@ -820,6 +820,79 @@ export function registerPlaythroughRoutes(app: Express) {
     }
   });
 
+  // ===== PLAYTHROUGH QUEST PROGRESS =====
+
+  // Save quest progress for a playthrough (incremental, without full game-state save)
+  app.put("/api/playthroughs/:id/quest-progress", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) return res.status(404).json({ message: "Playthrough not found" });
+      if (playthrough.userId !== payload.userId) return res.status(403).json({ message: "Not your playthrough" });
+
+      const { questProgress } = req.body;
+      if (!questProgress || typeof questProgress !== 'object') {
+        return res.status(400).json({ message: "questProgress object is required" });
+      }
+
+      // Merge quest progress into all existing save slots
+      const saveData = (playthrough.saveData as Record<string, any>) || {};
+      for (const key of Object.keys(saveData)) {
+        if (key.startsWith('slot_') && saveData[key]) {
+          saveData[key].questProgress = questProgress;
+        }
+      }
+
+      await storage.updatePlaythrough(req.params.id, {
+        saveData,
+        lastPlayedAt: new Date(),
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Save quest progress error:", error);
+      res.status(500).json({ message: "Failed to save quest progress" });
+    }
+  });
+
+  // Load quest progress for a playthrough (from most recent save slot)
+  app.get("/api/playthroughs/:id/quest-progress", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) return res.status(404).json({ message: "Playthrough not found" });
+      if (playthrough.userId !== payload.userId) return res.status(403).json({ message: "Not your playthrough" });
+
+      const saveData = (playthrough.saveData as Record<string, any>) || {};
+
+      // Find the most recently saved slot
+      let latest: any = null;
+      let latestTime = '';
+      for (const key of Object.keys(saveData)) {
+        if (key.startsWith('slot_') && saveData[key]?.questProgress) {
+          const savedAt = saveData[key].savedAt || '';
+          if (savedAt > latestTime) {
+            latestTime = savedAt;
+            latest = saveData[key].questProgress;
+          }
+        }
+      }
+
+      res.json({ questProgress: latest });
+    } catch (error) {
+      console.error("Load quest progress error:", error);
+      res.status(500).json({ message: "Failed to load quest progress" });
+    }
+  });
+
   // ===== GAME STATE SAVE/LOAD =====
 
   // Save game state to a slot

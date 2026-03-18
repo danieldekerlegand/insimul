@@ -322,3 +322,30 @@ FString UDataLoader::LoadGameState(int32 SlotIndex)
     UE_LOG(LogTemp, Log, TEXT("[Insimul] LoadGameState: loaded slot %d (%d chars)"), SlotIndex, Contents.Len());
     return Contents;
 }
+
+bool UDataLoader::SaveQuestProgress(const FString& QuestProgressJSON)
+{
+    const FString SaveDir = FPaths::ProjectSavedDir() / TEXT("SaveGames");
+    const FString SavePath = SaveDir / TEXT("insimul_quest_progress.json");
+    if (!FFileHelper::SaveStringToFile(QuestProgressJSON, *SavePath))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Insimul] SaveQuestProgress: failed to write %s"), *SavePath);
+        return false;
+    }
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] SaveQuestProgress: saved (%d chars)"), QuestProgressJSON.Len());
+    return true;
+}
+
+FString UDataLoader::LoadQuestProgress()
+{
+    const FString SaveDir = FPaths::ProjectSavedDir() / TEXT("SaveGames");
+    const FString SavePath = SaveDir / TEXT("insimul_quest_progress.json");
+    FString Contents;
+    if (!FFileHelper::LoadFileToString(Contents, *SavePath))
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("[Insimul] LoadQuestProgress: no saved quest progress"));
+        return FString();
+    }
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] LoadQuestProgress: loaded (%d chars)"), Contents.Len());
+    return Contents;
+}
