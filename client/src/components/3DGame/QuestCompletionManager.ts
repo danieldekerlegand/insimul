@@ -18,6 +18,7 @@ import { Color4, GPUParticleSystem, ParticleSystem, Scene, Texture, Vector3 } fr
 import type { GameEventBus } from './GameEventBus';
 import type { LanguageGamificationTracker } from './LanguageGamificationTracker';
 import type { BabylonQuestTracker } from './BabylonQuestTracker';
+import type { DataSource } from './DataSource';
 import { computeSkillRewards, applySkillRewards, type SkillReward } from '@shared/language/quest-skill-rewards';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -58,6 +59,7 @@ export class QuestCompletionManager {
   private eventBus: GameEventBus | null = null;
   private gamificationTracker: LanguageGamificationTracker | null = null;
   private questTracker: BabylonQuestTracker | null = null;
+  private dataSource: DataSource | null = null;
   private playerProgress: PlayerProgress = { inventory: [], questsCompleted: [], skills: {} };
   private audioContext: AudioContext | null = null;
   private completionOverlay: Rectangle | null = null;
@@ -80,6 +82,10 @@ export class QuestCompletionManager {
 
   public setQuestTracker(tracker: BabylonQuestTracker): void {
     this.questTracker = tracker;
+  }
+
+  public setDataSource(dataSource: DataSource): void {
+    this.dataSource = dataSource;
   }
 
   public setPlayerProgress(progress: PlayerProgress): void {
@@ -457,12 +463,12 @@ export class QuestCompletionManager {
     achievement: string | null;
   } | null> {
     if (!quest.questChainId || !quest.worldId) return null;
+    if (!this.dataSource) return null;
 
     try {
-      const response = await fetch(`/api/worlds/${quest.worldId}/quests`);
-      if (!response.ok) return null;
-
-      const allQuests: Array<CompletedQuestData & { status?: string; tags?: string[] }> = await response.json();
+      // Load quests through DataSource (overlay-aware)
+      const allQuests: Array<CompletedQuestData & { status?: string; tags?: string[] }> =
+        await this.dataSource.loadQuests(quest.worldId);
       const chainQuests = allQuests
         .filter(q => q.questChainId === quest.questChainId)
         .sort((a, b) => (a.questChainOrder || 0) - (b.questChainOrder || 0));
@@ -471,12 +477,8 @@ export class QuestCompletionManager {
       const nextQuest = chainQuests.find(q => q.questChainOrder === nextOrder);
 
       if (nextQuest) {
-        // Activate the next quest in the chain
-        await fetch(`/api/quests/${nextQuest.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'active' }),
-        });
+        // Activate next quest via DataSource (writes to overlay)
+        await this.dataSource.updateQuest(nextQuest.id, { status: 'active' });
 
         this.eventBus?.emit({
           type: 'quest_accepted',
@@ -498,7 +500,6 @@ export class QuestCompletionManager {
       );
 
       if (allCompleted) {
-        // Extract chain metadata from tags
         const meta = this.extractChainMeta(chainQuests);
         console.log(`[QuestCompletionManager] Chain complete: "${meta.name}"`);
 
@@ -648,5 +649,6 @@ export class QuestCompletionManager {
     this.eventBus = null;
     this.gamificationTracker = null;
     this.questTracker = null;
+    this.dataSource = null;
   }
 }

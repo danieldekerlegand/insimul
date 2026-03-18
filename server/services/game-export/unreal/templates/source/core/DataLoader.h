@@ -48,7 +48,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadRules();
 
-    /** Load quests.json. */
+    /**
+     * Load quests.json.
+     * NOTE: In Babylon.js, a PlaythroughQuestOverlay merges per-playthrough
+     * quest state on top of base quests. In Unreal, implement equivalent
+     * overlay logic in your quest subsystem using save/load game state.
+     */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadQuests();
 

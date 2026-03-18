@@ -7,6 +7,7 @@
  */
 
 import type { DataSource } from './DataSource';
+import type { PlaythroughQuestOverlay } from './PlaythroughQuestOverlay';
 import type {
   GameSaveState,
   SavedNPCState,
@@ -71,9 +72,15 @@ export class WorldStateManager {
   private autoSaveTimer: ReturnType<typeof setInterval> | null = null;
   private lastSavedState: GameSaveState | null = null;
   private gameSource: GameStateSource | null = null;
+  private questOverlay: PlaythroughQuestOverlay | null = null;
 
   constructor(dataSource: DataSource) {
     this.dataSource = dataSource;
+  }
+
+  /** Attach the quest overlay so save/load serializes quest state. */
+  setQuestOverlay(overlay: PlaythroughQuestOverlay): void {
+    this.questOverlay = overlay;
   }
 
   /** Register the game instance as the source/target of state. */
@@ -123,7 +130,7 @@ export class WorldStateManager {
       romance: src.getRomanceData(),
       merchants: src.getMerchantStates(),
       currentZone: src.getCurrentZone(),
-      questProgress: src.getQuestProgress(),
+      questProgress: this.questOverlay ? this.questOverlay.serialize() : src.getQuestProgress(),
     };
   }
 
@@ -236,6 +243,9 @@ export class WorldStateManager {
       target.restoreCurrentZone(state.currentZone);
     }
     if (state.questProgress) {
+      if (this.questOverlay) {
+        this.questOverlay.deserialize(state.questProgress);
+      }
       target.restoreQuestProgress(state.questProgress);
     }
     if (state.gameTime != null) {

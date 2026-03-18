@@ -1,12 +1,18 @@
 /**
  * Data Layer Abstraction for BabylonGame
- * 
+ *
  * This provides a unified interface for loading game data
- * that can switch between API calls (for Insimul) and 
+ * that can switch between API calls (for Insimul) and
  * file loading (for exported games).
  */
 
+import { PlaythroughQuestOverlay } from './PlaythroughQuestOverlay';
+
 export interface DataSource {
+  /** Playthrough-scoped quest overlay. When set, loadQuests merges overlay
+   *  state on top of base world quests, and updateQuest writes to the overlay
+   *  instead of the world. */
+  questOverlay: PlaythroughQuestOverlay | null;
   loadWorld(worldId: string): Promise<any>;
   loadCharacters(worldId: string): Promise<any[]>;
   loadActions(worldId: string): Promise<any[]>;
@@ -52,6 +58,8 @@ export interface DataSource {
  * API-based data source for Insimul
  */
 export class ApiDataSource implements DataSource {
+  public questOverlay: PlaythroughQuestOverlay | null = null;
+
   constructor(private authToken: string) {}
 
   private getHeaders(): HeadersInit {
@@ -80,7 +88,8 @@ export class ApiDataSource implements DataSource {
 
   async loadQuests(worldId: string): Promise<any[]> {
     const res = await fetch(`/api/worlds/${worldId}/quests`, { headers: this.getHeaders() });
-    return res.ok ? await res.json() : [];
+    const baseQuests = res.ok ? await res.json() : [];
+    return this.questOverlay ? this.questOverlay.mergeQuests(baseQuests) : baseQuests;
   }
 
   async loadSettlements(worldId: string): Promise<any[]> {
@@ -146,6 +155,11 @@ export class ApiDataSource implements DataSource {
   }
 
   async updateQuest(questId: string, data: any): Promise<void> {
+    if (this.questOverlay) {
+      this.questOverlay.updateQuest(questId, data);
+      return;
+    }
+    // Fallback: direct world write (no playthrough active)
     await fetch(`/api/quests/${questId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -266,6 +280,7 @@ async function readDataFile(relativePath: string): Promise<any> {
  * File-based data source for exported games
  */
 export class FileDataSource implements DataSource {
+  public questOverlay: PlaythroughQuestOverlay | null = null;
   private worldData: any = null;
   private worldIR: any = null;
 
@@ -337,7 +352,8 @@ export class FileDataSource implements DataSource {
 
   async loadQuests(worldId: string): Promise<any[]> {
     await this.waitForData();
-    return this.worldData?.quests || [];
+    const baseQuests = this.worldData?.quests || [];
+    return this.questOverlay ? this.questOverlay.mergeQuests(baseQuests) : baseQuests;
   }
 
   async loadSettlements(worldId: string): Promise<any[]> {
@@ -537,9 +553,11 @@ export class FileDataSource implements DataSource {
   }
 
   async updateQuest(questId: string, data: any): Promise<void> {
-    // In exported games, quest updates are handled locally
-    // Could implement local storage here if needed
-    console.log('Quest updated:', questId, data);
+    if (this.questOverlay) {
+      this.questOverlay.updateQuest(questId, data);
+      return;
+    }
+    console.log('Quest updated (no overlay):', questId, data);
   }
 
   async loadSettlementBusinesses(settlementId: string): Promise<any[]> {

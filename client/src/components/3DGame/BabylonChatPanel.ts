@@ -3045,40 +3045,19 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
    * Complete quest turn-in via API
    */
   private async turnInQuest(quest: any, dialog: Rectangle) {
-    try {
-      // TODO: Write completion to playthrough delta layer, not world data.
-      // For now, emit a local event but don't mutate the world quest status.
-      const response = await fetch(`/api/quests/${quest.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          // Don't write status: 'completed' — that's per-playthrough state
-        })
+    // Quest completion is handled by the playthrough overlay via the callback.
+    // No direct API write needed — state lives in the overlay.
+    this.showQuestCompletionCelebration(quest);
+    this._advancedTexture.removeControl(dialog);
+
+    if (this.onQuestTurnedIn) {
+      this.onQuestTurnedIn(quest.id, {
+        experienceReward: quest.experienceReward,
+        itemRewards: quest.itemRewards,
       });
-
-      if (response.ok) {
-        // Show completion celebration
-        this.showQuestCompletionCelebration(quest);
-        
-        // Remove dialog
-        this._advancedTexture.removeControl(dialog);
-        
-        // Notify callback
-        if (this.onQuestTurnedIn) {
-          this.onQuestTurnedIn(quest.id, {
-            experienceReward: quest.experienceReward,
-            itemRewards: quest.itemRewards,
-          });
-        }
-
-        // Remove from pending
-        this.pendingTurnInQuests = this.pendingTurnInQuests.filter(q => q.id !== quest.id);
-      } else {
-        console.error('[BabylonChatPanel] Failed to turn in quest');
-      }
-    } catch (error) {
-      console.error('[BabylonChatPanel] Error turning in quest:', error);
     }
+
+    this.pendingTurnInQuests = this.pendingTurnInQuests.filter(q => q.id !== quest.id);
   }
 
   /**

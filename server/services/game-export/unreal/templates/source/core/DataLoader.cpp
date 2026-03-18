@@ -76,6 +76,8 @@ FString UDataLoader::LoadRules()
 
 FString UDataLoader::LoadQuests()
 {
+    // Returns base world quests. Per-playthrough state (status, progress,
+    // completion) should be overlaid at runtime from save game state.
     return LoadDataFile(TEXT("quests.json"));
 }
 
