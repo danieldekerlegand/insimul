@@ -22,6 +22,11 @@ import {
   type AssignmentOptions,
   type AssignedQuest,
 } from './quest-assignment-engine.js';
+import type { LanguageProgress } from '../../shared/language/progress.js';
+import {
+  generateErrorCorrectionQuests,
+  computeErrorCorrectionWeight,
+} from './error-correction-quest-generator.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -30,6 +35,8 @@ export interface AdaptiveQuestOptions {
   playerName: string;
   playerCharacterId?: string;
   excludeTemplateIds?: string[];
+  /** Language progress data for error correction quest generation. */
+  languageProgress?: LanguageProgress;
 }
 
 export interface CategoryWeight {
@@ -83,7 +90,10 @@ export function computeCategoryWeights(profile: LearningProfile): CategoryWeight
     addWeight(cat, -1, 'already strong — reduce emphasis');
   }
 
-  // 6. Baseline weight for all categories so nothing is zero
+  // 6. Error correction weight (if language progress data is available)
+  // This is applied externally via applyErrorCorrectionWeight()
+
+  // 7. Baseline weight for all categories so nothing is zero
   const allCategoryList = Array.from(new Set(
     Array.from(weights.keys()).concat(Object.values(SKILL_TO_CATEGORIES).flat()),
   ));
@@ -205,16 +215,35 @@ export function generateAdaptiveQuests(
 ): AssignedQuest[] {
   const count = options.count ?? 3;
 
+  // Generate error correction quests if language progress is available
+  const allQuests: AssignedQuest[] = [];
+  const usedTemplateIds = new Set(options.excludeTemplateIds ?? []);
+
+  if (options.languageProgress) {
+    const errorWeight = computeErrorCorrectionWeight(options.languageProgress);
+    if (errorWeight > 0) {
+      // Reserve up to 1 slot for error correction quests (more if heavy errors)
+      const errorSlots = errorWeight >= 4 ? 2 : 1;
+      const errorQuests = generateErrorCorrectionQuests(ctx, options.languageProgress, {
+        maxQuests: Math.min(errorSlots, count),
+      });
+      for (const eq of errorQuests) {
+        allQuests.push(eq);
+        usedTemplateIds.add(eq.templateId);
+      }
+    }
+  }
+
+  const remainingCount = count - allQuests.length;
+  if (remainingCount <= 0) return allQuests;
+
   // Compute category weights from learning profile
   const weights = computeCategoryWeights(profile);
 
   // Select categories for each quest slot
-  const selectedCategories = selectWeightedCategories(weights, count);
+  const selectedCategories = selectWeightedCategories(weights, remainingCount);
 
   // Generate quests one at a time with per-quest difficulty adjustment
-  const allQuests: AssignedQuest[] = [];
-  const usedTemplateIds = new Set(options.excludeTemplateIds ?? []);
-
   for (let i = 0; i < selectedCategories.length; i++) {
     const category = selectedCategories[i];
     const difficulty = selectDifficulty(profile, category, i);

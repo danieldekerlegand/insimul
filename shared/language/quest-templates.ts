@@ -1051,6 +1051,123 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
       { name: 'count', type: 'number', description: 'Locations to visit in order' },
     ],
   },
+
+  // --- Error Correction / Remediation Quests ---
+  {
+    id: 'grammar_correction_drill',
+    name: 'Grammar Correction Drill',
+    category: 'error_correction',
+    description: 'Practice the "{{pattern}}" pattern you\'ve been struggling with by using it correctly in conversation.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'practice_grammar',
+        descriptionTemplate: 'Use the "{{pattern}}" pattern correctly {{count}} times in conversation',
+        requiredCount: 3,
+      },
+    ],
+    rewardScale: { xp: 20, fluency: 3 },
+    parameters: [
+      { name: 'pattern', type: 'grammar_pattern', description: 'Grammar pattern to practice' },
+      { name: 'count', type: 'number', description: 'Correct uses required' },
+    ],
+  },
+  {
+    id: 'grammar_correction_conversation',
+    name: 'Grammar Review Chat',
+    category: 'error_correction',
+    description: 'Have a conversation with {{npcName}} focusing on the "{{pattern}}" pattern. The NPC will gently correct mistakes.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Have a conversation with {{npcName}} practicing "{{pattern}}"',
+        requiredCount: 1,
+      },
+      {
+        type: 'practice_grammar',
+        descriptionTemplate: 'Use "{{pattern}}" correctly at least {{count}} times',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 4 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC to practice with' },
+      { name: 'pattern', type: 'grammar_pattern', description: 'Grammar pattern to correct' },
+      { name: 'count', type: 'number', description: 'Correct uses required' },
+    ],
+  },
+  {
+    id: 'vocabulary_correction_practice',
+    name: 'Word Correction Practice',
+    category: 'error_correction',
+    description: 'You\'ve been mixing up some words. Practice using {{wordList}} correctly in context.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use the words {{wordList}} correctly in conversation',
+        requiredCount: 3,
+      },
+    ],
+    rewardScale: { xp: 20, fluency: 3 },
+    parameters: [
+      { name: 'wordList', type: 'vocabulary_set', description: 'Words to practice' },
+    ],
+  },
+  {
+    id: 'vocabulary_correction_conversation',
+    name: 'Word Review Chat',
+    category: 'error_correction',
+    description: 'Chat with {{npcName}} and practice using tricky words you\'ve been getting wrong.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Have a conversation with {{npcName}} using problem vocabulary',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{count}} previously-missed words correctly',
+        requiredCount: 4,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 4 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC to practice with' },
+      { name: 'count', type: 'number', description: 'Words to use correctly' },
+    ],
+  },
+  {
+    id: 'mixed_error_review',
+    name: 'Error Review Session',
+    category: 'error_correction',
+    description: 'A comprehensive review session targeting your most common mistakes in grammar and vocabulary.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Complete a review conversation practicing problem areas',
+        requiredCount: 1,
+      },
+      {
+        type: 'practice_grammar',
+        descriptionTemplate: 'Use problem grammar patterns correctly {{grammarCount}} times',
+        requiredCount: 3,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{vocabCount}} problem vocabulary words correctly',
+        requiredCount: 3,
+      },
+    ],
+    rewardScale: { xp: 40, fluency: 5 },
+    parameters: [
+      { name: 'grammarCount', type: 'number', description: 'Grammar corrections needed' },
+      { name: 'vocabCount', type: 'number', description: 'Vocabulary corrections needed' },
+    ],
+  },
 ];
 
 /**
