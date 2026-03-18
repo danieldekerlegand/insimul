@@ -202,7 +202,8 @@ namespace Insimul.Systems
         }
 
         /// <summary>Track a pronunciation attempt for pronunciation_check objectives.</summary>
-        public void TrackPronunciationAttempt(bool passed, string questId = null)
+        /// <param name="score">Pronunciation accuracy score (0-100)</param>
+        public void TrackPronunciationAttempt(bool passed, float score = 0f, string questId = null)
         {
             if (!passed) return;
 

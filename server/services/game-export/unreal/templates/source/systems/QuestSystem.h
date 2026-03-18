@@ -105,9 +105,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Quests")
     void TrackConversationTurn(const TArray<FString>& Keywords, const FString& QuestId = TEXT(""));
 
-    /** Track a pronunciation attempt for pronunciation_check objectives. */
+    /** Track a pronunciation attempt for pronunciation_check objectives. Score is 0-100. */
     UFUNCTION(BlueprintCallable, Category = "Quests")
-    void TrackPronunciationAttempt(bool bPassed, const FString& QuestId = TEXT(""));
+    void TrackPronunciationAttempt(bool bPassed, float Score = 0.f, const FString& QuestId = TEXT(""));
 
     /** Check if player is near a direction/navigation waypoint. Call from Tick(). */
     UFUNCTION(BlueprintCallable, Category = "Quests")

@@ -33,6 +33,11 @@ export interface CompletionObjective {
   requiredCount?: number;
   currentCount?: number;
 
+  // pronunciation_check scoring
+  pronunciationScores?: number[];
+  minAverageScore?: number;
+  targetPhrases?: string[];
+
   // defeat_enemies
   enemyType?: string;
   enemiesDefeated?: number;
@@ -428,11 +433,31 @@ export class QuestCompletionEngine {
       if (passed) {
         obj.currentCount = (obj.currentCount || 0) + 1;
 
-        if (obj.currentCount >= (obj.requiredCount || 3)) {
-          this.completeObjective(quest.id, obj.id);
+        const required = obj.requiredCount || 3;
+        if (obj.currentCount >= required) {
+          // If minAverageScore is set, check average before completing
+          const scores = obj.pronunciationScores || [];
+          if (obj.minAverageScore && obj.minAverageScore > 0 && scores.length > 0) {
+            const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+            if (avg >= obj.minAverageScore) {
+              this.completeObjective(quest.id, obj.id);
+            }
+          } else {
+            this.completeObjective(quest.id, obj.id);
+          }
         }
       }
     });
+  }
+
+  getPronunciationStats(questId: string, objectiveId: string): { scores: number[]; average: number; passed: number } | null {
+    const quest = this.quests.find(q => q.id === questId);
+    const obj = quest?.objectives?.find(o => o.id === objectiveId);
+    if (!obj || obj.type !== 'pronunciation_check') return null;
+
+    const scores = obj.pronunciationScores || [];
+    const average = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+    return { scores, average, passed: scores.length };
   }
 
   // ── Timed objectives ────────────────────────────────────────────────────

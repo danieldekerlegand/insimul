@@ -1682,9 +1682,10 @@ export class QuestObjectManager {
    * Track pronunciation attempt for pronunciation_check objectives.
    * Called after the player records voice and receives accuracy feedback.
    * @param passed Whether the pronunciation met the accuracy threshold
+   * @param score Pronunciation accuracy score (0-100)
    */
-  public trackPronunciationAttempt(passed: boolean, questId?: string) {
-    this.completionEngine.trackPronunciationAttempt(passed, questId);
+  public trackPronunciationAttempt(passed: boolean, score: number = 0, questId?: string) {
+    this.completionEngine.trackPronunciationAttempt(passed, score, questId);
   }
 
   /**

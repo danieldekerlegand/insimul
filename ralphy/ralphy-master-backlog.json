@@ -1,0 +1,418 @@
+{
+  "tasks": [
+    {
+      "title": "Implement quest streak and bonus system",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "Add a streak bonus system for consecutive quest completions. (1) Track consecutive quest completions without failure or abandonment. (2) Streak multipliers: 2 in a row = 1.1x XP, 5 = 1.25x, 10 = 1.5x, 20 = 2.0x. (3) Display current streak in the quest log header with a flame icon. (4) Streak persisted in LanguageProgress. (5) Daily quests have their own separate streak counter. (6) Streak milestones trigger achievements. (7) Mentor NPC acknowledges streaks. (8) Business-specific streak: visiting a business every day increases rapport with that NPC."
+    },
+    {
+      "title": "Wire XP awards to all quest and learning activities",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "Ensure XP is consistently awarded across all activities using the gamification system. In a new client/src/components/3DGame/XPManager.ts: (1) Listen for GameEventBus events and award XP per shared/language/gamification.ts XP_REWARDS: quest_completed→25, vocabulary_used (new word)→3, vocabulary mastered→15, grammar correct→2, conversation_turn→10, achievement_unlocked→50; (2) After awarding XP, call calculateLevel() to check for level-ups; (3) On level-up, emit a 'level_up' event for the notification system, check skill tree unlocks, and persist to playerProgress via PUT /api/player-progress/:id; (4) Track daily challenge progress — check if the day's challenge criteria are met after each XP-granting event; (5) Maintain a session XP counter for the playerSessions record. Ensure XP is persisted server-side so it survives page refreshes."
+    },
+    {
+      "title": "Wire achievement detection to gameplay events",
+      "completed": true,
+      "parallel_group": 1,
+      "description": "Create client/src/components/3DGame/AchievementManager.ts to monitor gameplay and unlock achievements. Listen to GameEventBus events and check achievement conditions from shared/language/gamification.ts ACHIEVEMENTS: (1) 'First Words' — vocabulary.length >= 10; (2) 'Chatterbox' — totalConversations >= 25; (3) 'Grammar Guru' — grammar patterns mastered >= 5; (4) 'Polyglot' — level >= 11; (5) 'Navigator' — navigation quests completed >= 5; (6) 'Streak Master' — streakDays >= 7; (7) 'Word Collector' — vocabulary.length >= 50; (8) 'Quest Hero' — questsCompleted.length >= 10; (9) 'Cultural Explorer' — cultural quests >= 5; (10) 'Bookworm' — articles read >= 10. On unlock: persist to playerProgress.achievementsUnlocked, persist to achievements collection via API, award 50 XP, fire achievement_unlocked event for the notification toast. Check conditions after every relevant event (quest_completed, vocabulary_used, conversation_turn, etc.)."
+    },
+    {
+      "title": "Add phonetic similarity scoring for pronunciation objectives",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Enhance pronunciation evaluation beyond string matching. (1) Create shared/language/phonetic-scorer.ts with phonetic similarity algorithms. (2) Convert STT transcription and target phrase to phonetic representation. (3) Score based on phonetic distance rather than exact spelling. (4) Language-specific phonetic rules: handle silent letters, liaisons, tonal markers. (5) Partial credit for close phonemes. (6) Return specific feedback: 'You said [X sound] but correct is [Y sound].' (7) Use in pronunciation_check quest objectives. (8) Build phonetic distance tables for commonly confused sounds per language."
+    },
+    {
+      "title": "Implement adaptive NPC speech complexity based on player level",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Enhance context-manager.ts NPC system prompts to dynamically adjust speech complexity. (1) NPCs read the player's current CEFR level and adjust language accordingly. (2) A1: very simple sentences, repeats key words, mixes English, speaks slowly. (3) A2: simple but varied sentences, less English, gentle corrections. (4) B1: natural speech with occasional complex structures, minimal English. (5) B2: natural speech with idioms, humor, cultural references. (6) This applies to ALL NPC conversations including business interactions. (7) Business NPCs adjust: A1 shopkeeper points at items and uses one-word names, B2 shopkeeper describes products eloquently with cultural context. (8) If player demonstrates higher comprehension, NPC tentatively increases complexity. (9) Leverages the existing tier-adaptive rules from assessment-prompt-utils.ts."
+    },
+    {
+      "title": "Implement audio-level pronunciation scoring",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Enhance shared/pronunciation-scoring.ts to support audio-level comparison. Create a server endpoint POST /api/pronunciation/score that accepts two audio blobs (reference TTS + player recording). Use Google Cloud Speech-to-Text with word-level timestamps and confidence scores to compare pronunciation accuracy at the phoneme level. Return per-word scores, timing accuracy, and overall pronunciation grade. Fall back to the existing text-based Levenshtein scoring if audio analysis fails."
+    },
+    {
+      "title": "Implement listen_and_repeat action for pronunciation practice",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Add a listen-and-repeat interaction mode. (1) During conversations with NPCs (including business owners), if the player types '/repeat' or presses a repeat button, the NPC repeats their last phrase slowly. (2) Player then uses push-to-talk (R) to repeat the phrase. (3) STT transcription is compared against the original phrase. (4) Feedback shown: matched words in green, missed/wrong words in red. (5) NPC encourages: 'Good try! Listen again...' or 'Perfect pronunciation!' (6) Useful in business contexts: repeating menu item names, product names, service descriptions. (7) Repeat requests don't count as conversation turns. (8) Track repeat attempts and improvement over time."
+    },
+    {
+      "title": "Implement pronunciation feedback integration with quests",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Wire pronunciation scoring into quest objectives for voice-based quests. In UtteranceQuestSystem.ts: (1) For speak_phrase and pronunciation_check objectives, use the existing pronunciation scoring (shared/pronunciation-scoring.ts) to evaluate player speech; (2) Show per-word pronunciation feedback inline: green=good, yellow=acceptable, red=needs work, using BabylonChatPanel's existing practicePronunciation flow; (3) Allow retry — if pronunciation score < 60%, prompt 'Try saying it again' without penalizing quest progress; (4) For conversation quests, track overall pronunciation quality as a bonus metric (doesn't block completion but affects XP reward — up to 25% bonus XP for excellent pronunciation); (5) Add a 'Pronunciation Challenge' quest template: player must correctly pronounce 5 phrases with >70% accuracy. Feed pronunciation scores into the Assessment dimension scores for the next periodic assessment."
+    },
+    {
+      "title": "Implement pronunciation quest objectives with speech scoring",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Enhance pronunciation-related quest objectives using the existing STT pipeline. (1) For pronunciation_check objective type, require the player to speak specific words/phrases via push-to-talk (R key). (2) Compare STT transcription against the expected phrase. (3) NPC models the correct pronunciation first (via TTS), then the player repeats. (4) Repeat cycle: NPC says → Player repeats → Score → NPC corrects if needed → Player tries again (up to 3 attempts). (5) Track pronunciation accuracy per word over time in LanguageProgress. (6) Business-contextualized: practice ordering food items, saying product names, greeting customers. (7) Visual feedback: show expected text and transcribed text side-by-side. (8) Award mastery badges for consistently correct pronunciation."
+    },
+    {
+      "title": "Integrate VAD for auto-start/stop recording",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "Add a 'hands-free mode' toggle to both chat panels. When enabled, keep the microphone stream open continuously and use VoiceActivityDetector to auto-start recording when speech is detected and auto-stop after 1.5s of silence. Auto-send the transcript when recording stops. Show a visual volume indicator (animated bar or pulsing dot) so the user knows the mic is listening. Disable when in text-input mode."
+    },
+    {
+      "title": "Precompute NPC greeting audio on chat open",
+      "completed": true,
+      "parallel_group": 2,
+      "description": "In both BabylonChatPanel and CharacterChatDialog, when the chat dialog opens and the greeting text is generated, immediately fire an async TTS request for the greeting in the background. Store the resulting audio blob. When the user first sees the chat, the greeting audio is already available to play instantly instead of requiring a TTS round-trip. Use the correct languageCode from world context."
+    },
+    {
+      "title": "Add ask_for_directions action with NPC pathfinding response",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Add an 'ask for directions' interaction. (1) Player can ask any NPC (outdoor or inside a business) for directions to a location or business by speaking in target language. (2) NPC responds with verbal directions using the actual street network: 'Go straight down [street name], turn left at [landmark], the [business] is on the right.' (3) Directions computed using StreetNetworkLayout.ts to find actual path. (4) After NPC gives directions, optional waypoint markers on minimap (show at A1-A2, hide at B1+). (5) If player asks in English, NPC gently prompts target language. (6) Fire 'asked_directions' event for quest tracking. (7) Business NPCs give directions relative to their own business: 'When you leave my shop, turn left...'"
+    },
+    {
+      "title": "Add introduce_self action for social interaction practice",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Implement a structured self-introduction action. (1) When meeting an NPC for the first time, the conversation system prompts: 'This is your first time meeting [NPC]. Introduce yourself!' (2) The NPC greets the player and waits for introduction. (3) Introduction quality tracked: name, origin, purpose, appropriate greeting, formal/informal register. (4) CEFR-scaled: A1 = name only, A2 = name + origin, B1 = full intro + purpose + small talk, B2 = culturally appropriate introduction with context. (5) Business context: when entering a shop for the first time, the owner greets the player and expects an introduction before serving them. (6) First introductions with business NPCs are automatically early-game quest objectives. (7) NPCs remember the introduction in future conversations. (8) Fire 'introduced_self' event for quest tracking."
+    },
+    {
+      "title": "Add item interaction quests with language-gated crafting",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "Create quests that require language-mediated item interactions at businesses. (1) 'Recipe Crafting' quest: player collects ingredients by visiting food businesses (named in target language) and must request the baker to combine them, describing what they want in target language. (2) 'Tool Identification' quest: blacksmith lays out tools, player must correctly name each one to borrow it. (3) 'Potion Making' quest: herbalist/healer gives verbal instructions in target language for combining ingredients in specific order. (4) Item interaction requires the player to name or describe items correctly before they can use them. (5) Use existing inventory system from BabylonInventory.ts. (6) Items have a 'requiresLanguageCheck' flag; when true, player must name correctly. (7) Incorrect naming shows the item name briefly as a learning moment."
+    },
+    {
+      "title": "Add order_food action for restaurant interactions",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "Implement restaurant/market ordering interaction in BabylonGame.ts, leveraging the business interior system. (1) When the player enters a restaurant or tavern (via BuildingEntrySystem), show the generated menu (from task 26 business inventory) on a visible menu board in the interior. (2) Player interacts with waiter/innkeeper NPC (placed by InteriorNPCManager) and orders by saying item names in target language. (3) The vendor NPC has the full menu in their conversation context and responds contextually: correct order = 'Right away!' + item added to inventory, close but wrong = 'Did you mean [correct]?', completely wrong = 'I don't understand, try again?' (4) Ordering requires: item name, quantity (number practice), polite phrasing ('I would like...'). (5) Track successful orders for vocabulary mastery. (6) Link to shopping quests for seamless integration. (7) After ordering, NPC can ask follow-up questions ('Would you like anything to drink?' 'How would you like it prepared?')."
+    },
+    {
+      "title": "Create 'customer service' quest type for transactional language practice",
+      "completed": false,
+      "parallel_group": 3,
+      "description": "Create quest templates specifically for customer service interactions — one of the most critical real-world language skills. (1) 'Make a Return' quest: player bought a wrong item and must return it to the shopkeeper, explaining the problem and requesting a refund/exchange in target language. (2) 'File a Complaint' quest: a service was unsatisfactory, player must politely but firmly complain to the business owner. (3) 'Make a Reservation' quest: player contacts the inn or restaurant NPC to reserve a room/table for a specific date and time. (4) 'Ask for Recommendations' quest: player enters a shop unsure of what to buy and must ask the shopkeeper for recommendations, describe preferences, and make a decision. (5) 'Urgent Request' quest: player needs something done quickly and must communicate urgency appropriately (polite but insistent). (6) These all require entering businesses and talking to interior NPCs. (7) Vocabulary focus: polite complaint language, time/date expressions, preference descriptions, transactional phrases."
+    },
+    {
+      "title": "Implement business owner greeting system when player enters",
+      "completed": true,
+      "parallel_group": 3,
+      "description": "When InteriorNPCManager places the business owner inside (task 6), add an automatic greeting system. (1) On player entry, the business owner NPC automatically speaks a greeting in the target language appropriate to their business type and personality. (2) Greetings are contextual: baker says 'Welcome! Fresh bread today!', tavern keeper says 'Come in! What can I get you?', healer says 'How can I help you today?' — all in target language. (3) Greeting appears as a speech bubble above the NPC and is spoken via TTS. (4) The greeting can include a quest hook if the NPC has an available quest: 'Welcome! By the way, I could use some help...' (5) If the player has visited before, the greeting acknowledges this: 'Back again? What would you like today?' (6) Greeting complexity scales with CEFR: A1 = simple + English mixed, B2 = full target language with colloquialisms. (7) The player can respond to the greeting to start a full conversation (pressing G or speaking)."
+    },
+    {
+      "title": "Add error correction quests for common mistake remediation",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Generate quests that specifically target the player's most common errors. (1) Analyze grammar error history from LanguageProgress.grammarPatterns. (2) Generate 'Correction Challenge' quests: NPC presents sentences with intentional errors matching the player's common mistakes, player must identify and correct them. (3) 'Spot the Error' format: NPC says a sentence, player identifies what's wrong and provides correction in target language. (4) Progressive: identify error type → correct it → use correct form in new sentence. (5) Track which error types improve. (6) Limit to 1 error correction quest active at a time. (7) NPC praises effort. (8) Business context: correcting a 'misprinted' menu, fixing a 'wrong' sign."
+    },
+    {
+      "title": "Create onboarding quest sequence for new players",
+      "completed": true,
+      "parallel_group": 4,
+      "description": "Design a structured onboarding quest chain that teaches both game mechanics and initial language. (1) Quest 0: 'Welcome' - mentor NPC initiates conversation, teaches how to respond (G key, R for speech). (2) Quest 1: 'Look Around' - teaches examine_object action (X key) on 3 nearby outdoor objects. (3) Quest 2: 'Take a Walk' - teaches movement to a nearby location, introduces direction words. (4) Quest 3: 'Enter a Shop' - teaches building entry (E key), introduces business interaction, player meets first shopkeeper. (5) Quest 4: 'Make a Friend' - teaches NPC conversation with a friendly NPC, introduces greetings. (6) Quest 5: 'Your First Purchase' - teaches ordering/buying at a business. (7) Quest 6: 'First Assessment' - arrival assessment quest (from task 12). (8) Each quest has a pop-up tutorial explaining relevant controls. (9) Onboarding is mandatory for first play, skippable on replay. (10) Wire into OnboardingLauncher.ts."
+    },
+    {
+      "title": "Implement conversation-only quest mode for purely verbal quests",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Create a quest mode where all objectives are accomplished purely through conversation, with no physical game actions required. (1) These quests keep the player in conversation with an NPC for an extended dialogue (5-15 turns). (2) Objectives tracked via conversation analysis only: use specific vocabulary, demonstrate grammar patterns, discuss specific topics, ask questions, answer questions. (3) The NPC guides the conversation through objectives naturally. (4) Ideal for: players who prefer conversation over exploration, focused language practice. (5) Conversation-only quests are tagged as such in quest log. (6) Business variant: extended negotiation, detailed product discussion, or service consultation that stays in dialogue. (7) Completion detected when conversation trigger analyzer confirms all verbal objectives met."
+    },
+    {
+      "title": "Implement emergency/situational quests for practical language",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Create time-sensitive situational quests that test practical language skills in business contexts. (1) 'Lost and Found' quest: player finds a lost item and must visit businesses asking if it belongs to anyone, describing the item in target language. (2) 'Medical Emergency' quest: an NPC is feeling ill, player must communicate symptoms to the healer NPC inside the healer's practice. (3) 'Wrong Order' quest: player receives the wrong item at a shop/restaurant and must politely explain the mistake and request the correct item. (4) 'Rush Delivery' quest: a business needs an item from another business urgently, player must relay the order in target language. (5) Situational quests have soft time pressure (bonus XP for quick completion). (6) These quests are triggered semi-randomly during gameplay. (7) Required vocabulary is practical/survival-oriented, high priority in real language learning."
+    },
+    {
+      "title": "Implement multi-NPC quest scenarios across businesses",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Create quests that require interacting with multiple business NPCs in sequence. (1) 'Message Relay' quest: player receives a message from baker NPC in target language, must accurately relay it to blacksmith NPC (tests listening + speaking). (2) 'Supply Chain' quest: restaurant NPC needs ingredients from the market, herbs from the healer, and spices from a trader — player must visit each, order the correct items in target language, and deliver them. (3) 'Business Dispute' quest: two business owners disagree about a delivery, player must mediate by understanding both sides and restating positions. (4) 'Town Feast' quest: player coordinates between restaurant, baker, and farmer NPCs to organize a meal, requiring food vocabulary, quantity expressions, and scheduling language. (5) Multi-NPC quests track per-NPC completion in the checklist. (6) Conversations reference information from prior NPC interactions."
+    },
+    {
+      "title": "Implement number and counting practice quests at businesses",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Create quest templates for number vocabulary using business contexts. (1) 'Inventory Count' quest: player visits shops and counts items, reporting numbers to NPCs in target language. (2) 'Market Prices' quest: player asks prices at shops and must remember/report them correctly. (3) 'Make Change' quest: player practices number vocabulary by paying for items and verifying change at businesses. (4) 'House Numbers' quest: player finds specific buildings by address numbers in target language. (5) Number vocabulary progression: 1-10 at A1, 10-100 at A2, 100-1000 at B1, ordinals and fractions at B2. (6) Time-telling exercises: 'Meet me at the bakery at [time in target language]'. (7) Price comparison: visit multiple shops and calculate totals in target language."
+    },
+    {
+      "title": "Implement teaching-back quests where player teaches NPC",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Create quest templates where the player takes on a teaching role. (1) 'Teach the Child' quest: a young NPC wants to learn words the player has already mastered, player must correctly teach them. (2) 'Translation Helper' quest: a visiting NPC doesn't speak the local language, player must translate between them and a local business owner during a transaction. (3) 'Pronunciation Coach' quest: NPC struggles with pronunciation, player must model correct pronunciation via speech input. (4) Teaching quests test the highest level of mastery. (5) The 'student' NPC deliberately makes mistakes that the player must catch and correct. (6) Only assign teaching quests for vocabulary/grammar the player has achieved 'familiar' or 'mastered' level. (7) Successful teaching reinforces the player's own knowledge (boost spaced repetition interval)."
+    },
+    {
+      "title": "Implement timed challenge quests",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Create time-limited challenge quests for intensive practice. (1) 'Speed Round' quest: player has 3 minutes to correctly name as many objects as possible across businesses using point_and_name. (2) 'Rapid Conversation' quest: player has 5 minutes to have meaningful exchanges with 3 different business NPCs. (3) 'Vocabulary Sprint' quest: player has 2 minutes to use 10 specific vocabulary words in conversation. (4) 'Shopping Spree' quest: player has 5 minutes to buy items from 3 different shops, naming each item correctly. (5) Timer displayed prominently in HUD. (6) Scoring based on completion count within time limit (bronze/silver/gold). (7) Time pressure is gentler at A1-A2. (8) Optional: player can retry to beat their score. (9) Timed quests are always optional."
+    },
+    {
+      "title": "Implement weather and time-of-day vocabulary quests tied to NPC schedules",
+      "completed": false,
+      "parallel_group": 4,
+      "description": "Create quests that teach time and weather vocabulary using the game's NPC schedule system. (1) 'Weather Report' quest: player observes current weather and describes it to an NPC in target language. (2) 'Business Hours' quest: player must figure out when different businesses are open by asking NPCs, practicing time expressions ('What time do you open?'). (3) 'Schedule Keeper' quest: player must meet NPCs at specific times at their businesses, practicing time vocabulary. (4) 'Morning Routine' quest: player follows an NPC from home to their business, describing the routine in target language. (5) Leverage NPCScheduleSystem.ts schedule (work hours 7-20, midday break 12-14, evening at home). (6) Business owners are only available during business hours, creating natural time-based gameplay."
+    },
+    {
+      "title": "Add NPC personality influence on quest dialogue style",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Ensure NPC personalities (Big Five traits from context-manager.ts) meaningfully affect quest interactions, especially in business contexts. (1) High-extroversion shopkeepers are chatty, offer recommendations, and use verbose descriptions. (2) Low-agreeableness vendors require more formal language and don't give discounts easily. (3) High-openness artisans accept creative language use and non-standard phrasing. (4) High-conscientiousness service NPCs require precise language and correct grammar. (5) High-neuroticism NPCs may give confusing descriptions that the player must interpret. (6) These effects are injected into the NPC's system prompt during quest conversations. (7) Quest feasibility validator accounts for NPC personality difficulty. (8) This creates natural variety — ordering at a friendly tavern feels different from a strict formal restaurant."
+    },
+    {
+      "title": "Add ambient vocabulary reinforcement during exploration",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Create passive vocabulary exposure during normal gameplay exploration. (1) As the player walks through the settlement, objects in their field of view occasionally display floating target-language labels (1-2 at a time, cycling). (2) Labels appear for objects the player has encountered in quests but hasn't mastered yet. (3) Labels are subtle and semi-transparent. (4) Can be toggled on/off in settings (default: on for A1-A2, off for B1+). (5) Clicking a floating label triggers a mini-interaction: hear pronunciation, see example sentence. (6) Track which ambient labels the player interacted with. (7) Business storefronts display their business name in target language with a faint English subtitle. (8) Implement using Babylon.js GUI labels with distance-based fade. (9) Labels prioritize words the player will need for their current active quest."
+    },
+    {
+      "title": "Add business reputation system affecting quest availability",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Track the player's reputation with each business and its owner, affecting quest availability. (1) Each business interaction (successful purchase, polite conversation, quest completion) increases reputation with that business. (2) Reputation levels: Stranger → Customer → Regular → Valued Customer → Friend. (3) Higher reputation unlocks harder/more rewarding quests from that business NPC. (4) At 'Regular' level, the business NPC proactively offers quests. At 'Valued Customer', they offer exclusive quests with rare vocabulary. (5) Reputation decreases on quest abandonment or rude interactions. (6) Business NPCs acknowledge reputation level in greetings: 'Stranger' = generic, 'Regular' = 'Welcome back, my friend!' (7) Store reputation per business in player's progress data. (8) Reputation visible as a small indicator when entering a business."
+    },
+    {
+      "title": "Add peer comparison for quest performance (anonymized)",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Show anonymized aggregate performance data for quest completion. (1) After completing a quest, optionally show: 'You scored [X]%. Average score: [Y]%.' (2) For vocabulary quests: 'You learned [N] words. Other learners averaged [M] words.' (3) Data aggregated server-side from all players. (4) Comparison is encouraging, never discouraging. (5) Only show when enough data exists (minimum 5 completions). (6) Toggleable in settings. (7) Store anonymized metrics in separate collection. (8) Business-specific comparison: 'You completed the restaurant ordering quest faster than 70% of learners at your level!'"
+    },
+    {
+      "title": "Add quest branching based on player choices during conversations",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Implement quest branching where player dialogue choices affect quest progression. (1) Define a BranchingObjective type that includes conditional outcomes: if the player says X, objective A unlocks; if they say Y, objective B unlocks instead. (2) Example: 'Market Quest' - if player haggles successfully at a shop, bonus objective 'Negotiate with 2 more vendors' unlocks; if they pay full price, 'Earn more gold' objective appears instead. (3) Branching is detected by the conversation trigger analyzer. (4) Maximum 2 branch points per quest. (5) All branches lead to quest completion but via different paths. (6) Branch choices are recorded for learning analytics. (7) UI shows branching visually in quest checklist with a fork icon. (8) Add 'branchCondition' and 'branchOutcomes' fields to quest objective schema."
+    },
+    {
+      "title": "Add quest completion celebrations with language-specific flair",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Enhance quest completion feedback with culturally-appropriate celebrations. (1) Quest completion triggers celebration scaled by difficulty: easy = small confetti + chime, medium = larger particle effect + fanfare, hard = full screen celebration with NPC congratulation. (2) NPC congratulation is in target language. (3) Summary card: quest name, objectives completed, vocabulary learned, grammar practiced, XP earned, time taken. (4) For business quest completion, the business NPC thanks the player personally. (5) For chain completion, special chain-complete animation. (6) Celebration includes a new target-language phrase the player learns as bonus."
+    },
+    {
+      "title": "Implement quest analytics and learning outcome tracking",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Create server/services/quest-analytics.ts for tracking learning outcomes from quests. (1) After each quest, record: vocabulary introduced/used, grammar patterns practiced/accuracy, conversation turns, target-language ratio, time spent, hints used, attempts per objective, businesses visited. (2) Aggregate analytics per: quest type, objective type, vocabulary category, grammar pattern, CEFR level, business type. (3) Expose via API: GET /api/worlds/:worldId/analytics/quests. (4) Power the Learning Journal UI with this data. (5) Track vocabulary retention: of words introduced in quests, what % used correctly in subsequent quests? (6) Identify 'difficult' vocabulary for the player. (7) Feed analytics back into quest recommendation engine. (8) Track business interaction frequency and vocabulary learned per business type."
+    },
+    {
+      "title": "Implement quest auto-generation on quest depletion",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Ensure players never run out of quests. In the game client, create a QuestRefillManager in client/src/components/3DGame/QuestRefillManager.ts: (1) Monitor active quest count — when it drops below 2, trigger the quest assignment engine to generate new quests; (2) Use DynamicQuestBoard.ts's existing weak-area detection to prioritize quest types the player needs most (e.g., if vocabulary is weak, generate more vocab quests; if grammar is weak, generate conversation quests with grammar focus); (3) Ensure at least one quest of each major category is available: one conversation quest, one vocabulary quest, one navigation quest; (4) Rate-limit generation to prevent quest spam — max 5 active quests, generate at most 3 new quests per trigger; (5) On world load, check if the player has any active quests — if not, generate an initial batch of 3 quests appropriate to their level. Wire to the game initialization flow in BabylonGame.ts."
+    },
+    {
+      "title": "Implement quest completion portfolio and learning journal",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Create a persistent learning journal that aggregates quest performance into a player portfolio. (1) New UI panel accessible from the game menu: 'Learning Journal'. (2) Shows: vocabulary words learned (grouped by category and by business context with mastery levels), grammar patterns practiced (with accuracy trends), conversation logs with quality scores, quest performance history with improvement graphs. (3) CEFR progress tracker: visual meter showing progress toward next level with specific criteria needed. (4) 'Achievements' section: badges for milestones (First Conversation, Vocabulary Collector 50/100/200, Grammar Guru, Cultural Explorer, Business Regular, etc.). (5) Export functionality: generate a PDF report of learning progress for teachers/researchers. (6) Store portfolio data in LanguageProgress. (7) Portfolio is referenced by the departure assessment quest to show improvement. (8) Track which businesses the player has interacted with and vocabulary learned per business type."
+    },
+    {
+      "title": "Implement quest difficulty auto-scaling based on performance",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Add dynamic difficulty adjustment for quests based on player performance. (1) Track rolling average of quest completion quality (last 5 quests). (2) If average quality > 85%: increase difficulty slightly. (3) If average quality < 50%: decrease difficulty. (4) Difficulty adjustments are subtle and don't change CEFR level. (5) Track frustration signals: abandoning quests, repeated hint requests, low conversation quality. (6) Show difficulty level as a small icon in quest log. (7) Difficulty auto-scaling can be disabled in settings. (8) Business quests scale: easy = simple purchase, hard = complex negotiation with multiple items."
+    },
+    {
+      "title": "Implement quest objective dependencies for ordered completion",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Add dependency ordering between quest objectives so some must be completed before others. (1) Add 'dependsOn' field to quest objectives (array of objective IDs within the same quest). (2) Dependent objectives are grayed out in checklist with 'Complete [prerequisite] first'. (3) Example: in a business quest, 'enter the bakery' must complete before 'order bread from the baker'. In a delivery quest, 'collect_item' before 'deliver_item'. (4) QuestCompletionEngine respects dependencies. (5) Circular dependency detection at creation time. (6) UI shows dependency arrows between objectives. (7) When prerequisite completes, dependent objective activates with pulse animation."
+    },
+    {
+      "title": "Implement quest progress persistence across game sessions",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Ensure all quest progress is properly saved and restored. (1) On every objective progress update, persist to MongoDB. (2) When loading a game session, restore all active quests with full objective state. (3) Restore quest chain progress and daily quest streaks. (4) Handle edge cases: quest references NPC who was removed, business that changed. (5) Add quest state migration for schema changes. (6) Optimistic UI updates with eventual consistency. (7) Show 'Saving...' indicator during persistence. (8) Session resume notification: 'Welcome back! You have [N] active quests.'"
+    },
+    {
+      "title": "Implement quest recommendation engine",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Create server/services/quest-recommendation-engine.ts that suggests the most beneficial quests for the player. (1) Score available quests based on: learning gap coverage, spaced repetition needs, variety (avoid repeating similar types), difficulty appropriateness (within CEFR ± 0.5), completion history. (2) Return top 3 recommended quests with explanations: 'Recommended because you need practice with food vocabulary'. (3) Mentor NPC uses recommendations when suggesting quests. (4) Quest board UI shows recommended quests first with a star icon. (5) Factor in business interaction history: if player hasn't visited certain businesses, recommend quests that send them there. (6) Update recommendations after each quest completion."
+    },
+    {
+      "title": "Implement quest-driven vocabulary introduction before practice",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Add a vocabulary pre-teaching step at the start of vocabulary-heavy quests. (1) When a quest is accepted that requires specific vocabulary, show a 'New Words' panel introducing 3-5 key words the player will need. (2) Each word shows: target language spelling, romanization, English meaning, example sentence, audio pronunciation (auto-played via TTS). (3) Player can tap each word to hear it again. (4) Brief flashcard review: show target language word, player guesses meaning, then reveal. (5) For business quests: pre-teach product names, transaction vocabulary, polite phrases appropriate to the business type. (6) Vocabulary introduction words are added to the player's list with 'new' mastery status. (7) Skippable for advanced players (B1+) or known words."
+    },
+    {
+      "title": "Implement real-time grammar and vocabulary feedback during quests",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Enhance the chat system to provide quest-relevant language feedback. In BabylonChatPanel.ts and LanguageProgressTracker.ts: (1) When a quest requires specific vocabulary usage, highlight quest-relevant words in the chat input suggestions (e.g., if the quest says 'order food at restaurant', suggest food vocabulary the player knows); (2) After each player message during a quest conversation, parse the Gemini response for GRAMMAR_FEEDBACK markers and display inline corrections below the chat — green for correct usage of target patterns, orange for minor errors with corrections, red for major errors; (3) Track grammar pattern usage per quest and include it in quest completion scoring via QuestPostConditionValidator; (4) Show a small 'language score' indicator in the quest tracker that updates in real-time based on target language percentage and grammar accuracy during the quest; (5) On quest completion, include a language performance summary in the completion overlay (words used, grammar accuracy %, new words learned during quest)."
+    },
+    {
+      "title": "Implement real-time quest objective progress events via GameEventBus",
+      "completed": true,
+      "parallel_group": 5,
+      "description": "Ensure all game actions fire appropriate events for quest tracking. (1) Define a standardized set of quest-relevant events on GameEventBus: 'player:visited_location', 'player:talked_to_npc', 'player:used_vocabulary', 'player:collected_item', 'player:examined_object', 'player:read_sign', 'player:named_object', 'player:described_scene', 'player:completed_conversation', 'player:gave_directions', 'player:entered_business', 'player:made_purchase', 'player:ordered_food'. (2) Each event payload includes: eventType, timestamp, context (NPC name, location, business, words used, etc.). (3) QuestCompletionEngine listens for these events and checks them against all active quest objectives. (4) When an event matches an objective, immediately update progress and emit 'quest:objective_progress' event. (5) Ensure events are also sent to the server for persistence via a batched API call (debounced, max every 5 seconds). (6) Add missing event emissions to existing actions (movement, conversation, inventory, building entry)."
+    },
+    {
+      "title": "Implement vocabulary category unlocking via quest progression",
+      "completed": false,
+      "parallel_group": 5,
+      "description": "Create a progression system where quest completion unlocks new vocabulary categories. (1) Tier 1 (greetings, numbers, colors, family), Tier 2 (food, directions, weather, time, basic shopping), Tier 3 (professions, emotions, health, detailed shopping, restaurant), Tier 4 (politics, philosophy, abstract concepts, idioms, specialized business vocabulary). (2) Tier 1 available from start. (3) Complete 3+ quests using Tier N → unlock Tier N+1. (4) Celebration on unlock. (5) Quest generator only uses unlocked categories. (6) Track in LanguageProgress. (7) Visual vocabulary tree in quest log. (8) Business vocabulary unlocks progressively: basic greetings at shops (Tier 1) → ordering food (Tier 2) → haggling/complaints (Tier 3) → specialized trade vocabulary (Tier 4)."
+    },
+    {
+      "title": "Add conversation_initiation objective for NPC-proactive quests",
+      "completed": false,
+      "parallel_group": 6,
+      "description": "Map a new quest flow where the NPC initiates and the player must respond appropriately. (1) For objectives where the NPC starts the conversation, add a 'npcInitiated' flag on the quest objective. (2) When this flag is set, the NPCConversationInitiator triggers the conversation and the quest objective tracks the player's response quality. (3) Example: a shopkeeper calls out to the player as they walk by: 'Come see my fresh bread today!' and the player must respond in target language. (4) Another example: player enters a business and the owner greets them, player must respond with appropriate greeting. (5) Conversation quality scorer evaluates: did the player understand the NPC's opening? Did they respond in target language? Was it contextually appropriate? (6) This tests receptive skills (understanding unprompted speech). (7) Map to existing talk_to_npc and complete_conversation canonical types with the npcInitiated modifier."
+    },
+    {
+      "title": "Add multi-line writing interface for composition quests",
+      "completed": false,
+      "parallel_group": 6,
+      "description": "Enhance BabylonChatPanel.ts input to support a multi-line writing mode for composition tasks. (1) When a quest objective or exam requires extended writing, the chat input expands into a larger text area (5-10 lines visible). (2) Show a word count and character count at the bottom. (3) Writing mode includes a 'Submit' button separate from the normal send action. (4) A small sidebar shows: quest prompt, required word count range, vocabulary suggestions. (5) Auto-save drafts every 30 seconds in case of accidental closure. (6) After submission, the NPC responds with detailed feedback displayed in a formatted evaluation panel. (7) Toggle between normal chat mode and writing mode seamlessly. (8) This complements the existing AssessmentModalUI writing phase but is embedded in-conversation rather than modal."
+    },
+    {
+      "title": "Add quest-related world object interactivity and labels",
+      "completed": true,
+      "parallel_group": 6,
+      "description": "Enhance the 3D world to support quest interactions with existing environment objects. In BabylonGame.ts and the building/object systems: (1) Add clickable interaction zones to building entrances — when player clicks a restaurant door, open the chat with a contextual prompt ('You enter the restaurant. A waiter greets you.'); (2) Add target-language labels to key buildings (restaurant, hotel, park, market, school, hospital) as floating text billboards, initially showing both languages, switching to target-language-only as the player's vocabulary grows; (3) Add interactable props near buildings: menu boards outside restaurants, room rate signs outside hotels, directional signs at intersections — each labeled in the target language and collectible for vocabulary; (4) Create a simple interaction system: player approaches object → 'E to interact' prompt → triggers quest-relevant action (start conversation, collect vocab word, read sign). Use the existing ProceduralBuildingGenerator.ts building types to determine what labels and props to spawn."
+    },
+    {
+      "title": "Enhance BabylonSkillTreePanel with interactive visualization",
+      "completed": true,
+      "parallel_group": 6,
+      "description": "Upgrade BabylonSkillTreePanel.ts from its current state to a polished skill tree visualization. Using Babylon.js GUI: (1) Render the 5 tiers from shared/language/language-skill-tree.ts as a vertical tree with connecting lines between tiers; (2) Each node shows: skill name, icon (use unicode symbols as placeholders), progress bar toward unlock condition, locked/unlocked/completed state with distinct visual treatment (greyed out / glowing border / gold fill); (3) On hover/click, show a tooltip with the unlock condition description and current progress (e.g., 'Learn 20 words — 14/20'); (4) Animate newly unlocked nodes with a burst effect; (5) Show the player's current tier prominently at the top; (6) Connect skill tree unlocks to tangible rewards — when a skill unlocks, grant the player something: new quest types available, new vocabulary categories, access to new areas, or cosmetic items. Persist unlock state in playerProgress."
+    },
+    {
+      "title": "Implement map-based quest navigation with target-language labels",
+      "completed": true,
+      "parallel_group": 6,
+      "description": "Enhance the full-screen map view (Tab key) to support quest navigation with language learning. (1) Quest objective locations show as labeled markers on the map in the target language. (2) Street names display in target language with English tooltip on hover. (3) Business names shown in target language with business type icons. (4) Player can click a quest marker to set a navigation path. (5) Navigation path shows street names the player will traverse as passive vocabulary exposure. (6) At A1-A2, map labels show both target language and English. At B1+, only target language. (7) Business markers show different icons by type (bread for bakery, hammer for blacksmith, etc.). (8) Map becomes a study tool: review location and business names before navigating."
+    },
+    {
+      "title": "Add quest waypoint markers on minimap",
+      "completed": false,
+      "parallel_group": 7,
+      "description": "Enhance client/src/components/3DGame/BabylonMinimap.ts to show quest objective waypoints. (1) Active quest objectives with location targets show as colored markers on the minimap: yellow diamond for visit_location, blue person icon for talk_to_npc, green item for collect_item, shop icon for business-related objectives. (2) The closest/most relevant quest objective marker pulses gently. (3) Quest waypoints only appear for the player's tracked quest (one quest can be 'tracked' at a time, toggled in quest log). (4) Distance text shows below each marker. (5) Clicking a minimap marker sets it as the navigation target, showing a dotted path line. (6) Turn-in NPCs show as golden star markers. (7) Business buildings with active quest objectives show their business type icon."
+    },
+    {
+      "title": "[US-039] Minimap terrain background layer",
+      "completed": true,
+      "parallel_group": 7,
+      "description": "As a developer, I need the minimap to display terrain coloring from the heightmap."
+    },
+    {
+      "title": "[US-040] Minimap street network layer",
+      "completed": true,
+      "parallel_group": 7,
+      "description": "As a developer, I need the minimap to display street lines."
+    },
+    {
+      "title": "[US-041] Minimap building footprint layer",
+      "completed": true,
+      "parallel_group": 7,
+      "description": "As a developer, I need building footprints on the minimap at higher zoom levels."
+    },
+    {
+      "title": "[US-042] Minimap zoom and interaction",
+      "completed": true,
+      "parallel_group": 7,
+      "description": "As a developer, I need the minimap to support zoom and basic interaction."
+    },
+    {
+      "title": "[US-043] Full-screen map view",
+      "completed": true,
+      "parallel_group": 7,
+      "description": "As a developer, I need a full-screen 2D map overlay for detailed settlement/world viewing."
+    },
+    {
+      "title": "[US-045] World editor street network display",
+      "completed": true,
+      "parallel_group": 7,
+      "description": "As a developer, I need the world editor to display street networks within settlements."
+    },
+    {
+      "title": "[US-046] World editor water feature display",
+      "completed": true,
+      "parallel_group": 7,
+      "description": "As a developer, I need the world editor to display rivers, lakes, and coastlines."
+    },
+    {
+      "title": "[US-047] World editor layers panel",
+      "completed": true,
+      "parallel_group": 7,
+      "description": "As a developer, I need a layers toggle panel in the world editor map."
+    },
+    {
+      "title": "[US-048] Settlement editor mini-map",
+      "completed": true,
+      "parallel_group": 7,
+      "description": "As a developer, I need a dedicated mini-map when editing a settlement showing lot layout, addresses, and streets."
+    },
+    {
+      "title": "[US-071] Society editor map consistency with 3D game layout",
+      "completed": false,
+      "parallel_group": 7,
+      "description": "As a developer, I need the Society editor's settlement map preview (GeographyMap.tsx / LocationMapPreview.tsx) to render using the same street layout data produced by US-067, so the 2D editor map matches what the player sees in the 3D game. Extract the street-segment-to-canvas rendering into a shared utility that both the editor and the minimap (US-048) can consume. Display streets, lot positions, building footprints, and address labels so world authors can verify layout correctness before entering the game."
+    },
+    {
+      "title": "[US-056] Street network export in IR",
+      "completed": true,
+      "parallel_group": 8,
+      "description": "As a developer, I need street networks exported in the IR for proper street layouts in exported games."
+    },
+    {
+      "title": "[US-057] Water features export in IR",
+      "completed": true,
+      "parallel_group": 8,
+      "description": "As a developer, I need water features exported in the IR for exported game rendering."
+    },
+    {
+      "title": "[US-058] Enhanced lot and building export",
+      "completed": true,
+      "parallel_group": 8,
+      "description": "As a developer, I need enhanced lot and building data in the IR for correct placement along streets."
+    },
+    {
+      "title": "[US-059] Babylon.js scene generator updates",
+      "completed": true,
+      "parallel_group": 8,
+      "description": "As a developer, I need the Babylon.js scene generator to use all new IR data in exports."
+    },
+    {
+      "title": "Create WebSocket infrastructure for real-time voice chat",
+      "completed": true,
+      "parallel_group": 9,
+      "description": "Create server/services/websocket-voice.ts with a WebSocket server (using 'ws' package) attached to the Express HTTP server. Protocol: client connects with worldId/npcId/playerId params. Client sends binary audio chunks (16-bit PCM at 16kHz). Server buffers chunks, runs VAD to detect utterance boundaries, then processes complete utterances through STT->LLM->TTS pipeline. Server sends back: interim transcripts (JSON), final transcripts (JSON), response text (JSON), audio chunks (binary). This is the foundation for <1s latency voice chat."
+    },
+    {
+      "title": "[US-063] Settlement growth mechanics",
+      "completed": true,
+      "parallel_group": 9,
+      "description": "As a developer, I need settlements to grow physically when population increases during simulation."
+    },
+    {
+      "title": "[US-064] Settlement decline mechanics",
+      "completed": true,
+      "parallel_group": 9,
+      "description": "As a developer, I need settlements to show physical decline when population drops."
+    },
+    {
+      "title": "[US-065] Infrastructure development",
+      "completed": true,
+      "parallel_group": 9,
+      "description": "As a developer, I need settlement infrastructure to upgrade as the town grows and prospers."
+    },
+    {
+      "title": "[US-066] Settlement history tracking",
+      "completed": true,
+      "parallel_group": 9,
+      "description": "As a developer, I need a historical record of settlement changes over simulation time."
+    },
+    {
+      "title": "[US-054] Nature object LOD system",
+      "completed": true,
+      "parallel_group": 10,
+      "description": "As a developer, I need level-of-detail rendering for nature objects for performance."
+    }
+  ]
+}

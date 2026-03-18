@@ -147,7 +147,7 @@ void UQuestSystem::TrackConversationTurn(const TArray<FString>& Keywords, const 
     }
 }
 
-void UQuestSystem::TrackPronunciationAttempt(bool bPassed, const FString& QuestId)
+void UQuestSystem::TrackPronunciationAttempt(bool bPassed, float Score, const FString& QuestId)
 {
     if (!bPassed) return;
 

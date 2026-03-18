@@ -22,6 +22,7 @@ import type {
 import {
   scoreNpcExamQuestion,
   scorePronunciationQuestion,
+  scorePronunciationExamQuestion,
   npcExamResultToPhaseResult,
 } from '../../../../shared/assessment/npc-exam-types';
 import { mapScoreToCEFR } from '../../../../shared/assessment/cefr-mapping';
@@ -139,8 +140,12 @@ export class NpcExamEngine {
 
       // Score the answer — use audio pronunciation scoring if applicable
       let questionResult: NpcExamQuestionResult;
-      if (answer.type === 'audio' && question.isPronunciation) {
+      const usePronunciation = examConfig.category === 'pronunciation_quiz' || question.scoringType === 'pronunciation' || question.isPronunciation;
+      if (answer.type === 'audio' && usePronunciation) {
         questionResult = await this._scorePronunciationAnswer(question, answer.audio, examConfig.targetLanguage);
+      } else if (usePronunciation) {
+        const textAnswer = answer.type === 'text' ? answer.text : '';
+        questionResult = scorePronunciationExamQuestion(question, textAnswer);
       } else {
         const textAnswer = answer.type === 'text' ? answer.text : '';
         questionResult = scoreNpcExamQuestion(question, textAnswer);

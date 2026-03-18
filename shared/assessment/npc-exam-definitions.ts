@@ -118,6 +118,22 @@ export const NPC_EXAM_TEMPLATES: NpcExamTemplate[] = [
       'Difficulty: {{difficulty}}. Each presents a social situation and asks what the player would say. ' +
       'Include the expected response and acceptable alternatives.',
   },
+  {
+    id: 'pronunciation_phrases',
+    name: 'Pronunciation Quiz',
+    category: 'pronunciation_quiz',
+    description: 'NPC asks the player to pronounce phrases in the target language. Scored by pronunciation accuracy.',
+    defaultDifficulty: 'beginner',
+    questionCount: 5,
+    pointsPerQuestion: 3,
+    timeLimitSeconds: 180,
+    topicKeywords: ['pronunciation', 'speaking', 'phrases', 'accent'],
+    generationPrompt:
+      'Generate {{questionCount}} pronunciation quiz items in {{targetLanguage}}. ' +
+      'Difficulty: {{difficulty}}. Each item should have a prompt like "Say: [phrase in {{targetLanguage}}]" ' +
+      'and the expected answer is the phrase itself. Include 1-2 acceptable phonetic variants. ' +
+      'Focus on common phrases appropriate for the difficulty level.',
+  },
 ];
 
 /**

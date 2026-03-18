@@ -523,11 +523,11 @@ describe('QuestCompletionEngine', () => {
       });
       engine.addQuest(makeQuest('q1', [obj]));
 
-      engine.trackPronunciationAttempt(false);
+      engine.trackPronunciationAttempt(false, 30);
       expect(obj.currentCount).toBeUndefined();
 
-      engine.trackPronunciationAttempt(true);
-      engine.trackPronunciationAttempt(true);
+      engine.trackPronunciationAttempt(true, 85);
+      engine.trackPronunciationAttempt(true, 90);
       expect(obj.completed).toBe(true);
     });
   });
