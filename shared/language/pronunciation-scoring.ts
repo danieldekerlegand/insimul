@@ -5,9 +5,12 @@
  * and produces a word-level accuracy score with feedback.
  *
  * Supports two modes:
- * - Text-based: compares STT transcript to expected phrase (Levenshtein)
+ * - Text-based: compares STT transcript to expected phrase using a blend of
+ *   Levenshtein distance and phonetic similarity (sound-alike matching)
  * - Audio-level: uses Gemini to analyze pronunciation quality from raw audio
  */
+
+import { phoneticSimilarity } from './phonetic-similarity.js';
 
 export interface PronunciationResult {
   overallScore: number;        // 0-100 accuracy
@@ -156,13 +159,14 @@ function levenshtein(a: string, b: string): number {
 }
 
 /**
- * Compute word-level similarity (0-1) using normalized Levenshtein distance
+ * Compute word-level similarity (0-1) using phonetic-aware comparison.
+ * Blends character-level Levenshtein with phonetic encoding similarity
+ * so that sound-alike words score higher than pure text comparison.
  */
 function wordSimilarity(a: string, b: string): number {
   if (a === b) return 1;
-  const maxLen = Math.max(a.length, b.length);
-  if (maxLen === 0) return 1;
-  return 1 - levenshtein(a, b) / maxLen;
+  if (Math.max(a.length, b.length) === 0) return 1;
+  return phoneticSimilarity(a, b).similarity;
 }
 
 /**
