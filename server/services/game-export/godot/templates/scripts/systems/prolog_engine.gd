@@ -167,6 +167,88 @@ func update_game_state(state: Dictionary) -> void:
 	for npc_id in nearby:
 		_assert_internal("nearby_npc(%s, %s)" % [player_id, _sanitize(str(npc_id))])
 
+	# Assert environment facts if provided
+	if state.has("gameHour") or state.has("weather"):
+		update_environment(state)
+
+
+## Update environment awareness facts (weather, time, player progress).
+func update_environment(env: Dictionary) -> void:
+	if not _initialized:
+		return
+
+	_retract_by_predicate("game_hour")
+	_retract_by_predicate("time_period")
+	_retract_by_predicate("time_of_day")
+	_retract_by_predicate("weather")
+	_retract_by_predicate("season")
+	_retract_by_predicate("player_quests_completed")
+	_retract_by_predicate("player_reputation")
+	_retract_by_predicate("player_is_new")
+
+	var hour: int = int(env.get("gameHour", 12))
+	_assert_internal("game_hour(%d)" % hour)
+
+	var period: String
+	if hour >= 5 and hour < 7:
+		period = "dawn"
+	elif hour >= 7 and hour < 12:
+		period = "morning"
+	elif hour >= 12 and hour < 17:
+		period = "afternoon"
+	elif hour >= 17 and hour < 21:
+		period = "evening"
+	else:
+		period = "night"
+	_assert_internal("time_period(%s)" % period)
+
+	var schedule_time: String
+	if hour < 12:
+		schedule_time = "morning"
+	elif hour < 17:
+		schedule_time = "afternoon"
+	elif hour < 21:
+		schedule_time = "evening"
+	else:
+		schedule_time = "night"
+	_assert_internal("time_of_day(%s)" % schedule_time)
+
+	var weather: String = str(env.get("weather", "clear"))
+	_assert_internal("weather(%s)" % _sanitize(weather))
+
+	if env.has("season") and not str(env["season"]).is_empty():
+		_assert_internal("season(%s)" % _sanitize(str(env["season"])))
+	if env.has("questsCompleted") and int(env["questsCompleted"]) >= 0:
+		_assert_internal("player_quests_completed(%d)" % int(env["questsCompleted"]))
+	if env.has("reputation") and float(env["reputation"]) != 0.0:
+		_assert_internal("player_reputation(%d)" % int(env["reputation"]))
+	if env.get("isNewToTown", false):
+		_assert_internal("player_is_new")
+
+
+## Check if an NPC should mention weather in conversation.
+func should_mention_weather(npc_id: String) -> bool:
+	if not _initialized:
+		return false
+	return _has_fact("weather_complaint_likely(%s)" % _sanitize(npc_id))
+
+
+## Get the NPC's attitude toward the player based on progress.
+func get_player_attitude(npc_id: String) -> String:
+	if not _initialized:
+		return "neutral"
+	var id: String = _sanitize(npc_id)
+	if _has_fact("impressed_by_player(%s)" % id):
+		return "impressed"
+	if _has_fact("respects_player(%s)" % id):
+		return "respectful"
+	if _has_fact("wary_of_newcomer(%s)" % id):
+		return "wary"
+	if _has_fact("welcoming_to_newcomer(%s)" % id):
+		return "welcoming"
+	return "neutral"
+
+
 # ---------------------------------------------------------------------------
 # Action / quest queries
 # ---------------------------------------------------------------------------
@@ -716,6 +798,17 @@ func _retract_pattern(prefix: String) -> void:
 	var to_remove: Array[String] = []
 	for fact in _facts:
 		if fact.begins_with(prefix):
+			to_remove.append(fact)
+	for fact in to_remove:
+		_facts.erase(fact)
+
+
+## Remove all facts matching a predicate name (any arguments).
+func _retract_by_predicate(predicate: String) -> void:
+	var prefix: String = "%s(" % predicate
+	var to_remove: Array[String] = []
+	for fact in _facts:
+		if fact.begins_with(prefix) or fact == predicate:
 			to_remove.append(fact)
 	for fact in to_remove:
 		_facts.erase(fact)

@@ -11,7 +11,9 @@
  */
 
 import { TauPrologEngine } from '@shared/prolog/tau-engine';
-import { getNPCReasoningRules, getPersonalityFacts, getRelationshipFacts, getEmotionalStateFacts } from '@shared/prolog/npc-reasoning';
+import { getNPCReasoningRules, getPersonalityFacts, getRelationshipFacts, getEmotionalStateFacts, getEnvironmentFacts } from '@shared/prolog/npc-reasoning';
+import type { WeatherCondition } from '@shared/npc-awareness-context';
+import { getTimePeriod } from '@shared/npc-awareness-context';
 import { getTotTPredicates } from '@shared/prolog/tott-predicates';
 import { getAdvancedPredicates } from '@shared/prolog/advanced-predicates';
 import type { GameEventBus, GameEvent, ItemTaxonomy } from './GameEventBus';
@@ -23,6 +25,18 @@ export interface GameState {
   playerPosition?: { x: number; y: number; z: number };
   currentSettlement?: string;
   nearbyNPCs: string[];
+  /** Current game hour (0-23) */
+  gameHour?: number;
+  /** Current weather condition */
+  weather?: WeatherCondition;
+  /** Current season */
+  season?: string;
+  /** Number of quests the player has completed */
+  questsCompleted?: number;
+  /** Player reputation score */
+  reputation?: number;
+  /** Whether the player is new to the town */
+  isNewToTown?: boolean;
 }
 
 export class GamePrologEngine {
@@ -497,6 +511,64 @@ export class GamePrologEngine {
 
     for (const npcId of state.nearbyNPCs) {
       await this.engine.assertFact(`nearby_npc(${playerId}, ${this.sanitize(npcId)})`);
+    }
+
+    // Assert environment facts (weather, time, player progress)
+    if (state.gameHour !== undefined || state.weather) {
+      await this.updateEnvironment({
+        gameHour: state.gameHour,
+        weather: state.weather,
+        season: state.season,
+        questsCompleted: state.questsCompleted,
+        reputation: state.reputation,
+        isNewToTown: state.isNewToTown,
+      });
+    }
+  }
+
+  /**
+   * Update environment awareness facts (weather, time, player progress).
+   * Call when weather changes, time advances, or player progress updates.
+   */
+  async updateEnvironment(env: {
+    gameHour?: number;
+    weather?: WeatherCondition;
+    season?: string;
+    questsCompleted?: number;
+    reputation?: number;
+    isNewToTown?: boolean;
+  }): Promise<void> {
+    if (!this.initialized) return;
+
+    // Retract old environment facts
+    await this.retractByPredicate('game_hour');
+    await this.retractByPredicate('time_period');
+    await this.retractByPredicate('time_of_day');
+    await this.retractByPredicate('weather');
+    await this.retractByPredicate('season');
+    await this.retractByPredicate('player_quests_completed');
+    await this.retractByPredicate('player_reputation');
+    await this.retractByPredicate('player_is_new');
+
+    const gameHour = env.gameHour ?? 12;
+    const timePeriod = getTimePeriod(gameHour);
+
+    const facts = getEnvironmentFacts({
+      gameHour,
+      timePeriod,
+      weather: env.weather ?? 'clear',
+      season: env.season,
+      playerQuestsCompleted: env.questsCompleted,
+      playerReputation: env.reputation,
+      playerIsNew: env.isNewToTown,
+    });
+
+    // Also assert time_of_day for schedule rules compatibility
+    const scheduleTime = gameHour < 12 ? 'morning' : gameHour < 17 ? 'afternoon' : gameHour < 21 ? 'evening' : 'night';
+    facts.push(`time_of_day(${scheduleTime})`);
+
+    for (const fact of facts) {
+      await this.engine.assertFact(fact);
     }
   }
 
@@ -986,6 +1058,62 @@ sumlist([H|T], S) :- sumlist(T, S1), S is S1 + H.
     // Assert new quantity (even if 0 — the has/2 retraction handles boolean presence)
     if (newQty > 0) {
       await this.engine.assertFact(`has_item(player, ${itemName}, ${newQty})`);
+    }
+  }
+
+  /**
+   * Check if an NPC should mention weather in conversation.
+   */
+  async shouldMentionWeather(npcId: string): Promise<boolean> {
+    if (!this.initialized) return false;
+    try {
+      const result = await this.engine.queryOnce(`weather_complaint_likely(${this.sanitize(npcId)})`);
+      if (result) return true;
+      // Also check if weather is notable (not clear)
+      const weatherResult = await this.engine.queryOnce('weather(W), W \\= clear');
+      return !!weatherResult;
+    } catch { return false; }
+  }
+
+  /**
+   * Check if an NPC respects/is impressed by the player.
+   */
+  async getPlayerAttitude(npcId: string): Promise<'impressed' | 'respectful' | 'wary' | 'welcoming' | 'neutral'> {
+    if (!this.initialized) return 'neutral';
+    const id = this.sanitize(npcId);
+    try {
+      if (await this.engine.queryOnce(`impressed_by_player(${id})`)) return 'impressed';
+      if (await this.engine.queryOnce(`respects_player(${id})`)) return 'respectful';
+      if (await this.engine.queryOnce(`wary_of_newcomer(${id})`)) return 'wary';
+      if (await this.engine.queryOnce(`welcoming_to_newcomer(${id})`)) return 'welcoming';
+    } catch { /* fall through */ }
+    return 'neutral';
+  }
+
+  /**
+   * Get the current environment state from asserted facts.
+   */
+  async getEnvironmentState(): Promise<{ weather: string; timePeriod: string; gameHour: number } | null> {
+    if (!this.initialized) return null;
+    try {
+      const weatherResult = await this.engine.queryOnce('weather(W)') as Record<string, unknown> | boolean;
+      const timeResult = await this.engine.queryOnce('time_period(T)') as Record<string, unknown> | boolean;
+      const hourResult = await this.engine.queryOnce('game_hour(H)') as Record<string, unknown> | boolean;
+      return {
+        weather: (typeof weatherResult === 'object' && weatherResult) ? String((weatherResult as any).W || 'clear') : 'clear',
+        timePeriod: (typeof timeResult === 'object' && timeResult) ? String((timeResult as any).T || 'morning') : 'morning',
+        gameHour: (typeof hourResult === 'object' && hourResult) ? Number((hourResult as any).H || 12) : 12,
+      };
+    } catch { return null; }
+  }
+
+  private async retractByPredicate(predicate: string): Promise<void> {
+    const allFacts = this.engine.getAllFacts();
+    const prefix = `${predicate}(`;
+    for (const fact of allFacts) {
+      if (fact.startsWith(prefix) || fact === predicate) {
+        await this.engine.retractFact(fact.replace(/\.\s*$/, ''));
+      }
     }
   }
 

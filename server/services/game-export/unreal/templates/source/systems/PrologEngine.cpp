@@ -265,7 +265,81 @@ void UPrologEngine::UpdateGameState(const FInsimulGameState& State)
         AssertFact(FString::Printf(TEXT("nearby_npc(%s, %s)"), *PlayerId, *Sanitize(NPCId)));
     }
 
+    // Assert environment facts if provided
+    if (State.GameHour >= 0 || !State.Weather.IsEmpty())
+    {
+        UpdateEnvironment(State.GameHour, State.Weather, State.Season, State.QuestsCompleted, State.Reputation, State.bIsNewToTown);
+    }
+
     CurrentGameState = State;
+}
+
+void UPrologEngine::UpdateEnvironment(int32 GameHour, const FString& Weather, const FString& Season, int32 QuestsCompleted, float Reputation, bool bIsNewToTown)
+{
+    if (!bInitialized) return;
+
+    RetractByPredicate(TEXT("game_hour"));
+    RetractByPredicate(TEXT("time_period"));
+    RetractByPredicate(TEXT("time_of_day"));
+    RetractByPredicate(TEXT("weather"));
+    RetractByPredicate(TEXT("season"));
+    RetractByPredicate(TEXT("player_quests_completed"));
+    RetractByPredicate(TEXT("player_reputation"));
+    RetractByPredicate(TEXT("player_is_new"));
+
+    int32 Hour = GameHour >= 0 ? GameHour : 12;
+    AssertFact(FString::Printf(TEXT("game_hour(%d)"), Hour));
+
+    // Derive time_period
+    FString Period;
+    if (Hour >= 5 && Hour < 7) Period = TEXT("dawn");
+    else if (Hour >= 7 && Hour < 12) Period = TEXT("morning");
+    else if (Hour >= 12 && Hour < 17) Period = TEXT("afternoon");
+    else if (Hour >= 17 && Hour < 21) Period = TEXT("evening");
+    else Period = TEXT("night");
+    AssertFact(FString::Printf(TEXT("time_period(%s)"), *Period));
+
+    // Schedule-compatible time_of_day
+    FString ScheduleTime;
+    if (Hour < 12) ScheduleTime = TEXT("morning");
+    else if (Hour < 17) ScheduleTime = TEXT("afternoon");
+    else if (Hour < 21) ScheduleTime = TEXT("evening");
+    else ScheduleTime = TEXT("night");
+    AssertFact(FString::Printf(TEXT("time_of_day(%s)"), *ScheduleTime));
+
+    if (!Weather.IsEmpty())
+        AssertFact(FString::Printf(TEXT("weather(%s)"), *Sanitize(Weather)));
+    else
+        AssertFact(TEXT("weather(clear)"));
+
+    if (!Season.IsEmpty())
+        AssertFact(FString::Printf(TEXT("season(%s)"), *Sanitize(Season)));
+
+    if (QuestsCompleted >= 0)
+        AssertFact(FString::Printf(TEXT("player_quests_completed(%d)"), QuestsCompleted));
+
+    if (Reputation != 0.f)
+        AssertFact(FString::Printf(TEXT("player_reputation(%d)"), FMath::RoundToInt(Reputation)));
+
+    if (bIsNewToTown)
+        AssertFact(TEXT("player_is_new"));
+}
+
+bool UPrologEngine::ShouldMentionWeather(const FString& NPCId)
+{
+    if (!bInitialized) return false;
+    return HasFact(FString::Printf(TEXT("weather_complaint_likely(%s)"), *Sanitize(NPCId)));
+}
+
+FString UPrologEngine::GetPlayerAttitude(const FString& NPCId)
+{
+    if (!bInitialized) return TEXT("neutral");
+    FString Id = Sanitize(NPCId);
+    if (HasFact(FString::Printf(TEXT("impressed_by_player(%s)"), *Id))) return TEXT("impressed");
+    if (HasFact(FString::Printf(TEXT("respects_player(%s)"), *Id))) return TEXT("respectful");
+    if (HasFact(FString::Printf(TEXT("wary_of_newcomer(%s)"), *Id))) return TEXT("wary");
+    if (HasFact(FString::Printf(TEXT("welcoming_to_newcomer(%s)"), *Id))) return TEXT("welcoming");
+    return TEXT("neutral");
 }
 
 // ── Action & Quest Queries ──────────────────────────────────────────────────
@@ -1113,6 +1187,15 @@ void UPrologEngine::RetractPattern(const FString& Predicate, const FString& Firs
         return F.StartsWith(Prefix);
     });
 
+    FactCount = Facts.Num();
+}
+
+void UPrologEngine::RetractByPredicate(const FString& Predicate)
+{
+    FString Prefix = FString::Printf(TEXT("%s("), *Predicate);
+    Facts.RemoveAll([&Prefix, &Predicate](const FString& F) {
+        return F.StartsWith(Prefix) || F == Predicate;
+    });
     FactCount = Facts.Num();
 }
 

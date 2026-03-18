@@ -21,6 +21,8 @@ import type { ContextManagerStorage, BigFivePersonality } from './context-manage
 import { storage as defaultStorage } from '../../db/storage.js';
 import type { Character, World } from '@shared/schema';
 import type { WorldLanguage } from '@shared/language';
+import type { WeatherCondition } from '@shared/npc-awareness-context';
+import { describeWeather, describeTime } from '@shared/npc-awareness-context';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -55,10 +57,18 @@ export interface TopicCandidate {
   reason: string;
 }
 
+/** Environment context for NPC-NPC conversations */
+export interface NpcConversationEnvironment {
+  weather?: WeatherCondition;
+  gameHour?: number;
+  season?: string;
+}
+
 export interface NpcConversationOptions {
   topic?: string;
   maxExchanges?: number;
   languageCode?: string;
+  environment?: NpcConversationEnvironment;
 }
 
 /** Event types emitted during NPC conversations */
@@ -139,6 +149,7 @@ function selectTopics(
   npc1: Character,
   npc2: Character,
   relationshipStrength: number,
+  environment?: NpcConversationEnvironment,
 ): TopicCandidate[] {
   const p1 = (npc1.personality ?? {}) as BigFivePersonality;
   const p2 = (npc2.personality ?? {}) as BigFivePersonality;
@@ -147,7 +158,11 @@ function selectTopics(
 
   // Always available
   candidates.push({ topic: 'daily_greeting', weight: 1.0, reason: 'universal' });
-  candidates.push({ topic: 'weather', weight: 0.8, reason: 'small talk' });
+
+  // Weather topic — boosted when weather is notable
+  const weather = environment?.weather ?? 'clear';
+  const weatherWeight = (weather !== 'clear') ? 1.5 : 0.8;
+  candidates.push({ topic: 'weather', weight: weatherWeight, reason: weather !== 'clear' ? `notable weather: ${weather}` : 'small talk' });
 
   // Work — if both have occupations
   if (npc1.occupation && npc2.occupation) {
@@ -321,6 +336,7 @@ function buildNpcNpcSystemPrompt(
   languages: string[],
   exchangeCount: number,
   relationshipStrength: number,
+  environment?: NpcConversationEnvironment,
 ): string {
   const personalityDesc = (name: string, p: BigFivePersonality) =>
     `${name}: openness ${p.openness?.toFixed(1) ?? '0'}, conscientiousness ${p.conscientiousness?.toFixed(1) ?? '0'}, extroversion ${p.extroversion?.toFixed(1) ?? '0'}, agreeableness ${p.agreeableness?.toFixed(1) ?? '0'}, neuroticism ${p.neuroticism?.toFixed(1) ?? '0'}`;
@@ -338,16 +354,35 @@ function buildNpcNpcSystemPrompt(
     ? `They speak ${languages.join(' and ')}. Use this language naturally in dialogue.`
     : '';
 
+  // Build environment description
+  let envDesc = '';
+  if (environment) {
+    const parts: string[] = [];
+    if (environment.gameHour !== undefined) {
+      parts.push(`Time: ${describeTime(environment.gameHour)}`);
+    }
+    if (environment.weather && environment.weather !== 'clear') {
+      parts.push(`Weather: ${describeWeather(environment.weather)}`);
+    }
+    if (environment.season) {
+      parts.push(`Season: ${environment.season}`);
+    }
+    if (parts.length > 0) {
+      envDesc = `Environment: ${parts.join('. ')}.`;
+    }
+  }
+
   return [
     `You are simulating a conversation between two NPCs in ${worldName}.`,
     `${npc1.firstName} ${npc1.lastName} (${npc1.occupation ?? 'unemployed'}) and ${npc2.firstName} ${npc2.lastName} (${npc2.occupation ?? 'unemployed'}).`,
     personalityDesc(`${npc1.firstName}`, p1),
     personalityDesc(`${npc2.firstName}`, p2),
     `They are ${relLabel}. Topic: ${topic}.`,
+    envDesc,
     langInstruction,
     `Write exactly ${exchangeCount} exchanges (${exchangeCount * 2} lines total), alternating speakers.`,
     `Format each line as: "${npc1.firstName}: text" or "${npc2.firstName}: text"`,
-    `Keep it natural, brief, and in-character based on their personalities.`,
+    `Keep it natural, brief, and in-character based on their personalities and current environment.`,
     `${npc1.firstName} speaks first.`,
   ].filter(Boolean).join('\n');
 }
@@ -516,10 +551,11 @@ export async function initiateConversation(
     const rel = rels1[npc2Id];
     const relationshipStrength = typeof rel?.strength === 'number' ? rel.strength : 0;
 
-    // Topic selection
+    // Topic selection (environment-aware)
+    const environment = options?.environment;
     let topic = options?.topic;
     if (!topic) {
-      const candidates = selectTopics(npc1, npc2, relationshipStrength);
+      const candidates = selectTopics(npc1, npc2, relationshipStrength, environment);
       const selected = weightedRandomSelect(candidates);
       topic = selected.topic;
     }
@@ -548,7 +584,7 @@ export async function initiateConversation(
     if (llm) {
       try {
         const systemPrompt = buildNpcNpcSystemPrompt(
-          npc1, npc2, p1, p2, topic, world.name, worldLangs, maxExchanges, relationshipStrength,
+          npc1, npc2, p1, p2, topic, world.name, worldLangs, maxExchanges, relationshipStrength, environment,
         );
 
         const context: ConversationContext = {

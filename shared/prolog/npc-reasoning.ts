@@ -41,6 +41,14 @@ const DYNAMIC_DECLARATIONS = [
   'npc_gave_quest/3', 'quest_outcome/3',
   'npc_quest_count/3', 'npc_quest_completed_count/3',
   'npc_quest_failed_count/3', 'npc_quest_abandoned_count/3',
+  // Environment awareness
+  'weather/1', 'game_hour/1', 'time_period/1', 'season/1',
+  // Player progress
+  'player_quests_completed/1', 'player_reputation/1', 'player_is_new/0',
+  // Active quests
+  'quest_active/2', 'quest_completed/2', 'quest_failed/2',
+  // Recent events
+  'recent_event/2',
 ];
 
 // ── Lifecycle Rules ───────────────────────────────────────────────────────
@@ -207,6 +215,39 @@ const QUEST_MEMORY_RULES = [
   'should_encourage_player(NPC, Player) :- player_failed_quest_for(NPC, Player), personality(NPC, agreeableness, A), A > 0.5',
 ];
 
+// ── Environment Awareness Rules ──────────────────────────────────────────
+
+const ENVIRONMENT_AWARENESS_RULES = [
+  // Weather-driven behavior
+  'should_seek_shelter(X) :- weather(storm), personality(X, neuroticism, N), N > 0.4',
+  'should_seek_shelter(X) :- weather(rain), personality(X, conscientiousness, C), C > 0.6',
+  'enjoys_weather(X) :- weather(clear), personality(X, openness, O), O > 0.5',
+  'enjoys_weather(X) :- weather(snow), personality(X, openness, O), O > 0.7',
+  'weather_complaint_likely(X) :- weather(storm), personality(X, neuroticism, N), N > 0.5',
+  'weather_complaint_likely(X) :- weather(rain), personality(X, neuroticism, N), N > 0.6',
+
+  // Time-driven dialogue topics
+  'prefers_topic(X, morning_routine) :- time_period(morning), personality(X, conscientiousness, C), C > 0.5',
+  'prefers_topic(X, evening_plans) :- time_period(evening), personality(X, extroversion, E), E > 0.5',
+  'prefers_topic(X, weather) :- weather(rain)',
+  'prefers_topic(X, weather) :- weather(storm)',
+  'prefers_topic(X, weather) :- weather(snow)',
+
+  // Quest awareness affects dialogue
+  'prefers_topic(X, quests) :- npc_gave_quest(X, player, _), quest_active(player, _)',
+  'is_quest_giver(X) :- npc_gave_quest(X, player, _)',
+
+  // Player progress affects NPC attitude
+  'respects_player(NPC) :- player_quests_completed(C), C > 3, personality(NPC, conscientiousness, Con), Con > 0.3',
+  'impressed_by_player(NPC) :- player_quests_completed(C), C > 5, player_reputation(R), R > 50',
+  'wary_of_newcomer(NPC) :- player_is_new, personality(NPC, neuroticism, N), N > 0.5',
+  'welcoming_to_newcomer(NPC) :- player_is_new, personality(NPC, agreeableness, A), A > 0.5',
+
+  // Late-night behavior
+  'should_be_sleeping(X) :- time_period(night), personality(X, conscientiousness, C), C > 0.6',
+  'is_night_owl(X) :- time_period(night), personality(X, openness, O), O > 0.6, personality(X, conscientiousness, C), C < 0.4',
+];
+
 // ── Daily Schedule Rules ─────────────────────────────────────────────────
 
 const SCHEDULE_RULES = [
@@ -268,6 +309,7 @@ export function getNPCReasoningRules(): string {
     ...EMOTIONAL_RULES,
     ...MEMORY_RULES,
     ...QUEST_MEMORY_RULES,
+    ...ENVIRONMENT_AWARENESS_RULES,
     ...SCHEDULE_RULES,
   ];
 
@@ -395,6 +437,36 @@ export function getQuestMemoryFacts(npcId: string, playerId: string, memory: {
   facts.push(`npc_quest_completed_count(${npc}, ${player}, ${memory.completedCount})`);
   facts.push(`npc_quest_failed_count(${npc}, ${player}, ${memory.failedCount})`);
   facts.push(`npc_quest_abandoned_count(${npc}, ${player}, ${memory.abandonedCount})`);
+
+  return facts;
+}
+
+/**
+ * Generate Prolog facts for the current environment state.
+ * Assert these into the engine when the environment changes.
+ */
+export function getEnvironmentFacts(env: {
+  gameHour: number;
+  timePeriod: string;
+  weather: string;
+  season?: string;
+  playerQuestsCompleted?: number;
+  playerReputation?: number;
+  playerIsNew?: boolean;
+}): string[] {
+  const facts: string[] = [];
+
+  facts.push(`game_hour(${env.gameHour})`);
+  facts.push(`time_period(${sanitize(env.timePeriod)})`);
+  facts.push(`weather(${sanitize(env.weather)})`);
+  if (env.season) facts.push(`season(${sanitize(env.season)})`);
+  if (env.playerQuestsCompleted !== undefined) {
+    facts.push(`player_quests_completed(${env.playerQuestsCompleted})`);
+  }
+  if (env.playerReputation !== undefined) {
+    facts.push(`player_reputation(${env.playerReputation})`);
+  }
+  if (env.playerIsNew) facts.push('player_is_new');
 
   return facts;
 }

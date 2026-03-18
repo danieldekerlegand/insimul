@@ -42,6 +42,16 @@ export interface ApproachAttempt {
   promptShown: boolean;
 }
 
+/** Environment context for context-aware greetings */
+export interface GreetingEnvironment {
+  weather: string;
+  timePeriod: string;
+  /** Whether the NPC has an active quest for the player */
+  hasActiveQuestForPlayer: boolean;
+  /** Whether the player is new to town */
+  playerIsNew: boolean;
+}
+
 /** Callbacks for approach events */
 export interface ApproachCallbacks {
   /** Move NPC toward a position */
@@ -64,6 +74,8 @@ export interface ApproachCallbacks {
   isPlayerInConversation: () => boolean;
   /** Emit event to GameEventBus */
   onEmitEvent?: (event: any) => void;
+  /** Get current environment for context-aware greetings */
+  getEnvironment?: () => GreetingEnvironment | null;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────
@@ -117,10 +129,81 @@ const GREETINGS_BY_MOOD: Record<string, string[]> = {
   ],
 };
 
-function getGreeting(mood: string, npcName: string): string {
+/** Context-aware greetings that reference the environment */
+const GREETINGS_BY_CONTEXT: Record<string, string[]> = {
+  // Weather-specific
+  weather_rain: [
+    'Terrible weather, isn\'t it? Got a moment to talk?',
+    'Quick, while we\'re both out in this rain — can we chat?',
+    'I know it\'s wet out, but I need to talk to you.',
+  ],
+  weather_storm: [
+    'We should get inside! But first, a quick word?',
+    'This storm! Are you alright? I wanted to ask you something.',
+  ],
+  weather_snow: [
+    'Beautiful snowfall, isn\'t it? Got a moment?',
+    'Brrr! Cold one today. Mind if we chat?',
+  ],
+  // Time-specific
+  time_dawn: [
+    'You\'re up early! Got a moment?',
+    'Good morning! I was hoping to catch you before the day gets busy.',
+  ],
+  time_evening: [
+    'Nice evening, isn\'t it? Got a second?',
+    'Hey, before you turn in for the night — can we talk?',
+  ],
+  time_night: [
+    'Can\'t sleep either? Got a moment?',
+    'Late night, huh? I need to talk to you about something.',
+  ],
+  // Quest-specific
+  quest_active: [
+    'How\'s that task coming along? Got an update?',
+    'I\'ve been meaning to check in with you about that job.',
+    'Any progress on what I asked? Let\'s talk.',
+  ],
+  // Player is new
+  player_new: [
+    'Hey, you\'re new around here, aren\'t you? Welcome!',
+    'I don\'t think we\'ve met. I\'m from around here — got a moment?',
+    'New face in town! Come, let me introduce myself.',
+  ],
+};
+
+function getGreeting(mood: string, _npcName: string, env?: GreetingEnvironment | null): string {
+  // Try context-aware greetings first (30% chance each if applicable)
+  if (env) {
+    const contextGreetings: string[] = [];
+
+    // Quest context takes highest priority
+    if (env.hasActiveQuestForPlayer && Math.random() < 0.6) {
+      contextGreetings.push(...(GREETINGS_BY_CONTEXT.quest_active ?? []));
+    }
+    // Player is new
+    if (env.playerIsNew && Math.random() < 0.5) {
+      contextGreetings.push(...(GREETINGS_BY_CONTEXT.player_new ?? []));
+    }
+    // Weather context
+    if (env.weather !== 'clear' && Math.random() < 0.4) {
+      const weatherKey = `weather_${env.weather}`;
+      contextGreetings.push(...(GREETINGS_BY_CONTEXT[weatherKey] ?? []));
+    }
+    // Time context
+    if ((env.timePeriod === 'dawn' || env.timePeriod === 'night' || env.timePeriod === 'evening') && Math.random() < 0.3) {
+      const timeKey = `time_${env.timePeriod}`;
+      contextGreetings.push(...(GREETINGS_BY_CONTEXT[timeKey] ?? []));
+    }
+
+    if (contextGreetings.length > 0) {
+      return contextGreetings[Math.floor(Math.random() * contextGreetings.length)];
+    }
+  }
+
+  // Fall back to mood-based greetings
   const moodGreetings = GREETINGS_BY_MOOD[mood] || GREETINGS_BY_MOOD.neutral;
-  const greeting = moodGreetings[Math.floor(Math.random() * moodGreetings.length)];
-  return greeting;
+  return moodGreetings[Math.floor(Math.random() * moodGreetings.length)];
 }
 
 // ── Controller ─────────────────────────────────────────────────────────
@@ -314,7 +397,8 @@ export class NPCInitiatedConversationController {
     const playerPos = this.callbacks.getPlayerPosition();
     if (!playerPos) return;
 
-    const greeting = getGreeting(npc.mood, npc.name);
+    const env = this.callbacks.getEnvironment?.() ?? null;
+    const greeting = getGreeting(npc.mood, npc.name, env);
 
     this.activeApproach = {
       npcId: npc.id,
