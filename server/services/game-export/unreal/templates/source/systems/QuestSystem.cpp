@@ -167,6 +167,27 @@ void UQuestSystem::TrackPronunciationAttempt(bool bPassed, float Score, const FS
     }
 }
 
+void UQuestSystem::TrackWritingSubmission(const FString& Text, int32 WordCount, const FString& QuestId)
+{
+    for (auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+        if (!QuestId.IsEmpty() && Obj.QuestId != QuestId) continue;
+        if (Obj.Type != TEXT("write_response") && Obj.Type != TEXT("describe_scene")) continue;
+
+        Obj.CurrentCount++;
+
+        // Reject submissions below minimum word count
+        if (Obj.MinWordCount > 0 && WordCount < Obj.MinWordCount) continue;
+
+        if (Obj.CurrentCount >= (Obj.RequiredCount > 0 ? Obj.RequiredCount : 1))
+        {
+            Obj.bCompleted = true;
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Writing objective completed: %s"), *Obj.Id);
+        }
+    }
+}
+
 void UQuestSystem::CheckDirectionProximity(const FVector& PlayerPos)
 {
     for (auto& Obj : Objectives)

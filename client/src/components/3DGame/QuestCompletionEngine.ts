@@ -38,6 +38,11 @@ export interface CompletionObjective {
   minAverageScore?: number;
   targetPhrases?: string[];
 
+  // write_response / describe_scene
+  writingPrompt?: string;
+  writtenResponses?: string[];
+  minWordCount?: number;
+
   // defeat_enemies
   enemyType?: string;
   enemiesDefeated?: number;
@@ -116,7 +121,8 @@ export type CompletionEvent =
   | { type: 'navigation_waypoint'; questId?: string }
   | { type: 'pronunciation_attempt'; passed: boolean; score?: number; phrase?: string; questId?: string }
   | { type: 'location_visit'; questId: string; objectiveId: string }
-  | { type: 'objective_direct_complete'; questId: string; objectiveId: string };
+  | { type: 'objective_direct_complete'; questId: string; objectiveId: string }
+  | { type: 'writing_submitted'; text: string; wordCount: number; questId?: string };
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
@@ -208,6 +214,9 @@ export class QuestCompletionEngine {
         break;
       case 'objective_direct_complete':
         this.completeObjective(event.questId, event.objectiveId);
+        break;
+      case 'writing_submitted':
+        this.trackWritingSubmission(event.text, event.wordCount, event.questId);
         break;
     }
   }
@@ -458,6 +467,21 @@ export class QuestCompletionEngine {
     const scores = obj.pronunciationScores || [];
     const average = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
     return { scores, average, passed: scores.length };
+  }
+
+  trackWritingSubmission(text: string, wordCount: number, questId?: string): void {
+    this.forEachObjective(questId, ['write_response', 'describe_scene'], (quest, obj) => {
+      if (!obj.writtenResponses) obj.writtenResponses = [];
+      obj.writtenResponses.push(text);
+      obj.currentCount = (obj.currentCount || 0) + 1;
+
+      const minWords = obj.minWordCount || 0;
+      if (minWords > 0 && wordCount < minWords) return;
+
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
   }
 
   // ── Timed objectives ────────────────────────────────────────────────────
