@@ -715,6 +715,9 @@ export const quests = pgTable("quests", {
   completedAt: timestamp("completed_at"),
   expiresAt: timestamp("expires_at"),
   
+  // Conversation-only mode — quest completable entirely through NPC dialogue
+  conversationOnly: boolean("conversation_only").default(false),
+
   // Metadata
   conversationContext: text("conversation_context"), // Context from the conversation that triggered the quest
   tags: jsonb("tags").$type<string[]>().default([]),

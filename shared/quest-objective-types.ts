@@ -295,6 +295,52 @@ export const VALID_OBJECTIVE_TYPES = new Set(
   ACHIEVABLE_OBJECTIVE_TYPES.map(t => t.type),
 );
 
+// ── Conversation-only objective types ────────────────────────────────────────
+// Objective types that can be completed entirely through NPC conversation,
+// with no physical movement, item collection, or world exploration required.
+
+export const CONVERSATION_ONLY_OBJECTIVE_TYPES = new Set([
+  'talk_to_npc',
+  'complete_conversation',
+  'use_vocabulary',
+  'listening_comprehension',
+  'pronunciation_check',
+  'translation_challenge',
+  'listen_and_repeat',
+  'ask_for_directions',
+  'order_food',
+  'haggle_price',
+  'introduce_self',
+  'describe_scene',
+  'write_response',
+  'build_friendship',
+]);
+
+/**
+ * Check whether an objective type can be completed purely through conversation.
+ */
+export function isConversationOnlyObjectiveType(type: string): boolean {
+  return CONVERSATION_ONLY_OBJECTIVE_TYPES.has(type);
+}
+
+/**
+ * Check whether a quest's objectives are ALL conversation-only types.
+ * Returns true if every objective can be completed through conversation alone.
+ */
+export function isConversationOnlyQuest(
+  objectives: Array<{ type: string; [key: string]: any }>,
+): boolean {
+  if (!objectives || objectives.length === 0) return false;
+  return objectives.every(obj => CONVERSATION_ONLY_OBJECTIVE_TYPES.has(obj.type));
+}
+
+/**
+ * Filter ACHIEVABLE_OBJECTIVE_TYPES to only conversation-only types.
+ */
+export const CONVERSATION_ONLY_ACHIEVABLE_TYPES = ACHIEVABLE_OBJECTIVE_TYPES.filter(
+  t => CONVERSATION_ONLY_OBJECTIVE_TYPES.has(t.type),
+);
+
 // ── Normalization map ────────────────────────────────────────────────────────
 // Maps common AI-generated or legacy objective type strings to canonical types.
 
@@ -593,4 +639,29 @@ Each objective must have:
 - "description": human-readable description of what the player should do
 - "target": the NPC name, item name, or location name (if applicable)
 - "required": number of times to complete (default 1)`;
+}
+
+/**
+ * Build the objective type constraint block for conversation-only quest generation.
+ * Restricts LLM to only conversation-completable objective types.
+ */
+export function buildConversationOnlyObjectiveTypePrompt(): string {
+  const lines = CONVERSATION_ONLY_ACHIEVABLE_TYPES.map(
+    t => `  - "${t.type}": ${t.description} (player: ${t.playerAction})`,
+  );
+
+  return `CONVERSATION-ONLY QUEST MODE: This quest must be completable ENTIRELY through conversation.
+The player should NOT need to move, collect items, visit locations, or perform any physical actions.
+All objectives must be achievable within a single NPC conversation interaction.
+
+ALLOWED OBJECTIVE TYPES (conversation-only):
+${lines.join('\n')}
+
+Each objective must have:
+- "type": one of the conversation-only types above (exact string match)
+- "description": human-readable description of what the player should do
+- "target": the NPC name (if applicable)
+- "required": number of times to complete (default 1)
+
+DO NOT use movement, item collection, location visit, combat, or crafting objectives.`;
 }

@@ -162,14 +162,21 @@ func track_vocabulary_usage(word: String, quest_id: String = "") -> void:
 			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
 
 
-## Track a conversation turn for complete_conversation objectives.
+## Conversation-only objective types that progress on each conversation turn.
+const CONVERSATION_ONLY_TYPES: Array[String] = [
+	"complete_conversation", "order_food", "haggle_price",
+	"listen_and_repeat", "ask_for_directions", "describe_scene",
+	"write_response", "build_friendship"
+]
+
+## Track a conversation turn for conversation-only objectives.
 func track_conversation_turn(keywords: Array[String] = [], quest_id: String = "") -> void:
 	for obj in objectives:
 		if obj.get("completed", false):
 			continue
 		if not quest_id.is_empty() and obj.get("quest_id") != quest_id:
 			continue
-		if obj.get("type", "") != "complete_conversation":
+		if obj.get("type", "") not in CONVERSATION_ONLY_TYPES:
 			continue
 
 		# Every conversation turn counts as progress

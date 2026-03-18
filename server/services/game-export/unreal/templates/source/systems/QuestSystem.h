@@ -46,6 +46,9 @@ struct FQuestObjective
 
     /** Minimum word count required per submission (0 = no minimum) */
     UPROPERTY(BlueprintReadWrite) int32 MinWordCount = 0;
+
+    /** Whether this objective is conversation-only (no physical actions needed) */
+    UPROPERTY(BlueprintReadWrite) bool bConversationOnly = false;
 };
 
 /**

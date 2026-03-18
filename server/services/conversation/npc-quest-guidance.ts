@@ -10,6 +10,7 @@
 
 import type { Quest } from '@shared/schema';
 import type { QuestParticipant, NpcRole } from '../../../shared/language/multi-npc-quest-scenarios.js';
+import { isConversationOnlyQuest as checkConversationOnly } from '@shared/quest-objective-types';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -120,6 +121,56 @@ const GUIDANCE_STRATEGIES: Record<string, GuidanceStrategy> = {
   follow_directions: {
     buildGuidance(obj) {
       return `The player needs to follow directions in the target language. Give them step-by-step instructions using the target language. Start simple and progressively use more complex directional vocabulary.`;
+    },
+  },
+
+  listen_and_repeat: {
+    buildGuidance(obj) {
+      const remaining = (obj.required || 1) - (obj.current || 0);
+      return `The player needs to listen and repeat phrases. Say a phrase in the target language clearly, then ask them to repeat it. They need ${remaining} more phrase(s).`;
+    },
+  },
+
+  ask_for_directions: {
+    buildGuidance(obj) {
+      return `The player needs to ask you for directions in the target language. Mention nearby locations and encourage them to ask how to get there using the target language.`;
+    },
+  },
+
+  order_food: {
+    buildGuidance(obj) {
+      return `The player needs to order food or drinks from you in the target language. Present menu options and encourage them to place an order using target-language phrases.`;
+    },
+  },
+
+  haggle_price: {
+    buildGuidance(obj) {
+      return `The player needs to negotiate a price with you in the target language. Quote a price for an item and encourage them to haggle using target-language number and bargaining vocabulary.`;
+    },
+  },
+
+  introduce_self: {
+    buildGuidance(obj) {
+      return `The player needs to introduce themselves in the target language. Greet them and ask them to tell you about themselves — their name, where they're from, what they do.`;
+    },
+  },
+
+  describe_scene: {
+    buildGuidance(obj) {
+      return `The player needs to describe their surroundings in the target language. Ask them what they see or what the area looks like, encouraging descriptive vocabulary.`;
+    },
+  },
+
+  write_response: {
+    buildGuidance(obj) {
+      return `The player needs to compose a written response in the target language. Pose a question or scenario and ask them to write their answer in the target language.`;
+    },
+  },
+
+  build_friendship: {
+    buildGuidance(obj) {
+      const remaining = (obj.required || 3) - (obj.current || 0);
+      return `The player is building a friendship with you through conversation. Be warm and share personal details. They need ${remaining} more meaningful exchange(s) to deepen the relationship.`;
     },
   },
 };
@@ -252,14 +303,28 @@ export function buildQuestGuidance(
     return { hasGuidance: false, systemPromptAddition: '', guidanceContexts: [] };
   }
 
+  // Detect if any quest is conversation-only
+  const hasConversationOnlyQuest = contexts.some(ctx =>
+    checkConversationOnly(ctx.relevantObjectives),
+  );
+
   const lines: string[] = [
     '\nNPC-GUIDED CONVERSATION MODE:',
     'You have active quest context with this player. Guide the conversation naturally to help them progress.',
   ];
 
+  if (hasConversationOnlyQuest) {
+    lines.push('');
+    lines.push('CONVERSATION-ONLY QUEST ACTIVE: This quest is completed entirely through dialogue.');
+    lines.push('You are the sole vehicle for quest progression — the player does not need to go anywhere or collect anything.');
+    lines.push('Proactively create opportunities for the player to practice, respond, and demonstrate language skills within this conversation.');
+  }
+
   for (const ctx of contexts) {
     lines.push('');
     lines.push(`Quest: "${ctx.questTitle}"`);
+
+    const isConvOnly = checkConversationOnly(ctx.relevantObjectives);
 
     if (ctx.role === 'quest_giver') {
       lines.push('Role: You are the quest giver. Ask about their progress, offer encouragement and hints.');
@@ -267,6 +332,10 @@ export function buildQuestGuidance(
       lines.push(`Role: ${PARTICIPANT_ROLE_GUIDANCE[ctx.participantRole] ?? 'You are involved in this quest. Help the player with what they need.'}`);
     } else if (ctx.role === 'objective_target') {
       lines.push('Role: You are directly involved in a quest objective the player needs to complete.');
+    }
+
+    if (isConvOnly) {
+      lines.push('Mode: CONVERSATION-ONLY — all objectives can be completed right here in this dialogue.');
     }
 
     for (const obj of ctx.relevantObjectives) {
