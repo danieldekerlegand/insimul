@@ -6208,6 +6208,7 @@ export class BabylonGame {
             if (Math.abs(mesh.position.y - targetY) > 0.5) {
               mesh.position.y = targetY;
               instance.homePosition = mesh.position.clone();
+              instance.controller?.resetPhysicsState();
             }
           });
         }
@@ -6521,6 +6522,7 @@ export class BabylonGame {
         const entry = this.npcScheduleSystem.getEntry(characterId);
         if (entry?.currentGoal?.doorPosition) {
           instance.mesh.position = entry.currentGoal.doorPosition.clone();
+          instance.controller?.resetPhysicsState();
         }
       } else {
         // Still inside — do nothing
@@ -6693,12 +6695,14 @@ export class BabylonGame {
       instance.controller.turnLeft(false);
       instance.controller.turnRight(false);
     } else if (rotationDiff > 0) {
-      instance.controller.turnLeft(true);
-      instance.controller.turnRight(false);
-      instance.controller.walk(true);
-    } else {
+      // Positive diff = target is clockwise from current facing → turn right
       instance.controller.turnRight(true);
       instance.controller.turnLeft(false);
+      instance.controller.walk(true);
+    } else {
+      // Negative diff = target is counter-clockwise → turn left
+      instance.controller.turnLeft(true);
+      instance.controller.turnRight(false);
       instance.controller.walk(true);
     }
   }

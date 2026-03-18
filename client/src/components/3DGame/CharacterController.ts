@@ -788,7 +788,7 @@ export class CharacterController {
     private _moveAVandCamera() {
         this._avStartPos.copyFrom(this._avatar.position);
         let actData: ActionData = null;
-        const dt: number = this._scene.getEngine().getDeltaTime() / 1000;
+        const dt: number = Math.min(this._scene.getEngine().getDeltaTime() / 1000, 0.1);
 
         if (this._act._jump && !this._inFreeFall) {
             this._grounded = false;
