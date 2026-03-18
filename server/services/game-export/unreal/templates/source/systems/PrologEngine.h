@@ -20,6 +20,12 @@ struct FInsimulGameState
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FVector PlayerPosition = FVector::ZeroVector;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString CurrentSettlement;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FString> NearbyNPCs;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 GameHour = -1;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Weather;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Season;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 QuestsCompleted = -1;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float Reputation = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bIsNewToTown = false;
 };
 
 /**
@@ -158,6 +164,18 @@ public:
     /** Update dynamic game state facts (call on state change) */
     UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
     void UpdateGameState(const FInsimulGameState& State);
+
+    /** Update environment awareness facts (weather, time, player progress) */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    void UpdateEnvironment(int32 GameHour, const FString& Weather, const FString& Season, int32 QuestsCompleted, float Reputation, bool bIsNewToTown);
+
+    /** Check if an NPC should mention weather in conversation */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    bool ShouldMentionWeather(const FString& NPCId);
+
+    /** Get the NPC's attitude toward the player based on progress */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|PrologEngine")
+    FString GetPlayerAttitude(const FString& NPCId);
 
     // ── Action & Quest Queries ────────────────────────────────────────────
 
@@ -349,6 +367,9 @@ private:
 
     /** Retract all facts matching a predicate/first-arg pattern */
     void RetractPattern(const FString& Predicate, const FString& FirstArg, const FString& SecondArg = TEXT(""));
+
+    /** Retract all facts matching a predicate name (no args needed) */
+    void RetractByPredicate(const FString& Predicate);
 
     /** Sanitize a string to a valid Prolog atom */
     static FString Sanitize(const FString& Str);

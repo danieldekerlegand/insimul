@@ -10,6 +10,8 @@ import { storage as defaultStorage } from '../../db/storage';
 import type { Character, World, Occupation, Business, Settlement } from '@shared/schema';
 import type { WorldLanguage } from '@shared/language';
 import type { ConversationContext } from './providers/llm-provider';
+import type { WeatherCondition, NPCAwareQuest } from '@shared/npc-awareness-context';
+import { describeWeather, describeTime } from '@shared/npc-awareness-context';
 
 // ── Storage interface (subset needed by context manager) ──────────────
 
@@ -68,6 +70,21 @@ export interface FullConversationContext {
   era: string;
   languages: string[];
   culturalSetting: string | null;
+
+  // Environment awareness
+  weather: WeatherCondition;
+  gameHour: number;
+  season: string | null;
+
+  // Quest awareness
+  activeQuests: NPCAwareQuest[];
+
+  // Player progress
+  playerProgress: {
+    questsCompleted: number;
+    reputation: number;
+    isNewToTown: boolean;
+  };
 
   // Relationship with player
   playerRelationship: {
@@ -247,15 +264,6 @@ export function buildBusinessContext(
   return parts.length > 0 ? parts.join(' ') : null;
 }
 
-function timeOfDayFromDate(): string {
-  const hour = new Date().getHours();
-  if (hour < 6) return 'night';
-  if (hour < 12) return 'morning';
-  if (hour < 17) return 'afternoon';
-  if (hour < 21) return 'evening';
-  return 'night';
-}
-
 function playerRelationshipFromCharacter(
   character: Character,
   playerId: string,
@@ -281,6 +289,13 @@ export async function buildContext(
   worldId: string,
   _sessionId: string,
   storageOverride?: ContextManagerStorage,
+  gameState?: {
+    weather?: WeatherCondition;
+    gameHour?: number;
+    season?: string;
+    activeQuests?: NPCAwareQuest[];
+    playerProgress?: { questsCompleted: number; reputation: number; isNewToTown: boolean };
+  },
 ): Promise<FullConversationContext> {
   const storage = storageOverride ?? defaultStorage;
 
@@ -376,7 +391,12 @@ export async function buildContext(
 
   const worldLanguageNames = languages.map((l: WorldLanguage) => l.name);
   const era = eraDescription(world);
-  const timeOfDay = timeOfDayFromDate();
+  const weather: WeatherCondition = gameState?.weather ?? 'clear';
+  const gameHour = gameState?.gameHour ?? new Date().getHours();
+  const timeOfDay = describeTime(gameHour);
+  const season = gameState?.season ?? null;
+  const activeQuests = gameState?.activeQuests ?? [];
+  const playerProgress = gameState?.playerProgress ?? { questsCompleted: 0, reputation: 0, isNewToTown: true };
   const emotion = emotionalState(character);
   const romantic = romanticStatus(character);
   const playerRel = playerRelationshipFromCharacter(character, playerId);
@@ -394,6 +414,11 @@ export async function buildContext(
     enemies,
     emotion,
     timeOfDay,
+    weather,
+    gameHour,
+    season,
+    activeQuests,
+    playerProgress,
     world,
     era,
     worldLanguageNames,
@@ -420,6 +445,11 @@ export async function buildContext(
     era,
     languages: worldLanguageNames,
     culturalSetting: world.description ?? null,
+    weather,
+    gameHour,
+    season,
+    activeQuests,
+    playerProgress,
     playerRelationship: playerRel,
     languageLearning,
     conversationContext: {
@@ -445,6 +475,11 @@ interface PromptParts {
   enemies: RelationshipSummary[];
   emotion: string;
   timeOfDay: string;
+  weather: WeatherCondition;
+  gameHour: number;
+  season: string | null;
+  activeQuests: NPCAwareQuest[];
+  playerProgress: { questsCompleted: number; reputation: number; isNewToTown: boolean };
   world: World;
   era: string;
   worldLanguageNames: string[];
@@ -472,7 +507,7 @@ function buildSystemPrompt(p: PromptParts): string {
     lines.push(`Workplace context: ${p.businessContext}`);
   }
 
-  // Location & time
+  // Location, time & weather
   if (p.settlement) {
     lines.push(`You live in the ${p.settlement.settlementType} of ${p.settlement.name}.`);
     if (p.settlement.description) {
@@ -482,7 +517,11 @@ function buildSystemPrompt(p: PromptParts): string {
       lines.push(`About ${p.settlement.name}: ${desc}`);
     }
   }
-  lines.push(`Current location: ${p.character.currentLocation}. Time: ${p.timeOfDay}.`);
+  const weatherDesc = describeWeather(p.weather);
+  lines.push(`Current location: ${p.character.currentLocation}. Time: ${p.timeOfDay}. Weather: ${weatherDesc}.`);
+  if (p.season) {
+    lines.push(`Season: ${p.season}.`);
+  }
 
   // Family
   if (p.family.length > 0) {
@@ -552,8 +591,38 @@ function buildSystemPrompt(p: PromptParts): string {
     lines.push(`CRITICAL: Your ENTIRE response is read aloud by TTS. Respond with ONLY natural spoken dialogue — no English translations, no glosses, no parenthetical hints, no vocabulary blocks, no structured data, no markup of any kind.`);
   }
 
+  // Quest awareness — NPC knows about quests they assigned
+  const npcQuests = p.activeQuests.filter(q => q.assignedByThisNPC);
+  const otherQuests = p.activeQuests.filter(q => !q.assignedByThisNPC && q.status === 'active');
+  if (npcQuests.length > 0) {
+    const questLines = npcQuests.map(q => {
+      if (q.status === 'active') return `"${q.questName}" (in progress — you can ask about progress)`;
+      if (q.status === 'completed') return `"${q.questName}" (completed — express gratitude)`;
+      if (q.status === 'failed') return `"${q.questName}" (failed — react based on personality)`;
+      return `"${q.questName}" (${q.status})`;
+    });
+    lines.push(`Quests you gave the player: ${questLines.join('; ')}.`);
+  }
+  if (otherQuests.length > 0 && otherQuests.length <= 3) {
+    lines.push(`You've heard the player is working on: ${otherQuests.map(q => q.questName).join(', ')}.`);
+  }
+
+  // Player progress awareness
+  if (p.playerProgress.isNewToTown) {
+    lines.push(`The player is new in town. React based on your personality — welcome them or be cautious.`);
+  } else if (p.playerProgress.questsCompleted > 5) {
+    lines.push(`The player is well-known locally, having completed ${p.playerProgress.questsCompleted} tasks for the community.`);
+  } else if (p.playerProgress.questsCompleted > 0) {
+    lines.push(`The player has helped around town (${p.playerProgress.questsCompleted} tasks completed).`);
+  }
+
+  // Weather-aware behavioral hint
+  if (p.weather === 'storm' || p.weather === 'rain') {
+    lines.push(`The weather is ${weatherDesc} — you might comment on it or suggest shelter.`);
+  }
+
   // Behavioral instructions
-  lines.push(`\nStay in character. Respond as ${p.character.firstName} would based on personality and mood. Keep responses concise and natural.`);
+  lines.push(`\nStay in character. Respond as ${p.character.firstName} would based on personality, mood, and current surroundings. Keep responses concise and natural.`);
 
   return lines.join('\n');
 }

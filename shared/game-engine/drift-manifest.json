@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-18T17:49:07.081Z",
+  "lastUpdated": "2026-03-18T18:03:55.073Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -289,7 +289,7 @@
     {
       "path": "client/src/components/3DGame/GamePrologEngine.ts",
       "description": "Client-side Prolog runtime: KB initialization, event-to-fact pipeline, quest/action queries. Exported engines need equivalent Prolog query logic.",
-      "hash": "d13bd472c5c98c5ddb9b05176003688ec80675018dff5b60f4167d0fa8d6ed0f",
+      "hash": "cdb84b09c9585b391c09d9ef65314001bfae7af2d67bf05e3404703b918be682",
       "engineMappings": [
         {
           "engine": "unreal",
