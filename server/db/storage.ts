@@ -173,7 +173,7 @@ export interface IStorage {
 
   // Truths
   getTruth(id: string): Promise<Truth | undefined>;
-  getTruthsByWorld(worldId: string): Promise<Truth[]>;
+  getTruthsByWorld(worldId: string, playthroughId?: string | null): Promise<Truth[]>;
   getTruthsByCharacter(characterId: string): Promise<Truth[]>;
   createTruth(entry: InsertTruth): Promise<Truth>;
   updateTruth(id: string, entry: Partial<InsertTruth>): Promise<Truth | undefined>;

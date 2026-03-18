@@ -20,7 +20,7 @@ export interface DataSource {
   loadBaseResources(worldId: string): Promise<any>;
   loadAssets(worldId: string): Promise<any[]>;
   loadConfig3D(worldId: string): Promise<any>;
-  loadTruths(worldId: string): Promise<any[]>;
+  loadTruths(worldId: string, playthroughId?: string): Promise<any[]>;
   loadCharacter(characterId: string): Promise<any>;
   startPlaythrough(worldId: string, authToken: string, playthroughName: string): Promise<any>;
   updateQuest(questId: string, data: any): Promise<void>;
@@ -123,8 +123,11 @@ export class ApiDataSource implements DataSource {
     return res.ok ? await res.json() : {};
   }
 
-  async loadTruths(worldId: string): Promise<any[]> {
-    const res = await fetch(`/api/worlds/${worldId}/truth`, { headers: this.getHeaders() });
+  async loadTruths(worldId: string, playthroughId?: string): Promise<any[]> {
+    const url = playthroughId
+      ? `/api/worlds/${worldId}/truth?playthroughId=${encodeURIComponent(playthroughId)}`
+      : `/api/worlds/${worldId}/truth`;
+    const res = await fetch(url, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 
@@ -521,8 +524,9 @@ export class FileDataSource implements DataSource {
     };
   }
 
-  async loadTruths(worldId: string): Promise<any[]> {
+  async loadTruths(worldId: string, _playthroughId?: string): Promise<any[]> {
     await this.waitForData();
+    // Base truths from the exported JSON; gameplay truths are merged via the overlay layer
     return this.worldIR?.truths || [];
   }
 

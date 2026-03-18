@@ -432,6 +432,7 @@ ActionSchema.index({ isBase: 1, worldId: 1 }); // Compound index for base action
 
 const TruthSchema = new Schema({
   worldId: { type: String, required: true },
+  playthroughId: { type: String, default: null },
   characterId: { type: String, default: null },
   title: { type: String, required: true },
   content: { type: String, required: true },
@@ -1074,6 +1075,7 @@ const SettlementModel = mongoose.model<SettlementDoc>('Settlement', SettlementSc
 const SettlementHistoryEventModel = mongoose.model<SettlementHistoryEventDoc>('SettlementHistoryEvent', SettlementHistoryEventSchema);
 const SimulationModel = mongoose.model<SimulationDoc>('Simulation', SimulationSchema);
 const ActionModel = mongoose.model<ActionDoc>('Action', ActionSchema);
+TruthSchema.index({ worldId: 1, playthroughId: 1 });
 const TruthModel = mongoose.model<TruthDoc>('Truth', TruthSchema);
 const QuestModel = mongoose.model<QuestDoc>('Quest', QuestSchema);
 const ItemModel = mongoose.model<ItemDoc>('Item', ItemSchema);
@@ -2230,8 +2232,21 @@ export class MongoStorage implements IStorage {
     return doc ? docToTruth(doc) : undefined;
   }
 
-  async getTruthsByWorld(worldId: string): Promise<Truth[]> {
+  async getTruthsByWorld(worldId: string, playthroughId?: string | null): Promise<Truth[]> {
     await this.connect();
+    if (playthroughId) {
+      // Return base truths (no playthroughId) merged with playthrough-specific truths
+      const docs = await TruthModel.find({
+        worldId,
+        $or: [
+          { playthroughId: null },
+          { playthroughId: { $exists: false } },
+          { playthroughId },
+        ],
+      });
+      return docs.map(docToTruth);
+    }
+    // No playthrough filter — return all truths for the world
     const docs = await TruthModel.find({ worldId });
     return docs.map(docToTruth);
   }

@@ -8115,7 +8115,8 @@ Respond with this JSON structure:
   // Truths
   app.get("/api/worlds/:worldId/truth", async (req, res) => {
     try {
-      const entries = await storage.getTruthsByWorld(req.params.worldId);
+      const playthroughId = req.query.playthroughId as string | undefined;
+      const entries = await storage.getTruthsByWorld(req.params.worldId, playthroughId || undefined);
       res.json(entries);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch Truths" });

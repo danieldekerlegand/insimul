@@ -589,6 +589,7 @@ export const actions = pgTable("actions", {
 export const truths = pgTable("truths", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   worldId: varchar("world_id").notNull(),
+  playthroughId: varchar("playthrough_id"), // null for base/world truths, set for gameplay-generated truths
   characterId: varchar("character_id"), // null for world-level truth
 
   // Entry metadata
@@ -1087,6 +1088,7 @@ export const insertActionSchema = createInsertSchema(actions).pick({
 
 export const insertTruthSchema = createInsertSchema(truths).pick({
   worldId: true,
+  playthroughId: true,
   characterId: true,
   title: true,
   content: true,

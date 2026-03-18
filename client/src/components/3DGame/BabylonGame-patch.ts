@@ -172,7 +172,7 @@ export interface DataSource {
   loadBaseResources(worldId: string): Promise<any>;
   loadAssets(worldId: string): Promise<any[]>;
   loadConfig3D(worldId: string): Promise<any>;
-  loadTruths(worldId: string): Promise<any[]>;
+  loadTruths(worldId: string, playthroughId?: string): Promise<any[]>;
   loadCharacter(characterId: string): Promise<any>;
   startPlaythrough(worldId: string, authToken: string, playthroughName: string): Promise<any>;
   updateQuest(questId: string, data: any): Promise<void>;
