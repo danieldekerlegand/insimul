@@ -93,7 +93,8 @@ export interface Achievement {
 export interface AchievementCondition {
   type: 'words_learned' | 'conversations' | 'grammar_mastered' | 'quests_completed'
       | 'fluency_reached' | 'streak_days' | 'navigation_quests' | 'level_reached'
-      | 'cultural_quests' | 'articles_read';
+      | 'cultural_quests' | 'articles_read' | 'npcs_talked' | 'items_collected'
+      | 'exams_passed' | 'locations_discovered' | 'objects_examined' | 'puzzles_solved';
   threshold: number;
 }
 
@@ -168,6 +169,48 @@ export const ACHIEVEMENTS: Achievement[] = [
     icon: '📰',
     condition: { type: 'articles_read', threshold: 10 },
   },
+  {
+    id: 'social_butterfly',
+    name: 'Social Butterfly',
+    description: 'Talk to 10 different NPCs',
+    icon: '🦋',
+    condition: { type: 'npcs_talked', threshold: 10 },
+  },
+  {
+    id: 'treasure_hunter',
+    name: 'Treasure Hunter',
+    description: 'Collect 20 items',
+    icon: '💎',
+    condition: { type: 'items_collected', threshold: 20 },
+  },
+  {
+    id: 'exam_ace',
+    name: 'Exam Ace',
+    description: 'Pass 5 NPC exams',
+    icon: '🎓',
+    condition: { type: 'exams_passed', threshold: 5 },
+  },
+  {
+    id: 'cartographer',
+    name: 'Cartographer',
+    description: 'Discover 10 locations',
+    icon: '🗺️',
+    condition: { type: 'locations_discovered', threshold: 10 },
+  },
+  {
+    id: 'curious_mind',
+    name: 'Curious Mind',
+    description: 'Examine 15 objects',
+    icon: '🔍',
+    condition: { type: 'objects_examined', threshold: 15 },
+  },
+  {
+    id: 'puzzle_master',
+    name: 'Puzzle Master',
+    description: 'Solve 10 puzzles',
+    icon: '🧩',
+    condition: { type: 'puzzles_solved', threshold: 10 },
+  },
 ];
 
 // --- Daily Challenges ---
@@ -239,6 +282,12 @@ export interface GamificationState {
   navigationQuestsCompleted: number;
   culturalQuestsCompleted: number;
   articlesRead: number;
+  npcsTalked: number;
+  itemsCollected: number;
+  examsPassed: number;
+  locationsDiscovered: number;
+  objectsExamined: number;
+  puzzlesSolved: number;
   dailyChallengeStreak: number;
   lastDailyChallengeDate: string | null;  // YYYY-MM-DD
 }
@@ -253,6 +302,12 @@ export function createDefaultGamificationState(): GamificationState {
     navigationQuestsCompleted: 0,
     culturalQuestsCompleted: 0,
     articlesRead: 0,
+    npcsTalked: 0,
+    itemsCollected: 0,
+    examsPassed: 0,
+    locationsDiscovered: 0,
+    objectsExamined: 0,
+    puzzlesSolved: 0,
     dailyChallengeStreak: 0,
     lastDailyChallengeDate: null,
   };

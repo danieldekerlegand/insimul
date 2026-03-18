@@ -307,6 +307,215 @@ function testUpdateProgressStatsEmitsOnBus() {
   assert(firstWordsEvent !== undefined, 'first_words achievement emitted on bus via updateProgressStats');
 }
 
+// --- Gameplay Event Wiring Tests ---
+
+function testNpcTalkedTriggersAchievement() {
+  console.log('\n── npc_talked Events Trigger Social Butterfly Achievement ──');
+
+  const tracker = new LanguageGamificationTracker();
+  const eventBus = new GameEventBus();
+  tracker.subscribeToEventBus(eventBus);
+
+  const achievementEvents: AchievementUnlockedEvent[] = [];
+  tracker.setOnAchievementUnlocked((e) => achievementEvents.push(e));
+
+  // social_butterfly requires 10 NPCs talked
+  for (let i = 0; i < 10; i++) {
+    eventBus.emit({ type: 'npc_talked', npcId: `npc${i}`, npcName: `NPC ${i}`, turnCount: 3 });
+  }
+
+  const socialButterfly = achievementEvents.find(e => e.achievement.id === 'social_butterfly');
+  assert(socialButterfly !== undefined, 'social_butterfly achievement unlocked after 10 npc_talked events');
+}
+
+function testItemCollectedTriggersAchievement() {
+  console.log('\n── item_collected Events Trigger Treasure Hunter Achievement ──');
+
+  const tracker = new LanguageGamificationTracker();
+  const eventBus = new GameEventBus();
+  tracker.subscribeToEventBus(eventBus);
+
+  const achievementEvents: AchievementUnlockedEvent[] = [];
+  tracker.setOnAchievementUnlocked((e) => achievementEvents.push(e));
+
+  // treasure_hunter requires 20 items collected
+  for (let i = 0; i < 20; i++) {
+    eventBus.emit({ type: 'item_collected', itemId: `item${i}`, itemName: `Item ${i}`, quantity: 1 });
+  }
+
+  const treasureHunter = achievementEvents.find(e => e.achievement.id === 'treasure_hunter');
+  assert(treasureHunter !== undefined, 'treasure_hunter achievement unlocked after 20 item_collected events');
+}
+
+function testLocationDiscoveredTriggersAchievement() {
+  console.log('\n── location_discovered Events Trigger Cartographer Achievement ──');
+
+  const tracker = new LanguageGamificationTracker();
+  const eventBus = new GameEventBus();
+  tracker.subscribeToEventBus(eventBus);
+
+  const achievementEvents: AchievementUnlockedEvent[] = [];
+  tracker.setOnAchievementUnlocked((e) => achievementEvents.push(e));
+
+  // cartographer requires 10 locations discovered
+  for (let i = 0; i < 10; i++) {
+    eventBus.emit({ type: 'location_discovered', locationId: `loc${i}`, locationName: `Location ${i}` });
+  }
+
+  const cartographer = achievementEvents.find(e => e.achievement.id === 'cartographer');
+  assert(cartographer !== undefined, 'cartographer achievement unlocked after 10 location_discovered events');
+}
+
+function testPuzzleSolvedTriggersAchievement() {
+  console.log('\n── puzzle_solved Events Trigger Puzzle Master Achievement ──');
+
+  const tracker = new LanguageGamificationTracker();
+  const eventBus = new GameEventBus();
+  tracker.subscribeToEventBus(eventBus);
+
+  const achievementEvents: AchievementUnlockedEvent[] = [];
+  tracker.setOnAchievementUnlocked((e) => achievementEvents.push(e));
+
+  // puzzle_master requires 10 puzzles solved
+  for (let i = 0; i < 10; i++) {
+    eventBus.emit({ type: 'puzzle_solved', puzzleId: `puzzle${i}` });
+  }
+
+  const puzzleMaster = achievementEvents.find(e => e.achievement.id === 'puzzle_master');
+  assert(puzzleMaster !== undefined, 'puzzle_master achievement unlocked after 10 puzzle_solved events');
+}
+
+function testObjectExaminedTriggersAchievement() {
+  console.log('\n── object_examined Events Trigger Curious Mind Achievement ──');
+
+  const tracker = new LanguageGamificationTracker();
+  const eventBus = new GameEventBus();
+  tracker.subscribeToEventBus(eventBus);
+
+  const achievementEvents: AchievementUnlockedEvent[] = [];
+  tracker.setOnAchievementUnlocked((e) => achievementEvents.push(e));
+
+  // curious_mind requires 15 objects examined
+  for (let i = 0; i < 15; i++) {
+    eventBus.emit({ type: 'object_examined', objectId: `obj${i}`, objectName: `Object ${i}`, targetWord: 'word', targetLanguage: 'fr' });
+  }
+
+  const curiousMind = achievementEvents.find(e => e.achievement.id === 'curious_mind');
+  assert(curiousMind !== undefined, 'curious_mind achievement unlocked after 15 object_examined events');
+}
+
+function testNpcExamPassedTriggersAchievement() {
+  console.log('\n── npc_exam_completed (passed) Events Trigger Exam Ace Achievement ──');
+
+  const tracker = new LanguageGamificationTracker();
+  const eventBus = new GameEventBus();
+  tracker.subscribeToEventBus(eventBus);
+
+  const achievementEvents: AchievementUnlockedEvent[] = [];
+  tracker.setOnAchievementUnlocked((e) => achievementEvents.push(e));
+
+  // exam_ace requires 5 passed exams
+  for (let i = 0; i < 5; i++) {
+    eventBus.emit({ type: 'npc_exam_completed', examId: `exam${i}`, npcId: `npc${i}`, passed: true, score: 80, maxScore: 100, percentage: 80 });
+  }
+
+  const examAce = achievementEvents.find(e => e.achievement.id === 'exam_ace');
+  assert(examAce !== undefined, 'exam_ace achievement unlocked after 5 passed exams');
+}
+
+function testNpcExamPassedViaScoreTriggersAchievement() {
+  console.log('\n── npc_exam_completed (passed via totalScore) Triggers Exam Ace ──');
+
+  const tracker = new LanguageGamificationTracker();
+  const eventBus = new GameEventBus();
+  tracker.subscribeToEventBus(eventBus);
+
+  const achievementEvents: AchievementUnlockedEvent[] = [];
+  tracker.setOnAchievementUnlocked((e) => achievementEvents.push(e));
+
+  // exam_ace requires 5 passed exams — use totalScore/totalMaxPoints instead of passed flag
+  for (let i = 0; i < 5; i++) {
+    eventBus.emit({ type: 'npc_exam_completed', examId: `exam${i}`, npcId: `npc${i}`, totalScore: 80, totalMaxPoints: 100 });
+  }
+
+  const examAce = achievementEvents.find(e => e.achievement.id === 'exam_ace');
+  assert(examAce !== undefined, 'exam_ace achievement unlocked via totalScore/totalMaxPoints');
+}
+
+function testNpcExamFailedDoesNotCount() {
+  console.log('\n── npc_exam_completed (failed) Does Not Count Toward Achievement ──');
+
+  const tracker = new LanguageGamificationTracker();
+  const eventBus = new GameEventBus();
+  tracker.subscribeToEventBus(eventBus);
+
+  const achievementEvents: AchievementUnlockedEvent[] = [];
+  tracker.setOnAchievementUnlocked((e) => achievementEvents.push(e));
+
+  // Send 5 failed exams - should NOT unlock exam_ace
+  for (let i = 0; i < 5; i++) {
+    eventBus.emit({ type: 'npc_exam_completed', examId: `exam${i}`, npcId: `npc${i}`, passed: false, score: 20, maxScore: 100, percentage: 20 });
+  }
+
+  const examAce = achievementEvents.find(e => e.achievement.id === 'exam_ace');
+  assert(examAce === undefined, 'exam_ace NOT unlocked when exams are failed');
+}
+
+function testDirectMethodCallsTrackCounters() {
+  console.log('\n── Direct Method Calls Track Counters ──');
+
+  const tracker = new LanguageGamificationTracker();
+  const achievementEvents: AchievementUnlockedEvent[] = [];
+  tracker.setOnAchievementUnlocked((e) => achievementEvents.push(e));
+
+  // Call onPuzzleSolved directly 10 times
+  for (let i = 0; i < 10; i++) {
+    tracker.onPuzzleSolved();
+  }
+
+  const puzzleMaster = achievementEvents.find(e => e.achievement.id === 'puzzle_master');
+  assert(puzzleMaster !== undefined, 'puzzle_master unlocked via direct onPuzzleSolved calls');
+
+  // Call onLocationDiscovered directly 10 times
+  const tracker2 = new LanguageGamificationTracker();
+  const achievementEvents2: AchievementUnlockedEvent[] = [];
+  tracker2.setOnAchievementUnlocked((e) => achievementEvents2.push(e));
+
+  for (let i = 0; i < 10; i++) {
+    tracker2.onLocationDiscovered();
+  }
+
+  const cartographer = achievementEvents2.find(e => e.achievement.id === 'cartographer');
+  assert(cartographer !== undefined, 'cartographer unlocked via direct onLocationDiscovered calls');
+}
+
+function testNewAchievementCountersPersistedViaExportImport() {
+  console.log('\n── New Achievement Counters Persisted via Export/Import ──');
+
+  const tracker = new LanguageGamificationTracker();
+  const eventBus = new GameEventBus();
+  tracker.subscribeToEventBus(eventBus);
+
+  // Accumulate some counters
+  for (let i = 0; i < 5; i++) {
+    eventBus.emit({ type: 'npc_talked', npcId: `npc${i}`, npcName: `NPC ${i}`, turnCount: 3 });
+    eventBus.emit({ type: 'item_collected', itemId: `item${i}`, itemName: `Item ${i}`, quantity: 1 });
+  }
+
+  const exported = tracker.exportState();
+  const parsed = JSON.parse(exported);
+
+  assertEqual(parsed.npcsTalked, 5, 'exported state has npcsTalked = 5');
+  assertEqual(parsed.itemsCollected, 5, 'exported state has itemsCollected = 5');
+
+  // Import into new tracker and verify counters survive
+  const tracker2 = new LanguageGamificationTracker();
+  tracker2.importState(exported);
+  const state2 = tracker2.getState();
+  assertEqual(state2.npcsTalked, 5, 'imported npcsTalked = 5');
+  assertEqual(state2.itemsCollected, 5, 'imported itemsCollected = 5');
+}
+
 // --- Run all tests ---
 
 testPeriodicAssessmentTriggersAtLevel5();
@@ -322,6 +531,16 @@ testEventBusUtteranceQuestCompletedTriggersAchievementCheck();
 testAchievementCallbackAndBusEventBothFire();
 testDisposeUnsubscribesFromEventBus();
 testUpdateProgressStatsEmitsOnBus();
+testNpcTalkedTriggersAchievement();
+testItemCollectedTriggersAchievement();
+testLocationDiscoveredTriggersAchievement();
+testPuzzleSolvedTriggersAchievement();
+testObjectExaminedTriggersAchievement();
+testNpcExamPassedTriggersAchievement();
+testNpcExamPassedViaScoreTriggersAchievement();
+testNpcExamFailedDoesNotCount();
+testDirectMethodCallsTrackCounters();
+testNewAchievementCountersPersistedViaExportImport();
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
