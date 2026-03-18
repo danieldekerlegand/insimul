@@ -1051,6 +1051,154 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
       { name: 'count', type: 'number', description: 'Locations to visit in order' },
     ],
   },
+
+  // --- Crafting & Item Interaction Quests ---
+  {
+    id: 'material_identification',
+    name: 'Know Your Materials',
+    category: 'crafting',
+    description: 'Visit the {{station}} and identify {{materialCount}} crafting materials by their names in the target language.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'examine_object',
+        descriptionTemplate: 'Examine {{materialCount}} materials at the {{station}}',
+        requiredCount: 4,
+      },
+      {
+        type: 'identify_object',
+        descriptionTemplate: 'Identify each material by its target-language name',
+        requiredCount: 4,
+      },
+    ],
+    rewardScale: { xp: 20, fluency: 2 },
+    parameters: [
+      { name: 'station', type: 'location', description: 'Crafting station (forge, workbench, loom, kitchen)' },
+      { name: 'materialCount', type: 'number', description: 'Materials to identify' },
+    ],
+  },
+  {
+    id: 'tool_naming',
+    name: 'Tools of the Trade',
+    category: 'crafting',
+    description: 'Learn the names of {{toolCount}} tools at the {{station}} in the target language.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'point_and_name',
+        descriptionTemplate: 'Point at {{toolCount}} tools and name them in the target language',
+        requiredCount: 4,
+      },
+      {
+        type: 'collect_vocabulary',
+        descriptionTemplate: 'Add {{toolCount}} tool words to your vocabulary bank',
+        requiredCount: 4,
+      },
+    ],
+    rewardScale: { xp: 20, fluency: 2 },
+    parameters: [
+      { name: 'station', type: 'location', description: 'Crafting station' },
+      { name: 'toolCount', type: 'number', description: 'Tools to name' },
+    ],
+  },
+  {
+    id: 'simple_craft',
+    name: 'First Craft',
+    category: 'crafting',
+    description: 'Collect {{materialCount}} materials and craft your first item. Use material names in the target language.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'collect_item',
+        descriptionTemplate: 'Collect {{materialCount}} crafting materials',
+        requiredCount: 2,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{materialCount}} material names in the target language',
+        requiredCount: 2,
+      },
+      {
+        type: 'craft_item',
+        descriptionTemplate: 'Craft an item at the {{station}}',
+        requiredCount: 1,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 3 },
+    parameters: [
+      { name: 'station', type: 'location', description: 'Crafting station' },
+      { name: 'materialCount', type: 'number', description: 'Materials to collect' },
+    ],
+  },
+  {
+    id: 'apprentice_lesson',
+    name: 'Apprentice Lesson',
+    category: 'crafting',
+    description: '{{npcName}} teaches you crafting at the {{station}}. Follow instructions in the target language and learn {{actionCount}} action verbs.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'talk_to_npc',
+        descriptionTemplate: 'Talk to {{npcName}} to begin the crafting lesson',
+        requiredCount: 1,
+      },
+      {
+        type: 'collect_vocabulary',
+        descriptionTemplate: 'Learn {{actionCount}} crafting action words',
+        requiredCount: 3,
+      },
+      {
+        type: 'follow_directions',
+        descriptionTemplate: 'Follow {{actionCount}} crafting steps in the target language',
+        requiredCount: 3,
+      },
+      {
+        type: 'craft_item',
+        descriptionTemplate: 'Complete the craft under {{npcName}}\'s guidance',
+        requiredCount: 1,
+      },
+    ],
+    rewardScale: { xp: 40, fluency: 4 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'Mentor NPC' },
+      { name: 'station', type: 'location', description: 'Crafting station' },
+      { name: 'actionCount', type: 'number', description: 'Action words to learn' },
+    ],
+  },
+  {
+    id: 'recipe_translation',
+    name: 'The Ancient Recipe',
+    category: 'crafting',
+    description: 'Translate a crafting recipe written in the target language, gather ingredients, and craft the described item.',
+    difficulty: 'advanced',
+    objectiveTemplates: [
+      {
+        type: 'read_sign',
+        descriptionTemplate: 'Read the recipe written in the target language',
+        requiredCount: 1,
+      },
+      {
+        type: 'translation_challenge',
+        descriptionTemplate: 'Translate {{phraseCount}} recipe instructions',
+        requiredCount: 3,
+      },
+      {
+        type: 'collect_item',
+        descriptionTemplate: 'Gather the ingredients described in the recipe',
+        requiredCount: 3,
+      },
+      {
+        type: 'craft_item',
+        descriptionTemplate: 'Follow the translated recipe to craft the item',
+        requiredCount: 1,
+      },
+    ],
+    rewardScale: { xp: 55, fluency: 6 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC who provides the recipe' },
+      { name: 'phraseCount', type: 'number', description: 'Instructions to translate' },
+    ],
+  },
 ];
 
 /**
