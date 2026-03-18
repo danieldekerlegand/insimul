@@ -76,8 +76,10 @@ export interface GameStateTarget {
 
 /** Events that trigger an auto-save. */
 export const AUTO_SAVE_TRIGGER_EVENTS: GameEventType[] = [
+  'quest_accepted',
   'quest_completed',
   'quest_failed',
+  'quest_abandoned',
   'assessment_completed',
   'settlement_entered',
   'achievement_unlocked',
@@ -316,6 +318,23 @@ export class WorldStateManager {
     }
 
     return hasDiff ? diff : null;
+  }
+
+  /** Persist just the quest overlay state without a full game-state save.
+   *  Called on quest lifecycle events for faster, more granular persistence. */
+  async saveQuestProgress(): Promise<boolean> {
+    if (!this.questOverlay || !this.gameSource) return false;
+    const playthroughId = this.gameSource.getPlaythroughId();
+    if (!playthroughId) return false;
+
+    try {
+      const questProgress = this.questOverlay.serialize();
+      await this.dataSource.saveQuestProgress(playthroughId, questProgress);
+      return true;
+    } catch (err) {
+      console.error('[WorldStateManager] Quest progress save failed:', err);
+      return false;
+    }
   }
 
   /** Save game state to a specific slot. Returns true if data was saved. */

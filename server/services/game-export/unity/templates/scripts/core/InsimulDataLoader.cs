@@ -275,6 +275,50 @@ namespace Insimul.Core
             }
         }
 
+        /// <summary>
+        /// Save quest progress JSON to a dedicated file.
+        /// Returns true on success.
+        /// </summary>
+        public static bool SaveQuestProgress(string questProgressJSON)
+        {
+            string savePath = Application.persistentDataPath + "/insimul_quest_progress.json";
+            try
+            {
+                System.IO.File.WriteAllText(savePath, questProgressJSON);
+                Debug.Log("[Insimul] SaveQuestProgress: saved");
+                return true;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[Insimul] SaveQuestProgress failed: {e.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Load quest progress JSON from the dedicated file.
+        /// Returns null if no quest progress has been saved.
+        /// </summary>
+        public static string LoadQuestProgress()
+        {
+            string savePath = Application.persistentDataPath + "/insimul_quest_progress.json";
+            if (!System.IO.File.Exists(savePath))
+            {
+                return null;
+            }
+            try
+            {
+                string json = System.IO.File.ReadAllText(savePath);
+                Debug.Log("[Insimul] LoadQuestProgress: loaded");
+                return json;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[Insimul] LoadQuestProgress failed: {e.Message}");
+                return null;
+            }
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────
 
         private static T[] LoadFilteredArray<T>(string resourcePath, string settlementId) where T : class

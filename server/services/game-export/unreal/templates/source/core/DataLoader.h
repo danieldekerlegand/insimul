@@ -232,6 +232,20 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadGameState(int32 SlotIndex);
 
+    /**
+     * Save quest progress JSON to a dedicated file.
+     * Returns true on success.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    bool SaveQuestProgress(const FString& QuestProgressJSON);
+
+    /**
+     * Load quest progress JSON from the dedicated file.
+     * Returns empty string if no quest progress has been saved.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadQuestProgress();
+
     // ── Status ─────────────────────────────────────────────────────────
 
     /** True once at least one file has been loaded successfully. */

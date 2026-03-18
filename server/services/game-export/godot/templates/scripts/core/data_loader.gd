@@ -336,6 +336,36 @@ func load_game_state(slot_index: int) -> Dictionary:
 	print("[Insimul] load_game_state: loaded slot %d" % slot_index)
 	return json.data if json.data is Dictionary else {}
 
+## Save quest progress dictionary to a dedicated file.
+## Returns true on success.
+func save_quest_progress(quest_progress: Dictionary) -> bool:
+	var save_path := "user://insimul_quest_progress.json"
+	var json := JSON.stringify(quest_progress)
+	var file := FileAccess.open(save_path, FileAccess.WRITE)
+	if file == null:
+		push_error("[Insimul] save_quest_progress: could not open %s for writing" % save_path)
+		return false
+	file.store_string(json)
+	print("[Insimul] save_quest_progress: saved")
+	return true
+
+## Load quest progress dictionary from the dedicated file.
+## Returns empty dictionary if no quest progress has been saved.
+func load_quest_progress() -> Dictionary:
+	var save_path := "user://insimul_quest_progress.json"
+	if not FileAccess.file_exists(save_path):
+		return {}
+	var file := FileAccess.open(save_path, FileAccess.READ)
+	if file == null:
+		return {}
+	var json := JSON.new()
+	var error := json.parse(file.get_as_text())
+	if error != OK:
+		push_error("[Insimul] load_quest_progress: JSON parse error")
+		return {}
+	print("[Insimul] load_quest_progress: loaded")
+	return json.data if json.data is Dictionary else {}
+
 # ── Internal caching ──────────────────────────────────────────
 
 func _ensure_world_ir() -> void:

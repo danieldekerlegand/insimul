@@ -824,11 +824,22 @@ export class BabylonGame {
       restoreMerchantStates: () => { /* Not tracked locally yet */ },
       restoreCurrentZone: (zone) => { this.currentZone = zone; },
       restoreQuestProgress: (progress) => {
-        for (const q of (this.quests || [])) {
-          const saved = progress[q.id];
-          if (saved) {
-            q.status = saved.status;
-            q.progress = saved.progress;
+        // The overlay is already deserialized by WorldStateManager.applyState(),
+        // so re-merge base quests with the restored overlay to update this.quests.
+        if (this.questOverlay && this.quests) {
+          this.quests = this.questOverlay.mergeQuests(this.quests);
+          this.syncActiveQuestToHud();
+          this.questTracker?.updateQuests(this.config.worldId);
+          return;
+        }
+        // Fallback for flat format (no overlay active)
+        if (progress && typeof progress === 'object' && !('overrides' in progress)) {
+          for (const q of (this.quests || [])) {
+            const saved = progress[q.id];
+            if (saved) {
+              if (saved.status !== undefined) q.status = saved.status;
+              if (saved.progress !== undefined) q.progress = saved.progress;
+            }
           }
         }
       },
@@ -1415,6 +1426,7 @@ export class BabylonGame {
     // Initialize WorldStateManager for save/load
     this.worldStateManager = new WorldStateManager(this.dataSource);
     this.worldStateManager.setGameSource(this.createGameStateSource());
+    this.worldStateManager.attachTriggers(this.eventBus);
     this.worldStateManager.startAutoSave(0);
 
     this.gameMenuSystem = new GameMenuSystem(this.guiManager.advancedTexture, menuCallbacks);
@@ -4861,12 +4873,16 @@ export class BabylonGame {
     // Attach quest overlay to DataSource so all quest reads/writes
     // go through the playthrough-scoped overlay instead of the world.
     this.dataSource.questOverlay = this.questOverlay;
+    // Attach quest overlay to WorldStateManager for save/load serialization
+    this.worldStateManager?.setQuestOverlay(this.questOverlay);
 
     if (!this.config.authToken || !this.config.worldId) return;
 
     // Use pre-selected playthrough ID if provided
     if (this.config.playthroughId) {
       this.playthroughId = this.config.playthroughId;
+      // Restore quest progress from previous session
+      await this.restoreQuestProgressFromServer();
       return;
     }
 
@@ -4887,6 +4903,24 @@ export class BabylonGame {
     } catch (error) {
       console.error('Error starting playthrough:', error);
       // Continue without playthrough for development/testing
+    }
+  }
+
+  /** Restore quest progress from a previous session's saved data. */
+  private async restoreQuestProgressFromServer(): Promise<void> {
+    if (!this.playthroughId) return;
+    try {
+      const saved = await this.dataSource.loadQuestProgress(this.playthroughId);
+      if (saved) {
+        this.questOverlay.deserialize(saved);
+        if (this.quests) {
+          this.quests = this.questOverlay.mergeQuests(this.quests);
+          this.syncActiveQuestToHud();
+          this.questTracker?.updateQuests(this.config.worldId);
+        }
+      }
+    } catch (err) {
+      console.error('[BabylonGame] Failed to restore quest progress:', err);
     }
   }
 

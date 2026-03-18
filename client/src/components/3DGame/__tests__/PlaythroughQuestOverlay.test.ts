@@ -203,6 +203,55 @@ describe('PlaythroughQuestOverlay', () => {
     });
   });
 
+  describe('persistence round-trip', () => {
+    it('should preserve quest state across serialize/deserialize/merge cycle', () => {
+      // Simulate a game session: accept quest, make progress, complete one
+      overlay.updateQuest('q1', { status: 'active', assignedAt: '2026-03-18' });
+      overlay.updateQuest('q1', { progress: { step: 3 }, status: 'completed', completedAt: '2026-03-18' });
+      overlay.updateQuest('q3', { status: 'failed' });
+      overlay.createQuest({ id: 'side-1', title: 'Side Quest', status: 'active', progress: { step: 1 } });
+
+      // Save
+      const saved = overlay.serialize();
+
+      // Simulate new session: create fresh overlay and restore
+      const restored = new PlaythroughQuestOverlay();
+      restored.deserialize(saved);
+
+      // Merge with base quests (simulating loadQuests)
+      const merged = restored.mergeQuests(baseQuests);
+
+      // Verify quest states survived the round-trip
+      expect(merged.find(q => q.id === 'q1')!.status).toBe('completed');
+      expect(merged.find(q => q.id === 'q1')!.progress).toEqual({ step: 3 });
+      expect(merged.find(q => q.id === 'q2')!.status).toBe('available'); // unchanged
+      expect(merged.find(q => q.id === 'q3')!.status).toBe('failed');
+      expect(merged.find(q => q.id === 'side-1')!.title).toBe('Side Quest');
+      expect(merged.find(q => q.id === 'side-1')!.status).toBe('active');
+    });
+
+    it('should handle multiple serialize/deserialize cycles', () => {
+      // Session 1: start quest
+      overlay.updateQuest('q1', { status: 'active' });
+      const save1 = overlay.serialize();
+
+      // Session 2: restore and make progress
+      const session2 = new PlaythroughQuestOverlay();
+      session2.deserialize(save1);
+      session2.updateQuest('q1', { progress: { step: 2 } });
+      const save2 = session2.serialize();
+
+      // Session 3: restore and complete
+      const session3 = new PlaythroughQuestOverlay();
+      session3.deserialize(save2);
+      session3.updateQuest('q1', { status: 'completed' });
+
+      const merged = session3.mergeQuests(baseQuests);
+      expect(merged.find(q => q.id === 'q1')!.status).toBe('completed');
+      expect(merged.find(q => q.id === 'q1')!.progress).toEqual({ step: 2 });
+    });
+  });
+
   describe('playthrough isolation', () => {
     it('should allow different overlays to track different playthrough states', () => {
       const playerA = new PlaythroughQuestOverlay();
