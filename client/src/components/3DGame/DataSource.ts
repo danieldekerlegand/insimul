@@ -7,8 +7,13 @@
  */
 
 import { SaveQueue, type QueuedOperation } from './SaveQueue';
+import { PlaythroughQuestOverlay } from './PlaythroughQuestOverlay';
 
 export interface DataSource {
+  /** Playthrough-scoped quest overlay. When set, loadQuests merges overlay
+   *  state on top of base world quests, and updateQuest writes to the overlay
+   *  instead of the world. */
+  questOverlay: PlaythroughQuestOverlay | null;
   loadWorld(worldId: string): Promise<any>;
   loadCharacters(worldId: string): Promise<any[]>;
   loadActions(worldId: string): Promise<any[]>;
@@ -54,6 +59,7 @@ export interface DataSource {
  * API-based data source for Insimul
  */
 export class ApiDataSource implements DataSource {
+  public questOverlay: PlaythroughQuestOverlay | null = null;
   private saveQueue: SaveQueue;
 
   constructor(private authToken: string) {
@@ -142,7 +148,8 @@ export class ApiDataSource implements DataSource {
 
   async loadQuests(worldId: string): Promise<any[]> {
     const res = await fetch(`/api/worlds/${worldId}/quests`, { headers: this.getHeaders() });
-    return res.ok ? await res.json() : [];
+    const baseQuests = res.ok ? await res.json() : [];
+    return this.questOverlay ? this.questOverlay.mergeQuests(baseQuests) : baseQuests;
   }
 
   async loadSettlements(worldId: string): Promise<any[]> {
@@ -211,6 +218,11 @@ export class ApiDataSource implements DataSource {
   }
 
   async updateQuest(questId: string, data: any): Promise<void> {
+    if (this.questOverlay) {
+      this.questOverlay.updateQuest(questId, data);
+      return;
+    }
+    // Fallback: queue direct world write (no playthrough active)
     await this.saveQueue.enqueue('updateQuest', `quest:${questId}`, { questId, data });
   }
 
@@ -557,6 +569,7 @@ function generateLocalMerchantStock(occupation: string): any {
  * File-based data source for exported games
  */
 export class FileDataSource implements DataSource {
+  public questOverlay: PlaythroughQuestOverlay | null = null;
   private worldData: any = null;
   private worldIR: any = null;
   readonly localState: LocalGameState;
@@ -627,8 +640,8 @@ export class FileDataSource implements DataSource {
   async loadQuests(worldId: string): Promise<any[]> {
     await this.waitForData();
     const baseQuests = this.worldData?.quests || [];
+    if (this.questOverlay) return this.questOverlay.mergeQuests(baseQuests);
     const updates = this.localState.getQuestUpdates();
-
     return baseQuests.map((q: any) => {
       const update = updates[q.id];
       if (!update) return q;
@@ -822,6 +835,10 @@ export class FileDataSource implements DataSource {
   }
 
   async updateQuest(questId: string, data: any): Promise<void> {
+    if (this.questOverlay) {
+      this.questOverlay.updateQuest(questId, data);
+      return;
+    }
     this.localState.updateQuest(questId, data);
   }
 

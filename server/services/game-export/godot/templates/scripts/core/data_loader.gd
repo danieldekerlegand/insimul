@@ -46,6 +46,8 @@ func load_base_rules() -> Array:
 	var systems: Dictionary = _world_ir.get("systems", {})
 	return systems.get("rules", [])
 
+## Load base quests. Per-playthrough state (status, progress) should be
+## overlaid at runtime from save game state (see save_game_state/load_game_state).
 func load_quests() -> Array:
 	return _load_json_array("quests.json")
 

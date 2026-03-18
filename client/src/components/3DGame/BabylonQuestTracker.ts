@@ -11,6 +11,7 @@ import {
 import { Scene, Vector3 } from "@babylonjs/core";
 import { QuestWaypointManager } from './QuestWaypointManager';
 import type { GamePrologEngine } from './GamePrologEngine';
+import type { DataSource } from './DataSource';
 
 export interface QuestObjective {
   type: string;
@@ -350,6 +351,9 @@ export class BabylonQuestTracker {
   private prologEngine: GamePrologEngine | null = null;
   private playerId: string = 'player';
 
+  // Data source for overlay-aware quest loading
+  private dataSource: DataSource | null = null;
+
   // Callbacks
   private onClose: (() => void) | null = null;
 
@@ -558,15 +562,26 @@ export class BabylonQuestTracker {
     this.updateQuestsDisplay();
   }
 
+  public setDataSource(dataSource: DataSource): void {
+    this.dataSource = dataSource;
+  }
+
   public async updateQuests(worldId: string) {
     try {
       this.worldId = worldId;
-      const response = await fetch(`/api/worlds/${worldId}/quests`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch quests');
+
+      if (this.dataSource) {
+        // Load through DataSource (overlay-aware)
+        this.quests = await this.dataSource.loadQuests(worldId);
+      } else {
+        // Fallback: direct API call
+        const response = await fetch(`/api/worlds/${worldId}/quests`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch quests');
+        }
+        this.quests = await response.json();
       }
 
-      this.quests = await response.json();
       this.updateQuestsDisplay();
       this.updateWaypoints();
     } catch (error) {

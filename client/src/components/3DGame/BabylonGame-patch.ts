@@ -129,7 +129,6 @@ export class BabylonGame {
 
       const allObjectivesComplete = quest.objectives?.every((obj: any) => obj.completed);
 
-      // TODO: Write progress/completion to playthrough delta layer, not world data.
       await this.dataSource.updateQuest(questId, {
         progress,
       });

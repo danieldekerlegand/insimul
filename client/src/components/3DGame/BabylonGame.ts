@@ -125,6 +125,7 @@ import { BuildingInteriorGenerator, InteriorLayout } from "@/components/3DGame/B
 import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo, type MenuJournalData } from "@/components/3DGame/GameMenuSystem.ts";
 import { WorldStateManager, type GameStateSource, type GameStateTarget } from "@/components/3DGame/WorldStateManager.ts";
 import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts";
+import { PlaythroughQuestOverlay } from "@/components/3DGame/PlaythroughQuestOverlay.ts";
 import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
 import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
 import { GameEventBus } from "@/components/3DGame/GameEventBus.ts";
@@ -510,6 +511,7 @@ export class BabylonGame {
   // Zone system
   private currentZone: { id: string; name: string; type: string } | null = null;
   private playthroughId: string | null = null;
+  private questOverlay: PlaythroughQuestOverlay = new PlaythroughQuestOverlay();
   private currentReputation: any | null = null;
 
   // VR
@@ -1452,11 +1454,7 @@ export class BabylonGame {
       const currentActive = (this.quests || []).filter((q: any) => q.status === 'active' && q.id !== questData.id);
       for (const q of currentActive) {
         try {
-          await fetch(`/api/quests/${q.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'available' }),
-          });
+          await this.dataSource.updateQuest(q.id, { status: 'available' });
           q.status = 'available';
         } catch (e) {
           console.warn('[BabylonGame] Failed to demote quest:', q.id, e);
@@ -1492,25 +1490,26 @@ export class BabylonGame {
     this.chatPanel.setOnQuestTurnedIn(async (questId, rewards) => {
       // Use QuestCompletionManager for the full ceremony
       if (this.questCompletionManager) {
-        try {
-          const resp = await fetch(`/api/quests/${questId}`);
-          if (resp.ok) {
-            const questData = await resp.json();
-            await this.questCompletionManager.completeQuest({
-              id: questData.id,
-              worldId: questData.worldId || this.config.worldId,
-              title: questData.title,
-              questType: questData.questType,
-              experienceReward: questData.experienceReward || 0,
-              itemRewards: questData.itemRewards,
-              skillRewards: questData.skillRewards,
-              unlocks: questData.unlocks,
-              questChainId: questData.questChainId,
-              questChainOrder: questData.questChainOrder,
-              assignedBy: questData.assignedBy,
-            });
-          }
-        } catch (e) {
+        const questData = this.quests.find(q => q.id === questId);
+        if (questData) {
+          // Mark completed in overlay
+          await this.dataSource.updateQuest(questId, {
+            status: 'completed',
+            completedAt: new Date().toISOString(),
+          });
+          await this.questCompletionManager.completeQuest({
+            id: questData.id,
+            worldId: questData.worldId || this.config.worldId,
+            title: questData.title,
+            questType: questData.questType,
+            experienceReward: questData.experienceReward || 0,
+            itemRewards: questData.itemRewards,
+            skillRewards: questData.skillRewards,
+            unlocks: questData.unlocks,
+            questChainId: questData.questChainId,
+            questChainOrder: questData.questChainOrder,
+            assignedBy: questData.assignedBy,
+          });
         }
       }
       this.questTracker?.updateQuests(this.config.worldId);
@@ -1641,6 +1640,7 @@ export class BabylonGame {
 
     // Initialize quest tracker
     this.questTracker = new BabylonQuestTracker(this.guiManager.advancedTexture, scene);
+    this.questTracker.setDataSource(this.dataSource);
     if (this.prologEngine) {
       this.questTracker.setPrologEngine(this.prologEngine);
     }
@@ -1918,6 +1918,7 @@ export class BabylonGame {
     this.questCompletionManager = new QuestCompletionManager(scene, this.guiManager.advancedTexture);
     this.questCompletionManager.setEventBus(this.eventBus);
     this.questCompletionManager.setGamificationTracker(this.gamificationTracker);
+    this.questCompletionManager.setDataSource(this.dataSource);
     if (this.questTracker) {
       this.questCompletionManager.setQuestTracker(this.questTracker);
     }
@@ -1945,27 +1946,26 @@ export class BabylonGame {
     this.prologEngine.subscribeToEventBus(this.eventBus);
     this.prologEngine.setOnQuestCompleted(async (questId) => {
       if (this.questCompletionManager) {
-        try {
-          const resp = await fetch(`/api/quests/${questId}`);
-          if (resp.ok) {
-            const questData = await resp.json();
-            // TODO: Write completion to playthrough delta layer, not world data.
-            // For now, completion is tracked in-memory only for this session.
-            await this.questCompletionManager.completeQuest({
-              id: questData.id,
-              worldId: questData.worldId || this.config.worldId,
-              title: questData.title,
-              questType: questData.questType,
-              experienceReward: questData.experienceReward || 0,
-              itemRewards: questData.itemRewards,
-              skillRewards: questData.skillRewards,
-              unlocks: questData.unlocks,
-              questChainId: questData.questChainId,
-              questChainOrder: questData.questChainOrder,
-              assignedBy: questData.assignedBy,
-            });
-          }
-        } catch (e) {
+        const questData = this.quests.find(q => q.id === questId);
+        if (questData) {
+          // Mark completed in overlay
+          await this.dataSource.updateQuest(questId, {
+            status: 'completed',
+            completedAt: new Date().toISOString(),
+          });
+          await this.questCompletionManager.completeQuest({
+            id: questData.id,
+            worldId: questData.worldId || this.config.worldId,
+            title: questData.title,
+            questType: questData.questType,
+            experienceReward: questData.experienceReward || 0,
+            itemRewards: questData.itemRewards,
+            skillRewards: questData.skillRewards,
+            unlocks: questData.unlocks,
+            questChainId: questData.questChainId,
+            questChainOrder: questData.questChainOrder,
+            assignedBy: questData.assignedBy,
+          });
         }
       }
       this.updateQuestIndicators();
@@ -4858,6 +4858,10 @@ export class BabylonGame {
   }
 
   private async startPlaythrough(): Promise<void> {
+    // Attach quest overlay to DataSource so all quest reads/writes
+    // go through the playthrough-scoped overlay instead of the world.
+    this.dataSource.questOverlay = this.questOverlay;
+
     if (!this.config.authToken || !this.config.worldId) return;
 
     // Use pre-selected playthrough ID if provided
@@ -9469,20 +9473,12 @@ export class BabylonGame {
       // Demote current active quest(s) to 'available'
       const currentActive = (this.quests || []).filter((q: any) => q.status === 'active');
       for (const q of currentActive) {
-        await fetch(`/api/quests/${q.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'available' }),
-        });
+        await this.dataSource.updateQuest(q.id, { status: 'available' });
         q.status = 'available';
       }
 
       // Promote selected quest to 'active'
-      await fetch(`/api/quests/${questId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'active' }),
-      });
+      await this.dataSource.updateQuest(questId, { status: 'active' });
       const promoted = (this.quests || []).find((q: any) => q.id === questId);
       if (promoted) promoted.status = 'active';
 
@@ -9529,15 +9525,13 @@ export class BabylonGame {
    */
   private async handleAutoQuestCompletion(quest: { id: string; worldId: string; title: string }): Promise<void> {
     try {
-      // Fetch full quest data from server for rewards
-      const resp = await fetch(`/api/quests/${quest.id}`);
-      if (!resp.ok) return;
-      const questData = await resp.json();
+      const questData = this.quests.find(q => q.id === quest.id);
+      if (!questData) return;
 
-      // Mark as completed on server
-      await fetch(`/api/worlds/${quest.worldId}/quests/${quest.id}/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      // Mark as completed in overlay (not world)
+      await this.dataSource.updateQuest(quest.id, {
+        status: 'completed',
+        completedAt: new Date().toISOString(),
       });
 
       // Trigger full celebration ceremony
