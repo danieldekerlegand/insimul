@@ -41,6 +41,11 @@ const QUEST_TYPE_SKILL_POINTS: Record<string, { skillId: string; name: string; b
     { skillId: 'listening', name: 'Listening', base: 2 },
     { skillId: 'reading', name: 'Reading', base: 1 },
   ],
+  emergency: [
+    { skillId: 'speaking', name: 'Speaking', base: 2 },
+    { skillId: 'vocabulary', name: 'Vocabulary', base: 2 },
+    { skillId: 'listening', name: 'Listening', base: 1 },
+  ],
 };
 
 export interface SkillReward {
