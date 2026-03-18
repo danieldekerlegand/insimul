@@ -34,6 +34,7 @@ import type { NoticeArticle } from './BabylonNoticeBoardPanel';
 import type { PlayerAssessmentData } from '@shared/assessment-types';
 import type { GameSaveState } from '@shared/game-engine/types';
 import type { MainQuestChapter, ChapterProgress } from '@shared/quest/main-quest-chapters';
+import type { PortfolioData } from '@shared/quest/portfolio-types';
 import {
   SKILL_TIERS,
   createDefaultSkillTreeState,
@@ -229,6 +230,7 @@ export interface GameMenuCallbacks {
   onSaveGame?: (slotIndex: number) => Promise<boolean>;
   onLoadGame?: (slotIndex: number) => Promise<boolean>;
   getJournalData?: () => MenuJournalData | null;
+  getPortfolioData?: () => PortfolioData | null;
 }
 
 export type MenuTab =
@@ -883,6 +885,13 @@ export class GameMenuSystem {
     for (const entry of data.chapters) {
       this.renderJournalChapter(stack, entry, data.currentChapterId);
     }
+
+    // Portfolio & Learning Journal sections
+    const portfolio = this.callbacks.getPortfolioData?.();
+    if (portfolio) {
+      this.renderPortfolioSection(stack, portfolio);
+      this.renderLearningJournalSection(stack, portfolio);
+    }
   }
 
   private renderJournalChapter(
@@ -1000,6 +1009,166 @@ export class GameMenuSystem {
       lockMsg.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       lockMsg.paddingLeft = "4px";
       card.addControl(lockMsg);
+    }
+  }
+
+  // ─── PORTFOLIO & LEARNING JOURNAL ──────────────────────────────────────
+
+  private renderPortfolioSection(parent: StackPanel, portfolio: PortfolioData): void {
+    this.addDivider(parent);
+    this.addSectionHeader(parent, "Quest Portfolio");
+    this.addSubHeader(parent, "Your completed quest achievements");
+
+    const { summary } = portfolio;
+
+    // Summary card
+    const summaryCard = this.makeCard(parent);
+    this.addStatRow(summaryCard, "Quests Completed", `${summary.totalCompleted}`, COLORS.accentGreen);
+    this.addStatRow(summaryCard, "Total XP Earned", `${summary.totalXP}`, COLORS.accentYellow);
+    this.addStatRow(summaryCard, "Current Streak", `${summary.currentStreak}`, COLORS.accent);
+    this.addStatRow(summaryCard, "Longest Streak", `${summary.longestStreak}`, COLORS.accent);
+    this.addStatRow(summaryCard, "Quest Givers Met", `${summary.uniqueQuestGivers}`, COLORS.textSecondary);
+    this.addStatRow(summaryCard, "Quest Chains", `${summary.chainsCompleted}`, COLORS.textSecondary);
+
+    // By quest type breakdown
+    if (Object.keys(summary.byType).length > 0) {
+      this.addDivider(parent);
+      const typeCard = this.makeCard(parent);
+      const typeHeader = new TextBlock();
+      typeHeader.text = "By Quest Type";
+      typeHeader.color = COLORS.textPrimary;
+      typeHeader.fontSize = 13;
+      typeHeader.fontWeight = "bold";
+      typeHeader.height = "24px";
+      typeHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      typeHeader.paddingLeft = "4px";
+      typeCard.addControl(typeHeader);
+
+      for (const [type, count] of Object.entries(summary.byType)) {
+        this.addStatRow(typeCard, type, `${count}`, COLORS.textSecondary);
+      }
+    }
+
+    // Recent completions (show up to 10)
+    if (portfolio.entries.length > 0) {
+      this.addDivider(parent);
+      const recentHeader = new TextBlock();
+      recentHeader.text = `Recent Completions (${Math.min(portfolio.entries.length, 10)} of ${portfolio.entries.length})`;
+      recentHeader.color = COLORS.textPrimary;
+      recentHeader.fontSize = 13;
+      recentHeader.fontWeight = "bold";
+      recentHeader.height = "26px";
+      recentHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      recentHeader.paddingLeft = "4px";
+      parent.addControl(recentHeader);
+
+      for (const entry of portfolio.entries.slice(0, 10)) {
+        this.renderPortfolioEntry(parent, entry);
+      }
+    }
+  }
+
+  private renderPortfolioEntry(parent: StackPanel, entry: PortfolioData['entries'][0]): void {
+    const card = this.makeCard(parent);
+
+    // Title row
+    const titleRow = new Rectangle();
+    titleRow.width = 1;
+    titleRow.height = "24px";
+    titleRow.thickness = 0;
+    titleRow.background = "transparent";
+    card.addControl(titleRow);
+
+    const title = new TextBlock();
+    title.text = `✓  ${entry.title}`;
+    title.color = COLORS.accentGreen;
+    title.fontSize = 13;
+    title.fontWeight = "bold";
+    title.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    title.paddingLeft = "4px";
+    titleRow.addControl(title);
+
+    const xpBadge = new TextBlock();
+    xpBadge.text = `+${entry.xpEarned} XP`;
+    xpBadge.color = COLORS.accentYellow;
+    xpBadge.fontSize = 11;
+    xpBadge.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    xpBadge.paddingRight = "4px";
+    titleRow.addControl(xpBadge);
+
+    // Details row
+    const details: string[] = [entry.questType, entry.difficulty];
+    if (entry.cefrLevel) details.push(`CEFR ${entry.cefrLevel}`);
+    if (entry.assignedBy) details.push(`from ${entry.assignedBy}`);
+    const date = new Date(entry.completedAt);
+    details.push(date.toLocaleDateString());
+
+    const detailText = new TextBlock();
+    detailText.text = details.join("  ·  ");
+    detailText.color = COLORS.textMuted;
+    detailText.fontSize = 11;
+    detailText.height = "18px";
+    detailText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    detailText.paddingLeft = "4px";
+    card.addControl(detailText);
+
+    // Skills gained
+    if (entry.skillsGained.length > 0) {
+      const skillsText = new TextBlock();
+      skillsText.text = `Skills: ${entry.skillsGained.join(", ")}`;
+      skillsText.color = COLORS.accent;
+      skillsText.fontSize = 11;
+      skillsText.height = "18px";
+      skillsText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      skillsText.paddingLeft = "4px";
+      card.addControl(skillsText);
+    }
+  }
+
+  private renderLearningJournalSection(parent: StackPanel, portfolio: PortfolioData): void {
+    if (portfolio.journal.length === 0) return;
+
+    this.addDivider(parent);
+    this.addSectionHeader(parent, "Learning Journal");
+    this.addSubHeader(parent, "Daily progress log");
+
+    // Show up to 14 days
+    for (const entry of portfolio.journal.slice(0, 14)) {
+      const card = this.makeCard(parent);
+
+      // Date header
+      const dateRow = new Rectangle();
+      dateRow.width = 1;
+      dateRow.height = "22px";
+      dateRow.thickness = 0;
+      dateRow.background = "transparent";
+      card.addControl(dateRow);
+
+      const dateText = new TextBlock();
+      const d = new Date(entry.date + 'T00:00:00');
+      dateText.text = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+      dateText.color = COLORS.textPrimary;
+      dateText.fontSize = 13;
+      dateText.fontWeight = "bold";
+      dateText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      dateText.paddingLeft = "4px";
+      dateRow.addControl(dateText);
+
+      const questCount = new TextBlock();
+      questCount.text = `${entry.questsCompleted} quest${entry.questsCompleted !== 1 ? 's' : ''}`;
+      questCount.color = COLORS.accentGreen;
+      questCount.fontSize = 11;
+      questCount.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      questCount.paddingRight = "4px";
+      dateRow.addControl(questCount);
+
+      // Stats
+      this.addStatRow(card, "XP Earned", `+${entry.xpEarned}`, COLORS.accentYellow);
+      this.addStatRow(card, "Skills Practiced", entry.skillsPracticed.join(", "), COLORS.textSecondary);
+      this.addStatRow(card, "Hardest Level", entry.highestDifficulty, COLORS.textSecondary);
+      if (entry.streakCount > 0) {
+        this.addStatRow(card, "Streak", `${entry.streakCount}`, COLORS.accent);
+      }
     }
   }
 

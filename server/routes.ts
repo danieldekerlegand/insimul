@@ -9660,6 +9660,19 @@ Respond with this JSON structure:
     }
   });
 
+  // Quest Portfolio & Learning Journal
+  app.get("/api/worlds/:worldId/portfolio/:playerName", async (req, res) => {
+    try {
+      const { worldId, playerName } = req.params;
+      const { getPlayerPortfolio } = await import('./services/quest-portfolio.js');
+      const portfolio = await getPlayerPortfolio(worldId, playerName);
+      res.json(portfolio);
+    } catch (error) {
+      console.error('[Portfolio] Error fetching portfolio:', error);
+      res.status(500).json({ error: "Failed to fetch portfolio" });
+    }
+  });
+
   // Quest Chain Endpoints
   app.post("/api/worlds/:worldId/quest-chains/generate", async (req, res) => {
     try {
