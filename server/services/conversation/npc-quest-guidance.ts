@@ -9,6 +9,7 @@
  */
 
 import type { Quest } from '@shared/schema';
+import type { QuestParticipant, NpcRole } from '../../../shared/language/multi-npc-quest-scenarios.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,12 +26,16 @@ export interface QuestObjective {
   grammarPattern?: string;
 }
 
+export type GuidanceRole = 'quest_giver' | 'objective_target' | 'related_npc' | 'participant';
+
 export interface QuestGuidanceContext {
   questId: string;
   questTitle: string;
   questDescription: string;
-  role: 'quest_giver' | 'objective_target' | 'related_npc';
+  role: GuidanceRole;
   relevantObjectives: QuestObjective[];
+  /** For multi-NPC quests, the participant's specific role */
+  participantRole?: NpcRole;
 }
 
 export interface QuestGuidanceResult {
@@ -125,7 +130,8 @@ const DEFAULT_GUIDANCE: GuidanceStrategy = {
 // ── Core Functions ──────────────────────────────────────────────────────────
 
 /**
- * Find active quests where the given NPC is relevant (quest giver or objective target).
+ * Find active quests where the given NPC is relevant.
+ * Checks: quest giver, objective target, and multi-NPC participant roles.
  */
 export function findRelevantQuests(
   npcId: string,
@@ -139,32 +145,48 @@ export function findRelevantQuests(
 
     const objectives = (quest.objectives || []) as QuestObjective[];
     const relevantObjectives: QuestObjective[] = [];
-    let role: QuestGuidanceContext['role'] = 'related_npc';
+    let role: GuidanceRole = 'related_npc';
+    let participantRole: NpcRole | undefined;
 
     // Check if this NPC is the quest giver
     if (quest.assignedByCharacterId === npcId) {
       role = 'quest_giver';
     }
 
-    // Check if any objectives target this NPC
+    // Check multi-NPC participants stored in quest progress
+    const participants = getQuestParticipants(quest);
+    const participant = participants.find(p => p.npcId === npcId);
+    if (participant) {
+      participantRole = participant.role;
+      if (role === 'related_npc') {
+        role = 'participant';
+      }
+    }
+
+    // Check if any objectives target this NPC (by ID or name)
+    const npcNameLower = npcName.toLowerCase();
     for (const obj of objectives) {
       if (obj.completed) continue;
 
       const targetMatches =
         obj.targetId === npcId ||
-        (obj.target && npcName && obj.target.toLowerCase() === npcName.toLowerCase());
+        (obj.target && obj.target.toLowerCase() === npcNameLower);
 
-      if (targetMatches) {
+      // Also match if the objective description mentions this NPC by name
+      const descriptionMentions = obj.description &&
+        obj.description.toLowerCase().includes(npcNameLower);
+
+      if (targetMatches || descriptionMentions) {
         relevantObjectives.push(obj);
-        if (role !== 'quest_giver') {
+        if (role !== 'quest_giver' && role !== 'participant') {
           role = 'objective_target';
         }
       }
     }
 
-    // If NPC is quest giver but no specific objectives target them,
+    // If NPC is quest giver or participant but no specific objectives target them,
     // include all incomplete objectives for context
-    if (role === 'quest_giver' && relevantObjectives.length === 0) {
+    if ((role === 'quest_giver' || role === 'participant') && relevantObjectives.length === 0) {
       for (const obj of objectives) {
         if (!obj.completed) {
           relevantObjectives.push(obj);
@@ -172,19 +194,47 @@ export function findRelevantQuests(
       }
     }
 
-    if (relevantObjectives.length > 0 || role === 'quest_giver') {
+    if (relevantObjectives.length > 0 || role === 'quest_giver' || role === 'participant') {
       contexts.push({
         questId: quest.id,
         questTitle: quest.title ?? 'Unnamed Quest',
         questDescription: quest.description ?? '',
         role,
         relevantObjectives,
+        participantRole,
       });
     }
   }
 
   return contexts;
 }
+
+/**
+ * Extract participant data from a quest's progress field.
+ * Multi-NPC quests store participants in progress.participants.
+ */
+export function getQuestParticipants(quest: Quest): QuestParticipant[] {
+  const progress = quest.progress as Record<string, any> | null;
+  if (!progress?.participants) return [];
+  if (!Array.isArray(progress.participants)) return [];
+  return progress.participants as QuestParticipant[];
+}
+
+// ── Participant role guidance for multi-NPC quests ───────────────────────────
+
+const PARTICIPANT_ROLE_GUIDANCE: Record<string, string> = {
+  sender: 'You are preparing a delivery for the player. Confirm the order details, describe the items clearly, and ensure the player understands where to take them.',
+  receiver: 'You are expecting a delivery from the player. Ask about what they are bringing, verify the details, and express appreciation when the delivery is confirmed.',
+  mediator_target: 'You are one side of a dispute the player is mediating. Explain your perspective passionately but fairly. Be open to compromise if the player makes a good case.',
+  guide: 'You are showing the player around town. Introduce businesses and their owners with enthusiasm. Share local knowledge and encourage the player to practice the language.',
+  shopkeeper: 'The player is visiting your business as part of a multi-stop quest. Be welcoming, describe your goods and services, and engage the player in conversation about your trade.',
+  interviewer: 'The player is interviewing for a position. Ask them about their skills and experience. Conduct the interview naturally in the target language.',
+  host: 'You are hosting or organizing an event. Discuss arrangements, share your vision, and ask the player for their input on plans.',
+  competitor: 'The player is comparing your prices and products with another merchant. Be competitive — highlight what makes your business special and negotiate confidently.',
+  teacher: 'You have knowledge the player needs. Share it naturally through conversation, teaching vocabulary and concepts related to your expertise.',
+  supplier: 'You provide materials or goods that the player needs for their quest. Discuss quantities, quality, and prices in the target language.',
+  customer: 'You need something the player can help with. Describe what you need clearly and negotiate the terms.',
+};
 
 /**
  * Build the system prompt addition for NPC-guided conversation mode.
@@ -207,6 +257,8 @@ export function buildQuestGuidance(
 
     if (ctx.role === 'quest_giver') {
       lines.push('Role: You are the quest giver. Ask about their progress, offer encouragement and hints.');
+    } else if (ctx.role === 'participant' && ctx.participantRole) {
+      lines.push(`Role: ${PARTICIPANT_ROLE_GUIDANCE[ctx.participantRole] ?? 'You are involved in this quest. Help the player with what they need.'}`);
     } else if (ctx.role === 'objective_target') {
       lines.push('Role: You are directly involved in a quest objective the player needs to complete.');
     }
