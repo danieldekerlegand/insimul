@@ -419,7 +419,7 @@
     {
       "path": "shared/prolog/quest-converter.ts",
       "description": "Converts quests to Prolog predicates for knowledge-base.pl. Format changes affect all exported engines that load the KB.",
-      "hash": "60fc831c1143f4af08ffe30d44dc12727bec02de71fb950fe27d46636110a690",
+      "hash": "7841528dd8183cbf99d1d92daec9f5d107cbe428a514fafc274a3879721c2a07",
       "engineMappings": [
         {
           "engine": "unreal",
