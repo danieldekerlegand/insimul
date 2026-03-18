@@ -32,6 +32,7 @@ import { NotificationStore } from './NotificationStore';
 import type { SkillTreeStats } from './BabylonSkillTreePanel';
 import type { NoticeArticle } from './BabylonNoticeBoardPanel';
 import type { PlayerAssessmentData } from '@shared/assessment-types';
+import type { GameSaveState } from '@shared/game-engine/types';
 import {
   SKILL_TIERS,
   createDefaultSkillTreeState,
@@ -170,6 +171,13 @@ export interface MenuMapData {
   worldSize: number;
 }
 
+export interface SaveSlotInfo {
+  slotIndex: number;
+  savedAt: string;
+  gameTime: number;
+  zoneName?: string;
+}
+
 /** Callback interface for requesting data and dispatching actions from the menu */
 export interface GameMenuCallbacks {
   getPlayerData: () => MenuPlayerData | null;
@@ -202,6 +210,9 @@ export interface GameMenuCallbacks {
   onToggleDebug?: () => void;
   onToggleVR?: () => void;
   onToggleModule?: (moduleId: string, enabled: boolean) => void;
+  getSaveSlots?: () => Promise<Array<SaveSlotInfo | null>>;
+  onSaveGame?: (slotIndex: number) => Promise<boolean>;
+  onLoadGame?: (slotIndex: number) => Promise<boolean>;
 }
 
 export type MenuTab =
@@ -276,6 +287,11 @@ export class GameMenuSystem {
   private skillTreeState: SkillTreeState = createDefaultSkillTreeState();
   private answeredNoticeQuestions: Set<string> = new Set();
   private noticeShowTranslations: boolean = true;
+
+  // Save/Load state
+  private systemSubView: 'main' | 'save' | 'load' = 'main';
+  private saveSlotCache: Array<SaveSlotInfo | null> = [null, null, null];
+  private saveLoadBusy = false;
 
   // Vocabulary tab state
   private vocabSubTab: 'vocabulary' | 'grammar' = 'vocabulary';
@@ -1667,10 +1683,62 @@ export class GameMenuSystem {
   // ─── SYSTEM TAB ─────────────────────────────────────────────────────────
 
   private renderSystemTab(): void {
+    switch (this.systemSubView) {
+      case 'save':
+        this.renderSaveLoadView('save');
+        return;
+      case 'load':
+        this.renderSaveLoadView('load');
+        return;
+    }
+
     const { stack } = this.makeScrollableContent("system");
 
     this.addSectionHeader(stack, "System");
     this.addSubHeader(stack, "Game settings and controls");
+
+    // Save / Load buttons at top
+    if (this.callbacks.onSaveGame || this.callbacks.onLoadGame) {
+      const saveLoadRow = new StackPanel("saveLoadRow");
+      saveLoadRow.isVertical = false;
+      saveLoadRow.width = 1;
+      saveLoadRow.height = "40px";
+      saveLoadRow.paddingBottom = "8px";
+      stack.addControl(saveLoadRow);
+
+      if (this.callbacks.onSaveGame) {
+        const saveBtn = this.makeSystemButton("sys_saveGame", "Save Game");
+        saveBtn.width = "140px";
+        saveBtn.height = "34px";
+        saveBtn.fontSize = 13;
+        saveBtn.fontWeight = "bold";
+        saveBtn.background = COLORS.accent;
+        saveBtn.color = "#FFFFFF";
+        saveBtn.paddingRight = "8px";
+        saveBtn.onPointerEnterObservable.add(() => { saveBtn.background = "#5A9CF5"; });
+        saveBtn.onPointerOutObservable.add(() => { saveBtn.background = COLORS.accent; });
+        saveBtn.onPointerClickObservable.add(() => {
+          this.systemSubView = 'save';
+          this.refreshSaveSlots();
+        });
+        saveLoadRow.addControl(saveBtn);
+      }
+
+      if (this.callbacks.onLoadGame) {
+        const loadBtn = this.makeSystemButton("sys_loadGame", "Load Game");
+        loadBtn.width = "140px";
+        loadBtn.height = "34px";
+        loadBtn.fontSize = 13;
+        loadBtn.fontWeight = "bold";
+        loadBtn.onPointerClickObservable.add(() => {
+          this.systemSubView = 'load';
+          this.refreshSaveSlots();
+        });
+        saveLoadRow.addControl(loadBtn);
+      }
+
+      this.addDivider(stack);
+    }
 
     // Keyboard shortcuts
     const shortcutsTitle = new TextBlock();
@@ -1697,6 +1765,8 @@ export class GameMenuSystem {
       { key: "R", action: "Push-to-talk (hold to record)" },
       { key: "J", action: "Quest log" },
       { key: "Tab", action: "Full-screen map" },
+      { key: "F5", action: "Quick save" },
+      { key: "F9", action: "Quick load" },
     ];
 
     const shortcutCard = this.makeCard(stack);
@@ -1813,6 +1883,436 @@ export class GameMenuSystem {
         row.onPointerOutObservable.add(() => { row.background = "transparent"; });
       }
     }
+  }
+
+  private makeSystemButton(name: string, label: string): Button {
+    const btn = Button.CreateSimpleButton(name, label);
+    btn.color = COLORS.textSecondary;
+    btn.background = COLORS.cardBg;
+    btn.cornerRadius = 6;
+    btn.thickness = 1;
+    (btn as any).borderColor = COLORS.cardBorder;
+    btn.onPointerEnterObservable.add(() => {
+      btn.background = COLORS.tabHover;
+      btn.color = COLORS.textPrimary;
+    });
+    btn.onPointerOutObservable.add(() => {
+      btn.background = COLORS.cardBg;
+      btn.color = COLORS.textSecondary;
+    });
+    return btn;
+  }
+
+  private refreshSaveSlots(): void {
+    if (!this.callbacks.getSaveSlots) {
+      this.renderSystemTab();
+      return;
+    }
+    this.callbacks.getSaveSlots().then((slots) => {
+      this.saveSlotCache = slots;
+      this.refreshActiveTab();
+    }).catch(() => {
+      this.refreshActiveTab();
+    });
+  }
+
+  private formatGameTime(seconds: number): string {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  }
+
+  private formatSaveDate(iso: string): string {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+        + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return iso;
+    }
+  }
+
+  private renderSaveLoadView(mode: 'save' | 'load'): void {
+    const { stack } = this.makeScrollableContent("saveload");
+
+    // Back button + header
+    const headerRow = new Rectangle();
+    headerRow.width = 1;
+    headerRow.height = "36px";
+    headerRow.thickness = 0;
+    headerRow.background = "transparent";
+    stack.addControl(headerRow);
+
+    const backBtn = Button.CreateSimpleButton("saveload_back", "< Back");
+    backBtn.width = "70px";
+    backBtn.height = "28px";
+    backBtn.color = COLORS.textSecondary;
+    backBtn.background = COLORS.cardBg;
+    backBtn.cornerRadius = 4;
+    backBtn.fontSize = 11;
+    backBtn.thickness = 1;
+    (backBtn as any).borderColor = COLORS.cardBorder;
+    backBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    backBtn.onPointerEnterObservable.add(() => { backBtn.background = COLORS.tabHover; backBtn.color = COLORS.textPrimary; });
+    backBtn.onPointerOutObservable.add(() => { backBtn.background = COLORS.cardBg; backBtn.color = COLORS.textSecondary; });
+    backBtn.onPointerClickObservable.add(() => {
+      this.systemSubView = 'main';
+      this.refreshActiveTab();
+    });
+    headerRow.addControl(backBtn);
+
+    this.addSectionHeader(stack, mode === 'save' ? "Save Game" : "Load Game");
+    this.addSubHeader(stack, mode === 'save'
+      ? "Choose a slot to save your progress"
+      : "Choose a save slot to load");
+
+    // Render 3 slots
+    for (let i = 0; i < 3; i++) {
+      const slot = this.saveSlotCache[i];
+      this.renderSlotCard(stack, i, slot, mode);
+    }
+  }
+
+  private renderSlotCard(parent: StackPanel, slotIndex: number, slot: SaveSlotInfo | null, mode: 'save' | 'load'): void {
+    const card = new Rectangle(`slot_card_${slotIndex}`);
+    card.width = 1;
+    card.height = "80px";
+    card.background = COLORS.cardBg;
+    card.color = COLORS.cardBorder;
+    card.thickness = 1;
+    card.cornerRadius = 6;
+    card.paddingBottom = "8px";
+    card.isPointerBlocker = true;
+    parent.addControl(card);
+
+    const slotLabel = new TextBlock();
+    slotLabel.text = `Slot ${slotIndex + 1}${slotIndex === 0 ? ' (Quick Save)' : ''}`;
+    slotLabel.color = COLORS.textPrimary;
+    slotLabel.fontSize = 14;
+    slotLabel.fontWeight = "bold";
+    slotLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    slotLabel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    slotLabel.left = "14px";
+    slotLabel.top = "12px";
+    card.addControl(slotLabel);
+
+    if (slot) {
+      const dateText = new TextBlock();
+      dateText.text = this.formatSaveDate(slot.savedAt);
+      dateText.color = COLORS.textSecondary;
+      dateText.fontSize = 11;
+      dateText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      dateText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+      dateText.left = "14px";
+      dateText.top = "34px";
+      card.addControl(dateText);
+
+      const timeText = new TextBlock();
+      timeText.text = `Play time: ${this.formatGameTime(slot.gameTime)}`;
+      timeText.color = COLORS.textMuted;
+      timeText.fontSize = 11;
+      timeText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      timeText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+      timeText.left = "14px";
+      timeText.top = "50px";
+      card.addControl(timeText);
+
+      if (slot.zoneName) {
+        const zoneText = new TextBlock();
+        zoneText.text = slot.zoneName;
+        zoneText.color = COLORS.textMuted;
+        zoneText.fontSize = 11;
+        zoneText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+        zoneText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+        zoneText.left = "-14px";
+        zoneText.top = "34px";
+        card.addControl(zoneText);
+      }
+    } else {
+      const emptyText = new TextBlock();
+      emptyText.text = mode === 'save' ? "Empty slot" : "No save data";
+      emptyText.color = COLORS.textMuted;
+      emptyText.fontSize = 12;
+      emptyText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      emptyText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+      emptyText.left = "14px";
+      emptyText.top = "36px";
+      card.addControl(emptyText);
+    }
+
+    // Action button
+    const isDisabled = mode === 'load' && !slot;
+    const actionBtn = Button.CreateSimpleButton(
+      `slot_action_${slotIndex}`,
+      mode === 'save' ? (slot ? "Overwrite" : "Save") : "Load"
+    );
+    actionBtn.width = "80px";
+    actionBtn.height = "28px";
+    actionBtn.fontSize = 11;
+    actionBtn.fontWeight = "bold";
+    actionBtn.cornerRadius = 4;
+    actionBtn.thickness = 0;
+    actionBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    actionBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+    actionBtn.left = "-14px";
+    actionBtn.top = "-12px";
+
+    if (isDisabled) {
+      actionBtn.color = COLORS.textMuted;
+      actionBtn.background = COLORS.cardBg;
+      actionBtn.isEnabled = false;
+    } else {
+      actionBtn.color = "#FFFFFF";
+      actionBtn.background = mode === 'save' ? COLORS.accent : COLORS.accentGreen;
+      const hoverColor = mode === 'save' ? "#5A9CF5" : "#45B864";
+      const baseColor = mode === 'save' ? COLORS.accent : COLORS.accentGreen;
+      actionBtn.onPointerEnterObservable.add(() => { actionBtn.background = hoverColor; });
+      actionBtn.onPointerOutObservable.add(() => { actionBtn.background = baseColor; });
+      actionBtn.onPointerClickObservable.add(() => {
+        if (this.saveLoadBusy) return;
+        // For save with existing data, show overwrite confirmation
+        if (mode === 'save' && slot) {
+          this.showOverwriteConfirm(slotIndex);
+        } else if (mode === 'load' && slot) {
+          this.showLoadConfirm(slotIndex);
+        } else {
+          this.executeSave(slotIndex);
+        }
+      });
+    }
+    card.addControl(actionBtn);
+
+    // Hover effects on card
+    card.onPointerEnterObservable.add(() => { card.background = COLORS.tabHover; });
+    card.onPointerOutObservable.add(() => { card.background = COLORS.cardBg; });
+  }
+
+  private showOverwriteConfirm(slotIndex: number): void {
+    if (!this.overlay) return;
+    const confirmBg = new Rectangle("confirmOverlay");
+    confirmBg.width = 1;
+    confirmBg.height = 1;
+    confirmBg.background = "rgba(0, 0, 0, 0.6)";
+    confirmBg.thickness = 0;
+    confirmBg.zIndex = 200;
+    this.overlay.addControl(confirmBg);
+
+    const dialog = new Rectangle("confirmDialog");
+    dialog.width = "340px";
+    dialog.height = "140px";
+    dialog.background = COLORS.sidebarBg;
+    dialog.color = COLORS.cardBorder;
+    dialog.thickness = 1;
+    dialog.cornerRadius = 10;
+    confirmBg.addControl(dialog);
+
+    const msg = new TextBlock();
+    msg.text = `Overwrite Slot ${slotIndex + 1}?`;
+    msg.color = COLORS.textPrimary;
+    msg.fontSize = 15;
+    msg.fontWeight = "bold";
+    msg.top = "-20px";
+    dialog.addControl(msg);
+
+    const sub = new TextBlock();
+    sub.text = "This will replace the existing save.";
+    sub.color = COLORS.textSecondary;
+    sub.fontSize = 11;
+    sub.top = "8px";
+    dialog.addControl(sub);
+
+    const btnRow = new StackPanel();
+    btnRow.isVertical = false;
+    btnRow.width = "220px";
+    btnRow.height = "34px";
+    btnRow.top = "38px";
+    dialog.addControl(btnRow);
+
+    const cancelBtn = Button.CreateSimpleButton("confirmCancel", "Cancel");
+    cancelBtn.width = "100px";
+    cancelBtn.height = "30px";
+    cancelBtn.fontSize = 12;
+    cancelBtn.color = COLORS.textSecondary;
+    cancelBtn.background = COLORS.cardBg;
+    cancelBtn.cornerRadius = 4;
+    cancelBtn.thickness = 0;
+    cancelBtn.paddingRight = "8px";
+    cancelBtn.onPointerClickObservable.add(() => { this.overlay?.removeControl(confirmBg); });
+    btnRow.addControl(cancelBtn);
+
+    const okBtn = Button.CreateSimpleButton("confirmOk", "Overwrite");
+    okBtn.width = "100px";
+    okBtn.height = "30px";
+    okBtn.fontSize = 12;
+    okBtn.color = "#FFFFFF";
+    okBtn.background = COLORS.accentRed;
+    okBtn.cornerRadius = 4;
+    okBtn.thickness = 0;
+    okBtn.onPointerClickObservable.add(() => {
+      this.overlay?.removeControl(confirmBg);
+      this.executeSave(slotIndex);
+    });
+    btnRow.addControl(okBtn);
+  }
+
+  private showLoadConfirm(slotIndex: number): void {
+    if (!this.overlay) return;
+    const confirmBg = new Rectangle("loadConfirmOverlay");
+    confirmBg.width = 1;
+    confirmBg.height = 1;
+    confirmBg.background = "rgba(0, 0, 0, 0.6)";
+    confirmBg.thickness = 0;
+    confirmBg.zIndex = 200;
+    this.overlay.addControl(confirmBg);
+
+    const dialog = new Rectangle("loadConfirmDialog");
+    dialog.width = "340px";
+    dialog.height = "140px";
+    dialog.background = COLORS.sidebarBg;
+    dialog.color = COLORS.cardBorder;
+    dialog.thickness = 1;
+    dialog.cornerRadius = 10;
+    confirmBg.addControl(dialog);
+
+    const msg = new TextBlock();
+    msg.text = `Load Slot ${slotIndex + 1}?`;
+    msg.color = COLORS.textPrimary;
+    msg.fontSize = 15;
+    msg.fontWeight = "bold";
+    msg.top = "-20px";
+    dialog.addControl(msg);
+
+    const sub = new TextBlock();
+    sub.text = "Any unsaved progress will be lost.";
+    sub.color = COLORS.textSecondary;
+    sub.fontSize = 11;
+    sub.top = "8px";
+    dialog.addControl(sub);
+
+    const btnRow = new StackPanel();
+    btnRow.isVertical = false;
+    btnRow.width = "220px";
+    btnRow.height = "34px";
+    btnRow.top = "38px";
+    dialog.addControl(btnRow);
+
+    const cancelBtn = Button.CreateSimpleButton("loadCancel", "Cancel");
+    cancelBtn.width = "100px";
+    cancelBtn.height = "30px";
+    cancelBtn.fontSize = 12;
+    cancelBtn.color = COLORS.textSecondary;
+    cancelBtn.background = COLORS.cardBg;
+    cancelBtn.cornerRadius = 4;
+    cancelBtn.thickness = 0;
+    cancelBtn.paddingRight = "8px";
+    cancelBtn.onPointerClickObservable.add(() => { this.overlay?.removeControl(confirmBg); });
+    btnRow.addControl(cancelBtn);
+
+    const okBtn = Button.CreateSimpleButton("loadOk", "Load");
+    okBtn.width = "100px";
+    okBtn.height = "30px";
+    okBtn.fontSize = 12;
+    okBtn.color = "#FFFFFF";
+    okBtn.background = COLORS.accentGreen;
+    okBtn.cornerRadius = 4;
+    okBtn.thickness = 0;
+    okBtn.onPointerClickObservable.add(() => {
+      this.overlay?.removeControl(confirmBg);
+      this.executeLoad(slotIndex);
+    });
+    btnRow.addControl(okBtn);
+  }
+
+  private async executeSave(slotIndex: number): Promise<void> {
+    if (this.saveLoadBusy || !this.callbacks.onSaveGame) return;
+    this.saveLoadBusy = true;
+    this.showSaveLoadOverlay("Saving...");
+    try {
+      await this.callbacks.onSaveGame(slotIndex);
+      this.showSaveLoadOverlay("Saved!");
+      setTimeout(() => {
+        this.removeSaveLoadOverlay();
+        this.saveLoadBusy = false;
+        this.refreshSaveSlots();
+      }, 800);
+    } catch {
+      this.showSaveLoadOverlay("Save failed");
+      setTimeout(() => {
+        this.removeSaveLoadOverlay();
+        this.saveLoadBusy = false;
+      }, 1500);
+    }
+  }
+
+  private async executeLoad(slotIndex: number): Promise<void> {
+    if (this.saveLoadBusy || !this.callbacks.onLoadGame) return;
+    this.saveLoadBusy = true;
+    this.showSaveLoadOverlay("Loading...");
+    try {
+      const success = await this.callbacks.onLoadGame(slotIndex);
+      if (success) {
+        this.showSaveLoadOverlay("Loaded!");
+        setTimeout(() => {
+          this.removeSaveLoadOverlay();
+          this.saveLoadBusy = false;
+          this.close();
+        }, 800);
+      } else {
+        this.showSaveLoadOverlay("No save data");
+        setTimeout(() => {
+          this.removeSaveLoadOverlay();
+          this.saveLoadBusy = false;
+        }, 1500);
+      }
+    } catch {
+      this.showSaveLoadOverlay("Load failed");
+      setTimeout(() => {
+        this.removeSaveLoadOverlay();
+        this.saveLoadBusy = false;
+      }, 1500);
+    }
+  }
+
+  private saveLoadOverlayRect: Rectangle | null = null;
+
+  private showSaveLoadOverlay(text: string): void {
+    this.removeSaveLoadOverlay();
+    const rect = new Rectangle("saveLoadOverlay");
+    rect.width = "200px";
+    rect.height = "60px";
+    rect.background = "rgba(0, 0, 0, 0.85)";
+    rect.cornerRadius = 10;
+    rect.thickness = 0;
+    rect.zIndex = 300;
+    this.advancedTexture.addControl(rect);
+
+    const txt = new TextBlock();
+    txt.text = text;
+    txt.color = COLORS.textPrimary;
+    txt.fontSize = 16;
+    txt.fontWeight = "bold";
+    rect.addControl(txt);
+
+    this.saveLoadOverlayRect = rect;
+  }
+
+  private removeSaveLoadOverlay(): void {
+    if (this.saveLoadOverlayRect) {
+      this.advancedTexture.removeControl(this.saveLoadOverlayRect);
+      this.saveLoadOverlayRect.dispose();
+      this.saveLoadOverlayRect = null;
+    }
+  }
+
+  /** Quick-save to slot 0. Can be called externally (e.g. from F5 key). */
+  public quickSave(): void {
+    this.executeSave(0);
+  }
+
+  /** Quick-load from slot 0. Can be called externally (e.g. from F9 key). */
+  public quickLoad(): void {
+    this.executeLoad(0);
   }
 
   // ── VOCABULARY TAB ──────────────────────────────────────────────────────
