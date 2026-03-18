@@ -122,7 +122,7 @@ import { NPCTalkingIndicator } from "@/components/3DGame/NPCTalkingIndicator.ts"
 import { NPCAmbientConversationManager } from "@/components/3DGame/NPCAmbientConversationManager.ts";
 import { NPCInitiatedConversationController } from "@/components/3DGame/NPCInitiatedConversationController.ts";
 import { BuildingInteriorGenerator, InteriorLayout } from "@/components/3DGame/BuildingInteriorGenerator.ts";
-import { GameMenuSystem, GameMenuCallbacks } from "@/components/3DGame/GameMenuSystem.ts";
+import { GameMenuSystem, GameMenuCallbacks, type MenuJournalData } from "@/components/3DGame/GameMenuSystem.ts";
 import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts";
 import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
 import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
@@ -442,6 +442,8 @@ export class BabylonGame {
   private playerEnergy: number = INITIAL_ENERGY;
   private playerGold: number = 100;
   private playerHealth: number = 100;
+  private playerCefrLevel: string | null = null;
+  private mainQuestJournalData: MenuJournalData | null = null;
 
   // NPCs
   private npcMeshes: Map<string, NPCInstance> = new Map();
@@ -1285,6 +1287,7 @@ export class BabylonGame {
       onToggleFullscreen: () => this.handleToggleFullscreen(),
       onToggleDebug: () => this.handleToggleDebug(),
       onToggleVR: () => this.handleToggleVR(),
+      getJournalData: () => this.mainQuestJournalData,
     };
 
     this.gameMenuSystem = new GameMenuSystem(this.guiManager.advancedTexture, menuCallbacks);
@@ -1388,6 +1391,11 @@ export class BabylonGame {
       this.questTracker?.updateQuests(this.config.worldId);
       this.updateQuestIndicators();
       this.eventBus.emit({ type: 'quest_completed', questId });
+      // Record against main quest progression (non-blocking)
+      const questForType = this.quests?.find((q: any) => q.id === questId);
+      if (questForType?.questType) {
+        this.recordMainQuestProgress(questForType.questType);
+      }
     });
     this.chatPanel.setOnActionSelect((actionId: string) => {
       this.handlePerformAction(actionId);
@@ -1855,9 +1863,21 @@ export class BabylonGame {
     this.eventBus.on('assessment_phase_completed', () => {
       this.gamificationTracker?.onAssessmentPhaseCompleted();
     });
-    this.eventBus.on('assessment_completed', () => {
+    this.eventBus.on('assessment_completed', (event) => {
       this.gamificationTracker?.onAssessmentCompleted();
       this.guiManager.clearHighlightedNpc();
+      // Track CEFR level for main quest gating
+      if (event.cefrLevel) {
+        this.playerCefrLevel = event.cefrLevel;
+        // Try to unlock next chapter if CEFR-gated
+        const worldId = this.config.worldId;
+        const playerId = this.config.userId || 'player';
+        fetch(`/api/worlds/${worldId}/main-quest/${playerId}/try-unlock`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cefrLevel: event.cefrLevel }),
+        }).then(() => this.fetchMainQuestJournalData()).catch(() => {});
+      }
     });
     // When the conversation assessment phase starts, pick the nearest NPC and highlight it
     this.eventBus.on('assessment_conversation_quest_start', () => {
@@ -2241,6 +2261,8 @@ export class BabylonGame {
       this.syncActiveQuestToHud();
       // Load quests into the quest tracker panel
       this.questTracker?.updateQuests(this.config.worldId);
+      // Fetch main quest journal data (non-blocking)
+      this.fetchMainQuestJournalData();
       this.settlements = settlements;
       this.rules = [...rules, ...baseRules];
       this.countries = countries;
@@ -7330,10 +7352,10 @@ export class BabylonGame {
       this.handleTargetEnemy();
     }
 
-    // J - Open quest log (game menu quests tab)
+    // J - Open journal (game menu journal tab)
     if (event.code === KEY_QUEST_LOG && !event.repeat) {
       event.preventDefault();
-      this.gameMenuSystem?.open("quests");
+      this.gameMenuSystem?.open("journal");
     }
 
     // Tab - Toggle full-screen map
@@ -8151,6 +8173,66 @@ export class BabylonGame {
       });
     }
     this.skillTreePanel.toggle();
+  }
+
+  /**
+   * Fetch main quest journal data from the server.
+   * Called on world load and after quest completions.
+   */
+  private async fetchMainQuestJournalData(): Promise<void> {
+    try {
+      const worldId = this.config.worldId;
+      const playerId = this.config.userId || 'player';
+      const cefrParam = this.playerCefrLevel ? `?cefrLevel=${this.playerCefrLevel}` : '';
+      const res = await fetch(`/api/worlds/${worldId}/main-quest/${playerId}${cefrParam}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      this.mainQuestJournalData = {
+        currentChapterId: data.state?.currentChapterId ?? null,
+        totalXPEarned: data.state?.totalXPEarned ?? 0,
+        chapters: data.chapters ?? [],
+        playerCefrLevel: this.playerCefrLevel,
+      };
+    } catch {
+      // Non-critical — journal will show empty state
+    }
+  }
+
+  /**
+   * Record a quest completion against the main quest progression.
+   */
+  private async recordMainQuestProgress(questType: string): Promise<void> {
+    try {
+      const worldId = this.config.worldId;
+      const playerId = this.config.userId || 'player';
+      const res = await fetch(`/api/worlds/${worldId}/main-quest/${playerId}/record-completion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questType, cefrLevel: this.playerCefrLevel }),
+      });
+      if (!res.ok) return;
+      const { result } = await res.json();
+      if (result?.chapterAdvance?.advanced) {
+        this.guiManager?.showToast({
+          title: `Chapter Complete: ${result.chapterAdvance.completedChapterTitle}`,
+          description: result.chapterAdvance.outroNarrative || '',
+          duration: 6000,
+        });
+        if (result.chapterAdvance.nextChapterTitle) {
+          setTimeout(() => {
+            this.guiManager?.showToast({
+              title: `New Chapter: ${result.chapterAdvance.nextChapterTitle}`,
+              description: result.chapterAdvance.introNarrative || '',
+              duration: 6000,
+            });
+          }, 3000);
+        }
+      }
+      // Refresh journal data
+      await this.fetchMainQuestJournalData();
+    } catch {
+      // Non-critical
+    }
   }
 
   private handleToggleNoticeBoard(): void {
