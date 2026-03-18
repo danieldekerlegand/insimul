@@ -1,9 +1,18 @@
 /**
  * Language Gamification Tracker
  *
+ * Language-learning specialization of the generic GamificationModule.
  * Tracks XP, levels, achievements, and daily challenges for
  * language-learning game worlds. Integrates with LanguageProgressTracker
  * to react to vocabulary, grammar, and conversation events.
+ *
+ * NOTE: The generic gamification types are at shared/feature-modules/gamification/.
+ * This tracker uses language-specific XP reward tables and achievement conditions.
+ * Other genres would create their own tracker (e.g., RPGGamificationTracker)
+ * using the same GamificationState types with genre-specific event handlers.
+ *
+ * Bridge functions in shared/language/gamification.ts convert between
+ * language GamificationState ↔ generic GamificationState.
  */
 
 import {
@@ -17,8 +26,10 @@ import {
   XP_REWARDS,
   MAX_LEVEL,
   LEVEL_THRESHOLDS,
+  gamificationStateToGeneric,
 } from '@shared/language/language-gamification';
 import type { Achievement, DailyChallenge } from '@shared/language/language-gamification';
+import type { GamificationState as GenericGamificationState } from '@shared/feature-modules/gamification/types';
 import type { FluencyGainResult, VocabularyEntry, GrammarFeedback } from '@shared/language/language-progress';
 import type { SkillReward } from '@shared/language/quest-skill-rewards';
 import {
@@ -657,5 +668,15 @@ export class LanguageGamificationTracker {
     this.onDailyChallengeCompleted = null;
     this.onSkillRewardsAppliedCb = null;
     this.onPeriodicAssessmentTriggered = null;
+  }
+
+  // ── Generic Module Type Export ──────────────────────────────────────────
+
+  /**
+   * Export current state as a generic GamificationState object.
+   * Enables the generic GamificationModule to read language gamification data.
+   */
+  public getGenericState(): GenericGamificationState {
+    return gamificationStateToGeneric(this.state);
   }
 }

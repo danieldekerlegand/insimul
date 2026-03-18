@@ -1,9 +1,19 @@
 /**
  * Language Progress Tracker
  *
+ * Language-learning specialization of a generic ProficiencyTracker pattern.
  * Tracks vocabulary usage, grammar patterns, and fluency progression
  * during conversations in the 3D game. Integrates with the quest system
  * for language-learning objectives.
+ *
+ * NOTE: The generic proficiency types are at shared/feature-modules/proficiency/.
+ * This tracker implements language-specific logic (vocabulary scanning, grammar
+ * feedback parsing) on top of the generic proficiency framework. Other genres
+ * would implement their own tracker (e.g., CombatProficiencyTracker for RPG)
+ * using the same ProficiencyProgress types.
+ *
+ * Bridge functions in shared/language/progress.ts convert between
+ * VocabularyEntry ↔ KnowledgeEntry, GrammarPattern ↔ PatternEntry, etc.
  */
 
 import type { WorldLanguage } from '@shared/language';
@@ -19,7 +29,14 @@ import {
   calculateMasteryLevel,
   calculateFluencyGain,
   parseGrammarFeedbackBlock,
+  vocabularyEntryToKnowledgeEntry,
+  grammarPatternToPatternEntry,
+  conversationRecordToGeneric,
 } from '@shared/language/language-progress';
+import type { KnowledgeEntry } from '@shared/feature-modules/knowledge-acquisition/types';
+import type { PatternEntry } from '@shared/feature-modules/pattern-recognition/types';
+import type { ProficiencyProgress } from '@shared/feature-modules/proficiency/types';
+import type { ConversationRecord as GenericConversationRecord } from '@shared/feature-modules/conversation-analytics/types';
 
 export class LanguageProgressTracker {
   private progress: LanguageProgress;
@@ -665,6 +682,49 @@ export class LanguageProgressTracker {
         timestamp: c.timestamp,
         duration: 0,
       })),
+    };
+  }
+
+  // ── Generic Module Type Exports ──────────────────────────────────────────
+
+  /**
+   * Export vocabulary as generic KnowledgeEntry array.
+   * Enables interop with KnowledgeCollectionSystem and other generic consumers.
+   */
+  public getKnowledgeEntries(): KnowledgeEntry[] {
+    return this.progress.vocabulary.map(vocabularyEntryToKnowledgeEntry);
+  }
+
+  /**
+   * Export grammar patterns as generic PatternEntry array.
+   */
+  public getPatternEntries(): PatternEntry[] {
+    return this.progress.grammarPatterns.map(grammarPatternToPatternEntry);
+  }
+
+  /**
+   * Export conversations as generic ConversationRecord array.
+   */
+  public getGenericConversations(): GenericConversationRecord[] {
+    return this.progress.conversations.map(conversationRecordToGeneric);
+  }
+
+  /**
+   * Export current state as a generic ProficiencyProgress object.
+   * Enables the generic ProficiencyModule to read language-learning progress.
+   */
+  public getProficiencyProgress(): ProficiencyProgress {
+    return {
+      playerId: this.progress.playerId,
+      worldId: this.progress.worldId,
+      overallScore: this.progress.overallFluency,
+      tierId: this.progress.cefrLevel ?? 'A1',
+      dimensionScores: [
+        { dimensionId: 'vocabulary', score: Math.min(5, (this.progress.totalWordsLearned / 50) * 5) },
+        { dimensionId: 'grammar', score: Math.min(5, (this.progress.grammarPatterns.filter(p => p.mastered).length / 5) * 5) },
+        { dimensionId: 'communication', score: Math.min(5, (this.progress.totalConversations / 25) * 5) },
+      ],
+      lastUpdatedAt: this.progress.lastActivityTimestamp,
     };
   }
 

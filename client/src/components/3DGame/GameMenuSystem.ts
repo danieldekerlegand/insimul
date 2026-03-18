@@ -22,6 +22,7 @@ import {
   ScrollViewer,
   StackPanel,
   TextBlock,
+  TextWrapping,
 } from "@babylonjs/gui";
 
 import type { ConversationRecord, VocabularyEntry, GrammarPattern } from '@shared/language/language-progress';
@@ -66,6 +67,15 @@ export interface MenuReputationData {
   outstandingFines: number;
 }
 
+export interface MenuQuestObjective {
+  type: string;
+  description: string;
+  completed?: boolean;
+  current?: number;
+  required?: number;
+  target?: string;
+}
+
 export interface MenuQuestData {
   id: string;
   title: string;
@@ -74,6 +84,11 @@ export interface MenuQuestData {
   questType: string;
   difficulty: string;
   progress: Record<string, any> | null;
+  objectives?: MenuQuestObjective[];
+  experienceReward?: number;
+  assignedBy?: string | null;
+  targetLanguage?: string;
+  tags?: string[] | null;
 }
 
 export interface MenuInventoryItem {
@@ -112,6 +127,8 @@ export interface MenuWorldData {
   actions: number;
   baseActions: number;
   quests: number;
+  enabledModules?: string[];
+  gameType?: string;
 }
 
 export interface MenuNPCData {
@@ -175,6 +192,7 @@ export interface GameMenuCallbacks {
   onToggleFullscreen?: () => void;
   onToggleDebug?: () => void;
   onToggleVR?: () => void;
+  onToggleModule?: (moduleId: string, enabled: boolean) => void;
 }
 
 export type MenuTab =
@@ -804,14 +822,24 @@ export class GameMenuSystem {
 
   private renderQuestsTab(): void {
     const { stack } = this.makeScrollableContent("quests");
-    const quests = this.callbacks.getQuests();
+    const allQuests = this.callbacks.getQuests();
+
+    // Separate active vs available
+    const active = allQuests.filter(q => q.status === "active");
+    const available = allQuests.filter(q => q.status === "available");
+    const completed = allQuests.filter(q => q.status === "completed");
 
     this.addSectionHeader(stack, "Quests");
-    this.addSubHeader(stack, `${quests.length} active quest${quests.length !== 1 ? "s" : ""}`);
 
-    if (quests.length === 0) {
+    const counts: string[] = [];
+    if (active.length > 0) counts.push(`${active.length} active`);
+    if (available.length > 0) counts.push(`${available.length} available`);
+    if (completed.length > 0) counts.push(`${completed.length} completed`);
+    this.addSubHeader(stack, counts.length > 0 ? counts.join("  ·  ") : "No quests yet");
+
+    if (allQuests.length === 0) {
       const empty = new TextBlock();
-      empty.text = "No active quests. Talk to NPCs to find quests!";
+      empty.text = "Talk to NPCs to discover quests!";
       empty.color = COLORS.textMuted;
       empty.fontSize = 12;
       empty.height = "33px";
@@ -819,59 +847,196 @@ export class GameMenuSystem {
       return;
     }
 
-    quests.forEach((quest) => {
-      const card = this.makeCard(stack);
+    // Render active quests first, then available
+    const renderGroup = (label: string, quests: MenuQuestData[], color: string) => {
+      if (quests.length === 0) return;
 
-      // Quest title row
-      const titleRow = new Rectangle();
-      titleRow.width = 1;
-      titleRow.height = "23px";
-      titleRow.thickness = 0;
-      titleRow.background = "transparent";
-      card.addControl(titleRow);
+      const groupLabel = new TextBlock();
+      groupLabel.text = `${label} (${quests.length})`;
+      groupLabel.color = color;
+      groupLabel.fontSize = 13;
+      groupLabel.fontWeight = "bold";
+      groupLabel.height = "28px";
+      groupLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      groupLabel.paddingTop = "6px";
+      stack.addControl(groupLabel);
 
-      const titleText = new TextBlock();
-      titleText.text = quest.title;
-      titleText.color = COLORS.textPrimary;
-      titleText.fontSize = 14;
-      titleText.fontWeight = "bold";
-      titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      titleRow.addControl(titleText);
+      quests.forEach((quest) => {
+        this.renderQuestCard(stack, quest);
+      });
+    };
 
-      const statusBadge = new TextBlock();
-      statusBadge.text = quest.status.toUpperCase();
-      statusBadge.color =
-        quest.status === "completed" ? COLORS.accentGreen :
-        quest.status === "failed" ? COLORS.accentRed :
-        COLORS.accentYellow;
-      statusBadge.fontSize = 12;
-      statusBadge.fontWeight = "bold";
-      statusBadge.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      titleRow.addControl(statusBadge);
+    renderGroup("Active", active, COLORS.accentGreen);
+    renderGroup("Available", available, COLORS.accent);
+    renderGroup("Completed", completed, COLORS.textMuted);
+  }
 
-      // Description
+  private renderQuestCard(parent: StackPanel, quest: MenuQuestData): void {
+    const card = this.makeCard(parent);
+
+    // ── Title row ──────────────────────────────────────────────────────────
+    const titleRow = new Rectangle();
+    titleRow.width = 1;
+    titleRow.height = "24px";
+    titleRow.thickness = 0;
+    titleRow.background = "transparent";
+    card.addControl(titleRow);
+
+    const titleText = new TextBlock();
+    titleText.text = quest.title;
+    titleText.color = COLORS.textPrimary;
+    titleText.fontSize = 14;
+    titleText.fontWeight = "bold";
+    titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    titleRow.addControl(titleText);
+
+    // XP badge on the right
+    if (quest.experienceReward) {
+      const xpBadge = new TextBlock();
+      xpBadge.text = `${quest.experienceReward} XP`;
+      xpBadge.color = COLORS.gold;
+      xpBadge.fontSize = 11;
+      xpBadge.fontWeight = "bold";
+      xpBadge.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      titleRow.addControl(xpBadge);
+    }
+
+    // ── Description ────────────────────────────────────────────────────────
+    if (quest.description) {
       const desc = new TextBlock();
-      desc.text = quest.description || "No description";
+      desc.text = quest.description;
       desc.color = COLORS.textSecondary;
-      desc.fontSize = 12;
-      desc.height = "33px";
-      desc.textWrapping = true;
+      desc.fontSize = 11;
+      desc.textWrapping = TextWrapping.WordWrap;
+      desc.resizeToFit = true;
       desc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      desc.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+      desc.paddingBottom = "4px";
       card.addControl(desc);
+    }
 
-      // Meta row
-      this.addStatRow(card, "Type", quest.questType, COLORS.textSecondary);
-      this.addStatRow(card, "Difficulty", quest.difficulty, COLORS.textSecondary);
+    // ── Meta row ───────────────────────────────────────────────────────────
+    const metaRow = new StackPanel();
+    metaRow.isVertical = false;
+    metaRow.width = 1;
+    metaRow.height = "18px";
+    card.addControl(metaRow);
 
-      // Spacer between cards
-      const spacer = new Rectangle();
-      spacer.width = 1;
-      spacer.height = "5px";
-      spacer.thickness = 0;
-      spacer.background = "transparent";
-      stack.addControl(spacer);
-    });
+    if (quest.questType) {
+      const typeBadge = this.makeInlineBadge(quest.questType, COLORS.accent);
+      metaRow.addControl(typeBadge);
+    }
+    if (quest.difficulty) {
+      const diffColor =
+        quest.difficulty === "beginner" || quest.difficulty === "easy" ? COLORS.accentGreen :
+        quest.difficulty === "advanced" || quest.difficulty === "hard" ? COLORS.accentRed :
+        COLORS.accentYellow;
+      const diffBadge = this.makeInlineBadge(quest.difficulty, diffColor);
+      metaRow.addControl(diffBadge);
+    }
+    if (quest.assignedBy) {
+      const giverBadge = this.makeInlineBadge(`from ${quest.assignedBy}`, COLORS.textMuted);
+      metaRow.addControl(giverBadge);
+    }
+
+    // ── Objectives ─────────────────────────────────────────────────────────
+    const objectives = quest.objectives || [];
+    if (objectives.length > 0) {
+      const objHeader = new TextBlock();
+      objHeader.text = "Objectives";
+      objHeader.color = COLORS.textSecondary;
+      objHeader.fontSize = 10;
+      objHeader.fontWeight = "bold";
+      objHeader.height = "20px";
+      objHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      objHeader.paddingTop = "4px";
+      card.addControl(objHeader);
+
+      objectives.forEach((obj) => {
+        const objRow = new StackPanel();
+        objRow.isVertical = false;
+        objRow.width = 1;
+        objRow.height = "18px";
+        card.addControl(objRow);
+
+        // Checkbox indicator
+        const check = new TextBlock();
+        check.text = obj.completed ? "✓" : "○";
+        check.color = obj.completed ? COLORS.accentGreen : COLORS.textMuted;
+        check.fontSize = 11;
+        check.width = "18px";
+        check.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        objRow.addControl(check);
+
+        // Description
+        const objDesc = new TextBlock();
+        objDesc.text = obj.description || obj.type;
+        objDesc.color = obj.completed ? COLORS.textMuted : COLORS.textPrimary;
+        objDesc.fontSize = 11;
+        objDesc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        objRow.addControl(objDesc);
+
+        // Progress count if countable
+        if (obj.required && obj.required > 1) {
+          const countText = new TextBlock();
+          countText.text = `${obj.current || 0}/${obj.required}`;
+          countText.color = COLORS.textMuted;
+          countText.fontSize = 10;
+          countText.width = "40px";
+          countText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+          objRow.addControl(countText);
+        }
+      });
+
+      // Overall progress bar
+      const completedCount = objectives.filter(o => o.completed).length;
+      if (objectives.length > 1) {
+        const progressBg = new Rectangle();
+        progressBg.width = 1;
+        progressBg.height = "6px";
+        progressBg.background = "rgba(255,255,255,0.08)";
+        progressBg.thickness = 0;
+        progressBg.cornerRadius = 3;
+        progressBg.paddingTop = "4px";
+        card.addControl(progressBg);
+
+        const progressFill = new Rectangle();
+        const pct = objectives.length > 0 ? completedCount / objectives.length : 0;
+        progressFill.width = Math.max(pct, 0.02); // min 2% so it's visible
+        progressFill.height = 1;
+        progressFill.background = pct >= 1 ? COLORS.accentGreen : COLORS.accent;
+        progressFill.thickness = 0;
+        progressFill.cornerRadius = 3;
+        progressFill.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        progressBg.addControl(progressFill);
+      }
+    }
+
+    // Card bottom spacer
+    const spacer = new Rectangle();
+    spacer.width = 1;
+    spacer.height = "6px";
+    spacer.thickness = 0;
+    spacer.background = "transparent";
+    parent.addControl(spacer);
+  }
+
+  private makeInlineBadge(text: string, color: string): Rectangle {
+    const badge = new Rectangle();
+    badge.width = `${Math.max(text.length * 7 + 12, 50)}px`;
+    badge.height = "16px";
+    badge.background = "rgba(255,255,255,0.06)";
+    badge.cornerRadius = 3;
+    badge.thickness = 0;
+    badge.paddingRight = "4px";
+
+    const label = new TextBlock();
+    label.text = text;
+    label.color = color;
+    label.fontSize = 9;
+    label.fontWeight = "bold";
+    badge.addControl(label);
+
+    return badge;
   }
 
   // ─── INVENTORY TAB ──────────────────────────────────────────────────────
@@ -1371,6 +1536,75 @@ export class GameMenuSystem {
       btn.onPointerClickObservable.add(() => def.cb());
       stack.addControl(btn);
     });
+
+    // Feature Modules section
+    if (this.callbacks.onToggleModule) {
+      this.addDivider(stack);
+
+      const modulesTitle = new TextBlock();
+      modulesTitle.text = "Feature Modules";
+      modulesTitle.color = COLORS.textPrimary;
+      modulesTitle.fontSize = 15;
+      modulesTitle.fontWeight = "bold";
+      modulesTitle.height = "29px";
+      modulesTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      stack.addControl(modulesTitle);
+
+      const modulesDesc = new TextBlock();
+      modulesDesc.text = "Toggle gameplay features on or off for this world.";
+      modulesDesc.color = COLORS.textMuted;
+      modulesDesc.fontSize = 11;
+      modulesDesc.height = "18px";
+      modulesDesc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      stack.addControl(modulesDesc);
+
+      const world = this.callbacks.getWorldData?.();
+      const enabled = new Set(world?.enabledModules ?? []);
+
+      const MODULE_DEFS: Array<{ id: string; label: string }> = [
+        { id: 'knowledge-acquisition', label: 'Knowledge Tracking' },
+        { id: 'proficiency', label: 'Proficiency' },
+        { id: 'pattern-recognition', label: 'Pattern Recognition' },
+        { id: 'gamification', label: 'XP & Levels' },
+        { id: 'skill-tree', label: 'Skill Tree' },
+        { id: 'adaptive-difficulty', label: 'Adaptive Difficulty' },
+        { id: 'assessment', label: 'Assessment' },
+        { id: 'npc-exams', label: 'NPC Exams' },
+        { id: 'performance-scoring', label: 'Performance Scoring' },
+        { id: 'voice', label: 'Voice Interaction' },
+        { id: 'world-lore', label: 'World Lore' },
+        { id: 'conversation-analytics', label: 'Conversation Analytics' },
+        { id: 'onboarding', label: 'Onboarding' },
+      ];
+
+      const moduleCard = this.makeCard(stack);
+      for (const mod of MODULE_DEFS) {
+        const isEnabled = enabled.has(mod.id);
+        const row = new Rectangle();
+        row.width = 1;
+        row.height = "26px";
+        row.thickness = 0;
+        row.background = "transparent";
+        moduleCard.addControl(row);
+
+        const label = new TextBlock();
+        label.text = `${isEnabled ? '✓' : '○'} ${mod.label}`;
+        label.color = isEnabled ? COLORS.textPrimary : COLORS.textMuted;
+        label.fontSize = 11;
+        label.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        label.left = "8px";
+        row.addControl(label);
+
+        row.isPointerBlocker = true;
+        row.onPointerClickObservable.add(() => {
+          this.callbacks.onToggleModule?.(mod.id, !isEnabled);
+          // Re-render system tab to reflect change
+          this.renderSystemTab();
+        });
+        row.onPointerEnterObservable.add(() => { row.background = COLORS.tabHover; });
+        row.onPointerOutObservable.add(() => { row.background = "transparent"; });
+      }
+    }
   }
 
   // ── VOCABULARY TAB ──────────────────────────────────────────────────────

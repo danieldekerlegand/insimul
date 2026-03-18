@@ -79,7 +79,7 @@ export class AssessmentModalUI {
     // Scroll viewer for tall content
     const scroll = new GUI.ScrollViewer('assessmentScroll');
     scroll.width = '100%';
-    scroll.height = '420px';
+    scroll.height = '560px';
     scroll.thickness = 0;
     scroll.barSize = 6;
     scroll.barColor = '#FFD700';
@@ -314,7 +314,7 @@ export class AssessmentModalUI {
     passageStack.addControl(passageText);
 
     // Bottom inset
-    this.addSpacer(passageStack, 10);
+    this.addSpacer(passageStack, 16);
   }
 
   private addQuestionInputs(stack: GUI.StackPanel, questions: Array<{ id: string; questionText: string; maxPoints: number }>): void {

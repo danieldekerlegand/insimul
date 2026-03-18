@@ -167,7 +167,30 @@ export const ARRIVAL_ENCOUNTER: AssessmentDefinition = {
       ],
     },
 
-    // ── Section 4: Conversation (10 pts) ────────────────────────────────────
+    // ── Section 4: Initiate Conversation (0 pts — gate only) ────────────────
+    {
+      id: 'arrival_initiate_conversation',
+      name: 'Initiate Conversation',
+      type: 'initiate_conversation',
+      maxScore: 0,
+      maxPoints: 0,
+      description:
+        'Talk to the marked NPC to begin a guided conversation assessment.',
+      tasks: [
+        {
+          id: 'arrival_initiate_conversation_task',
+          name: 'Approach NPC',
+          type: 'conversation_quest',
+          prompt:
+            'Talk to the marked NPC in {{cityName}} to begin the conversation assessment.',
+          maxScore: 0,
+          maxPoints: 0,
+          scoringMethod: 'llm',
+        },
+      ],
+    },
+
+    // ── Section 5: Conversation (10 pts) ──────────────────────────────────────
     {
       id: 'arrival_conversation',
       name: 'Conversation',
@@ -175,7 +198,7 @@ export const ARRIVAL_ENCOUNTER: AssessmentDefinition = {
       maxScore: 10,
       maxPoints: 10,
       description:
-        'Walk to the marked NPC and have a guided conversation in {{targetLanguage}}.',
+        "Answer the NPC's questions in a guided conversation in {{targetLanguage}}.",
       tasks: [
         {
           id: 'arrival_conversation_quest',

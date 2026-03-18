@@ -79,11 +79,10 @@ export class BabylonChatPanel {
   private messagesStack: StackPanel | null = null;
   private inputText: InputText | null = null;
   private inputContainer: Container | null = null;
-  private micButton: Rectangle | null = null; // Mic status indicator (non-interactive)
+  private micButton: Rectangle | null = null; // Mic status indicator (non-interactive - hidden, used internally for state tracking)
   private inputArea: Rectangle | null = null; // Input area container (hidden during eavesdrop)
   private titleText: TextBlock | null = null; // Store reference to title text
   private _closeBtn: Button | null = null; // Store reference to close button
-  private _copyBtn: Button | null = null; // Store reference to copy button
   private loadingIndicator: TextBlock | null = null; // Loading indicator
   /** Cached message TextBlock controls indexed by position — avoids full rebuild */
   private _messageControls: Map<number, TextBlock> = new Map();
@@ -106,6 +105,8 @@ export class BabylonChatPanel {
   private isProcessing = false;
   private _hintTimer: ReturnType<typeof setTimeout> | null = null;
   private _hintShown = false;
+  private _longPressTimer: ReturnType<typeof setTimeout> | null = null;
+  private _copyOverlay: Rectangle | null = null;
   private _patienceTimer: ReturnType<typeof setTimeout> | null = null;
   private _sessionGrammarErrors: Map<string, number> = new Map(); // pattern -> error count this session
   private _grammarFocusShown: Set<string> = new Set(); // patterns already shown focus popup
@@ -260,7 +261,6 @@ export class BabylonChatPanel {
       this.titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
       this.titleText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
       if (this._closeBtn) this._closeBtn.isVisible = false;
-      if (this._copyBtn) this._copyBtn.isVisible = false;
       if (this.nearbyNPCName) {
         this.titleText.text = `[G]: Talk to ${this.nearbyNPCName}`;
         if (this.chatContainer) this.chatContainer.alpha = 0.8;
@@ -272,7 +272,6 @@ export class BabylonChatPanel {
       this.titleText.fontSize = 13;
       this.titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
       if (this._closeBtn) this._closeBtn.isVisible = true;
-      if (this._copyBtn) this._copyBtn.isVisible = true;
     }
   }
 
@@ -349,7 +348,6 @@ export class BabylonChatPanel {
 
       // Show close and copy buttons when expanded
       if (this._closeBtn) this._closeBtn.isVisible = true;
-      if (this._copyBtn) this._copyBtn.isVisible = true;
 
       this.initializeChat();
       this._advancedTexture.markAsDirty();
@@ -690,24 +688,6 @@ export class BabylonChatPanel {
     this._closeBtn = closeBtn;
     header.addControl(closeBtn);
 
-    // Copy button — copies full conversation text to clipboard
-    const copyBtn = Button.CreateSimpleButton("copyChat", "\u{1F4CB}");
-    copyBtn.width = "28px";
-    copyBtn.height = "24px";
-    copyBtn.color = "white";
-    copyBtn.background = "rgba(80, 80, 200, 0.8)";
-    copyBtn.cornerRadius = 5;
-    copyBtn.fontSize = 14;
-    copyBtn.left = "-32px";
-    copyBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    copyBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-    copyBtn.isVisible = !this.isCollapsed;
-    copyBtn.onPointerClickObservable.add(() => {
-      const text = this.messages.map(m => m.content).join('\n');
-      navigator.clipboard.writeText(text).catch(() => {});
-    });
-    this._copyBtn = copyBtn;
-    header.addControl(copyBtn);
 
     // Messages area — ScrollViewer wrapping a StackPanel
     // Height is "stretch" — fills remaining space between header (32px) and input (36px)
@@ -717,6 +697,8 @@ export class BabylonChatPanel {
     messagesOuter.background = "rgba(10, 10, 10, 0.3)";
     messagesOuter.thickness = 0;
     messagesOuter.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    messagesOuter.clipContent = true;
+    messagesOuter.clipChildren = true;
     mainLayout.addControl(messagesOuter);
 
     const scrollViewer = new ScrollViewer("messagesScroll");
@@ -727,8 +709,29 @@ export class BabylonChatPanel {
     scrollViewer.barColor = "rgba(255, 255, 255, 0.4)";
     scrollViewer.barBackground = "transparent";
     scrollViewer.wheelPrecision = 3;
+    // Disable horizontal scrollbar — only vertical scrolling needed
+    scrollViewer.forceHorizontalBar = false;
+    scrollViewer.forceVerticalBar = false;
+    // Persistently suppress horizontal scrollbar visibility
+    scrollViewer.onAfterDrawObservable.add(() => {
+      const hBar = (scrollViewer as any)._horizontalBar;
+      if (hBar && hBar.isVisible) { hBar.isVisible = false; hBar.height = '0px'; }
+    });
     messagesOuter.addControl(scrollViewer);
     this.messagesScrollViewer = scrollViewer;
+
+    // Press-and-hold on scroll area to copy dialogue
+    scrollViewer.onPointerDownObservable.add(() => {
+      this._longPressTimer = setTimeout(() => {
+        this.copyDialogueWithOverlay();
+      }, 600);
+    });
+    scrollViewer.onPointerUpObservable.add(() => {
+      if (this._longPressTimer) { clearTimeout(this._longPressTimer); this._longPressTimer = null; }
+    });
+    scrollViewer.onPointerOutObservable.add(() => {
+      if (this._longPressTimer) { clearTimeout(this._longPressTimer); this._longPressTimer = null; }
+    });
 
     const messagesStack = new StackPanel("messagesStack");
     messagesStack.width = "100%";
@@ -736,6 +739,8 @@ export class BabylonChatPanel {
     messagesStack.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     messagesStack.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     messagesStack.adaptHeightToChildren = true;
+    messagesStack.clipContent = true;
+    messagesStack.clipChildren = true;
     scrollViewer.addControl(messagesStack);
     this.messagesStack = messagesStack;
 
@@ -751,7 +756,7 @@ export class BabylonChatPanel {
 
     // Input text field
     this.inputText = new InputText("chatInput");
-    this.inputText.width = "72%";
+    this.inputText.width = "82%";
     this.inputText.height = "26px";
     this.inputText.color = "white";
     this.inputText.fontSize = 12;
@@ -788,32 +793,15 @@ export class BabylonChatPanel {
 
     inputArea.addControl(this.inputText);
 
-    // Mic status indicator (non-interactive, shows when VAD detects speech)
-    this.micButton = new Rectangle("micStatus");
-    this.micButton.width = "22px";
-    this.micButton.height = "22px";
-    this.micButton.color = "transparent";
-    this.micButton.background = "rgba(60, 60, 60, 0.3)";
-    this.micButton.cornerRadius = 11;
-    this.micButton.thickness = 0;
-    this.micButton.left = "-4px";
-    this.micButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    this.micButton.isHitTestVisible = false;
-    const micIcon = new TextBlock("micIcon", "🎤");
-    micIcon.fontSize = 11;
-    micIcon.color = "white";
-    this.micButton.addControl(micIcon);
-    inputArea.addControl(this.micButton);
-
     // Send button
     const sendBtn = Button.CreateSimpleButton("sendBtn", "Send");
-    sendBtn.width = "20%";
+    sendBtn.width = "16%";
     sendBtn.height = "26px";
     sendBtn.color = "white";
     sendBtn.background = "rgba(30, 150, 255, 0.6)";
     sendBtn.cornerRadius = 4;
     sendBtn.fontSize = 12;
-    sendBtn.left = "-34px";
+    sendBtn.left = "-2px";
     sendBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     sendBtn.onPointerClickObservable.add(() => {
       this.sendMessage();
@@ -840,7 +828,54 @@ export class BabylonChatPanel {
 
     console.log('[ChatPanel] Chat UI created');
   }
-  
+
+  /** Copy full dialogue to clipboard and briefly show an overlay notification. */
+  private copyDialogueWithOverlay(): void {
+    const text = this.messages.map(m => m.content).join('\n');
+    navigator.clipboard.writeText(text).catch(() => {});
+
+    // Show overlay inside the scroll viewer area
+    if (this._copyOverlay) {
+      this._copyOverlay.dispose();
+      this._copyOverlay = null;
+    }
+    if (!this.messagesScrollViewer) return;
+
+    const overlay = new Rectangle("copyOverlay");
+    overlay.width = "180px";
+    overlay.height = "36px";
+    overlay.background = "rgba(0, 0, 0, 0.85)";
+    overlay.cornerRadius = 8;
+    overlay.thickness = 0;
+    overlay.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    overlay.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    overlay.zIndex = 100;
+
+    const overlayText = new TextBlock("copyOverlayText", "\u{1F4CB} Dialogue Copied to Clipboard");
+    overlayText.color = "white";
+    overlayText.fontSize = 11;
+    overlayText.fontWeight = "bold";
+    overlayText.textWrapping = TextWrapping.WordWrap;
+    overlay.addControl(overlayText);
+
+    // Add overlay to the outer messages area (parent of scroll viewer)
+    const parent = this.messagesScrollViewer.parent;
+    if (parent) {
+      parent.addControl(overlay);
+    } else {
+      this.messagesScrollViewer.addControl(overlay);
+    }
+    this._copyOverlay = overlay;
+
+    // Fade out after 1.5s
+    setTimeout(() => {
+      if (this._copyOverlay) {
+        this._copyOverlay.dispose();
+        this._copyOverlay = null;
+      }
+    }, 1500);
+  }
+
   /** Determine the display color for a message based on role and content prefix. */
   private getMessageColor(msg: Message): string {
     if (msg.role === 'user') return "#87CEEB";
@@ -3024,12 +3059,13 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
    */
   private async turnInQuest(quest: any, dialog: Rectangle) {
     try {
+      // TODO: Write completion to playthrough delta layer, not world data.
+      // For now, emit a local event but don't mutate the world quest status.
       const response = await fetch(`/api/quests/${quest.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: 'completed',
-          completedAt: new Date().toISOString()
+          // Don't write status: 'completed' — that's per-playthrough state
         })
       });
 
@@ -3489,6 +3525,8 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
       this._scrollAnimFrame = null;
     }
     this._messageControls.clear();
+    if (this._longPressTimer) { clearTimeout(this._longPressTimer); this._longPressTimer = null; }
+    if (this._copyOverlay) { this._copyOverlay.dispose(); this._copyOverlay = null; }
     if (this.chatContainer) {
       this._advancedTexture.removeControl(this.chatContainer);
     }

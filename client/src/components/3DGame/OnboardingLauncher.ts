@@ -221,16 +221,18 @@ export async function launchOnboarding(
       maxScore,
     });
 
-    // Update the assessment quest objective for this phase
-    if (assessmentQuestId) {
-      updateAssessmentQuestObjective(worldId, assessmentQuestId, phaseId, score, maxScore, authToken);
-    }
+    // TODO: Update quest objective progress via playthrough delta layer, not world data.
+    // For now, phase completion is tracked via assessment events only.
   });
 
-  // Wire instruction callbacks — conversation phase shows instruction overlay
+  // Wire instruction callbacks — conversation phases show instruction overlay
   assessmentEngine.onShowInstruction((config) => {
-    if (config.isConversational) {
-      progressUI?.setStatusText('Walk to the marked NPC');
+    if (config.phaseId === 'arrival_initiate_conversation') {
+      progressUI?.setStatusText('Talk to the marked NPC');
+    } else if (config.phaseId === 'arrival_conversation') {
+      progressUI?.setStatusText("Answer the NPC's questions");
+    } else if (config.isConversational) {
+      progressUI?.setStatusText(config.phaseName);
     } else {
       progressUI?.setStatusText(config.phaseName || 'In progress...');
     }
@@ -264,8 +266,8 @@ export async function launchOnboarding(
     showPendingModal();
   });
 
-  // Create an assessment quest so it appears in the quest log (J key)
-  const assessmentQuestId = await createAssessmentQuest(worldId, playerId, targetLanguage, authToken);
+  // Find the existing assessment quest (created in the world editor) so it appears in the quest log (J key)
+  const assessmentQuestId = await findAssessmentQuest(worldId, authToken);
 
   // Return a promise that resolves when the full onboarding completes
   return new Promise<OnboardingLaunchResult | null>((resolve) => {
@@ -288,10 +290,8 @@ export async function launchOnboarding(
         cefrLevel: result.cefrLevel,
       });
 
-      // Mark the assessment quest as completed
-      if (assessmentQuestId) {
-        completeAssessmentQuest(worldId, assessmentQuestId, authToken);
-      }
+      // TODO: Mark quest completed via playthrough delta layer, not world data.
+      // Quest completion is tracked via assessment_completed event for now.
 
       // Store CEFR level on the server
       storeCefrLevel(worldId, playerId, authToken, result.cefrLevel, result.totalScore, result.totalMaxScore);
@@ -375,122 +375,38 @@ export async function launchOnboarding(
 }
 
 /**
- * Create an assessment quest so it appears in the quest log.
- * Returns the quest ID on success, or null if creation fails.
+ * Find the existing Arrival Assessment quest for this world, or return null.
+ * The quest should be pre-created in the world editor, not spawned per-playthrough.
  */
-async function createAssessmentQuest(
+async function findAssessmentQuest(
   worldId: string,
-  playerId: string,
-  targetLanguage: string,
   authToken: string,
 ): Promise<string | null> {
   try {
-    const { buildArrivalAssessmentQuest } = await import(
+    const res = await fetch(`/api/worlds/${worldId}/quests`, {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    });
+    if (!res.ok) return null;
+
+    const quests = await res.json();
+    const { isArrivalAssessmentQuest } = await import(
       '@shared/services/assessment-quest-bridge-shared.ts'
     );
-    const questData = buildArrivalAssessmentQuest({
-      worldId,
-      playerId,
-      targetLanguage,
-      cityName: 'the city',
-    });
 
-    const res = await fetch(`/api/worlds/${worldId}/quests`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-      },
-      body: JSON.stringify(questData),
-    });
-
-    if (!res.ok) {
-      console.warn('[OnboardingLauncher] Failed to create assessment quest:', res.status);
-      return null;
+    const existing = quests.find((q: any) => isArrivalAssessmentQuest(q));
+    if (existing) {
+      console.log('[OnboardingLauncher] Found existing assessment quest:', existing.id);
+      return existing.id;
     }
 
-    const created = await res.json();
-    console.log('[OnboardingLauncher] Assessment quest created:', created.id);
-    return created.id;
+    console.log('[OnboardingLauncher] No existing assessment quest found in world');
+    return null;
   } catch (err) {
-    console.warn('[OnboardingLauncher] Could not create assessment quest:', err);
+    console.warn('[OnboardingLauncher] Could not find assessment quest:', err);
     return null;
   }
 }
 
-/**
- * Update an assessment quest objective when a phase completes.
- */
-async function updateAssessmentQuestObjective(
-  worldId: string,
-  questId: string,
-  phaseId: string,
-  score: number,
-  maxScore: number,
-  authToken: string,
-): Promise<void> {
-  try {
-    const { markPhaseObjectiveComplete, computeProgress } = await import(
-      '@shared/services/assessment-quest-bridge-shared.ts'
-    );
-
-    // Fetch current quest to get objectives
-    const res = await fetch(`/api/quests/${questId}`, {
-      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
-    });
-    if (!res.ok) return;
-
-    const quest = await res.json();
-    const { objectives: updated, allComplete } = markPhaseObjectiveComplete(
-      quest.objectives ?? [],
-      phaseId,
-      score,
-      maxScore,
-    );
-
-    const progress = { percentComplete: computeProgress(updated) };
-
-    await fetch(`/api/quests/${questId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-      },
-      body: JSON.stringify({
-        objectives: updated,
-        progress,
-        ...(allComplete ? { status: 'completed' } : {}),
-      }),
-    });
-
-    console.log(`[OnboardingLauncher] Assessment quest objective updated: ${phaseId} (${score}/${maxScore})`);
-  } catch (err) {
-    console.warn('[OnboardingLauncher] Failed to update assessment quest objective:', err);
-  }
-}
-
-/**
- * Mark the assessment quest as completed.
- */
-async function completeAssessmentQuest(
-  worldId: string,
-  questId: string,
-  authToken: string,
-): Promise<void> {
-  try {
-    await fetch(`/api/worlds/${worldId}/quests/${questId}/complete`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-      },
-      body: JSON.stringify({}),
-    });
-    console.log('[OnboardingLauncher] Assessment quest completed');
-  } catch (err) {
-    console.warn('[OnboardingLauncher] Failed to complete assessment quest:', err);
-  }
-}
 
 /**
  * Persist the player's CEFR level and effective fluency to the server.

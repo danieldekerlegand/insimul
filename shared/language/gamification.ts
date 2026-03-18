@@ -2,6 +2,10 @@
  * Language Gamification Types
  *
  * XP/leveling, achievements, and daily challenges for the language-learning game loop.
+ *
+ * NOTE: The generic gamification module is at shared/feature-modules/gamification/.
+ * This file keeps all language-specific definitions and adds bridge functions
+ * for converting to/from the generic types. Existing consumers are unaffected.
  */
 
 // --- XP & Leveling ---
@@ -314,5 +318,95 @@ export function createDefaultGamificationState(): GamificationState {
     puzzlesSolved: 0,
     dailyChallengeStreak: 0,
     lastDailyChallengeDate: null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Bridge: Language GamificationState ↔ Generic GamificationState
+// ---------------------------------------------------------------------------
+
+import type {
+  GamificationState as GenericGamificationState,
+  XPState,
+  Achievement as GenericAchievement,
+  DailyChallenge as GenericDailyChallenge,
+} from '../feature-modules/gamification/types';
+
+/**
+ * Language-learning XP reward table registered with the generic gamification module.
+ * Maps language-specific event types to XP amounts.
+ */
+export const LANGUAGE_XP_EVENT_MAP: Record<string, number> = {
+  conversation_base: XP_REWARDS.conversationBase,
+  conversation_long: XP_REWARDS.conversationLong,
+  quest_complete: XP_REWARDS.questComplete,
+  knowledge_new_entry: XP_REWARDS.vocabularyNewWord,
+  knowledge_mastered: XP_REWARDS.vocabularyMastered,
+  pattern_correct: XP_REWARDS.grammarPatternCorrect,
+  pattern_mastered: XP_REWARDS.grammarPatternMastered,
+  daily_challenge_complete: XP_REWARDS.dailyChallengeComplete,
+  achievement_unlocked: XP_REWARDS.achievementUnlocked,
+  assessment_phase_complete: XP_REWARDS.assessmentPhaseComplete,
+  assessment_complete: XP_REWARDS.assessmentComplete,
+  onboarding_step_complete: XP_REWARDS.onboardingStepComplete,
+  onboarding_complete: XP_REWARDS.onboardingComplete,
+  performance_graded: XP_REWARDS.puzzleSolved,
+  location_discovered: XP_REWARDS.locationDiscovered,
+  exam_complete: XP_REWARDS.npcExamComplete,
+  exam_passed: XP_REWARDS.listeningComprehensionComplete,
+};
+
+/**
+ * Convert a language GamificationState to the generic GamificationState.
+ */
+export function gamificationStateToGeneric(state: GamificationState): GenericGamificationState {
+  const genericXP: XPState = {
+    totalXP: state.xp.totalXP,
+    level: state.xp.level,
+    xpForNextLevel: state.xp.xpForNextLevel,
+    currentLevelXP: state.xp.currentLevelXP,
+  };
+
+  const genericAchievements: GenericAchievement[] = state.achievements.map(a => ({
+    id: a.id,
+    name: a.name,
+    description: a.description,
+    icon: a.icon,
+    condition: { type: a.condition.type, threshold: a.condition.threshold },
+    unlockedAt: a.unlockedAt,
+  }));
+
+  const genericChallenge: GenericDailyChallenge | null = state.dailyChallenge
+    ? {
+        id: state.dailyChallenge.id,
+        description: state.dailyChallenge.description,
+        type: state.dailyChallenge.type,
+        target: state.dailyChallenge.target,
+        progress: state.dailyChallenge.progress,
+        completed: state.dailyChallenge.completed,
+        dateKey: state.dailyChallenge.dateKey,
+        xpReward: state.dailyChallenge.xpReward,
+      }
+    : null;
+
+  return {
+    xp: genericXP,
+    achievements: genericAchievements,
+    dailyChallenge: genericChallenge,
+    consecutiveDays: state.consecutiveDays,
+    dailyChallengeStreak: state.dailyChallengeStreak,
+    lastDailyChallengeDate: state.lastDailyChallengeDate,
+    counters: {
+      questsCompleted: state.questsCompleted,
+      navigationQuestsCompleted: state.navigationQuestsCompleted,
+      culturalQuestsCompleted: state.culturalQuestsCompleted,
+      articlesRead: state.articlesRead,
+      npcsTalked: state.npcsTalked,
+      itemsCollected: state.itemsCollected,
+      examsPassed: state.examsPassed,
+      locationsDiscovered: state.locationsDiscovered,
+      objectsExamined: state.objectsExamined,
+      puzzlesSolved: state.puzzlesSolved,
+    },
   };
 }

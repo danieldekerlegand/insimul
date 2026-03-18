@@ -426,6 +426,8 @@ export class BabylonGame {
   private onboardingResult: OnboardingLaunchResult | null = null;
   private onboardingActive: boolean = false;
   private assessmentActive: boolean = false;
+  /** NPC ID highlighted for the current assessment conversation phase. */
+  private _assessmentTargetNpcId: string | null = null;
 
   // Player
   private playerController: CharacterController | null = null;
@@ -1082,15 +1084,19 @@ export class BabylonGame {
         return reps;
       },
       getQuests: () => {
-        const quests = this.worldData?.quests || [];
-        return quests.map((q) => ({
+        return (this.quests || []).map((q: any) => ({
           id: q.id,
-          title: q.name || q.id,
-          description: '',
-          status: q.status || 'active',
-          questType: '',
-          difficulty: '',
-          progress: null,
+          title: q.title || q.name || q.id,
+          description: q.description || '',
+          status: q.status || 'available',
+          questType: q.questType || '',
+          difficulty: q.difficulty || '',
+          progress: q.progress || null,
+          objectives: q.objectives || [],
+          experienceReward: q.experienceReward || 0,
+          assignedBy: q.assignedBy || null,
+          targetLanguage: q.targetLanguage || '',
+          tags: q.tags || null,
         }));
       },
       getInventoryItems: () => {
@@ -1478,7 +1484,7 @@ export class BabylonGame {
     // Initialize quest notification manager (toasts + HUD indicator)
     this.questNotificationManager = new QuestNotificationManager(this.guiManager.advancedTexture, this.eventBus);
     this.questNotificationManager.setOnHudClicked(() => {
-      this.questTracker?.toggle();
+      this.gameMenuSystem?.open("quests");
     });
 
     // Initialize quest language feedback panel (real-time grammar/vocab overlay)
@@ -1786,12 +1792,8 @@ export class BabylonGame {
           const resp = await fetch(`/api/quests/${questId}`);
           if (resp.ok) {
             const questData = await resp.json();
-            // Mark as completed on server
-            await fetch(`/api/quests/${questId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ status: 'completed', completedAt: new Date().toISOString() }),
-            });
+            // TODO: Write completion to playthrough delta layer, not world data.
+            // For now, completion is tracked in-memory only for this session.
             await this.questCompletionManager.completeQuest({
               id: questData.id,
               worldId: questData.worldId || this.config.worldId,
@@ -1835,28 +1837,79 @@ export class BabylonGame {
     });
     // When the conversation assessment phase starts, pick the nearest NPC and highlight it
     this.eventBus.on('assessment_conversation_quest_start', () => {
-      if (!this.playerMesh) return;
+      if (!this.playerMesh) {
+        console.warn('[BabylonGame] assessment_conversation_quest_start: no playerMesh — cannot pick NPC');
+        return;
+      }
       const playerPos = this.playerMesh.position;
       let bestId: string | null = null;
       let bestDist = Infinity;
+      // Also track closest NPC ignoring building constraints as fallback
+      let fallbackId: string | null = null;
+      let fallbackDist = Infinity;
+
       this.npcMeshes.forEach((instance, npcId) => {
-        if (!instance?.mesh || !instance.mesh.isEnabled() || instance.isInsideBuilding) return;
-        // Skip NPCs whose position falls inside a building footprint
-        if (this.isPointInsideAnyBuilding(instance.mesh.position.x, instance.mesh.position.z)) return;
+        if (!instance?.mesh) return;
+
+        // Track fallback: any NPC with a mesh (even disabled / inside building)
         const dx = playerPos.x - instance.mesh.position.x;
         const dz = playerPos.z - instance.mesh.position.z;
         const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < fallbackDist) {
+          fallbackDist = dist;
+          fallbackId = npcId;
+        }
+
+        // Primary: prefer enabled outdoor NPCs
+        if (!instance.mesh.isEnabled() || instance.isInsideBuilding) return;
+        if (this.isPointInsideAnyBuilding(instance.mesh.position.x, instance.mesh.position.z)) return;
         if (dist < bestDist) {
           bestDist = dist;
           bestId = npcId;
         }
       });
-      if (bestId) {
-        this.guiManager.setHighlightedNpc(bestId);
+
+      const targetId = bestId || fallbackId;
+      if (targetId) {
+        // If we fell back to an indoor NPC, bring them outside so the player can reach them
+        if (!bestId && fallbackId) {
+          const instance = this.npcMeshes.get(fallbackId);
+          if (instance) {
+            console.log(`[BabylonGame] No outdoor NPC found — bringing ${fallbackId} outside for assessment`);
+            instance.isInsideBuilding = false;
+            instance.insideBuildingId = undefined;
+            instance.mesh.setEnabled(true);
+            if (instance.billboardLOD) instance.billboardLOD.setEnabled(true);
+            // Move NPC near the player so they're reachable
+            const angle = Math.random() * Math.PI * 2;
+            const spawnDist = 15 + Math.random() * 10;
+            const spawnX = playerPos.x + Math.cos(angle) * spawnDist;
+            const spawnZ = playerPos.z + Math.sin(angle) * spawnDist;
+            const safePos = this.findSafeSpawnNear(
+              new Vector3(spawnX, instance.mesh.position.y, spawnZ),
+              10, 5, 8,
+            );
+            instance.mesh.position.x = safePos.x;
+            instance.mesh.position.z = safePos.z;
+          }
+        }
+        console.log(`[BabylonGame] Highlighting NPC ${targetId} for assessment conversation (outdoor: ${!!bestId})`);
+        this._assessmentTargetNpcId = targetId;
+        this.guiManager?.setHighlightedNpc(targetId);
+      } else {
+        console.warn('[BabylonGame] assessment_conversation_quest_start: no NPCs available to highlight');
       }
     });
+    // When the guided conversation phase starts, inject assessment prompt into the chat panel
+    this.eventBus.on('assessment_guided_conversation_start', (event) => {
+      const topics = event.topics.join(', ');
+      const guidancePrompt = `\n\nASSESSMENT CONVERSATION MODE: This is a language assessment conversation. Guide the conversation through these topics: ${topics}. Ask the player questions in the target language, starting simple and gradually increasing complexity. Aim for ${event.minExchanges}–${event.maxExchanges} exchanges. Evaluate their responses naturally — do not grade out loud. Keep the conversation flowing and supportive.`;
+      this.chatPanel?.setQuestGuidancePrompt(guidancePrompt);
+    });
     this.eventBus.on('assessment_conversation_completed', () => {
-      this.guiManager.clearHighlightedNpc();
+      this._assessmentTargetNpcId = null;
+      this.guiManager?.clearHighlightedNpc();
+      this.chatPanel?.setQuestGuidancePrompt(null);
     });
     this.eventBus.on('onboarding_step_completed', () => {
       this.gamificationTracker?.onOnboardingStepCompleted();
@@ -4695,6 +4748,7 @@ export class BabylonGame {
 
     this.onboardingActive = false;
     this.assessmentActive = false;
+    this._assessmentTargetNpcId = null;
 
     if (result) {
       this.onboardingResult = result;
@@ -7128,10 +7182,10 @@ export class BabylonGame {
       this.handleTargetEnemy();
     }
 
-    // J - Toggle quest log
+    // J - Open quest log (game menu quests tab)
     if (event.code === KEY_QUEST_LOG && !event.repeat) {
       event.preventDefault();
-      this.questTracker?.toggle();
+      this.gameMenuSystem?.open("quests");
     }
 
     // Tab - Toggle full-screen map
@@ -7286,6 +7340,14 @@ export class BabylonGame {
 
       // Open the chat panel — this is the core action
       this.chatPanel.show(character, truths, npcMesh);
+
+      // If this NPC is the assessment target, signal that the player initiated the conversation
+      if (this.assessmentActive && this._assessmentTargetNpcId && npcId === this._assessmentTargetNpcId) {
+        this.eventBus.emit({
+          type: 'assessment_conversation_initiated',
+          npcId,
+        });
+      }
     } catch (error) {
       console.error("Failed to open chat:", error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -8892,10 +8954,10 @@ export class BabylonGame {
 
       const allObjectivesComplete = quest.objectives?.every((obj: any) => obj.completed);
 
+      // TODO: Write progress/completion to playthrough delta layer, not world data.
+      // For now, only write progress updates (not status changes) to keep world data clean.
       await this.dataSource.updateQuest(questId, {
         progress: updatedProgress,
-        status: allObjectivesComplete ? 'completed' : 'active',
-        completedAt: allObjectivesComplete ? new Date() : null
       });
 
       this.questTracker?.updateQuests(this.config.worldId);

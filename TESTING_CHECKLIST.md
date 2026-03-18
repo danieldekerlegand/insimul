@@ -166,7 +166,7 @@
 - [ ] NPCs converse with each other autonomously
 - [ ] Speech bubbles/indicators show who is talking
 - [ ] Player can eavesdrop on nearby NPC conversations
-- [ ] Eavesdropped vocabulary contributes to language learning
+- [ ] Eavesdropped content contributes to knowledge acquisition (vocabulary in language-learning, lore in RPG, etc.)
 - [ ] Conversation topic is contextually appropriate
 
 ### 5.7 NPC Occupation Activities
@@ -207,12 +207,13 @@
 
 ### 6.4 Quest Types
 - [ ] Standard fetch/deliver quests work
-- [ ] Language learning quests function
+- [ ] Knowledge-acquisition quests function (vocabulary quests in language-learning, lore quests in RPG, etc.)
 - [ ] Business roleplay quests generate and complete
 - [ ] Mystery quests generate with clues
-- [ ] Pronunciation/utterance quests evaluate speech
+- [ ] Performance-scoring quests evaluate player output (pronunciation in language-learning, combos in RPG, etc.)
 - [ ] Puzzle quests present and validate puzzles
 - [ ] Recurring quests regenerate on schedule
+- [ ] Quest objectives use generic module references (`apply_knowledge`, `demonstrate_pattern`, `proficiency_gain`) not hardcoded language terms
 
 ### 6.5 Quest Chains
 - [ ] Multi-stage quest chains generate
@@ -225,18 +226,18 @@
 - [ ] Quests can be failed (timeout, wrong answer)
 - [ ] Quests can be retried after failure
 - [ ] Quest hints available and helpful
-- [ ] Quest language feedback panel shows learning progress
+- [ ] Quest feedback panel shows learning/performance progress (pattern recognition feedback in language-learning)
 
 ### 6.7 Real-Time Quest Events & Feedback
 - [ ] Quest-relevant events fire on GameEventBus (visited_location, talked_to_npc, used_vocabulary, etc.)
 - [ ] QuestCompletionEngine matches events against active quest objectives
 - [ ] Progress updates immediately and emits quest:objective_progress event
-- [ ] Inline grammar corrections display during quest conversations (green/orange/red)
-- [ ] Quest completion overlay includes language performance summary
+- [ ] Inline pattern feedback displays during quest conversations (green/orange/red) — grammar corrections in language-learning
+- [ ] Quest completion overlay includes performance summary (from relevant modules)
 
 ### 6.8 Quest Auto-Generation & Difficulty Scaling
 - [ ] When active quests drop below threshold, new quests auto-generated
-- [ ] Weak-area detection prioritizes quest types player needs
+- [ ] Weak-area detection (from ProficiencyModule) prioritizes quest types player needs
 - [ ] At least one quest of each major category always available
 - [ ] Rolling average of recent quest quality tracked for difficulty adjustment
 - [ ] High quality (>85%) increases difficulty; low quality (<50%) decreases
@@ -250,8 +251,8 @@
 
 ### 6.10 Specialized Quest Actions
 - [ ] Ask for directions: NPC responds with verbal directions using actual street network
-- [ ] Introduce self: first NPC meeting prompts introduction, quality tracked by CEFR level
-- [ ] Order food: restaurant menu displays, player orders in target language, NPC validates
+- [ ] Introduce self: first NPC meeting prompts introduction, quality tracked by proficiency tier
+- [ ] Order food: restaurant menu displays, player orders in target language (language-learning) or genre-appropriate interaction, NPC validates
 
 ### 6.11 Onboarding Quest Sequence
 - [ ] Quest 0-6 teach core mechanics (response, examine, walk, enter shop, converse, purchase, assessment)
@@ -260,77 +261,139 @@
 
 ### 6.12 Business Interactions
 - [ ] Business owner NPC greets player on entry (contextual to business type)
-- [ ] Greeting complexity scales with CEFR level
+- [ ] Greeting complexity scales with proficiency tier
 - [ ] Business reputation tracked per business (Stranger → Friend)
 - [ ] Higher reputation unlocks harder/more rewarding quests from that business NPC
 
 ---
 
-## 7. LANGUAGE LEARNING
+## 7. FEATURE MODULE SYSTEM
 
-### 7.1 Language Generation
-- [ ] Languages generate for worlds
-- [ ] Language has vocabulary (words, phrases)
-- [ ] Language has grammar rules
-- [ ] Language has pronunciation data
-- [ ] Language chat interface works
+> The platform uses a composable feature module architecture (`shared/feature-modules/`). Each module is genre-agnostic and can be enabled/disabled per world. Language-learning is one "genre bundle" that enables a specific set of modules. Test both the generic module behavior AND the language-learning specialization.
 
-### 7.2 Vocabulary System
-- [ ] Vocabulary panel accessible (V key)
-- [ ] Words collected from game interactions
-- [ ] Word mastery tracked (colors indicate level)
+### 7.1 Module Registry & Genre Bundles
+- [ ] Feature module registry (`shared/feature-modules/registry.ts`) loads all modules
+- [ ] Genre bundles (`shared/feature-modules/genre-bundles.ts`) map genres to default module sets
+- [ ] `enabledModules` array on world schema controls which modules are active
+- [ ] Language-learning bundle enables all 13 modules (knowledge-acquisition, proficiency, pattern-recognition, performance-scoring, voice, gamification, skill-tree, adaptive-difficulty, world-lore, conversation-analytics, assessment, npc-exams, onboarding)
+- [ ] RPG/survival/strategy bundles enable appropriate module subsets
+- [ ] New `GenreFeatures` flags work: `knowledgeAcquisition`, `proficiencyTracking`, `patternRecognition`, `performanceScoring`, `voiceInteraction`, `adaptiveDifficulty`, `assessment`, `npcExams`, `worldLore`
+
+### 7.2 Knowledge Acquisition Module (formerly Vocabulary)
+- [ ] Knowledge collection panel accessible (V key) — `KnowledgeCollectionSystem.ts`
+- [ ] Knowledge entries collected from game interactions (not just vocabulary words — any learnable unit)
+- [ ] Entry mastery tracked with configurable levels (new → learning → familiar → mastered, or genre-specific labels)
 - [ ] Category filtering works
 - [ ] Sort modes function
-- [ ] Visual vocabulary detector highlights learnable objects in world
-
-### 7.3 Vocabulary Collection
-- [ ] Approaching tagged objects triggers vocabulary quiz
-- [ ] Multiple-choice vocabulary quizzes work
+- [ ] Object identification system (`ObjectIdentificationSystem.ts`) highlights learnable objects in world
+- [ ] Approaching tagged objects triggers knowledge quiz
+- [ ] Multiple-choice quizzes work
 - [ ] XP awarded for correct answers
 - [ ] Mastery level increases with practice
-- [ ] Point-and-name action identifies objects correctly
+- [ ] Point-and-identify action works for any knowledge type (vocabulary, species, resources, lore)
+- [ ] **Language-learning specialization**: entries are vocabulary words with translation, pronunciation, example sentences
+- [ ] Spaced repetition review intervals trigger for due entries (`vocabulary-review.ts`)
+- [ ] MongoDB collection: `knowledgeentries` (migrated from `vocabularyentries`)
 
-### 7.4 Listening Comprehension
-- [ ] Listening exercises play TTS audio
-- [ ] Comprehension questions appear after audio
-- [ ] Answers scored correctly
-- [ ] NPC eavesdropping contributes to listening practice
+### 7.3 Proficiency Module (formerly Language Proficiency / CEFR)
+- [ ] Proficiency tracker (`ProficiencyTracker`) displays current tier and dimension scores
+- [ ] Generic tier system works (Novice → Apprentice → Journeyman → Expert → Master)
+- [ ] Configurable dimension sets load per genre
+- [ ] **Language-learning specialization**: dimensions are vocabulary, grammar, pronunciation, listening, communication; tiers map to CEFR (A1–B2)
+- [ ] Adaptive difficulty driven by proficiency scores (not hardcoded to speech complexity)
+- [ ] MongoDB collection: `proficiencyprogress` (migrated from `languageprogress`)
 
-### 7.5 Pronunciation
-- [ ] Voice input captures player speech
-- [ ] Pronunciation scored against target
-- [ ] Pronunciation quest feedback given
-- [ ] Speech-to-text transcription works
+### 7.4 Pattern Recognition Module (formerly Grammar Patterns)
+- [ ] Patterns tracked with usage counts and examples
+- [ ] Contextual coaching feedback displayed for any pattern type
+- [ ] **Language-learning specialization**: grammar patterns with corrections via `QuestLanguageFeedbackPanel`
 
-### 7.6 Skill Tree & Progression
+### 7.5 Performance Scoring Module (formerly Pronunciation Scoring)
+- [ ] Performance analysis compares player output against expected output
+- [ ] Pluggable analyzers: audio analyzer, input sequence, timing
+- [ ] Grading system (A/B/C/D or configurable tiers) works
+- [ ] **Language-learning specialization**: pronunciation scoring via Gemini audio analysis
+- [ ] Phonetic similarity scoring used instead of exact string matching
+- [ ] Language-specific phonetic rules applied (silent letters, liaisons)
+- [ ] Partial credit given for close phonemes
+- [ ] Per-word pronunciation scores returned with timing and overall grade
+- [ ] Fallback to text-based scoring if audio analysis fails
+- [ ] Pronunciation feedback integrated with quest completion
+
+### 7.6 Voice Module (formerly Speech Recognition + TTS)
+- [ ] Voice input captures player speech (Web Speech API)
+- [ ] TTS plays for NPC dialogue (Gemini)
+- [ ] Voice WebSocket streaming works
+- [ ] Voice input usable as alternative input for any genre (not just language-learning)
+- [ ] **Language-learning specialization**: speech-to-text compared against target phrases
+- [ ] Listen & repeat: NPC repeats last phrase slowly, player uses push-to-talk (R), feedback shows matched/missed words
+- [ ] VAD: hands-free mode, auto-start/stop recording, visual volume indicator
+- [ ] NPC greeting audio precomputed on chat open for instant playback
+
+### 7.7 Gamification Module (formerly Language Gamification)
+- [ ] XP awarded from pluggable event sources (each module registers its own XP-granting events)
+- [ ] Level progression works (generic level/XP system)
+- [ ] Daily challenges appear and complete (genre-appropriate challenges)
+- [ ] Achievements unlock for milestones (conditions are module-driven)
+- [ ] `GamificationTracker` (formerly `LanguageGamificationTracker`) displays progress accurately
+- [ ] **Language-learning specialization**: XP for conversation, vocabulary mastery, grammar mastery
+- [ ] Wired to existing `experience` flag in `GenreFeatures`
+
+### 7.8 Skill Tree Module (formerly Language Skill Tree)
 - [ ] Skill tree panel (BabylonSkillTreePanel) accessible
-- [ ] 5 tiers visible (First Words → Near Native)
-- [ ] Skill nodes show requirements
+- [ ] Pluggable tree definitions load per genre
+- [ ] Skill nodes show requirements (conditions from contributing modules)
 - [ ] Skills unlock as proficiency increases
-- [ ] XP accumulates from all language activities
+- [ ] **Language-learning specialization**: 5 tiers (First Words → Near Native), language-specific nodes
+- [ ] Wired to existing `skills` flag in `GenreFeatures`
 
-### 7.7 Content Gating
+### 7.9 Adaptive Difficulty Module (formerly Speech Complexity)
+- [ ] Generic parameter schema works with module-contributed parameters
+- [ ] Base parameters: complexity tier, challenge intensity, hint frequency, assistance level
+- [ ] 5-tier difficulty structure (or genre-configurable tiers)
+- [ ] Adaptation driven by `ProficiencyModule` scores
+- [ ] **Language-learning specialization**: sentence length, new words per message, grammar corrections, target language ratio, idiom usage, encouragement level
+- [ ] NPCs adjust complexity based on player proficiency tier
+- [ ] Low tier: simple sentences, repeats key words, mixes native language
+- [ ] High tier: natural speech with complex structures, minimal native language
+
+### 7.10 World Lore Module (formerly Language Definitions)
+- [ ] Generic world lore entries support multiple specializations
+- [ ] Lore exploration chat works (ask NPC about any lore topic)
+- [ ] Item lore annotation works (genre-specific metadata on items)
+- [ ] **Language-learning specialization**: `WorldLanguage` with phonemes, grammar rules, writing systems, cultural context
+- [ ] Languages generate for worlds
+- [ ] Language chat interface works
+
+### 7.11 Conversation Analytics Module (formerly Conversation Records)
+- [ ] Conversation metrics tracked per genre configuration
+- [ ] Conversation recording works for any genre with dialogue
+- [ ] Quest objectives driven from conversation analytics
+- [ ] **Language-learning specialization**: target-language percentage, fluency gain, topic tracking
+- [ ] Wired to existing `dialogue` flag in `GenreFeatures`
+
+### 7.12 Onboarding Module (formerly Language-Learning Onboarding)
+- [ ] Composable step sequences from contributing modules
+- [ ] Core steps: movement tutorial, UI tutorial, camera tutorial
+- [ ] Genre defines default onboarding sequence by composing module steps
+- [ ] Player can skip/revisit steps
+- [ ] **Language-learning specialization**: reading assessment, writing assessment, speech practice interleaved with tutorials
+
+### 7.13 Content Gating
 - [ ] New settlements unlock at higher proficiency
 - [ ] New NPC types unlock at higher levels
-- [ ] Quest types gate behind language skill
-- [ ] Content gating level thresholds correct
+- [ ] Quest types gate behind proficiency tier
+- [ ] Content gating thresholds correct
 
-### 7.8 Gamification
-- [ ] XP awarded for: quest completion, vocabulary, grammar, conversation
-- [ ] Level progression (0-100) works
-- [ ] Daily challenges appear and complete
-- [ ] Achievements unlock for milestones
-- [ ] Language progress tracker accurate
-
-### 7.9 Quest Streak System
+### 7.14 Quest Streak System
 - [ ] Consecutive quest completions tracked without failure/abandonment
 - [ ] Streak multipliers apply (2→1.1x, 5→1.25x, 10→1.5x, 20→2.0x XP)
 - [ ] Current streak displayed in quest log header with flame icon
-- [ ] Streak persisted in LanguageProgress across sessions
+- [ ] Streak persisted in proficiency progress across sessions
 - [ ] Daily quests have separate streak counter
 - [ ] Business-specific streak: visiting a business daily increases NPC rapport
 
-### 7.10 XP Award Wiring
+### 7.15 XP Award Wiring
 - [ ] XP_REWARDS correctly awarded for all activity types
 - [ ] Level-up checks trigger after each XP award
 - [ ] Level-up emits event, displays notification, persists to playerProgress
@@ -338,71 +401,46 @@
 - [ ] Session XP counter maintained in playerSessions
 - [ ] XP persists server-side and survives page refresh
 
-### 7.11 Achievement Detection
+### 7.16 Achievement Detection
 - [ ] Achievement detection monitors GameEventBus events (npc_talked, object_examined, npc_exam_completed, etc.)
-- [ ] Achievements unlock correctly for milestones (words, conversations, grammar, quests, streaks, etc.)
+- [ ] Achievements unlock correctly for milestones (knowledge entries, conversations, patterns, quests, streaks, etc.)
 - [ ] 50 XP awarded on achievement unlock
 - [ ] achievement_unlocked event fires for notification system
 
-### 7.12 Pronunciation Scoring & Feedback
-- [ ] Phonetic similarity scoring used instead of exact string matching
-- [ ] Language-specific phonetic rules applied (silent letters, liaisons)
-- [ ] Partial credit given for close phonemes
-- [ ] Audio-level pronunciation scoring via server endpoint
-- [ ] Per-word pronunciation scores returned with timing and overall grade
-- [ ] Fallback to text-based scoring if audio analysis fails
-- [ ] Pronunciation feedback integrated with quest completion
-
-### 7.13 Listen & Repeat Action
-- [ ] Player triggers repeat during NPC conversation
-- [ ] NPC repeats last phrase slowly in target language via TTS
-- [ ] Player uses push-to-talk (R) to repeat the phrase
-- [ ] STT transcription compared against original phrase
-- [ ] Feedback shows matched words (green) and missed/wrong (red)
-- [ ] Repeat attempts tracked over time
-
-### 7.14 VAD (Voice Activity Detection)
-- [ ] Hands-free mode toggle available on chat panels
-- [ ] Auto-start recording when speech detected
-- [ ] Auto-stop recording after 1.5s of silence
-- [ ] Visual volume indicator shows mic is listening
-- [ ] NPC greeting audio precomputed on chat open for instant playback
-
-### 7.15 Adaptive NPC Speech Complexity
-- [ ] NPCs adjust speech complexity based on player CEFR level
-- [ ] A1: simple sentences, repeats key words, mixes English
-- [ ] B1+: natural speech with complex structures, minimal English
-- [ ] Business-contextualized speech scales with level
-
 ---
 
-## 8. ASSESSMENT SYSTEM
+## 8. ASSESSMENT & NPC EXAM MODULES
 
-### 8.1 Assessment Engine
+### 8.1 Assessment Module
 - [ ] Assessment can be initiated (OnboardingLauncher or manually)
-- [ ] 4-phase assessment runs: reading, writing, listening, conversation
+- [ ] Instrument registry: genres register their own assessment instruments
+- [ ] Multi-phase assessment structure works (pre/post/delayed — useful for any game measuring player growth)
 - [ ] Each phase presents appropriate content
 - [ ] Instruction overlay shows before each phase
 - [ ] Progress UI shows current phase
+- [ ] **Language-learning specialization**: 4-phase assessment (reading, writing, listening, conversation) with ACTFL OPI as one registered instrument
+- [ ] Non-language instruments (SUS, SSQ, IPQ) still function correctly
+- [ ] MongoDB collection: `assessments` (migrated from `languageassessments`)
 
 ### 8.2 Assessment UI
 - [ ] Assessment modal displays correctly
-- [ ] Answer input works (text, multiple choice)
+- [ ] Answer input works (text, multiple choice, Likert scales)
 - [ ] Timer functions if applicable
 - [ ] Assessment can be completed
 
 ### 8.3 Assessment Results
-- [ ] Results panel shows CEFR level
-- [ ] Performance breakdown by skill area
+- [ ] Results panel shows proficiency tier (generic, not hardcoded to CEFR)
+- [ ] Performance breakdown by proficiency dimensions (from ProficiencyModule)
 - [ ] Results persist and are accessible later
 - [ ] Player assessment panel shows history
 
-### 8.4 NPC Exams
-- [ ] NPC-initiated quiz system triggers
-- [ ] Questions are contextually relevant
+### 8.4 NPC Exam Module
+- [ ] NPC-initiated quiz system triggers for any genre (lore quizzes, survival skill tests, language exams)
+- [ ] Questions adapt to player's proficiency tier (from ProficiencyModule, not hardcoded CEFR)
+- [ ] LLM-based generation parameterized with genre context
 - [ ] Answers scored correctly
 - [ ] Results emitted via event bus
-- [ ] Listening comprehension exams work via NPC
+- [ ] **Language-learning specialization**: object recognition, listening comprehension exams adapted to CEFR level
 
 ---
 
@@ -777,12 +815,12 @@
 - [ ] World editor has layers toggle panel (US-047)
 - [ ] Settlement editor has mini-map showing lot layout, addresses, streets (US-048)
 
-### 22.4 Ambient Vocabulary & Labels
-- [ ] Floating target-language labels appear on objects during exploration
-- [ ] Labels prioritize words player needs for active quests
-- [ ] Business storefronts display name in target language
-- [ ] Clicking floating label triggers mini-interaction (hear pronunciation, see example)
-- [ ] Labels toggleable in settings (default on for A1-A2)
+### 22.4 Ambient Knowledge Labels (formerly Vocabulary Labels)
+- [ ] Floating labels appear on objects during exploration (target-language in language-learning, species/resource names in survival, lore tags in RPG)
+- [ ] Labels prioritize entries player needs for active quests
+- [ ] Business storefronts display name in genre-appropriate labeling (target language for language-learning)
+- [ ] Clicking floating label triggers mini-interaction (hear pronunciation, see example, view lore entry)
+- [ ] Labels toggleable in settings (default on for low proficiency tiers)
 
 ---
 
@@ -1085,31 +1123,35 @@
 3. NPC spawning and basic behavior (Section 5.1, 5.2, 5.3)
 4. NPC conversation (Section 5.4)
 5. Quest discovery and completion (Section 6)
-6. Language vocabulary collection (Section 7.2, 7.3)
+6. Feature module registry and genre bundles (Section 7.1)
+7. Knowledge acquisition and collection (Section 7.2)
 
 ### P1 — Extended Gameplay
-7. Building interiors (Section 3.3)
-8. Assessment system (Section 8)
-9. Listening/pronunciation (Section 7.4, 7.5)
-10. Shopping/economy (Section 11.3, 13)
-11. Combat (Section 9)
-12. Crafting/resources (Section 10)
+8. Building interiors (Section 3.3)
+9. Assessment & NPC exam modules (Section 8)
+10. Performance scoring & voice modules (Section 7.5, 7.6)
+11. Proficiency & adaptive difficulty modules (Section 7.3, 7.9)
+12. Shopping/economy (Section 11.3, 13)
+13. Combat (Section 9)
+14. Crafting/resources (Section 10)
 
 ### P2 — Social Simulation
-13. NPC schedules and routines (Section 5.2)
-14. Social dynamics (Section 5.8, 12)
-15. Business system (Section 14)
-16. Events and lifecycle (Section 15)
-17. Simulation engine (Section 16)
+15. NPC schedules and routines (Section 5.2)
+16. Social dynamics (Section 5.8, 12)
+17. Business system (Section 14)
+18. Events and lifecycle (Section 15)
+19. Simulation engine (Section 16)
 
 ### P3 — Advanced Features
-18. Prolog integration (Section 17)
-19. Puzzles (Section 23)
-20. VR (Section 27)
-21. Export (Section 28)
-22. Asset generation (Section 21)
+20. Prolog integration (Section 17)
+21. Gamification, skill tree, pattern recognition modules (Section 7.7, 7.8, 7.4)
+22. Puzzles (Section 23)
+23. VR (Section 27)
+24. Export (Section 28)
+25. Asset generation (Section 21)
 
 ### P4 — Admin & Polish
-23. All admin UI (Section 30)
-24. Telemetry (Section 31)
-25. Performance (Section 32)
+26. Module picker UI in world creation (Phase 9 from LL_AUDIT — not yet implemented)
+27. All admin UI (Section 30)
+28. Telemetry (Section 31)
+29. Performance (Section 32)

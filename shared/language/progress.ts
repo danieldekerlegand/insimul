@@ -3,12 +3,19 @@
  *
  * Defines vocabulary tracking, fluency progression, grammar correction,
  * and language learning progress data structures used across client and server.
+ *
+ * NOTE: These types now delegate to the generic feature-module types where
+ * possible. Language-specific types extend the generic ones with
+ * language-specific fields. Existing imports/consumers are unaffected.
  */
 
 import type { CEFRLevel } from './assessment/cefr-mapping';
 import type { AssessmentDimensionScores } from './assessment/assessment-types';
 
-export type MasteryLevel = 'new' | 'learning' | 'familiar' | 'mastered';
+// Re-export MasteryLevel from the generic module so consumers don't need to change imports.
+// The generic module defines the same union type.
+export type { MasteryLevel } from '../feature-modules/knowledge-acquisition/types';
+import type { MasteryLevel } from '../feature-modules/knowledge-acquisition/types';
 
 export interface VocabularyEntry {
   word: string;
@@ -249,5 +256,126 @@ export function parseGrammarFeedbackBlock(response: string): {
       timestamp: Date.now(),
     },
     cleanedResponse,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Bridge: VocabularyEntry ↔ KnowledgeEntry
+// ---------------------------------------------------------------------------
+
+import type { KnowledgeEntry } from '../feature-modules/knowledge-acquisition/types';
+import type { PatternEntry } from '../feature-modules/pattern-recognition/types';
+import type { ConversationRecord as GenericConversationRecord } from '../feature-modules/conversation-analytics/types';
+
+/**
+ * Convert a language-learning VocabularyEntry to a generic KnowledgeEntry.
+ * The language-specific fields (word, language, meaning) go into `data`.
+ */
+export function vocabularyEntryToKnowledgeEntry(entry: VocabularyEntry): KnowledgeEntry {
+  return {
+    id: entry.word, // vocabulary entries are keyed by word
+    key: entry.word,
+    label: `${entry.word} — ${entry.meaning}`,
+    category: entry.category,
+    timesEncountered: entry.timesEncountered,
+    timesUsedCorrectly: entry.timesUsedCorrectly,
+    timesUsedIncorrectly: entry.timesUsedIncorrectly,
+    lastEncountered: entry.lastEncountered,
+    masteryLevel: entry.masteryLevel,
+    context: entry.context,
+    data: {
+      word: entry.word,
+      language: entry.language,
+      meaning: entry.meaning,
+    },
+  };
+}
+
+/**
+ * Convert a generic KnowledgeEntry back to a language-learning VocabularyEntry.
+ */
+export function knowledgeEntryToVocabularyEntry(entry: KnowledgeEntry): VocabularyEntry {
+  return {
+    word: (entry.data.word as string) ?? entry.key,
+    language: (entry.data.language as string) ?? '',
+    meaning: (entry.data.meaning as string) ?? '',
+    category: entry.category,
+    timesEncountered: entry.timesEncountered,
+    timesUsedCorrectly: entry.timesUsedCorrectly,
+    timesUsedIncorrectly: entry.timesUsedIncorrectly,
+    lastEncountered: entry.lastEncountered,
+    masteryLevel: entry.masteryLevel,
+    context: entry.context,
+  };
+}
+
+/**
+ * Convert a GrammarPattern to a generic PatternEntry.
+ */
+export function grammarPatternToPatternEntry(gp: GrammarPattern): PatternEntry {
+  return {
+    id: gp.id,
+    pattern: gp.pattern,
+    category: 'grammar',
+    timesUsedCorrectly: gp.timesUsedCorrectly,
+    timesUsedIncorrectly: gp.timesUsedIncorrectly,
+    mastered: gp.mastered,
+    examples: gp.examples,
+    explanations: gp.explanations,
+    data: { language: gp.language },
+  };
+}
+
+/**
+ * Convert a generic PatternEntry back to a GrammarPattern.
+ */
+export function patternEntryToGrammarPattern(pe: PatternEntry): GrammarPattern {
+  return {
+    id: pe.id,
+    pattern: pe.pattern,
+    language: (pe.data.language as string) ?? '',
+    timesUsedCorrectly: pe.timesUsedCorrectly,
+    timesUsedIncorrectly: pe.timesUsedIncorrectly,
+    mastered: pe.mastered,
+    examples: pe.examples,
+    explanations: pe.explanations,
+  };
+}
+
+/**
+ * Convert a language ConversationRecord to a generic ConversationRecord.
+ */
+export function conversationRecordToGeneric(cr: ConversationRecord): GenericConversationRecord {
+  return {
+    id: cr.id,
+    characterId: cr.characterId,
+    characterName: cr.characterName,
+    timestamp: cr.timestamp,
+    turns: cr.turns,
+    tokensUsed: cr.wordsUsed,
+    metrics: {
+      targetLanguagePercentage: cr.targetLanguagePercentage,
+      fluencyGained: cr.fluencyGained,
+      grammarErrorCount: cr.grammarErrorCount,
+      grammarCorrectCount: cr.grammarCorrectCount,
+    },
+  };
+}
+
+/**
+ * Convert a generic ConversationRecord back to a language ConversationRecord.
+ */
+export function genericToConversationRecord(gcr: GenericConversationRecord): ConversationRecord {
+  return {
+    id: gcr.id,
+    characterId: gcr.characterId,
+    characterName: gcr.characterName,
+    timestamp: gcr.timestamp,
+    turns: gcr.turns,
+    wordsUsed: gcr.tokensUsed,
+    targetLanguagePercentage: (gcr.metrics.targetLanguagePercentage as number) ?? 0,
+    fluencyGained: (gcr.metrics.fluencyGained as number) ?? 0,
+    grammarErrorCount: (gcr.metrics.grammarErrorCount as number) ?? 0,
+    grammarCorrectCount: (gcr.metrics.grammarCorrectCount as number) ?? 0,
   };
 }

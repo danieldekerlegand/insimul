@@ -6,7 +6,7 @@
  * categories, objectives, and rewards.
  */
 
-import { getQuestTypeForWorld, type World } from '../../shared/quest-types/index.js';
+import { getQuestTypeForWorld, getQuestTypesForWorld, type World } from '../../shared/quest-types/index.js';
 import type { InsertQuest } from '../../shared/schema.js';
 import { getGenAI, isGeminiConfigured, GEMINI_MODELS } from '../config/gemini.js';
 import type { PlayerProficiency } from '../../shared/language/language-utils.js';
@@ -282,10 +282,13 @@ export async function generateQuestsForWorld(
     worldStateContext?: WorldStateContext;
   }
 ): Promise<InsertQuest[]> {
-  const questType = getQuestTypeForWorld(world);
+  // Support cross-genre quest mixing: resolve all applicable quest types
+  const questTypes = getQuestTypesForWorld(world);
   const quests: InsertQuest[] = [];
 
   for (let i = 0; i < count; i++) {
+    // Rotate across quest types for variety when mixing genres
+    const questType = questTypes[i % questTypes.length];
     const category = options?.category || randomCategory(questType);
 
     let difficulty: string;

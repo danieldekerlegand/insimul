@@ -17,6 +17,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertWorldSchema, type InsertWorld } from "@shared/schema";
 import { z } from "zod";
+import { getDefaultModulesForGenre } from "@shared/feature-modules/genre-bundles";
 
 const createWorldFormSchema = insertWorldSchema.extend({
   name: z.string().min(1, "World name is required"),
@@ -382,6 +383,8 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
   const [inputMode, setInputMode] = useState<'preset' | 'custom'>('preset');
   const [selectedWorldType, setSelectedWorldType] = useState(WORLD_TYPES[0].value);
   const [selectedGameType, setSelectedGameType] = useState<string | undefined>(undefined);
+  const [enabledModules, setEnabledModules] = useState<string[]>([]);
+  const [showModulePicker, setShowModulePicker] = useState(false);
   const [worldLanguages, setWorldLanguages] = useState<string[]>([]);
   const [learningTargetLanguage, setLearningTargetLanguage] = useState<string | undefined>(undefined);
   const [customPrompt, setCustomPrompt] = useState('');
@@ -435,6 +438,21 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
     });
   };
 
+  // Auto-populate modules when game type changes
+  const handleGameTypeChange = (gameType: string) => {
+    setSelectedGameType(gameType);
+    const defaults = getDefaultModulesForGenre(gameType);
+    setEnabledModules(defaults);
+  };
+
+  const toggleModule = (moduleId: string) => {
+    setEnabledModules(prev =>
+      prev.includes(moduleId)
+        ? prev.filter(m => m !== moduleId)
+        : [...prev, moduleId]
+    );
+  };
+
   // Validation: language-learning worlds must have a learning target language
   const missingLearningTarget = selectedGameType === 'language-learning' && !learningTargetLanguage;
 
@@ -476,6 +494,11 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
       };
     }
 
+    // Feature modules
+    if (enabledModules.length > 0) {
+      data.enabledModules = enabledModules;
+    }
+
     // Time configuration
     data.timestepUnit = timestepUnit;
     data.gameplayTimestepUnit = gameplayTimestepUnit;
@@ -490,6 +513,8 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
     setInputMode('preset');
     setSelectedWorldType(WORLD_TYPES[0].value);
     setSelectedGameType(undefined);
+    setEnabledModules([]);
+    setShowModulePicker(false);
     setWorldLanguages([]);
     setLearningTargetLanguage(undefined);
     setCustomPrompt('');
@@ -660,7 +685,7 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
               </CardHeader>
               <CardContent className="space-y-2">
                 <Label>Game Type</Label>
-                <Select value={selectedGameType} onValueChange={setSelectedGameType}>
+                <Select value={selectedGameType} onValueChange={handleGameTypeChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a game type (optional)" />
                   </SelectTrigger>
@@ -684,6 +709,62 @@ export function WorldCreateDialog({ onCreateWorld, isLoading = false, children, 
                     </div>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Feature Modules (shown after game type is selected) */}
+          {creationMode === 'procedural' && selectedGameType && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Cpu className="w-4 h-4" />
+                  Feature Modules
+                </CardTitle>
+                <CardDescription>
+                  Customize which gameplay features are active. Defaults are set by the selected game type.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Collapsible open={showModulePicker} onOpenChange={setShowModulePicker}>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="w-full justify-between">
+                      <span>{enabledModules.length} modules enabled</span>
+                      <ChevronDown className={`w-4 h-4 transition-transform ${showModulePicker ? 'rotate-180' : ''}`} />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        { id: 'knowledge-acquisition', label: 'Knowledge Tracking', desc: 'Track learnable entries with mastery' },
+                        { id: 'proficiency', label: 'Proficiency', desc: 'Multi-dimension skill tracking' },
+                        { id: 'pattern-recognition', label: 'Pattern Recognition', desc: 'Track recurring patterns' },
+                        { id: 'gamification', label: 'XP & Levels', desc: 'XP, achievements, daily challenges' },
+                        { id: 'skill-tree', label: 'Skill Tree', desc: 'Unlockable skill progression' },
+                        { id: 'adaptive-difficulty', label: 'Adaptive Difficulty', desc: 'Dynamic challenge scaling' },
+                        { id: 'assessment', label: 'Assessment', desc: 'Multi-phase evaluations' },
+                        { id: 'npc-exams', label: 'NPC Exams', desc: 'NPC-administered quizzes' },
+                        { id: 'performance-scoring', label: 'Performance Scoring', desc: 'Grade player output' },
+                        { id: 'voice', label: 'Voice Interaction', desc: 'Speech recognition & TTS' },
+                        { id: 'world-lore', label: 'World Lore', desc: 'Rich lore & language systems' },
+                        { id: 'conversation-analytics', label: 'Conversation Analytics', desc: 'Track dialogue metrics' },
+                        { id: 'onboarding', label: 'Onboarding', desc: 'Guided tutorial sequence' },
+                      ] as const).map(mod => (
+                        <div key={mod.id} className="flex items-start gap-2 p-2 rounded border">
+                          <Checkbox
+                            id={`mod-${mod.id}`}
+                            checked={enabledModules.includes(mod.id)}
+                            onCheckedChange={() => toggleModule(mod.id)}
+                          />
+                          <label htmlFor={`mod-${mod.id}`} className="cursor-pointer leading-tight">
+                            <div className="text-xs font-medium">{mod.label}</div>
+                            <div className="text-[10px] text-muted-foreground">{mod.desc}</div>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </CardContent>
             </Card>
           )}

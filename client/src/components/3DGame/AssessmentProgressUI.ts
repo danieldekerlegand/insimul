@@ -22,8 +22,8 @@ export interface AssessmentPhaseInfo {
   timeRemainingSeconds: number;
 }
 
-const PHASE_LABELS = ['Reading', 'Writing', 'Listening', 'Conversation'];
-const TOTAL_PHASES = 4;
+const PHASE_LABELS = ['Reading', 'Writing', 'Listening', 'Initiate Conversation', 'Conversation'];
+const TOTAL_PHASES = 5;
 
 // Timer color thresholds (in seconds)
 const AMBER_THRESHOLD = 120; // 2 minutes
@@ -78,10 +78,11 @@ export class AssessmentProgressUI {
     this.updatePhaseLabel();
 
     if (timeRemainingSeconds <= 0) {
-      // Interactive mode — show status text instead of countdown
+      // Interactive mode — show muted loading state
       this._statusMode = true;
       this.stopTimer();
-      this.setStatusText('Complete the task to continue');
+      this.setStatusText('Loading...');
+      this.setDimmed(true);
     } else {
       this._statusMode = false;
       this.updateTimerDisplay();
@@ -89,7 +90,7 @@ export class AssessmentProgressUI {
     }
   }
 
-  /** Set a custom status message in the timer area. */
+  /** Set a custom status message in the timer area and restore full opacity. */
   public setStatusText(text: string): void {
     this._statusMode = true;
     this.stopTimer();
@@ -97,6 +98,15 @@ export class AssessmentProgressUI {
       this.timerText.text = text;
       this.timerText.color = '#22c55e';
       this.timerText.fontSize = 11;
+    }
+    // Active status text means the phase is ready — undim
+    this.setDimmed(false);
+  }
+
+  /** Dim or undim the panel (used while loading/transitioning between phases). */
+  public setDimmed(dimmed: boolean): void {
+    if (this.panel) {
+      this.panel.alpha = dimmed ? 0.4 : 1.0;
     }
   }
 
@@ -192,7 +202,7 @@ export class AssessmentProgressUI {
     dotRow.isVertical = false;
     dotRow.height = '18px';
     dotRow.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    dotRow.spacing = 8;
+    dotRow.spacing = 6;
     stack.addControl(dotRow);
 
     for (let i = 0; i < TOTAL_PHASES; i++) {

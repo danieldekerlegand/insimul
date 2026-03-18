@@ -3,6 +3,15 @@
  *
  * Defines quests focused on language acquisition through conversation,
  * vocabulary practice, grammar exercises, translation, and cultural learning.
+ *
+ * NOTE: Quest objective types are being mapped to generic module-driven names.
+ * The mapping is provided below for gradual migration:
+ *   use_vocabulary       → apply_knowledge (KnowledgeAcquisitionModule)
+ *   practice_grammar     → demonstrate_pattern (PatternRecognitionModule)
+ *   master_words         → master_knowledge (KnowledgeAcquisitionModule)
+ *   learn_new_words      → discover_knowledge (KnowledgeAcquisitionModule)
+ *   collect_vocabulary   → discover_knowledge (KnowledgeAcquisitionModule)
+ *   fluency (reward)     → proficiency_gain (ProficiencyModule)
  */
 
 import type { QuestTypeDefinition } from './types';
@@ -344,4 +353,33 @@ Return JSON format:
   }
 }`;
   },
+};
+
+// ---------------------------------------------------------------------------
+// Bridge: Language objective types → Generic module objective types
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps language-specific quest objective type IDs to their generic equivalents.
+ * Used during the transition to module-driven quest objectives.
+ */
+export const LANGUAGE_OBJECTIVE_TYPE_MAP: Record<string, string> = {
+  use_vocabulary: 'apply_knowledge',
+  practice_grammar: 'demonstrate_pattern',
+  master_words: 'master_knowledge',
+  learn_new_words: 'discover_knowledge',
+  collect_vocabulary: 'discover_knowledge',
+  identify_object: 'apply_knowledge',
+  listening_comprehension: 'complete_assessment',
+  translation_challenge: 'demonstrate_pattern',
+};
+
+/**
+ * Maps language-specific quest reward types to generic equivalents.
+ */
+export const LANGUAGE_REWARD_TYPE_MAP: Record<string, string> = {
+  fluency: 'proficiency_gain',
+  experience: 'experience',
+  items: 'items',
+  unlock: 'unlock',
 };

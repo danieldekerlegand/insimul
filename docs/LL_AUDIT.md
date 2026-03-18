@@ -28,12 +28,12 @@ The platform already has a genre system (`shared/game-genres/`) with 15 game typ
 | MongoDB collection: `vocabularyentries` | Storage |
 
 **Generic abstraction: `KnowledgeAcquisitionModule`**
-- [ ] Rename concept from "vocabulary" to "knowledge entries" — any discrete learnable unit (words, recipes, lore fragments, species, spells, tech blueprints)
-- [ ] Keep mastery levels but make them configurable (e.g., survival: unknown → discovered → practiced → mastered)
-- [ ] Keep spaced repetition as an opt-in review strategy (useful for educational games, lore-heavy RPGs)
-- [ ] Abstract `VocabularyCollectionSystem` → `KnowledgeCollectionSystem` that renders entries based on a pluggable schema (word+translation, recipe+ingredients, lore+context)
-- [ ] Abstract `VisualVocabularyDetector` → `ObjectIdentificationSystem` — usable for species scanning (survival), evidence tagging (mystery), resource identification (strategy)
-- [ ] Add to `GenreFeatures`: `knowledgeAcquisition: boolean`
+- [x] Rename concept from "vocabulary" to "knowledge entries" — any discrete learnable unit (words, recipes, lore fragments, species, spells, tech blueprints)
+- [x] Keep mastery levels but make them configurable (e.g., survival: unknown → discovered → practiced → mastered)
+- [x] Keep spaced repetition as an opt-in review strategy (useful for educational games, lore-heavy RPGs)
+- [x] Abstract `VocabularyCollectionSystem` → `KnowledgeCollectionSystem` that renders entries based on a pluggable schema (word+translation, recipe+ingredients, lore+context)
+- [x] Abstract `VisualVocabularyDetector` → `ObjectIdentificationSystem` — usable for species scanning (survival), evidence tagging (mystery), resource identification (strategy)
+- [x] Add to `GenreFeatures`: `knowledgeAcquisition: boolean`
 
 ---
 
@@ -50,15 +50,15 @@ The platform already has a genre system (`shared/game-genres/`) with 15 game typ
 | MongoDB collection: `languageprogress` | Storage |
 
 **Generic abstraction: `ProficiencyModule`**
-- [ ] Replace CEFR with a generic tier system (Novice → Apprentice → Journeyman → Expert → Master) that genres can relabel
-- [ ] Replace fixed 5 dimensions with configurable dimension sets:
+- [x] Replace CEFR with a generic tier system (Novice → Apprentice → Journeyman → Expert → Master) that genres can relabel
+- [x] Replace fixed 5 dimensions with configurable dimension sets:
   - Language-learning: vocabulary, grammar, pronunciation, listening, communication
   - RPG: melee, ranged, magic, stealth, diplomacy
   - Survival: foraging, crafting, navigation, combat, shelter
   - Strategy: economics, military, diplomacy, technology, espionage
-- [ ] Keep adaptive difficulty engine but parameterize it on proficiency dimensions rather than hardcoding speech complexity
-- [ ] Abstract `LanguageProgressTracker` → `ProficiencyTracker` with pluggable dimension renderers
-- [ ] Add to `GenreFeatures`: `proficiencyTracking: boolean`
+- [x] Keep adaptive difficulty engine but parameterize it on proficiency dimensions rather than hardcoding speech complexity
+- [x] Abstract `LanguageProgressTracker` → `ProficiencyTracker` with pluggable dimension renderers
+- [x] Add to `GenreFeatures`: `proficiencyTracking: boolean`
 
 ---
 
@@ -73,10 +73,10 @@ The platform already has a genre system (`shared/game-genres/`) with 15 game typ
 | MongoDB collection: `grammarpatterns` | Storage |
 
 **Generic abstraction: `PatternRecognitionModule`**
-- [ ] Rename "grammar patterns" to "patterns" — any recurring structure the player learns to recognize (grammar rules, combat combos, crafting sequences, musical phrases, code patterns)
-- [ ] Keep usage tracking and example collection
-- [ ] Abstract feedback system: instead of grammar corrections, provide contextual coaching for any pattern type
-- [ ] Add to `GenreFeatures`: `patternRecognition: boolean`
+- [x] Rename "grammar patterns" to "patterns" — any recurring structure the player learns to recognize (grammar rules, combat combos, crafting sequences, musical phrases, code patterns)
+- [x] Keep usage tracking and example collection
+- [x] Abstract feedback system: instead of grammar corrections, provide contextual coaching for any pattern type
+- [x] Add to `GenreFeatures`: `patternRecognition: boolean`
 
 ---
 
@@ -96,11 +96,11 @@ The platform already has a genre system (`shared/game-genres/`) with 15 game typ
 | MongoDB collection: `languageassessments` | Storage |
 
 **Generic abstraction: `AssessmentModule`**
-- [ ] Already mostly generic (SUS, SSQ, IPQ are not language-specific). Main work: decouple ACTFL OPI as one instrument among many
-- [ ] Define instrument registry: genres register their own assessment instruments (combat proficiency test for RPG, building efficiency test for city-builder, etc.)
-- [ ] Keep multi-phase structure (pre/post/delayed) — useful for any game measuring player growth
-- [ ] Rename collection: `languageassessments` → `assessments`
-- [ ] Add to `GenreFeatures`: `assessment: boolean`
+- [x] Already mostly generic (SUS, SSQ, IPQ are not language-specific). Main work: decouple ACTFL OPI as one instrument among many
+- [x] Define instrument registry: genres register their own assessment instruments (combat proficiency test for RPG, building efficiency test for city-builder, etc.)
+- [x] Keep multi-phase structure (pre/post/delayed) — useful for any game measuring player growth
+- [x] Rename collection: `languageassessments` → `assessments`
+- [x] Add to `GenreFeatures`: `assessment: boolean`
 
 ---
 
@@ -114,10 +114,10 @@ The platform already has a genre system (`shared/game-genres/`) with 15 game typ
 | `server/routes/npc-exam-routes.ts` | Exam endpoints |
 
 **Generic abstraction: `NPCExamModule`**
-- [ ] Generalize exam types beyond language: NPCs could quiz on lore (RPG), survival skills, strategy concepts, puzzle mechanics
-- [ ] Replace CEFR adaptation with proficiency-tier adaptation (from ProficiencyModule)
-- [ ] Keep LLM-based generation — just parameterize the prompt with genre context
-- [ ] Add to `GenreFeatures`: `npcExams: boolean`
+- [x] Generalize exam types beyond language: NPCs could quiz on lore (RPG), survival skills, strategy concepts, puzzle mechanics
+- [x] Replace CEFR adaptation with proficiency-tier adaptation (from ProficiencyModule)
+- [x] Keep LLM-based generation — just parameterize the prompt with genre context
+- [x] Add to `GenreFeatures`: `npcExams: boolean`
 
 ---
 
@@ -132,14 +132,14 @@ The platform already has a genre system (`shared/game-genres/`) with 15 game typ
 | `shared/language/phonetic-similarity.ts` | Phonetic encoding, similarity |
 
 **Generic abstraction: `PerformanceScoringModule`**
-- [ ] Abstract as "performance analysis" — comparing player output against expected output
+- [x] Abstract as "performance analysis" — comparing player output against expected output
   - Language: pronunciation vs. expected speech
   - Music game: played notes vs. sheet music
   - Combat training: executed combo vs. expected sequence
   - Cooking sim: recipe execution vs. recipe steps
-- [ ] Keep audio analysis capability but make it one "analyzer" among many (audio, input sequence, timing, etc.)
-- [ ] Keep grading system (A/B/C/D or configurable tiers)
-- [ ] Add to `GenreFeatures`: `performanceScoring: boolean`
+- [x] Keep audio analysis capability but make it one "analyzer" among many (audio, input sequence, timing, etc.)
+- [x] Keep grading system (A/B/C/D or configurable tiers)
+- [x] Add to `GenreFeatures`: `performanceScoring: boolean`
 
 ---
 
@@ -157,10 +157,10 @@ The platform already has a genre system (`shared/game-genres/`) with 15 game typ
 | `client/src/lib/use-voice-websocket.ts` | Voice WebSocket hook |
 
 **Generic abstraction: `VoiceModule`**
-- [ ] Already fairly generic. Main change: decouple from language-learning assumptions (e.g., "language hint" for recognition)
-- [ ] Make voice input an alternative input method for any genre (voice commands for RTS, voice chat for multiplayer, verbal spellcasting for RPG)
-- [ ] Keep TTS for NPC dialogue in any genre
-- [ ] Add to `GenreFeatures`: `voiceInteraction: boolean`
+- [x] Already fairly generic. Main change: decouple from language-learning assumptions (e.g., "language hint" for recognition)
+- [x] Make voice input an alternative input method for any genre (voice commands for RTS, voice chat for multiplayer, verbal spellcasting for RPG)
+- [x] Keep TTS for NPC dialogue in any genre
+- [x] Add to `GenreFeatures`: `voiceInteraction: boolean`
 
 ---
 
@@ -174,16 +174,16 @@ The platform already has a genre system (`shared/game-genres/`) with 15 game typ
 | `client/src/components/3DGame/LanguageGamificationTracker.ts` | Gamification UI |
 
 **Generic abstraction: `GamificationModule`**
-- [ ] Level/XP system is inherently generic — just need to decouple reward definitions from language activities
-- [ ] Define reward sources as pluggable: each module registers its own XP-granting events
+- [x] Level/XP system is inherently generic — just need to decouple reward definitions from language activities
+- [x] Define reward sources as pluggable: each module registers its own XP-granting events
   - Language: conversation, vocabulary mastery, grammar mastery
   - RPG: combat victory, quest completion, exploration
   - Survival: day survived, shelter built, creature tamed
-- [ ] Keep achievement framework but make conditions module-driven (each module declares achievable milestones)
-- [ ] Keep daily challenge framework with genre-appropriate challenges
-- [ ] Rename tiers from CEFR-based to generic (or let genres set their own tier names)
-- [ ] Abstract `LanguageGamificationTracker` → `GamificationTracker`
-- [ ] Note: `experience` flag already exists in `GenreFeatures` — wire this module to that flag
+- [x] Keep achievement framework but make conditions module-driven (each module declares achievable milestones)
+- [x] Keep daily challenge framework with genre-appropriate challenges
+- [x] Rename tiers from CEFR-based to generic (or let genres set their own tier names)
+- [x] Abstract `LanguageGamificationTracker` → `GamificationTracker`
+- [x] Note: `experience` flag already exists in `GenreFeatures` — wire this module to that flag
 
 ---
 
@@ -197,10 +197,10 @@ The platform already has a genre system (`shared/game-genres/`) with 15 game typ
 | `client/src/components/3DGame/BabylonSkillTreePanel.ts` | Skill tree UI |
 
 **Generic abstraction: `SkillTreeModule`**
-- [ ] Tree structure is generic — just need pluggable node definitions and condition types per genre
-- [ ] Condition types become module-driven: `KnowledgeAcquisitionModule` provides "entries_learned", `ProficiencyModule` provides "dimension_reached", etc.
-- [ ] Each genre defines its own tree layout and node names
-- [ ] Note: `skills` flag already exists in `GenreFeatures` — wire this module to that flag
+- [x] Tree structure is generic — just need pluggable node definitions and condition types per genre
+- [x] Condition types become module-driven: `KnowledgeAcquisitionModule` provides "entries_learned", `ProficiencyModule` provides "dimension_reached", etc.
+- [x] Each genre defines its own tree layout and node names
+- [x] Note: `skills` flag already exists in `GenreFeatures` — wire this module to that flag
 
 ---
 
@@ -213,14 +213,14 @@ The platform already has a genre system (`shared/game-genres/`) with 15 game typ
 | `shared/language/speech-complexity.ts` | Complexity levels and adaptive parameters |
 
 **Generic abstraction: `AdaptiveDifficultyModule`**
-- [ ] Replace speech-specific parameters with a generic parameter schema that modules can extend
+- [x] Replace speech-specific parameters with a generic parameter schema that modules can extend
   - Base parameters: complexity tier, challenge intensity, hint frequency, assistance level
   - Language module adds: sentence length, new words, grammar corrections, L2 ratio
   - Combat module adds: enemy count, enemy tier, heal availability, time pressure
   - Puzzle module adds: hint count, time limit, solution complexity
-- [ ] Keep the 5-tier structure (or make tiers configurable)
-- [ ] Drive adaptation from `ProficiencyModule` scores
-- [ ] Add to `GenreFeatures`: `adaptiveDifficulty: boolean`
+- [x] Keep the 5-tier structure (or make tiers configurable)
+- [x] Drive adaptation from `ProficiencyModule` scores
+- [x] Add to `GenreFeatures`: `adaptiveDifficulty: boolean`
 
 ---
 
@@ -237,15 +237,15 @@ The platform already has a genre system (`shared/game-genres/`) with 15 game typ
 | MongoDB collections: `worldlanguages`, `languagechatmessages` | Storage |
 
 **Generic abstraction: `WorldLoreModule`**
-- [ ] Languages are a specific type of world lore. Abstract into a generic world lore system:
+- [x] Languages are a specific type of world lore. Abstract into a generic world lore system:
   - Language-learning: languages with full linguistic models
   - RPG: magic systems, faction lore, creature bestiaries
   - Survival: biome ecosystems, species databases
   - Strategy: civilization histories, technology trees
-- [ ] Keep `WorldLanguage` as a specialization of `WorldLoreEntry`
-- [ ] Language chat → Lore exploration chat (ask an NPC about any lore topic)
-- [ ] Item translation → Item lore annotation (any genre-specific metadata on items)
-- [ ] Add to `GenreFeatures`: `worldLore: boolean`
+- [x] Keep `WorldLanguage` as a specialization of `WorldLoreEntry`
+- [x] Language chat → Lore exploration chat (ask an NPC about any lore topic)
+- [x] Item translation → Item lore annotation (any genre-specific metadata on items)
+- [x] Add to `GenreFeatures`: `worldLore: boolean`
 
 ---
 
@@ -260,14 +260,14 @@ The platform already has a genre system (`shared/game-genres/`) with 15 game typ
 | MongoDB collection: `conversationrecords` | Storage |
 
 **Generic abstraction: `ConversationAnalyticsModule`**
-- [ ] Track conversation metrics per genre:
+- [x] Track conversation metrics per genre:
   - Language: L2 percentage, fluency gain
   - RPG: persuasion success, lore discovered, relationship change
   - Mystery: clues gathered, contradictions noted
   - Social sim: gossip spread, influence gained
-- [ ] Keep conversation recording for any genre that has dialogue
-- [ ] Drive quest objectives from conversation analytics
-- [ ] Note: `dialogue` flag already exists in `GenreFeatures` — wire analytics to that flag
+- [x] Keep conversation recording for any genre that has dialogue
+- [x] Drive quest objectives from conversation analytics
+- [x] Note: `dialogue` flag already exists in `GenreFeatures` — wire analytics to that flag
 
 ---
 
@@ -280,15 +280,15 @@ The platform already has a genre system (`shared/game-genres/`) with 15 game typ
 | `shared/onboarding/language-onboarding.ts` | Step definitions |
 
 **Generic abstraction: `OnboardingModule`**
-- [ ] Define onboarding as a sequence of steps with pluggable step types
-- [ ] Each module contributes onboarding steps:
+- [x] Define onboarding as a sequence of steps with pluggable step types
+- [x] Each module contributes onboarding steps:
   - Core: movement tutorial, UI tutorial, camera tutorial
   - Language module: reading assessment, writing assessment, speech practice
   - Combat module: combat tutorial, weapon selection
   - Crafting module: first craft tutorial
   - Building module: placement tutorial
-- [ ] Genre defines default onboarding sequence by composing module steps
-- [ ] Player can skip/revisit steps
+- [x] Genre defines default onboarding sequence by composing module steps
+- [x] Player can skip/revisit steps
 
 ---
 
@@ -301,11 +301,11 @@ The platform already has a genre system (`shared/game-genres/`) with 15 game typ
 | `shared/quest-types/language-learning.ts` | Quest category and objective definitions |
 
 **Generic abstraction:** Already partially done — `shared/quest-types/` has 8 genre-specific quest type files.
-- [ ] Main remaining work: make quest objectives reference generic module concepts instead of hardcoded language terms
+- [x] Main remaining work: make quest objectives reference generic module concepts instead of hardcoded language terms
   - `use_vocabulary` → `apply_knowledge` (from `KnowledgeAcquisitionModule`)
   - `practice_grammar` → `demonstrate_pattern` (from `PatternRecognitionModule`)
   - `fluency` reward → `proficiency_gain` reward (from `ProficiencyModule`)
-- [ ] Allow genres to mix quest types (RPG with language quests, survival with puzzle quests)
+- [x] Allow genres to mix quest types (RPG with language quests, survival with puzzle quests)
 
 ---
 
@@ -414,60 +414,60 @@ defaultModules: [
 ## Implementation Phases
 
 ### Phase 1: Define the Module Interface & Registry
-- [ ] Create `shared/feature-modules/types.ts` with `FeatureModule` interface
-- [ ] Create `shared/feature-modules/registry.ts` — central module registry
-- [ ] Create `shared/feature-modules/genre-bundles.ts` — genre → module mapping
-- [ ] Extend `GenreFeatures` with new flags for each module
-- [ ] Add `enabledModules: string[]` to world schema (player-customizable)
+- [x] Create `shared/feature-modules/types.ts` with `FeatureModule` interface
+- [x] Create `shared/feature-modules/registry.ts` — central module registry
+- [x] Create `shared/feature-modules/genre-bundles.ts` — genre → module mapping
+- [x] Extend `GenreFeatures` with new flags for each module
+- [x] Add `enabledModules: string[]` to world schema (player-customizable)
 
 ### Phase 2: Extract Knowledge Acquisition Module
-- [ ] Create `shared/feature-modules/knowledge-acquisition/` with generic types
-- [ ] Refactor `VocabularyEntry` → `KnowledgeEntry` with pluggable schema
-- [ ] Refactor `VocabularyCollectionSystem` → `KnowledgeCollectionSystem`
-- [ ] Refactor `VisualVocabularyDetector` → `ObjectIdentificationSystem`
-- [ ] Language-learning registers its vocabulary-specific schema
-- [ ] Rename MongoDB collection: `vocabularyentries` → `knowledgeentries` (with migration)
+- [x] Create `shared/feature-modules/knowledge-acquisition/` with generic types
+- [x] Refactor `VocabularyEntry` → `KnowledgeEntry` with pluggable schema
+- [x] Refactor `VocabularyCollectionSystem` → `KnowledgeCollectionSystem`
+- [x] Refactor `VisualVocabularyDetector` → `ObjectIdentificationSystem`
+- [x] Language-learning registers its vocabulary-specific schema
+- [x] Rename MongoDB collection: `vocabularyentries` → `knowledgeentries` (with migration)
 
 ### Phase 3: Extract Proficiency Module
-- [ ] Create `shared/feature-modules/proficiency/` with generic types
-- [ ] Replace hardcoded CEFR with configurable tier system
-- [ ] Replace hardcoded 5 dimensions with per-genre dimension sets
-- [ ] Refactor `LanguageProgressTracker` → `ProficiencyTracker`
-- [ ] Language-learning registers CEFR tiers and its 5 dimensions
-- [ ] Rename MongoDB collection: `languageprogress` → `proficiencyprogress`
+- [x] Create `shared/feature-modules/proficiency/` with generic types
+- [x] Replace hardcoded CEFR with configurable tier system
+- [x] Replace hardcoded 5 dimensions with per-genre dimension sets
+- [x] Refactor `LanguageProgressTracker` → `ProficiencyTracker`
+- [x] Language-learning registers CEFR tiers and its 5 dimensions
+- [x] Rename MongoDB collection: `languageprogress` → `proficiencyprogress`
 
 ### Phase 4: Extract Gamification & Skill Tree Modules
-- [ ] Create `shared/feature-modules/gamification/` — decouple XP sources from language activities
-- [ ] Create `shared/feature-modules/skill-tree/` — pluggable tree definitions
-- [ ] Refactor `LanguageGamificationTracker` → `GamificationTracker`
-- [ ] Wire to existing `experience` and `skills` flags in `GenreFeatures`
+- [x] Create `shared/feature-modules/gamification/` — decouple XP sources from language activities
+- [x] Create `shared/feature-modules/skill-tree/` — pluggable tree definitions
+- [x] Refactor `LanguageGamificationTracker` → `GamificationTracker`
+- [x] Wire to existing `experience` and `skills` flags in `GenreFeatures`
 
 ### Phase 5: Extract Assessment & Scoring Modules
-- [ ] Create `shared/feature-modules/assessment/` — instrument registry
-- [ ] Create `shared/feature-modules/performance-scoring/` — pluggable analyzers
-- [ ] Decouple ACTFL OPI as one registered instrument
-- [ ] Generalize `npc-exam-engine` to work with any proficiency dimensions
-- [ ] Rename MongoDB collection: `languageassessments` → `assessments`
+- [x] Create `shared/feature-modules/assessment/` — instrument registry
+- [x] Create `shared/feature-modules/performance-scoring/` — pluggable analyzers
+- [x] Decouple ACTFL OPI as one registered instrument
+- [x] Generalize `npc-exam-engine` to work with any proficiency dimensions
+- [x] Rename MongoDB collection: `languageassessments` → `assessments`
 
 ### Phase 6: Extract Adaptive Difficulty & Conversation Analytics
-- [ ] Create `shared/feature-modules/adaptive-difficulty/` — parameterized by modules
-- [ ] Create `shared/feature-modules/conversation-analytics/` — genre-specific metrics
-- [ ] Refactor speech complexity into one difficulty parameter set among many
+- [x] Create `shared/feature-modules/adaptive-difficulty/` — parameterized by modules
+- [x] Create `shared/feature-modules/conversation-analytics/` — genre-specific metrics
+- [x] Refactor speech complexity into one difficulty parameter set among many
 
 ### Phase 7: Extract World Lore & Voice Modules
-- [ ] Create `shared/feature-modules/world-lore/` — generic lore entries
-- [ ] Create `shared/feature-modules/voice/` — decouple from language assumptions
-- [ ] Language-specific lore type (WorldLanguage) becomes one lore specialization
+- [x] Create `shared/feature-modules/world-lore/` — generic lore entries
+- [x] Create `shared/feature-modules/voice/` — decouple from language assumptions
+- [x] Language-specific lore type (WorldLanguage) becomes one lore specialization
 
 ### Phase 8: Onboarding & Quest Integration
-- [ ] Create `shared/feature-modules/onboarding/` — composable step sequences
-- [ ] Refactor quest objective/reward types to reference modules generically
-- [ ] Allow cross-genre quest type mixing
+- [x] Create `shared/feature-modules/onboarding/` — composable step sequences
+- [x] Refactor quest objective/reward types to reference modules generically
+- [x] Allow cross-genre quest type mixing
 
 ### Phase 9: UI & Player Customization
-- [ ] Add module picker to world creation UI (alongside game type selection)
-- [ ] Add module toggle to in-game settings (add/remove modules on existing worlds)
-- [ ] Support multiple game instances per world (same world data, different module sets)
+- [x] Add module picker to world creation UI (alongside game type selection)
+- [x] Add module toggle to in-game settings (add/remove modules on existing worlds)
+- [x] Support multiple game instances per world (same world data, different module sets)
 
 ---
 

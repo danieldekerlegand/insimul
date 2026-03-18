@@ -41,6 +41,12 @@ const ASSESSMENT_PHASES = [
     maxScore: 13,
   },
   {
+    id: 'arrival_initiate_conversation',
+    name: 'Initiate Conversation',
+    type: 'initiate_conversation' as PhaseType,
+    maxScore: 0, // no score — just walk to the NPC
+  },
+  {
     id: 'arrival_conversation',
     name: 'Conversation',
     type: 'conversation' as PhaseType,
@@ -137,7 +143,9 @@ export class AssessmentEngine {
 
       let score = 0;
 
-      if (phase.type === 'conversation') {
+      if (phase.type === 'initiate_conversation') {
+        score = await this._runInitiateConversationPhase(phase, i);
+      } else if (phase.type === 'conversation') {
         score = await this._runConversationPhase(phase, i);
       } else {
         score = await this._runModalPhase(phase, i);
@@ -399,9 +407,9 @@ export class AssessmentEngine {
     return await res.json();
   }
 
-  // ── Private: conversation phase ────────────────────────────────────────────
+  // ── Private: initiate conversation phase (walk to NPC) ─────────────────────
 
-  private _runConversationPhase(
+  private _runInitiateConversationPhase(
     phase: typeof ASSESSMENT_PHASES[number],
     phaseIndex: number,
   ): Promise<number> {
@@ -414,15 +422,63 @@ export class AssessmentEngine {
         phaseName: phase.name,
         phaseIndex,
         totalPhases: ASSESSMENT_PHASES.length,
-        description: 'Walk to the marked NPC and have a conversation in the target language. Speak naturally — this measures your conversational ability.',
+        description: 'Talk to the marked NPC to begin a guided conversation assessment.',
         isConversational: true,
         onContinue: () => { /* resolved via event bus */ },
       });
 
-      // Emit event to trigger quest waypoint on an NPC
+      // Emit event to highlight the target NPC on the minimap
       this.eventBus?.emit({
         type: 'assessment_conversation_quest_start',
         phaseId: phase.id,
+        topics: ['greetings', 'travel', 'directions'],
+        minExchanges: 6,
+        maxExchanges: 12,
+      });
+
+      // Wait for the player to initiate a conversation with the highlighted NPC
+      if (this.eventBus) {
+        this._unsubscribeConversation = this.eventBus.on(
+          'assessment_conversation_initiated',
+          () => {
+            console.log('[AssessmentEngine] Player initiated conversation with highlighted NPC');
+            if (this._unsubscribeConversation) {
+              this._unsubscribeConversation();
+              this._unsubscribeConversation = null;
+            }
+            this._phaseResolver = null;
+            resolve(0); // no score for this phase — just a gate
+          },
+        );
+      } else {
+        setTimeout(() => resolve(0), 1000);
+      }
+    });
+  }
+
+  // ── Private: conversation phase (guided assessment conversation) ──────────
+
+  private _runConversationPhase(
+    phase: typeof ASSESSMENT_PHASES[number],
+    phaseIndex: number,
+  ): Promise<number> {
+    return new Promise<number>((resolve) => {
+      this._phaseResolver = () => resolve(0);
+
+      // Show instruction overlay for the active conversation
+      this._onShowInstruction?.({
+        phaseId: phase.id,
+        phaseName: phase.name,
+        phaseIndex,
+        totalPhases: ASSESSMENT_PHASES.length,
+        description: "Answer the NPC's questions. Speak naturally — this measures your conversational ability.",
+        isConversational: true,
+        onContinue: () => { /* resolved via event bus */ },
+      });
+
+      // Emit guided conversation parameters so the chat panel can steer the conversation
+      this.eventBus?.emit({
+        type: 'assessment_guided_conversation_start',
         topics: ['greetings', 'travel', 'directions'],
         minExchanges: 6,
         maxExchanges: 12,

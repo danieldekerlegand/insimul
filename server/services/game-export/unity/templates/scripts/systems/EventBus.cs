@@ -66,7 +66,34 @@ namespace Insimul.Systems
         NpcExamStarted,
         NpcExamListeningReady,
         NpcExamQuestionAnswered,
-        NpcExamCompleted
+        NpcExamCompleted,
+        // Assessment conversation events
+        AssessmentConversationInitiated,
+        AssessmentGuidedConversationStart,
+        // Achievement events
+        AchievementUnlocked,
+        // Quest notification & reminder events
+        QuestReminder,
+        QuestExpired,
+        QuestMilestone,
+        DailyQuestsReset,
+        // NPC exam events
+        NpcExamRequested,
+        // NPC-initiated conversation events
+        NpcInitiatedConversation,
+        // Skill reward events
+        SkillRewardsApplied,
+        // Pronunciation assessment events
+        PronunciationAssessmentData,
+        // Point-and-name vocabulary events
+        ObjectNamed,
+        // Object examination events
+        ObjectExamined,
+        // Generic feature-module events
+        KnowledgeApplied,
+        IdentificationPrompted,
+        IdentificationCorrect,
+        IdentificationIncorrect
     }
 
     /// <summary>
@@ -575,6 +602,168 @@ namespace Insimul.Systems
         public float totalMaxPoints;
         public string cefrLevel;
         public string category;
+    }
+
+    // ── Assessment Conversation Events ────────────────────────────────────────
+
+    public class AssessmentConversationInitiatedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AssessmentConversationInitiated;
+        public string npcId;
+    }
+
+    public class AssessmentGuidedConversationStartEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AssessmentGuidedConversationStart;
+        public string[] topics;
+        public int minExchanges;
+        public int maxExchanges;
+    }
+
+    // ── Achievement Events ───────────────────────────────────────────────────
+
+    public class AchievementUnlockedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.AchievementUnlocked;
+        public string achievementId;
+        public string achievementName;
+        public string description;
+        public string icon;
+    }
+
+    // ── Quest Notification / Reminder Events ─────────────────────────────────
+
+    public class QuestReminderEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.QuestReminder;
+        public string questId;
+        public string questTitle;
+        public string message;
+        public string reminderType;
+    }
+
+    public class QuestExpiredEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.QuestExpired;
+        public string questId;
+        public string questTitle;
+    }
+
+    public class QuestMilestoneEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.QuestMilestone;
+        public string milestoneType;
+        public string label;
+    }
+
+    public class DailyQuestsResetEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.DailyQuestsReset;
+    }
+
+    // ── NPC Exam Request / NPC-Initiated Events ──────────────────────────────
+
+    public class NpcExamRequestedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.NpcExamRequested;
+        public string npcId;
+        public string npcName;
+        public string examType;
+        public string businessContext;
+    }
+
+    public class NpcInitiatedConversationEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.NpcInitiatedConversation;
+        public string npcId;
+        public string npcName;
+        public bool accepted;
+    }
+
+    // ── Skill Reward Events ──────────────────────────────────────────────────
+
+    [System.Serializable]
+    public class SkillReward
+    {
+        public string skillId;
+        public string name;
+        public int level;
+    }
+
+    public class SkillRewardsAppliedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.SkillRewardsApplied;
+        public string questId;
+        public SkillReward[] rewards;
+    }
+
+    // ── Pronunciation Assessment Events ──────────────────────────────────────
+
+    public class PronunciationAssessmentDataEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.PronunciationAssessmentData;
+        public string questId;
+        public float averageScore;
+        public int sampleCount;
+    }
+
+    // ── Point-and-Name / Object Examination Events ──────────────────────────
+
+    public class ObjectNamedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.ObjectNamed;
+        public string objectId;
+        public string targetWord;
+        public string category;
+        public bool correct;
+        public int attempts;
+    }
+
+    public class ObjectExaminedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.ObjectExamined;
+        public string objectId;
+        public string objectName;
+        public string targetWord;
+        public string targetLanguage;
+        public string pronunciation;
+        public string category;
+    }
+
+    // ── Generic Feature-Module Events ────────────────────────────────────────
+
+    public class KnowledgeAppliedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.KnowledgeApplied;
+        public string key;
+        public bool correct;
+    }
+
+    public class IdentificationPromptedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.IdentificationPrompted;
+        public string targetId;
+        public string questId;
+        public string objectiveId;
+        public bool isActivity;
+    }
+
+    public class IdentificationCorrectEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.IdentificationCorrect;
+        public string targetId;
+        public string questId;
+        public float score;
+        public string playerAnswer;
+    }
+
+    public class IdentificationIncorrectEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.IdentificationIncorrect;
+        public string targetId;
+        public string questId;
+        public float score;
+        public string playerAnswer;
     }
 
     // ── Event Bus ────────────────────────────────────────────────────────────

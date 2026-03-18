@@ -7,6 +7,11 @@
  *
  * Uses the existing assessment infrastructure (AssessmentDefinition, scoring
  * endpoints) under the hood.
+ *
+ * NOTE: This engine now supports generic proficiency tiers via
+ * getProficiencyTierAdaptation() in addition to the CEFR-specific
+ * getCefrAdaptation(). New genre implementations should use the generic
+ * function with a proficiency score (0-100).
  */
 
 import type { ContentTemplate, CEFRLevel } from '../../shared/assessment/assessment-types';
@@ -265,6 +270,35 @@ export function getCefrAdaptation(cefrLevel: CEFRLevel): CefrAdaptation {
   }
 }
 
+// ── Generic proficiency-tier-adaptive parameters ────────────────────────────
+
+export interface ProficiencyTierAdaptation {
+  difficulty: string;
+  complexity: number;      // 0-1 scale
+  assistanceLevel: number; // 0-1 scale (1 = most assistance)
+  maxReplays: number;
+}
+
+/**
+ * Get exam adaptation parameters from a generic proficiency score (0-100).
+ * Works for any genre — not tied to CEFR levels.
+ */
+export function getProficiencyTierAdaptation(proficiencyScore: number): ProficiencyTierAdaptation {
+  if (proficiencyScore < 20) {
+    return { difficulty: 'beginner', complexity: 0.2, assistanceLevel: 0.9, maxReplays: 2 };
+  }
+  if (proficiencyScore < 40) {
+    return { difficulty: 'beginner', complexity: 0.4, assistanceLevel: 0.7, maxReplays: 1 };
+  }
+  if (proficiencyScore < 60) {
+    return { difficulty: 'intermediate', complexity: 0.6, assistanceLevel: 0.4, maxReplays: 1 };
+  }
+  if (proficiencyScore < 80) {
+    return { difficulty: 'advanced', complexity: 0.8, assistanceLevel: 0.2, maxReplays: 0 };
+  }
+  return { difficulty: 'expert', complexity: 1.0, assistanceLevel: 0, maxReplays: 0 };
+}
+
 // ── Exam Definition ─────────────────────────────────────────────────────────
 
 export interface NpcListeningExam {
@@ -377,5 +411,64 @@ export class NpcExamEngine {
    */
   getAvailableContexts(): string[] {
     return Object.keys(LISTENING_EXAM_CONTEXTS);
+  }
+
+  // ── Generic proficiency-tier API ──────────────────────────────────────────
+
+  /**
+   * Create a listening exam using generic proficiency score (0-100) instead
+   * of CEFR levels. Works for any genre — the genreContext string is injected
+   * into the content template topic so the LLM generates genre-appropriate
+   * exam content.
+   */
+  createGenericExam(config: {
+    npcId: string;
+    npcName: string;
+    businessType: string;
+    proficiencyScore: number;
+    genreContext?: string;
+    cityName?: string;
+  }): NpcListeningExam & { proficiencyAdaptation: ProficiencyTierAdaptation } {
+    const context = LISTENING_EXAM_CONTEXTS[config.businessType] ?? LISTENING_EXAM_CONTEXTS.guide;
+    const adaptation = getProficiencyTierAdaptation(config.proficiencyScore);
+
+    let resolvedTopic = context.contentTemplate.topic
+      .replace(/\{\{cityName\}\}/g, config.cityName ?? 'the city');
+
+    // Inject genre context into the topic if provided
+    if (config.genreContext) {
+      resolvedTopic = `[Genre context: ${config.genreContext}] ${resolvedTopic}`;
+    }
+
+    // Map generic adaptation to legacy CEFR-compatible fields
+    const lengthSentences = Math.round(2 + adaptation.complexity * 4); // 2-6
+    const maxReplays = adaptation.maxReplays;
+
+    return {
+      id: `npc_exam_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      npcId: config.npcId,
+      npcName: config.npcName,
+      businessType: config.businessType,
+      targetLanguage: '', // generic exams don't assume a target language
+      cefrLevel: 'B1' as CEFRLevel, // placeholder for type compat
+      maxPoints: 13,
+      maxReplays,
+      contentTemplate: {
+        topic: resolvedTopic,
+        difficulty: adaptation.difficulty as 'beginner' | 'intermediate' | 'advanced',
+        lengthSentences,
+        questionCount: context.contentTemplate.questionCount ?? 3,
+      },
+      proficiencyAdaptation: adaptation,
+    };
+  }
+
+  /**
+   * Get TTS speed from a generic proficiency score (0-100).
+   */
+  getGenericTtsSpeed(proficiencyScore: number): number {
+    const adaptation = getProficiencyTierAdaptation(proficiencyScore);
+    // Map complexity to TTS speed: 0.7 at beginner, 1.0 at expert
+    return 0.7 + adaptation.complexity * 0.3;
   }
 }

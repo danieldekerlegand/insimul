@@ -1093,11 +1093,14 @@ const ResidenceModel = mongoose.model('Residence', ResidenceSchema);
 const BusinessMongoModel = mongoose.model('Business', BusinessMongoSchema);
 const OccupationModel = mongoose.model('Occupation', OccupationSchema);
 const LanguageChatMessageModel = mongoose.model<LanguageChatMessageDoc>('LanguageChatMessage', LanguageChatMessageSchema);
-const LanguageProgressModel = mongoose.model('LanguageProgress', LanguageProgressSchema, 'languageprogress');
-const VocabularyEntryModel = mongoose.model('VocabularyEntry', VocabularyEntrySchema, 'vocabularyentries');
+// Generic collection names (renamed from language-specific names).
+// Run server/db/migrations/rename-collections-for-feature-modules.ts to rename
+// existing collections, or start fresh — Mongoose will create the new names automatically.
+const LanguageProgressModel = mongoose.model('LanguageProgress', LanguageProgressSchema, 'proficiencyprogress');
+const VocabularyEntryModel = mongoose.model('VocabularyEntry', VocabularyEntrySchema, 'knowledgeentries');
 const GrammarPatternModel = mongoose.model('GrammarPattern', GrammarPatternSchema, 'grammarpatterns');
 const ConversationRecordModel = mongoose.model('ConversationRecord', ConversationRecordSchema, 'conversationrecords');
-const LanguageAssessmentModel = mongoose.model('LanguageAssessment', LanguageAssessmentSchema, 'languageassessments');
+const LanguageAssessmentModel = mongoose.model('LanguageAssessment', LanguageAssessmentSchema, 'assessments');
 const AssessmentSessionModel = mongoose.model('AssessmentSession', AssessmentSessionSchema, 'assessmentsessions');
 const EvaluationResponseModel = mongoose.model('EvaluationResponse', EvaluationResponseSchema, 'evaluationresponses');
 const TechnicalTelemetryModel = mongoose.model('TechnicalTelemetry', TechnicalTelemetrySchema, 'technicaltelemetry');

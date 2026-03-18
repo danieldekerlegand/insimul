@@ -23,6 +23,19 @@ export interface GenreFeatures {
   quests: boolean;
   experience: boolean;
   skills: boolean;
+
+  // Feature-module flags (Phase 1 abstraction layer)
+  knowledgeAcquisition?: boolean;
+  proficiencyTracking?: boolean;
+  patternRecognition?: boolean;
+  assessment?: boolean;
+  npcExams?: boolean;
+  performanceScoring?: boolean;
+  voiceInteraction?: boolean;
+  adaptiveDifficulty?: boolean;
+  worldLore?: boolean;
+  conversationAnalytics?: boolean;
+  onboarding?: boolean;
 }
 
 export interface GenreConfig {

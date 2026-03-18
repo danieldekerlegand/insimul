@@ -92,6 +92,75 @@ export function getQuestTypeForWorld(world: World): QuestTypeDefinition {
 }
 
 /**
+ * Get all quest types applicable to a world, supporting cross-genre mixing.
+ *
+ * If the world has `questTypes` in its config specifying multiple genre IDs,
+ * returns all matching quest type definitions. Otherwise falls back to
+ * getQuestTypeForWorld() (single type).
+ *
+ * @param world - The world object (may include config.questTypes: string[])
+ * @returns Array of quest type definitions
+ */
+export function getQuestTypesForWorld(world: World): QuestTypeDefinition[] {
+  // Check for explicit multi-genre quest types in world config
+  const configQuestTypes = (world as any).config?.questTypes as string[] | undefined;
+  if (configQuestTypes && Array.isArray(configQuestTypes) && configQuestTypes.length > 0) {
+    const types = configQuestTypes
+      .map(id => QUEST_TYPE_REGISTRY[id])
+      .filter((def): def is QuestTypeDefinition => def != null);
+    if (types.length > 0) return types;
+  }
+
+  // Check for enabled modules that map to quest types
+  const enabledModules = (world as any).enabledModules as string[] | undefined;
+  if (enabledModules && Array.isArray(enabledModules) && enabledModules.length > 0) {
+    const types = resolveQuestTypesFromModules(enabledModules, world.gameType);
+    if (types.length > 0) return types;
+  }
+
+  // Fall back to single type
+  return [getQuestTypeForWorld(world)];
+}
+
+/**
+ * Map enabled feature modules to quest type IDs.
+ * A module like 'knowledge-acquisition' with a language-learning genre
+ * maps to the 'language-learning' quest type, etc.
+ */
+function resolveQuestTypesFromModules(
+  enabledModules: string[],
+  primaryGameType?: string,
+): QuestTypeDefinition[] {
+  const questTypeIds = new Set<string>();
+
+  // Always include the primary game type
+  if (primaryGameType && QUEST_TYPE_REGISTRY[primaryGameType]) {
+    questTypeIds.add(primaryGameType);
+  }
+
+  // Module-to-quest-type mapping for cross-genre features
+  const MODULE_QUEST_TYPE_MAP: Record<string, string[]> = {
+    'knowledge-acquisition': ['language-learning'], // vocab quests
+    'pattern-recognition': ['language-learning', 'puzzle'], // grammar/pattern quests
+    'npc-exams': ['language-learning'],
+    'conversation-analytics': ['language-learning', 'rpg'],
+  };
+
+  for (const moduleId of enabledModules) {
+    const mapped = MODULE_QUEST_TYPE_MAP[moduleId];
+    if (mapped) {
+      for (const qtId of mapped) {
+        if (QUEST_TYPE_REGISTRY[qtId]) questTypeIds.add(qtId);
+      }
+    }
+  }
+
+  return Array.from(questTypeIds)
+    .map(id => QUEST_TYPE_REGISTRY[id])
+    .filter((def): def is QuestTypeDefinition => def != null);
+}
+
+/**
  * Get quest type definition by ID
  *
  * @param questTypeId - The quest type ID
@@ -130,3 +199,60 @@ export { platformerQuestType } from './platformer';
 export { puzzleQuestType } from './puzzle';
 export { shooterQuestType } from './shooter';
 export { businessScavengerHuntQuestType } from './business-scavenger-hunt';
+
+// ── Cross-genre quest type mixing ───────────────────────────────────────────
+
+/**
+ * Get multiple quest type definitions for cross-genre mixing.
+ * For example, an RPG world with language-learning quests would request
+ * both ['rpg', 'language-learning'].
+ *
+ * @param questTypeIds - Array of quest type IDs
+ * @returns Array of matching quest type definitions
+ */
+export function getQuestTypesForMixing(questTypeIds: string[]): QuestTypeDefinition[] {
+  return questTypeIds
+    .map(id => QUEST_TYPE_REGISTRY[id])
+    .filter((def): def is QuestTypeDefinition => def != null);
+}
+
+/**
+ * Merge quest categories and objective types from multiple quest type definitions.
+ * Used when a world enables multiple genre quest types simultaneously.
+ */
+export function mergeQuestTypes(definitions: QuestTypeDefinition[]): {
+  questCategories: QuestTypeDefinition['questCategories'];
+  objectiveTypes: QuestTypeDefinition['objectiveTypes'];
+  rewardTypes: QuestTypeDefinition['rewardTypes'];
+} {
+  const seenCategories = new Set<string>();
+  const seenObjectives = new Set<string>();
+  const seenRewards = new Set<string>();
+
+  const questCategories: QuestTypeDefinition['questCategories'] = [];
+  const objectiveTypes: QuestTypeDefinition['objectiveTypes'] = [];
+  const rewardTypes: QuestTypeDefinition['rewardTypes'] = [];
+
+  for (const def of definitions) {
+    for (const cat of def.questCategories) {
+      if (!seenCategories.has(cat.id)) {
+        seenCategories.add(cat.id);
+        questCategories.push(cat);
+      }
+    }
+    for (const obj of def.objectiveTypes) {
+      if (!seenObjectives.has(obj.id)) {
+        seenObjectives.add(obj.id);
+        objectiveTypes.push(obj);
+      }
+    }
+    for (const rew of def.rewardTypes) {
+      if (!seenRewards.has(rew)) {
+        seenRewards.add(rew);
+        rewardTypes.push(rew);
+      }
+    }
+  }
+
+  return { questCategories, objectiveTypes, rewardTypes };
+}

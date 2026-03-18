@@ -1,10 +1,10 @@
 /**
  * VocabularyCollectionSystem
  *
- * Manages collectible vocabulary objects in the 3D world. World objects are
- * tagged with vocabulary metadata. When the player approaches a tagged object,
- * a multiple-choice quiz is presented. Correct answers add the word to the
- * player's vocabulary bank and award XP.
+ * Language-learning specialization of KnowledgeCollectionSystem.
+ * Internally delegates to KnowledgeCollectionSystem, mapping vocabulary-specific
+ * types to/from the generic types. All existing consumers continue to work
+ * unchanged via the same public API.
  *
  * Integrates with:
  *  - GameEventBus (vocabulary_used, item_collected events)
@@ -13,25 +13,24 @@
  */
 
 import type { GameEventBus } from './GameEventBus';
+import {
+  KnowledgeCollectionSystem,
+  type KnowledgeObjectTag,
+  type KnowledgeQuiz,
+  type KnowledgeCollectionResult,
+} from './KnowledgeCollectionSystem';
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// ── Types (kept for backward compatibility) ─────────────────────────────────
 
 export type VocabPartOfSpeech = 'noun' | 'verb' | 'adjective' | 'adverb' | 'pronoun' | 'preposition' | 'conjunction' | 'interjection' | 'number';
 
 export interface VocabObjectTag {
-  /** Unique ID for this tagged object in the world. */
   objectId: string;
-  /** The word in the target language. */
   targetWord: string;
-  /** English meaning. */
   englishMeaning: string;
-  /** Part of speech. */
   partOfSpeech: VocabPartOfSpeech;
-  /** Vocabulary category (e.g. 'food', 'nature', 'places'). */
   category: string;
-  /** Difficulty tier. */
   difficulty: 'beginner' | 'intermediate' | 'advanced';
-  /** World position for proximity check. */
   position: { x: number; y: number; z: number };
 }
 
@@ -45,9 +44,7 @@ export interface VocabQuiz {
   targetWord: string;
   category: string;
   difficulty: string;
-  /** The question prompt. */
   prompt: string;
-  /** Multiple-choice options (3-4 items, exactly one correct). */
   options: QuizOption[];
 }
 
@@ -60,70 +57,106 @@ export interface CollectionResult {
   alreadyCollected: boolean;
 }
 
-// ── System ──────────────────────────────────────────────────────────────────
+// ── Conversion helpers ──────────────────────────────────────────────────────
 
-const PROXIMITY_RANGE = 5;
+function vocabTagToGeneric(tag: VocabObjectTag): KnowledgeObjectTag {
+  return {
+    objectId: tag.objectId,
+    primaryLabel: tag.targetWord,
+    displayAnswer: tag.englishMeaning,
+    category: tag.category,
+    difficulty: tag.difficulty,
+    position: tag.position,
+    data: { partOfSpeech: tag.partOfSpeech },
+  };
+}
+
+function genericQuizToVocab(quiz: KnowledgeQuiz): VocabQuiz {
+  return {
+    objectId: quiz.objectId,
+    targetWord: quiz.primaryLabel,
+    category: quiz.category,
+    difficulty: quiz.difficulty,
+    prompt: quiz.prompt,
+    options: quiz.options,
+  };
+}
+
+function genericResultToVocab(result: KnowledgeCollectionResult, tag: VocabObjectTag | undefined): CollectionResult {
+  return {
+    correct: result.correct,
+    targetWord: tag?.targetWord ?? result.primaryLabel,
+    englishMeaning: tag?.englishMeaning ?? result.displayAnswer,
+    category: result.category,
+    xpAwarded: result.xpAwarded,
+    alreadyCollected: result.alreadyCollected,
+  };
+}
+
+// ── System (delegates to KnowledgeCollectionSystem) ─────────────────────────
+
 const XP_PER_NEW_WORD = 3;
-const QUIZ_OPTIONS_COUNT = 4;
 
 export class VocabularyCollectionSystem {
-  private taggedObjects: Map<string, VocabObjectTag> = new Map();
-  private collectedIds: Set<string> = new Set();
+  private inner: KnowledgeCollectionSystem;
+  /** Local tag map for vocabulary-specific field access (partOfSpeech, etc.). */
+  private vocabTags: Map<string, VocabObjectTag> = new Map();
   private eventBus: GameEventBus | null;
 
-  /** Pool of distractor words keyed by category for quiz generation. */
-  private distractorPool: Map<string, string[]> = new Map();
-
-  /** Callback when a quiz should be shown to the player. */
   private onQuizPrompt?: (quiz: VocabQuiz) => void;
-  /** Callback when a word is collected (correct answer). */
   private onWordCollected?: (result: CollectionResult) => void;
 
   constructor(eventBus?: GameEventBus) {
     this.eventBus = eventBus ?? null;
+    this.inner = new KnowledgeCollectionSystem(eventBus, {
+      xpPerEntry: XP_PER_NEW_WORD,
+      promptTemplate: (label) => `What does "${label}" mean?`,
+    });
+
+    // Bridge generic callbacks to vocabulary-specific ones
+    this.inner.setOnEntryCollected((genericResult) => {
+      const tag = this.vocabTags.get(genericResult.primaryLabel);
+      const vocabResult = genericResultToVocab(genericResult, tag);
+      this.onWordCollected?.(vocabResult);
+
+      // Emit vocabulary_used event for backward compatibility
+      if (genericResult.correct && tag) {
+        this.eventBus?.emit({
+          type: 'vocabulary_used',
+          word: tag.targetWord,
+          correct: true,
+        });
+      }
+    });
   }
 
   // ── Registration ────────────────────────────────────────────────────────
 
-  /** Tag a world object with vocabulary metadata. */
   registerObject(tag: VocabObjectTag): void {
-    this.taggedObjects.set(tag.objectId, tag);
-    this.addDistractor(tag.category, tag.englishMeaning);
+    this.vocabTags.set(tag.objectId, tag);
+    this.inner.registerObject(vocabTagToGeneric(tag));
   }
 
-  /** Register multiple objects at once. */
   registerObjects(tags: VocabObjectTag[]): void {
-    for (const tag of tags) {
-      this.registerObject(tag);
-    }
+    for (const tag of tags) this.registerObject(tag);
   }
 
-  /** Remove a tagged object. */
   removeObject(objectId: string): void {
-    this.taggedObjects.delete(objectId);
+    this.vocabTags.delete(objectId);
+    this.inner.removeObject(objectId);
   }
 
-  /** Seed the distractor pool with extra English words for quiz generation. */
   seedDistractors(category: string, words: string[]): void {
-    for (const word of words) {
-      this.addDistractor(category, word);
-    }
-  }
-
-  private addDistractor(category: string, word: string): void {
-    if (!this.distractorPool.has(category)) {
-      this.distractorPool.set(category, []);
-    }
-    const pool = this.distractorPool.get(category)!;
-    if (!pool.includes(word)) {
-      pool.push(word);
-    }
+    this.inner.seedDistractors(category, words);
   }
 
   // ── Callbacks ─────────────────────────────────────────────────────────
 
   setOnQuizPrompt(cb: (quiz: VocabQuiz) => void): void {
     this.onQuizPrompt = cb;
+    this.inner.setOnQuizPrompt((genericQuiz) => {
+      cb(genericQuizToVocab(genericQuiz));
+    });
   }
 
   setOnWordCollected(cb: (result: CollectionResult) => void): void {
@@ -132,131 +165,37 @@ export class VocabularyCollectionSystem {
 
   // ── Proximity ─────────────────────────────────────────────────────────
 
-  /**
-   * Check which uncollected vocabulary objects are within range of the player.
-   * Returns object IDs that are close enough to interact with.
-   */
   getObjectsInRange(
     playerPos: { x: number; y: number; z: number },
-    range: number = PROXIMITY_RANGE,
+    range?: number,
   ): string[] {
-    const results: string[] = [];
-    this.taggedObjects.forEach((tag, id) => {
-      if (this.collectedIds.has(id)) return;
-      const dx = playerPos.x - tag.position.x;
-      const dy = playerPos.y - tag.position.y;
-      const dz = playerPos.z - tag.position.z;
-      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      if (dist <= range) {
-        results.push(id);
-      }
-    });
-    return results;
+    return this.inner.getObjectsInRange(playerPos, range);
   }
 
   // ── Quiz Generation ───────────────────────────────────────────────────
 
-  /**
-   * Generate a multiple-choice quiz for a tagged object.
-   * Returns null if the object doesn't exist or is already collected.
-   */
   generateQuiz(objectId: string): VocabQuiz | null {
-    const tag = this.taggedObjects.get(objectId);
-    if (!tag) return null;
-    if (this.collectedIds.has(objectId)) return null;
-
-    const distractors = this.pickDistractors(tag.englishMeaning, tag.category);
-    const options = this.buildOptions(tag.englishMeaning, distractors);
-
-    return {
-      objectId,
-      targetWord: tag.targetWord,
-      category: tag.category,
-      difficulty: tag.difficulty,
-      prompt: `What does "${tag.targetWord}" mean?`,
-      options,
-    };
-  }
-
-  /** Pick distractor words that are NOT the correct answer. */
-  private pickDistractors(correctAnswer: string, category: string): string[] {
-    const needed = QUIZ_OPTIONS_COUNT - 1;
-    const distractors: string[] = [];
-
-    // Prefer same-category distractors for harder quizzes
-    const sameCategory = (this.distractorPool.get(category) ?? [])
-      .filter(w => w !== correctAnswer);
-
-    // Also gather cross-category words as fallback
-    const otherWords: string[] = [];
-    this.distractorPool.forEach((words, cat) => {
-      if (cat !== category) {
-        otherWords.push(...words.filter(w => w !== correctAnswer));
-      }
-    });
-
-    // Shuffle and pick
-    const shuffledSame = this.shuffle([...sameCategory]);
-    const shuffledOther = this.shuffle([...otherWords]);
-
-    // Take up to 2 from same category, rest from other
-    for (const word of shuffledSame) {
-      if (distractors.length >= needed) break;
-      if (!distractors.includes(word)) distractors.push(word);
-    }
-    for (const word of shuffledOther) {
-      if (distractors.length >= needed) break;
-      if (!distractors.includes(word)) distractors.push(word);
-    }
-
-    return distractors;
-  }
-
-  /** Build shuffled quiz options from correct answer + distractors. */
-  private buildOptions(correctAnswer: string, distractors: string[]): QuizOption[] {
-    const options: QuizOption[] = [
-      { text: correctAnswer, isCorrect: true },
-      ...distractors.map(d => ({ text: d, isCorrect: false })),
-    ];
-    return this.shuffle(options);
+    const genericQuiz = this.inner.generateQuiz(objectId);
+    return genericQuiz ? genericQuizToVocab(genericQuiz) : null;
   }
 
   // ── Answer Submission ─────────────────────────────────────────────────
 
-  /**
-   * Submit an answer for a vocabulary quiz.
-   * Returns the result including whether XP was awarded.
-   */
   submitAnswer(objectId: string, selectedAnswer: string): CollectionResult {
-    const tag = this.taggedObjects.get(objectId);
-    if (!tag) {
-      return { correct: false, targetWord: '', englishMeaning: '', category: '', xpAwarded: 0, alreadyCollected: false };
-    }
+    const tag = this.vocabTags.get(objectId);
+    const genericResult = this.inner.submitAnswer(objectId, selectedAnswer);
 
-    if (this.collectedIds.has(objectId)) {
-      return {
-        correct: true,
-        targetWord: tag.targetWord,
-        englishMeaning: tag.englishMeaning,
-        category: tag.category,
-        xpAwarded: 0,
-        alreadyCollected: true,
-      };
-    }
-
-    const isCorrect = selectedAnswer === tag.englishMeaning;
-    let xpAwarded = 0;
-
-    if (isCorrect) {
-      this.collectedIds.add(objectId);
-      xpAwarded = XP_PER_NEW_WORD;
-
+    // Emit vocabulary_used for failed attempts too (backward compat)
+    if (!genericResult.correct && !genericResult.alreadyCollected && tag) {
       this.eventBus?.emit({
         type: 'vocabulary_used',
         word: tag.targetWord,
-        correct: true,
+        correct: false,
       });
+    }
 
+    // Emit item_collected with vocabulary-specific taxonomy
+    if (genericResult.correct && !genericResult.alreadyCollected && tag) {
       this.eventBus?.emit({
         type: 'item_collected',
         itemId: `vocab_${tag.objectId}`,
@@ -268,90 +207,32 @@ export class VocabularyCollectionSystem {
           baseType: tag.partOfSpeech,
         },
       });
-    } else {
-      this.eventBus?.emit({
-        type: 'vocabulary_used',
-        word: tag.targetWord,
-        correct: false,
-      });
     }
 
-    const result: CollectionResult = {
-      correct: isCorrect,
-      targetWord: tag.targetWord,
-      englishMeaning: tag.englishMeaning,
-      category: tag.category,
-      xpAwarded,
-      alreadyCollected: false,
-    };
-
-    if (isCorrect) {
-      this.onWordCollected?.(result);
-    }
-
-    return result;
+    return genericResultToVocab(genericResult, tag);
   }
 
-  /**
-   * Interact with a tagged object: generate quiz and notify via callback.
-   * Returns the quiz, or null if the object is already collected or not found.
-   */
   interact(objectId: string): VocabQuiz | null {
-    const quiz = this.generateQuiz(objectId);
-    if (quiz) {
-      this.onQuizPrompt?.(quiz);
-    }
-    return quiz;
+    const genericQuiz = this.inner.interact(objectId);
+    return genericQuiz ? genericQuizToVocab(genericQuiz) : null;
   }
 
   // ── Query ─────────────────────────────────────────────────────────────
 
-  /** Check if a specific object has been collected. */
-  isCollected(objectId: string): boolean {
-    return this.collectedIds.has(objectId);
-  }
+  isCollected(objectId: string): boolean { return this.inner.isCollected(objectId); }
+  getCollectedCount(): number { return this.inner.getCollectedCount(); }
+  getRegisteredObjectIds(): string[] { return this.inner.getRegisteredObjectIds(); }
 
-  /** Get the total number of collected vocabulary objects. */
-  getCollectedCount(): number {
-    return this.collectedIds.size;
-  }
-
-  /** Get all registered object IDs. */
-  getRegisteredObjectIds(): string[] {
-    return Array.from(this.taggedObjects.keys());
-  }
-
-  /** Get tag info for an object. */
   getObjectTag(objectId: string): VocabObjectTag | null {
-    return this.taggedObjects.get(objectId) ?? null;
+    return this.vocabTags.get(objectId) ?? null;
   }
 
-  /** Get all uncollected object IDs. */
-  getUncollectedIds(): string[] {
-    return Array.from(this.taggedObjects.keys()).filter(id => !this.collectedIds.has(id));
-  }
+  getUncollectedIds(): string[] { return this.inner.getUncollectedIds(); }
+  getCollectedIds(): string[] { return this.inner.getCollectedIds(); }
 
-  /** Get collected object IDs. */
-  getCollectedIds(): string[] {
-    return Array.from(this.collectedIds);
-  }
-
-  // ── Utilities ─────────────────────────────────────────────────────────
-
-  /** Fisher-Yates shuffle. */
-  private shuffle<T>(arr: T[]): T[] {
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
-  }
-
-  /** Dispose all state. */
   dispose(): void {
-    this.taggedObjects.clear();
-    this.collectedIds.clear();
-    this.distractorPool.clear();
+    this.inner.dispose();
+    this.vocabTags.clear();
     this.onQuizPrompt = undefined;
     this.onWordCollected = undefined;
   }

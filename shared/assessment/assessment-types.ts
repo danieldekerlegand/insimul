@@ -13,7 +13,7 @@
 
 export type AssessmentType = 'arrival' | 'departure' | 'periodic' | 'npc_exam' | 'arrival_encounter' | 'departure_encounter';
 
-export type PhaseType = 'reading' | 'writing' | 'listening' | 'conversation';
+export type PhaseType = 'reading' | 'writing' | 'listening' | 'initiate_conversation' | 'conversation';
 
 /** @deprecated Use PhaseType directly */
 export type AssessmentPhaseType = PhaseType;

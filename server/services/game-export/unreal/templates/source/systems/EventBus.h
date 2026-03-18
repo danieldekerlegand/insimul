@@ -86,7 +86,15 @@ enum class EInsimulEventType : uint8
     // NPC-initiated conversation events
     NpcInitiatedConversation UMETA(DisplayName = "NPC Initiated Conversation"),
     // Skill reward events
-    SkillRewardsApplied UMETA(DisplayName = "Skill Rewards Applied")
+    SkillRewardsApplied UMETA(DisplayName = "Skill Rewards Applied"),
+    // Assessment conversation events
+    AssessmentConversationInitiated UMETA(DisplayName = "Assessment Conversation Initiated"),
+    AssessmentGuidedConversationStart UMETA(DisplayName = "Assessment Guided Conversation Start"),
+    // Generic feature-module events
+    KnowledgeApplied UMETA(DisplayName = "Knowledge Applied"),
+    IdentificationPrompted UMETA(DisplayName = "Identification Prompted"),
+    IdentificationCorrect UMETA(DisplayName = "Identification Correct"),
+    IdentificationIncorrect UMETA(DisplayName = "Identification Incorrect")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────
@@ -295,6 +303,14 @@ struct FInsimulGameEvent
     // ── NPC exam fields ──────────────────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ExamType;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString BusinessContext;
+
+    // ── Pronunciation bonus fields ─────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 PronunciationBonusXp = 0;
+
+    // ── Knowledge / identification fields ──────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Key;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PlayerAnswer;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bIsActivity = false;
 };
 
 // ── Delegates ────────────────────────────────────────────────────────────────

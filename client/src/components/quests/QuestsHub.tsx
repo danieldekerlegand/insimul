@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import {
-  CheckCircle2, Clock, XCircle, Trophy, Target, Plus, ChevronRight, ChevronDown, RefreshCw, Edit, Globe, Trash2,
+  Clock, Trophy, Target, Plus, ChevronRight, ChevronDown, RefreshCw, Edit, Globe, Trash2, Lock, Play, Eye,
 } from 'lucide-react';
 import { QuestCreateDialog } from '../QuestCreateDialog';
 import { PredicatePalette } from '../prolog/PredicatePalette';
@@ -53,10 +53,8 @@ interface QuestsHubProps {
 }
 
 const STATUS_GROUPS: Record<string, { label: string; icon: typeof Clock; color: string }> = {
+  available: { label: 'Available', icon: Target, color: 'text-blue-500' },
   active: { label: 'Active', icon: Clock, color: 'text-blue-500' },
-  completed: { label: 'Completed', icon: CheckCircle2, color: 'text-green-500' },
-  failed: { label: 'Failed', icon: XCircle, color: 'text-red-500' },
-  pending: { label: 'Pending', icon: Target, color: 'text-gray-500' },
 };
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -77,7 +75,7 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
   const { toast } = useToast();
   const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['active']));
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['available', 'active']));
   const [expandedSection, setExpandedSection] = useState<'details' | 'predicates' | 'query' | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -147,22 +145,17 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    const group = STATUS_GROUPS[status];
-    if (!group) return <Target className="w-3.5 h-3.5 text-gray-500" />;
-    const Icon = group.icon;
-    return <Icon className={`w-3.5 h-3.5 ${group.color}`} />;
-  };
-
   const getDifficultyColor = (difficulty: string) =>
     DIFFICULTY_COLORS[difficulty] || 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20';
 
   const getTypeIcon = (type: string) => TYPE_ICONS[type] || '🎯';
 
-  // Group quests by status
+  // Group quests by status — editor only shows "available" and "active" buckets.
+  // Completed/failed/pending quests are shown under "available" since completion
+  // state is per-playthrough, not per-world.
   const questGroups: Record<string, Quest[]> = {};
   quests.forEach(q => {
-    const key = q.status || 'pending';
+    const key = (q.status === 'active') ? 'active' : 'available';
     if (!questGroups[key]) questGroups[key] = [];
     questGroups[key].push(q);
   });
@@ -213,7 +206,7 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
             <div className="p-3 text-xs text-muted-foreground text-center">No quests yet</div>
           ) : (
             <div className="p-2 space-y-1">
-              {(['active', 'pending', 'completed', 'failed'] as const).map(status => {
+              {(['available', 'active'] as const).map(status => {
                 const group = questGroups[status];
                 if (!group || group.length === 0) return null;
                 const statusConfig = STATUS_GROUPS[status];
@@ -282,8 +275,6 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {getStatusIcon(selectedQuest.status)}
-                  <span className="text-xs capitalize font-medium">{selectedQuest.status}</span>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -446,12 +437,6 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
                     <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Assigned</span>
                     <span className="text-xs font-medium">{new Date(selectedQuest.assignedAt).toLocaleDateString()}</span>
                   </div>
-                  {selectedQuest.completedAt && (
-                    <div className="flex justify-between items-center p-1.5 bg-muted/30 rounded">
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Completed</span>
-                      <span className="text-xs font-medium">{new Date(selectedQuest.completedAt).toLocaleDateString()}</span>
-                    </div>
-                  )}
                   {selectedQuest.expiresAt && (
                     <div className="flex justify-between items-center p-1.5 bg-muted/30 rounded">
                       <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Expires</span>
@@ -589,12 +574,7 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
                 </div>
               )}
 
-              {/* Continue Quest Button */}
-              {selectedQuest.status === 'active' && (
-                <Button className="w-full" variant="default" size="sm">
-                  Continue Quest
-                </Button>
-              )}
+              {/* Continue Quest — only available during a playthrough, not in the editor */}
             </div>
           ) : (
             <div className="p-3 text-xs text-muted-foreground italic">

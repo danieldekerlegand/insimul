@@ -85,6 +85,14 @@ const EVENT_NPC_EXAM_COMPLETED := "npc_exam_completed"
 const EVENT_NPC_INITIATED_CONVERSATION := "npc_initiated_conversation"
 # Skill reward events
 const EVENT_SKILL_REWARDS_APPLIED := "skill_rewards_applied"
+# Assessment conversation events
+const EVENT_ASSESSMENT_CONVERSATION_INITIATED := "assessment_conversation_initiated"
+const EVENT_ASSESSMENT_GUIDED_CONVERSATION_START := "assessment_guided_conversation_start"
+# Generic feature-module events (knowledge, identification)
+const EVENT_KNOWLEDGE_APPLIED := "knowledge_applied"
+const EVENT_IDENTIFICATION_PROMPTED := "identification_prompted"
+const EVENT_IDENTIFICATION_CORRECT := "identification_correct"
+const EVENT_IDENTIFICATION_INCORRECT := "identification_incorrect"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -128,6 +136,12 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_NPC_EXAM_COMPLETED,
 	EVENT_NPC_INITIATED_CONVERSATION,
 	EVENT_SKILL_REWARDS_APPLIED,
+	EVENT_ASSESSMENT_CONVERSATION_INITIATED,
+	EVENT_ASSESSMENT_GUIDED_CONVERSATION_START,
+	EVENT_KNOWLEDGE_APPLIED,
+	EVENT_IDENTIFICATION_PROMPTED,
+	EVENT_IDENTIFICATION_CORRECT,
+	EVENT_IDENTIFICATION_INCORRECT,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
@@ -208,6 +222,13 @@ var _global_handlers: Array[Callable] = []
 ##   npc_exam_requested:  {type, npc_id, npc_name, exam_type, business_context?}
 ##   npc_exam_completed:  {type, npc_id?, exam_type, total_score, max_score, cefr_level}
 ##   npc_initiated_conversation: {type, npc_id, npc_name, accepted}
+##   skill_rewards_applied: {type, quest_id, rewards}
+##   assessment_conversation_initiated: {type, npc_id}
+##   assessment_guided_conversation_start: {type, topics, min_exchanges, max_exchanges}
+##   knowledge_applied:   {type, key, correct}
+##   identification_prompted: {type, target_id, quest_id, objective_id, is_activity}
+##   identification_correct: {type, target_id, quest_id, score, player_answer}
+##   identification_incorrect: {type, target_id, quest_id, score, player_answer}
 ##
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}
 func emit_event(event: Dictionary) -> void:

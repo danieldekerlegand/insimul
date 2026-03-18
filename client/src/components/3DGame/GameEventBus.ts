@@ -77,6 +77,10 @@ export type GameEvent =
   | { type: 'periodic_assessment_triggered'; level: number; tier: string }
   // Assessment conversation quest start (engine requests a waypoint on an NPC)
   | { type: 'assessment_conversation_quest_start'; phaseId: string; topics: string[]; minExchanges: number; maxExchanges: number }
+  // Player initiated a conversation with the highlighted assessment NPC
+  | { type: 'assessment_conversation_initiated'; npcId: string }
+  // Guided conversation parameters for the active assessment conversation
+  | { type: 'assessment_guided_conversation_start'; topics: string[]; minExchanges: number; maxExchanges: number }
   // Assessment conversation completed (player finished talking to NPC during assessment)
   | { type: 'assessment_conversation_completed'; npcId: string; score?: number }
   // Visual vocabulary events
@@ -103,7 +107,12 @@ export type GameEvent =
   // NPC-initiated conversation events
   | { type: 'npc_initiated_conversation'; npcId: string; npcName: string; accepted: boolean }
   // Skill reward events
-  | { type: 'skill_rewards_applied'; questId: string; rewards: Array<{ skillId: string; name: string; level: number }> };
+  | { type: 'skill_rewards_applied'; questId: string; rewards: Array<{ skillId: string; name: string; level: number }> }
+  // Generic feature-module events (knowledge, identification)
+  | { type: 'knowledge_applied'; key: string; correct: boolean }
+  | { type: 'identification_prompted'; targetId: string; questId: string; objectiveId: string; isActivity: boolean }
+  | { type: 'identification_correct'; targetId: string; questId: string; score: number; playerAnswer: string }
+  | { type: 'identification_incorrect'; targetId: string; questId: string; score: number; playerAnswer: string };
 
 export type GameEventType = GameEvent['type'];
 

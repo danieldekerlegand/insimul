@@ -4,6 +4,10 @@
  * Computes structured speech complexity parameters from player proficiency.
  * Used by the conversation system prompt builder and NPC exam engine to
  * adapt NPC speech and question difficulty to the player's current level.
+ *
+ * NOTE: This is a language-learning specialization of the generic
+ * AdaptiveDifficulty module (shared/feature-modules/adaptive-difficulty/).
+ * Bridge functions at the bottom convert between formats.
  */
 
 import type { PlayerProficiency } from './utils';
@@ -218,4 +222,48 @@ export function buildDialogueRulesFromComplexity(
   }
 
   return rules;
+}
+
+// ---------------------------------------------------------------------------
+// Bridge: SpeechComplexityParams ↔ Generic DifficultyParams
+// ---------------------------------------------------------------------------
+
+import type { DifficultyParams, DifficultyTier } from '../feature-modules/adaptive-difficulty/types';
+
+/** Language-learning difficulty tiers mapped from speech complexity levels. */
+export const LANGUAGE_DIFFICULTY_TIERS: DifficultyTier[] = [
+  { id: 'beginner', label: 'Beginner', minScore: 0 },
+  { id: 'elementary', label: 'Elementary', minScore: 20 },
+  { id: 'intermediate', label: 'Intermediate', minScore: 40 },
+  { id: 'advanced', label: 'Advanced', minScore: 60 },
+  { id: 'near-native', label: 'Near-native', minScore: 80 },
+];
+
+/**
+ * Convert language SpeechComplexityParams to generic DifficultyParams.
+ * Language-specific params go into `moduleParams`.
+ */
+export function speechComplexityToDifficultyParams(params: SpeechComplexityParams): DifficultyParams {
+  const tier = LANGUAGE_DIFFICULTY_TIERS.find(t => t.id === params.level)
+    ?? LANGUAGE_DIFFICULTY_TIERS[0];
+  const normalized = params.effectiveFluency / 100;
+
+  return {
+    tier,
+    effectiveScore: params.effectiveFluency,
+    challengeIntensity: normalized,
+    hintFrequency: Math.max(0, 1 - normalized),
+    assistanceLevel: Math.max(0, 1 - normalized),
+    moduleParams: {
+      maxSentenceWords: params.maxSentenceWords,
+      vocabularyTier: params.vocabularyTier,
+      newWordsPerMessage: params.newWordsPerMessage,
+      grammarCorrectionsPerMessage: params.grammarCorrectionsPerMessage,
+      useGestures: params.useGestures,
+      targetLanguageRatio: params.targetLanguageRatio,
+      allowIdioms: params.allowIdioms,
+      allowSlang: params.allowSlang,
+      encouragementLevel: params.encouragementLevel,
+    },
+  };
 }

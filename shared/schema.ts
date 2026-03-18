@@ -288,6 +288,10 @@ export const worlds = pgTable("worlds", {
   historyEndYear: integer("history_end_year"), // e.g., 1979 — end of historical simulation / start of gameplay
   currentGameYear: integer("current_game_year"), // derived from historyEndYear + gameplay timesteps
 
+  // Feature modules — list of enabled module IDs (e.g., ['knowledge-acquisition', 'proficiency'])
+  // When null/empty, modules are inferred from the genre bundle defaults
+  enabledModules: jsonb("enabled_modules").$type<string[]>().default([]),
+
   // Configuration
   config: jsonb("config").$type<Record<string, any>>().default({}),
 
@@ -296,6 +300,34 @@ export const worlds = pgTable("worlds", {
 
   // Version tracking for playthroughs
   version: integer("version").default(1), // Increment when world structure changes
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Game Instances - multiple playthroughs per world with different module sets
+// A game instance shares the world's data (NPCs, locations, items, etc.)
+// but has its own enabled modules, player progress, and game state.
+export const gameInstances = pgTable("game_instances", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worldId: varchar("world_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+
+  // Owner / creator of this game instance
+  ownerId: varchar("owner_id"),
+
+  // Game type override (can differ from world's gameType)
+  gameType: text("game_type"),
+
+  // Feature modules enabled for this instance (overrides world-level modules)
+  enabledModules: jsonb("enabled_modules").$type<string[]>().default([]),
+
+  // Instance-specific configuration
+  config: jsonb("config").$type<Record<string, any>>().default({}),
+
+  // Status
+  status: text("status").default("active"), // active, paused, completed, archived
 
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
