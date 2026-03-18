@@ -590,9 +590,14 @@ export class LanguageGamificationTracker {
 
   private syncTimer: ReturnType<typeof setTimeout> | null = null;
   private worldId: string | null = null;
+  private playthroughId: string | null = null;
 
   public setWorldId(worldId: string): void {
     this.worldId = worldId;
+  }
+
+  public setPlaythroughId(playthroughId: string): void {
+    this.playthroughId = playthroughId;
   }
 
   /**
@@ -615,6 +620,7 @@ export class LanguageGamificationTracker {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           worldId: this.worldId,
+          ...(this.playthroughId ? { playthroughId: this.playthroughId } : {}),
           totalXP: this.state.xp.totalXP,
           level: this.state.xp.level,
         }),

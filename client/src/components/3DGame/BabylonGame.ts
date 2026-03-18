@@ -4879,6 +4879,8 @@ export class BabylonGame {
 
       if (playthrough && playthrough.id) {
         this.playthroughId = playthrough.id;
+        this.chatPanel?.setPlaythroughId(playthrough.id);
+        this.gamificationTracker?.setPlaythroughId(playthrough.id);
       } else {
         // Continue without playthrough for development/testing
       }

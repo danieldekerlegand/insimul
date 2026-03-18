@@ -92,6 +92,7 @@ export class BabylonChatPanel {
   private character: Character | null = null;
   private truths: Truth[] = [];
   private world: World | null = null;
+  private playthroughId: string | null = null;
   private worldLanguageContext: WorldLanguageContext | null = null;
   private playerInventoryContext: string = '';
   private languageTracker: LanguageProgressTracker | null = null;
@@ -529,7 +530,8 @@ export class BabylonChatPanel {
       this.languageTracker = new LanguageProgressTracker(
         'player',
         this.character.worldId,
-        learningLang
+        learningLang,
+        this.playthroughId || undefined
       );
       // Start tracking this conversation so endConversation() produces a result
       this.languageTracker.startConversation(this.character.id, this.character.firstName || this.character.name || 'NPC');
@@ -2523,6 +2525,10 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
 
   public getLanguageTracker(): import('./LanguageProgressTracker').LanguageProgressTracker | null {
     return this.languageTracker;
+  }
+
+  public setPlaythroughId(id: string) {
+    this.playthroughId = id;
   }
 
   public setOnClose(callback: () => void) {

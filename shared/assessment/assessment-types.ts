@@ -281,6 +281,7 @@ export interface AssessmentSession {
   id: string;
   playerId: string;
   worldId: string;
+  playthroughId?: string;
   /** Which assessment definition was used */
   assessmentDefinitionId?: string;
   definitionId?: string;

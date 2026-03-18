@@ -6752,7 +6752,7 @@ Respond with this JSON structure:
 
   app.post("/api/xp/experiences/update", async (req, res) => {
     try {
-      const { worldId, totalXP, level } = req.body;
+      const { worldId, playthroughId, totalXP, level } = req.body;
       if (!worldId || totalXP == null) {
         return res.status(400).json({ error: "worldId and totalXP are required" });
       }
@@ -6760,7 +6760,7 @@ Respond with this JSON structure:
       if (!userId) {
         return res.status(401).json({ error: "Authentication required" });
       }
-      const progress = await storage.getPlayerProgressByUser(userId, worldId);
+      const progress = await storage.getPlayerProgressByUser(userId, worldId, playthroughId);
       if (!progress) {
         return res.status(404).json({ error: "Player progress not found" });
       }

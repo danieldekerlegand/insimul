@@ -1220,6 +1220,7 @@ export const playerProgress = pgTable("player_progress", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),
   worldId: varchar("world_id").notNull(),
+  playthroughId: varchar("playthrough_id"), // Scope progress to a specific playthrough
 
   // Player character association
   characterId: varchar("character_id"), // The character this player controls in the game

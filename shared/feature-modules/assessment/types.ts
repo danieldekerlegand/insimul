@@ -52,6 +52,7 @@ export interface AssessmentSession {
   id: string;
   playerId: string;
   worldId: string;
+  playthroughId?: string;
   instrumentId: string;
   phase: AssessmentPhase;
   responses: AssessmentResponse[];

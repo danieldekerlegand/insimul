@@ -259,7 +259,7 @@ export interface IStorage {
 
   // Player Progress
   getPlayerProgress(id: string): Promise<import("@shared/schema").PlayerProgress | undefined>;
-  getPlayerProgressByUser(userId: string, worldId: string): Promise<import("@shared/schema").PlayerProgress | undefined>;
+  getPlayerProgressByUser(userId: string, worldId: string, playthroughId?: string): Promise<import("@shared/schema").PlayerProgress | undefined>;
   getPlayerProgressesByUser(userId: string): Promise<import("@shared/schema").PlayerProgress[]>;
   createPlayerProgress(progress: import("@shared/schema").InsertPlayerProgress): Promise<import("@shared/schema").PlayerProgress>;
   updatePlayerProgress(id: string, progress: Partial<import("@shared/schema").InsertPlayerProgress>): Promise<import("@shared/schema").PlayerProgress | undefined>;
