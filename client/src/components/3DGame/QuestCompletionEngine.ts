@@ -94,6 +94,10 @@ export interface CompletionObjective {
   pronunciationBestScore?: number;
   targetPhrase?: string;
 
+  // teach_vocabulary / teach_phrase
+  wordsTaught?: string[];
+  phrasesTaught?: string[];
+
   // timed objectives
   timeLimitSeconds?: number;
   startedAt?: number;
@@ -133,7 +137,9 @@ export type CompletionEvent =
   | { type: 'location_visit'; questId: string; objectiveId: string }
   | { type: 'objective_direct_complete'; questId: string; objectiveId: string }
   | { type: 'conversation_initiation'; npcId: string; accepted: boolean; responseQuality?: number; questId?: string }
-  | { type: 'writing_submitted'; text: string; wordCount: number; questId?: string };
+  | { type: 'writing_submitted'; text: string; wordCount: number; questId?: string }
+  | { type: 'teach_word'; npcId: string; word: string; questId?: string }
+  | { type: 'teach_phrase_to_npc'; npcId: string; phrase: string; questId?: string };
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
@@ -231,6 +237,12 @@ export class QuestCompletionEngine {
         break;
       case 'writing_submitted':
         this.trackWritingSubmission(event.text, event.wordCount, event.questId);
+        break;
+      case 'teach_word':
+        this.trackTeachWord(event.npcId, event.word, event.questId);
+        break;
+      case 'teach_phrase_to_npc':
+        this.trackTeachPhrase(event.npcId, event.phrase, event.questId);
         break;
     }
   }
@@ -606,6 +618,44 @@ export class QuestCompletionEngine {
       }
     }
     return null;
+  }
+
+  // ── Teaching tracking ──────────────────────────────────────────────────
+
+  trackTeachWord(npcId: string, word: string, questId?: string): void {
+    const lowerWord = word.toLowerCase();
+
+    this.forEachObjective(questId, 'teach_vocabulary', (quest, obj) => {
+      if (obj.npcId && obj.npcId !== npcId) return;
+
+      obj.wordsTaught = obj.wordsTaught || [];
+      if (obj.wordsTaught.includes(lowerWord)) return;
+
+      obj.wordsTaught.push(lowerWord);
+      obj.currentCount = (obj.currentCount || 0) + 1;
+
+      if (obj.currentCount >= (obj.requiredCount || 3)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
+  trackTeachPhrase(npcId: string, phrase: string, questId?: string): void {
+    const lowerPhrase = phrase.toLowerCase();
+
+    this.forEachObjective(questId, 'teach_phrase', (quest, obj) => {
+      if (obj.npcId && obj.npcId !== npcId) return;
+
+      obj.phrasesTaught = obj.phrasesTaught || [];
+      if (obj.phrasesTaught.includes(lowerPhrase)) return;
+
+      obj.phrasesTaught.push(lowerPhrase);
+      obj.currentCount = (obj.currentCount || 0) + 1;
+
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
   }
 
   // ── Internal helper ─────────────────────────────────────────────────────
