@@ -13,6 +13,7 @@ import { platformerQuestType } from './platformer';
 import { puzzleQuestType } from './puzzle';
 import { shooterQuestType } from './shooter';
 import { businessScavengerHuntQuestType } from './business-scavenger-hunt';
+import { customerServiceQuestType } from './customer-service';
 import type { QuestTypeDefinition, World } from './types';
 
 /**
@@ -27,6 +28,7 @@ export const QUEST_TYPE_REGISTRY: Record<string, QuestTypeDefinition> = {
   'puzzle': puzzleQuestType,
   'shooter': shooterQuestType,
   'business-scavenger-hunt': businessScavengerHuntQuestType,
+  'customer-service': customerServiceQuestType,
 };
 
 /**
@@ -80,6 +82,11 @@ export function getQuestTypeForWorld(world: World): QuestTypeDefinition {
   // Shooter games
   if (worldType.includes('shooter') || worldType.includes('fps') || worldType.includes('military') || worldType.includes('tactical')) {
     return QUEST_TYPE_REGISTRY['shooter'];
+  }
+
+  // Customer service / hospitality games
+  if (worldType.includes('customer service') || worldType.includes('hospitality') || worldType.includes('service')) {
+    return QUEST_TYPE_REGISTRY['customer-service'];
   }
 
   // Business / commerce games
@@ -144,6 +151,7 @@ function resolveQuestTypesFromModules(
     'pattern-recognition': ['language-learning', 'puzzle'], // grammar/pattern quests
     'npc-exams': ['language-learning'],
     'conversation-analytics': ['language-learning', 'rpg'],
+    'customer-service': ['customer-service', 'language-learning'],
   };
 
   for (const moduleId of enabledModules) {
@@ -199,6 +207,7 @@ export { platformerQuestType } from './platformer';
 export { puzzleQuestType } from './puzzle';
 export { shooterQuestType } from './shooter';
 export { businessScavengerHuntQuestType } from './business-scavenger-hunt';
+export { customerServiceQuestType } from './customer-service';
 
 // ── Cross-genre quest type mixing ───────────────────────────────────────────
 
