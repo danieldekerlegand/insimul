@@ -119,6 +119,19 @@ export class CharacterController {
     }
 
     /**
+     * Reset physics/freefall state after a teleport.
+     * Call this whenever the avatar position is set directly (not via movement)
+     * to prevent accumulated fall time from causing the avatar to plunge downward.
+     */
+    public resetPhysicsState(): void {
+        this._movFallTime = 0;
+        this._idleFallTime = 0.001;
+        this._freeFallDist = 0;
+        this._grounded = false;
+        this._inFreeFall = false;
+    }
+
+    /**
      * Use this to provide animationGroups to the character controller.
      * Provide the AnimationGroups using a Map
      * In this Map the key would be the character controller animation name and

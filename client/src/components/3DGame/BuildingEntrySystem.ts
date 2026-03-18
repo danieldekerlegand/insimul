@@ -37,8 +37,14 @@ export interface BuildingEntryData {
 export interface BuildingEntryCallbacks {
   /** Called to teleport the player mesh to a position */
   onTeleportPlayer: (position: Vector3) => void;
+  /** Called to set the player mesh rotation Y */
+  onSetPlayerRotationY?: (radians: number) => void;
+  /** Called to get the current player rotation Y */
+  getPlayerRotationY?: () => number;
   /** Called to get the current player position */
   getPlayerPosition: () => Vector3 | null;
+  /** Called to get the player mesh for intersection checks */
+  getPlayerMesh?: () => Mesh | null;
   /** Called when entering a building (for NPC pausing, etc.) */
   onEnterBuilding?: (buildingId: string, interior: InteriorLayout) => void;
   /** Called when exiting a building (for NPC resuming, etc.) */
@@ -73,7 +79,9 @@ export class BuildingEntrySystem {
   private isInsideBuilding = false;
   private activeInterior: InteriorLayout | null = null;
   private savedOverworldPosition: Vector3 | null = null;
+  private savedOverworldRotationY: number = 0;
   private activeBuildingId: string | null = null;
+  private interiorDoorTrigger: Mesh | null = null;
 
   // UI elements
   private promptMesh: Mesh | null = null;
@@ -206,11 +214,12 @@ export class BuildingEntrySystem {
     const doorEntry = this.doorEntryPoints.get(buildingId);
     const doorWorldPos = doorEntry?.worldPosition ?? data.position.clone();
 
-    // Save overworld position
+    // Save overworld position and rotation
     const playerPos = this.callbacks.getPlayerPosition();
     if (playerPos) {
       this.savedOverworldPosition = playerPos.clone();
     }
+    this.savedOverworldRotationY = this.callbacks.getPlayerRotationY?.() ?? 0;
 
     // Generate or retrieve interior
     const interior = this.interiorGenerator.generateInterior(
@@ -228,9 +237,13 @@ export class BuildingEntrySystem {
     // Fade to black
     await this.performFadeTransition(true);
 
-    // Teleport player to interior door position (facing into the room = +Z direction)
+    // Teleport player to interior door position and face inward (+Z / north)
     this.callbacks.onTeleportPlayer(interior.doorPosition.clone());
+    this.callbacks.onSetPlayerRotationY?.(0);
     this.isInsideBuilding = true;
+
+    // Create door trigger zone for walk-through exit
+    this.createInteriorDoorTrigger(interior);
 
     // Pause overworld NPC movement
     for (const cb of this.npcPauseCallbacks) {
@@ -280,12 +293,17 @@ export class BuildingEntrySystem {
     // Fade to black
     await this.performFadeTransition(true);
 
-    // Teleport player back to overworld
+    // Teleport player back to overworld and restore rotation
     if (this.savedOverworldPosition) {
       this.callbacks.onTeleportPlayer(this.savedOverworldPosition.clone());
     } else {
       this.callbacks.onTeleportPlayer(this.activeInterior.exitPosition.clone());
     }
+    this.callbacks.onSetPlayerRotationY?.(this.savedOverworldRotationY);
+
+    // Clean up door trigger
+    this.interiorDoorTrigger?.dispose();
+    this.interiorDoorTrigger = null;
 
     this.isInsideBuilding = false;
     this.activeInterior = null;
@@ -317,7 +335,16 @@ export class BuildingEntrySystem {
    */
   private setupRenderLoop(): void {
     this.renderObserver = this.scene.onBeforeRenderObservable.add(() => {
-      if (this.isInsideBuilding) return;
+      if (this.isInsideBuilding) {
+        // Check if player walked through the interior door trigger zone
+        if (this.interiorDoorTrigger) {
+          const playerMesh = this.callbacks.getPlayerMesh?.();
+          if (playerMesh && this.interiorDoorTrigger.intersectsMesh(playerMesh, false)) {
+            this.exitBuilding();
+          }
+        }
+        return;
+      }
       this.updateDoorProximity();
     });
   }
@@ -544,6 +571,32 @@ export class BuildingEntrySystem {
   }
 
   /**
+   * Create an invisible trigger zone just outside the interior door opening.
+   * When the player walks through it, the system auto-exits the building.
+   */
+  private createInteriorDoorTrigger(interior: InteriorLayout): void {
+    this.interiorDoorTrigger?.dispose();
+    this.interiorDoorTrigger = null;
+
+    const trigger = MeshBuilder.CreateBox('interior_door_trigger', {
+      width: 3,
+      height: 3,
+      depth: 1,
+    }, this.scene);
+    // Position just outside (south of) the door opening
+    trigger.position = new Vector3(
+      interior.doorPosition.x,
+      interior.doorPosition.y + 0.5,
+      interior.doorPosition.z - 1.5
+    );
+    trigger.isVisible = false;
+    trigger.isPickable = false;
+    trigger.checkCollisions = false;
+
+    this.interiorDoorTrigger = trigger;
+  }
+
+  /**
    * Fade-to-black / fade-from-black transition.
    * Duration configurable via FADE_DURATION_MS (0.5s per acceptance criteria).
    */
@@ -634,6 +687,10 @@ export class BuildingEntrySystem {
       this.buildingNameMesh = null;
       this.buildingNameMaterial = null;
     }
+
+    // Dispose door trigger
+    this.interiorDoorTrigger?.dispose();
+    this.interiorDoorTrigger = null;
 
     this.buildings.clear();
     this.doorEntryPoints.clear();

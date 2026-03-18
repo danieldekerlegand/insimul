@@ -12,6 +12,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import type {
   WorldLanguage,
   LanguageScopeType,
@@ -60,6 +64,10 @@ export function LanguagesHub({ worldId }: LanguagesHubProps) {
 
   // Selection
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageWithDates | null>(null);
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   // Tree
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['world']));
@@ -353,6 +361,44 @@ export function LanguagesHub({ worldId }: LanguagesHubProps) {
     });
   };
 
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === languages.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(languages.map(l => l.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/languages/bulk-delete`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      if (res.ok) {
+        const { deleted } = await res.json();
+        toast({ title: `${deleted} language${deleted !== 1 ? 's' : ''} deleted` });
+        setSelectedIds(new Set());
+        if (selectedIds.has(selectedLanguage?.id || '')) setSelectedLanguage(null);
+        loadLanguages();
+      } else {
+        toast({ title: 'Failed to delete languages', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Failed to delete languages', variant: 'destructive' });
+    }
+    setBulkDeleteOpen(false);
+  };
+
   const scopeLabelForLanguage = (language: WorldLanguage): string => {
     if (language.scopeType === 'world') return 'World';
     if (language.scopeType === 'country') {
@@ -402,6 +448,20 @@ export function LanguagesHub({ worldId }: LanguagesHubProps) {
           </Button>
         </div>
 
+        {canEdit && languages.length > 0 && (
+          <div className="flex items-center gap-1 px-2 py-1 border-b bg-muted/20">
+            <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5" onClick={toggleSelectAll}>
+              {selectedIds.size === languages.length ? 'Deselect All' : 'Select All'}
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-destructive hover:text-destructive" onClick={() => setBulkDeleteOpen(true)}>
+                <Trash2 className="w-3 h-3 mr-1" />
+                Delete ({selectedIds.size})
+              </Button>
+            )}
+          </div>
+        )}
+
         <ScrollArea className="flex-1">
           {languagesLoading ? (
             <div className="p-3 text-xs text-muted-foreground text-center">Loading...</div>
@@ -438,6 +498,12 @@ export function LanguagesHub({ worldId }: LanguagesHubProps) {
                         }`}
                         onClick={() => setSelectedLanguage(lang)}
                       >
+                        <Checkbox
+                          checked={selectedIds.has(lang.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          onCheckedChange={() => toggleSelection(lang.id)}
+                          className="h-3 w-3 mr-1 flex-shrink-0"
+                        />
                         <span className="truncate">{lang.name}</span>
                         {lang.isPrimary && (
                           <Badge variant="default" className="text-[8px] px-1 py-0 h-3.5 flex-shrink-0">P</Badge>
@@ -1087,6 +1153,23 @@ export function LanguagesHub({ worldId }: LanguagesHubProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} Language{selectedIds.size !== 1 ? 's' : ''}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the selected languages. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -2,7 +2,12 @@ import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import {
   CheckCircle2, Clock, XCircle, Trophy, Target, Plus, ChevronRight, ChevronDown, RefreshCw, Edit, Globe, Trash2,
@@ -74,12 +79,52 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['active']));
   const [expandedSection, setExpandedSection] = useState<'details' | 'predicates' | 'query' | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: quests = [] } = useQuery<Quest[]>({
     queryKey: ['/api/worlds', worldId, 'quests'],
     enabled: !!worldId,
   });
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === quests.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(quests.map(q => q.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/quests/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      if (res.ok) {
+        const { deleted } = await res.json();
+        toast({ title: `${deleted} quest${deleted !== 1 ? 's' : ''} deleted` });
+        setSelectedIds(new Set());
+        if (selectedIds.has(selectedQuest?.id || '')) setSelectedQuest(null);
+        queryClient.invalidateQueries({ queryKey: ['/api/worlds', worldId, 'quests'] });
+      } else {
+        toast({ title: 'Failed to delete quests', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Failed to delete quests', variant: 'destructive' });
+    }
+    setBulkDeleteOpen(false);
+  };
 
   const toggleGroup = (group: string) => {
     setExpandedGroups(prev => {
@@ -149,6 +194,20 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
           </Button>
         </div>
 
+        {quests.length > 0 && (
+          <div className="flex items-center gap-1 px-2 py-1 border-b bg-muted/20">
+            <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5" onClick={toggleSelectAll}>
+              {selectedIds.size === quests.length ? 'Deselect All' : 'Select All'}
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-destructive hover:text-destructive" onClick={() => setBulkDeleteOpen(true)}>
+                <Trash2 className="w-3 h-3 mr-1" />
+                Delete ({selectedIds.size})
+              </Button>
+            )}
+          </div>
+        )}
+
         <ScrollArea className="flex-1">
           {quests.length === 0 ? (
             <div className="p-3 text-xs text-muted-foreground text-center">No quests yet</div>
@@ -185,6 +244,12 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
                         }`}
                         onClick={() => selectQuest(quest)}
                       >
+                        <Checkbox
+                          checked={selectedIds.has(quest.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          onCheckedChange={() => toggleSelection(quest.id)}
+                          className="h-3 w-3 mr-1 flex-shrink-0"
+                        />
                         <span className="mr-1">{getTypeIcon(quest.questType)}</span>
                         {quest.title}
                       </button>
@@ -554,6 +619,23 @@ export function QuestsHub({ worldId }: QuestsHubProps) {
           queryClient.invalidateQueries({ queryKey: ['/api/worlds', worldId, 'quests'] });
         }}
       />
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} Quest{selectedIds.size !== 1 ? 's' : ''}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the selected quests. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

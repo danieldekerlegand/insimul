@@ -344,7 +344,7 @@ export class InteriorNPCManager {
       }
     }
 
-    // Add occupants for residences
+    // Add occupants for residences — from metadata first
     if (metadata.occupants) {
       for (const occ of metadata.occupants) {
         const occId = typeof occ === 'string' ? occ : occ.id;
@@ -355,9 +355,26 @@ export class InteriorNPCManager {
       }
     }
 
+    // Fallback: scan all NPCs for residence match via characterData.currentResidenceId
+    if (metadata.buildingType === 'residence' && metadata.residenceId) {
+      const residenceId = metadata.residenceId;
+      const allEntries = Array.from(allNPCs.entries());
+      for (const [npcId, npc] of allEntries) {
+        if (addedIds.has(npcId)) continue;
+        if (candidates.length >= MAX_INTERIOR_NPCS) break;
+        if (npc.characterData?.currentResidenceId === residenceId) {
+          candidates.push({ id: npcId, mesh: npc.mesh, characterData: npc.characterData, role: 'owner' });
+          addedIds.add(npcId);
+        }
+      }
+    }
+
     // Add visitors: other NPCs who might be at this location
     // Prioritize by relationship strength with player
-    if (metadata.buildingType === 'business' && isBusinessHours) {
+    const shouldAddVisitors = metadata.buildingType === 'business'
+      ? isBusinessHours
+      : metadata.buildingType === 'residence';
+    if (shouldAddVisitors) {
       const visitors: Array<{ id: string; mesh: Mesh; characterData?: any; relationshipScore: number }> = [];
       const entries = Array.from(allNPCs.entries());
       for (const [npcId, npc] of entries) {
@@ -371,9 +388,9 @@ export class InteriorNPCManager {
           if (rel) relScore = rel.strength ?? 0;
         }
 
-        // Only add a few visitors (randomized based on NPC personality)
+        // Add visitors based on extroversion — higher chance so interiors feel populated
         const extroversion = npc.characterData?.personality?.extroversion ?? 0.5;
-        if (Math.random() < extroversion * 0.15) {
+        if (Math.random() < extroversion * 0.4) {
           visitors.push({ id: npcId, mesh: npc.mesh, characterData: npc.characterData, relationshipScore: relScore });
         }
       }

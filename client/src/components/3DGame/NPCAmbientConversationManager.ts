@@ -1,9 +1,13 @@
 /**
  * NPC Ambient Conversation Manager
  *
- * Manages NPC-to-NPC conversations in the 3D game world.
- * Only runs conversations when the player is nearby to optimize performance.
- * Uses the existing conversation system API and TTS for natural dialogue.
+ * Lightweight system that pairs nearby NPCs into visual conversations.
+ * No API calls, no TTS — just talk/listen animations exchanged on a timer.
+ *
+ * When the player is close enough to a conversing pair, an "eavesdrop" prompt
+ * appears. If the player eavesdrops, the game opens the chat panel in
+ * eavesdrop mode and runs a real conversation through the same streaming
+ * pipeline used for player-NPC dialogue.
  */
 
 import { Vector3, Scene, Mesh } from '@babylonjs/core';
@@ -17,532 +21,382 @@ interface NPCInstance {
   name: string;
 }
 
-interface ActiveConversation {
-  conversationId: string;
+export interface AmbientConversation {
+  id: string;
   participants: [string, string];
   startTime: number;
-  currentUtteranceIndex: number;
-  isComplete: boolean;
+  /** Which participant is currently "talking" (index 0 or 1) */
+  activeSpeakerIdx: number;
+  /** Timer handle for alternating talk animations */
+  alternateTimer: number | null;
 }
 
-interface ConversationUtterance {
-  id: string;
-  speaker: string;
-  listener: string;
-  text: string;
-  timestamp: number;
-  tone: string;
-}
+/** Callback to trigger NPC animations (talk/idle/listen) */
+type AnimationChangeCallback = (npcId: string, animation: string) => void;
 
-interface ConversationData {
-  id: string;
-  participants: [string, string];
-  utterances: ConversationUtterance[];
-  endTimestep?: number;
-}
+/** Callback invoked when eavesdrop is available/unavailable near the player */
+type EavesdropPromptCallback = (
+  available: boolean,
+  npc1Id?: string,
+  npc2Id?: string,
+  npc1Name?: string,
+  npc2Name?: string
+) => void;
+
+/** Callback invoked when the player activates eavesdrop */
+type EavesdropActivateCallback = (npc1Id: string, npc2Id: string) => void;
 
 export class NPCAmbientConversationManager {
   private scene: Scene;
-  private worldId: string;
-  private talkingIndicator: NPCTalkingIndicator;
-
-  // Player tracking
-  private playerMesh: Mesh | null = null;
-  private hearingRadius: number = 30; // Distance at which player can hear conversations
 
   // NPC tracking
   private npcMeshes: Map<string, NPCInstance> = new Map();
 
-  // Active conversations
-  private activeConversations: Map<string, ActiveConversation> = new Map();
-  private conversationCooldowns: Map<string, number> = new Map(); // Track when NPCs last chatted
+  // Active visual-only conversations (no API calls)
+  private activeConversations: Map<string, AmbientConversation> = new Map();
+  private conversationCooldowns: Map<string, number> = new Map();
 
   // Settings
-  private conversationCheckInterval: number = 5000; // Check every 5 seconds
-  private minConversationCooldown: number = 60000; // 1 minute between conversations per NPC
-  private maxSimultaneousConversations: number = 3; // Limit to avoid overwhelming player
-  private utteranceDelay: number = 3000; // 3 seconds between utterances
+  private checkIntervalMs = 5000;
+  private minCooldownMs = 30000;
+  private maxSimultaneous = 3;
+  /** How long each NPC "talks" before the other responds (ms) */
+  private talkTurnDurationMs = 3000;
+  /** Total conversation duration before NPCs part ways (ms) */
+  private conversationDurationMs = 20000;
+  /** Max distance between two NPCs to start a conversation */
+  private pairingRadius = 8;
+  /** Distance within which the player sees the eavesdrop prompt */
+  private eavesdropRadius = 12;
+  /** Minimum distance NPCs maintain during conversation */
+  private minSeparation = 2.0;
 
   // Timers
   private checkTimer: number | null = null;
-  private utteranceTimers: Map<string, number> = new Map();
 
-  // Audio
-  private currentlySpeaking: Set<string> = new Set();
-
-  // Pause ambient conversations while the player is talking to an NPC
+  // Pause flag
   private _paused = false;
 
-  // Prolog engine for personality-based conversation matching
-  private prologEngine: GamePrologEngine | null = null;
+  // Player tracking
+  private playerMesh: Mesh | null = null;
 
-  constructor(scene: Scene, worldId: string, talkingIndicator: NPCTalkingIndicator) {
+  // Talking indicator for "..." chat bubbles
+  private talkingIndicator: NPCTalkingIndicator | null = null;
+
+  // Callbacks
+  private onAnimationChange: AnimationChangeCallback | null = null;
+  private onEavesdropPrompt: EavesdropPromptCallback | null = null;
+  private onEavesdropActivate: EavesdropActivateCallback | null = null;
+
+  // Eavesdrop state
+  private currentEavesdropConvId: string | null = null;
+  private lastPromptConvId: string | null = null;
+
+  constructor(scene: Scene, _worldId: string, talkingIndicator: NPCTalkingIndicator) {
     this.scene = scene;
-    this.worldId = worldId;
     this.talkingIndicator = talkingIndicator;
   }
 
-  /**
-   * Set the player mesh for proximity detection
-   */
-  public setPlayerMesh(playerMesh: Mesh): void {
-    this.playerMesh = playerMesh;
+  // --- Public API ---
+
+  public setPlayerMesh(mesh: Mesh): void {
+    this.playerMesh = mesh;
   }
 
-  /**
-   * Register an NPC for conversation tracking
-   */
   public registerNPC(npcId: string, npcName: string, mesh: Mesh, state: string): void {
-    this.npcMeshes.set(npcId, {
-      mesh,
-      state,
-      id: npcId,
-      name: npcName
-    });
+    this.npcMeshes.set(npcId, { mesh, state, id: npcId, name: npcName });
   }
 
-  /**
-   * Set the Prolog engine for personality-based conversation selection.
-   */
-  public setPrologEngine(engine: GamePrologEngine): void {
-    this.prologEngine = engine;
-  }
-
-  /** Pause ambient conversations (e.g. while player is in a conversation). */
-  public pause(): void { this._paused = true; }
-
-  /** Resume ambient conversations. */
-  public resume(): void { this._paused = false; }
-
-  /**
-   * Unregister an NPC
-   */
   public unregisterNPC(npcId: string): void {
     this.npcMeshes.delete(npcId);
     this.conversationCooldowns.delete(npcId);
-
-    // End any conversations involving this NPC
-    for (const [convId, conv] of this.activeConversations.entries()) {
+    for (const [convId, conv] of Array.from(this.activeConversations.entries())) {
       if (conv.participants.includes(npcId)) {
         this.endConversation(convId);
       }
     }
   }
 
-  /**
-   * Start the conversation manager
-   */
-  public start(): void {
-    if (this.checkTimer !== null) {
-      console.warn('[NPCAmbientConversationManager] Already started');
-      return;
-    }
-
-    console.log('[NPCAmbientConversationManager] Starting ambient conversation system');
-
-    this.checkTimer = window.setInterval(() => {
-      this.checkForNewConversations();
-    }, this.conversationCheckInterval);
+  public setPrologEngine(_engine: GamePrologEngine): void {
+    // Prolog-based matching not used in lightweight ambient system
   }
 
-  /**
-   * Stop the conversation manager
-   */
+  public setAnimationCallback(cb: AnimationChangeCallback): void {
+    this.onAnimationChange = cb;
+  }
+
+  public setEavesdropPromptCallback(cb: EavesdropPromptCallback): void {
+    this.onEavesdropPrompt = cb;
+  }
+
+  public setEavesdropActivateCallback(cb: EavesdropActivateCallback): void {
+    this.onEavesdropActivate = cb;
+  }
+
+  public pause(): void { this._paused = true; }
+  public resume(): void { this._paused = false; }
+
+  public start(): void {
+    if (this.checkTimer !== null) return;
+    this.checkTimer = window.setInterval(() => this.tick(), this.checkIntervalMs);
+  }
+
   public stop(): void {
     if (this.checkTimer !== null) {
       window.clearInterval(this.checkTimer);
       this.checkTimer = null;
     }
-
-    // Clear all utterance timers
-    for (const timer of this.utteranceTimers.values()) {
-      window.clearTimeout(timer);
-    }
-    this.utteranceTimers.clear();
-
-    // End all active conversations
-    for (const convId of this.activeConversations.keys()) {
+    for (const convId of Array.from(this.activeConversations.keys())) {
       this.endConversation(convId);
     }
-
-    console.log('[NPCAmbientConversationManager] Stopped ambient conversation system');
   }
 
-  /**
-   * Check if new conversations should start
-   */
-  private async checkForNewConversations(): Promise<void> {
-    if (!this.playerMesh || this._paused) return;
-
-    // Don't start more conversations if we're at the limit
-    if (this.activeConversations.size >= this.maxSimultaneousConversations) {
-      return;
-    }
-
-    const now = Date.now();
-    const playerPos = this.playerMesh.position;
-
-    // Find NPCs within hearing range who are available to chat
-    const availableNPCs: NPCInstance[] = [];
-
-    for (const npc of this.npcMeshes.values()) {
-      // Skip NPCs who are already in conversations
-      const inConversation = Array.from(this.activeConversations.values()).some(
-        conv => conv.participants.includes(npc.id)
-      );
-      if (inConversation) continue;
-
-      // Skip NPCs on cooldown
-      const lastConversation = this.conversationCooldowns.get(npc.id) || 0;
-      if (now - lastConversation < this.minConversationCooldown) continue;
-
-      // Skip NPCs not in idle state
-      if (npc.state !== 'idle') continue;
-
-      // Check if NPC is within hearing range of player
-      const distance = Vector3.Distance(playerPos, npc.mesh.position);
-      if (distance <= this.hearingRadius) {
-        availableNPCs.push(npc);
-      }
-    }
-
-    // Need at least 2 NPCs to have a conversation
-    if (availableNPCs.length < 2) return;
-
-    // If Prolog engine is available, use personality-based partner selection
-    if (this.prologEngine && availableNPCs.length >= 2) {
-      for (const npc of availableNPCs) {
-        try {
-          const wantsTo = await this.prologEngine.wantsToSocialize(npc.id);
-          if (!wantsTo) continue;
-
-          const preferredPartners = await this.prologEngine.whoShouldTalkTo(npc.id);
-          const avoidList = await this.prologEngine.whoToAvoid(npc.id);
-          const avoidSet = new Set(avoidList);
-
-          for (const partnerId of preferredPartners) {
-            const partner = availableNPCs.find(n => n.id === partnerId);
-            if (!partner || avoidSet.has(partnerId)) continue;
-            const distance = Vector3.Distance(npc.mesh.position, partner.mesh.position);
-            if (distance <= 8) {
-              await this.startConversation(npc.id, partnerId);
-              return;
-            }
-          }
-        } catch {
-          // Fall through to proximity-based selection
-        }
-      }
-    }
-
-    // Fallback: Find pairs of NPCs who are close to each other
-    for (let i = 0; i < availableNPCs.length - 1; i++) {
-      for (let j = i + 1; j < availableNPCs.length; j++) {
-        const npc1 = availableNPCs[i];
-        const npc2 = availableNPCs[j];
-
-        const distance = Vector3.Distance(npc1.mesh.position, npc2.mesh.position);
-
-        // NPCs should be close to each other (within 5 units)
-        if (distance <= 5) {
-          // Random chance to start conversation (30%)
-          if (Math.random() < 0.3) {
-            await this.startConversation(npc1.id, npc2.id);
-            return; // Only start one conversation per check
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * Start a new conversation between two NPCs
-   */
-  private async startConversation(npc1Id: string, npc2Id: string): Promise<void> {
-    try {
-      console.log(`[NPCAmbientConversationManager] Starting conversation between ${npc1Id} and ${npc2Id}`);
-
-      const npc1 = this.npcMeshes.get(npc1Id);
-      const npc2 = this.npcMeshes.get(npc2Id);
-      if (!npc1 || !npc2) return;
-
-      // Make the two NPCs face each other
-      this.faceEachOther(npc1.mesh, npc2.mesh);
-
-      // Get a location for the conversation (midpoint between NPCs)
-      const midpoint = Vector3.Center(npc1.mesh.position, npc2.mesh.position);
-      const location = `location_${Math.floor(midpoint.x)}_${Math.floor(midpoint.z)}`;
-
-      // Call the conversation API to simulate a short conversation
-      const response = await fetch('/api/conversations/simulate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          char1Id: npc1Id,
-          char2Id: npc2Id,
-          location,
-          duration: 3, // 3 utterances back and forth
-          currentTimestep: Math.floor(Date.now() / 1000)
-        })
-      });
-
-      if (!response.ok) {
-        console.error('[NPCAmbientConversationManager] Failed to start conversation:', response.statusText);
-        return;
-      }
-
-      const conversationData: ConversationData = await response.json();
-
-      // Track active conversation
-      const activeConv: ActiveConversation = {
-        conversationId: conversationData.id,
-        participants: [npc1Id, npc2Id],
-        startTime: Date.now(),
-        currentUtteranceIndex: 0,
-        isComplete: false
-      };
-
-      this.activeConversations.set(conversationData.id, activeConv);
-
-      // Update cooldowns
-      this.conversationCooldowns.set(npc1Id, Date.now());
-      this.conversationCooldowns.set(npc2Id, Date.now());
-
-      // Start playing utterances
-      this.playConversationUtterances(conversationData);
-
-    } catch (error) {
-      console.error('[NPCAmbientConversationManager] Error starting conversation:', error);
-    }
-  }
-
-  /**
-   * Play conversation utterances sequentially with TTS
-   */
-  private async playConversationUtterances(conversationData: ConversationData): Promise<void> {
-    const activeConv = this.activeConversations.get(conversationData.id);
-    if (!activeConv) return;
-
-    // Safety check: ensure utterances exist
-    if (!conversationData.utterances || !Array.isArray(conversationData.utterances)) {
-      console.warn('[NPCAmbientConversationManager] Conversation has no utterances:', conversationData.id);
-      this.endConversation(conversationData.id);
-      return;
-    }
-
-    for (let i = 0; i < conversationData.utterances.length; i++) {
-      const utterance = conversationData.utterances[i];
-
-      // Check if conversation was cancelled
-      if (!this.activeConversations.has(conversationData.id)) {
-        break;
-      }
-
-      // Wait before speaking
-      if (i > 0) {
-        await new Promise(resolve => {
-          const timer = window.setTimeout(resolve, this.utteranceDelay);
-          this.utteranceTimers.set(`${conversationData.id}_${i}`, timer);
-        });
-      }
-
-      // Speak utterance
-      await this.speakUtterance(utterance);
-
-      activeConv.currentUtteranceIndex = i + 1;
-    }
-
-    // Mark conversation as complete and clean up
-    activeConv.isComplete = true;
-    this.endConversation(conversationData.id);
-  }
-
-  /**
-   * Speak a single utterance using TTS
-   */
-  private async speakUtterance(utterance: ConversationUtterance): Promise<void> {
-    const speakerNPC = this.npcMeshes.get(utterance.speaker);
-    if (!speakerNPC) return;
-
-    try {
-      console.log(`[NPCAmbientConversationManager] ${speakerNPC.name}: "${utterance.text}"`);
-
-      this.currentlySpeaking.add(utterance.speaker);
-
-      // Show talking indicator with the utterance text
-      this.talkingIndicator.show(utterance.speaker, speakerNPC.mesh, utterance.text);
-
-      // Get character gender for voice selection
-      const characterRes = await fetch(`/api/characters/${utterance.speaker}`);
-      if (!characterRes.ok) {
-        throw new Error('Failed to fetch character data');
-      }
-      const characterData = await characterRes.json();
-      const gender = characterData.gender || 'neutral';
-
-      // Use TTS API with emotional tone from utterance
-      const ttsResponse = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: utterance.text,
-          voice: gender === 'female' ? 'Kore' : 'Charon',
-          gender,
-          emotionalTone: utterance.tone || undefined
-        })
-      });
-
-      if (ttsResponse.ok) {
-        const audioBlob = await ttsResponse.blob();
-        await this.playAudioBlob(audioBlob);
-      } else {
-        // Fallback to browser TTS
-        await this.browserTextToSpeech(utterance.text, gender);
-      }
-
-    } catch (error) {
-      console.error('[NPCAmbientConversationManager] Error speaking utterance:', error);
-      // Fallback to browser TTS on error
-      await this.browserTextToSpeech(utterance.text, 'neutral');
-    } finally {
-      // Hide talking indicator
-      this.talkingIndicator.hide(utterance.speaker);
-      this.currentlySpeaking.delete(utterance.speaker);
-    }
-  }
-
-  /**
-   * Play audio blob
-   */
-  private playAudioBlob(blob: Blob): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const audio = new Audio(URL.createObjectURL(blob));
-      audio.onended = () => {
-        URL.revokeObjectURL(audio.src);
-        resolve();
-      };
-      audio.onerror = (error) => {
-        URL.revokeObjectURL(audio.src);
-        reject(error);
-      };
-      audio.play();
-    });
-  }
-
-  /**
-   * Fallback browser text-to-speech
-   */
-  private browserTextToSpeech(text: string, gender: string): Promise<void> {
-    return new Promise((resolve) => {
-      if (!('speechSynthesis' in window)) {
-        resolve();
-        return;
-      }
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'en-US';
-      utterance.rate = 0.9;
-      utterance.pitch = gender === 'female' ? 1.2 : 0.8;
-
-      const voices = speechSynthesis.getVoices();
-      const voice = voices.find(v => v.lang.startsWith('en'));
-      if (voice) utterance.voice = voice;
-
-      utterance.onend = () => resolve();
-      utterance.onerror = () => resolve();
-
-      speechSynthesis.speak(utterance);
-    });
-  }
-
-  /**
-   * End a conversation
-   */
-  private endConversation(conversationId: string): void {
-    const conv = this.activeConversations.get(conversationId);
-    if (!conv) return;
-
-    console.log(`[NPCAmbientConversationManager] Ending conversation ${conversationId}`);
-
-    // Clear any pending utterance timers
-    for (const [key, timer] of this.utteranceTimers.entries()) {
-      if (key.startsWith(conversationId)) {
-        window.clearTimeout(timer);
-        this.utteranceTimers.delete(key);
-      }
-    }
-
-    // Hide talking indicators for participants
-    for (const participantId of conv.participants) {
-      if (this.currentlySpeaking.has(participantId)) {
-        this.talkingIndicator.hide(participantId);
-        this.currentlySpeaking.delete(participantId);
-      }
-    }
-
-    this.activeConversations.delete(conversationId);
-  }
-
-  /**
-   * Get number of active conversations
-   */
-  public getActiveConversationCount(): number {
-    return this.activeConversations.size;
-  }
-
-  /**
-   * Check if an NPC is currently in a conversation
-   */
   public isInConversation(npcId: string): boolean {
     return Array.from(this.activeConversations.values()).some(
       conv => conv.participants.includes(npcId)
     );
   }
 
+  public getActiveConversationCount(): number {
+    return this.activeConversations.size;
+  }
+
   /**
-   * Update settings
+   * Called by BabylonGame when the player presses the eavesdrop key (F).
    */
+  public activateEavesdrop(): void {
+    if (!this.lastPromptConvId) return;
+    const conv = this.activeConversations.get(this.lastPromptConvId);
+    if (!conv) return;
+
+    this.currentEavesdropConvId = this.lastPromptConvId;
+    const [id1, id2] = conv.participants;
+    this.onEavesdropActivate?.(id1, id2);
+  }
+
+  /**
+   * Called when eavesdrop conversation ends (player closes panel or walks away).
+   */
+  public endEavesdrop(): void {
+    this.currentEavesdropConvId = null;
+  }
+
   public updateSettings(settings: {
     hearingRadius?: number;
     maxSimultaneousConversations?: number;
     conversationCheckInterval?: number;
   }): void {
-    if (settings.hearingRadius !== undefined) {
-      this.hearingRadius = settings.hearingRadius;
-    }
     if (settings.maxSimultaneousConversations !== undefined) {
-      this.maxSimultaneousConversations = settings.maxSimultaneousConversations;
+      this.maxSimultaneous = settings.maxSimultaneousConversations;
     }
     if (settings.conversationCheckInterval !== undefined) {
-      // Restart timer with new interval
+      this.checkIntervalMs = settings.conversationCheckInterval;
       if (this.checkTimer !== null) {
         this.stop();
-        this.conversationCheckInterval = settings.conversationCheckInterval;
         this.start();
-      } else {
-        this.conversationCheckInterval = settings.conversationCheckInterval;
       }
     }
   }
 
-  /**
-   * Rotate two NPC meshes to face each other.
-   */
-  private faceEachOther(mesh1: Mesh, mesh2: Mesh): void {
-    const dir1to2 = mesh2.position.subtract(mesh1.position).normalize();
-    const dir2to1 = mesh1.position.subtract(mesh2.position).normalize();
-
-    mesh1.rotation.y = Math.atan2(dir1to2.x, dir1to2.z) + Math.PI;
-    mesh2.rotation.y = Math.atan2(dir2to1.x, dir2to1.z) + Math.PI;
-  }
-
-  /**
-   * Dispose of the manager
-   */
   public dispose(): void {
     this.stop();
     this.npcMeshes.clear();
     this.conversationCooldowns.clear();
-    this.currentlySpeaking.clear();
+  }
+
+  // --- Core tick ---
+
+  private tick(): void {
+    if (this._paused) return;
+    const now = Date.now();
+
+    // Expire old conversations
+    for (const [convId, conv] of Array.from(this.activeConversations.entries())) {
+      if (now - conv.startTime > this.conversationDurationMs) {
+        this.endConversation(convId);
+      }
+    }
+
+    // Try to start new conversations
+    if (this.activeConversations.size < this.maxSimultaneous) {
+      this.tryStartConversation(now);
+    }
+
+    // Update eavesdrop prompt based on player proximity
+    this.updateEavesdropPrompt();
+  }
+
+  // --- Pairing logic ---
+
+  private tryStartConversation(now: number): void {
+    const available: NPCInstance[] = [];
+
+    for (const npc of this.npcMeshes.values()) {
+      if (this.isInConversation(npc.id)) continue;
+      if (npc.state === 'combat') continue;
+      if (!npc.mesh.isEnabled()) continue;
+
+      const lastChat = this.conversationCooldowns.get(npc.id) || 0;
+      if (now - lastChat < this.minCooldownMs) continue;
+
+      available.push(npc);
+    }
+
+    if (available.length < 2) return;
+
+    // Find closest pair within pairing radius
+    let bestPair: [NPCInstance, NPCInstance] | null = null;
+    let bestDist = Infinity;
+
+    for (let i = 0; i < available.length - 1; i++) {
+      for (let j = i + 1; j < available.length; j++) {
+        const d = Vector3.Distance(available[i].mesh.position, available[j].mesh.position);
+        if (d <= this.pairingRadius && d < bestDist) {
+          bestDist = d;
+          bestPair = [available[i], available[j]];
+        }
+      }
+    }
+
+    if (!bestPair) return;
+    if (Math.random() > 0.5) return; // 50% chance per tick
+
+    this.startConversation(bestPair[0], bestPair[1], now);
+  }
+
+  private startConversation(npc1: NPCInstance, npc2: NPCInstance, now: number): void {
+    const convId = `conv_${now}_${npc1.id}_${npc2.id}`;
+
+    // Face each other and enforce separation
+    this.faceEachOther(npc1.mesh, npc2.mesh);
+
+    const conv: AmbientConversation = {
+      id: convId,
+      participants: [npc1.id, npc2.id],
+      startTime: now,
+      activeSpeakerIdx: 0,
+      alternateTimer: null,
+    };
+
+    this.activeConversations.set(convId, conv);
+    this.conversationCooldowns.set(npc1.id, now);
+    this.conversationCooldowns.set(npc2.id, now);
+
+    // Start alternating talk animations
+    this.setTalkAnimations(conv);
+    conv.alternateTimer = window.setInterval(() => {
+      if (!this.activeConversations.has(convId)) return;
+      conv.activeSpeakerIdx = conv.activeSpeakerIdx === 0 ? 1 : 0;
+      this.setTalkAnimations(conv);
+    }, this.talkTurnDurationMs);
+  }
+
+  private setTalkAnimations(conv: AmbientConversation): void {
+    const speakerId = conv.participants[conv.activeSpeakerIdx];
+    const listenerId = conv.participants[conv.activeSpeakerIdx === 0 ? 1 : 0];
+    this.onAnimationChange?.(speakerId, 'talk');
+    this.onAnimationChange?.(listenerId, 'idle');
+
+    // Show "..." chat bubble above the speaker, hide the listener's
+    const speakerNPC = this.npcMeshes.get(speakerId);
+    if (this.talkingIndicator && speakerNPC) {
+      this.talkingIndicator.hide(listenerId);
+      this.talkingIndicator.show(speakerId, speakerNPC.mesh);
+    }
+  }
+
+  private endConversation(convId: string): void {
+    const conv = this.activeConversations.get(convId);
+    if (!conv) return;
+
+    if (conv.alternateTimer !== null) {
+      window.clearInterval(conv.alternateTimer);
+    }
+
+    // Reset both to idle and hide chat bubbles
+    for (const pid of conv.participants) {
+      this.onAnimationChange?.(pid, 'idle');
+      this.talkingIndicator?.hide(pid);
+    }
+
+    this.activeConversations.delete(convId);
+
+    // Clear eavesdrop prompt if it was for this conversation
+    if (this.lastPromptConvId === convId) {
+      this.lastPromptConvId = null;
+      this.onEavesdropPrompt?.(false);
+    }
+    if (this.currentEavesdropConvId === convId) {
+      this.currentEavesdropConvId = null;
+    }
+  }
+
+  // --- Eavesdrop proximity check ---
+
+  private updateEavesdropPrompt(): void {
+    if (!this.playerMesh || this._paused) {
+      if (this.lastPromptConvId) {
+        this.lastPromptConvId = null;
+        this.onEavesdropPrompt?.(false);
+      }
+      return;
+    }
+
+    const playerPos = this.playerMesh.position;
+    let closestConv: AmbientConversation | null = null;
+    let closestDist = Infinity;
+
+    for (const conv of Array.from(this.activeConversations.values())) {
+      // Skip if already eavesdropping on this conversation
+      if (this.currentEavesdropConvId === conv.id) continue;
+
+      const npc1 = this.npcMeshes.get(conv.participants[0]);
+      const npc2 = this.npcMeshes.get(conv.participants[1]);
+      if (!npc1 || !npc2) continue;
+
+      const midpoint = Vector3.Center(npc1.mesh.position, npc2.mesh.position);
+      const dist = Vector3.Distance(playerPos, midpoint);
+
+      if (dist <= this.eavesdropRadius && dist < closestDist) {
+        closestDist = dist;
+        closestConv = conv;
+      }
+    }
+
+    if (closestConv) {
+      if (this.lastPromptConvId !== closestConv.id) {
+        this.lastPromptConvId = closestConv.id;
+        const npc1 = this.npcMeshes.get(closestConv.participants[0]);
+        const npc2 = this.npcMeshes.get(closestConv.participants[1]);
+        this.onEavesdropPrompt?.(
+          true,
+          closestConv.participants[0],
+          closestConv.participants[1],
+          npc1?.name,
+          npc2?.name
+        );
+      }
+    } else if (this.lastPromptConvId) {
+      this.lastPromptConvId = null;
+      this.onEavesdropPrompt?.(false);
+    }
+  }
+
+  // --- Helpers ---
+
+  private faceEachOther(mesh1: Mesh, mesh2: Mesh): void {
+    const diff = mesh2.position.subtract(mesh1.position);
+    const dist = diff.length();
+    if (dist < this.minSeparation && dist > 0.01) {
+      const pushDir = diff.normalize();
+      const pushAmount = (this.minSeparation - dist) / 2;
+      mesh1.position.subtractInPlace(pushDir.scale(pushAmount));
+      mesh2.position.addInPlace(pushDir.scale(pushAmount));
+    }
+
+    const dir1to2 = mesh2.position.subtract(mesh1.position).normalize();
+    const dir2to1 = mesh1.position.subtract(mesh2.position).normalize();
+    mesh1.rotation.y = Math.atan2(dir1to2.x, dir1to2.z) + Math.PI;
+    mesh2.rotation.y = Math.atan2(dir2to1.x, dir2to1.z) + Math.PI;
   }
 }

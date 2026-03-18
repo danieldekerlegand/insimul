@@ -503,6 +503,8 @@ export class WorldGenerator {
           });
           
           businesses.push(business);
+          // Update founder's occupation text field
+          await storage.updateCharacter(founder.id, { occupation: `Owner (${businessType})` });
           console.log(`   ✓ Founded ${business.name}`);
         } catch (error) {
           console.error(`   ✗ Failed to found ${businessType}:`, error);
@@ -656,18 +658,21 @@ export class WorldGenerator {
           try {
             await fillVacancy(
               business.id,
+              candidate.id,
               vocation,
               'day',
-              candidate.id,
+              business.ownerId || candidate.id,
               config.currentYear
             );
+            // Update the character's occupation text field for display
+            await storage.updateCharacter(candidate.id, { occupation: vocation });
             employedCount++;
           } catch (error) {
             console.error(`   ✗ Failed to hire ${vocation}:`, error);
           }
         }
       }
-      
+
       // Fill night shift vacancies
       const nightVacancies = (business.vacancies as any)?.night || [];
       for (const vocation of nightVacancies) {
@@ -676,11 +681,14 @@ export class WorldGenerator {
           try {
             await fillVacancy(
               business.id,
+              candidate.id,
               vocation,
               'night',
-              candidate.id,
+              business.ownerId || candidate.id,
               config.currentYear
             );
+            // Update the character's occupation text field for display
+            await storage.updateCharacter(candidate.id, { occupation: vocation });
             employedCount++;
           } catch (error) {
             console.error(`   ✗ Failed to hire ${vocation}:`, error);

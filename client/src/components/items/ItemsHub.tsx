@@ -3,6 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useWorldPermissions } from '@/hooks/use-world-permissions';
 import {
@@ -55,6 +60,8 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
   const [editForm, setEditForm] = useState<any>({});
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [truths, setTruths] = useState<any[]>([]);
   const [quests, setQuests] = useState<any[]>([]);
 
@@ -190,6 +197,49 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
     } catch {
       toast({ title: 'Error', description: 'Failed to import item', variant: 'destructive' });
     }
+  };
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === items.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(items.map(i => i.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/items/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      if (res.ok) {
+        const { deleted } = await res.json();
+        toast({ title: `${deleted} item${deleted !== 1 ? 's' : ''} deleted` });
+        setSelectedIds(new Set());
+        if (selectedIds.has(selectedItem?.id)) setSelectedItem(null);
+        // Refresh items
+        const worldItemsRes = await fetch(`/api/worlds/${worldId}/items`);
+        if (worldItemsRes.ok) {
+          const worldItems = await worldItemsRes.json();
+          setItems(worldItems.filter((i: any) => i.worldId === worldId));
+        }
+      } else {
+        toast({ title: 'Failed to delete items', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Failed to delete items', variant: 'destructive' });
+    }
+    setBulkDeleteOpen(false);
   };
 
   const startEdit = (item: any) => {
@@ -359,6 +409,14 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
                   }`}
                   onClick={() => { setSelectedItem(item); setIsEditing(false); setShowCreateForm(false); }}
                 >
+                  {!showImport && canEdit && (
+                    <Checkbox
+                      checked={selectedIds.has(item.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      onCheckedChange={() => toggleSelection(item.id)}
+                      className="h-3 w-3 flex-shrink-0"
+                    />
+                  )}
                   <span>{item.icon || '?'}</span>
                   <span className="truncate">{item.name}</span>
                   {showImport && (
@@ -382,6 +440,7 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
   }
 
   return (
+    <>
     <div className="grid grid-cols-[300px_1fr] gap-4 h-[calc(100vh-200px)]">
       {/* Left Panel - Tree */}
       <div className="border rounded-lg overflow-hidden flex flex-col">
@@ -410,6 +469,20 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
             Base ({baseItems.length})
           </button>
         </div>
+
+        {activeSection === 'world' && canEdit && items.length > 0 && (
+          <div className="flex items-center gap-1 px-2 py-1 border-b bg-muted/20">
+            <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5" onClick={toggleSelectAll}>
+              {selectedIds.size === items.length ? 'Deselect All' : 'Select All'}
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-destructive hover:text-destructive" onClick={() => setBulkDeleteOpen(true)}>
+                <Trash2 className="w-3 h-3 mr-1" />
+                Delete ({selectedIds.size})
+              </Button>
+            )}
+          </div>
+        )}
 
         <ScrollArea className="flex-1">
           <div className="p-2">
@@ -598,5 +671,22 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
         </ScrollArea>
       </div>
     </div>
+    <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete {selectedIds.size} Item{selectedIds.size !== 1 ? 's' : ''}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will permanently delete the selected world items. This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

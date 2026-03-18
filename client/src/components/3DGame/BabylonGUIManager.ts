@@ -79,7 +79,10 @@ export interface MinimapData {
     id: string;
     position: { x: number; z: number };
     role?: string;
+    name?: string;
   }>;
+  /** NPC ID to highlight with a prominent marker (e.g. assessment conversation target). */
+  highlightedNpcId?: string;
   streets?: Array<{
     waypoints: Array<{ x: number; z: number }>;
     width: number;
@@ -127,7 +130,11 @@ export class BabylonGUIManager {
   private cameraButton: Button | null = null;
   private fullscreenButton: Button | null = null;
   private menuPanel: Rectangle | null = null;
+  private static readonly MINIMAP_SIZE = 133;
   private minimapPanel: Container | null = null;
+  private _minimapExpanded = true;
+  private _minimapTitle: TextBlock | null = null;
+  private _onMinimapCollapsedChanged: ((expanded: boolean) => void) | null = null;
   private minimapStaticRendered: boolean = false;
   private minimapStaticImage: Image | null = null;
   private minimapTerrainImage: Image | null = null;
@@ -160,11 +167,6 @@ export class BabylonGUIManager {
     this.config = config;
     // Revert to layer mode (third parameter = true)
     this.advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI("UI", true, scene);
-    console.log('[GUIManager] Advanced texture created:', this.advancedTexture);
-    console.log('[GUIManager] Scene:', scene);
-    console.log('[GUIManager] Texture layer mode:', true);
-    console.log('[GUIManager] Texture rootContainer children:', this.advancedTexture.rootContainer.children.length);
-    
     this.initialize();
   }
 
@@ -172,7 +174,6 @@ export class BabylonGUIManager {
     this.createHUD();
     this.createFullscreenButton();
 
-    console.log('[GUIManager] GUI initialized successfully');
   }
 
   private createHUD() {
@@ -206,12 +207,10 @@ export class BabylonGUIManager {
     this.menuButton.isVisible = true; // Explicitly set visible
 
     this.menuButton.onPointerClickObservable.add(() => {
-      console.log('[GUIManager] Menu button clicked!');
       this.toggleMenu();
     });
 
     this.advancedTexture.addControl(this.menuButton);
-    console.log('[GUIManager] Menu button added, isVisible:', this.menuButton.isVisible);
   }
 
   private createCameraButton() {
@@ -245,17 +244,17 @@ export class BabylonGUIManager {
   }
 
   private createFullscreenButton() {
-    this.fullscreenButton = Button.CreateSimpleButton("fullscreenBtn", "⛶ Fullscreen");
-    this.fullscreenButton.width = "120px";
-    this.fullscreenButton.height = "40px";
+    this.fullscreenButton = Button.CreateSimpleButton("fullscreenBtn", "⛶");
+    this.fullscreenButton.width = "32px";
+    this.fullscreenButton.height = "32px";
     this.fullscreenButton.color = "white";
     this.fullscreenButton.background = "rgba(0, 0, 0, 0.6)";
     this.fullscreenButton.cornerRadius = 5;
-    this.fullscreenButton.top = "-10px";
-    this.fullscreenButton.left = "-10px";
+    this.fullscreenButton.top = "-8px";
+    this.fullscreenButton.left = "-8px";
     this.fullscreenButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     this.fullscreenButton.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
-    this.fullscreenButton.fontSize = 14;
+    this.fullscreenButton.fontSize = 16;
 
     this.fullscreenButton.onPointerClickObservable.add(() => {
       this.onFullscreenPressed?.();
@@ -667,38 +666,41 @@ export class BabylonGUIManager {
   }
 
   private createMinimapPanel() {
-    const MAP_SIZE = 200;
+    const MAP_SIZE = BabylonGUIManager.MINIMAP_SIZE;
 
     const panel = new Rectangle("minimapPanel");
-    panel.width = `${MAP_SIZE + 20}px`;
-    panel.height = `${MAP_SIZE + 60}px`;
+    panel.width = `${MAP_SIZE + 14}px`;
+    panel.height = `${MAP_SIZE + 56}px`;
     panel.background = "rgba(0, 0, 0, 0.75)";
     panel.color = "rgba(255,255,255,0.5)";
-    panel.thickness = 2;
-    panel.cornerRadius = 8;
-    panel.top = "10px";
-    panel.left = "-10px";
+    panel.thickness = 1;
+    panel.cornerRadius = 6;
+    panel.top = "8px";
+    panel.left = "-8px";
     panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     panel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
 
-    // Title
+    // Title — click to collapse/expand
     const title = new TextBlock();
-    title.text = "Map";
+    title.text = "▼ Map";
     title.color = "white";
     title.fontSize = 13;
-    title.height = "22px";
+    title.height = "21px";
     title.fontWeight = "bold";
-    title.top = "4px";
+    title.top = "2px";
     title.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    title.isPointerBlocker = true;
+    title.onPointerClickObservable.add(() => this.toggleMinimapCollapse());
     panel.addControl(title);
+    this._minimapTitle = title;
 
     // Map background (terrain color)
     const mapBackground = new Rectangle("minimapBackground");
     mapBackground.width = `${MAP_SIZE}px`;
     mapBackground.height = `${MAP_SIZE}px`;
-    mapBackground.background = "#1a3a1a"; // Dark green terrain
+    mapBackground.background = "#1a3a1a";
     mapBackground.cornerRadius = 4;
-    mapBackground.top = "28px";
+    mapBackground.top = "26px";
     mapBackground.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     panel.addControl(mapBackground);
 
@@ -706,7 +708,7 @@ export class BabylonGUIManager {
     const terrainImage = new Image("minimapTerrainImage");
     terrainImage.width = `${MAP_SIZE}px`;
     terrainImage.height = `${MAP_SIZE}px`;
-    terrainImage.top = "28px";
+    terrainImage.top = "26px";
     terrainImage.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     terrainImage.isVisible = false;
     panel.addControl(terrainImage);
@@ -716,7 +718,7 @@ export class BabylonGUIManager {
     const staticImage = new Image("minimapStaticImage");
     staticImage.width = `${MAP_SIZE}px`;
     staticImage.height = `${MAP_SIZE}px`;
-    staticImage.top = "28px";
+    staticImage.top = "26px";
     staticImage.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     staticImage.isVisible = false;
     panel.addControl(staticImage);
@@ -726,38 +728,58 @@ export class BabylonGUIManager {
     const mapContainer = new Container("minimapContainer");
     mapContainer.width = `${MAP_SIZE}px`;
     mapContainer.height = `${MAP_SIZE}px`;
-    mapContainer.top = "28px";
+    mapContainer.top = "26px";
     mapContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     panel.addControl(mapContainer);
 
-    // Click-to-navigate: clicking on the map container navigates to that world position
+    // Drag-to-pan: dragging the map pans the viewport offset
     mapContainer.isPointerBlocker = true;
-    mapContainer.onPointerClickObservable.add((eventData) => {
-      if (!this.onMinimapNavigate) return;
-      // eventData.x/y are screen coords; use the control's measured bounds to get local offset
-      const measure = (mapContainer as unknown as { _currentMeasure: { left: number; top: number } })._currentMeasure;
-      const localX = eventData.x - measure.left - MAP_SIZE / 2;
-      const localY = eventData.y - measure.top - MAP_SIZE / 2;
+    mapContainer.onPointerDownObservable.add((eventData) => {
+      this._minimapDragging = true;
+      this._minimapDragLast = { x: eventData.x, y: eventData.y };
+    });
+    mapContainer.onPointerMoveObservable.add((eventData) => {
+      if (!this._minimapDragging) return;
+      const dx = eventData.x - this._minimapDragLast.x;
+      const dy = eventData.y - this._minimapDragLast.y;
+      this._minimapDragLast = { x: eventData.x, y: eventData.y };
+      // Convert pixel delta to world units
       const viewRadius = this._minimapLastViewRadius || this._minimapWorldSize * 0.2;
       const vpSize = viewRadius * 2;
-      const worldX = this._minimapLastPlayerPos.x + (localX / MAP_SIZE) * vpSize;
-      const worldZ = this._minimapLastPlayerPos.z - (localY / MAP_SIZE) * vpSize;
-      this.onMinimapNavigate(worldX, worldZ);
+      this._minimapPanOffset.x -= (dx / MAP_SIZE) * vpSize;
+      this._minimapPanOffset.z += (dy / MAP_SIZE) * vpSize;
+      // Force re-render
+      this._minimapLastSrcX = -1;
+      this._minimapLastSrcY = -1;
+      this._minimapLastDataUrl = '';
+    });
+    let lastClickTime = 0;
+    mapContainer.onPointerUpObservable.add(() => {
+      this._minimapDragging = false;
+      // Double-click to reset pan (re-center on player)
+      const now = Date.now();
+      if (now - lastClickTime < 350) {
+        this._minimapPanOffset = { x: 0, z: 0 };
+        this._minimapLastSrcX = -1;
+        this._minimapLastSrcY = -1;
+        this._minimapLastDataUrl = '';
+      }
+      lastClickTime = now;
     });
 
     // Zoom controls row
     const zoomRow = new Rectangle("minimapZoomRow");
     zoomRow.width = `${MAP_SIZE}px`;
-    zoomRow.height = "20px";
-    zoomRow.top = `${28 + MAP_SIZE + 4}px`;
+    zoomRow.height = "21px";
+    zoomRow.top = `${26 + MAP_SIZE + 2}px`;
     zoomRow.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     zoomRow.background = "transparent";
     zoomRow.thickness = 0;
     panel.addControl(zoomRow);
 
     const zoomOutBtn = Button.CreateSimpleButton("minimapZoomOut", "−");
-    zoomOutBtn.width = "28px";
-    zoomOutBtn.height = "20px";
+    zoomOutBtn.width = "29px";
+    zoomOutBtn.height = "21px";
     zoomOutBtn.color = "white";
     zoomOutBtn.background = "rgba(80,80,80,0.8)";
     zoomOutBtn.cornerRadius = 3;
@@ -767,16 +789,16 @@ export class BabylonGUIManager {
     zoomRow.addControl(zoomOutBtn);
 
     const zoomLabel = new TextBlock("minimapZoomLabel");
-    zoomLabel.text = "1.00x";
+    zoomLabel.text = "4.00x";
     zoomLabel.color = "rgba(255,255,255,0.7)";
-    zoomLabel.fontSize = 11;
+    zoomLabel.fontSize = 12;
     zoomLabel.isHitTestVisible = false;
     this._minimapZoomLabel = zoomLabel;
     zoomRow.addControl(zoomLabel);
 
     const zoomInBtn = Button.CreateSimpleButton("minimapZoomIn", "+");
-    zoomInBtn.width = "28px";
-    zoomInBtn.height = "20px";
+    zoomInBtn.width = "29px";
+    zoomInBtn.height = "21px";
     zoomInBtn.color = "white";
     zoomInBtn.background = "rgba(80,80,80,0.8)";
     zoomInBtn.cornerRadius = 3;
@@ -787,6 +809,38 @@ export class BabylonGUIManager {
 
     this.minimapPanel = panel;
     this.advancedTexture.addControl(panel);
+  }
+
+  /** Register a callback for when the minimap is collapsed or expanded. */
+  public onMinimapCollapsedChanged(cb: (expanded: boolean) => void): void {
+    this._onMinimapCollapsedChanged = cb;
+  }
+
+  /** Whether the minimap is currently expanded. */
+  public get isMinimapExpanded(): boolean {
+    return this._minimapExpanded;
+  }
+
+  /** Toggle minimap between collapsed (title-only) and expanded states. */
+  private toggleMinimapCollapse(): void {
+    if (!this.minimapPanel) return;
+    const MAP_SIZE = BabylonGUIManager.MINIMAP_SIZE;
+    this._minimapExpanded = !this._minimapExpanded;
+
+    if (this._minimapExpanded) {
+      (this.minimapPanel as Rectangle).height = `${MAP_SIZE + 56}px`;
+      if (this._minimapTitle) this._minimapTitle.text = "▼ Map";
+      for (const child of this.minimapPanel.getDescendants(true)) {
+        if (child !== this._minimapTitle) child.isVisible = true;
+      }
+    } else {
+      (this.minimapPanel as Rectangle).height = "26px";
+      if (this._minimapTitle) this._minimapTitle.text = "▶ Map";
+      for (const child of this.minimapPanel.getDescendants(true)) {
+        if (child !== this._minimapTitle) child.isVisible = false;
+      }
+    }
+    this._onMinimapCollapsedChanged?.(this._minimapExpanded);
   }
 
   /**
@@ -816,6 +870,16 @@ export class BabylonGUIManager {
   /** Set a callback for when the user clicks on the minimap to navigate. */
   public setMinimapNavigateCallback(cb: (worldX: number, worldZ: number) => void): void {
     this.onMinimapNavigate = cb;
+  }
+
+  /** Highlight a specific NPC on the minimap with a prominent pulsing marker. */
+  public setHighlightedNpc(npcId: string): void {
+    this._highlightedNpcId = npcId;
+  }
+
+  /** Clear the highlighted NPC marker. */
+  public clearHighlightedNpc(): void {
+    this._highlightedNpcId = null;
   }
 
   private createReputationPanel() {
@@ -1367,7 +1431,6 @@ export class BabylonGUIManager {
     const dataUrl = canvas.toDataURL('image/png');
     this.minimapTerrainImage.source = dataUrl;
     this.minimapTerrainImage.isVisible = true;
-    console.log('[Insimul] Minimap terrain background set');
   }
 
   /**
@@ -1389,7 +1452,6 @@ export class BabylonGUIManager {
         ctx.drawImage(img, 0, 0);
         this._minimapFullImage = canvas;
         this.minimapStaticRendered = true;
-        console.log(`[Insimul] Minimap snapshot loaded: ${img.width}x${img.height}`);
       }
     };
     img.src = dataUrl;
@@ -1413,17 +1475,28 @@ export class BabylonGUIManager {
   private _minimapPlayerMarker: Ellipse | null = null;
   private _minimapConeImg: Image | null = null;
   private _minimapConeSvgUrl = '';
+  private _minimapConeZoom = -1;
   /** Ephemeral minimap controls that are recreated each frame (NPCs, quests). */
   private _minimapDynamicControls: Control[] = [];
   /** Current minimap zoom level. 1.0 = default, higher = more zoomed in. */
-  private _minimapZoomLevel = 1.0;
+  private _minimapZoomLevel = 4.0;
   private static readonly MINIMAP_ZOOM_MIN = 0.25;
   private static readonly MINIMAP_ZOOM_MAX = 4.0;
   private static readonly MINIMAP_ZOOM_STEP = 0.25;
   /** Zoom level label displayed on the minimap. */
   private _minimapZoomLabel: TextBlock | null = null;
-  /** Last player position used for click-to-navigate calculations. */
+  /** Last player position used for minimap calculations. */
   private _minimapLastPlayerPos: { x: number; z: number } = { x: 0, z: 0 };
+  /** NPC ID to highlight with a prominent marker on the minimap. */
+  private _highlightedNpcId: string | null = null;
+  /** Animation counter for pulsing highlight effect. */
+  private _highlightPulseCounter = 0;
+  /** Pan offset in world units (accumulated from drag). */
+  private _minimapPanOffset: { x: number; z: number } = { x: 0, z: 0 };
+  /** Whether the user is currently dragging the minimap. */
+  private _minimapDragging = false;
+  /** Last pointer position during drag (screen pixels). */
+  private _minimapDragLast: { x: number; y: number } = { x: 0, y: 0 };
   private _minimapLastViewRadius = 0;
 
   public updateMinimap(data: MinimapData) {
@@ -1435,12 +1508,12 @@ export class BabylonGUIManager {
 
     if (!mapContainer) return;
 
-    const MAP_SIZE = 200;
+    const MAP_SIZE = BabylonGUIManager.MINIMAP_SIZE;
     const mapHalf = MAP_SIZE / 2;
     const worldSize = data.worldSize;
     const worldHalf = worldSize / 2;
 
-    // Store player position for click-to-navigate calculations
+    // Store player position for minimap calculations
     this._minimapLastPlayerPos = { x: data.playerPosition.x, z: data.playerPosition.z };
 
     // View radius shrinks as zoom increases (zoom in = see less area)
@@ -1448,11 +1521,15 @@ export class BabylonGUIManager {
     const viewRadiusZoomed = baseViewRadius / this._minimapZoomLevel;
     this._minimapLastViewRadius = viewRadiusZoomed;
 
-    // --- Sliding-window background: extract the area around the player ---
+    // Viewport center = player + pan offset (reset pan if not dragging and player moved significantly)
+    const vpCenterX = data.playerPosition.x + this._minimapPanOffset.x;
+    const vpCenterZ = data.playerPosition.z + this._minimapPanOffset.z;
+
+    // --- Sliding-window background: extract the area around the viewport center ---
     if (this._minimapFullImage && this.minimapStaticImage) {
       const viewRadius = viewRadiusZoomed;
-      const px = data.playerPosition.x;
-      const pz = data.playerPosition.z;
+      const px = vpCenterX;
+      const pz = vpCenterZ;
 
       const imgW = this._minimapFullImage.width;
       const imgH = this._minimapFullImage.height;
@@ -1509,10 +1586,10 @@ export class BabylonGUIManager {
           // visible doubling due to 3D-vs-2D projection mismatch.
           if (srcSize < imgW * 0.45) {
             if (data.streets && data.streets.length > 0) {
-              this.drawMinimapStreets(ctx, data.streets, viewRadius, data.playerPosition, MAP_SIZE);
+              this.drawMinimapStreets(ctx, data.streets, viewRadius, { x: vpCenterX, z: vpCenterZ }, MAP_SIZE);
             }
             if (data.buildings && data.buildings.length > 0) {
-              this.drawMinimapBuildings(ctx, data.buildings, viewRadius, data.playerPosition, MAP_SIZE);
+              this.drawMinimapBuildings(ctx, data.buildings, viewRadius, { x: vpCenterX, z: vpCenterZ }, MAP_SIZE);
             }
           }
           // Pre-load the data URL into an HTMLImageElement before assigning
@@ -1547,9 +1624,11 @@ export class BabylonGUIManager {
 
     // Map world coords to minimap pixel offsets relative to the current viewport
     const viewRadius = viewRadiusZoomed;
-    const vpCx = data.playerPosition.x;
-    const vpCz = data.playerPosition.z;
+    const vpCx = vpCenterX;
+    const vpCz = vpCenterZ;
     const vpSize = viewRadius * 2;
+    // Scale dot sizes with zoom (reference: 7px NPC dots at 4.0x zoom)
+    const zoomDotScale = this._minimapZoomLevel / 4.0;
 
     const toMap = (wx: number, wz: number): [number, number] => {
       const mx = ((wx - vpCx) / vpSize) * MAP_SIZE;
@@ -1557,26 +1636,81 @@ export class BabylonGUIManager {
       return [mx, mz];
     };
 
-    // Draw NPC markers (small dots) — ephemeral, recreated each frame
+    // Determine highlighted NPC from data or stored ID
+    const highlightId = data.highlightedNpcId || this._highlightedNpcId;
+
+    // Animate pulse counter for highlighted marker
+    this._highlightPulseCounter = (this._highlightPulseCounter + 1) % 60;
+    const pulseScale = 1 + 0.3 * Math.sin((this._highlightPulseCounter / 60) * Math.PI * 2);
+
+    // Draw NPC markers — ephemeral, recreated each frame
     if (data.npcPositions) {
       for (const npc of data.npcPositions) {
         const [nx, nz] = toMap(npc.position.x, npc.position.z);
-        if (Math.abs(nx) > mapHalf || Math.abs(nz) > mapHalf) continue;
+        const isHighlighted = highlightId && npc.id === highlightId;
 
-        const dot = new Ellipse(`npc-${npc.id}`);
-        dot.width = "5px";
-        dot.height = "5px";
-        dot.thickness = 0;
+        // Show highlighted NPC even if slightly off-screen (with clamped indicator)
+        if (!isHighlighted && (Math.abs(nx) > mapHalf || Math.abs(nz) > mapHalf)) continue;
 
-        if (npc.role === 'guard') dot.background = '#F44336';
-        else if (npc.role === 'merchant') dot.background = '#4CAF50';
-        else if (npc.role === 'questgiver') dot.background = '#FFC107';
-        else dot.background = 'rgba(200,200,200,0.7)';
+        if (isHighlighted) {
+          // Prominent pulsing marker for highlighted/target NPC
+          const pulseSize = Math.round(18 * zoomDotScale * pulseScale);
 
-        dot.left = `${nx}px`;
-        dot.top = `${nz}px`;
-        mapContainer.addControl(dot);
-        this._minimapDynamicControls.push(dot);
+          // Outer glow ring
+          const glow = new Ellipse(`npc-glow-${npc.id}`);
+          glow.width = `${pulseSize + Math.round(6 * zoomDotScale)}px`;
+          glow.height = `${pulseSize + Math.round(6 * zoomDotScale)}px`;
+          glow.background = 'rgba(255, 215, 0, 0.2)';
+          glow.color = 'rgba(255, 215, 0, 0.5)';
+          glow.thickness = 1;
+          // Clamp to minimap bounds
+          const clampedNx = Math.max(-mapHalf + 12, Math.min(mapHalf - 12, nx));
+          const clampedNz = Math.max(-mapHalf + 12, Math.min(mapHalf - 12, nz));
+          glow.left = `${clampedNx}px`;
+          glow.top = `${clampedNz}px`;
+          mapContainer.addControl(glow);
+          this._minimapDynamicControls.push(glow);
+
+          // Inner marker
+          const dot = new Ellipse(`npc-hl-${npc.id}`);
+          dot.width = `${pulseSize}px`;
+          dot.height = `${pulseSize}px`;
+          dot.background = '#FFD700';
+          dot.color = '#FFFFFF';
+          dot.thickness = 2;
+          dot.left = `${clampedNx}px`;
+          dot.top = `${clampedNz}px`;
+          mapContainer.addControl(dot);
+          this._minimapDynamicControls.push(dot);
+
+          // Exclamation mark inside
+          const excl = new TextBlock(`npc-hl-text-${npc.id}`);
+          excl.text = '!';
+          excl.color = '#000000';
+          excl.fontSize = Math.round(12 * zoomDotScale * pulseScale);
+          excl.fontWeight = 'bold';
+          excl.left = `${clampedNx}px`;
+          excl.top = `${clampedNz}px`;
+          mapContainer.addControl(excl);
+          this._minimapDynamicControls.push(excl);
+        } else {
+          // Regular NPC dot
+          const npcDotSize = Math.max(3, Math.round(7 * zoomDotScale));
+          const dot = new Ellipse(`npc-${npc.id}`);
+          dot.width = `${npcDotSize}px`;
+          dot.height = `${npcDotSize}px`;
+          dot.thickness = zoomDotScale >= 0.5 ? 1 : 0;
+
+          if (npc.role === 'guard') { dot.background = '#F44336'; dot.color = '#F44336'; }
+          else if (npc.role === 'merchant') { dot.background = '#4CAF50'; dot.color = '#4CAF50'; }
+          else if (npc.role === 'questgiver') { dot.background = '#FFC107'; dot.color = '#FFC107'; }
+          else { dot.background = '#00E676'; dot.color = '#00E676'; }
+
+          dot.left = `${nx}px`;
+          dot.top = `${nz}px`;
+          mapContainer.addControl(dot);
+          this._minimapDynamicControls.push(dot);
+        }
       }
     }
 
@@ -1586,9 +1720,10 @@ export class BabylonGUIManager {
         const [qx, qz] = toMap(quest.position.x, quest.position.z);
         if (Math.abs(qx) > mapHalf || Math.abs(qz) > mapHalf) continue;
 
+        const questDotSize = Math.max(4, Math.round(10 * zoomDotScale));
         const questMarker = new Rectangle(`quest-${quest.id}`);
-        questMarker.width = "10px";
-        questMarker.height = "10px";
+        questMarker.width = `${questDotSize}px`;
+        questMarker.height = `${questDotSize}px`;
         questMarker.background = "#E040FB";
         questMarker.color = "#FFFFFF";
         questMarker.thickness = 1;
@@ -1602,44 +1737,62 @@ export class BabylonGUIManager {
     }
 
     // --- Persistent player controls: created once, updated per frame ---
+    // Map player world position so it shifts correctly when panning
+    const [playerMx, playerMz] = toMap(data.playerPosition.x, data.playerPosition.z);
+    // Scale player marker sizes with zoom
+    const playerOuterSize = Math.max(6, Math.round(14 * zoomDotScale));
+    const playerInnerSize = Math.max(4, Math.round(10 * zoomDotScale));
+    const coneScale = Math.max(0.4, zoomDotScale);
 
     // Direction cone (added first so it renders behind the player dot)
-    if (!this._minimapConeImg) {
-      const coneW = 10;
-      const coneH = 28;
-      const triH = 10;
+    // Only recreate SVG when zoom level changes
+    if (!this._minimapConeImg || this._minimapConeZoom !== this._minimapZoomLevel) {
+      if (this._minimapConeImg) {
+        mapContainer.removeControl(this._minimapConeImg);
+        this._minimapConeImg.dispose();
+        this._minimapConeImg = null;
+      }
+      const coneW = Math.round(10 * coneScale);
+      const coneH = Math.round(28 * coneScale);
+      const triH = Math.round(10 * coneScale);
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${coneW}" height="${coneH}" viewBox="0 0 ${coneW} ${coneH}">` +
         `<polygon points="${coneW / 2},1 ${coneW - 1},${triH} ${1},${triH}" ` +
         `fill="rgba(255,193,7,0.5)" stroke="#FFC107" stroke-width="1"/>` +
         `</svg>`;
       this._minimapConeSvgUrl = "data:image/svg+xml," + encodeURIComponent(svg);
-
       this._minimapConeImg = new Image("player-cone", this._minimapConeSvgUrl);
-      this._minimapConeImg.width = `${coneW}px`;
-      this._minimapConeImg.height = `${coneH}px`;
+      this._minimapConeImg.width = `${Math.round(10 * coneScale)}px`;
+      this._minimapConeImg.height = `${Math.round(28 * coneScale)}px`;
       mapContainer.addControl(this._minimapConeImg);
+      this._minimapConeZoom = this._minimapZoomLevel;
     }
+    this._minimapConeImg.left = `${playerMx}px`;
+    this._minimapConeImg.top = `${playerMz}px`;
     this._minimapConeImg.rotation = data.playerRotationY;
 
     if (!this._minimapPlayerOuter) {
       this._minimapPlayerOuter = new Ellipse("player-marker-outer");
-      this._minimapPlayerOuter.width = "14px";
-      this._minimapPlayerOuter.height = "14px";
       this._minimapPlayerOuter.background = "rgba(0,0,0,0.4)";
       this._minimapPlayerOuter.color = "transparent";
       this._minimapPlayerOuter.thickness = 0;
       mapContainer.addControl(this._minimapPlayerOuter);
     }
+    this._minimapPlayerOuter.width = `${playerOuterSize}px`;
+    this._minimapPlayerOuter.height = `${playerOuterSize}px`;
+    this._minimapPlayerOuter.left = `${playerMx}px`;
+    this._minimapPlayerOuter.top = `${playerMz}px`;
 
     if (!this._minimapPlayerMarker) {
       this._minimapPlayerMarker = new Ellipse("player-marker");
-      this._minimapPlayerMarker.width = "10px";
-      this._minimapPlayerMarker.height = "10px";
       this._minimapPlayerMarker.background = "#FFC107";
       this._minimapPlayerMarker.color = "white";
-      this._minimapPlayerMarker.thickness = 2;
       mapContainer.addControl(this._minimapPlayerMarker);
     }
+    this._minimapPlayerMarker.width = `${playerInnerSize}px`;
+    this._minimapPlayerMarker.height = `${playerInnerSize}px`;
+    this._minimapPlayerMarker.thickness = zoomDotScale >= 0.5 ? 2 : 1;
+    this._minimapPlayerMarker.left = `${playerMx}px`;
+    this._minimapPlayerMarker.top = `${playerMz}px`;
   }
 
   /**
@@ -1886,29 +2039,29 @@ export class BabylonGUIManager {
     const toastId = `toast_${this.toastIdCounter++}`;
     const duration = options.duration || 3000;
 
-    // Create toast
+    // Create toast — compact style matching the Quest panel width
     const toast = new Rectangle(toastId);
-    toast.width = "350px";
-    toast.height = options.description ? "100px" : "70px";
-    toast.background = options.variant === 'destructive' ? "rgba(220, 38, 38, 0.95)" : "rgba(0, 0, 0, 0.95)";
-    toast.color = "white";
-    toast.thickness = 2;
-    toast.cornerRadius = 8;
-    toast.paddingTop = "10px";
-    toast.paddingBottom = "10px";
+    toast.width = "360px";
+    toast.height = options.description ? "52px" : "30px";
+    toast.background = options.variant === 'destructive' ? "rgba(220, 38, 38, 0.9)" : "rgba(0, 0, 0, 0.85)";
+    toast.color = "rgba(255, 255, 255, 0.3)";
+    toast.thickness = 1;
+    toast.cornerRadius = 6;
+    toast.paddingTop = "4px";
+    toast.paddingBottom = "4px";
 
     const stack = new StackPanel();
-    stack.paddingLeft = "15px";
-    stack.paddingRight = "15px";
+    stack.paddingLeft = "10px";
+    stack.paddingRight = "10px";
     toast.addControl(stack);
 
     // Title
     const title = new TextBlock();
     title.text = options.title;
     title.color = "white";
-    title.fontSize = 16;
+    title.fontSize = 12;
     title.fontWeight = "bold";
-    title.height = "25px";
+    title.height = "18px";
     title.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     stack.addControl(title);
 
@@ -1916,9 +2069,9 @@ export class BabylonGUIManager {
     if (options.description) {
       const desc = new TextBlock();
       desc.text = options.description;
-      desc.color = "rgba(255, 255, 255, 0.9)";
-      desc.fontSize = 14;
-      desc.height = "50px";
+      desc.color = "rgba(255, 255, 255, 0.7)";
+      desc.fontSize = 11;
+      desc.height = "22px";
       desc.textWrapping = true;
       desc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       desc.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
@@ -1936,11 +2089,13 @@ export class BabylonGUIManager {
 
   private createToastContainer() {
     this.toastContainer = new StackPanel("toastContainer");
-    this.toastContainer.width = "400px";
+    this.toastContainer.width = "380px";
+    this.toastContainer.spacing = 4;
     this.toastContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     this.toastContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    this.toastContainer.top = "80px";
-    this.toastContainer.left = "-20px";
+    // Position below the Quest panel (380×500 at top:10) with a small gap
+    this.toastContainer.top = "520px";
+    this.toastContainer.left = "-10px";
     this.advancedTexture.addControl(this.toastContainer);
   }
 

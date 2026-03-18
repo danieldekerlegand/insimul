@@ -29,7 +29,7 @@ import { HandsFreeController } from "@/lib/hands-free-controller";
 import { VoiceWebSocketClient } from "@/lib/voice-websocket-client";
 
 interface Message {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
 }
@@ -80,7 +80,9 @@ export class BabylonChatPanel {
   private inputText: InputText | null = null;
   private inputContainer: Container | null = null;
   private micButton: Rectangle | null = null; // Mic status indicator (non-interactive)
+  private inputArea: Rectangle | null = null; // Input area container (hidden during eavesdrop)
   private titleText: TextBlock | null = null; // Store reference to title text
+  private _closeBtn: Button | null = null; // Store reference to close button
   private loadingIndicator: TextBlock | null = null; // Loading indicator
   /** Cached message TextBlock controls indexed by position — avoids full rebuild */
   private _messageControls: Map<number, TextBlock> = new Map();
@@ -215,11 +217,27 @@ export class BabylonChatPanel {
     this.nearbyNPCName = null;
     if (this.chatContainer) {
       this.chatContainer.isVisible = true;
-      this.chatContainer.height = '32px';
+      this.chatContainer.height = '29px';
+      // Position below minimap: top-right, matching minimap width (150px)
+      this.chatContainer.width = '150px';
+      this.chatContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      this.chatContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+      this.chatContainer.left = '-8px';
+      this.chatContainer.top = this._collapsedTop;
       this.chatContainer.alpha = 0.5;
+      this.chatContainer.zIndex = 10;
     }
     this.updateCollapsedHeader();
   }
+
+  /** Update the collapsed panel's vertical position (call when minimap collapses/expands). */
+  public setCollapsedTop(top: string): void {
+    if (this.isCollapsed && this.chatContainer) {
+      this.chatContainer.top = top;
+    }
+    this._collapsedTop = top;
+  }
+  private _collapsedTop = '201px';
 
   /**
    * Called by BabylonGame each frame with the name of the nearest NPC within
@@ -236,13 +254,21 @@ export class BabylonChatPanel {
   private updateCollapsedHeader(): void {
     if (!this.titleText) return;
     if (this.isCollapsed) {
+      this.titleText.fontSize = 11;
+      this.titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+      this.titleText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+      if (this._closeBtn) this._closeBtn.isVisible = false;
       if (this.nearbyNPCName) {
-        this.titleText.text = `Press G to talk to ${this.nearbyNPCName}`;
+        this.titleText.text = `Press G to talk`;
         if (this.chatContainer) this.chatContainer.alpha = 0.8;
       } else {
         this.titleText.text = 'No NPC nearby';
         if (this.chatContainer) this.chatContainer.alpha = 0.4;
       }
+    } else {
+      this.titleText.fontSize = 13;
+      this.titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+      if (this._closeBtn) this._closeBtn.isVisible = true;
     }
   }
 
@@ -300,15 +326,25 @@ export class BabylonChatPanel {
     this.isCollapsed = false;
 
     if (this.chatContainer) {
-      // Chat container already exists, just update and show it
+      // Chat container already exists — restore full size and bottom-right position
       this.chatContainer.isVisible = true;
+      this.chatContainer.width = '320px';
       this.chatContainer.height = '350px';
+      this.chatContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      this.chatContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+      this.chatContainer.left = '0px';
+      this.chatContainer.top = '0px';
       this.chatContainer.alpha = 1;
+      this.chatContainer.zIndex = 50;
 
       // Update the character name in the header
       if (this.titleText) {
         this.titleText.text = `${character.firstName} ${character.lastName}`;
+        this.titleText.fontSize = 13;
       }
+
+      // Show close button when expanded
+      if (this._closeBtn) this._closeBtn.isVisible = true;
 
       this.initializeChat();
       this._advancedTexture.markAsDirty();
@@ -445,8 +481,15 @@ export class BabylonChatPanel {
     // Return to collapsed state instead of hiding entirely
     this.isCollapsed = true;
     if (this.chatContainer) {
-      this.chatContainer.height = '32px';
+      // Return to collapsed state below minimap
+      this.chatContainer.width = '150px';
+      this.chatContainer.height = '29px';
+      this.chatContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      this.chatContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+      this.chatContainer.left = '-8px';
+      this.chatContainer.top = this._collapsedTop;
       this.chatContainer.isVisible = true;
+      this.chatContainer.zIndex = 10;
       this.updateCollapsedHeader();
     }
     if (this.dialogueActions) {
@@ -561,7 +604,7 @@ export class BabylonChatPanel {
   private createChatUI() {
     console.log('[ChatPanel] Creating chat UI...');
 
-    // Main container - compact panel at bottom right
+    // Main container - top-right, below minimap when collapsed; expands for chat
     this.chatContainer = new Rectangle("chatContainer");
     this.chatContainer.width = "320px";
     this.chatContainer.height = "350px";
@@ -571,7 +614,7 @@ export class BabylonChatPanel {
     this.chatContainer.cornerRadius = 8;
     this.chatContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     this.chatContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
-    this.chatContainer.zIndex = 10000;
+    this.chatContainer.zIndex = 50;
     this.chatContainer.isVisible = true;
     this.chatContainer.alpha = 1;
 
@@ -632,7 +675,26 @@ export class BabylonChatPanel {
     closeBtn.onPointerClickObservable.add(() => {
       this.hide(true);
     });
+    closeBtn.isVisible = !this.isCollapsed;
+    this._closeBtn = closeBtn;
     header.addControl(closeBtn);
+
+    // Copy button — copies full conversation text to clipboard
+    const copyBtn = Button.CreateSimpleButton("copyChat", "C");
+    copyBtn.width = "24px";
+    copyBtn.height = "24px";
+    copyBtn.color = "white";
+    copyBtn.background = "rgba(80, 80, 200, 0.8)";
+    copyBtn.cornerRadius = 5;
+    copyBtn.fontSize = 12;
+    copyBtn.left = "-32px";
+    copyBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    copyBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    copyBtn.onPointerClickObservable.add(() => {
+      const text = this.messages.map(m => m.content).join('\n');
+      navigator.clipboard.writeText(text).catch(() => {});
+    });
+    header.addControl(copyBtn);
 
     // Messages area — ScrollViewer wrapping a StackPanel
     // Height is "stretch" — fills remaining space between header (32px) and input (36px)
@@ -672,6 +734,7 @@ export class BabylonChatPanel {
     inputArea.thickness = 0;
     inputArea.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     mainLayout.addControl(inputArea);
+    this.inputArea = inputArea;
 
     // Input text field
     this.inputText = new InputText("chatInput");
@@ -768,6 +831,7 @@ export class BabylonChatPanel {
   /** Determine the display color for a message based on role and content prefix. */
   private getMessageColor(msg: Message): string {
     if (msg.role === 'user') return "#87CEEB";
+    if (msg.role === 'system') return "#888888"; // System/eavesdrop notices
     const content = msg.content || '';
     if (content.startsWith('✓ ')) return "#4CAF50";       // Correct grammar
     if (content.startsWith('✎ Tip: ')) return "#FFC107";  // Grammar corrections
@@ -2689,6 +2753,31 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
    */
   public setTargetLanguage(lang: string | null) {
     this._targetLanguage = lang;
+  }
+
+  /**
+   * Toggle eavesdrop mode — hides the input area so the player can only observe.
+   */
+  public setEavesdropMode(enabled: boolean): void {
+    if (this.inputArea) {
+      this.inputArea.isVisible = !enabled;
+    }
+  }
+
+  /**
+   * Add a system message (e.g., eavesdrop notice) to the chat display.
+   */
+  public addSystemMessage(text: string): void {
+    this.messages.push({ role: 'system', content: text, timestamp: new Date() });
+    this.displayMessages();
+  }
+
+  /**
+   * Add an NPC message to the chat display (used during eavesdrop mode).
+   */
+  public addNPCMessage(text: string): void {
+    this.messages.push({ role: 'assistant', content: text, timestamp: new Date() });
+    this.displayMessages();
   }
 
   /**

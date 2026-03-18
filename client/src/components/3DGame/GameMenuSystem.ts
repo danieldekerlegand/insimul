@@ -351,7 +351,7 @@ export class GameMenuSystem {
     const grid = new Grid("menuGrid");
     grid.width = 1;
     grid.height = 1;
-    grid.addColumnDefinition(200, true);  // Sidebar: 200px fixed
+    grid.addColumnDefinition(165, true);  // Sidebar: fixed width
     grid.addColumnDefinition(1);          // Content: remaining space
     grid.addRowDefinition(1);             // Single row
     frame.addControl(grid);
@@ -376,15 +376,15 @@ export class GameMenuSystem {
 
     // ── Close button (top-right) ──
     const closeBtn = Button.CreateSimpleButton("menuCloseBtn", "✕");
-    closeBtn.width = "44px";
-    closeBtn.height = "44px";
+    closeBtn.width = "36px";
+    closeBtn.height = "36px";
     closeBtn.color = COLORS.textSecondary;
     closeBtn.background = "transparent";
     closeBtn.thickness = 0;
-    closeBtn.fontSize = 22;
-    closeBtn.cornerRadius = 22;
-    closeBtn.top = "10px";
-    closeBtn.left = "-10px";
+    closeBtn.fontSize = 18;
+    closeBtn.cornerRadius = 18;
+    closeBtn.top = "9px";
+    closeBtn.left = "-15px";
     closeBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     closeBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     closeBtn.onPointerClickObservable.add(() => this.close());
@@ -400,11 +400,11 @@ export class GameMenuSystem {
 
     // ── ESC hint (bottom center) ──
     const escHint = new TextBlock("escHint");
-    escHint.text = "Press ESC to close";
+    escHint.text = "Press M to close";
     escHint.color = COLORS.textMuted;
-    escHint.fontSize = 13;
-    escHint.height = "30px";
-    escHint.top = "-8px";
+    escHint.fontSize = 12;
+    escHint.height = "24px";
+    escHint.top = "-12px";
     escHint.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
     this.overlay.addControl(escHint);
   }
@@ -413,26 +413,27 @@ export class GameMenuSystem {
     if (!this.sidebarPanel) return;
 
     const stack = new StackPanel("sidebarStack");
-    stack.width = "100%";
-    stack.paddingTop = "16px";
-    stack.paddingBottom = "16px";
+    stack.width = "90%";
+    stack.top = "14px";
+    stack.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    stack.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     this.sidebarPanel.addControl(stack);
 
     // Title
     const title = new TextBlock("menuTitle");
     title.text = "GAME MENU";
     title.color = COLORS.textSecondary;
-    title.fontSize = 11;
+    title.fontSize = 12;
     title.fontWeight = "bold";
-    title.height = "30px";
-    title.paddingLeft = "20px";
+    title.height = "24px";
+    title.paddingLeft = "17px";
     title.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     stack.addControl(title);
 
     // Spacer
     const spacer = new Rectangle("sidebarSpacer1");
     spacer.width = 1;
-    spacer.height = "8px";
+    spacer.height = "6px";
     spacer.thickness = 0;
     spacer.background = "transparent";
     stack.addControl(spacer);
@@ -440,20 +441,20 @@ export class GameMenuSystem {
     // Tab buttons
     TABS.forEach((tab) => {
       const btn = Button.CreateSimpleButton(`tab_${tab.id}`, `  ${tab.icon}  ${tab.label}`);
-      btn.width = "184px";
-      btn.height = "34px";
+      btn.width = "100%";
+      btn.height = "29px";
       btn.color = COLORS.textPrimary;
       btn.background = COLORS.tabIdle;
-      btn.fontSize = 13;
+      btn.fontSize = 12;
       btn.thickness = 0;
-      btn.cornerRadius = 6;
-      btn.paddingTop = "1px";
-      btn.paddingBottom = "1px";
+      btn.cornerRadius = 5;
+      btn.paddingTop = "2px";
+      btn.paddingBottom = "2px";
       btn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
       // Left-align text
       if (btn.textBlock) {
         btn.textBlock.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        btn.textBlock.paddingLeft = "12px";
+        btn.textBlock.paddingLeft = "11px";
       }
 
       btn.onPointerClickObservable.add(() => {
@@ -553,19 +554,26 @@ export class GameMenuSystem {
   private makeScrollableContent(name: string): { scroll: ScrollViewer; stack: StackPanel } {
     const scroll = new ScrollViewer(`${name}_scroll`);
     scroll.width = 1;
-    scroll.height = 1;
+    scroll.height = "95%";
+    scroll.top = "15px";
+    scroll.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     scroll.thickness = 0;
     scroll.barSize = 8;
     scroll.barColor = COLORS.textMuted;
     this.contentPanel!.addControl(scroll);
 
     const stack = new StackPanel(`${name}_stack`);
-    stack.width = "100%";
-    stack.paddingTop = "28px";
-    stack.paddingBottom = "28px";
-    stack.paddingLeft = "36px";
-    stack.paddingRight = "36px";
+    stack.width = "90%";
+    stack.left = "15px";
+    stack.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     scroll.addControl(stack);
+
+    // Top spacer inside stack (since padding/top offset clips inside ScrollViewer)
+    const topSpacer = new Rectangle(`${name}_topSpacer`);
+    topSpacer.height = "10px";
+    topSpacer.thickness = 0;
+    topSpacer.background = "transparent";
+    stack.addControl(topSpacer);
 
     return { scroll, stack };
   }
@@ -574,9 +582,9 @@ export class GameMenuSystem {
     const header = new TextBlock();
     header.text = text;
     header.color = COLORS.textPrimary;
-    header.fontSize = 22;
+    header.fontSize = 18;
     header.fontWeight = "bold";
-    header.height = "40px";
+    header.height = "33px";
     header.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     parent.addControl(header);
   }
@@ -585,26 +593,26 @@ export class GameMenuSystem {
     const sub = new TextBlock();
     sub.text = text;
     sub.color = COLORS.textSecondary;
-    sub.fontSize = 13;
-    sub.height = "24px";
+    sub.fontSize = 12;
+    sub.height = "20px";
     sub.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    sub.paddingBottom = "12px";
+    sub.paddingBottom = "11px";
     parent.addControl(sub);
   }
 
   private addDivider(parent: StackPanel): void {
     const line = new Rectangle();
     line.width = 1;
-    line.height = "1px";
+    line.height = "2px";
     line.background = COLORS.divider;
     line.thickness = 0;
-    line.paddingTop = "8px";
-    line.paddingBottom = "8px";
+    line.paddingTop = "6px";
+    line.paddingBottom = "6px";
     parent.addControl(line);
 
     const spacer = new Rectangle();
     spacer.width = 1;
-    spacer.height = "12px";
+    spacer.height = "11px";
     spacer.thickness = 0;
     spacer.background = "transparent";
     parent.addControl(spacer);
@@ -618,16 +626,16 @@ export class GameMenuSystem {
     card.background = COLORS.cardBg;
     card.color = COLORS.cardBorder;
     card.thickness = 1;
-    card.cornerRadius = 8;
-    card.paddingBottom = "8px";
+    card.cornerRadius = 6;
+    card.paddingBottom = "6px";
     parent.addControl(card);
 
     const inner = new StackPanel();
     inner.width = "100%";
-    inner.paddingTop = "12px";
-    inner.paddingBottom = "12px";
-    inner.paddingLeft = "16px";
-    inner.paddingRight = "16px";
+    inner.paddingTop = "11px";
+    inner.paddingBottom = "11px";
+    inner.paddingLeft = "14px";
+    inner.paddingRight = "14px";
     card.addControl(inner);
 
     return inner;
@@ -636,7 +644,7 @@ export class GameMenuSystem {
   private addStatRow(parent: StackPanel, label: string, value: string, valueColor?: string): void {
     const row = new Rectangle();
     row.width = 1;
-    row.height = "28px";
+    row.height = "23px";
     row.thickness = 0;
     row.background = "transparent";
     parent.addControl(row);
@@ -644,18 +652,18 @@ export class GameMenuSystem {
     const lbl = new TextBlock();
     lbl.text = label;
     lbl.color = COLORS.textSecondary;
-    lbl.fontSize = 14;
+    lbl.fontSize = 12;
     lbl.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    lbl.paddingLeft = "4px";
+    lbl.paddingLeft = "5px";
     row.addControl(lbl);
 
     const val = new TextBlock();
     val.text = value;
     val.color = valueColor || COLORS.textPrimary;
-    val.fontSize = 14;
+    val.fontSize = 12;
     val.fontWeight = "bold";
     val.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    val.paddingRight = "4px";
+    val.paddingRight = "5px";
     row.addControl(val);
   }
 
@@ -668,11 +676,11 @@ export class GameMenuSystem {
   ): void {
     const barOuter = new Rectangle();
     barOuter.width = 1;
-    barOuter.height = "22px";
+    barOuter.height = "18px";
     barOuter.background = "rgba(255,255,255,0.06)";
-    barOuter.cornerRadius = 4;
+    barOuter.cornerRadius = 3;
     barOuter.thickness = 0;
-    barOuter.paddingBottom = "4px";
+    barOuter.paddingBottom = "5px";
     parent.addControl(barOuter);
 
     const pct = Math.max(0, Math.min(1, current / max));
@@ -680,7 +688,7 @@ export class GameMenuSystem {
     barFill.width = pct;
     barFill.height = 1;
     barFill.background = color;
-    barFill.cornerRadius = 4;
+    barFill.cornerRadius = 3;
     barFill.thickness = 0;
     barFill.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     barOuter.addControl(barFill);
@@ -689,7 +697,7 @@ export class GameMenuSystem {
       const txt = new TextBlock();
       txt.text = label;
       txt.color = "#fff";
-      txt.fontSize = 11;
+      txt.fontSize = 12;
       barOuter.addControl(txt);
     }
   }
@@ -707,8 +715,8 @@ export class GameMenuSystem {
       const noData = new TextBlock();
       noData.text = "No player data available";
       noData.color = COLORS.textMuted;
-      noData.fontSize = 15;
-      noData.height = "40px";
+      noData.fontSize = 12;
+      noData.height = "33px";
       stack.addControl(noData);
       return;
     }
@@ -724,7 +732,7 @@ export class GameMenuSystem {
     // Energy bar
     const spacer = new Rectangle();
     spacer.width = 1;
-    spacer.height = "12px";
+    spacer.height = "11px";
     spacer.thickness = 0;
     spacer.background = "transparent";
     stack.addControl(spacer);
@@ -733,8 +741,8 @@ export class GameMenuSystem {
     const energyLabel = new TextBlock();
     energyLabel.text = "Energy";
     energyLabel.color = COLORS.textSecondary;
-    energyLabel.fontSize = 13;
-    energyLabel.height = "22px";
+    energyLabel.fontSize = 12;
+    energyLabel.height = "18px";
     energyLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     energyCard.addControl(energyLabel);
 
@@ -750,9 +758,9 @@ export class GameMenuSystem {
       const repTitle = new TextBlock();
       repTitle.text = "Reputation";
       repTitle.color = COLORS.textPrimary;
-      repTitle.fontSize = 18;
+      repTitle.fontSize = 15;
       repTitle.fontWeight = "bold";
-      repTitle.height = "34px";
+      repTitle.height = "29px";
       repTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       stack.addControl(repTitle);
 
@@ -765,17 +773,17 @@ export class GameMenuSystem {
           warn.text = "⚠ BANNED";
           warn.color = COLORS.accentRed;
           warn.fontSize = 12;
-          warn.height = "20px";
+          warn.height = "17px";
           warn.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
           repCard.addControl(warn);
         }
         if (rep.outstandingFines > 0 && !rep.isBanned) {
           const fineBtn = Button.CreateSimpleButton("payFines", `Pay Fines (${rep.outstandingFines}g)`);
-          fineBtn.width = "160px";
-          fineBtn.height = "30px";
+          fineBtn.width = "132px";
+          fineBtn.height = "24px";
           fineBtn.color = "white";
           fineBtn.background = COLORS.accentGreen;
-          fineBtn.cornerRadius = 6;
+          fineBtn.cornerRadius = 5;
           fineBtn.fontSize = 12;
           fineBtn.onPointerClickObservable.add(() => this.callbacks.onPayFines?.());
           repCard.addControl(fineBtn);
@@ -805,8 +813,8 @@ export class GameMenuSystem {
       const empty = new TextBlock();
       empty.text = "No active quests. Talk to NPCs to find quests!";
       empty.color = COLORS.textMuted;
-      empty.fontSize = 15;
-      empty.height = "40px";
+      empty.fontSize = 12;
+      empty.height = "33px";
       stack.addControl(empty);
       return;
     }
@@ -817,7 +825,7 @@ export class GameMenuSystem {
       // Quest title row
       const titleRow = new Rectangle();
       titleRow.width = 1;
-      titleRow.height = "28px";
+      titleRow.height = "23px";
       titleRow.thickness = 0;
       titleRow.background = "transparent";
       card.addControl(titleRow);
@@ -825,7 +833,7 @@ export class GameMenuSystem {
       const titleText = new TextBlock();
       titleText.text = quest.title;
       titleText.color = COLORS.textPrimary;
-      titleText.fontSize = 16;
+      titleText.fontSize = 14;
       titleText.fontWeight = "bold";
       titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       titleRow.addControl(titleText);
@@ -836,7 +844,7 @@ export class GameMenuSystem {
         quest.status === "completed" ? COLORS.accentGreen :
         quest.status === "failed" ? COLORS.accentRed :
         COLORS.accentYellow;
-      statusBadge.fontSize = 11;
+      statusBadge.fontSize = 12;
       statusBadge.fontWeight = "bold";
       statusBadge.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
       titleRow.addControl(statusBadge);
@@ -845,8 +853,8 @@ export class GameMenuSystem {
       const desc = new TextBlock();
       desc.text = quest.description || "No description";
       desc.color = COLORS.textSecondary;
-      desc.fontSize = 13;
-      desc.height = "40px";
+      desc.fontSize = 12;
+      desc.height = "33px";
       desc.textWrapping = true;
       desc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       desc.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
@@ -859,7 +867,7 @@ export class GameMenuSystem {
       // Spacer between cards
       const spacer = new Rectangle();
       spacer.width = 1;
-      spacer.height = "6px";
+      spacer.height = "5px";
       spacer.thickness = 0;
       spacer.background = "transparent";
       stack.addControl(spacer);
@@ -879,8 +887,8 @@ export class GameMenuSystem {
       const empty = new TextBlock();
       empty.text = "Your inventory is empty. Explore the world to find items!";
       empty.color = COLORS.textMuted;
-      empty.fontSize = 15;
-      empty.height = "40px";
+      empty.fontSize = 12;
+      empty.height = "33px";
       stack.addControl(empty);
       return;
     }
@@ -898,11 +906,11 @@ export class GameMenuSystem {
       const typeHeader = new TextBlock();
       typeHeader.text = type.charAt(0).toUpperCase() + type.slice(1);
       typeHeader.color = COLORS.accent;
-      typeHeader.fontSize = 15;
+      typeHeader.fontSize = 12;
       typeHeader.fontWeight = "bold";
-      typeHeader.height = "30px";
+      typeHeader.height = "24px";
       typeHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      typeHeader.paddingTop = "8px";
+      typeHeader.paddingTop = "6px";
       stack.addControl(typeHeader);
 
       typeItems.forEach((item) => {
@@ -910,7 +918,7 @@ export class GameMenuSystem {
 
         const nameRow = new Rectangle();
         nameRow.width = 1;
-        nameRow.height = "26px";
+        nameRow.height = "21px";
         nameRow.thickness = 0;
         nameRow.background = "transparent";
         card.addControl(nameRow);
@@ -919,7 +927,7 @@ export class GameMenuSystem {
         const itemDisplayName = item.languageLearningData?.targetWord || item.name;
         nameText.text = `${item.icon || "•"} ${itemDisplayName}`;
         nameText.color = COLORS.textPrimary;
-        nameText.fontSize = 14;
+        nameText.fontSize = 12;
         nameText.fontWeight = "bold";
         nameText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         nameRow.addControl(nameText);
@@ -928,7 +936,7 @@ export class GameMenuSystem {
           const qty = new TextBlock();
           qty.text = `×${item.quantity}`;
           qty.color = COLORS.accentYellow;
-          qty.fontSize = 13;
+          qty.fontSize = 12;
           qty.fontWeight = "bold";
           qty.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
           nameRow.addControl(qty);
@@ -939,7 +947,7 @@ export class GameMenuSystem {
           desc.text = item.description;
           desc.color = COLORS.textSecondary;
           desc.fontSize = 12;
-          desc.height = "22px";
+          desc.height = "18px";
           desc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
           card.addControl(desc);
         }
@@ -959,8 +967,8 @@ export class GameMenuSystem {
       const empty = new TextBlock();
       empty.text = "Map data not available";
       empty.color = COLORS.textMuted;
-      empty.fontSize = 15;
-      empty.height = "40px";
+      empty.fontSize = 12;
+      empty.height = "33px";
       stack.addControl(empty);
       return;
     }
@@ -970,9 +978,9 @@ export class GameMenuSystem {
     // Large map display
     const mapFrame = new Rectangle("fullMap");
     mapFrame.width = 1;
-    mapFrame.height = "500px";
+    mapFrame.height = "413px";
     mapFrame.background = "rgba(20, 20, 30, 0.95)";
-    mapFrame.cornerRadius = 8;
+    mapFrame.cornerRadius = 6;
     mapFrame.color = COLORS.cardBorder;
     mapFrame.thickness = 1;
     stack.addControl(mapFrame);
@@ -1008,8 +1016,8 @@ export class GameMenuSystem {
 
       // Settlement dot
       const dot = new Ellipse(`mapDot_${settlement.id}`);
-      dot.width = "10px";
-      dot.height = "10px";
+      dot.width = "9px";
+      dot.height = "9px";
       dot.color = "white";
       dot.background = zoneColor;
       dot.thickness = 1;
@@ -1021,8 +1029,8 @@ export class GameMenuSystem {
       const label = new TextBlock(`mapLabel_${settlement.id}`);
       label.text = settlement.name;
       label.color = COLORS.textPrimary;
-      label.fontSize = 11;
-      label.height = "16px";
+      label.fontSize = 12;
+      label.height = "14px";
       label.left = `${x}px`;
       label.top = `${z + baseRadius + 6}px`;
       mapContainer.addControl(label);
@@ -1032,8 +1040,8 @@ export class GameMenuSystem {
     const px = mapData.playerPosition.x * scale;
     const pz = -mapData.playerPosition.z * scale;
     const playerDot = new Rectangle("mapPlayerDot");
-    playerDot.width = "10px";
-    playerDot.height = "10px";
+    playerDot.width = "9px";
+    playerDot.height = "9px";
     playerDot.background = COLORS.accentYellow;
     playerDot.color = "white";
     playerDot.thickness = 2;
@@ -1057,9 +1065,9 @@ export class GameMenuSystem {
       const settTitle = new TextBlock();
       settTitle.text = "Settlements";
       settTitle.color = COLORS.textPrimary;
-      settTitle.fontSize = 18;
+      settTitle.fontSize = 15;
       settTitle.fontWeight = "bold";
-      settTitle.height = "34px";
+      settTitle.height = "29px";
       settTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       stack.addControl(settTitle);
 
@@ -1089,8 +1097,8 @@ export class GameMenuSystem {
       const empty = new TextBlock();
       empty.text = "No rules defined for this world.";
       empty.color = COLORS.textMuted;
-      empty.fontSize = 15;
-      empty.height = "40px";
+      empty.fontSize = 12;
+      empty.height = "33px";
       stack.addControl(empty);
       return;
     }
@@ -1107,11 +1115,11 @@ export class GameMenuSystem {
       const catHeader = new TextBlock();
       catHeader.text = category.charAt(0).toUpperCase() + category.slice(1);
       catHeader.color = COLORS.accent;
-      catHeader.fontSize = 15;
+      catHeader.fontSize = 12;
       catHeader.fontWeight = "bold";
-      catHeader.height = "30px";
+      catHeader.height = "24px";
       catHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      catHeader.paddingTop = "8px";
+      catHeader.paddingTop = "6px";
       stack.addControl(catHeader);
 
       catRules.forEach((rule) => {
@@ -1119,7 +1127,7 @@ export class GameMenuSystem {
 
         const nameRow = new Rectangle();
         nameRow.width = 1;
-        nameRow.height = "26px";
+        nameRow.height = "21px";
         nameRow.thickness = 0;
         nameRow.background = "transparent";
         card.addControl(nameRow);
@@ -1127,7 +1135,7 @@ export class GameMenuSystem {
         const nameText = new TextBlock();
         nameText.text = rule.name;
         nameText.color = COLORS.textPrimary;
-        nameText.fontSize = 14;
+        nameText.fontSize = 12;
         nameText.fontWeight = "bold";
         nameText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         nameRow.addControl(nameText);
@@ -1135,7 +1143,7 @@ export class GameMenuSystem {
         const typeBadge = new TextBlock();
         typeBadge.text = rule.isBase ? "BASE" : rule.ruleType.toUpperCase();
         typeBadge.color = rule.isBase ? COLORS.textMuted : COLORS.accent;
-        typeBadge.fontSize = 10;
+        typeBadge.fontSize = 12;
         typeBadge.fontWeight = "bold";
         typeBadge.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
         nameRow.addControl(typeBadge);
@@ -1145,7 +1153,7 @@ export class GameMenuSystem {
           desc.text = rule.description;
           desc.color = COLORS.textSecondary;
           desc.fontSize = 12;
-          desc.height = "36px";
+          desc.height = "30px";
           desc.textWrapping = true;
           desc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
           desc.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
@@ -1167,8 +1175,8 @@ export class GameMenuSystem {
       const empty = new TextBlock();
       empty.text = "World data not available";
       empty.color = COLORS.textMuted;
-      empty.fontSize = 15;
-      empty.height = "40px";
+      empty.fontSize = 12;
+      empty.height = "33px";
       stack.addControl(empty);
       return;
     }
@@ -1197,8 +1205,8 @@ export class GameMenuSystem {
       const empty = new TextBlock();
       empty.text = "No NPCs found nearby.";
       empty.color = COLORS.textMuted;
-      empty.fontSize = 15;
-      empty.height = "40px";
+      empty.fontSize = 12;
+      empty.height = "33px";
       stack.addControl(empty);
       return;
     }
@@ -1216,7 +1224,7 @@ export class GameMenuSystem {
       // Name row
       const nameRow = new Rectangle();
       nameRow.width = 1;
-      nameRow.height = "26px";
+      nameRow.height = "21px";
       nameRow.thickness = 0;
       nameRow.background = "transparent";
       card.addControl(nameRow);
@@ -1229,7 +1237,7 @@ export class GameMenuSystem {
       const nameText = new TextBlock();
       nameText.text = `${roleIcon} ${npc.name}`;
       nameText.color = npc.questGiver ? COLORS.accentYellow : COLORS.textPrimary;
-      nameText.fontSize = 14;
+      nameText.fontSize = 12;
       nameText.fontWeight = "bold";
       nameText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       nameRow.addControl(nameText);
@@ -1238,7 +1246,7 @@ export class GameMenuSystem {
         const roleBadge = new TextBlock();
         roleBadge.text = npc.role.toUpperCase();
         roleBadge.color = COLORS.textMuted;
-        roleBadge.fontSize = 10;
+        roleBadge.fontSize = 12;
         roleBadge.fontWeight = "bold";
         roleBadge.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
         nameRow.addControl(roleBadge);
@@ -1249,7 +1257,7 @@ export class GameMenuSystem {
         occText.text = npc.occupation;
         occText.color = COLORS.textSecondary;
         occText.fontSize = 12;
-        occText.height = "20px";
+        occText.height = "17px";
         occText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         card.addControl(occText);
       }
@@ -1260,11 +1268,11 @@ export class GameMenuSystem {
 
       // Talk button
       const talkBtn = Button.CreateSimpleButton(`talkNPC_${npc.id}`, "Talk");
-      talkBtn.width = "80px";
-      talkBtn.height = "28px";
+      talkBtn.width = "66px";
+      talkBtn.height = "23px";
       talkBtn.color = "white";
       talkBtn.background = COLORS.accent;
-      talkBtn.cornerRadius = 6;
+      talkBtn.cornerRadius = 5;
       talkBtn.fontSize = 12;
       talkBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       talkBtn.onPointerClickObservable.add(() => {
@@ -1276,7 +1284,7 @@ export class GameMenuSystem {
       // Spacer
       const spacer = new Rectangle();
       spacer.width = 1;
-      spacer.height = "4px";
+      spacer.height = "5px";
       spacer.thickness = 0;
       spacer.background = "transparent";
       stack.addControl(spacer);
@@ -1295,9 +1303,9 @@ export class GameMenuSystem {
     const shortcutsTitle = new TextBlock();
     shortcutsTitle.text = "Keyboard Shortcuts";
     shortcutsTitle.color = COLORS.textPrimary;
-    shortcutsTitle.fontSize = 18;
+    shortcutsTitle.fontSize = 15;
     shortcutsTitle.fontWeight = "bold";
-    shortcutsTitle.height = "34px";
+    shortcutsTitle.height = "29px";
     shortcutsTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     stack.addControl(shortcutsTitle);
 
@@ -1326,9 +1334,9 @@ export class GameMenuSystem {
     const buttonsTitle = new TextBlock();
     buttonsTitle.text = "Actions";
     buttonsTitle.color = COLORS.textPrimary;
-    buttonsTitle.fontSize = 18;
+    buttonsTitle.fontSize = 15;
     buttonsTitle.fontWeight = "bold";
-    buttonsTitle.height = "34px";
+    buttonsTitle.height = "29px";
     buttonsTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     stack.addControl(buttonsTitle);
 
@@ -1341,17 +1349,17 @@ export class GameMenuSystem {
 
     buttonDefs.forEach((def) => {
       const btn = Button.CreateSimpleButton(`sys_${def.label}`, def.label);
-      btn.width = "280px";
-      btn.height = "46px";
+      btn.width = "231px";
+      btn.height = "38px";
       btn.color = COLORS.textPrimary;
       btn.background = COLORS.cardBg;
-      btn.cornerRadius = 8;
-      btn.fontSize = 15;
+      btn.cornerRadius = 6;
+      btn.fontSize = 12;
       btn.thickness = 1;
       (btn as any).borderColor = COLORS.cardBorder;
       btn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      btn.paddingTop = "4px";
-      btn.paddingBottom = "4px";
+      btn.paddingTop = "5px";
+      btn.paddingBottom = "5px";
 
       btn.onPointerEnterObservable.add(() => {
         btn.background = COLORS.tabHover;
@@ -1376,23 +1384,23 @@ export class GameMenuSystem {
     // ── Sub-tab buttons (Vocabulary / Grammar) ──
     const subTabRow = new Rectangle();
     subTabRow.width = 1;
-    subTabRow.height = "36px";
+    subTabRow.height = "30px";
     subTabRow.thickness = 0;
     subTabRow.background = "transparent";
     stack.addControl(subTabRow);
 
     const vocSubBtn = Button.CreateSimpleButton("vocSubTab_vocab", "Vocabulary");
-    vocSubBtn.width = "140px";
-    vocSubBtn.height = "30px";
-    vocSubBtn.fontSize = 13;
+    vocSubBtn.width = "116px";
+    vocSubBtn.height = "24px";
+    vocSubBtn.fontSize = 12;
     vocSubBtn.fontWeight = "bold";
     vocSubBtn.color = COLORS.textPrimary;
-    vocSubBtn.cornerRadius = 6;
+    vocSubBtn.cornerRadius = 5;
     vocSubBtn.background = this.vocabSubTab === 'vocabulary' ? COLORS.tabActive : COLORS.cardBg;
     vocSubBtn.thickness = 1;
     (vocSubBtn as any).borderColor = this.vocabSubTab === 'vocabulary' ? COLORS.tabActiveBorder : COLORS.cardBorder;
     vocSubBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    vocSubBtn.left = "4px";
+    vocSubBtn.left = "5px";
     vocSubBtn.onPointerClickObservable.add(() => {
       this.vocabSubTab = 'vocabulary';
       this.refreshActiveTab();
@@ -1400,17 +1408,17 @@ export class GameMenuSystem {
     subTabRow.addControl(vocSubBtn);
 
     const gramSubBtn = Button.CreateSimpleButton("vocSubTab_gram", "Grammar");
-    gramSubBtn.width = "140px";
-    gramSubBtn.height = "30px";
-    gramSubBtn.fontSize = 13;
+    gramSubBtn.width = "116px";
+    gramSubBtn.height = "24px";
+    gramSubBtn.fontSize = 12;
     gramSubBtn.fontWeight = "bold";
     gramSubBtn.color = COLORS.textPrimary;
-    gramSubBtn.cornerRadius = 6;
+    gramSubBtn.cornerRadius = 5;
     gramSubBtn.background = this.vocabSubTab === 'grammar' ? COLORS.tabActive : COLORS.cardBg;
     gramSubBtn.thickness = 1;
     (gramSubBtn as any).borderColor = this.vocabSubTab === 'grammar' ? COLORS.tabActiveBorder : COLORS.cardBorder;
     gramSubBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    gramSubBtn.left = "152px";
+    gramSubBtn.left = "126px";
     gramSubBtn.onPointerClickObservable.add(() => {
       this.vocabSubTab = 'grammar';
       this.refreshActiveTab();
@@ -1421,8 +1429,8 @@ export class GameMenuSystem {
       const noData = new TextBlock();
       noData.text = "No vocabulary learned yet.\nTalk to NPCs to learn new words!";
       noData.color = COLORS.textMuted;
-      noData.fontSize = 15;
-      noData.height = "60px";
+      noData.fontSize = 12;
+      noData.height = "50px";
       noData.textWrapping = true;
       stack.addControl(noData);
       return;
@@ -1460,7 +1468,7 @@ export class GameMenuSystem {
     filterLabel.text = "Category";
     filterLabel.color = COLORS.textSecondary;
     filterLabel.fontSize = 12;
-    filterLabel.height = "20px";
+    filterLabel.height = "17px";
     filterLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     stack.addControl(filterLabel);
 
@@ -1468,7 +1476,7 @@ export class GameMenuSystem {
     for (let rowIdx = 0; rowIdx < 2; rowIdx++) {
       const catRow = new Rectangle();
       catRow.width = 1;
-      catRow.height = "30px";
+      catRow.height = "24px";
       catRow.thickness = 0;
       catRow.background = "transparent";
       stack.addControl(catRow);
@@ -1479,12 +1487,12 @@ export class GameMenuSystem {
         const label = cat === 'all' ? 'All' : cat.charAt(0).toUpperCase() + cat.slice(1);
         const isActive = this.vocabCategoryFilter === cat;
         const btn = Button.CreateSimpleButton(`catBtn_${cat}`, label);
-        const btnWidth = Math.max(44, label.length * 8 + 14);
+        const btnWidth = Math.max(24, label.length * 5 + 8);
         btn.width = `${btnWidth}px`;
-        btn.height = "26px";
-        btn.fontSize = 11;
+        btn.height = "21px";
+        btn.fontSize = 12;
         btn.color = COLORS.textPrimary;
-        btn.cornerRadius = 4;
+        btn.cornerRadius = 3;
         btn.thickness = 1;
         (btn as any).borderColor = isActive ? COLORS.tabActiveBorder : COLORS.cardBorder;
         btn.background = isActive ? COLORS.tabActive : COLORS.cardBg;
@@ -1502,18 +1510,18 @@ export class GameMenuSystem {
     // ── Sort row ──
     const sortRow = new Rectangle();
     sortRow.width = 1;
-    sortRow.height = "30px";
+    sortRow.height = "24px";
     sortRow.thickness = 0;
     sortRow.background = "transparent";
     stack.addControl(sortRow);
 
     const sortLabel = new TextBlock();
     sortLabel.text = "Sort:";
-    sortLabel.fontSize = 11;
+    sortLabel.fontSize = 12;
     sortLabel.color = COLORS.textSecondary;
-    sortLabel.width = "30px";
+    sortLabel.width = "24px";
     sortLabel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    sortLabel.left = "4px";
+    sortLabel.left = "5px";
     sortRow.addControl(sortLabel);
 
     const sortOptions: { key: 'mastery' | 'alpha' | 'recent' | 'used' | 'review'; label: string }[] = [
@@ -1528,12 +1536,12 @@ export class GameMenuSystem {
     for (const opt of sortOptions) {
       const isActive = this.vocabSortMode === opt.key;
       const btn = Button.CreateSimpleButton(`sortBtn_${opt.key}`, opt.label);
-      const btnW = opt.label.length * 8 + 16;
+      const btnW = opt.label.length * 5 + 9;
       btn.width = `${btnW}px`;
-      btn.height = "24px";
-      btn.fontSize = 11;
+      btn.height = "20px";
+      btn.fontSize = 12;
       btn.color = COLORS.textPrimary;
-      btn.cornerRadius = 4;
+      btn.cornerRadius = 3;
       btn.thickness = 1;
       (btn as any).borderColor = isActive ? COLORS.tabActiveBorder : COLORS.cardBorder;
       btn.background = isActive ? COLORS.tabActive : COLORS.cardBg;
@@ -1554,9 +1562,9 @@ export class GameMenuSystem {
       const reviewTitle = new TextBlock();
       reviewTitle.text = `Due for Review (${data.dueForReview.length})`;
       reviewTitle.color = COLORS.accentYellow;
-      reviewTitle.fontSize = 16;
+      reviewTitle.fontSize = 14;
       reviewTitle.fontWeight = "bold";
-      reviewTitle.height = "30px";
+      reviewTitle.height = "24px";
       reviewTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       stack.addControl(reviewTitle);
 
@@ -1603,9 +1611,9 @@ export class GameMenuSystem {
       ? `All Words (${filtered.length})`
       : `${this.vocabCategoryFilter.charAt(0).toUpperCase() + this.vocabCategoryFilter.slice(1)} (${filtered.length})`;
     vocabTitle.color = COLORS.textPrimary;
-    vocabTitle.fontSize = 18;
+    vocabTitle.fontSize = 15;
     vocabTitle.fontWeight = "bold";
-    vocabTitle.height = "34px";
+    vocabTitle.height = "29px";
     vocabTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     stack.addControl(vocabTitle);
 
@@ -1615,8 +1623,8 @@ export class GameMenuSystem {
         ? "No vocabulary learned yet.\nTalk to NPCs to learn new words!"
         : "No words in this category.";
       emptyText.color = COLORS.textMuted;
-      emptyText.fontSize = 14;
-      emptyText.height = "50px";
+      emptyText.fontSize = 12;
+      emptyText.height = "42px";
       emptyText.textWrapping = true;
       stack.addControl(emptyText);
       return;
@@ -1625,27 +1633,27 @@ export class GameMenuSystem {
     // Header row
     const headerRow = new Rectangle();
     headerRow.width = 1;
-    headerRow.height = "26px";
+    headerRow.height = "21px";
     headerRow.thickness = 0;
     headerRow.background = COLORS.headerBg;
-    headerRow.cornerRadius = 4;
+    headerRow.cornerRadius = 3;
     stack.addControl(headerRow);
 
     const hWord = new TextBlock();
     hWord.text = "WORD";
     hWord.color = COLORS.textMuted;
-    hWord.fontSize = 10;
+    hWord.fontSize = 12;
     hWord.fontWeight = "bold";
     hWord.width = "28%";
     hWord.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     hWord.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    hWord.paddingLeft = "4px";
+    hWord.paddingLeft = "5px";
     headerRow.addControl(hWord);
 
     const hMeaning = new TextBlock();
     hMeaning.text = "MEANING";
     hMeaning.color = COLORS.textMuted;
-    hMeaning.fontSize = 10;
+    hMeaning.fontSize = 12;
     hMeaning.fontWeight = "bold";
     hMeaning.width = "30%";
     hMeaning.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
@@ -1656,7 +1664,7 @@ export class GameMenuSystem {
     const hMastery = new TextBlock();
     hMastery.text = "MASTERY";
     hMastery.color = COLORS.textMuted;
-    hMastery.fontSize = 10;
+    hMastery.fontSize = 12;
     hMastery.fontWeight = "bold";
     hMastery.width = "16%";
     hMastery.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
@@ -1666,12 +1674,12 @@ export class GameMenuSystem {
     const hUsed = new TextBlock();
     hUsed.text = "USED";
     hUsed.color = COLORS.textMuted;
-    hUsed.fontSize = 10;
+    hUsed.fontSize = 12;
     hUsed.fontWeight = "bold";
     hUsed.width = "10%";
     hUsed.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     hUsed.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    hUsed.left = "-30px";
+    hUsed.left = "-45px";
     headerRow.addControl(hUsed);
 
     const masteryColors: Record<string, string> = { mastered: '#f1c40f', familiar: '#2ecc71', learning: '#f39c12', new: '#e74c3c' };
@@ -1681,20 +1689,20 @@ export class GameMenuSystem {
       const isDue = dueSet.has(entry.word);
       const row = new Rectangle();
       row.width = 1;
-      row.height = "32px";
+      row.height = "27px";
       row.thickness = 0;
       row.background = isDue ? "rgba(251, 188, 4, 0.06)" : "transparent";
-      row.paddingBottom = "1px";
+      row.paddingBottom = "2px";
       stack.addControl(row);
 
       const wordText = new TextBlock();
       wordText.text = entry.word;
       wordText.color = COLORS.textPrimary;
-      wordText.fontSize = 13;
+      wordText.fontSize = 12;
       wordText.fontWeight = "bold";
       wordText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       wordText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      wordText.paddingLeft = "4px";
+      wordText.paddingLeft = "5px";
       wordText.width = "28%";
       row.addControl(wordText);
 
@@ -1711,7 +1719,7 @@ export class GameMenuSystem {
       const masteryText = new TextBlock();
       masteryText.text = isDue ? 'Review!' : (masteryLabels[entry.masteryLevel] || entry.masteryLevel);
       masteryText.color = isDue ? COLORS.accentYellow : (masteryColors[entry.masteryLevel] || COLORS.textMuted);
-      masteryText.fontSize = 11;
+      masteryText.fontSize = 12;
       masteryText.fontWeight = "bold";
       masteryText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       masteryText.left = "58%";
@@ -1721,23 +1729,23 @@ export class GameMenuSystem {
       const usedText = new TextBlock();
       usedText.text = `${entry.timesUsedCorrectly}/${entry.timesEncountered}`;
       usedText.color = COLORS.textMuted;
-      usedText.fontSize = 11;
+      usedText.fontSize = 12;
       usedText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
       usedText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      usedText.left = "-30px";
+      usedText.left = "-45px";
       usedText.width = "10%";
       row.addControl(usedText);
 
       // TTS speaker button
       const speakBtn = Button.CreateSimpleButton(`speak_${entry.word}`, "\u{1F50A}");
-      speakBtn.width = "26px";
-      speakBtn.height = "26px";
-      speakBtn.fontSize = 13;
+      speakBtn.width = "21px";
+      speakBtn.height = "21px";
+      speakBtn.fontSize = 12;
       speakBtn.color = COLORS.accent;
       speakBtn.background = "transparent";
       speakBtn.thickness = 0;
       speakBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      speakBtn.left = "-2px";
+      speakBtn.left = "-3px";
       speakBtn.onPointerClickObservable.add(() => {
         this.callbacks.onVocabWordSpeak?.(entry.word);
       });
@@ -1752,9 +1760,9 @@ export class GameMenuSystem {
     const gramTitle = new TextBlock();
     gramTitle.text = `Grammar Patterns (${data.grammarPatterns.length})`;
     gramTitle.color = COLORS.textPrimary;
-    gramTitle.fontSize = 18;
+    gramTitle.fontSize = 15;
     gramTitle.fontWeight = "bold";
-    gramTitle.height = "34px";
+    gramTitle.height = "29px";
     gramTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     stack.addControl(gramTitle);
 
@@ -1762,8 +1770,8 @@ export class GameMenuSystem {
       const emptyText = new TextBlock();
       emptyText.text = "No grammar patterns tracked yet.\nConverse with NPCs to practice grammar!";
       emptyText.color = COLORS.textMuted;
-      emptyText.fontSize = 14;
-      emptyText.height = "50px";
+      emptyText.fontSize = 12;
+      emptyText.height = "42px";
       emptyText.textWrapping = true;
       stack.addControl(emptyText);
       return;
@@ -1788,14 +1796,14 @@ export class GameMenuSystem {
       // Pattern name row with status badge
       const nameRow = new Rectangle();
       nameRow.width = 1;
-      nameRow.height = "24px";
+      nameRow.height = "20px";
       nameRow.thickness = 0;
       card.addControl(nameRow);
 
       const nameText = new TextBlock();
       nameText.text = pattern.pattern;
       nameText.color = COLORS.textPrimary;
-      nameText.fontSize = 15;
+      nameText.fontSize = 12;
       nameText.fontWeight = "bold";
       nameText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       nameRow.addControl(nameText);
@@ -1803,7 +1811,7 @@ export class GameMenuSystem {
       const badgeText = new TextBlock();
       badgeText.text = pattern.mastered ? "Mastered" : (isWeak ? "Practice this!" : "Learning");
       badgeText.color = pattern.mastered ? COLORS.gold : (isWeak ? COLORS.accentRed : COLORS.textMuted);
-      badgeText.fontSize = 11;
+      badgeText.fontSize = 12;
       badgeText.fontWeight = "bold";
       badgeText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
       nameRow.addControl(badgeText);
@@ -1818,9 +1826,9 @@ export class GameMenuSystem {
         const exText = new TextBlock();
         exText.text = `Example: "${pattern.examples[pattern.examples.length - 1]}"`;
         exText.color = COLORS.textMuted;
-        exText.fontSize = 11;
+        exText.fontSize = 12;
         exText.fontStyle = "italic";
-        exText.height = "20px";
+        exText.height = "17px";
         exText.textWrapping = true;
         exText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         card.addControl(exText);
@@ -1831,8 +1839,8 @@ export class GameMenuSystem {
         const explainText = new TextBlock();
         explainText.text = `Rule: ${pattern.explanations[pattern.explanations.length - 1]}`;
         explainText.color = COLORS.textSecondary;
-        explainText.fontSize = 11;
-        explainText.height = "20px";
+        explainText.fontSize = 12;
+        explainText.height = "17px";
         explainText.textWrapping = true;
         explainText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         card.addControl(explainText);
@@ -1853,8 +1861,8 @@ export class GameMenuSystem {
       const noData = new TextBlock();
       noData.text = "No conversations yet.\nTalk to NPCs to start learning!";
       noData.color = COLORS.textMuted;
-      noData.fontSize = 15;
-      noData.height = "60px";
+      noData.fontSize = 12;
+      noData.height = "50px";
       noData.textWrapping = true;
       stack.addControl(noData);
       return;
@@ -1884,14 +1892,14 @@ export class GameMenuSystem {
       // NPC name and date
       const nameRow = new Rectangle();
       nameRow.width = 1;
-      nameRow.height = "24px";
+      nameRow.height = "20px";
       nameRow.thickness = 0;
       card.addControl(nameRow);
 
       const nameText = new TextBlock();
       nameText.text = conv.characterName;
       nameText.color = COLORS.accent;
-      nameText.fontSize = 15;
+      nameText.fontSize = 12;
       nameText.fontWeight = "bold";
       nameText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       nameRow.addControl(nameText);
@@ -1900,7 +1908,7 @@ export class GameMenuSystem {
       const dateText = new TextBlock();
       dateText.text = `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
       dateText.color = COLORS.textMuted;
-      dateText.fontSize = 11;
+      dateText.fontSize = 12;
       dateText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
       nameRow.addControl(dateText);
 
@@ -1924,9 +1932,9 @@ export class GameMenuSystem {
         const wordsText = new TextBlock();
         wordsText.text = `Words: ${wordsStr}`;
         wordsText.color = COLORS.textMuted;
-        wordsText.fontSize = 11;
+        wordsText.fontSize = 12;
         wordsText.fontStyle = "italic";
-        wordsText.height = "20px";
+        wordsText.height = "17px";
         wordsText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         wordsText.textWrapping = true;
         card.addControl(wordsText);
@@ -1960,14 +1968,14 @@ export class GameMenuSystem {
 
       const tierHeader = new Rectangle();
       tierHeader.width = 1;
-      tierHeader.height = "24px";
+      tierHeader.height = "20px";
       tierHeader.thickness = 0;
       tierCard.addControl(tierHeader);
 
       const tierTitle = new TextBlock();
       tierTitle.text = `Tier ${tierDef.tier}: ${tierDef.name}  (${tierDef.range[0]}-${tierDef.range[1]}% fluency)`;
       tierTitle.color = allUnlocked ? tierDef.color : COLORS.textSecondary;
-      tierTitle.fontSize = 14;
+      tierTitle.fontSize = 12;
       tierTitle.fontWeight = "bold";
       tierTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       tierHeader.addControl(tierTitle);
@@ -1984,65 +1992,65 @@ export class GameMenuSystem {
       for (const node of tierNodes) {
         const nodeRow = new Rectangle();
         nodeRow.width = 1;
-        nodeRow.height = "40px";
+        nodeRow.height = "33px";
         nodeRow.thickness = 0;
         nodeRow.background = node.unlocked
           ? `rgba(${this.hexToRgb(tierDef.color)}, 0.1)`
           : "transparent";
-        nodeRow.cornerRadius = 4;
+        nodeRow.cornerRadius = 3;
         tierCard.addControl(nodeRow);
 
         const icon = new TextBlock();
         icon.text = node.icon;
-        icon.fontSize = 18;
-        icon.width = "30px";
+        icon.fontSize = 15;
+        icon.width = "24px";
         icon.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        icon.left = "4px";
+        icon.left = "5px";
         nodeRow.addControl(icon);
 
         const nodeName = new TextBlock();
         nodeName.text = node.name;
         nodeName.color = node.unlocked ? COLORS.textPrimary : COLORS.textMuted;
-        nodeName.fontSize = 13;
+        nodeName.fontSize = 12;
         nodeName.fontWeight = "bold";
         nodeName.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         nodeName.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        nodeName.left = "36px";
+        nodeName.left = "30px";
         nodeName.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-        nodeName.top = "4px";
-        nodeName.height = "18px";
+        nodeName.top = "5px";
+        nodeName.height = "15px";
         nodeRow.addControl(nodeName);
 
         const nodeDesc = new TextBlock();
         nodeDesc.text = node.description;
         nodeDesc.color = node.unlocked ? COLORS.textSecondary : COLORS.textMuted;
-        nodeDesc.fontSize = 10;
+        nodeDesc.fontSize = 12;
         nodeDesc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         nodeDesc.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        nodeDesc.left = "36px";
+        nodeDesc.left = "30px";
         nodeDesc.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-        nodeDesc.top = "22px";
-        nodeDesc.height = "14px";
+        nodeDesc.top = "18px";
+        nodeDesc.height = "12px";
         nodeRow.addControl(nodeDesc);
 
         if (node.unlocked) {
           const check = new TextBlock();
           check.text = "✓";
-          check.fontSize = 16;
+          check.fontSize = 14;
           check.fontWeight = "bold";
           check.color = COLORS.accentGreen;
           check.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-          check.left = "-8px";
-          check.width = "24px";
+          check.left = "-12px";
+          check.width = "20px";
           nodeRow.addControl(check);
         } else {
           const pctText = new TextBlock();
           pctText.text = `${Math.round(node.progress * 100)}%`;
-          pctText.fontSize = 11;
+          pctText.fontSize = 12;
           pctText.color = COLORS.textMuted;
           pctText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-          pctText.left = "-8px";
-          pctText.width = "36px";
+          pctText.left = "-12px";
+          pctText.width = "30px";
           nodeRow.addControl(pctText);
         }
       }
@@ -2069,24 +2077,24 @@ export class GameMenuSystem {
       const noData = new TextBlock();
       noData.text = "No notices available yet.";
       noData.color = COLORS.textMuted;
-      noData.fontSize = 15;
-      noData.height = "40px";
+      noData.fontSize = 12;
+      noData.height = "33px";
       stack.addControl(noData);
       return;
     }
 
     // Toggle translations button
     const toggleBtn = Button.CreateSimpleButton("noticeToggleTrans", this.noticeShowTranslations ? "Hide Translations" : "Show Translations");
-    toggleBtn.width = "180px";
-    toggleBtn.height = "32px";
+    toggleBtn.width = "149px";
+    toggleBtn.height = "27px";
     toggleBtn.color = COLORS.textPrimary;
     toggleBtn.background = COLORS.cardBg;
-    toggleBtn.cornerRadius = 6;
-    toggleBtn.fontSize = 13;
+    toggleBtn.cornerRadius = 5;
+    toggleBtn.fontSize = 12;
     toggleBtn.thickness = 1;
     (toggleBtn as any).borderColor = COLORS.cardBorder;
     toggleBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    toggleBtn.paddingBottom = "8px";
+    toggleBtn.paddingBottom = "6px";
     toggleBtn.onPointerClickObservable.add(() => {
       this.noticeShowTranslations = !this.noticeShowTranslations;
       this.refreshActiveTab();
@@ -2110,14 +2118,14 @@ export class GameMenuSystem {
       // Title row
       const titleRow = new Rectangle();
       titleRow.width = 1;
-      titleRow.height = "24px";
+      titleRow.height = "20px";
       titleRow.thickness = 0;
       card.addControl(titleRow);
 
       const titleText = new TextBlock();
       titleText.text = article.title;
       titleText.color = COLORS.textPrimary;
-      titleText.fontSize = 15;
+      titleText.fontSize = 12;
       titleText.fontWeight = "bold";
       titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       titleRow.addControl(titleText);
@@ -2125,7 +2133,7 @@ export class GameMenuSystem {
       const diffText = new TextBlock();
       diffText.text = article.difficulty;
       diffText.color = diffColor;
-      diffText.fontSize = 11;
+      diffText.fontSize = 12;
       diffText.fontWeight = "bold";
       diffText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
       titleRow.addControl(diffText);
@@ -2135,9 +2143,9 @@ export class GameMenuSystem {
         const titleTrans = new TextBlock();
         titleTrans.text = `(${article.titleTranslation})`;
         titleTrans.color = COLORS.textMuted;
-        titleTrans.fontSize = 11;
+        titleTrans.fontSize = 12;
         titleTrans.fontStyle = "italic";
-        titleTrans.height = "18px";
+        titleTrans.height = "15px";
         titleTrans.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         card.addControl(titleTrans);
       }
@@ -2146,12 +2154,12 @@ export class GameMenuSystem {
       const bodyText = new TextBlock();
       bodyText.text = article.body;
       bodyText.color = COLORS.textSecondary;
-      bodyText.fontSize = 13;
+      bodyText.fontSize = 12;
       bodyText.textWrapping = true;
       bodyText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       bodyText.resizeToFit = true;
-      bodyText.paddingTop = "4px";
-      bodyText.paddingBottom = "4px";
+      bodyText.paddingTop = "5px";
+      bodyText.paddingBottom = "5px";
       card.addControl(bodyText);
 
       // Body translation
@@ -2159,11 +2167,11 @@ export class GameMenuSystem {
         const bodyTrans = new TextBlock();
         bodyTrans.text = article.bodyTranslation;
         bodyTrans.color = COLORS.textMuted;
-        bodyTrans.fontSize = 11;
+        bodyTrans.fontSize = 12;
         bodyTrans.fontStyle = "italic";
         bodyTrans.textWrapping = true;
         bodyTrans.resizeToFit = true;
-        bodyTrans.paddingBottom = "4px";
+        bodyTrans.paddingBottom = "5px";
         bodyTrans.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         card.addControl(bodyTrans);
       }
@@ -2173,7 +2181,7 @@ export class GameMenuSystem {
         const vocabText = new TextBlock();
         vocabText.text = "Vocab: " + article.vocabularyWords.map(w => `${w.word} (${w.meaning})`).join(", ");
         vocabText.color = COLORS.accent;
-        vocabText.fontSize = 11;
+        vocabText.fontSize = 12;
         vocabText.textWrapping = true;
         vocabText.resizeToFit = true;
         vocabText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
@@ -2187,7 +2195,7 @@ export class GameMenuSystem {
 
         const spacer = new Rectangle();
         spacer.width = 1;
-        spacer.height = "8px";
+        spacer.height = "6px";
         spacer.thickness = 0;
         spacer.background = "transparent";
         card.addControl(spacer);
@@ -2207,15 +2215,15 @@ export class GameMenuSystem {
           const isCorrect = i === q.correctIndex;
           const optBtn = Button.CreateSimpleButton(`noticeOpt_${article.id}_${i}`, opt);
           optBtn.width = "100%";
-          optBtn.height = "30px";
+          optBtn.height = "24px";
           optBtn.color = COLORS.textPrimary;
           optBtn.background = COLORS.cardBg;
-          optBtn.cornerRadius = 4;
+          optBtn.cornerRadius = 3;
           optBtn.fontSize = 12;
           optBtn.thickness = 1;
           (optBtn as any).borderColor = COLORS.cardBorder;
-          optBtn.paddingTop = "2px";
-          optBtn.paddingBottom = "2px";
+          optBtn.paddingTop = "3px";
+          optBtn.paddingBottom = "3px";
           optBtn.onPointerClickObservable.add(() => {
             this.answeredNoticeQuestions.add(article.id);
             this.callbacks.onNoticeQuestionAnswered?.(isCorrect, article.id);
@@ -2240,8 +2248,8 @@ export class GameMenuSystem {
       const noData = new TextBlock();
       noData.text = "No assessment data yet.\nComplete your first assessment to see your progress!";
       noData.color = COLORS.textMuted;
-      noData.fontSize = 15;
-      noData.height = "60px";
+      noData.fontSize = 12;
+      noData.height = "50px";
       noData.textWrapping = true;
       stack.addControl(noData);
       return;
@@ -2254,41 +2262,41 @@ export class GameMenuSystem {
 
     const cefrRow = new Rectangle();
     cefrRow.width = 1;
-    cefrRow.height = "50px";
+    cefrRow.height = "42px";
     cefrRow.thickness = 0;
     cefrCard.addControl(cefrRow);
 
     const cefrLevel = new TextBlock();
     cefrLevel.text = data.cefrLevel;
-    cefrLevel.fontSize = 28;
+    cefrLevel.fontSize = 23;
     cefrLevel.fontWeight = "bold";
     cefrLevel.color = CEFR_COLORS[data.cefrLevel];
-    cefrLevel.width = "60px";
+    cefrLevel.width = "50px";
     cefrLevel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     cefrRow.addControl(cefrLevel);
 
     const cefrDesc = new TextBlock();
     cefrDesc.text = CEFR_DESCRIPTIONS[data.cefrLevel];
-    cefrDesc.fontSize = 16;
+    cefrDesc.fontSize = 14;
     cefrDesc.color = COLORS.textPrimary;
     cefrDesc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     cefrDesc.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    cefrDesc.left = "70px";
+    cefrDesc.left = "57px";
     cefrDesc.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    cefrDesc.top = "4px";
-    cefrDesc.height = "24px";
+    cefrDesc.top = "5px";
+    cefrDesc.height = "20px";
     cefrRow.addControl(cefrDesc);
 
     const cefrSub = new TextBlock();
     cefrSub.text = "CEFR Proficiency Level";
-    cefrSub.fontSize = 11;
+    cefrSub.fontSize = 12;
     cefrSub.color = COLORS.textMuted;
     cefrSub.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     cefrSub.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    cefrSub.left = "70px";
+    cefrSub.left = "57px";
     cefrSub.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    cefrSub.top = "28px";
-    cefrSub.height = "18px";
+    cefrSub.top = "23px";
+    cefrSub.height = "15px";
     cefrRow.addControl(cefrSub);
 
     // Dimension bars
@@ -2296,9 +2304,9 @@ export class GameMenuSystem {
     const dimTitle = new TextBlock();
     dimTitle.text = "Assessment Dimensions";
     dimTitle.color = COLORS.textPrimary;
-    dimTitle.fontSize = 18;
+    dimTitle.fontSize = 15;
     dimTitle.fontWeight = "bold";
-    dimTitle.height = "34px";
+    dimTitle.height = "29px";
     dimTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     stack.addControl(dimTitle);
 
@@ -2313,30 +2321,30 @@ export class GameMenuSystem {
 
       const dimRow = new Rectangle();
       dimRow.width = 1;
-      dimRow.height = "28px";
+      dimRow.height = "23px";
       dimRow.thickness = 0;
       dimCard.addControl(dimRow);
 
       const dimIcon = new TextBlock();
       dimIcon.text = DIMENSION_ICONS[dim];
-      dimIcon.fontSize = 16;
-      dimIcon.width = "24px";
+      dimIcon.fontSize = 14;
+      dimIcon.width = "20px";
       dimIcon.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       dimRow.addControl(dimIcon);
 
       const dimLabel = new TextBlock();
       dimLabel.text = DIMENSION_LABELS[dim];
       dimLabel.color = COLORS.textPrimary;
-      dimLabel.fontSize = 13;
+      dimLabel.fontSize = 12;
       dimLabel.fontWeight = "bold";
       dimLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       dimLabel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      dimLabel.left = "28px";
+      dimLabel.left = "23px";
       dimRow.addControl(dimLabel);
 
       const scoreText = new TextBlock();
       scoreText.text = score > 0 ? `${score}/5${arrow ? ' ' + arrow : ''}` : '-';
-      scoreText.fontSize = 13;
+      scoreText.fontSize = 12;
       scoreText.fontWeight = "bold";
       scoreText.color = score > 0 ? getScoreColor(score) : COLORS.textMuted;
       scoreText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;

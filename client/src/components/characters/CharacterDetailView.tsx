@@ -14,6 +14,15 @@ interface CharacterDetailViewProps {
   onViewCharacter: (character: Character) => void;
 }
 
+/** Format a personality trait value (typically -1..1 or 0..1) as X/100 */
+function formatPersonalityValue(value: unknown): string {
+  const num = Number(value);
+  if (isNaN(num)) return String(value);
+  // Traits are stored as -1..1 or 0..1; normalize to 0..100
+  const normalized = num < 0 ? Math.round(((num + 1) / 2) * 100) : Math.round(num * 100);
+  return `${Math.max(0, Math.min(100, normalized))}/100`;
+}
+
 export function CharacterDetailView({
   character,
   allCharacters,
@@ -28,6 +37,37 @@ export function CharacterDetailView({
       const response = await apiRequest('GET', `/api/assets/character/${character.id}`);
       return response.json();
     },
+  });
+
+  // Resolve location UUID to a readable settlement name
+  const { data: locationName } = useQuery<string>({
+    queryKey: ['/api/settlement-name', character.currentLocation],
+    queryFn: async () => {
+      if (!character.currentLocation) return 'Unknown';
+      try {
+        const response = await apiRequest('GET', `/api/settlements/${character.currentLocation}`);
+        const settlement = await response.json();
+        return settlement?.name || character.currentLocation;
+      } catch {
+        return character.currentLocation;
+      }
+    },
+    enabled: !!character.currentLocation,
+  });
+
+  // Fetch world data to get currentYear for age calculation
+  const { data: worldData } = useQuery<any>({
+    queryKey: ['/api/world', character.worldId],
+    queryFn: async () => {
+      if (!character.worldId) return null;
+      try {
+        const response = await apiRequest('GET', `/api/worlds/${character.worldId}`);
+        return response.json();
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!character.worldId,
   });
 
   const portrait = visualAssets.find(a => a.assetType === 'character_portrait');
@@ -46,8 +86,12 @@ export function CharacterDetailView({
 
   const getAge = (char: Character) => {
     if (!char.birthYear) return null;
-    const currentYear = new Date().getFullYear();
-    return currentYear - char.birthYear;
+    // Use world's currentYear if available, otherwise fall back to real year
+    const currentYear = worldData?.currentYear || worldData?.foundedYear
+      ? (worldData.currentYear || worldData.foundedYear + 100)
+      : new Date().getFullYear();
+    const age = currentYear - char.birthYear;
+    return age >= 0 ? age : null;
   };
 
   const getCharacterById = (id: string) => {
@@ -102,7 +146,7 @@ export function CharacterDetailView({
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Location</span>
-              <p className="text-sm font-semibold text-right">{character.currentLocation || 'Unknown'}</p>
+              <p className="text-sm font-semibold text-right">{locationName || character.currentLocation || 'Unknown'}</p>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Gender</span>
@@ -147,7 +191,7 @@ export function CharacterDetailView({
               {Object.entries(character.personality).map(([key, value]) => (
                 <div key={key} className="space-y-1">
                   <span className="text-sm text-muted-foreground capitalize">{key}</span>
-                  <p className="font-medium">{String(value)}</p>
+                  <p className="font-medium">{formatPersonalityValue(value)}</p>
                 </div>
               ))}
             </div>

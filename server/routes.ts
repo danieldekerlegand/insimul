@@ -808,6 +808,27 @@ app.get("/api/rules", async (req, res) => {
     }
   });
 
+  // Bulk delete world rules
+  app.post("/api/worlds/:worldId/rules/bulk-delete", async (req, res) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: "ids array is required" });
+      }
+      let deleted = 0;
+      for (const id of ids) {
+        const rule = await storage.getRule(id);
+        if (rule && (rule as any).worldId === req.params.worldId && !(rule as any).isBase) {
+          const ok = await storage.deleteRule(id);
+          if (ok) deleted++;
+        }
+      }
+      res.json({ deleted });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to bulk delete rules" });
+    }
+  });
+
   // Get rules by category (base rules)
   app.get("/api/rules/category/:category", async (req, res) => {
     try {
@@ -925,6 +946,27 @@ app.get("/api/rules", async (req, res) => {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete grammar" });
+    }
+  });
+
+  // Bulk delete world grammars
+  app.post("/api/worlds/:worldId/grammars/bulk-delete", async (req, res) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: "ids array is required" });
+      }
+      let deleted = 0;
+      for (const id of ids) {
+        const grammar = await storage.getGrammar(id);
+        if (grammar && (grammar as any).worldId === req.params.worldId) {
+          const ok = await storage.deleteGrammar(id);
+          if (ok) deleted++;
+        }
+      }
+      res.json({ deleted });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to bulk delete grammars" });
     }
   });
 
@@ -1709,6 +1751,27 @@ app.get("/api/rules", async (req, res) => {
     }
   });
 
+  // Bulk delete world languages
+  app.post("/api/worlds/:worldId/languages/bulk-delete", async (req, res) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: "ids array is required" });
+      }
+      let deleted = 0;
+      for (const id of ids) {
+        const language = await getLanguageById(id);
+        if (language && language.worldId === req.params.worldId) {
+          const ok = await storage.deleteWorldLanguage(id);
+          if (ok) deleted++;
+        }
+      }
+      res.json({ deleted });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to bulk delete languages" });
+    }
+  });
+
   app.get("/api/languages/:id/chat", async (req, res) => {
     try {
       const language = await getLanguageById(req.params.id);
@@ -2099,7 +2162,22 @@ app.get("/api/rules", async (req, res) => {
   app.get("/api/settlements/:settlementId/businesses", async (req, res) => {
     try {
       const businesses = await storage.getBusinessesBySettlement(req.params.settlementId);
-      res.json(businesses);
+
+      // Enrich each business with employee character IDs from the occupations table
+      // so that the 3D game can place NPCs inside building interiors
+      const enriched = await Promise.all(businesses.map(async (biz: any) => {
+        try {
+          const occupations = await storage.getOccupationsByBusiness(biz.id);
+          const employeeIds = occupations
+            .filter((occ: any) => !occ.endYear && !occ.terminationReason)
+            .map((occ: any) => occ.characterId);
+          return { ...biz, employees: employeeIds };
+        } catch {
+          return { ...biz, employees: [] };
+        }
+      }));
+
+      res.json(enriched);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch businesses" });
     }
@@ -3120,7 +3198,109 @@ app.get("/api/rules", async (req, res) => {
       res.status(500).json({ error: "Failed to simulate conversation", details: (error as Error).message });
     }
   });
-  
+
+  // Rich NPC-NPC conversation generation using Gemini
+  app.post("/api/conversations/simulate-rich", async (req, res) => {
+    try {
+      const { char1Id, char2Id, worldId, turnCount = 5 } = req.body;
+      if (!char1Id || !char2Id || !worldId) {
+        return res.status(400).json({ error: "char1Id, char2Id, and worldId are required" });
+      }
+
+      const char1 = await storage.getCharacter(char1Id);
+      const char2 = await storage.getCharacter(char2Id);
+      if (!char1 || !char2) {
+        return res.status(404).json({ error: "Character not found" });
+      }
+
+      const world = await storage.getWorld(worldId);
+      const targetLanguage = (world as any)?.targetLanguage || (world as any)?.gameConfig?.targetLanguage || 'French';
+
+      const char1Name = `${char1.firstName || ''} ${char1.lastName || ''}`.trim();
+      const char2Name = `${char2.firstName || ''} ${char2.lastName || ''}`.trim();
+      const char1Gender = (char1 as any).gender || 'neutral';
+      const char2Gender = (char2 as any).gender || 'neutral';
+      const char1Occupation = (char1 as any).occupation || 'resident';
+      const char2Occupation = (char2 as any).occupation || 'resident';
+
+      const char1Personality = (char1 as any).personality || {};
+      const char2Personality = (char2 as any).personality || {};
+
+      if (!isGeminiConfigured()) {
+        // Fallback: return simple template conversation
+        const utterances = [];
+        for (let i = 0; i < turnCount; i++) {
+          const isChar1 = i % 2 === 0;
+          utterances.push({
+            speaker: isChar1 ? char1Name : char2Name,
+            speakerId: isChar1 ? char1Id : char2Id,
+            gender: isChar1 ? char1Gender : char2Gender,
+            text: `[${isChar1 ? char1Name : char2Name} says something in ${targetLanguage}]`,
+          });
+        }
+        return res.json({ utterances, language: targetLanguage });
+      }
+
+      const model = getModel(GEMINI_MODELS.standard);
+      const prompt = `You are generating a realistic conversation between two people in a small town. The ENTIRE conversation must be in ${targetLanguage}. Do NOT use English at all.
+
+Character 1: ${char1Name} (${char1Gender}, ${char1Occupation})
+Personality: Openness ${char1Personality.openness ?? 0.5}, Extroversion ${char1Personality.extroversion ?? 0.5}, Agreeableness ${char1Personality.agreeableness ?? 0.5}
+
+Character 2: ${char2Name} (${char2Gender}, ${char2Occupation})
+Personality: Openness ${char2Personality.openness ?? 0.5}, Extroversion ${char2Personality.extroversion ?? 0.5}, Agreeableness ${char2Personality.agreeableness ?? 0.5}
+
+Generate exactly ${turnCount} lines of dialogue. They could discuss work, local news, personal stories, gossip about neighbors, plans, or daily life. Make it feel natural and reflect their personalities and occupations.
+
+Format each line as:
+${char1Name}: [dialogue in ${targetLanguage}]
+${char2Name}: [dialogue in ${targetLanguage}]
+
+Alternate speakers. Start with ${char1Name}. Every single word must be in ${targetLanguage}.`;
+
+      const result = await model.generateContent(prompt);
+      const responseText = result.response?.text() || '';
+
+      // Parse the response into utterances
+      const lines = responseText.split('\n').filter((l: string) => l.trim());
+      const utterances: Array<{ speaker: string; speakerId: string; gender: string; text: string }> = [];
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith(`${char1Name}:`)) {
+          utterances.push({
+            speaker: char1Name,
+            speakerId: char1Id,
+            gender: char1Gender,
+            text: trimmed.slice(char1Name.length + 1).trim(),
+          });
+        } else if (trimmed.startsWith(`${char2Name}:`)) {
+          utterances.push({
+            speaker: char2Name,
+            speakerId: char2Id,
+            gender: char2Gender,
+            text: trimmed.slice(char2Name.length + 1).trim(),
+          });
+        }
+      }
+
+      if (utterances.length === 0) {
+        // Gemini didn't follow format — try to salvage
+        utterances.push({
+          speaker: char1Name,
+          speakerId: char1Id,
+          gender: char1Gender,
+          text: responseText.trim().split('\n')[0] || 'Bonjour!',
+        });
+      }
+
+      res.json({ utterances, language: targetLanguage });
+    } catch (error) {
+      console.error("Error generating rich conversation:", error);
+      res.status(500).json({ error: "Failed to generate conversation", details: (error as Error).message });
+    }
+  });
+
   // Get character conversation history
   app.get("/api/conversations/character/:id/history", async (req, res) => {
     try {
@@ -7795,6 +7975,27 @@ Respond with this JSON structure:
     }
   });
 
+  // Bulk delete world actions
+  app.post("/api/worlds/:worldId/actions/bulk-delete", async (req, res) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: "ids array is required" });
+      }
+      let deleted = 0;
+      for (const id of ids) {
+        const action = await storage.getAction(id);
+        if (action && action.worldId === req.params.worldId && !(action as any).isBase) {
+          const ok = await storage.deleteAction(id);
+          if (ok) deleted++;
+        }
+      }
+      res.json({ deleted });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to bulk delete actions" });
+    }
+  });
+
 
   // Per-World Base Resource Configuration
   app.get("/api/worlds/:worldId/base-resources/config", async (req, res) => {
@@ -8032,6 +8233,30 @@ Respond with this JSON structure:
     }
   });
 
+  // Bulk delete world truths
+  app.post("/api/worlds/:worldId/truths/bulk-delete", async (req, res) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: "ids array is required" });
+      }
+      let deleted = 0;
+      for (const id of ids) {
+        const truth = await storage.getTruth(id);
+        if (truth && (truth as any).worldId === req.params.worldId) {
+          const ok = await storage.deleteTruth(id);
+          if (ok) {
+            deleted++;
+            prologAutoSync.onTruthDeleted(req.params.worldId, truth as any).catch(e => console.warn('[PrologAutoSync] truth delete:', e));
+          }
+        }
+      }
+      res.json({ deleted });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to bulk delete truths" });
+    }
+  });
+
   // ============================================================
   // Quest Endpoints
   // ============================================================
@@ -8164,6 +8389,27 @@ Respond with this JSON structure:
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete quest" });
+    }
+  });
+
+  // Bulk delete world quests
+  app.post("/api/worlds/:worldId/quests/bulk-delete", async (req, res) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: "ids array is required" });
+      }
+      let deleted = 0;
+      for (const id of ids) {
+        const quest = await storage.getQuest(id);
+        if (quest && quest.worldId === req.params.worldId) {
+          const ok = await storage.deleteQuest(id);
+          if (ok) deleted++;
+        }
+      }
+      res.json({ deleted });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to bulk delete quests" });
     }
   });
 
@@ -8669,6 +8915,27 @@ Respond with this JSON structure:
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete item" });
+    }
+  });
+
+  // Bulk delete world items
+  app.post("/api/worlds/:worldId/items/bulk-delete", async (req, res) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: "ids array is required" });
+      }
+      let deleted = 0;
+      for (const id of ids) {
+        const item = await storage.getItem(id);
+        if (item && item.worldId === req.params.worldId && !(item as any).isBase) {
+          const ok = await storage.deleteItem(id);
+          if (ok) deleted++;
+        }
+      }
+      res.json({ deleted });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to bulk delete items" });
     }
   });
 

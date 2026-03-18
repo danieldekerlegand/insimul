@@ -19,6 +19,10 @@ var completed_quest_ids: Array[String] = []
 var objectives: Array[Dictionary] = []
 var _game_time: float = 0.0
 
+## Optional callback to test whether a world XZ point is inside a building footprint.
+## Signature: func(x: float, z: float) -> bool
+var _point_in_building_check: Callable = Callable()
+
 
 func _process(delta: float) -> void:
 	_game_time += delta
@@ -253,6 +257,45 @@ func check_direction_proximity(player_pos: Vector3) -> void:
 				})
 				if obj["waypoints_reached"] >= waypoints.size():
 					complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
+## Register a building-check callback so spawned items avoid building interiors.
+func set_point_in_building_check(check: Callable) -> void:
+	_point_in_building_check = check
+
+
+## Generate spread-out item positions that avoid building interiors.
+func generate_item_positions(count: int) -> Array[Vector3]:
+	var positions: Array[Vector3] = []
+	var radius := 30.0
+
+	for i in range(count):
+		var x := 0.0
+		var z := 0.0
+		for attempt in range(8):
+			var angle := (PI * 2.0 * i) / count + randf_range(0.0, 0.5)
+			var dist := 10.0 + randf_range(0.0, radius)
+			x = cos(angle) * dist
+			z = sin(angle) * dist
+			if not _point_in_building_check.is_valid() or not _point_in_building_check.call(x, z):
+				break
+		positions.append(Vector3(x, 0.5, z))
+	return positions
+
+
+## Generate a single location position that avoids building interiors.
+func generate_location_position() -> Vector3:
+	for attempt in range(8):
+		var angle := randf_range(0.0, PI * 2.0)
+		var dist := 20.0 + randf_range(0.0, 20.0)
+		var x := cos(angle) * dist
+		var z := sin(angle) * dist
+		if not _point_in_building_check.is_valid() or not _point_in_building_check.call(x, z):
+			return Vector3(x, 0.0, z)
+	# Fallback — push farther out
+	var angle := randf_range(0.0, PI * 2.0)
+	var dist := 40.0 + randf_range(0.0, 10.0)
+	return Vector3(cos(angle) * dist, 0.0, sin(angle) * dist)
 
 
 func get_active_quests() -> Array[Dictionary]:

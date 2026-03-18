@@ -4,7 +4,12 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Zap, Plus, ChevronRight, ChevronDown, Edit, Globe, Trash2, RefreshCw,
 } from 'lucide-react';
@@ -90,6 +95,8 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [actionToEdit, setActionToEdit] = useState<Action | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   useEffect(() => {
     if (worldId) fetchActions();
@@ -154,6 +161,44 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
       toast({ title: 'Error', description: `Failed to delete action: ${error.message}`, variant: 'destructive' });
     },
   });
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === actions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(actions.map(a => a.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/actions/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      if (res.ok) {
+        const { deleted } = await res.json();
+        toast({ title: `${deleted} action${deleted !== 1 ? 's' : ''} deleted` });
+        setSelectedIds(new Set());
+        if (selectedIds.has(selectedAction?.id || '')) setSelectedAction(null);
+        fetchActions();
+      } else {
+        toast({ title: 'Failed to delete actions', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Failed to delete actions', variant: 'destructive' });
+    }
+    setBulkDeleteOpen(false);
+  };
 
   const toggleBaseAction = async (actionId: string, enabled: boolean) => {
     try {
@@ -277,6 +322,20 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
           </button>
         </div>
 
+        {activeSection === 'world' && actions.length > 0 && (
+          <div className="flex items-center gap-1 px-2 py-1 border-b bg-muted/20">
+            <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5" onClick={toggleSelectAll}>
+              {selectedIds.size === actions.length ? 'Deselect All' : 'Select All'}
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-destructive hover:text-destructive" onClick={() => setBulkDeleteOpen(true)}>
+                <Trash2 className="w-3 h-3 mr-1" />
+                Delete ({selectedIds.size})
+              </Button>
+            )}
+          </div>
+        )}
+
         <ScrollArea className="flex-1">
           <div className="p-2">
             {activeSection === 'world' && Object.entries(worldActionGroups).map(([group, groupActions]) => (
@@ -297,13 +356,19 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
                 {expandedGroups.has(`world-${group}`) && groupActions.map(action => (
                   <button
                     key={action.id}
-                    className={`w-full text-left px-5 py-1 text-xs rounded-sm transition-colors break-words ${
+                    className={`w-full text-left px-5 py-1 text-xs rounded-sm transition-colors break-words flex items-center ${
                       selectedAction?.id === action.id
                         ? 'bg-primary/15 text-primary font-medium'
                         : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                     }`}
                     onClick={() => selectAction(action)}
                   >
+                    <Checkbox
+                      checked={selectedIds.has(action.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      onCheckedChange={() => toggleSelection(action.id)}
+                      className="h-3 w-3 mr-1 flex-shrink-0"
+                    />
                     {action.name}
                   </button>
                 ))}
@@ -659,6 +724,23 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
           }}
         />
       )}
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} Action{selectedIds.size !== 1 ? 's' : ''}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the selected world actions. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

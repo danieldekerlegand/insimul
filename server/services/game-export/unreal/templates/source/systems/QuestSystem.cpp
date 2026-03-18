@@ -187,3 +187,51 @@ FString UQuestSystem::GetNextScavengerCategory(int32 LastCategoryIndex)
     int32 Next = (LastCategoryIndex + 1) % SCAVENGER_CATEGORIES.Num();
     return SCAVENGER_CATEGORIES[Next];
 }
+
+void UQuestSystem::SetPointInBuildingCheck(const FPointInBuildingCheck& Check)
+{
+    PointInBuildingCheck = Check;
+}
+
+TArray<FVector> UQuestSystem::GenerateItemPositions(int32 Count) const
+{
+    TArray<FVector> Positions;
+    const float Radius = 3000.f; // 30 m in UE units
+
+    for (int32 i = 0; i < Count; i++)
+    {
+        float X = 0.f, Z = 0.f;
+        for (int32 Attempt = 0; Attempt < 8; Attempt++)
+        {
+            float Angle = (PI * 2.f * i) / Count + FMath::FRandRange(0.f, 0.5f);
+            float Dist = 1000.f + FMath::FRandRange(0.f, Radius);
+            X = FMath::Cos(Angle) * Dist;
+            Z = FMath::Sin(Angle) * Dist;
+            if (!PointInBuildingCheck.IsBound() || !PointInBuildingCheck.Execute(X, Z))
+            {
+                break;
+            }
+        }
+        Positions.Add(FVector(X, Z, 50.f)); // Slightly above ground
+    }
+    return Positions;
+}
+
+FVector UQuestSystem::GenerateLocationPosition() const
+{
+    for (int32 Attempt = 0; Attempt < 8; Attempt++)
+    {
+        float Angle = FMath::FRandRange(0.f, PI * 2.f);
+        float Dist = 2000.f + FMath::FRandRange(0.f, 2000.f);
+        float X = FMath::Cos(Angle) * Dist;
+        float Z = FMath::Sin(Angle) * Dist;
+        if (!PointInBuildingCheck.IsBound() || !PointInBuildingCheck.Execute(X, Z))
+        {
+            return FVector(X, Z, 0.f);
+        }
+    }
+    // Fallback — push farther out
+    float Angle = FMath::FRandRange(0.f, PI * 2.f);
+    float Dist = 4000.f + FMath::FRandRange(0.f, 1000.f);
+    return FVector(FMath::Cos(Angle) * Dist, FMath::Sin(Angle) * Dist, 0.f);
+}

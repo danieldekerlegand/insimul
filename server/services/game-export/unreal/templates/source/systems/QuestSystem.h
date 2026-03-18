@@ -52,6 +52,9 @@ static const TArray<FString> SCAVENGER_CATEGORIES = {
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnStoryTTS, const FString&, StoryText, const FString&, NpcId);
 
+/** Delegate to test whether a world-space XZ point falls inside a building footprint. */
+DECLARE_DELEGATE_RetVal_TwoParams(bool, FPointInBuildingCheck, float /*X*/, float /*Z*/);
+
 /**
  * Tracks quests, objectives, and completion.
  * Ported from Insimul's Babylon.js QuestObjectManager.
@@ -110,6 +113,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Quests")
     void CheckDirectionProximity(const FVector& PlayerPos);
 
+    /** Register a building-check callback so spawned items avoid building interiors. */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    void SetPointInBuildingCheck(const FPointInBuildingCheck& Check);
+
+    /** Generate spread-out item positions that avoid building interiors. */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    TArray<FVector> GenerateItemPositions(int32 Count) const;
+
+    /** Generate a single location position that avoids building interiors. */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Quests")
+    FVector GenerateLocationPosition() const;
+
     /** Fired when a listening_comprehension objective starts and story should be spoken. */
     UPROPERTY(BlueprintAssignable, Category = "Quests")
     FOnStoryTTS OnStoryTTS;
@@ -117,4 +132,7 @@ public:
 private:
     TArray<FQuestObjective> Objectives;
     float GameTime = 0.f;
+
+    /** Optional callback to test whether a world XZ point is inside a building footprint. */
+    FPointInBuildingCheck PointInBuildingCheck;
 };

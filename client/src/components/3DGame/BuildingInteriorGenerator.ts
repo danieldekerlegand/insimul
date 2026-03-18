@@ -197,6 +197,7 @@ export class BuildingInteriorGenerator {
     const ceilingMat = new StandardMaterial(`${prefix}_ceiling_mat`, this.scene);
     ceilingMat.diffuseColor = colors.ceiling;
     ceiling.material = ceilingMat;
+    ceiling.checkCollisions = true;
 
     // Walls
     const wallMat = new StandardMaterial(`${prefix}_wall_mat`, this.scene);

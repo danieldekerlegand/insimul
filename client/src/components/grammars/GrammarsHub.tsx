@@ -7,6 +7,7 @@ import {
   Plus, Search, Edit, Trash2, PlayCircle, FileText, BookOpen, ChevronRight, ChevronDown, Sparkles,
   X, Save, Link2,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { GrammarEditor } from '../GrammarEditor';
 import { GrammarTestConsole } from '../GrammarTestConsole';
@@ -64,6 +65,8 @@ export function GrammarsHub({ worldId }: GrammarsHubProps) {
   const [isBindingsDirty, setIsBindingsDirty] = useState(false);
   const [editingContextType, setEditingContextType] = useState<string | null>(null);
   const [isContextTypeDirty, setIsContextTypeDirty] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -192,6 +195,44 @@ export function GrammarsHub({ worldId }: GrammarsHubProps) {
     }
   };
 
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === grammars.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(grammars.map(g => g.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/grammars/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      if (res.ok) {
+        const { deleted } = await res.json();
+        toast({ title: `${deleted} grammar${deleted !== 1 ? 's' : ''} deleted` });
+        setSelectedIds(new Set());
+        if (selectedIds.has(selectedGrammar?.id || '')) setSelectedGrammar(null);
+        loadGrammars();
+      } else {
+        toast({ title: 'Failed to delete grammars', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Failed to delete grammars', variant: 'destructive' });
+    }
+    setBulkDeleteOpen(false);
+  };
+
   const toggleTag = (tag: string) => {
     setExpandedTags(prev => {
       const next = new Set(prev);
@@ -254,6 +295,20 @@ export function GrammarsHub({ worldId }: GrammarsHubProps) {
           </div>
         </div>
 
+        {grammars.length > 0 && (
+          <div className="flex items-center gap-1 px-2 py-1 border-b bg-muted/20">
+            <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5" onClick={toggleSelectAll}>
+              {selectedIds.size === grammars.length ? 'Deselect All' : 'Select All'}
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-destructive hover:text-destructive" onClick={() => setBulkDeleteOpen(true)}>
+                <Trash2 className="w-3 h-3 mr-1" />
+                Delete ({selectedIds.size})
+              </Button>
+            )}
+          </div>
+        )}
+
         <ScrollArea className="flex-1">
           {loading ? (
             <div className="p-3 text-xs text-muted-foreground text-center">Loading...</div>
@@ -291,6 +346,12 @@ export function GrammarsHub({ worldId }: GrammarsHubProps) {
                       }`}
                       onClick={() => setSelectedGrammar(grammar)}
                     >
+                      <Checkbox
+                        checked={selectedIds.has(grammar.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        onCheckedChange={() => toggleSelection(grammar.id)}
+                        className="h-3 w-3 mr-1 flex-shrink-0"
+                      />
                       {grammar.name}
                       {!grammar.isActive && <span className="text-[10px] ml-1 opacity-50">(off)</span>}
                     </button>
@@ -583,6 +644,23 @@ export function GrammarsHub({ worldId }: GrammarsHubProps) {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} Grammar{selectedIds.size !== 1 ? 's' : ''}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the selected grammars. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

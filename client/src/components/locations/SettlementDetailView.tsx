@@ -51,8 +51,23 @@ export function SettlementDetailView({
   const [assetType, setAssetType] = useState<'map_terrain' | 'map_political' | 'map_region'>('map_terrain');
   const [mapZoom, setMapZoom] = useState(1);
   const [activeMapTab, setActiveMapTab] = useState<'terrain' | 'political' | 'regional'>('terrain');
+  const [expandedBusinessId, setExpandedBusinessId] = useState<string | null>(null);
+  const [expandedResidenceId, setExpandedResidenceId] = useState<string | null>(null);
+  const [expandedLotId, setExpandedLotId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // Helper to look up a character's full name by ID
+  const getCharacterName = (charId: string | null | undefined): string => {
+    if (!charId) return 'Unknown';
+    const char = characters.find(c => c.id === charId);
+    if (!char) return charId; // Fallback to ID if not found
+    return [char.firstName, char.lastName].filter(Boolean).join(' ');
+  };
+
+  // Find the business or residence on a given lot
+  const getBusinessOnLot = (lotId: string) => businesses.find((b: any) => b.lotId === lotId);
+  const getResidenceOnLot = (lotId: string) => residences.find((r: any) => r.lotId === lotId);
 
   // Batch generate character portraits mutation
   const batchGeneratePortraitsMutation = useMutation({
@@ -443,30 +458,77 @@ export function SettlementDetailView({
           )}
         </div>
         <div className="grid gap-3">
-          {lots.map((lot) => (
-            <Card key={lot.id} className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
-              <CardHeader className="py-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base">{lot.address}</CardTitle>
-                    <CardDescription>District: {lot.districtName || 'None'}</CardDescription>
+          {lots.map((lot) => {
+            const lotBusiness = getBusinessOnLot(lot.id);
+            const lotResidence = getResidenceOnLot(lot.id);
+            const isExpanded = expandedLotId === lot.id;
+            return (
+              <Card
+                key={lot.id}
+                className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl cursor-pointer hover:bg-white/80 dark:hover:bg-white/10 transition-all"
+                onClick={() => setExpandedLotId(isExpanded ? null : lot.id)}
+              >
+                <CardHeader className="py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-5 h-5 text-primary" />
+                      <div>
+                        <CardTitle className="text-base">{lot.address}</CardTitle>
+                        <CardDescription>
+                          District: {lot.districtName || 'None'}
+                          {lotBusiness && ` • ${lotBusiness.name}`}
+                          {lotResidence && ` • Residence`}
+                          {!lotBusiness && !lotResidence && ' • Vacant'}
+                        </CardDescription>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                      {onDeleteLot && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteLot(lot.id);
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  {onDeleteLot && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteLot(lot.id);
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-            </Card>
-          ))}
+                </CardHeader>
+                {isExpanded && (
+                  <CardContent className="pt-0 pb-3 space-y-2 text-sm">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span>{lot.buildingType || 'Unassigned'}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Zone</span><span>{lot.zone || 'N/A'}</span></div>
+                    {lotBusiness && (
+                      <>
+                        <div className="border-t pt-2 mt-2 font-semibold flex items-center gap-1"><Building2 className="w-4 h-4" /> {lotBusiness.name}</div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Business Type</span><span>{lotBusiness.businessType}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Owner</span><span>{getCharacterName(lotBusiness.ownerId)}</span></div>
+                      </>
+                    )}
+                    {lotResidence && (
+                      <>
+                        <div className="border-t pt-2 mt-2 font-semibold flex items-center gap-1"><Home className="w-4 h-4" /> {lotResidence.address || 'Residence'}</div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span>{lotResidence.residenceType || 'House'}</span></div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Owners</span>
+                          <span>{(lotResidence.ownerIds || []).map((id: string) => getCharacterName(id)).join(', ') || 'None'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Residents</span>
+                          <span>{(lotResidence.residentIds || []).map((id: string) => getCharacterName(id)).join(', ') || 'None'}</span>
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })}
           {lots.length === 0 && (
             <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
               <CardContent className="pt-6 pb-6">
@@ -517,10 +579,25 @@ export function SettlementDetailView({
               },
             });
 
+            // Fetch employees for this business
+            const { data: businessEmployees = [] } = useQuery<any[]>({
+              queryKey: ['/api/businesses/employees', business.id],
+              queryFn: async () => {
+                const response = await apiRequest('GET', `/api/businesses/${business.id}/employees`);
+                return response.json();
+              },
+              enabled: expandedBusinessId === business.id,
+            });
+
             const exterior = businessAssets.find(a => a.assetType === 'building_exterior');
+            const isExpanded = expandedBusinessId === business.id;
 
             return (
-              <Card key={business.id} className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl overflow-hidden">
+              <Card
+                key={business.id}
+                className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl overflow-hidden cursor-pointer hover:bg-white/80 dark:hover:bg-white/10 transition-all"
+                onClick={() => setExpandedBusinessId(isExpanded ? null : business.id)}
+              >
                 {/* Building Exterior Image */}
                 {exterior && (
                   <div className="relative h-48 overflow-hidden">
@@ -542,6 +619,7 @@ export function SettlementDetailView({
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
+                      <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                       {!exterior && (
                         <Button
                           variant="ghost"
@@ -583,6 +661,31 @@ export function SettlementDetailView({
                     </div>
                   </div>
                 </CardHeader>
+
+                {isExpanded && (
+                  <CardContent className="pt-0 pb-3 space-y-2 text-sm">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Address</span><span>{business.address || 'No address'}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Founded</span><span>{business.foundedYear || 'Unknown'}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Owner</span><span>{getCharacterName(business.ownerId)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Status</span><span>{business.isOutOfBusiness ? 'Closed' : 'Open'}</span></div>
+                    {businessEmployees.length > 0 && (
+                      <div className="border-t pt-2 mt-2">
+                        <span className="text-muted-foreground font-semibold">Employees ({businessEmployees.length})</span>
+                        <div className="mt-1 space-y-1">
+                          {businessEmployees.map((emp: any) => (
+                            <div key={emp.id || emp.characterId} className="flex justify-between items-center pl-2">
+                              <span>{getCharacterName(emp.characterId)}</span>
+                              <Badge variant="secondary" className="text-xs">{emp.vocation} ({emp.shift})</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {businessEmployees.length === 0 && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">Employees</span><span>None</span></div>
+                    )}
+                  </CardContent>
+                )}
               </Card>
             );
           })}
@@ -613,35 +716,97 @@ export function SettlementDetailView({
           )}
         </div>
         <div className="grid gap-3">
-          {residences.map((residence) => (
-            <Card key={residence.id} className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
-              <CardHeader className="py-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Home className="w-5 h-5 text-primary" />
-                    <div>
-                      <CardTitle className="text-base">{residence.address || 'Residence'}</CardTitle>
-                      <CardDescription>
-                        {residence.residents?.length || 0} resident{residence.residents?.length !== 1 ? 's' : ''}
-                      </CardDescription>
+          {residences.map((residence) => {
+            const isExpanded = expandedResidenceId === residence.id;
+            const ownerIds: string[] = residence.ownerIds || [];
+            const residentIds: string[] = residence.residentIds || [];
+            const residentCount = residentIds.length || residence.residents?.length || 0;
+            return (
+              <Card
+                key={residence.id}
+                className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl cursor-pointer hover:bg-white/80 dark:hover:bg-white/10 transition-all"
+                onClick={() => setExpandedResidenceId(isExpanded ? null : residence.id)}
+              >
+                <CardHeader className="py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Home className="w-5 h-5 text-primary" />
+                      <div>
+                        <CardTitle className="text-base">{residence.address || 'Residence'}</CardTitle>
+                        <CardDescription>
+                          {residentCount} resident{residentCount !== 1 ? 's' : ''}
+                        </CardDescription>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                      {onDeleteResidence && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteResidence(residence.id);
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      )}
                     </div>
                   </div>
-                  {onDeleteResidence && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteResidence(residence.id);
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-            </Card>
-          ))}
+                </CardHeader>
+                {isExpanded && (
+                  <CardContent className="pt-0 pb-3 space-y-2 text-sm">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span>{residence.residenceType || 'House'}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Address</span><span>{residence.address || 'N/A'}</span></div>
+                    {ownerIds.length > 0 && (
+                      <div>
+                        <span className="text-muted-foreground font-semibold">Owners ({ownerIds.length})</span>
+                        <div className="mt-1 space-y-1 pl-2">
+                          {ownerIds.map((id: string) => {
+                            const char = characters.find(c => c.id === id);
+                            return (
+                              <div key={id} className="flex items-center justify-between">
+                                <span>{getCharacterName(id)}</span>
+                                {char && (
+                                  <Button variant="ghost" size="sm" className="h-6 px-2" onClick={(e) => { e.stopPropagation(); onViewCharacter(char); }}>
+                                    <ChevronRight className="w-3 h-3" />
+                                  </Button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {residentIds.length > 0 && (
+                      <div className="border-t pt-2 mt-2">
+                        <span className="text-muted-foreground font-semibold">Residents ({residentIds.length})</span>
+                        <div className="mt-1 space-y-1 pl-2">
+                          {residentIds.map((id: string) => {
+                            const char = characters.find(c => c.id === id);
+                            return (
+                              <div key={id} className="flex items-center justify-between">
+                                <span>{getCharacterName(id)}</span>
+                                {char && (
+                                  <Button variant="ghost" size="sm" className="h-6 px-2" onClick={(e) => { e.stopPropagation(); onViewCharacter(char); }}>
+                                    <ChevronRight className="w-3 h-3" />
+                                  </Button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {ownerIds.length === 0 && residentIds.length === 0 && (
+                      <p className="text-muted-foreground italic">No owners or residents assigned</p>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })}
           {residences.length === 0 && (
             <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-dashed border-white/30 dark:border-white/15 rounded-xl">
               <CardContent className="pt-6 pb-6">

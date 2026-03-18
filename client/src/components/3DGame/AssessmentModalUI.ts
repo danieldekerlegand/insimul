@@ -40,7 +40,7 @@ export let assessmentModalOpen = false;
 
 export class AssessmentModalUI {
   private overlay: GUI.Rectangle | null = null;
-  private inputs: Map<string, GUI.InputText> = new Map();
+  private inputs: Map<string, GUI.InputText | GUI.InputTextArea> = new Map();
   private audioElement: HTMLAudioElement | null = null;
 
   show(fullscreenUI: GUI.AdvancedDynamicTexture, config: AssessmentModalConfig): void {
@@ -55,72 +55,77 @@ export class AssessmentModalUI {
     backdrop.thickness = 0;
     backdrop.isPointerBlocker = true;
     backdrop.zIndex = 95;
+    backdrop.onPointerClickObservable.add(() => {
+      this.hide();
+    });
     fullscreenUI.addControl(backdrop);
     this.overlay = backdrop;
 
     // Modal card
     const modal = new GUI.Rectangle('assessmentModal');
-    modal.width = '560px';
+    modal.width = '380px';
     modal.adaptHeightToChildren = true;
-    modal.paddingBottom = '24px';
+    modal.paddingBottom = '12px';
     modal.background = 'rgba(15, 15, 25, 0.95)';
     modal.color = '#FFD700';
-    modal.thickness = 2;
-    modal.cornerRadius = 12;
+    modal.thickness = 1;
+    modal.cornerRadius = 8;
     modal.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     modal.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_CENTER;
     modal.zIndex = 96;
+    modal.isPointerBlocker = true;
     backdrop.addControl(modal);
 
     // Scroll viewer for tall content
     const scroll = new GUI.ScrollViewer('assessmentScroll');
     scroll.width = '100%';
-    scroll.height = '600px';
+    scroll.height = '420px';
     scroll.thickness = 0;
-    scroll.barSize = 8;
+    scroll.barSize = 6;
     scroll.barColor = '#FFD700';
     modal.addControl(scroll);
 
-    // Inner stack
+    // Inner stack — offset from left edge with explicit left margin
     const stack = new GUI.StackPanel('assessmentStack');
     stack.isVertical = true;
-    stack.spacing = 10;
-    stack.paddingTop = '24px';
-    stack.paddingBottom = '24px';
-    stack.paddingLeft = '36px';
-    stack.paddingRight = '28px';
-    stack.width = '100%';
+    stack.spacing = 6;
+    stack.width = '340px';
+    stack.left = '20px';
+    stack.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
     scroll.addControl(stack);
+
+    // Top margin spacer inside scroll area
+    this.addSpacer(stack, 14);
 
     // Phase indicator
     const phaseIndicator = new GUI.TextBlock('phaseIndicator');
     phaseIndicator.text = `Section ${config.phaseIndex + 1} of ${config.totalPhases}`;
-    phaseIndicator.fontSize = 13;
+    phaseIndicator.fontSize = 9;
     phaseIndicator.color = '#9ca3af';
-    phaseIndicator.height = '20px';
+    phaseIndicator.height = '14px';
     phaseIndicator.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     stack.addControl(phaseIndicator);
 
     // Phase name header
     const header = new GUI.TextBlock('phaseHeader');
     header.text = config.phaseName;
-    header.fontSize = 24;
+    header.fontSize = 16;
     header.fontWeight = 'bold';
     header.color = '#FFD700';
-    header.height = '36px';
+    header.height = '24px';
     header.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     stack.addControl(header);
 
     // Divider
     const divider = new GUI.Rectangle('divider');
     divider.width = '80%';
-    divider.height = '2px';
+    divider.height = '1px';
     divider.background = '#FFD700';
     divider.alpha = 0.3;
     divider.thickness = 0;
     stack.addControl(divider);
 
-    this.addSpacer(stack, 8);
+    this.addSpacer(stack, 4);
 
     // Build content based on phase type
     if (config.phaseType === 'reading') {
@@ -131,7 +136,7 @@ export class AssessmentModalUI {
       this.buildListeningContent(stack, config);
     }
 
-    this.addSpacer(stack, 12);
+    this.addSpacer(stack, 8);
 
     // Submit button
     const submitBtn = this.makeButton('submitBtn', 'Submit Answers', '#22c55e');
@@ -144,6 +149,9 @@ export class AssessmentModalUI {
       config.onSubmit(answers);
     });
     stack.addControl(submitBtn);
+
+    // Bottom margin spacer inside scroll area
+    this.addSpacer(stack, 14);
   }
 
   hide(): void {
@@ -173,14 +181,14 @@ export class AssessmentModalUI {
     // Instructions
     const instructions = new GUI.TextBlock('readInstructions');
     instructions.text = 'Read the passage below carefully, then answer the comprehension questions.';
-    instructions.fontSize = 14;
+    instructions.fontSize = 10;
     instructions.color = '#e5e7eb';
     instructions.textWrapping = true;
-    instructions.height = '40px';
+    instructions.height = '28px';
     instructions.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     stack.addControl(instructions);
 
-    this.addSpacer(stack, 8);
+    this.addSpacer(stack, 4);
 
     // Passage display
     if (config.passage) {
@@ -199,32 +207,31 @@ export class AssessmentModalUI {
     // Instructions
     const instructions = new GUI.TextBlock('writeInstructions');
     instructions.text = 'Respond to each writing prompt below in the target language. Write as much as you can.';
-    instructions.fontSize = 14;
+    instructions.fontSize = 10;
     instructions.color = '#e5e7eb';
     instructions.textWrapping = true;
-    instructions.height = '40px';
+    instructions.height = '28px';
     instructions.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     stack.addControl(instructions);
 
-    this.addSpacer(stack, 8);
+    this.addSpacer(stack, 4);
 
     // Writing prompts with text inputs
     if (config.writingPrompts) {
       for (let i = 0; i < config.writingPrompts.length; i++) {
         const promptLabel = new GUI.TextBlock(`promptLabel${i}`);
         promptLabel.text = `Prompt ${i + 1}: ${config.writingPrompts[i]}`;
-        promptLabel.fontSize = 14;
+        promptLabel.fontSize = 10;
         promptLabel.color = '#d1d5db';
         promptLabel.textWrapping = true;
-        promptLabel.height = '50px';
-        promptLabel.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+        promptLabel.resizeToFit = true;
+        promptLabel.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
         stack.addControl(promptLabel);
 
-        const input = this.createTextInput(`p${i + 1}`, 'Write your response here...');
-        input.height = '60px';
-        stack.addControl(input);
+        const textarea = this.createTextArea(`p${i + 1}`, 'Write your response here (2-5 sentences)...');
+        stack.addControl(textarea);
 
-        this.addSpacer(stack, 8);
+        this.addSpacer(stack, 4);
       }
     }
   }
@@ -233,29 +240,29 @@ export class AssessmentModalUI {
     // Instructions
     const instructions = new GUI.TextBlock('listenInstructions');
     instructions.text = 'Listen to the audio passage, then answer the comprehension questions below. You may replay the audio.';
-    instructions.fontSize = 14;
+    instructions.fontSize = 10;
     instructions.color = '#e5e7eb';
     instructions.textWrapping = true;
-    instructions.height = '50px';
+    instructions.height = '28px';
     instructions.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     stack.addControl(instructions);
 
-    this.addSpacer(stack, 8);
+    this.addSpacer(stack, 4);
 
     // Audio player controls
     const audioRow = new GUI.StackPanel('audioRow');
     audioRow.isVertical = false;
-    audioRow.height = '48px';
-    audioRow.spacing = 12;
+    audioRow.height = '32px';
+    audioRow.spacing = 8;
     audioRow.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     stack.addControl(audioRow);
 
-    const playBtn = this.makeButton('playBtn', '\u25B6  Play Audio', '#3b82f6');
-    playBtn.width = '160px';
-    const statusText = new GUI.TextBlock('audioStatus', 'Ready to play');
-    statusText.fontSize = 13;
+    const playBtn = this.makeButton('playBtn', '\u25B6  Play', '#3b82f6');
+    playBtn.width = '100px';
+    const statusText = new GUI.TextBlock('audioStatus', 'Ready');
+    statusText.fontSize = 9;
     statusText.color = '#9ca3af';
-    statusText.width = '160px';
+    statusText.width = '100px';
     statusText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
 
     playBtn.onPointerClickObservable.add(() => {
@@ -281,31 +288,33 @@ export class AssessmentModalUI {
   // ─── Shared UI Helpers ───────────────────────────────────────────────────
 
   private addPassageBlock(stack: GUI.StackPanel, passage: string): void {
-    const passageContainer = new GUI.Rectangle('passageContainer');
-    passageContainer.width = '100%';
-    passageContainer.adaptHeightToChildren = true;
-    passageContainer.paddingTop = '16px';
-    passageContainer.paddingBottom = '16px';
-    passageContainer.paddingLeft = '20px';
-    passageContainer.paddingRight = '20px';
-    passageContainer.background = 'rgba(255, 215, 0, 0.08)';
-    passageContainer.cornerRadius = 8;
-    passageContainer.thickness = 1;
-    passageContainer.color = 'rgba(255, 215, 0, 0.3)';
-    stack.addControl(passageContainer);
+    // Use a StackPanel as the passage container — it naturally auto-sizes to children,
+    // unlike Rectangle + adaptHeightToChildren which clips TextBlock content.
+    const passageStack = new GUI.StackPanel('passageStack');
+    passageStack.isVertical = true;
+    passageStack.width = '96%';
+    passageStack.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+    passageStack.background = 'rgba(255, 215, 0, 0.08)';
+    stack.addControl(passageStack);
+
+    // Top inset via spacer (StackPanel padding is external in Babylon.js GUI)
+    this.addSpacer(passageStack, 10);
 
     const passageText = new GUI.TextBlock('passageText');
     passageText.text = passage;
-    passageText.fontSize = 15;
+    passageText.fontSize = 10;
     passageText.color = '#f3f4f6';
     passageText.fontStyle = 'italic';
     passageText.textWrapping = true;
-    passageText.lineSpacing = '6px';
+    passageText.lineSpacing = '4px';
     passageText.resizeToFit = true;
-    passageText.paddingLeft = '4px';
-    passageText.paddingRight = '4px';
-    passageText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    passageContainer.addControl(passageText);
+    passageText.width = '90%';
+    passageText.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+    passageText.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+    passageStack.addControl(passageText);
+
+    // Bottom inset
+    this.addSpacer(passageStack, 10);
   }
 
   private addQuestionInputs(stack: GUI.StackPanel, questions: Array<{ id: string; questionText: string; maxPoints: number }>): void {
@@ -314,25 +323,42 @@ export class AssessmentModalUI {
 
       const qLabel = new GUI.TextBlock(`qLabel${i}`);
       qLabel.text = `Q${i + 1}: ${q.questionText}`;
-      qLabel.fontSize = 14;
+      qLabel.fontSize = 10;
       qLabel.color = '#d1d5db';
       qLabel.textWrapping = true;
-      qLabel.height = '40px';
-      qLabel.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+      qLabel.resizeToFit = true;
+      qLabel.width = '96%';
+      qLabel.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+      qLabel.textHorizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
       stack.addControl(qLabel);
 
       const input = this.createTextInput(q.id, 'Type your answer here...');
       stack.addControl(input);
 
-      this.addSpacer(stack, 6);
+      this.addSpacer(stack, 4);
     }
+  }
+
+  private createTextArea(id: string, placeholder: string): GUI.InputTextArea {
+    const area = new GUI.InputTextArea(`textarea_${id}`, '');
+    area.width = '100%';
+    area.height = '100px';
+    area.fontSize = 10;
+    area.color = 'white';
+    area.background = 'rgba(255, 255, 255, 0.08)';
+    area.focusedBackground = 'rgba(255, 255, 255, 0.12)';
+    area.thickness = 1;
+    area.placeholderText = placeholder;
+    area.placeholderColor = '#6b7280';
+    this.inputs.set(id, area);
+    return area;
   }
 
   private createTextInput(id: string, placeholder: string): GUI.InputText {
     const input = new GUI.InputText(`input_${id}`, '');
     input.width = '100%';
-    input.height = '36px';
-    input.fontSize = 14;
+    input.height = '26px';
+    input.fontSize = 10;
     input.color = 'white';
     input.background = 'rgba(255, 255, 255, 0.08)';
     input.focusedBackground = 'rgba(255, 255, 255, 0.12)';
@@ -345,16 +371,16 @@ export class AssessmentModalUI {
 
   private makeButton(name: string, label: string, color: string): GUI.Rectangle {
     const btn = new GUI.Rectangle(name);
-    btn.width = '200px';
-    btn.height = '44px';
+    btn.width = '140px';
+    btn.height = '30px';
     btn.background = color;
-    btn.cornerRadius = 8;
+    btn.cornerRadius = 6;
     btn.thickness = 0;
     btn.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
     btn.isPointerBlocker = true;
 
     const text = new GUI.TextBlock(`${name}Text`, label);
-    text.fontSize = 16;
+    text.fontSize = 11;
     text.fontWeight = 'bold';
     text.color = 'white';
     btn.addControl(text);

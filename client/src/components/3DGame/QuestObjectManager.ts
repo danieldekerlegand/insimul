@@ -183,6 +183,8 @@ export class QuestObjectManager {
   private onObjectiveCompleted?: (questId: string, objectiveId: string) => void;
   private onStoryTTS?: (text: string, npcId?: string) => void;
   private onIdentificationPrompt?: (prompt: IdentificationPrompt) => void;
+  /** Check whether a world-space XZ point falls inside a building footprint. */
+  private isPointInBuilding?: (x: number, z: number) => boolean;
 
   constructor(scene: Scene, eventBus?: GameEventBus) {
     this.scene = scene;
@@ -1145,14 +1147,16 @@ export class QuestObjectManager {
     const radius = 30; // Spawn within 30 units of origin
 
     for (let i = 0; i < count; i++) {
-      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
-      const distance = 10 + Math.random() * radius;
-
-      positions.push(new Vector3(
-        Math.cos(angle) * distance,
-        0.5, // Slightly above ground
-        Math.sin(angle) * distance
-      ));
+      // Try up to 8 times to find a position outside buildings
+      let x = 0, z = 0;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+        const distance = 10 + Math.random() * radius;
+        x = Math.cos(angle) * distance;
+        z = Math.sin(angle) * distance;
+        if (!this.isPointInBuilding?.(x, z)) break;
+      }
+      positions.push(new Vector3(x, 0.5, z));
     }
 
     return positions;
@@ -1162,14 +1166,19 @@ export class QuestObjectManager {
    * Generate a location position
    */
   private generateLocationPosition(): Vector3 {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 20 + Math.random() * 20;
+      const x = Math.cos(angle) * distance;
+      const z = Math.sin(angle) * distance;
+      if (!this.isPointInBuilding?.(x, z)) {
+        return new Vector3(x, 0, z);
+      }
+    }
+    // Fallback
     const angle = Math.random() * Math.PI * 2;
-    const distance = 20 + Math.random() * 20;
-
-    return new Vector3(
-      Math.cos(angle) * distance,
-      0,
-      Math.sin(angle) * distance
-    );
+    const distance = 40 + Math.random() * 10;
+    return new Vector3(Math.cos(angle) * distance, 0, Math.sin(angle) * distance);
   }
 
   /**
@@ -1447,6 +1456,11 @@ export class QuestObjectManager {
    */
   public setOnStoryTTS(callback: (text: string, npcId?: string) => void) {
     this.onStoryTTS = callback;
+  }
+
+  /** Register a building-check callback so spawned items avoid building interiors. */
+  public setPointInBuildingCheck(check: (x: number, z: number) => boolean) {
+    this.isPointInBuilding = check;
   }
 
   /**

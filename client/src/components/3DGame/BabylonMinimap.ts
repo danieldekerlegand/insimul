@@ -20,13 +20,15 @@ export class BabylonMinimap {
   private advancedTexture: GUI.AdvancedDynamicTexture;
   private container: GUI.Rectangle | null = null;
   private mapContainer: GUI.Rectangle | null = null;
+  private titleBlock: GUI.TextBlock | null = null;
   private isVisible: boolean = false;
+  private _expanded: boolean = true;
 
   private markers: Map<string, MinimapMarker> = new Map();
   private markerElements: Map<string, GUI.Ellipse> = new Map();
 
   // Minimap configuration
-  private mapSize: number = 100; // Size in pixels
+  private mapSize: number = 50; // Size in pixels
   private worldSize: number = 1024; // World size in game units
   private mapScale: number = 1; // Pixels per game unit
 
@@ -43,32 +45,50 @@ export class BabylonMinimap {
    * Create the minimap UI
    */
   private createMinimap(): void {
+    const containerW = this.mapSize + 14;
+
     // Main container (background)
     this.container = new GUI.Rectangle('minimapContainer');
-    this.container.width = `${this.mapSize + 20}px`;
-    this.container.height = `${this.mapSize + 50}px`;
-    this.container.cornerRadius = 10;
-    this.container.color = 'white';
-    this.container.thickness = 2;
+    this.container.width = `${containerW}px`;
+    this.container.height = `${this.mapSize + 20}px`;
+    this.container.cornerRadius = 6;
+    this.container.color = 'rgba(255, 255, 255, 0.6)';
+    this.container.thickness = 1;
     this.container.background = 'rgba(0, 0, 0, 0.7)';
+    this.container.isPointerBlocker = true;
     this.advancedTexture.addControl(this.container);
 
     // Position in top-right corner
     this.container.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
     this.container.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    this.container.left = '-20px';
-    this.container.top = '20px';
+    this.container.left = '-8px';
+    this.container.top = '8px';
 
-    // Title
+    // Title — click to collapse/expand
     const title = new GUI.TextBlock('minimapTitle');
-    title.text = 'Map';
-    title.height = '30px';
-    title.fontSize = 14;
+    title.text = '▼ Map';
+    title.height = '16px';
+    title.fontSize = 9;
     title.fontWeight = 'bold';
     title.color = 'white';
     title.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    title.top = '5px';
+    title.top = '2px';
     this.container.addControl(title);
+    this.titleBlock = title;
+
+    // Click container to toggle collapse
+    this.container.onPointerClickObservable.add(() => {
+      this._expanded = !this._expanded;
+      if (this._expanded) {
+        this.container!.height = `${this.mapSize + 20}px`;
+        if (this.mapContainer) this.mapContainer.isVisible = true;
+        title.text = '▼ Map';
+      } else {
+        this.container!.height = '20px';
+        if (this.mapContainer) this.mapContainer.isVisible = false;
+        title.text = '▶ Map';
+      }
+    });
 
     // Map container (the actual map area)
     this.mapContainer = new GUI.Rectangle('minimapMap');
@@ -78,11 +98,21 @@ export class BabylonMinimap {
     this.mapContainer.color = 'rgba(100, 100, 100, 0.5)';
     this.mapContainer.background = 'rgba(20, 20, 20, 0.8)';
     this.mapContainer.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
-    this.mapContainer.top = '35px';
+    this.mapContainer.top = '18px';
     this.container.addControl(this.mapContainer);
 
     // Initially hidden
     this.container.isVisible = false;
+  }
+
+  /** Total width of the minimap container in pixels. */
+  public get containerWidth(): number {
+    return this.mapSize + 14;
+  }
+
+  /** Total height of the minimap container in pixels. */
+  public get containerHeight(): number {
+    return this._expanded ? this.mapSize + 20 : 20;
   }
 
   /**
@@ -130,10 +160,10 @@ export class BabylonMinimap {
       const markerElement = new GUI.Ellipse(`minimap_marker_${marker.id}`);
 
       // Size based on type
-      const size = marker.type === 'player' ? 8 :
-                   marker.type === 'settlement' ? 12 :
-                   marker.type === 'quest' ? 10 :
-                   marker.type === 'building' ? 4 : 6;
+      const size = marker.type === 'player' ? 6 :
+                   marker.type === 'settlement' ? 8 :
+                   marker.type === 'quest' ? 7 :
+                   marker.type === 'building' ? 3 : 4;
 
       markerElement.width = `${size}px`;
       markerElement.height = `${size}px`;

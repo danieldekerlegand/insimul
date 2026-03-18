@@ -40,6 +40,7 @@ export class AssessmentProgressUI {
   private _isVisible = false;
   private _timeRemaining = 0;
   private _statusMode = false;
+  private _onClick: (() => void) | null = null;
 
   constructor(advancedTexture: AdvancedDynamicTexture) {
     this.advancedTexture = advancedTexture;
@@ -95,7 +96,7 @@ export class AssessmentProgressUI {
     if (this.timerText) {
       this.timerText.text = text;
       this.timerText.color = '#22c55e';
-      this.timerText.fontSize = 13;
+      this.timerText.fontSize = 11;
     }
   }
 
@@ -117,8 +118,14 @@ export class AssessmentProgressUI {
     return this._timeRemaining;
   }
 
+  /** Register a callback for when the panel is clicked. */
+  public onClicked(cb: () => void): void {
+    this._onClick = cb;
+  }
+
   public dispose(): void {
     this.stopTimer();
+    this._onClick = null;
     if (this.panel) {
       this.panel.dispose();
       this.panel = null;
@@ -133,39 +140,49 @@ export class AssessmentProgressUI {
   // ---------------------------------------------------------------------------
 
   private buildUI(): void {
-    // Main compact panel — top-right, below quest tracker area
+    // Main compact panel — bottom-left corner
     const panel = new Rectangle('assessmentProgressPanel');
-    panel.width = '280px';
-    panel.height = '90px';
+    panel.width = '186px';
+    panel.height = '68px';
     panel.background = 'rgba(0, 0, 0, 0.85)';
     panel.color = '#FFD700';
-    panel.thickness = 2;
-    panel.cornerRadius = 10;
-    panel.top = '470px';
-    panel.left = '-10px';
-    panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    panel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    panel.thickness = 1;
+    panel.cornerRadius = 6;
+    panel.top = '-8px';
+    panel.left = '8px';
+    panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    panel.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
     panel.isVisible = false;
     panel.zIndex = 50;
+    panel.isPointerBlocker = true;
+    panel.onPointerClickObservable.add(() => {
+      this._onClick?.();
+    });
+    panel.onPointerEnterObservable.add(() => {
+      panel.alpha = 0.85;
+    });
+    panel.onPointerOutObservable.add(() => {
+      panel.alpha = 1.0;
+    });
     this.advancedTexture.addControl(panel);
     this.panel = panel;
 
     // Inner stack
     const stack = new StackPanel('assessmentStack');
     stack.isVertical = true;
-    stack.spacing = 6;
-    stack.paddingTop = '10px';
-    stack.paddingBottom = '10px';
-    stack.paddingLeft = '14px';
-    stack.paddingRight = '14px';
+    stack.spacing = 3;
+    stack.paddingTop = '6px';
+    stack.paddingBottom = '6px';
+    stack.paddingLeft = '8px';
+    stack.paddingRight = '8px';
     panel.addControl(stack);
 
     // Row 1: Phase label
     const label = new TextBlock('assessmentPhaseLabel', 'Assessment');
-    label.fontSize = 13;
+    label.fontSize = 11;
     label.fontWeight = 'bold';
     label.color = '#FFD700';
-    label.height = '18px';
+    label.height = '16px';
     label.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     stack.addControl(label);
     this.phaseLabel = label;
@@ -173,17 +190,17 @@ export class AssessmentProgressUI {
     // Row 2: Phase dots
     const dotRow = new StackPanel('assessmentDotRow');
     dotRow.isVertical = false;
-    dotRow.height = '24px';
+    dotRow.height = '18px';
     dotRow.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    dotRow.spacing = 12;
+    dotRow.spacing = 8;
     stack.addControl(dotRow);
 
     for (let i = 0; i < TOTAL_PHASES; i++) {
       const dot = new Ellipse(`assessmentDot_${i}`);
-      dot.width = '14px';
-      dot.height = '14px';
+      dot.width = '10px';
+      dot.height = '10px';
       dot.color = '#FFD700';
-      dot.thickness = 2;
+      dot.thickness = 1;
       dot.background = 'transparent';
       dotRow.addControl(dot);
       this.phaseDots.push(dot);
@@ -191,10 +208,10 @@ export class AssessmentProgressUI {
 
     // Row 3: Timer / Status
     const timer = new TextBlock('assessmentTimer', '--:--');
-    timer.fontSize = 16;
+    timer.fontSize = 12;
     timer.fontWeight = 'bold';
     timer.color = 'white';
-    timer.height = '22px';
+    timer.height = '18px';
     timer.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     stack.addControl(timer);
     this.timerText = timer;
@@ -258,7 +275,7 @@ export class AssessmentProgressUI {
     const min = Math.floor(secs / 60);
     const sec = secs % 60;
     this.timerText.text = `${min}:${sec.toString().padStart(2, '0')}`;
-    this.timerText.fontSize = 16;
+    this.timerText.fontSize = 12;
 
     if (secs <= RED_THRESHOLD) {
       this.timerText.color = '#ef4444';

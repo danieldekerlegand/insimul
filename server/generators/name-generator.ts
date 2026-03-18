@@ -94,6 +94,33 @@ export class NameGenerator {
   }
 
   /**
+   * Generate a gender-appropriate name using Tracery grammar.
+   * Temporarily overrides the origin rule to only use patterns
+   * containing the correct gendered first-name symbol.
+   */
+  private generateFromGrammarWithGender(grammar: any, gender: 'male' | 'female'): string {
+    if (!grammar?.grammar?.origin) return '';
+
+    // Clone the grammar so we don't mutate the original
+    const raw = { ...grammar.grammar };
+    const originRules: string[] = Array.isArray(raw.origin) ? raw.origin : [raw.origin];
+
+    // Filter origin patterns to only those containing the correct gender symbol.
+    // Common grammar keys: maleFirst, femaleFirst, maleFirstName, femaleFirstName
+    const genderToken = gender === 'male' ? 'male' : 'female';
+    const genderedRules = originRules.filter((rule: string) =>
+      rule.toLowerCase().includes(`#${genderToken}`)
+    );
+
+    if (genderedRules.length > 0) {
+      raw.origin = genderedRules;
+    }
+    // If no gendered rules found, fall through to original rules
+
+    return this.generateFromGrammar({ ...grammar, grammar: raw });
+  }
+
+  /**
    * Generate a name using Tracery grammar
    */
   private generateFromGrammar(grammar: any): string {
@@ -600,7 +627,10 @@ export class NameGenerator {
         if (characterGrammar) {
           const names: Array<{firstName: string, lastName: string}> = [];
           for (let i = 0; i < count; i++) {
-            const fullName = this.generateFromGrammar(characterGrammar);
+            // Use gender-aware generation to ensure names match the requested gender
+            const fullName = context.gender
+              ? this.generateFromGrammarWithGender(characterGrammar, context.gender as 'male' | 'female')
+              : this.generateFromGrammar(characterGrammar);
             if (fullName) {
               const parts = fullName.trim().split(/\s+/);
               if (parts.length >= 2) {
@@ -611,7 +641,7 @@ export class NameGenerator {
             }
           }
           if (names.length >= count) {
-            console.log(`   👤 Generated ${names.length} character names from grammar`);
+            console.log(`   👤 Generated ${names.length} character names from grammar (gender: ${context.gender || 'any'})`);
             return names.slice(0, count);
           }
         }
@@ -842,9 +872,9 @@ export class NameGenerator {
       const settlement = request.settlements[settlementIdx];
 
       for (let f = 0; f < settlement.numFamilies; f++) {
-        // Generate father and mother names
-        const fatherName = this.generateFromGrammar(characterGrammar);
-        const motherName = this.generateFromGrammar(characterGrammar);
+        // Generate gender-appropriate father and mother names
+        const fatherName = this.generateFromGrammarWithGender(characterGrammar, 'male');
+        const motherName = this.generateFromGrammarWithGender(characterGrammar, 'female');
         const motherMaidenSurname = this.generateFromGrammar(characterGrammar).split(' ').pop() || 'Unknown';
 
         // Parse names
@@ -855,11 +885,11 @@ export class NameGenerator {
         const surname = fatherParts.slice(1).join(' ') || 'Smith';
         const motherFirstName = motherParts[0] || 'Unknown';
 
-        // Generate children
+        // Generate children with gender-appropriate names
         const children = [];
         for (let c = 0; c < settlement.childrenPerFamily; c++) {
           const gender = Math.random() > 0.5 ? 'male' : 'female';
-          const childFullName = this.generateFromGrammar(characterGrammar);
+          const childFullName = this.generateFromGrammarWithGender(characterGrammar, gender as 'male' | 'female');
           const childFirstName = childFullName.split(/\s+/)[0] || 'Child';
           children.push({ firstName: childFirstName, gender });
         }

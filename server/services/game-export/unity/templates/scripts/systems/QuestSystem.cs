@@ -221,8 +221,60 @@ namespace Insimul.Systems
             }
         }
 
+        /// <summary>
+        /// Register a building-check callback so spawned items avoid building interiors.
+        /// The callback receives world-space (x, z) and returns true if inside a building.
+        /// </summary>
+        public void SetPointInBuildingCheck(Func<float, float, bool> check)
+        {
+            _pointInBuildingCheck = check;
+        }
+
+        /// <summary>Generate spread-out item positions that avoid building interiors.</summary>
+        public List<Vector3> GenerateItemPositions(int count)
+        {
+            var positions = new List<Vector3>();
+            float radius = 30f;
+
+            for (int i = 0; i < count; i++)
+            {
+                float x = 0f, z = 0f;
+                for (int attempt = 0; attempt < 8; attempt++)
+                {
+                    float angle = (Mathf.PI * 2f * i) / count + UnityEngine.Random.Range(0f, 0.5f);
+                    float dist = 10f + UnityEngine.Random.Range(0f, radius);
+                    x = Mathf.Cos(angle) * dist;
+                    z = Mathf.Sin(angle) * dist;
+                    if (_pointInBuildingCheck == null || !_pointInBuildingCheck(x, z))
+                        break;
+                }
+                positions.Add(new Vector3(x, 0.5f, z));
+            }
+            return positions;
+        }
+
+        /// <summary>Generate a single location position that avoids building interiors.</summary>
+        public Vector3 GenerateLocationPosition()
+        {
+            for (int attempt = 0; attempt < 8; attempt++)
+            {
+                float angle = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
+                float dist = 20f + UnityEngine.Random.Range(0f, 20f);
+                float x = Mathf.Cos(angle) * dist;
+                float z = Mathf.Sin(angle) * dist;
+                if (_pointInBuildingCheck == null || !_pointInBuildingCheck(x, z))
+                    return new Vector3(x, 0f, z);
+            }
+            // Fallback — push farther out
+            float fallbackAngle = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
+            float fallbackDist = 40f + UnityEngine.Random.Range(0f, 10f);
+            return new Vector3(Mathf.Cos(fallbackAngle) * fallbackDist, 0f, Mathf.Sin(fallbackAngle) * fallbackDist);
+        }
+
         public InsimulQuestData GetQuest(string id) => _allQuests.Find(q => q.id == id);
         public List<InsimulQuestData> GetActiveQuests() =>
             _allQuests.FindAll(q => _activeQuestIds.Contains(q.id));
+
+        private Func<float, float, bool> _pointInBuildingCheck;
     }
 }

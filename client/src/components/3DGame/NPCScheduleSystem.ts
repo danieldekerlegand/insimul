@@ -1,12 +1,21 @@
 /**
  * NPCScheduleSystem — Gives NPCs goal-directed behavior using street networks.
  *
- * NPCs follow a simple daily schedule:
- *   - Morning: go to work (business they own/work at)
- *   - Midday: visit a random business (shop, eat)
- *   - Afternoon: return to work
- *   - Evening: go home (residence)
- *   - Night: stay home (idle)
+ * NPCs follow a personality-driven daily schedule:
+ *
+ * Employed NPCs:
+ *   - Morning (6-9): Leave home, go to work
+ *   - Work hours (9-12): At work
+ *   - Lunch break (12-13): Visit a random business for lunch
+ *   - Afternoon work (13-17): Back to work
+ *   - Evening social (17-20): Extroverts visit friends/businesses; introverts go home
+ *   - Night (20-6): Go home, stay inside
+ *
+ * Unemployed NPCs:
+ *   - Morning: Wander or visit shops
+ *   - Midday: Visit a random business
+ *   - Afternoon: Visit friend or wander
+ *   - Evening: Go home
  *
  * Movement follows the street network sidewalks rather than random wandering.
  * NPCs "enter" buildings by walking to the door and becoming invisible,
@@ -17,7 +26,7 @@ import { Vector3 } from '@babylonjs/core';
 import type { StreetNetwork } from '../../../../shared/game-engine/types';
 
 export interface NPCGoal {
-  type: 'go_to_building' | 'wander_sidewalk' | 'idle_at_building';
+  type: 'go_to_building' | 'wander_sidewalk' | 'idle_at_building' | 'visit_friend';
   buildingId?: string;
   targetPosition?: Vector3;
   doorPosition?: Vector3;
@@ -37,6 +46,10 @@ export interface NPCScheduleEntry {
   /** Associated building IDs */
   workBuildingId?: string;
   homeBuildingId?: string;
+  /** Residences of friends/family this NPC can visit */
+  friendBuildingIds?: string[];
+  /** Personality modifiers that influence schedule choices */
+  personality?: { extroversion?: number; conscientiousness?: number };
 }
 
 interface BuildingInfo {
@@ -96,12 +109,15 @@ export class NPCScheduleSystem {
   }
 
   /**
-   * Register an NPC with their work and home building associations.
+   * Register an NPC with their work and home building associations,
+   * optional friend residences, and personality modifiers.
    */
   public registerNPC(
     npcId: string,
     workBuildingId?: string,
-    homeBuildingId?: string
+    homeBuildingId?: string,
+    friendBuildingIds?: string[],
+    personality?: { extroversion?: number; conscientiousness?: number }
   ): void {
     this.schedules.set(npcId, {
       npcId,
@@ -111,6 +127,8 @@ export class NPCScheduleSystem {
       isInsideBuilding: false,
       workBuildingId,
       homeBuildingId,
+      friendBuildingIds,
+      personality,
     });
   }
 
@@ -284,8 +302,67 @@ export class NPCScheduleSystem {
   }
 
   /**
-   * Determine what goal an NPC should pursue based on a simple time-of-day schedule.
+   * Helper: create a go_to_building goal for a known building.
+   */
+  private makeBuildingGoal(buildingId: string, now: number, duration: number): NPCGoal {
+    const bld = this.buildings.get(buildingId)!;
+    return {
+      type: 'go_to_building',
+      buildingId,
+      targetPosition: bld.position.clone(),
+      doorPosition: bld.doorPosition.clone(),
+      expiresAt: now + duration,
+    };
+  }
+
+  /**
+   * Helper: create a visit_friend goal for a friend's residence.
+   */
+  private makeFriendVisitGoal(buildingId: string, now: number, duration: number): NPCGoal {
+    const bld = this.buildings.get(buildingId)!;
+    return {
+      type: 'visit_friend',
+      buildingId,
+      targetPosition: bld.position.clone(),
+      doorPosition: bld.doorPosition.clone(),
+      expiresAt: now + duration,
+    };
+  }
+
+  /**
+   * Helper: pick a random business building ID (excluding a given ID).
+   */
+  private pickRandomBusiness(excludeId?: string): string | null {
+    const shops = Array.from(this.buildings.entries())
+      .filter(([id, b]) => b.buildingType === 'business' && id !== excludeId)
+      .map(([id]) => id);
+    if (shops.length === 0) return null;
+    return shops[Math.floor(Math.random() * shops.length)];
+  }
+
+  /**
+   * Helper: pick a random valid friend building from the entry's friendBuildingIds.
+   */
+  private pickRandomFriend(entry: NPCScheduleEntry): string | null {
+    const friends = (entry.friendBuildingIds ?? []).filter(id => this.buildings.has(id));
+    if (friends.length === 0) return null;
+    return friends[Math.floor(Math.random() * friends.length)];
+  }
+
+  /**
+   * Helper: random integer in [min, max] inclusive.
+   */
+  private randRange(min: number, max: number): number {
+    return min + Math.floor(Math.random() * (max - min + 1));
+  }
+
+  /**
+   * Determine what goal an NPC should pursue based on time-of-day and personality.
    * Uses a simulated 24-hour day cycle (1 real minute = 1 game hour).
+   *
+   * Employed NPCs follow a structured work schedule with lunch breaks and
+   * personality-driven evening behavior. Unemployed NPCs have a more relaxed
+   * routine of wandering, shopping, and socializing.
    */
   public pickNextGoal(npcId: string, now: number): NPCGoal | null {
     const entry = this.schedules.get(npcId);
@@ -293,68 +370,101 @@ export class NPCScheduleSystem {
 
     // Simulated hour: cycle through 24 hours every 24 minutes
     const gameHour = ((now / 60000) % 24);
+    const extroversion = entry.personality?.extroversion ?? 0.5;
+    const hasJob = !!(entry.workBuildingId && this.buildings.has(entry.workBuildingId));
 
-    const allBuildingIds = Array.from(this.buildings.keys());
-
-    if (gameHour >= 6 && gameHour < 12) {
-      // Morning: go to work
-      if (entry.workBuildingId && this.buildings.has(entry.workBuildingId)) {
-        const bld = this.buildings.get(entry.workBuildingId)!;
-        return {
-          type: 'go_to_building',
-          buildingId: entry.workBuildingId,
-          targetPosition: bld.position.clone(),
-          doorPosition: bld.doorPosition.clone(),
-          expiresAt: now + 120000, // Stay 2 minutes
-        };
-      }
-    } else if (gameHour >= 12 && gameHour < 14) {
-      // Midday: visit a random business
-      const shops = allBuildingIds.filter(id => {
-        const b = this.buildings.get(id)!;
-        return b.buildingType === 'business' && id !== entry.workBuildingId;
-      });
-      if (shops.length > 0) {
-        const shopId = shops[Math.floor(Math.random() * shops.length)];
-        const bld = this.buildings.get(shopId)!;
-        return {
-          type: 'go_to_building',
-          buildingId: shopId,
-          targetPosition: bld.position.clone(),
-          doorPosition: bld.doorPosition.clone(),
-          expiresAt: now + 60000, // Stay 1 minute
-        };
-      }
-    } else if (gameHour >= 14 && gameHour < 18) {
-      // Afternoon: back to work
-      if (entry.workBuildingId && this.buildings.has(entry.workBuildingId)) {
-        const bld = this.buildings.get(entry.workBuildingId)!;
-        return {
-          type: 'go_to_building',
-          buildingId: entry.workBuildingId,
-          targetPosition: bld.position.clone(),
-          doorPosition: bld.doorPosition.clone(),
-          expiresAt: now + 120000,
-        };
-      }
-    } else if (gameHour >= 18 || gameHour < 6) {
-      // Evening/night: go home
+    // --- Night (20-6): Everyone goes home ---
+    if (gameHour >= 20 || gameHour < 6) {
       if (entry.homeBuildingId && this.buildings.has(entry.homeBuildingId)) {
-        const bld = this.buildings.get(entry.homeBuildingId)!;
-        return {
-          type: 'go_to_building',
-          buildingId: entry.homeBuildingId,
-          targetPosition: bld.position.clone(),
-          doorPosition: bld.doorPosition.clone(),
-          expiresAt: now + 180000,
-        };
+        const duration = this.randRange(180000, 300000); // 3-5 minutes
+        return this.makeBuildingGoal(entry.homeBuildingId, now, duration);
+      }
+      return { type: 'idle_at_building', expiresAt: now + 180000 };
+    }
+
+    // --- Employed NPC schedule ---
+    if (hasJob) {
+      if (gameHour >= 6 && gameHour < 9) {
+        // Morning: leave home, go to work
+        const duration = this.randRange(180000, 300000); // 3-5 minutes
+        return this.makeBuildingGoal(entry.workBuildingId!, now, duration);
+      } else if (gameHour >= 9 && gameHour < 12) {
+        // Work hours: at work
+        const duration = this.randRange(180000, 300000); // 3-5 minutes
+        return this.makeBuildingGoal(entry.workBuildingId!, now, duration);
+      } else if (gameHour >= 12 && gameHour < 13) {
+        // Lunch break: visit a random business
+        const shopId = this.pickRandomBusiness(entry.workBuildingId);
+        if (shopId) {
+          const duration = this.randRange(60000, 120000); // 1-2 minutes
+          return this.makeBuildingGoal(shopId, now, duration);
+        }
+        // No shops available, wander
+        return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
+      } else if (gameHour >= 13 && gameHour < 17) {
+        // Afternoon work: back to work
+        const duration = this.randRange(180000, 300000); // 3-5 minutes
+        return this.makeBuildingGoal(entry.workBuildingId!, now, duration);
+      } else if (gameHour >= 17 && gameHour < 20) {
+        // Evening social: personality-driven
+        if (extroversion > 0.5) {
+          // Extroverted: visit friend's home or a business
+          const friendId = this.pickRandomFriend(entry);
+          if (friendId && Math.random() < 0.6) {
+            const duration = this.randRange(120000, 180000); // 2-3 minutes
+            return this.makeFriendVisitGoal(friendId, now, duration);
+          }
+          const shopId = this.pickRandomBusiness(entry.workBuildingId);
+          if (shopId) {
+            const duration = this.randRange(60000, 120000); // 1-2 minutes
+            return this.makeBuildingGoal(shopId, now, duration);
+          }
+        }
+        // Introverted or no social options: go home
+        if (entry.homeBuildingId && this.buildings.has(entry.homeBuildingId)) {
+          const duration = this.randRange(180000, 300000); // 3-5 minutes
+          return this.makeBuildingGoal(entry.homeBuildingId, now, duration);
+        }
+      }
+    } else {
+      // --- Unemployed NPC schedule ---
+      if (gameHour >= 6 && gameHour < 12) {
+        // Morning: wander or visit shops
+        const shopId = this.pickRandomBusiness();
+        if (shopId && Math.random() < 0.5) {
+          const duration = this.randRange(60000, 120000); // 1-2 minutes
+          return this.makeBuildingGoal(shopId, now, duration);
+        }
+        return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
+      } else if (gameHour >= 12 && gameHour < 14) {
+        // Midday: visit a random business
+        const shopId = this.pickRandomBusiness();
+        if (shopId) {
+          const duration = this.randRange(60000, 120000); // 1-2 minutes
+          return this.makeBuildingGoal(shopId, now, duration);
+        }
+        return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
+      } else if (gameHour >= 14 && gameHour < 17) {
+        // Afternoon: visit friend or wander
+        const friendId = this.pickRandomFriend(entry);
+        if (friendId && Math.random() < 0.5) {
+          const duration = this.randRange(120000, 180000); // 2-3 minutes
+          return this.makeFriendVisitGoal(friendId, now, duration);
+        }
+        return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
+      } else if (gameHour >= 17 && gameHour < 20) {
+        // Evening: go home
+        if (entry.homeBuildingId && this.buildings.has(entry.homeBuildingId)) {
+          const duration = this.randRange(180000, 300000); // 3-5 minutes
+          return this.makeBuildingGoal(entry.homeBuildingId, now, duration);
+        }
       }
     }
 
     // Fallback: wander along sidewalk
     return {
       type: 'wander_sidewalk',
-      expiresAt: now + 30000, // Wander for 30 seconds
+      expiresAt: now + this.randRange(30000, 60000),
     };
   }
 
@@ -386,5 +496,47 @@ export class NPCScheduleSystem {
    */
   public getBuildingDoor(buildingId: string): Vector3 | null {
     return this.buildings.get(buildingId)?.doorPosition.clone() ?? null;
+  }
+
+  /**
+   * Returns a human-readable description of an NPC's current schedule state.
+   */
+  public getItinerary(npcId: string): string {
+    const entry = this.schedules.get(npcId);
+    if (!entry) return `NPC ${npcId}: not registered`;
+
+    const parts: string[] = [];
+
+    if (entry.workBuildingId) {
+      parts.push(`Work: ${entry.workBuildingId}`);
+    }
+    if (entry.homeBuildingId) {
+      parts.push(`Home: ${entry.homeBuildingId}`);
+    }
+    if (entry.friendBuildingIds && entry.friendBuildingIds.length > 0) {
+      parts.push(`Friends: ${entry.friendBuildingIds.join(', ')}`);
+    }
+
+    if (entry.currentGoal) {
+      const goal = entry.currentGoal;
+      let goalDesc: string = goal.type;
+      if (goal.buildingId) {
+        // Annotate with context
+        let context = '';
+        if (goal.buildingId === entry.workBuildingId) context = ' (work)';
+        else if (goal.buildingId === entry.homeBuildingId) context = ' (home)';
+        else if (goal.type === 'visit_friend') context = ' (friend)';
+        goalDesc = `${goal.type}${context}`;
+      }
+      parts.push(`Current: ${goalDesc}`);
+    } else {
+      parts.push('Current: none');
+    }
+
+    if (entry.isInsideBuilding && entry.insideBuildingId) {
+      parts.push(`Inside: ${entry.insideBuildingId}`);
+    }
+
+    return parts.join(' | ');
   }
 }

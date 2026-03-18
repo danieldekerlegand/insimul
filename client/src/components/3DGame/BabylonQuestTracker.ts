@@ -366,17 +366,18 @@ export class BabylonQuestTracker {
   private createQuestUI() {
     // Main container
     this.questPanel = new Rectangle("questPanel");
-    this.questPanel.width = "380px";
-    this.questPanel.height = "500px";
+    this.questPanel.width = "209px";
+    this.questPanel.height = "275px";
     this.questPanel.background = "rgba(0, 0, 0, 0.9)";
     this.questPanel.color = "#FFD700";
     this.questPanel.thickness = 2;
-    this.questPanel.cornerRadius = 10;
-    this.questPanel.top = "10px";
+    this.questPanel.cornerRadius = 6;
+    this.questPanel.top = "6px";
     this.questPanel.left = "-10px";
     this.questPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     this.questPanel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     this.questPanel.isVisible = false;
+    this.questPanel.zIndex = 50;
 
     const mainStack = new StackPanel();
     mainStack.width = "100%";
@@ -386,7 +387,7 @@ export class BabylonQuestTracker {
     // Header
     const header = new Rectangle("questHeader");
     header.width = "100%";
-    header.height = "50px";
+    header.height = "28px";
     header.background = "rgba(30, 30, 30, 0.95)";
     header.thickness = 0;
     mainStack.addControl(header);
@@ -400,21 +401,21 @@ export class BabylonQuestTracker {
     const titleText = new TextBlock();
     titleText.text = "Quest Log";
     titleText.color = "#FFD700";
-    titleText.fontSize = 18;
+    titleText.fontSize = 10;
     titleText.fontWeight = "bold";
-    titleText.paddingLeft = "15px";
+    titleText.paddingLeft = "8px";
     titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    titleText.width = "220px";
+    titleText.width = "121px";
     headerStack.addControl(titleText);
 
     // Minimize button
     const minimizeBtn = Button.CreateSimpleButton("minimizeQuest", "\u2212");
-    minimizeBtn.width = "35px";
-    minimizeBtn.height = "35px";
+    minimizeBtn.width = "19px";
+    minimizeBtn.height = "19px";
     minimizeBtn.color = "white";
     minimizeBtn.background = "rgba(100, 100, 100, 0.8)";
-    minimizeBtn.cornerRadius = 5;
-    minimizeBtn.fontSize = 22;
+    minimizeBtn.cornerRadius = 3;
+    minimizeBtn.fontSize = 12;
     minimizeBtn.onPointerClickObservable.add(() => {
       this.toggleMinimize();
     });
@@ -422,13 +423,13 @@ export class BabylonQuestTracker {
 
     // Close button
     const closeBtn = Button.CreateSimpleButton("closeQuest", "\u2715");
-    closeBtn.width = "35px";
-    closeBtn.height = "35px";
+    closeBtn.width = "19px";
+    closeBtn.height = "19px";
     closeBtn.color = "white";
     closeBtn.background = "rgba(255, 50, 50, 0.8)";
-    closeBtn.cornerRadius = 5;
-    closeBtn.fontSize = 18;
-    closeBtn.paddingLeft = "5px";
+    closeBtn.cornerRadius = 3;
+    closeBtn.fontSize = 10;
+    closeBtn.paddingLeft = "3px";
     closeBtn.onPointerClickObservable.add(() => {
       this.hide();
       this.onClose?.();
@@ -439,15 +440,15 @@ export class BabylonQuestTracker {
     const tabBar = new StackPanel("questTabBar");
     tabBar.isVertical = false;
     tabBar.width = "100%";
-    tabBar.height = "35px";
+    tabBar.height = "19px";
     mainStack.addControl(tabBar);
 
     this.activeTabBtn = Button.CreateSimpleButton("activeTab", "Active");
     this.activeTabBtn.width = "34%";
-    this.activeTabBtn.height = "35px";
+    this.activeTabBtn.height = "19px";
     this.activeTabBtn.color = "white";
     this.activeTabBtn.background = "#4CAF50";
-    this.activeTabBtn.fontSize = 12;
+    this.activeTabBtn.fontSize = 8;
     this.activeTabBtn.fontWeight = "bold";
     this.activeTabBtn.thickness = 0;
     this.activeTabBtn.onPointerClickObservable.add(() => {
@@ -457,10 +458,10 @@ export class BabylonQuestTracker {
 
     this.completedTabBtn = Button.CreateSimpleButton("completedTab", "Completed");
     this.completedTabBtn.width = "33%";
-    this.completedTabBtn.height = "35px";
+    this.completedTabBtn.height = "19px";
     this.completedTabBtn.color = "#AAA";
     this.completedTabBtn.background = "rgba(60, 60, 60, 0.8)";
-    this.completedTabBtn.fontSize = 12;
+    this.completedTabBtn.fontSize = 8;
     this.completedTabBtn.fontWeight = "bold";
     this.completedTabBtn.thickness = 0;
     this.completedTabBtn.onPointerClickObservable.add(() => {
@@ -470,10 +471,10 @@ export class BabylonQuestTracker {
 
     this.statsTabBtn = Button.CreateSimpleButton("statsTab", "Stats");
     this.statsTabBtn.width = "33%";
-    this.statsTabBtn.height = "35px";
+    this.statsTabBtn.height = "19px";
     this.statsTabBtn.color = "#AAA";
     this.statsTabBtn.background = "rgba(60, 60, 60, 0.8)";
-    this.statsTabBtn.fontSize = 12;
+    this.statsTabBtn.fontSize = 8;
     this.statsTabBtn.fontWeight = "bold";
     this.statsTabBtn.thickness = 0;
     this.statsTabBtn.onPointerClickObservable.add(() => {
@@ -491,9 +492,9 @@ export class BabylonQuestTracker {
     // Quest list scroll area
     this.scrollViewer = new ScrollViewer("questScroll");
     this.scrollViewer.width = "100%";
-    this.scrollViewer.height = "370px";
-    this.scrollViewer.paddingTop = "5px";
-    this.scrollViewer.paddingBottom = "5px";
+    this.scrollViewer.height = "204px";
+    this.scrollViewer.paddingTop = "3px";
+    this.scrollViewer.paddingBottom = "3px";
     this.scrollViewer.background = "rgba(20, 20, 20, 0.5)";
     mainStack.addControl(this.scrollViewer);
 
@@ -503,23 +504,24 @@ export class BabylonQuestTracker {
 
     // Detail panel (hidden by default, overlays over the list)
     this.detailPanel = new Rectangle("questDetailPanel");
-    this.detailPanel.width = "380px";
-    this.detailPanel.height = "500px";
+    this.detailPanel.width = "209px";
+    this.detailPanel.height = "275px";
     this.detailPanel.background = "rgba(10, 10, 10, 0.95)";
     this.detailPanel.color = "#FFD700";
     this.detailPanel.thickness = 2;
-    this.detailPanel.cornerRadius = 10;
-    this.detailPanel.top = "10px";
+    this.detailPanel.cornerRadius = 6;
+    this.detailPanel.top = "6px";
     this.detailPanel.left = "-10px";
     this.detailPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     this.detailPanel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     this.detailPanel.isVisible = false;
+    this.detailPanel.zIndex = 55;
 
     const detailScroll = new ScrollViewer("questDetailScroll");
     detailScroll.width = "100%";
     detailScroll.height = "100%";
-    detailScroll.paddingTop = "10px";
-    detailScroll.paddingBottom = "10px";
+    detailScroll.paddingTop = "6px";
+    detailScroll.paddingBottom = "6px";
     this.detailPanel.addControl(detailScroll);
 
     this.detailStack = new StackPanel("questDetailStack");
@@ -606,10 +608,10 @@ export class BabylonQuestTracker {
         ? "No active quests\n\nTalk to NPCs to receive quests!"
         : "No completed quests yet.";
       emptyText.color = "#888";
-      emptyText.fontSize = 14;
-      emptyText.height = "80px";
+      emptyText.fontSize = 8;
+      emptyText.height = "44px";
       emptyText.textWrapping = TextWrapping.WordWrap;
-      emptyText.paddingTop = "20px";
+      emptyText.paddingTop = "11px";
       this.questListPanel.addControl(emptyText);
       return;
     }
@@ -631,11 +633,11 @@ export class BabylonQuestTracker {
       : "rgba(80, 80, 80, 0.25)";
     card.color = isTracked ? "#FFD700" : typeColor;
     card.thickness = isTracked ? 2 : 1;
-    card.cornerRadius = 6;
-    card.paddingTop = "8px";
-    card.paddingBottom = "8px";
-    card.paddingLeft = "8px";
-    card.paddingRight = "8px";
+    card.cornerRadius = 3;
+    card.paddingTop = "4px";
+    card.paddingBottom = "4px";
+    card.paddingLeft = "4px";
+    card.paddingRight = "4px";
 
     // Click to select
     card.onPointerClickObservable.add(() => {
@@ -651,24 +653,24 @@ export class BabylonQuestTracker {
     const titleRow = new StackPanel();
     titleRow.isVertical = false;
     titleRow.width = "100%";
-    titleRow.height = "22px";
+    titleRow.height = "12px";
     cardStack.addControl(titleRow);
 
     const iconText = new TextBlock();
     iconText.text = getQuestIcon(quest.questType);
-    iconText.fontSize = 14;
-    iconText.width = "25px";
+    iconText.fontSize = 8;
+    iconText.width = "14px";
     iconText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     titleRow.addControl(iconText);
 
     const titleText = new TextBlock();
     titleText.text = quest.title;
     titleText.color = "white";
-    titleText.fontSize = 13;
+    titleText.fontSize = 8;
     titleText.fontWeight = "bold";
     titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     titleText.textWrapping = TextWrapping.Clip;
-    titleText.width = "230px";
+    titleText.width = "127px";
     titleRow.addControl(titleText);
 
     // Difficulty stars
@@ -676,8 +678,8 @@ export class BabylonQuestTracker {
     const starsText = new TextBlock();
     starsText.text = "\u2605".repeat(stars) + "\u2606".repeat(3 - stars);
     starsText.color = getDifficultyColor(quest.difficulty);
-    starsText.fontSize = 12;
-    starsText.width = "60px";
+    starsText.fontSize = 8;
+    starsText.width = "33px";
     starsText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     titleRow.addControl(starsText);
 
@@ -685,24 +687,24 @@ export class BabylonQuestTracker {
     const metaRow = new StackPanel();
     metaRow.isVertical = false;
     metaRow.width = "100%";
-    metaRow.height = "18px";
+    metaRow.height = "10px";
     metaRow.paddingTop = "3px";
     cardStack.addControl(metaRow);
 
     const rewardText = new TextBlock();
     rewardText.text = `${quest.experienceReward} XP`;
     rewardText.color = "#FFD700";
-    rewardText.fontSize = 10;
-    rewardText.width = "60px";
+    rewardText.fontSize = 8;
+    rewardText.width = "33px";
     rewardText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     metaRow.addControl(rewardText);
 
     const typeLabel = new TextBlock();
     typeLabel.text = quest.questType.replace(/_/g, ' ');
     typeLabel.color = typeColor;
-    typeLabel.fontSize = 10;
+    typeLabel.fontSize = 8;
     typeLabel.fontWeight = "bold";
-    typeLabel.width = "120px";
+    typeLabel.width = "66px";
     typeLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     metaRow.addControl(typeLabel);
 
@@ -712,8 +714,8 @@ export class BabylonQuestTracker {
       const distText = new TextBlock();
       distText.text = formatDistance(distance);
       distText.color = "#AAA";
-      distText.fontSize = 10;
-      distText.width = "60px";
+      distText.fontSize = 8;
+      distText.width = "33px";
       distText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
       metaRow.addControl(distText);
     }
@@ -723,7 +725,7 @@ export class BabylonQuestTracker {
       const completedRow = new StackPanel();
       completedRow.isVertical = false;
       completedRow.width = "100%";
-      completedRow.height = "16px";
+      completedRow.height = "9px";
       completedRow.paddingTop = "3px";
       cardStack.addControl(completedRow);
 
@@ -731,16 +733,16 @@ export class BabylonQuestTracker {
       const date = new Date(quest.completedAt);
       dateText.text = `Completed: ${date.toLocaleDateString()}`;
       dateText.color = "#4CAF50";
-      dateText.fontSize = 10;
-      dateText.width = "160px";
+      dateText.fontSize = 8;
+      dateText.width = "88px";
       dateText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       completedRow.addControl(dateText);
 
       const earnedText = new TextBlock();
       earnedText.text = `Earned: ${quest.experienceReward} XP`;
       earnedText.color = "#FFD700";
-      earnedText.fontSize = 10;
-      earnedText.width = "120px";
+      earnedText.fontSize = 8;
+      earnedText.width = "66px";
       earnedText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
       completedRow.addControl(earnedText);
     }
@@ -751,15 +753,15 @@ export class BabylonQuestTracker {
         const objRow = new StackPanel();
         objRow.isVertical = false;
         objRow.width = "100%";
-        objRow.height = "16px";
+        objRow.height = "9px";
         objRow.paddingTop = idx === 0 ? "5px" : "2px";
         cardStack.addControl(objRow);
 
         const checkText = new TextBlock();
         checkText.text = obj.completed ? "\u2713" : "\u25CB";
         checkText.color = obj.completed ? "#4CAF50" : "#888";
-        checkText.fontSize = 11;
-        checkText.width = "20px";
+        checkText.fontSize = 8;
+        checkText.width = "11px";
         checkText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         objRow.addControl(checkText);
 
@@ -769,8 +771,8 @@ export class BabylonQuestTracker {
           : '';
         objDesc.text = (obj.description || obj.type.replace(/_/g, ' ')) + progressSuffix;
         objDesc.color = obj.completed ? "#4CAF50" : "#CCC";
-        objDesc.fontSize = 10;
-        objDesc.width = "300px";
+        objDesc.fontSize = 8;
+        objDesc.width = "165px";
         objDesc.textWrapping = TextWrapping.Clip;
         objDesc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         objRow.addControl(objDesc);
@@ -794,18 +796,18 @@ export class BabylonQuestTracker {
   private addProgressBar(parent: StackPanel, progress: number, color: string) {
     const container = new Rectangle();
     container.width = "100%";
-    container.height = "14px";
+    container.height = "8px";
     container.background = "rgba(40, 40, 40, 0.8)";
-    container.cornerRadius = 3;
+    container.cornerRadius = 2;
     container.thickness = 0;
-    container.paddingTop = "4px";
+    container.paddingTop = "3px";
     parent.addControl(container);
 
     const bar = new Rectangle();
     bar.width = `${Math.max(progress * 100, 2)}%`;
-    bar.height = "14px";
+    bar.height = "8px";
     bar.background = color;
-    bar.cornerRadius = 3;
+    bar.cornerRadius = 2;
     bar.thickness = 0;
     bar.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     container.addControl(bar);
@@ -813,7 +815,7 @@ export class BabylonQuestTracker {
     const pctText = new TextBlock();
     pctText.text = `${Math.round(progress * 100)}%`;
     pctText.color = "white";
-    pctText.fontSize = 9;
+    pctText.fontSize = 8;
     pctText.fontWeight = "bold";
     container.addControl(pctText);
   }
@@ -825,14 +827,14 @@ export class BabylonQuestTracker {
 
     // Back button
     const backBtn = Button.CreateSimpleButton("backBtn", "\u2190 Back");
-    backBtn.width = "80px";
-    backBtn.height = "30px";
+    backBtn.width = "44px";
+    backBtn.height = "16px";
     backBtn.color = "white";
     backBtn.background = "rgba(80, 80, 80, 0.8)";
-    backBtn.cornerRadius = 5;
-    backBtn.fontSize = 13;
+    backBtn.cornerRadius = 3;
+    backBtn.fontSize = 8;
     backBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    backBtn.paddingLeft = "10px";
+    backBtn.paddingLeft = "6px";
     backBtn.onPointerClickObservable.add(() => {
       this.hideDetailPanel();
     });
@@ -844,28 +846,28 @@ export class BabylonQuestTracker {
     const title = new TextBlock();
     title.text = `${getQuestIcon(quest.questType)} ${quest.title}`;
     title.color = "white";
-    title.fontSize = 16;
+    title.fontSize = 9;
     title.fontWeight = "bold";
-    title.height = "30px";
-    title.paddingTop = "10px";
+    title.height = "16px";
+    title.paddingTop = "6px";
     title.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    title.paddingLeft = "10px";
+    title.paddingLeft = "6px";
     this.detailStack.addControl(title);
 
     // Type + difficulty row
     const infoRow = new StackPanel();
     infoRow.isVertical = false;
     infoRow.width = "100%";
-    infoRow.height = "22px";
-    infoRow.paddingLeft = "10px";
+    infoRow.height = "12px";
+    infoRow.paddingLeft = "6px";
     this.detailStack.addControl(infoRow);
 
     const typeBadge = new TextBlock();
     typeBadge.text = quest.questType.replace(/_/g, ' ').toUpperCase();
     typeBadge.color = typeColor;
-    typeBadge.fontSize = 11;
+    typeBadge.fontSize = 8;
     typeBadge.fontWeight = "bold";
-    typeBadge.width = "150px";
+    typeBadge.width = "82px";
     typeBadge.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     infoRow.addControl(typeBadge);
 
@@ -873,9 +875,9 @@ export class BabylonQuestTracker {
     const diffText = new TextBlock();
     diffText.text = `${quest.difficulty.toUpperCase()} ${ "\u2605".repeat(stars)}`;
     diffText.color = getDifficultyColor(quest.difficulty);
-    diffText.fontSize = 11;
+    diffText.fontSize = 8;
     diffText.fontWeight = "bold";
-    diffText.width = "150px";
+    diffText.width = "82px";
     diffText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     infoRow.addControl(diffText);
 
@@ -883,12 +885,12 @@ export class BabylonQuestTracker {
     const desc = new TextBlock();
     desc.text = quest.description;
     desc.color = "#CCC";
-    desc.fontSize = 12;
+    desc.fontSize = 8;
     desc.textWrapping = TextWrapping.WordWrap;
     desc.resizeToFit = true;
-    desc.paddingTop = "10px";
-    desc.paddingLeft = "10px";
-    desc.paddingRight = "10px";
+    desc.paddingTop = "6px";
+    desc.paddingLeft = "6px";
+    desc.paddingRight = "6px";
     desc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     this.detailStack.addControl(desc);
 
@@ -897,10 +899,10 @@ export class BabylonQuestTracker {
       const assignerText = new TextBlock();
       assignerText.text = `From: ${quest.assignedBy}`;
       assignerText.color = "#AAA";
-      assignerText.fontSize = 11;
-      assignerText.height = "20px";
-      assignerText.paddingTop = "5px";
-      assignerText.paddingLeft = "10px";
+      assignerText.fontSize = 8;
+      assignerText.height = "11px";
+      assignerText.paddingTop = "3px";
+      assignerText.paddingLeft = "6px";
       assignerText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       this.detailStack.addControl(assignerText);
     }
@@ -914,9 +916,9 @@ export class BabylonQuestTracker {
       if (distance !== null) parts.push(formatDistance(distance) + ' away');
       locText.text = `Location: ${parts.join(' \u2022 ')}`;
       locText.color = "#AAA";
-      locText.fontSize = 11;
-      locText.height = "20px";
-      locText.paddingLeft = "10px";
+      locText.fontSize = 8;
+      locText.height = "11px";
+      locText.paddingLeft = "6px";
       locText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       this.detailStack.addControl(locText);
     }
@@ -925,11 +927,11 @@ export class BabylonQuestTracker {
     const rewardRow = new TextBlock();
     rewardRow.text = `Reward: ${quest.experienceReward} XP`;
     rewardRow.color = "#FFD700";
-    rewardRow.fontSize = 12;
+    rewardRow.fontSize = 8;
     rewardRow.fontWeight = "bold";
-    rewardRow.height = "22px";
-    rewardRow.paddingTop = "5px";
-    rewardRow.paddingLeft = "10px";
+    rewardRow.height = "12px";
+    rewardRow.paddingTop = "3px";
+    rewardRow.paddingLeft = "6px";
     rewardRow.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     this.detailStack.addControl(rewardRow);
 
@@ -937,11 +939,11 @@ export class BabylonQuestTracker {
     const objectivesHeader = new TextBlock();
     objectivesHeader.text = "OBJECTIVES";
     objectivesHeader.color = "#FFD700";
-    objectivesHeader.fontSize = 12;
+    objectivesHeader.fontSize = 8;
     objectivesHeader.fontWeight = "bold";
-    objectivesHeader.height = "25px";
-    objectivesHeader.paddingTop = "10px";
-    objectivesHeader.paddingLeft = "10px";
+    objectivesHeader.height = "14px";
+    objectivesHeader.paddingTop = "6px";
+    objectivesHeader.paddingLeft = "6px";
     objectivesHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     this.detailStack.addControl(objectivesHeader);
 
@@ -952,15 +954,15 @@ export class BabylonQuestTracker {
         const objRow = new StackPanel();
         objRow.isVertical = false;
         objRow.width = "100%";
-        objRow.height = "22px";
-        objRow.paddingLeft = "15px";
+        objRow.height = "12px";
+        objRow.paddingLeft = "8px";
         this.detailStack!.addControl(objRow);
 
         const check = new TextBlock();
         check.text = obj.completed ? "\u2713" : "\u25CB";
         check.color = obj.completed ? "#4CAF50" : "#888";
-        check.fontSize = 13;
-        check.width = "20px";
+        check.fontSize = 8;
+        check.width = "11px";
         check.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         objRow.addControl(check);
 
@@ -970,9 +972,9 @@ export class BabylonQuestTracker {
           : '';
         objText.text = (obj.description || obj.type.replace(/_/g, ' ')) + progressStr;
         objText.color = obj.completed ? "#4CAF50" : "#DDD";
-        objText.fontSize = 12;
+        objText.fontSize = 8;
         objText.textWrapping = TextWrapping.WordWrap;
-        objText.width = "310px";
+        objText.width = "170px";
         objText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         objRow.addControl(objText);
 
@@ -981,18 +983,18 @@ export class BabylonQuestTracker {
           const objProgress = Math.min(obj.current / obj.required, 1);
           const objBar = new Rectangle();
           objBar.width = "90%";
-          objBar.height = "8px";
+          objBar.height = "4px";
           objBar.background = "rgba(40, 40, 40, 0.8)";
-          objBar.cornerRadius = 2;
+          objBar.cornerRadius = 1;
           objBar.thickness = 0;
-          objBar.paddingLeft = "35px";
+          objBar.paddingLeft = "19px";
           this.detailStack!.addControl(objBar);
 
           const objFill = new Rectangle();
           objFill.width = `${Math.max(objProgress * 100, 2)}%`;
-          objFill.height = "8px";
+          objFill.height = "4px";
           objFill.background = typeColor;
-          objFill.cornerRadius = 2;
+          objFill.cornerRadius = 1;
           objFill.thickness = 0;
           objFill.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
           objBar.addControl(objFill);
@@ -1002,9 +1004,9 @@ export class BabylonQuestTracker {
       const noObj = new TextBlock();
       noObj.text = "No specific objectives listed.";
       noObj.color = "#888";
-      noObj.fontSize = 11;
-      noObj.height = "20px";
-      noObj.paddingLeft = "15px";
+      noObj.fontSize = 8;
+      noObj.height = "11px";
+      noObj.paddingLeft = "8px";
       noObj.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       this.detailStack.addControl(noObj);
     }
@@ -1016,14 +1018,14 @@ export class BabylonQuestTracker {
         "trackBtn",
         isTracked ? "\u2713 Tracking" : "Track Quest"
       );
-      trackBtn.width = "140px";
-      trackBtn.height = "35px";
+      trackBtn.width = "77px";
+      trackBtn.height = "19px";
       trackBtn.color = isTracked ? "#000" : "white";
       trackBtn.background = isTracked ? "#FFD700" : typeColor;
-      trackBtn.cornerRadius = 5;
-      trackBtn.fontSize = 13;
+      trackBtn.cornerRadius = 3;
+      trackBtn.fontSize = 8;
       trackBtn.fontWeight = "bold";
-      trackBtn.paddingTop = "15px";
+      trackBtn.paddingTop = "8px";
       trackBtn.onPointerClickObservable.add(() => {
         this.trackQuest(quest.id);
         this.showDetailPanel(quest); // refresh
@@ -1038,20 +1040,20 @@ export class BabylonQuestTracker {
       const date = new Date(quest.completedAt);
       completedInfo.text = `Completed on ${date.toLocaleDateString()} at ${date.toLocaleTimeString()}`;
       completedInfo.color = "#4CAF50";
-      completedInfo.fontSize = 12;
-      completedInfo.height = "25px";
-      completedInfo.paddingTop = "15px";
-      completedInfo.paddingLeft = "10px";
+      completedInfo.fontSize = 8;
+      completedInfo.height = "14px";
+      completedInfo.paddingTop = "8px";
+      completedInfo.paddingLeft = "6px";
       completedInfo.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       this.detailStack.addControl(completedInfo);
 
       const earnedXP = new TextBlock();
       earnedXP.text = `Earned: ${quest.experienceReward} XP`;
       earnedXP.color = "#FFD700";
-      earnedXP.fontSize = 12;
+      earnedXP.fontSize = 8;
       earnedXP.fontWeight = "bold";
-      earnedXP.height = "22px";
-      earnedXP.paddingLeft = "10px";
+      earnedXP.height = "12px";
+      earnedXP.paddingLeft = "6px";
       earnedXP.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       this.detailStack.addControl(earnedXP);
 
@@ -1061,9 +1063,9 @@ export class BabylonQuestTracker {
         const fullStars = Math.round(quest.performanceRating);
         perfText.text = `Performance: ${ "\u2605".repeat(fullStars)}${"\u2606".repeat(5 - fullStars)}`;
         perfText.color = "#FFC107";
-        perfText.fontSize = 12;
-        perfText.height = "20px";
-        perfText.paddingLeft = "10px";
+        perfText.fontSize = 8;
+        perfText.height = "11px";
+        perfText.paddingLeft = "6px";
         perfText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         this.detailStack.addControl(perfText);
       }
@@ -1075,9 +1077,9 @@ export class BabylonQuestTracker {
         const timeText = new TextBlock();
         timeText.text = `Time taken: ${mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m`}`;
         timeText.color = "#AAA";
-        timeText.fontSize = 11;
-        timeText.height = "18px";
-        timeText.paddingLeft = "10px";
+        timeText.fontSize = 8;
+        timeText.height = "10px";
+        timeText.paddingLeft = "6px";
         timeText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         this.detailStack.addControl(timeText);
       }
@@ -1087,9 +1089,9 @@ export class BabylonQuestTracker {
         const hintsText = new TextBlock();
         hintsText.text = `Hints used: ${quest.hintsUsed}`;
         hintsText.color = "#AAA";
-        hintsText.fontSize = 11;
-        hintsText.height = "18px";
-        hintsText.paddingLeft = "10px";
+        hintsText.fontSize = 8;
+        hintsText.height = "10px";
+        hintsText.paddingLeft = "6px";
         hintsText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         this.detailStack.addControl(hintsText);
       }
@@ -1099,11 +1101,11 @@ export class BabylonQuestTracker {
         const vocabLabel = new TextBlock();
         vocabLabel.text = `Vocabulary: ${quest.vocabularyUsed.join(', ')}`;
         vocabLabel.color = "#4CAF50";
-        vocabLabel.fontSize = 11;
+        vocabLabel.fontSize = 8;
         vocabLabel.textWrapping = TextWrapping.WordWrap;
         vocabLabel.resizeToFit = true;
-        vocabLabel.paddingLeft = "10px";
-        vocabLabel.paddingRight = "10px";
+        vocabLabel.paddingLeft = "6px";
+        vocabLabel.paddingRight = "6px";
         vocabLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         this.detailStack.addControl(vocabLabel);
       }
@@ -1113,9 +1115,9 @@ export class BabylonQuestTracker {
         const grammarText = new TextBlock();
         grammarText.text = `Grammar accuracy: ${Math.round(quest.grammarAccuracy * 100)}%`;
         grammarText.color = "#00BCD4";
-        grammarText.fontSize = 11;
-        grammarText.height = "18px";
-        grammarText.paddingLeft = "10px";
+        grammarText.fontSize = 8;
+        grammarText.height = "10px";
+        grammarText.paddingLeft = "6px";
         grammarText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         this.detailStack.addControl(grammarText);
       }
@@ -1132,16 +1134,16 @@ export class BabylonQuestTracker {
     const sortRow = new StackPanel("sortRow");
     sortRow.isVertical = false;
     sortRow.width = "100%";
-    sortRow.height = "26px";
+    sortRow.height = "14px";
     this.filterBarPanel.addControl(sortRow);
 
     const sortLabel = new TextBlock();
     sortLabel.text = "Sort:";
     sortLabel.color = "#AAA";
-    sortLabel.fontSize = 10;
-    sortLabel.width = "35px";
+    sortLabel.fontSize = 8;
+    sortLabel.width = "19px";
     sortLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    sortLabel.paddingLeft = "5px";
+    sortLabel.paddingLeft = "3px";
     sortRow.addControl(sortLabel);
 
     const sortOptions: { label: string; value: QuestSortBy }[] = [
@@ -1152,11 +1154,11 @@ export class BabylonQuestTracker {
 
     for (const opt of sortOptions) {
       const btn = Button.CreateSimpleButton(`sort_${opt.value}`, opt.label);
-      btn.width = "70px";
-      btn.height = "22px";
-      btn.fontSize = 10;
+      btn.width = "38px";
+      btn.height = "12px";
+      btn.fontSize = 8;
       btn.thickness = 0;
-      btn.cornerRadius = 3;
+      btn.cornerRadius = 2;
       btn.color = this.sortBy === opt.value ? "white" : "#888";
       btn.background = this.sortBy === opt.value ? "rgba(100,100,100,0.8)" : "transparent";
       btn.onPointerClickObservable.add(() => {
@@ -1171,18 +1173,18 @@ export class BabylonQuestTracker {
     const filterRow = new StackPanel("filterRow");
     filterRow.isVertical = false;
     filterRow.width = "100%";
-    filterRow.height = "26px";
+    filterRow.height = "14px";
     this.filterBarPanel.addControl(filterRow);
 
     // Quest type filter button
     const types = getUniqueQuestTypes(this.quests);
     const typeBtn = Button.CreateSimpleButton("filterType",
       this.filters.questType ? `Type: ${this.filters.questType}` : "All Types");
-    typeBtn.width = "110px";
-    typeBtn.height = "22px";
-    typeBtn.fontSize = 10;
+    typeBtn.width = "61px";
+    typeBtn.height = "12px";
+    typeBtn.fontSize = 8;
     typeBtn.thickness = 0;
-    typeBtn.cornerRadius = 3;
+    typeBtn.cornerRadius = 2;
     typeBtn.color = this.filters.questType ? "white" : "#888";
     typeBtn.background = this.filters.questType ? getQuestTypeColor(this.filters.questType) + "88" : "transparent";
     typeBtn.onPointerClickObservable.add(() => {
@@ -1201,11 +1203,11 @@ export class BabylonQuestTracker {
     const diffs = ['beginner', 'intermediate', 'advanced'];
     const diffBtn = Button.CreateSimpleButton("filterDiff",
       this.filters.difficulty ? `Diff: ${this.filters.difficulty}` : "All Diff");
-    diffBtn.width = "100px";
-    diffBtn.height = "22px";
-    diffBtn.fontSize = 10;
+    diffBtn.width = "55px";
+    diffBtn.height = "12px";
+    diffBtn.fontSize = 8;
     diffBtn.thickness = 0;
-    diffBtn.cornerRadius = 3;
+    diffBtn.cornerRadius = 2;
     diffBtn.color = this.filters.difficulty ? "white" : "#888";
     diffBtn.background = this.filters.difficulty ? getDifficultyColor(this.filters.difficulty) + "88" : "transparent";
     diffBtn.onPointerClickObservable.add(() => {
@@ -1225,11 +1227,11 @@ export class BabylonQuestTracker {
     if (givers.length > 0) {
       const npcBtn = Button.CreateSimpleButton("filterNpc",
         this.filters.assignedBy ? `NPC: ${this.filters.assignedBy.substring(0, 8)}` : "All NPCs");
-      npcBtn.width = "90px";
-      npcBtn.height = "22px";
-      npcBtn.fontSize = 10;
+      npcBtn.width = "50px";
+      npcBtn.height = "12px";
+      npcBtn.fontSize = 8;
       npcBtn.thickness = 0;
-      npcBtn.cornerRadius = 3;
+      npcBtn.cornerRadius = 2;
       npcBtn.color = this.filters.assignedBy ? "white" : "#888";
       npcBtn.background = this.filters.assignedBy ? "rgba(100,100,100,0.8)" : "transparent";
       npcBtn.onPointerClickObservable.add(() => {
@@ -1249,11 +1251,11 @@ export class BabylonQuestTracker {
     const hasFilters = this.filters.questType || this.filters.difficulty || this.filters.assignedBy || this.filters.search;
     if (hasFilters) {
       const clearBtn = Button.CreateSimpleButton("clearFilters", "\u2715");
-      clearBtn.width = "30px";
-      clearBtn.height = "22px";
-      clearBtn.fontSize = 12;
+      clearBtn.width = "16px";
+      clearBtn.height = "12px";
+      clearBtn.fontSize = 8;
       clearBtn.thickness = 0;
-      clearBtn.cornerRadius = 3;
+      clearBtn.cornerRadius = 2;
       clearBtn.color = "#F44336";
       clearBtn.background = "transparent";
       clearBtn.onPointerClickObservable.add(() => {
@@ -1269,16 +1271,16 @@ export class BabylonQuestTracker {
       const searchRow = new StackPanel("searchRow");
       searchRow.isVertical = false;
       searchRow.width = "100%";
-      searchRow.height = "22px";
+      searchRow.height = "12px";
       this.filterBarPanel.addControl(searchRow);
 
       const searchText = new TextBlock();
       searchText.text = `Search: "${this.filters.search}"`;
       searchText.color = "#AAA";
-      searchText.fontSize = 10;
-      searchText.width = "300px";
+      searchText.fontSize = 8;
+      searchText.width = "165px";
       searchText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      searchText.paddingLeft = "10px";
+      searchText.paddingLeft = "6px";
       searchRow.addControl(searchText);
     }
   }
@@ -1292,10 +1294,10 @@ export class BabylonQuestTracker {
     const title = new TextBlock();
     title.text = "Quest Statistics";
     title.color = "#FFD700";
-    title.fontSize = 16;
+    title.fontSize = 9;
     title.fontWeight = "bold";
-    title.height = "30px";
-    title.paddingTop = "10px";
+    title.height = "16px";
+    title.paddingTop = "6px";
     this.questListPanel.addControl(title);
 
     // Summary stats
@@ -1314,24 +1316,24 @@ export class BabylonQuestTracker {
       const row = new StackPanel();
       row.isVertical = false;
       row.width = "100%";
-      row.height = "24px";
-      row.paddingLeft = "15px";
+      row.height = "13px";
+      row.paddingLeft = "8px";
       this.questListPanel.addControl(row);
 
       const label = new TextBlock();
       label.text = item.label;
       label.color = "#AAA";
-      label.fontSize = 12;
-      label.width = "180px";
+      label.fontSize = 8;
+      label.width = "99px";
       label.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       row.addControl(label);
 
       const value = new TextBlock();
       value.text = item.value;
       value.color = item.color;
-      value.fontSize = 12;
+      value.fontSize = 8;
       value.fontWeight = "bold";
-      value.width = "150px";
+      value.width = "82px";
       value.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
       row.addControl(value);
     }
@@ -1340,11 +1342,11 @@ export class BabylonQuestTracker {
     const typeHeader = new TextBlock();
     typeHeader.text = "BY TYPE";
     typeHeader.color = "#FFD700";
-    typeHeader.fontSize = 12;
+    typeHeader.fontSize = 8;
     typeHeader.fontWeight = "bold";
-    typeHeader.height = "28px";
-    typeHeader.paddingTop = "12px";
-    typeHeader.paddingLeft = "15px";
+    typeHeader.height = "15px";
+    typeHeader.paddingTop = "7px";
+    typeHeader.paddingLeft = "8px";
     typeHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     this.questListPanel.addControl(typeHeader);
 
@@ -1352,23 +1354,23 @@ export class BabylonQuestTracker {
       const row = new StackPanel();
       row.isVertical = false;
       row.width = "100%";
-      row.height = "20px";
-      row.paddingLeft = "20px";
+      row.height = "11px";
+      row.paddingLeft = "11px";
       this.questListPanel.addControl(row);
 
       const typeLabel = new TextBlock();
       typeLabel.text = `${getQuestIcon(type)} ${type.replace(/_/g, ' ')}`;
       typeLabel.color = getQuestTypeColor(type);
-      typeLabel.fontSize = 11;
-      typeLabel.width = "200px";
+      typeLabel.fontSize = 8;
+      typeLabel.width = "110px";
       typeLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       row.addControl(typeLabel);
 
       const countText = new TextBlock();
       countText.text = `${count}`;
       countText.color = "#CCC";
-      countText.fontSize = 11;
-      countText.width = "50px";
+      countText.fontSize = 8;
+      countText.width = "28px";
       countText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
       row.addControl(countText);
     }
@@ -1377,11 +1379,11 @@ export class BabylonQuestTracker {
     const diffHeader = new TextBlock();
     diffHeader.text = "BY DIFFICULTY";
     diffHeader.color = "#FFD700";
-    diffHeader.fontSize = 12;
+    diffHeader.fontSize = 8;
     diffHeader.fontWeight = "bold";
-    diffHeader.height = "28px";
-    diffHeader.paddingTop = "12px";
-    diffHeader.paddingLeft = "15px";
+    diffHeader.height = "15px";
+    diffHeader.paddingTop = "7px";
+    diffHeader.paddingLeft = "8px";
     diffHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     this.questListPanel.addControl(diffHeader);
 
@@ -1389,24 +1391,24 @@ export class BabylonQuestTracker {
       const row = new StackPanel();
       row.isVertical = false;
       row.width = "100%";
-      row.height = "20px";
-      row.paddingLeft = "20px";
+      row.height = "11px";
+      row.paddingLeft = "11px";
       this.questListPanel.addControl(row);
 
       const diffLabel = new TextBlock();
       const stars = getDifficultyStars(diff);
       diffLabel.text = `${diff} ${"\u2605".repeat(stars)}`;
       diffLabel.color = getDifficultyColor(diff);
-      diffLabel.fontSize = 11;
-      diffLabel.width = "200px";
+      diffLabel.fontSize = 8;
+      diffLabel.width = "110px";
       diffLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       row.addControl(diffLabel);
 
       const countText = new TextBlock();
       countText.text = `${count}`;
       countText.color = "#CCC";
-      countText.fontSize = 11;
-      countText.width = "50px";
+      countText.fontSize = 8;
+      countText.width = "28px";
       countText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
       row.addControl(countText);
     }
@@ -1550,10 +1552,10 @@ export class BabylonQuestTracker {
     this.isMinimized = !this.isMinimized;
 
     if (this.isMinimized) {
-      this.questPanel.height = "50px";
+      this.questPanel.height = "28px";
       this.hideDetailPanel();
     } else {
-      this.questPanel.height = "500px";
+      this.questPanel.height = "275px";
     }
   }
 

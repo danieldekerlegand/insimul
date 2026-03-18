@@ -240,16 +240,28 @@ export async function launchOnboarding(
     // No overlay to hide
   });
 
-  // Wire modal callbacks — reading/writing/listening phases show modal UI
-  assessmentEngine.onShowModal((config: AssessmentModalConfig) => {
-    if (modalUI && guiManager.advancedTexture) {
-      progressUI?.setStatusText(config.phaseName || 'In progress...');
-      modalUI.show(guiManager.advancedTexture, config);
+  // Wire modal callbacks — reading/writing/listening phases defer until user clicks
+  let pendingModalConfig: AssessmentModalConfig | null = null;
+
+  const showPendingModal = () => {
+    if (pendingModalConfig && modalUI && guiManager.advancedTexture) {
+      modalUI.show(guiManager.advancedTexture, pendingModalConfig);
     }
+  };
+
+  assessmentEngine.onShowModal((config: AssessmentModalConfig) => {
+    pendingModalConfig = config;
+    progressUI?.setStatusText('Click here to begin');
   });
 
   assessmentEngine.onHideModal(() => {
+    pendingModalConfig = null;
     modalUI?.hide();
+  });
+
+  // When the user clicks the progress tracker, open the pending modal
+  progressUI?.onClicked(() => {
+    showPendingModal();
   });
 
   // Create an assessment quest so it appears in the quest log (J key)

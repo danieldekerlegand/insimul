@@ -150,16 +150,16 @@ export class QuestNotificationManager {
   private createHudIndicator(): void {
     // Compact pill in top-left showing quest status
     this.hudContainer = new Rectangle("questHudIndicator");
-    this.hudContainer.width = "200px";
-    this.hudContainer.height = "50px";
+    this.hudContainer.width = "146px";
+    this.hudContainer.height = "42px";
     this.hudContainer.background = "rgba(0, 0, 0, 0.75)";
     this.hudContainer.color = "#FFD700";
     this.hudContainer.thickness = 1;
-    this.hudContainer.cornerRadius = 8;
+    this.hudContainer.cornerRadius = 6;
     this.hudContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     this.hudContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    this.hudContainer.top = "10px";
-    this.hudContainer.left = "10px";
+    this.hudContainer.top = "8px";
+    this.hudContainer.left = "8px";
     this.hudContainer.isPointerBlocker = true;
     this.hudContainer.onPointerClickObservable.add(() => {
       this.onHudClicked?.();
@@ -167,31 +167,31 @@ export class QuestNotificationManager {
 
     const mainStack = new StackPanel("questHudStack");
     mainStack.width = "100%";
-    mainStack.paddingLeft = "10px";
-    mainStack.paddingRight = "10px";
+    mainStack.paddingLeft = "8px";
+    mainStack.paddingRight = "8px";
     this.hudContainer.addControl(mainStack);
 
     // Top row: icon + quest count
     const topRow = new StackPanel("questHudTopRow");
     topRow.isVertical = false;
     topRow.width = "100%";
-    topRow.height = "24px";
+    topRow.height = "22px";
     mainStack.addControl(topRow);
 
     const iconText = new TextBlock("questHudIcon");
     iconText.text = "🎯";
-    iconText.fontSize = 14;
-    iconText.width = "25px";
+    iconText.fontSize = 12;
+    iconText.width = "20px";
     iconText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     topRow.addControl(iconText);
 
     this.hudCountText = new TextBlock("questHudCount");
-    this.hudCountText.text = "0 Active Quests";
+    this.hudCountText.text = "0 Quests";
     this.hudCountText.color = "#FFD700";
     this.hudCountText.fontSize = 12;
     this.hudCountText.fontWeight = "bold";
     this.hudCountText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    this.hudCountText.width = "155px";
+    this.hudCountText.width = "110px";
     topRow.addControl(this.hudCountText);
 
     // Tracked quest title
@@ -207,18 +207,18 @@ export class QuestNotificationManager {
     // Progress bar
     this.hudProgressBar = new Rectangle("questHudProgressBg");
     this.hudProgressBar.width = "100%";
-    this.hudProgressBar.height = "6px";
+    this.hudProgressBar.height = "5px";
     this.hudProgressBar.background = "rgba(255, 255, 255, 0.15)";
-    this.hudProgressBar.cornerRadius = 3;
+    this.hudProgressBar.cornerRadius = 2;
     this.hudProgressBar.thickness = 0;
     this.hudProgressBar.isVisible = false;
     mainStack.addControl(this.hudProgressBar);
 
     this.hudProgressFill = new Rectangle("questHudProgressFill");
     this.hudProgressFill.width = "0%";
-    this.hudProgressFill.height = "6px";
+    this.hudProgressFill.height = "5px";
     this.hudProgressFill.background = "#4CAF50";
-    this.hudProgressFill.cornerRadius = 3;
+    this.hudProgressFill.cornerRadius = 2;
     this.hudProgressFill.thickness = 0;
     this.hudProgressFill.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     this.hudProgressBar.addControl(this.hudProgressFill);
@@ -385,7 +385,7 @@ export class QuestNotificationManager {
 
   private updateHud(): void {
     if (this.hudCountText) {
-      const label = this.activeQuestCount === 1 ? "Active Quest" : "Active Quests";
+      const label = this.activeQuestCount === 1 ? "Quest" : "Quests";
       this.hudCountText.text = `${this.activeQuestCount} ${label}`;
     }
 
