@@ -954,6 +954,17 @@ export interface GameSaveState {
   merchants: SavedMerchantState[];
   currentZone: { id: string; name: string; type: string } | null;
   questProgress: Record<string, any>;
+  // Extended subsystem state (v2+)
+  temporaryStates?: any;
+  languageProgress?: any;
+  gamification?: any;
+  volition?: any;
+  utteranceQuests?: any;
+  ambientConversations?: any;
+  contentGating?: any;
+  skillTree?: any;
+  /** Trigger that caused this save (for diagnostics) */
+  saveTrigger?: string;
 }
 
 // ─── UI Configuration ───────────────────────────────────────────────────────

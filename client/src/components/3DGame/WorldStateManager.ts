@@ -3,7 +3,8 @@
  *
  * Collects state from BabylonGame systems (inventory, NPCs, romance, etc.)
  * and persists via the DataSource API. Supports 3 save slots per world,
- * auto-save every 5 minutes, and incremental (diff-based) saves.
+ * auto-save every 5 minutes, event-driven auto-save triggers, and
+ * incremental (diff-based) saves.
  */
 
 import type { DataSource } from './DataSource';
@@ -14,10 +15,12 @@ import type {
   InventoryItem,
   Vec3,
 } from '@shared/game-engine/types';
+import type { GameEventBus, GameEventType } from './GameEventBus';
 
-const SAVE_VERSION = 1;
+const SAVE_VERSION = 2;
 const AUTO_SAVE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_SAVE_SLOTS = 3;
+const AUTO_SAVE_DEBOUNCE_MS = 5_000; // debounce event-driven saves
 
 /** Minimal interface for the game instance properties we need to serialize. */
 export interface GameStateSource {
@@ -36,6 +39,15 @@ export interface GameStateSource {
   getGameTime(): number;
   getWorldId(): string;
   getPlaythroughId(): string | null;
+  // Extended subsystem state getters (return null/undefined if system not available)
+  getTemporaryStates?(): any;
+  getLanguageProgress?(): any;
+  getGamificationState?(): any;
+  getVolitionState?(): any;
+  getUtteranceQuestState?(): any;
+  getAmbientConversationState?(): any;
+  getContentGatingState?(): any;
+  getSkillTreeState?(): any;
 }
 
 /** Minimal interface for restoring state back into the game. */
@@ -50,6 +62,53 @@ export interface GameStateTarget {
   restoreCurrentZone(zone: { id: string; name: string; type: string } | null): void;
   restoreQuestProgress(progress: Record<string, any>): void;
   restoreGameTime(time: number): void;
+  // Extended subsystem restorers (optional — no-op if system not available)
+  restoreTemporaryStates?(data: any): void;
+  restoreLanguageProgress?(data: any): void;
+  restoreGamificationState?(data: any): void;
+  restoreVolitionState?(data: any): void;
+  restoreUtteranceQuestState?(data: any): void;
+  restoreAmbientConversationState?(data: any): void;
+  restoreContentGatingState?(data: any): void;
+  restoreSkillTreeState?(data: any): void;
+}
+
+/** Events that trigger an auto-save. */
+export const AUTO_SAVE_TRIGGER_EVENTS: GameEventType[] = [
+  'quest_completed',
+  'quest_failed',
+  'assessment_completed',
+  'settlement_entered',
+  'achievement_unlocked',
+  'romance_stage_changed',
+  'npc_exam_completed',
+  'onboarding_completed',
+];
+
+/** All subsystem keys that should be present in a complete save. */
+const SUBSYSTEM_KEYS: Array<keyof GameSaveState> = [
+  'player',
+  'npcs',
+  'relationships',
+  'romance',
+  'merchants',
+  'currentZone',
+  'questProgress',
+  'temporaryStates',
+  'languageProgress',
+  'gamification',
+  'volition',
+  'utteranceQuests',
+  'ambientConversations',
+  'contentGating',
+  'skillTree',
+];
+
+export interface SaveStateAuditResult {
+  complete: boolean;
+  present: string[];
+  missing: string[];
+  timestamp: string;
 }
 
 function deepEqual(a: any, b: any): boolean {
@@ -71,6 +130,12 @@ export class WorldStateManager {
   private autoSaveTimer: ReturnType<typeof setInterval> | null = null;
   private lastSavedState: GameSaveState | null = null;
   private gameSource: GameStateSource | null = null;
+  private triggerUnsubscribers: Array<() => void> = [];
+  private debouncedSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private autoSaveSlotIndex: number = 0;
+  private _isSaving: boolean = false;
+  private _onAutoSaveStart?: () => void;
+  private _onAutoSaveEnd?: (saved: boolean) => void;
 
   constructor(dataSource: DataSource) {
     this.dataSource = dataSource;
@@ -81,26 +146,106 @@ export class WorldStateManager {
     this.gameSource = source;
   }
 
+  /** Register callbacks for auto-save indicator in HUD. */
+  setAutoSaveCallbacks(onStart: () => void, onEnd: (saved: boolean) => void): void {
+    this._onAutoSaveStart = onStart;
+    this._onAutoSaveEnd = onEnd;
+  }
+
+  get isSaving(): boolean {
+    return this._isSaving;
+  }
+
   /** Start auto-saving every 5 minutes. */
   startAutoSave(slotIndex: number = 0): void {
     this.stopAutoSave();
+    this.autoSaveSlotIndex = slotIndex;
     this.autoSaveTimer = setInterval(() => {
-      this.save(slotIndex).catch((err) =>
-        console.error('[WorldStateManager] Auto-save failed:', err)
-      );
+      this.triggerAutoSave('interval');
     }, AUTO_SAVE_INTERVAL_MS);
   }
 
-  /** Stop auto-save timer. */
+  /** Stop auto-save timer and remove event triggers. */
   stopAutoSave(): void {
     if (this.autoSaveTimer != null) {
       clearInterval(this.autoSaveTimer);
       this.autoSaveTimer = null;
     }
+    this.clearDebouncedSave();
+    this.detachTriggers();
+  }
+
+  /** Attach event-driven auto-save triggers via the GameEventBus. */
+  attachTriggers(eventBus: GameEventBus): void {
+    this.detachTriggers();
+    for (const eventType of AUTO_SAVE_TRIGGER_EVENTS) {
+      const unsub = eventBus.on(eventType, () => {
+        this.debouncedAutoSave(eventType);
+      });
+      this.triggerUnsubscribers.push(unsub);
+    }
+  }
+
+  /** Remove all event-driven triggers. */
+  detachTriggers(): void {
+    for (const unsub of this.triggerUnsubscribers) {
+      unsub();
+    }
+    this.triggerUnsubscribers = [];
+  }
+
+  /** Schedule a debounced auto-save (coalesces rapid events). */
+  private debouncedAutoSave(trigger: string): void {
+    this.clearDebouncedSave();
+    this.debouncedSaveTimer = setTimeout(() => {
+      this.debouncedSaveTimer = null;
+      this.triggerAutoSave(trigger);
+    }, AUTO_SAVE_DEBOUNCE_MS);
+  }
+
+  private clearDebouncedSave(): void {
+    if (this.debouncedSaveTimer != null) {
+      clearTimeout(this.debouncedSaveTimer);
+      this.debouncedSaveTimer = null;
+    }
+  }
+
+  /** Execute an auto-save with HUD callbacks. */
+  private triggerAutoSave(trigger: string): void {
+    this._onAutoSaveStart?.();
+    this.save(this.autoSaveSlotIndex, trigger)
+      .then((saved) => this._onAutoSaveEnd?.(saved))
+      .catch((err) => {
+        console.error(`[WorldStateManager] Auto-save failed (trigger: ${trigger}):`, err);
+        this._onAutoSaveEnd?.(false);
+      });
+  }
+
+  /** Save for beforeunload — synchronous best-effort using navigator.sendBeacon. */
+  saveBeforeUnload(): void {
+    if (!this.gameSource) return;
+    const worldId = this.gameSource.getWorldId();
+    const playthroughId = this.gameSource.getPlaythroughId();
+    if (!worldId || !playthroughId) return;
+
+    try {
+      const state = this.captureState(this.autoSaveSlotIndex, 'beforeunload');
+      const url = `/api/worlds/${worldId}/game-state`;
+      const payload = JSON.stringify({
+        playthroughId,
+        slotIndex: this.autoSaveSlotIndex,
+        state,
+      });
+      if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+        navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
+      }
+    } catch {
+      // Best-effort only
+    }
   }
 
   /** Capture current game state into a serializable object. */
-  captureState(slotIndex: number): GameSaveState {
+  captureState(slotIndex: number, trigger?: string): GameSaveState {
     if (!this.gameSource) {
       throw new Error('No game source registered');
     }
@@ -124,6 +269,15 @@ export class WorldStateManager {
       merchants: src.getMerchantStates(),
       currentZone: src.getCurrentZone(),
       questProgress: src.getQuestProgress(),
+      temporaryStates: src.getTemporaryStates?.() ?? undefined,
+      languageProgress: src.getLanguageProgress?.() ?? undefined,
+      gamification: src.getGamificationState?.() ?? undefined,
+      volition: src.getVolitionState?.() ?? undefined,
+      utteranceQuests: src.getUtteranceQuestState?.() ?? undefined,
+      ambientConversations: src.getAmbientConversationState?.() ?? undefined,
+      contentGating: src.getContentGatingState?.() ?? undefined,
+      skillTree: src.getSkillTreeState?.() ?? undefined,
+      saveTrigger: trigger,
     };
   }
 
@@ -139,40 +293,26 @@ export class WorldStateManager {
     diff.savedAt = current.savedAt;
     diff.gameTime = current.gameTime;
 
-    if (!deepEqual(current.player, this.lastSavedState.player)) {
-      diff.player = current.player;
-      hasDiff = true;
-    }
-    if (!deepEqual(current.npcs, this.lastSavedState.npcs)) {
-      diff.npcs = current.npcs;
-      hasDiff = true;
-    }
-    if (!deepEqual(current.relationships, this.lastSavedState.relationships)) {
-      diff.relationships = current.relationships;
-      hasDiff = true;
-    }
-    if (!deepEqual(current.romance, this.lastSavedState.romance)) {
-      diff.romance = current.romance;
-      hasDiff = true;
-    }
-    if (!deepEqual(current.merchants, this.lastSavedState.merchants)) {
-      diff.merchants = current.merchants;
-      hasDiff = true;
-    }
-    if (!deepEqual(current.currentZone, this.lastSavedState.currentZone)) {
-      diff.currentZone = current.currentZone;
-      hasDiff = true;
-    }
-    if (!deepEqual(current.questProgress, this.lastSavedState.questProgress)) {
-      diff.questProgress = current.questProgress;
-      hasDiff = true;
+    const fieldsToCompare: Array<keyof GameSaveState> = [
+      'player', 'npcs', 'relationships', 'romance', 'merchants',
+      'currentZone', 'questProgress',
+      'temporaryStates', 'languageProgress', 'gamification',
+      'volition', 'utteranceQuests', 'ambientConversations',
+      'contentGating', 'skillTree',
+    ];
+
+    for (const field of fieldsToCompare) {
+      if (!deepEqual(current[field], this.lastSavedState[field])) {
+        diff[field] = current[field];
+        hasDiff = true;
+      }
     }
 
     return hasDiff ? diff : null;
   }
 
   /** Save game state to a specific slot. Returns true if data was saved. */
-  async save(slotIndex: number = 0): Promise<boolean> {
+  async save(slotIndex: number = 0, trigger?: string): Promise<boolean> {
     if (!this.gameSource) {
       console.warn('[WorldStateManager] No game source — skipping save');
       return false;
@@ -185,18 +325,23 @@ export class WorldStateManager {
       return false;
     }
 
-    const state = this.captureState(slotIndex);
+    const state = this.captureState(slotIndex, trigger);
     const diff = this.computeDiff(state);
     if (!diff) {
       console.log('[WorldStateManager] No changes to save');
       return false;
     }
 
-    // Send full state for the slot (server stores by slot index)
-    await this.dataSource.saveGameState(worldId, playthroughId, slotIndex, state);
-    this.lastSavedState = state;
-    console.log(`[WorldStateManager] Saved to slot ${slotIndex}`);
-    return true;
+    this._isSaving = true;
+    try {
+      // Send full state for the slot (server stores by slot index)
+      await this.dataSource.saveGameState(worldId, playthroughId, slotIndex, state);
+      this.lastSavedState = state;
+      console.log(`[WorldStateManager] Saved to slot ${slotIndex}${trigger ? ` (trigger: ${trigger})` : ''}`);
+      return true;
+    } finally {
+      this._isSaving = false;
+    }
   }
 
   /** Load game state from a specific slot and apply to the game. */
@@ -241,6 +386,59 @@ export class WorldStateManager {
     if (state.gameTime != null) {
       target.restoreGameTime(state.gameTime);
     }
+    // Extended subsystem state
+    if (state.temporaryStates != null) {
+      target.restoreTemporaryStates?.(state.temporaryStates);
+    }
+    if (state.languageProgress != null) {
+      target.restoreLanguageProgress?.(state.languageProgress);
+    }
+    if (state.gamification != null) {
+      target.restoreGamificationState?.(state.gamification);
+    }
+    if (state.volition != null) {
+      target.restoreVolitionState?.(state.volition);
+    }
+    if (state.utteranceQuests != null) {
+      target.restoreUtteranceQuestState?.(state.utteranceQuests);
+    }
+    if (state.ambientConversations != null) {
+      target.restoreAmbientConversationState?.(state.ambientConversations);
+    }
+    if (state.contentGating != null) {
+      target.restoreContentGatingState?.(state.contentGating);
+    }
+    if (state.skillTree != null) {
+      target.restoreSkillTreeState?.(state.skillTree);
+    }
+  }
+
+  /** Audit a save state for completeness — reports which subsystems are present/missing. */
+  auditSaveState(state: GameSaveState): SaveStateAuditResult {
+    const present: string[] = [];
+    const missing: string[] = [];
+
+    for (const key of SUBSYSTEM_KEYS) {
+      const value = state[key];
+      if (value != null && value !== undefined) {
+        present.push(key);
+      } else {
+        missing.push(key);
+      }
+    }
+
+    return {
+      complete: missing.length === 0,
+      present,
+      missing,
+      timestamp: state.savedAt,
+    };
+  }
+
+  /** Audit the current live game state without saving. */
+  auditCurrentState(): SaveStateAuditResult {
+    const state = this.captureState(0, 'audit');
+    return this.auditSaveState(state);
   }
 
   /** List available save slots for a world/playthrough. */
@@ -257,10 +455,12 @@ export class WorldStateManager {
     return slots;
   }
 
-  /** Clean up timers. */
+  /** Clean up timers and triggers. */
   dispose(): void {
     this.stopAutoSave();
     this.gameSource = null;
     this.lastSavedState = null;
+    this._onAutoSaveStart = undefined;
+    this._onAutoSaveEnd = undefined;
   }
 }
