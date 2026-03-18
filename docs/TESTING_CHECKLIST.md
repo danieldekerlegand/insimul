@@ -227,6 +227,43 @@
 - [ ] Quest hints available and helpful
 - [ ] Quest language feedback panel shows learning progress
 
+### 6.7 Real-Time Quest Events & Feedback
+- [ ] Quest-relevant events fire on GameEventBus (visited_location, talked_to_npc, used_vocabulary, etc.)
+- [ ] QuestCompletionEngine matches events against active quest objectives
+- [ ] Progress updates immediately and emits quest:objective_progress event
+- [ ] Inline grammar corrections display during quest conversations (green/orange/red)
+- [ ] Quest completion overlay includes language performance summary
+
+### 6.8 Quest Auto-Generation & Difficulty Scaling
+- [ ] When active quests drop below threshold, new quests auto-generated
+- [ ] Weak-area detection prioritizes quest types player needs
+- [ ] At least one quest of each major category always available
+- [ ] Rolling average of recent quest quality tracked for difficulty adjustment
+- [ ] High quality (>85%) increases difficulty; low quality (<50%) decreases
+- [ ] Quest recommendation engine scores quests on learning gaps, variety, difficulty
+
+### 6.9 Quest Celebrations & NPC Personality
+- [ ] Celebration scaled by difficulty (confetti/chime → full screen)
+- [ ] NPC congratulation in target language on completion
+- [ ] NPC personality influences quest dialogue style (extroversion, agreeableness, etc.)
+- [ ] Business NPC thanks player personally on business quest completion
+
+### 6.10 Specialized Quest Actions
+- [ ] Ask for directions: NPC responds with verbal directions using actual street network
+- [ ] Introduce self: first NPC meeting prompts introduction, quality tracked by CEFR level
+- [ ] Order food: restaurant menu displays, player orders in target language, NPC validates
+
+### 6.11 Onboarding Quest Sequence
+- [ ] Quest 0-6 teach core mechanics (response, examine, walk, enter shop, converse, purchase, assessment)
+- [ ] Each quest has pop-up tutorial explaining relevant controls
+- [ ] Onboarding mandatory for first play, skippable on replay
+
+### 6.12 Business Interactions
+- [ ] Business owner NPC greets player on entry (contextual to business type)
+- [ ] Greeting complexity scales with CEFR level
+- [ ] Business reputation tracked per business (Stranger → Friend)
+- [ ] Higher reputation unlocks harder/more rewarding quests from that business NPC
+
 ---
 
 ## 7. LANGUAGE LEARNING
@@ -284,6 +321,58 @@
 - [ ] Daily challenges appear and complete
 - [ ] Achievements unlock for milestones
 - [ ] Language progress tracker accurate
+
+### 7.9 Quest Streak System
+- [ ] Consecutive quest completions tracked without failure/abandonment
+- [ ] Streak multipliers apply (2→1.1x, 5→1.25x, 10→1.5x, 20→2.0x XP)
+- [ ] Current streak displayed in quest log header with flame icon
+- [ ] Streak persisted in LanguageProgress across sessions
+- [ ] Daily quests have separate streak counter
+- [ ] Business-specific streak: visiting a business daily increases NPC rapport
+
+### 7.10 XP Award Wiring
+- [ ] XP_REWARDS correctly awarded for all activity types
+- [ ] Level-up checks trigger after each XP award
+- [ ] Level-up emits event, displays notification, persists to playerProgress
+- [ ] Skill tree unlocks trigger on level-up
+- [ ] Session XP counter maintained in playerSessions
+- [ ] XP persists server-side and survives page refresh
+
+### 7.11 Achievement Detection
+- [ ] Achievement detection monitors GameEventBus events (npc_talked, object_examined, npc_exam_completed, etc.)
+- [ ] Achievements unlock correctly for milestones (words, conversations, grammar, quests, streaks, etc.)
+- [ ] 50 XP awarded on achievement unlock
+- [ ] achievement_unlocked event fires for notification system
+
+### 7.12 Pronunciation Scoring & Feedback
+- [ ] Phonetic similarity scoring used instead of exact string matching
+- [ ] Language-specific phonetic rules applied (silent letters, liaisons)
+- [ ] Partial credit given for close phonemes
+- [ ] Audio-level pronunciation scoring via server endpoint
+- [ ] Per-word pronunciation scores returned with timing and overall grade
+- [ ] Fallback to text-based scoring if audio analysis fails
+- [ ] Pronunciation feedback integrated with quest completion
+
+### 7.13 Listen & Repeat Action
+- [ ] Player triggers repeat during NPC conversation
+- [ ] NPC repeats last phrase slowly in target language via TTS
+- [ ] Player uses push-to-talk (R) to repeat the phrase
+- [ ] STT transcription compared against original phrase
+- [ ] Feedback shows matched words (green) and missed/wrong (red)
+- [ ] Repeat attempts tracked over time
+
+### 7.14 VAD (Voice Activity Detection)
+- [ ] Hands-free mode toggle available on chat panels
+- [ ] Auto-start recording when speech detected
+- [ ] Auto-stop recording after 1.5s of silence
+- [ ] Visual volume indicator shows mic is listening
+- [ ] NPC greeting audio precomputed on chat open for instant playback
+
+### 7.15 Adaptive NPC Speech Complexity
+- [ ] NPCs adjust speech complexity based on player CEFR level
+- [ ] A1: simple sentences, repeats key words, mixes English
+- [ ] B1+: natural speech with complex structures, minimal English
+- [ ] Business-contextualized speech scales with level
 
 ---
 
@@ -511,11 +600,14 @@
 - [ ] History timeline viewable
 - [ ] Settlement history events tracked
 
-### 16.3 Settlement Growth
+### 16.3 Settlement Growth & Decline
 - [ ] Settlements grow in population over time
 - [ ] New buildings constructed as population grows
-- [ ] Settlement infrastructure develops
-- [ ] Settlement decline possible (population loss)
+- [ ] Settlement infrastructure develops (US-065)
+- [ ] Settlement decline mechanics when population drops (US-064)
+- [ ] Settlement growth mechanics add physical buildings/lots (US-063)
+- [ ] Settlement history tracking records changes over time (US-066)
+- [ ] Nature object LOD system reduces detail at distance (US-054)
 
 ### 16.4 Genealogy
 - [ ] Family trees generate correctly
@@ -663,6 +755,10 @@
 - [ ] Buildings/structures shown
 - [ ] Quest markers visible
 - [ ] Terrain renders on minimap
+- [ ] Terrain coloring from heightmap (US-039)
+- [ ] Street network lines visible (US-040)
+- [ ] Building footprints at higher zoom (US-041)
+- [ ] Minimap zoom and interaction (US-042)
 
 ### 22.2 Fullscreen Map
 - [ ] Fullscreen map opens (M key)
@@ -672,6 +768,21 @@
 - [ ] Zoom and pan functional
 - [ ] Street layer visible
 - [ ] Building footprints shown
+- [ ] Full-screen 2D map overlay (US-043)
+- [ ] Map-based quest navigation with target-language labels
+
+### 22.3 World/Settlement Editor Maps
+- [ ] World editor displays street networks within settlements (US-045)
+- [ ] World editor displays rivers, lakes, and coastlines (US-046)
+- [ ] World editor has layers toggle panel (US-047)
+- [ ] Settlement editor has mini-map showing lot layout, addresses, streets (US-048)
+
+### 22.4 Ambient Vocabulary & Labels
+- [ ] Floating target-language labels appear on objects during exploration
+- [ ] Labels prioritize words player needs for active quests
+- [ ] Business storefronts display name in target language
+- [ ] Clicking floating label triggers mini-interaction (hear pronunciation, see example)
+- [ ] Labels toggleable in settings (default on for A1-A2)
 
 ---
 
@@ -788,6 +899,10 @@
 - [ ] IR generation includes all world data
 - [ ] IR includes terrain, entities, NPCs, rules, quests
 - [ ] IR includes languages, assets, UI config
+- [ ] Street networks exported in IR (US-056)
+- [ ] Water features exported in IR (US-057)
+- [ ] Enhanced lot and building data with street placement (US-058)
+- [ ] Babylon.js scene generator uses enhanced IR data (US-059)
 
 ### 28.2 Babylon.js Export
 - [ ] Babylon.js project generates
