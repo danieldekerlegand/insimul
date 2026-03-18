@@ -5,7 +5,7 @@
  * fullscreen overlay that has tabbed navigation, similar to AAA games like
  * The Witcher 3. Opens with ESC, closes with ESC or clicking the close button.
  *
- * Tabs: Character, Quests, Inventory, Map, Vocabulary, Skill Tree, Notice Board, Contact List, System
+ * Tabs: Character, Journal, Quests, Inventory, Map, Vocabulary, Skill Tree, Notice Board, Contact List, System
  *
  * HUD elements (minimap, health bar, energy/gold) remain always visible
  * and are NOT part of this menu system.
@@ -33,6 +33,7 @@ import type { SkillTreeStats } from './BabylonSkillTreePanel';
 import type { NoticeArticle } from './BabylonNoticeBoardPanel';
 import type { PlayerAssessmentData } from '@shared/assessment-types';
 import type { GameSaveState } from '@shared/game-engine/types';
+import type { MainQuestChapter, ChapterProgress } from '@shared/quest/main-quest-chapters';
 import {
   SKILL_TIERS,
   createDefaultSkillTreeState,
@@ -179,6 +180,20 @@ export interface SaveSlotInfo {
 }
 
 /** Callback interface for requesting data and dispatching actions from the menu */
+export interface MenuJournalChapter {
+  chapter: MainQuestChapter;
+  progress: ChapterProgress;
+  completionPercent: number;
+  cefrMet: boolean;
+}
+
+export interface MenuJournalData {
+  currentChapterId: string | null;
+  totalXPEarned: number;
+  chapters: MenuJournalChapter[];
+  playerCefrLevel: string | null;
+}
+
 export interface GameMenuCallbacks {
   getPlayerData: () => MenuPlayerData | null;
   getReputations: () => MenuReputationData[];
@@ -213,10 +228,12 @@ export interface GameMenuCallbacks {
   getSaveSlots?: () => Promise<Array<SaveSlotInfo | null>>;
   onSaveGame?: (slotIndex: number) => Promise<boolean>;
   onLoadGame?: (slotIndex: number) => Promise<boolean>;
+  getJournalData?: () => MenuJournalData | null;
 }
 
 export type MenuTab =
   | "character"
+  | "journal"
   | "quests"
   | "inventory"
   | "map"
@@ -235,12 +252,13 @@ interface TabDef {
 
 const TABS: TabDef[] = [
   { id: "character", label: "Character", icon: "👤" },
+  { id: "journal", label: "Journal", icon: "📖" },
   { id: "quests", label: "Quests", icon: "📜" },
   { id: "inventory", label: "Inventory", icon: "🎒" },
   { id: "map", label: "Map", icon: "🗺️" },
   { id: "vocabulary", label: "Knowledge", icon: "📚" },
   { id: "skills", label: "Skill Tree", icon: "🌳" },
-  { id: "notices", label: "Library", icon: "📖" },
+  { id: "notices", label: "Library", icon: "🏛️" },
   { id: "contacts", label: "Contact List", icon: "📱" },
   { id: "notifications", label: "Notifications", icon: "🔔" },
   { id: "system", label: "System", icon: "⚙️" },
@@ -547,6 +565,9 @@ export class GameMenuSystem {
       case "character":
         this.renderCharacterTab();
         break;
+      case "journal":
+        this.renderJournalTab();
+        break;
       case "quests":
         this.renderQuestsTab();
         break;
@@ -826,6 +847,160 @@ export class GameMenuSystem {
     if (score >= -49) return COLORS.accentYellow;
     if (score >= -99) return "#FF9800";
     return COLORS.accentRed;
+  }
+
+  // ─── JOURNAL TAB ────────────────────────────────────────────────────────
+
+  private renderJournalTab(): void {
+    const { stack } = this.makeScrollableContent("journal");
+    const data = this.callbacks.getJournalData?.();
+
+    this.addSectionHeader(stack, "Journal — Main Quest");
+    this.addSubHeader(stack, "Your journey through the language, chapter by chapter");
+
+    if (!data || data.chapters.length === 0) {
+      const noData = new TextBlock();
+      noData.text = "No journal data available. Complete the onboarding to begin your journey.";
+      noData.color = COLORS.textMuted;
+      noData.fontSize = 13;
+      noData.height = "40px";
+      noData.textWrapping = TextWrapping.WordWrap;
+      stack.addControl(noData);
+      return;
+    }
+
+    // Overall progress summary
+    const summaryCard = this.makeCard(stack);
+    const completedCount = data.chapters.filter(c => c.progress.status === 'completed').length;
+    this.addStatRow(summaryCard, "Chapters Completed", `${completedCount} / ${data.chapters.length}`, COLORS.accentGreen);
+    this.addStatRow(summaryCard, "Current CEFR Level", data.playerCefrLevel || "A1", COLORS.accent);
+    this.addStatRow(summaryCard, "Total XP Earned", `${data.totalXPEarned}`, COLORS.accentYellow);
+    this.addProgressBar(summaryCard, completedCount, data.chapters.length, COLORS.accentGreen, `${Math.round((completedCount / data.chapters.length) * 100)}%`);
+
+    this.addDivider(stack);
+
+    // Render each chapter
+    for (const entry of data.chapters) {
+      this.renderJournalChapter(stack, entry, data.currentChapterId);
+    }
+  }
+
+  private renderJournalChapter(
+    parent: StackPanel,
+    entry: MenuJournalChapter,
+    currentChapterId: string | null,
+  ): void {
+    const { chapter, progress, completionPercent, cefrMet } = entry;
+    const isCurrent = chapter.id === currentChapterId;
+    const isLocked = progress.status === 'locked';
+    const isCompleted = progress.status === 'completed';
+
+    const card = this.makeCard(parent);
+
+    // Chapter header row
+    const headerRow = new Rectangle();
+    headerRow.width = 1;
+    headerRow.height = "28px";
+    headerRow.thickness = 0;
+    headerRow.background = "transparent";
+    card.addControl(headerRow);
+
+    const statusIcon = isCompleted ? "✅" : isCurrent ? "▶️" : isLocked ? "🔒" : "⏳";
+    const titleText = new TextBlock();
+    titleText.text = `${statusIcon}  Ch. ${chapter.number}: ${chapter.title}`;
+    titleText.color = isLocked ? COLORS.textMuted : COLORS.textPrimary;
+    titleText.fontSize = 15;
+    titleText.fontWeight = "bold";
+    titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    titleText.paddingLeft = "4px";
+    headerRow.addControl(titleText);
+
+    // CEFR requirement badge
+    const cefrBadge = new TextBlock();
+    cefrBadge.text = `CEFR ${chapter.requiredCefrLevel}${cefrMet ? " ✓" : ""}`;
+    cefrBadge.color = cefrMet ? COLORS.accentGreen : COLORS.accentRed;
+    cefrBadge.fontSize = 11;
+    cefrBadge.fontWeight = "bold";
+    cefrBadge.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    cefrBadge.paddingRight = "4px";
+    headerRow.addControl(cefrBadge);
+
+    // Description
+    const desc = new TextBlock();
+    desc.text = chapter.description;
+    desc.color = isLocked ? COLORS.textMuted : COLORS.textSecondary;
+    desc.fontSize = 12;
+    desc.textWrapping = TextWrapping.WordWrap;
+    desc.resizeToFit = true;
+    desc.paddingBottom = "6px";
+    desc.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    desc.paddingLeft = "4px";
+    card.addControl(desc);
+
+    // Show narrative for current chapter
+    if (isCurrent && chapter.introNarrative) {
+      const narrative = new TextBlock();
+      narrative.text = `"${chapter.introNarrative}"`;
+      narrative.color = COLORS.accentYellow;
+      narrative.fontSize = 11;
+      narrative.fontStyle = "italic";
+      narrative.textWrapping = TextWrapping.WordWrap;
+      narrative.resizeToFit = true;
+      narrative.paddingBottom = "8px";
+      narrative.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      narrative.paddingLeft = "4px";
+      card.addControl(narrative);
+    }
+
+    // Progress bar (only for active/completed)
+    if (!isLocked) {
+      this.addProgressBar(
+        card,
+        completionPercent,
+        100,
+        isCompleted ? COLORS.accentGreen : COLORS.accent,
+        `${completionPercent}%`,
+      );
+    }
+
+    // Objectives (only for current/completed chapters)
+    if (isCurrent || isCompleted) {
+      for (const obj of chapter.objectives) {
+        const current = progress.objectiveProgress[obj.id] ?? 0;
+        const done = current >= obj.requiredCount;
+        const objRow = new Rectangle();
+        objRow.width = 1;
+        objRow.height = "22px";
+        objRow.thickness = 0;
+        objRow.background = "transparent";
+        card.addControl(objRow);
+
+        const objText = new TextBlock();
+        objText.text = `  ${done ? "✓" : "○"}  ${obj.title}  (${Math.min(current, obj.requiredCount)}/${obj.requiredCount})`;
+        objText.color = done ? COLORS.accentGreen : COLORS.textSecondary;
+        objText.fontSize = 12;
+        objText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        objText.paddingLeft = "10px";
+        objRow.addControl(objText);
+      }
+    }
+
+    // Completion bonus
+    if (isCompleted) {
+      this.addStatRow(card, "Bonus XP", `+${chapter.completionBonusXP}`, COLORS.accentYellow);
+    }
+
+    // CEFR lock message
+    if (isLocked && !cefrMet) {
+      const lockMsg = new TextBlock();
+      lockMsg.text = `Requires CEFR ${chapter.requiredCefrLevel} to unlock`;
+      lockMsg.color = COLORS.accentRed;
+      lockMsg.fontSize = 11;
+      lockMsg.height = "20px";
+      lockMsg.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      lockMsg.paddingLeft = "4px";
+      card.addControl(lockMsg);
+    }
   }
 
   // ─── QUESTS TAB ─────────────────────────────────────────────────────────

@@ -9471,6 +9471,66 @@ Respond with this JSON structure:
     }
   });
 
+  // ─── Main Quest Progression Endpoints ─────────────────────────────────────
+
+  app.get("/api/worlds/:worldId/main-quest/:playerId", async (req, res) => {
+    try {
+      const { worldId, playerId } = req.params;
+      const cefrLevel = (req.query.cefrLevel as string) || null;
+      const { mainQuestProgressionManager } = await import('./services/main-quest-progression.js');
+      const summary = await mainQuestProgressionManager.getJournalSummary(
+        worldId,
+        playerId,
+        cefrLevel as any,
+      );
+      res.json(summary);
+    } catch (error) {
+      console.error('[MainQuest] Error fetching journal:', error);
+      res.status(500).json({ error: "Failed to fetch main quest state" });
+    }
+  });
+
+  app.post("/api/worlds/:worldId/main-quest/:playerId/record-completion", async (req, res) => {
+    try {
+      const { worldId, playerId } = req.params;
+      const { questType, cefrLevel } = req.body;
+      if (!questType) {
+        return res.status(400).json({ error: "questType is required" });
+      }
+      const { mainQuestProgressionManager } = await import('./services/main-quest-progression.js');
+      const result = await mainQuestProgressionManager.recordQuestCompletion(
+        worldId,
+        playerId,
+        questType,
+        cefrLevel || null,
+      );
+      res.json({ result });
+    } catch (error) {
+      console.error('[MainQuest] Error recording completion:', error);
+      res.status(500).json({ error: "Failed to record quest completion" });
+    }
+  });
+
+  app.post("/api/worlds/:worldId/main-quest/:playerId/try-unlock", async (req, res) => {
+    try {
+      const { worldId, playerId } = req.params;
+      const { cefrLevel } = req.body;
+      if (!cefrLevel) {
+        return res.status(400).json({ error: "cefrLevel is required" });
+      }
+      const { mainQuestProgressionManager } = await import('./services/main-quest-progression.js');
+      const chapter = await mainQuestProgressionManager.tryUnlockNextChapter(
+        worldId,
+        playerId,
+        cefrLevel,
+      );
+      res.json({ unlocked: !!chapter, chapter: chapter ?? null });
+    } catch (error) {
+      console.error('[MainQuest] Error unlocking chapter:', error);
+      res.status(500).json({ error: "Failed to unlock chapter" });
+    }
+  });
+
   // Quest Chain Endpoints
   app.post("/api/worlds/:worldId/quest-chains/generate", async (req, res) => {
     try {
