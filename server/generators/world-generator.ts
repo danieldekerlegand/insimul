@@ -158,6 +158,7 @@ export class WorldGenerator {
       console.log('\n📖 Generating genealogy...');
       const genealogyResult = await this.genealogyGen.generate({
         worldId: world.id,
+        settlementId: settlement.id,
         startYear: config.foundedYear,
         currentYear: config.currentYear,
         numFoundingFamilies: config.numFoundingFamilies,
@@ -469,7 +470,9 @@ export class WorldGenerator {
   }
 
   /**
-   * Generate initial businesses for the settlement based on population and terrain
+   * Generate initial businesses for the settlement based on population and terrain.
+   * First assigns founders and proper types to geography-generated lot businesses,
+   * then creates additional businesses if needed.
    */
   private async generateInitialBusinesses(config: {
     worldId: string;
@@ -478,17 +481,17 @@ export class WorldGenerator {
     currentYear: number;
     terrain: string;
   }): Promise<Business[]> {
-    const businesses: Business[] = [];
-    
+    const resultBusinesses: Business[] = [];
+
     // Determine what businesses are needed
     const businessPlan = this.determineBusinessMix(
       config.population,
       config.terrain,
       config.currentYear
     );
-    
+
     console.log(`   Planning ${businessPlan.length} businesses...`);
-    
+
     // Get available characters to be founders
     const characters = await storage.getCharactersByWorld(config.worldId);
     const adultCharacters = characters.filter(c =>
@@ -496,12 +499,51 @@ export class WorldGenerator {
       this.getAge(c, config.currentYear) <= 65 &&
       c.isAlive
     );
-    
+
     // Shuffle to randomize founder selection
     const availableFounders = adultCharacters.sort(() => Math.random() - 0.5);
-    
-    // Create businesses and assign founders
+
+    // Get existing geography-generated businesses on lots (no founder assigned yet)
+    const existingBusinesses = await storage.getBusinessesBySettlement(config.settlementId);
+    const unownedBusinesses = existingBusinesses.filter(b => !b.ownerId && !b.founderId);
+
+    // Phase 1: Assign founders and proper types to existing lot-based businesses
+    const unownedQueue = [...unownedBusinesses];
+    const remainingPlan: BusinessType[] = [];
+
     for (const businessType of businessPlan) {
+      const founder = availableFounders.pop();
+      if (!founder) break;
+
+      const lotBusiness = unownedQueue.shift();
+      if (lotBusiness) {
+        // Adopt the geography-generated business: update its type, name, and founder
+        try {
+          const name = this.generateBusinessName(businessType, founder);
+          await storage.updateBusiness(lotBusiness.id, {
+            businessType,
+            name,
+            ownerId: founder.id,
+            founderId: founder.id,
+            foundedYear: config.currentYear,
+            vacancies: this.getVacanciesForBusinessType(businessType),
+          });
+          await storage.updateCharacter(founder.id, { occupation: `Owner (${businessType})` });
+          resultBusinesses.push({ ...lotBusiness, businessType, name, ownerId: founder.id, founderId: founder.id } as Business);
+          console.log(`   ✓ Founded ${name} at ${lotBusiness.address}`);
+        } catch (error) {
+          console.error(`   ✗ Failed to assign ${businessType} to lot:`, error);
+          availableFounders.push(founder);
+        }
+      } else {
+        // No more lot-based businesses — track for phase 2
+        remainingPlan.push(businessType);
+        availableFounders.push(founder);
+      }
+    }
+
+    // Phase 2: Create new businesses for types that couldn't be placed on lots
+    for (const businessType of remainingPlan) {
       const founder = availableFounders.pop();
       if (founder) {
         try {
@@ -515,18 +557,17 @@ export class WorldGenerator {
             currentTimestep: 0,
             initialVacancies: this.getVacanciesForBusinessType(businessType)
           });
-          
-          businesses.push(business);
-          // Update founder's occupation text field
+
+          resultBusinesses.push(business);
           await storage.updateCharacter(founder.id, { occupation: `Owner (${businessType})` });
-          console.log(`   ✓ Founded ${business.name}`);
+          console.log(`   ✓ Founded ${business.name} (no lot)`);
         } catch (error) {
           console.error(`   ✗ Failed to found ${businessType}:`, error);
         }
       }
     }
-    
-    return businesses;
+
+    return resultBusinesses;
   }
 
   /**
