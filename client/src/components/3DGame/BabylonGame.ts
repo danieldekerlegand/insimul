@@ -1517,6 +1517,9 @@ export class BabylonGame {
         this.questObjectManager?.trackListeningAnswer(true, questId);
       }
 
+      // Award XP for listening comprehension
+      this.gamificationTracker?.onListeningComprehensionCompleted(passed);
+
       this.guiManager?.showToast({
         title: passed ? 'Comprehension Passed!' : 'Comprehension Check',
         description: passed
@@ -1739,6 +1742,9 @@ export class BabylonGame {
       });
     });
 
+    // Set world ID for server XP sync
+    this.gamificationTracker.setWorldId(this.config.worldId);
+
     // Wire achievement detection to gameplay events via event bus
     this.gamificationTracker.subscribeToEventBus(this.eventBus);
 
@@ -1860,6 +1866,9 @@ export class BabylonGame {
     });
     this.eventBus.on('location_discovered', () => {
       this.gamificationTracker?.onLocationDiscovered();
+    });
+    this.eventBus.on('npc_exam_completed', (event) => {
+      this.gamificationTracker?.onNpcExamCompleted(event.percentage);
     });
 
     // Initialize combat system
@@ -7438,6 +7447,8 @@ export class BabylonGame {
     this.chatPanel?.setEavesdropMode(false);
     this.ambientConversationManager?.endEavesdrop();
     this.ambientConversationManager?.resume();
+    // Award XP for eavesdropping on NPC conversation
+    this.gamificationTracker?.onEavesdropCompleted();
   }
 
   /**

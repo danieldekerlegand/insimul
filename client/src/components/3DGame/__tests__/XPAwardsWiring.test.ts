@@ -6,9 +6,13 @@
  * 2. Quest completion falls back to flat XP_REWARDS.questComplete when no experienceReward
  * 3. Learning activities (assessment, onboarding, puzzle, location) award correct XP
  * 4. QuestCompletionManager passes experienceReward to gamification tracker
+ * 5. NPC exam completion awards XP with score-based bonus
+ * 6. Listening comprehension awards XP (full for pass, half for fail)
+ * 7. Eavesdrop conversation awards XP
+ * 8. XP syncs to server via debounced fetch
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock Babylon.js GUI and core modules
 vi.mock('@babylonjs/gui', () => {
@@ -247,6 +251,140 @@ describe('XP Awards Wiring', () => {
       await manager.completeQuest(quest);
 
       expect(mockGamification.onQuestCompleted).toHaveBeenCalledWith('conversation', 0);
+    });
+  });
+
+  describe('LanguageGamificationTracker - NPC Exam XP', () => {
+    let tracker: LanguageGamificationTracker;
+    let xpEvents: XPGainEvent[];
+
+    beforeEach(() => {
+      tracker = new LanguageGamificationTracker();
+      xpEvents = [];
+      tracker.setOnXPGain((e) => xpEvents.push(e));
+    });
+
+    it('should award base XP for NPC exam with no percentage', () => {
+      tracker.onNpcExamCompleted();
+
+      expect(xpEvents.length).toBe(1);
+      expect(xpEvents[0].amount).toBe(XP_REWARDS.npcExamComplete);
+      expect(xpEvents[0].reason).toBe('NPC exam complete');
+    });
+
+    it('should award bonus XP for high exam scores', () => {
+      tracker.onNpcExamCompleted(100);
+
+      expect(xpEvents.length).toBe(1);
+      // 35 * (1 + 1.0 * 0.5) = 35 * 1.5 = 52.5 → 53
+      expect(xpEvents[0].amount).toBe(Math.round(XP_REWARDS.npcExamComplete * 1.5));
+    });
+
+    it('should award proportional bonus for partial exam scores', () => {
+      tracker.onNpcExamCompleted(50);
+
+      // 35 * (1 + 0.5 * 0.5) = 35 * 1.25 = 43.75 → 44
+      expect(xpEvents[0].amount).toBe(Math.round(XP_REWARDS.npcExamComplete * 1.25));
+    });
+
+    it('should award base XP for 0% score', () => {
+      tracker.onNpcExamCompleted(0);
+
+      // percentage is 0 so the condition `percentage > 0` is false → falls through to base XP
+      expect(xpEvents[0].amount).toBe(XP_REWARDS.npcExamComplete);
+    });
+  });
+
+  describe('LanguageGamificationTracker - Listening Comprehension XP', () => {
+    let tracker: LanguageGamificationTracker;
+    let xpEvents: XPGainEvent[];
+
+    beforeEach(() => {
+      tracker = new LanguageGamificationTracker();
+      xpEvents = [];
+      tracker.setOnXPGain((e) => xpEvents.push(e));
+    });
+
+    it('should award full XP when listening comprehension is passed', () => {
+      tracker.onListeningComprehensionCompleted(true);
+
+      expect(xpEvents.length).toBe(1);
+      expect(xpEvents[0].amount).toBe(XP_REWARDS.listeningComprehensionComplete);
+      expect(xpEvents[0].reason).toBe('Listening comprehension passed');
+    });
+
+    it('should award half XP when listening comprehension is failed', () => {
+      tracker.onListeningComprehensionCompleted(false);
+
+      expect(xpEvents.length).toBe(1);
+      expect(xpEvents[0].amount).toBe(Math.round(XP_REWARDS.listeningComprehensionComplete * 0.5));
+      expect(xpEvents[0].reason).toBe('Listening comprehension attempted');
+    });
+  });
+
+  describe('LanguageGamificationTracker - Eavesdrop XP', () => {
+    let tracker: LanguageGamificationTracker;
+    let xpEvents: XPGainEvent[];
+
+    beforeEach(() => {
+      tracker = new LanguageGamificationTracker();
+      xpEvents = [];
+      tracker.setOnXPGain((e) => xpEvents.push(e));
+    });
+
+    it('should award XP for eavesdrop conversation', () => {
+      tracker.onEavesdropCompleted();
+
+      expect(xpEvents.length).toBe(1);
+      expect(xpEvents[0].amount).toBe(XP_REWARDS.eavesdropConversation);
+      expect(xpEvents[0].reason).toBe('Eavesdrop conversation');
+    });
+  });
+
+  describe('LanguageGamificationTracker - Server XP Sync', () => {
+    let tracker: LanguageGamificationTracker;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      tracker = new LanguageGamificationTracker();
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    });
+
+    it('should debounce XP sync to server after 5 seconds', () => {
+      tracker.setWorldId('world-1');
+      tracker.onPuzzleSolved();
+
+      expect(fetch).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(5000);
+
+      expect(fetch).toHaveBeenCalledWith('/api/xp/experiences/update', expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }));
+    });
+
+    it('should not sync when worldId is not set', () => {
+      tracker.onPuzzleSolved();
+      vi.advanceTimersByTime(5000);
+
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('should debounce multiple XP changes into one sync', () => {
+      tracker.setWorldId('world-1');
+      tracker.onPuzzleSolved();
+      tracker.onLocationDiscovered();
+      tracker.onEavesdropCompleted();
+
+      vi.advanceTimersByTime(5000);
+
+      expect(fetch).toHaveBeenCalledTimes(1);
     });
   });
 });

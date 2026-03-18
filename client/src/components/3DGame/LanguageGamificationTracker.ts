@@ -112,6 +112,9 @@ export class LanguageGamificationTracker {
       eventBus.on('enemy_defeated', (_event) => {
         this.checkAchievements();
       }),
+      eventBus.on('npc_exam_completed', (event) => {
+        this.onNpcExamCompleted(event.percentage);
+      }),
     );
   }
 
@@ -140,6 +143,9 @@ export class LanguageGamificationTracker {
       reason,
       newTotal: this.state.xp.totalXP,
     });
+
+    // Debounced sync to server
+    this.syncToServer();
 
     if (this.state.xp.level > oldLevel) {
       const tier = getLevelTier(this.state.xp.level);
@@ -311,6 +317,35 @@ export class LanguageGamificationTracker {
    */
   public onLocationDiscovered(): void {
     this.addXP(XP_REWARDS.locationDiscovered, 'Location discovered');
+  }
+
+  /**
+   * Called when an NPC exam is completed.
+   * Awards bonus XP scaled by exam score percentage.
+   */
+  public onNpcExamCompleted(percentage?: number): void {
+    let xp = XP_REWARDS.npcExamComplete;
+    // Bonus XP for high scores: up to 50% extra at 100%
+    if (percentage != null && percentage > 0) {
+      xp = Math.round(xp * (1 + (percentage / 100) * 0.5));
+    }
+    this.addXP(xp, 'NPC exam complete');
+    this.checkAchievements();
+  }
+
+  /**
+   * Called when a listening comprehension check is completed.
+   */
+  public onListeningComprehensionCompleted(passed: boolean): void {
+    const xp = passed ? XP_REWARDS.listeningComprehensionComplete : Math.round(XP_REWARDS.listeningComprehensionComplete * 0.5);
+    this.addXP(xp, passed ? 'Listening comprehension passed' : 'Listening comprehension attempted');
+  }
+
+  /**
+   * Called when the player eavesdrops on an NPC-to-NPC conversation.
+   */
+  public onEavesdropCompleted(): void {
+    this.addXP(XP_REWARDS.eavesdropConversation, 'Eavesdrop conversation');
   }
 
   // --- Achievement System ---
@@ -502,6 +537,44 @@ export class LanguageGamificationTracker {
     return this.state.dailyChallenge;
   }
 
+  // --- Server XP Sync ---
+
+  private syncTimer: ReturnType<typeof setTimeout> | null = null;
+  private worldId: string | null = null;
+
+  public setWorldId(worldId: string): void {
+    this.worldId = worldId;
+  }
+
+  /**
+   * Debounced sync of XP state to server.
+   * Called automatically after XP changes; can also be called manually.
+   */
+  public syncToServer(): void {
+    if (!this.worldId) return;
+    if (this.syncTimer) clearTimeout(this.syncTimer);
+    this.syncTimer = setTimeout(() => {
+      this.doSync();
+    }, 5000);
+  }
+
+  private async doSync(): Promise<void> {
+    if (!this.worldId) return;
+    try {
+      await fetch('/api/xp/experiences/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          worldId: this.worldId,
+          totalXP: this.state.xp.totalXP,
+          level: this.state.xp.level,
+        }),
+      });
+    } catch (e) {
+      console.warn('[LanguageGamificationTracker] XP sync failed:', e);
+    }
+  }
+
   // --- Persistence ---
 
   public exportState(): string {
@@ -533,6 +606,12 @@ export class LanguageGamificationTracker {
   public setOnPeriodicAssessmentTriggered(cb: (event: PeriodicAssessmentEvent) => void): void { this.onPeriodicAssessmentTriggered = cb; }
 
   public dispose(): void {
+    if (this.syncTimer) {
+      clearTimeout(this.syncTimer);
+      this.syncTimer = null;
+    }
+    // Final sync before dispose
+    this.doSync();
     this.unsubscribeFromEventBus();
     this.onXPGain = null;
     this.onLevelUp = null;
