@@ -58,6 +58,13 @@ export const ACHIEVABLE_OBJECTIVE_TYPES: ObjectiveTypeInfo[] = [
     requiresTarget: 'none',
     countable: true,
   },
+  {
+    type: 'conversation_initiation',
+    description: 'Respond to an NPC who proactively approaches and starts a conversation',
+    playerAction: 'Accept an NPC-initiated conversation (press G) and respond appropriately',
+    requiresTarget: 'npc',
+    countable: true,
+  },
 
   // ── Vocabulary & Language ────────────────────────────────────────────────
   {
@@ -287,6 +294,13 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'greet': 'talk_to_npc',
   'meet': 'talk_to_npc',
   'ask': 'talk_to_npc',
+
+  'npc_initiated': 'conversation_initiation',
+  'npc_initiation': 'conversation_initiation',
+  'npc_proactive': 'conversation_initiation',
+  'respond_to_npc': 'conversation_initiation',
+  'accept_conversation': 'conversation_initiation',
+  'npc_approach': 'conversation_initiation',
 
   'reach_location': 'visit_location',
   'go_to': 'visit_location',
