@@ -20,7 +20,7 @@ export interface DataSource {
   loadBaseResources(worldId: string): Promise<any>;
   loadAssets(worldId: string): Promise<any[]>;
   loadConfig3D(worldId: string): Promise<any>;
-  loadTruths(worldId: string): Promise<any[]>;
+  loadTruths(worldId: string, playthroughId?: string): Promise<any[]>;
   loadCharacter(characterId: string): Promise<any>;
   startPlaythrough(worldId: string, authToken: string, playthroughName: string): Promise<any>;
   updateQuest(questId: string, data: any): Promise<void>;
@@ -123,8 +123,11 @@ export class ApiDataSource implements DataSource {
     return res.ok ? await res.json() : {};
   }
 
-  async loadTruths(worldId: string): Promise<any[]> {
-    const res = await fetch(`/api/worlds/${worldId}/truth`, { headers: this.getHeaders() });
+  async loadTruths(worldId: string, playthroughId?: string): Promise<any[]> {
+    const url = playthroughId
+      ? `/api/worlds/${worldId}/truth?playthroughId=${encodeURIComponent(playthroughId)}`
+      : `/api/worlds/${worldId}/truth`;
+    const res = await fetch(url, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
   }
 
@@ -263,23 +266,252 @@ async function readDataFile(relativePath: string): Promise<any> {
 }
 
 /**
+ * Local game state manager for exported games.
+ * Tracks runtime mutations (quest progress, inventories, reputation)
+ * in memory and persists to localStorage.
+ */
+export interface LocalStateData {
+  playthroughId: string;
+  playthroughName: string;
+  questUpdates: Record<string, any>;
+  inventories: Record<string, { items: any[]; gold: number }>;
+  merchantInventories: Record<string, any>;
+  finesPaid: Record<string, number>;
+  transactions: any[];
+}
+
+const LOCAL_STATE_KEY = 'insimul_local_state';
+
+export class LocalGameState {
+  private state: LocalStateData;
+
+  constructor(private storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> = localStorage) {
+    this.state = this.load();
+    this.persist();
+  }
+
+  private load(): LocalStateData {
+    try {
+      const raw = this.storage.getItem(LOCAL_STATE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch { /* corrupted data, start fresh */ }
+    return this.defaultState();
+  }
+
+  private defaultState(): LocalStateData {
+    return {
+      playthroughId: `exported-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      playthroughName: '',
+      questUpdates: {},
+      inventories: {},
+      merchantInventories: {},
+      finesPaid: {},
+      transactions: [],
+    };
+  }
+
+  private persist(): void {
+    try {
+      this.storage.setItem(LOCAL_STATE_KEY, JSON.stringify(this.state));
+    } catch (err) {
+      console.error('[LocalGameState] Failed to persist:', err);
+    }
+  }
+
+  getPlaythroughId(): string { return this.state.playthroughId; }
+
+  startPlaythrough(name: string): { id: string; name: string } {
+    this.state.playthroughName = name;
+    this.persist();
+    return { id: this.state.playthroughId, name };
+  }
+
+  updateQuest(questId: string, data: any): void {
+    this.state.questUpdates[questId] = {
+      ...this.state.questUpdates[questId],
+      ...data,
+    };
+    this.persist();
+  }
+
+  getQuestUpdates(): Record<string, any> {
+    return this.state.questUpdates;
+  }
+
+  getInventory(entityId: string): { entityId: string; items: any[]; gold: number } {
+    const inv = this.state.inventories[entityId] || { items: [], gold: 0 };
+    return { entityId, ...inv };
+  }
+
+  initializeInventory(entityId: string, items: any[], gold: number): void {
+    if (!this.state.inventories[entityId]) {
+      this.state.inventories[entityId] = { items, gold };
+      this.persist();
+    }
+  }
+
+  transferItem(transfer: {
+    fromEntityId?: string;
+    toEntityId?: string;
+    itemId: string;
+    itemName?: string;
+    itemDescription?: string;
+    itemType?: string;
+    quantity?: number;
+    transactionType: string;
+    totalPrice?: number;
+  }): { success: boolean; timestamp: number } {
+    const qty = transfer.quantity || 1;
+    const price = transfer.totalPrice || 0;
+
+    // Remove from source
+    if (transfer.fromEntityId) {
+      const from = this.state.inventories[transfer.fromEntityId] ||= { items: [], gold: 0 };
+      const idx = from.items.findIndex((i: any) => i.id === transfer.itemId || i.itemId === transfer.itemId);
+      if (idx >= 0) {
+        const item = from.items[idx];
+        const currentQty = item.quantity || 1;
+        if (currentQty <= qty) {
+          from.items.splice(idx, 1);
+        } else {
+          item.quantity = currentQty - qty;
+        }
+      }
+      if (transfer.transactionType === 'sell' && price > 0) {
+        from.gold += price;
+      }
+    }
+
+    // Add to destination
+    if (transfer.toEntityId) {
+      const to = this.state.inventories[transfer.toEntityId] ||= { items: [], gold: 0 };
+      const existing = to.items.find((i: any) => i.id === transfer.itemId || i.itemId === transfer.itemId);
+      if (existing) {
+        existing.quantity = (existing.quantity || 1) + qty;
+      } else {
+        to.items.push({
+          id: transfer.itemId,
+          itemId: transfer.itemId,
+          name: transfer.itemName || transfer.itemId,
+          description: transfer.itemDescription || '',
+          type: transfer.itemType || 'misc',
+          quantity: qty,
+        });
+      }
+      if (transfer.transactionType === 'buy' && price > 0) {
+        to.gold -= price;
+      }
+    }
+
+    const record = { ...transfer, timestamp: Date.now() };
+    this.state.transactions.push(record);
+    this.persist();
+    return { success: true, timestamp: record.timestamp };
+  }
+
+  getMerchantInventory(merchantId: string): any | null {
+    return this.state.merchantInventories[merchantId] || null;
+  }
+
+  setMerchantInventory(merchantId: string, inventory: any): void {
+    this.state.merchantInventories[merchantId] = inventory;
+    this.persist();
+  }
+
+  payFines(settlementId: string): { success: true; finesPaid: number; timestamp: number } {
+    const amount = this.state.finesPaid[settlementId] || 0;
+    this.state.finesPaid[settlementId] = 0;
+    this.persist();
+    return { success: true, finesPaid: amount, timestamp: Date.now() };
+  }
+
+  addFine(settlementId: string, amount: number): void {
+    this.state.finesPaid[settlementId] = (this.state.finesPaid[settlementId] || 0) + amount;
+    this.persist();
+  }
+
+  reset(): void {
+    this.state = this.defaultState();
+    this.persist();
+  }
+}
+
+/** Merchant occupation keywords for matching */
+const MERCHANT_OCCUPATIONS = [
+  'merchant', 'shopkeeper', 'trader', 'vendor', 'blacksmith',
+  'apothecary', 'baker', 'butcher', 'tailor', 'jeweler', 'armorer', 'weaponsmith'
+];
+
+/** Default stock templates by occupation */
+const MERCHANT_STOCK_TEMPLATES: Record<string, Array<{ name: string; type: string; basePrice: number; description: string }>> = {
+  default: [
+    { name: 'Bread', type: 'food', basePrice: 2, description: 'A fresh loaf of bread' },
+    { name: 'Water Flask', type: 'drink', basePrice: 1, description: 'A flask of clean water' },
+    { name: 'Torch', type: 'tool', basePrice: 3, description: 'A sturdy torch for dark places' },
+    { name: 'Rope', type: 'tool', basePrice: 5, description: 'Strong hemp rope, 50 feet' },
+    { name: 'Healing Herb', type: 'consumable', basePrice: 8, description: 'A herb with mild restorative properties' },
+  ],
+  blacksmith: [
+    { name: 'Iron Sword', type: 'weapon', basePrice: 25, description: 'A well-forged iron sword' },
+    { name: 'Iron Shield', type: 'armor', basePrice: 20, description: 'A sturdy iron shield' },
+    { name: 'Dagger', type: 'weapon', basePrice: 10, description: 'A sharp steel dagger' },
+    { name: 'Iron Pickaxe', type: 'tool', basePrice: 15, description: 'A heavy pickaxe for mining' },
+  ],
+  apothecary: [
+    { name: 'Health Potion', type: 'consumable', basePrice: 15, description: 'Restores a moderate amount of health' },
+    { name: 'Antidote', type: 'consumable', basePrice: 12, description: 'Cures common poisons' },
+    { name: 'Energy Tonic', type: 'consumable', basePrice: 10, description: 'Restores energy and vigor' },
+    { name: 'Healing Salve', type: 'consumable', basePrice: 8, description: 'A soothing salve for wounds' },
+  ],
+  baker: [
+    { name: 'Bread', type: 'food', basePrice: 2, description: 'A fresh loaf of bread' },
+    { name: 'Meat Pie', type: 'food', basePrice: 5, description: 'A hearty meat pie' },
+    { name: 'Sweet Roll', type: 'food', basePrice: 3, description: 'A delicious sweet roll' },
+    { name: 'Trail Rations', type: 'food', basePrice: 8, description: 'Packed food for long journeys' },
+  ],
+  tailor: [
+    { name: 'Leather Boots', type: 'armor', basePrice: 12, description: 'Comfortable leather boots' },
+    { name: 'Wool Cloak', type: 'armor', basePrice: 15, description: 'A warm wool cloak' },
+    { name: 'Traveler\'s Pack', type: 'tool', basePrice: 10, description: 'A sturdy leather backpack' },
+  ],
+};
+
+function generateLocalMerchantStock(occupation: string): any {
+  const occ = occupation.toLowerCase();
+  let template = MERCHANT_STOCK_TEMPLATES.default;
+  for (const [key, items] of Object.entries(MERCHANT_STOCK_TEMPLATES)) {
+    if (occ.includes(key)) { template = items; break; }
+  }
+  const items = template.map((t, i) => ({
+    id: `merchant_item_${occ}_${i}`,
+    name: t.name,
+    type: t.type,
+    description: t.description,
+    basePrice: t.basePrice,
+    price: t.basePrice,
+    quantity: 3 + Math.floor(Math.random() * 5),
+    tradeable: true,
+  }));
+  return { items, goldReserve: 200, buyMultiplier: 0.5, sellMultiplier: 1.0 };
+}
+
+/**
  * File-based data source for exported games
  */
 export class FileDataSource implements DataSource {
   private worldData: any = null;
   private worldIR: any = null;
+  readonly localState: LocalGameState;
 
-  constructor() {
-    // Load world data on initialization
+  constructor(storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>) {
+    this.localState = new LocalGameState(storage);
     this.loadWorldData();
   }
 
   private async loadWorldData(): Promise<void> {
     try {
-      // Load the world IR file
       this.worldIR = await readDataFile('data/world_ir.json');
 
-      // Load other data files
       const [characters, npcs, quests, actions, rules, geography, theme, assetManifest] = await Promise.all([
         readDataFile('data/characters.json').catch(() => []),
         readDataFile('data/npcs.json').catch(() => []),
@@ -316,7 +548,6 @@ export class FileDataSource implements DataSource {
   async loadWorld(worldId: string): Promise<any> {
     await this.waitForData();
     const meta = this.worldIR?.meta || {};
-    // Game expects a `name` property; IR stores it as `worldName`
     return { ...meta, name: meta.worldName || meta.name || 'Unknown World' };
   }
 
@@ -337,7 +568,14 @@ export class FileDataSource implements DataSource {
 
   async loadQuests(worldId: string): Promise<any[]> {
     await this.waitForData();
-    return this.worldData?.quests || [];
+    const baseQuests = this.worldData?.quests || [];
+    const updates = this.localState.getQuestUpdates();
+
+    return baseQuests.map((q: any) => {
+      const update = updates[q.id];
+      if (!update) return q;
+      return { ...q, ...update };
+    });
   }
 
   async loadSettlements(worldId: string): Promise<any[]> {
@@ -390,7 +628,6 @@ export class FileDataSource implements DataSource {
       .map((a: any) => {
         const ext = a.exportPath.split('.').pop()?.toLowerCase() || '';
         let assetType = categoryToAssetType[a.category] || a.category;
-        // Building texture files become texture_wall assets
         if (a.category === 'building' && (ext === 'png' || ext === 'jpg' || ext === 'jpeg')) {
           assetType = 'texture_wall';
         }
@@ -418,7 +655,6 @@ export class FileDataSource implements DataSource {
     const manifest = this.worldData?.assetManifest;
     if (!manifest) return {};
 
-    // Build building model mapping from manifest (exclude bin and texture files)
     const buildingModels: Record<string, string> = {};
     for (const a of (manifest.categories?.building || [])) {
       const ext = a.exportPath.split('.').pop()?.toLowerCase() || '';
@@ -426,7 +662,6 @@ export class FileDataSource implements DataSource {
         buildingModels[a.role] = a.role;
       }
     }
-    // Common type fallbacks to available models
     const buildingFallbacks: Record<string, string> = {
       tavern: 'house', shop: 'house', market: 'house', farm: 'house',
       mill: 'blacksmith', watchtower: 'barracks', wall: 'house',
@@ -438,7 +673,6 @@ export class FileDataSource implements DataSource {
       }
     }
 
-    // Quest object model mapping
     const questObjectModels: Record<string, string> = {};
     for (const a of (manifest.categories?.quest_object || [])) {
       if (!a.role.endsWith('_bin') && !a.role.includes('_tex_')) {
@@ -454,7 +688,6 @@ export class FileDataSource implements DataSource {
       }
     }
 
-    // Nature model mapping (trees, rocks, shrubs)
     const natureModels: Record<string, string> = {};
     for (const a of (manifest.categories?.nature || [])) {
       if (!a.role.endsWith('_bin') && !a.role.includes('_tex_')) {
@@ -462,7 +695,6 @@ export class FileDataSource implements DataSource {
       }
     }
 
-    // Prop/object model mapping
     const objectModels: Record<string, string> = {};
     for (const a of (manifest.categories?.prop || [])) {
       if (!a.role.endsWith('_bin') && !a.role.includes('_tex_')) {
@@ -470,10 +702,6 @@ export class FileDataSource implements DataSource {
       }
     }
 
-    // Character and player model mapping.
-    // Core exports bundle 'player_default' (Vincent.babylon) and 'npc_default' (starterAvatars.babylon).
-    // BabylonGame looks up playerModels['default'] and characterModels['guard'/'merchant'/'civilian'].
-    // Collection-specific overrides (npc_guard, npc_merchant, etc.) take priority if present.
     const characterModels: Record<string, string> = {};
     const playerModels: Record<string, string> = {};
     for (const a of (manifest.categories?.character || [])) {
@@ -484,14 +712,12 @@ export class FileDataSource implements DataSource {
         } else {
           characterModels[a.role] = a.role;
           if (a.role === 'npc_default') {
-            // Generic NPC model — use as fallback for all NPC roles
             if (!characterModels['npcDefault']) characterModels['npcDefault'] = 'npc_default';
             if (!characterModels['guard']) characterModels['guard'] = 'npc_default';
             if (!characterModels['merchant']) characterModels['merchant'] = 'npc_default';
             if (!characterModels['civilian']) characterModels['civilian'] = 'npc_default';
             if (!characterModels['questgiver']) characterModels['questgiver'] = 'npc_default';
           }
-          // Collection-specific role overrides take priority (set after npc_default fallbacks)
           if (a.role === 'npc_guard') characterModels['guard'] = 'npc_guard';
           if (a.role === 'npc_merchant') characterModels['merchant'] = 'npc_merchant';
           if (a.role === 'npc_civilian_male' || a.role === 'npc_civilian_female') {
@@ -501,7 +727,6 @@ export class FileDataSource implements DataSource {
       }
     }
 
-    // Texture IDs from ground category and building_texture role
     const groundAsset = manifest.categories?.ground?.find((a: any) => a.role === 'ground_diffuse') || manifest.categories?.ground?.[0];
     const buildingTexture = (manifest.categories?.building || []).find(
       (a: any) => { const ext = a.exportPath.split('.').pop()?.toLowerCase(); return ext === 'png' || ext === 'jpg' || ext === 'jpeg'; }
@@ -521,25 +746,25 @@ export class FileDataSource implements DataSource {
     };
   }
 
-  async loadTruths(worldId: string): Promise<any[]> {
+  async loadTruths(worldId: string, _playthroughId?: string): Promise<any[]> {
     await this.waitForData();
     return this.worldIR?.truths || [];
   }
 
   async loadCharacter(characterId: string): Promise<any> {
     await this.waitForData();
-    return this.worldData?.characters?.find((c: any) => c.id === characterId) || null;
+    const chars = this.worldData?.characters || [];
+    const npcs = this.worldData?.npcs || [];
+    return chars.find((c: any) => c.id === characterId) ||
+           npcs.find((c: any) => c.id === characterId) || null;
   }
 
-  async startPlaythrough(worldId: string, authToken: string, playthroughName: string): Promise<any> {
-    // In exported games, playthrough is handled locally
-    return { id: 'exported-playthrough', name: playthroughName };
+  async startPlaythrough(_worldId: string, _authToken: string, playthroughName: string): Promise<any> {
+    return this.localState.startPlaythrough(playthroughName);
   }
 
   async updateQuest(questId: string, data: any): Promise<void> {
-    // In exported games, quest updates are handled locally
-    // Could implement local storage here if needed
-    console.log('Quest updated:', questId, data);
+    this.localState.updateQuest(questId, data);
   }
 
   async loadSettlementBusinesses(settlementId: string): Promise<any[]> {
@@ -560,25 +785,46 @@ export class FileDataSource implements DataSource {
     return settlement?.residences || [];
   }
 
-  async payFines(playthroughId: string, settlementId: string): Promise<any> {
-    // In exported games, fines are handled locally
-    return { success: true };
+  async payFines(_playthroughId: string, settlementId: string): Promise<any> {
+    return this.localState.payFines(settlementId);
   }
 
-  async getEntityInventory(worldId: string, entityId: string): Promise<any> {
-    // In exported games, inventory is managed locally
-    return { entityId, items: [], gold: 0 };
+  async getEntityInventory(_worldId: string, entityId: string): Promise<any> {
+    return this.localState.getInventory(entityId);
   }
 
-  async transferItem(worldId: string, transfer: any): Promise<any> {
-    // In exported games, transfers are handled locally
-    console.log('Item transferred:', transfer);
-    return { success: true, ...transfer, timestamp: Date.now() };
+  async transferItem(_worldId: string, transfer: any): Promise<any> {
+    const result = this.localState.transferItem(transfer);
+    return { ...result, ...transfer };
   }
 
-  async getMerchantInventory(worldId: string, merchantId: string): Promise<any> {
-    // In exported games, merchant inventory is generated locally
-    return null;
+  async getMerchantInventory(_worldId: string, merchantId: string): Promise<any> {
+    const cached = this.localState.getMerchantInventory(merchantId);
+    if (cached) return cached;
+
+    await this.waitForData();
+    const chars = this.worldData?.characters || [];
+    const npcs = this.worldData?.npcs || [];
+    const character = chars.find((c: any) => c.id === merchantId) ||
+                      npcs.find((c: any) => c.id === merchantId);
+    if (!character) return null;
+
+    const occupation = (character.occupation || character.role || '').toLowerCase();
+    const isMerchant = MERCHANT_OCCUPATIONS.some(term => occupation.includes(term));
+    if (!isMerchant) return null;
+
+    const stock = generateLocalMerchantStock(occupation);
+    const inventory = {
+      merchantId,
+      merchantName: `${character.firstName || ''} ${character.lastName || ''}`.trim() || character.name || 'Merchant',
+      items: stock.items,
+      goldReserve: stock.goldReserve,
+      buyMultiplier: stock.buyMultiplier,
+      sellMultiplier: stock.sellMultiplier,
+      businessType: 'Shop',
+    };
+    this.localState.setMerchantInventory(merchantId, inventory);
+    return inventory;
   }
 
   async loadPrologContent(worldId: string): Promise<string | null> {

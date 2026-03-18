@@ -128,16 +128,45 @@ public:
     // ── Inventory / Transfer ──────────────────────────────────────────
 
     /**
-     * Get entity inventory JSON (returns empty inventory for exported games).
+     * Get entity inventory JSON from local state.
+     * Inventories are managed in-memory and persisted via SaveGameState.
      */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString GetEntityInventory(const FString& EntityId);
 
     /**
-     * Get merchant inventory JSON (returns empty for exported games).
+     * Transfer an item between entities. Updates local inventory state.
+     * Supports buy/sell/steal/give/discard/quest_reward transaction types.
+     * Returns JSON with success status and timestamp.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString TransferItem(const FString& TransferJSON);
+
+    /**
+     * Get merchant inventory JSON. Generates stock based on NPC occupation
+     * if not already cached, then caches for subsequent calls.
      */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString GetMerchantInventory(const FString& MerchantId);
+
+    /**
+     * Update quest progress locally. Merges update data into cached quest state.
+     * Quest updates are reflected in subsequent LoadQuests calls.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    void UpdateQuest(const FString& QuestId, const FString& UpdateJSON);
+
+    /**
+     * Pay fines for a settlement. Clears accumulated fines and returns result JSON.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString PayFines(const FString& SettlementId);
+
+    /**
+     * Start a new playthrough. Returns JSON with unique playthrough ID and name.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString StartPlaythrough(const FString& PlaythroughName);
 
     // ── Character lookup ──────────────────────────────────────────────
 

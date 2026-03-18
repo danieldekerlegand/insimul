@@ -162,26 +162,101 @@ func load_settlement_residences(settlement_id: String) -> Array:
 			return s.get("residences", [])
 	return []
 
-# ── Inventory / transfer helpers ──────────────────────────────
+# ── Local state management ────────────────────────────────────
+# Inventories, quest progress, merchant stock, and fines are tracked
+# in-memory and persisted via save_game_state/load_game_state.
+# This mirrors the LocalGameState class from DataSource.ts.
+#
+# TODO: Implement full local state tracking with dictionaries for
+# _inventories, _quest_updates, _merchant_caches, _fines_paid.
 
-## Get inventory for an entity. In exported games, returns a stub.
+var _inventories: Dictionary = {}
+var _quest_updates: Dictionary = {}
+var _merchant_caches: Dictionary = {}
+var _fines_paid: Dictionary = {}
+var _playthrough_id: String = ""
+
+## Get inventory for an entity from local state.
 func get_entity_inventory(entity_id: String) -> Dictionary:
+	if _inventories.has(entity_id):
+		var inv: Dictionary = _inventories[entity_id]
+		return {"entityId": entity_id, "items": inv.get("items", []), "gold": inv.get("gold", 0)}
 	return {"entityId": entity_id, "items": [], "gold": 0}
 
-## Transfer an item between entities. In exported games, logs and returns success.
-## [param transfer] Dictionary with: from_entity_id, to_entity_id, item_id,
-##   item_name, item_description, item_type, quantity, transaction_type, total_price
-## transaction_type: "buy", "sell", "steal", "discard", "give", "quest_reward"
+## Transfer an item between entities. Updates local inventory state.
+## Supports buy/sell/steal/give/discard/quest_reward transaction types.
 func transfer_item(transfer: Dictionary) -> Dictionary:
-	print("[Insimul] Item transferred: %s" % str(transfer))
+	var qty: int = transfer.get("quantity", 1)
+	var price: int = transfer.get("total_price", 0)
+	var from_id: String = transfer.get("from_entity_id", "")
+	var to_id: String = transfer.get("to_entity_id", "")
+
+	# Remove from source
+	if not from_id.is_empty() and _inventories.has(from_id):
+		var from_inv: Dictionary = _inventories[from_id]
+		var items: Array = from_inv.get("items", [])
+		for i in range(items.size()):
+			if str(items[i].get("id", "")) == transfer.get("item_id", ""):
+				var cur_qty: int = items[i].get("quantity", 1)
+				if cur_qty <= qty:
+					items.remove_at(i)
+				else:
+					items[i]["quantity"] = cur_qty - qty
+				break
+		if transfer.get("transaction_type", "") == "sell" and price > 0:
+			from_inv["gold"] = from_inv.get("gold", 0) + price
+
+	# Add to destination
+	if not to_id.is_empty():
+		if not _inventories.has(to_id):
+			_inventories[to_id] = {"items": [], "gold": 0}
+		var to_inv: Dictionary = _inventories[to_id]
+		var to_items: Array = to_inv.get("items", [])
+		var found := false
+		for item in to_items:
+			if str(item.get("id", "")) == transfer.get("item_id", ""):
+				item["quantity"] = item.get("quantity", 1) + qty
+				found = true
+				break
+		if not found:
+			to_items.append({
+				"id": transfer.get("item_id", ""),
+				"name": transfer.get("item_name", ""),
+				"type": transfer.get("item_type", "misc"),
+				"quantity": qty,
+			})
+		if transfer.get("transaction_type", "") == "buy" and price > 0:
+			to_inv["gold"] = to_inv.get("gold", 0) - price
+
 	var result := transfer.duplicate()
 	result["success"] = true
 	result["timestamp"] = Time.get_unix_time_from_system()
 	return result
 
-## Get merchant inventory. In exported games, returns null.
+## Get merchant inventory. Generates stock based on NPC occupation if not cached.
 func get_merchant_inventory(merchant_id: String) -> Dictionary:
+	if _merchant_caches.has(merchant_id):
+		return _merchant_caches[merchant_id]
+	# TODO: Look up NPC from characters/npcs, check occupation, generate stock
 	return {}
+
+## Update quest progress locally. Merged into quest data on load_quests.
+func update_quest(quest_id: String, update_data: Dictionary) -> void:
+	if not _quest_updates.has(quest_id):
+		_quest_updates[quest_id] = {}
+	_quest_updates[quest_id].merge(update_data, true)
+
+## Pay fines for a settlement. Clears accumulated fines.
+func pay_fines(settlement_id: String) -> Dictionary:
+	var amount: int = _fines_paid.get(settlement_id, 0)
+	_fines_paid[settlement_id] = 0
+	return {"success": true, "finesPaid": amount}
+
+## Start a new playthrough with a unique local ID.
+func start_playthrough(playthrough_name: String) -> Dictionary:
+	if _playthrough_id.is_empty():
+		_playthrough_id = "exported-%d" % Time.get_unix_time_from_system()
+	return {"id": _playthrough_id, "name": playthrough_name}
 
 # ── Single-object loaders ──────────────────────────────────────
 

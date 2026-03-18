@@ -172,18 +172,54 @@ FString UDataLoader::LoadSettlementResidences(const FString& SettlementId)
 
 // ── Inventory / Transfer ──────────────────────────────────────────────
 
+// Local state management: inventories, quest progress, merchant stock, and fines
+// are tracked in-memory and persisted via SaveGameState/LoadGameState.
+// This mirrors the LocalGameState class from DataSource.ts.
+//
+// TODO: Implement full in-memory state tracking (TMap<FString, FJsonObject>)
+// for inventories, quest updates, merchant caches, and fines.
+
 FString UDataLoader::GetEntityInventory(const FString& EntityId)
 {
-    // In exported games, inventory is managed locally by InventorySystem.
-    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] GetEntityInventory(%s) — local-only in exported games"), *EntityId);
+    // TODO: Return from local state manager instead of empty stub.
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] GetEntityInventory(%s)"), *EntityId);
     return FString::Printf(TEXT("{\"entityId\":\"%s\",\"items\":[],\"gold\":0}"), *EntityId);
+}
+
+FString UDataLoader::TransferItem(const FString& TransferJSON)
+{
+    // TODO: Parse TransferJSON, update source/destination inventories in local state.
+    // Handle quantity changes, gold for buy/sell, item stacking.
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] TransferItem"));
+    return TEXT("{\"success\":true}");
 }
 
 FString UDataLoader::GetMerchantInventory(const FString& MerchantId)
 {
-    // In exported games, merchant inventory is managed locally.
-    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] GetMerchantInventory(%s) — local-only in exported games"), *MerchantId);
+    // TODO: Check local state cache first. If not cached, look up NPC occupation
+    // from characters/npcs data and generate stock based on occupation type.
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] GetMerchantInventory(%s)"), *MerchantId);
     return FString();
+}
+
+void UDataLoader::UpdateQuest(const FString& QuestId, const FString& UpdateJSON)
+{
+    // TODO: Merge UpdateJSON into local quest state overlay.
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] UpdateQuest(%s)"), *QuestId);
+}
+
+FString UDataLoader::PayFines(const FString& SettlementId)
+{
+    // TODO: Clear accumulated fines for settlement in local state.
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] PayFines(%s)"), *SettlementId);
+    return TEXT("{\"success\":true,\"finesPaid\":0}");
+}
+
+FString UDataLoader::StartPlaythrough(const FString& PlaythroughName)
+{
+    // TODO: Generate unique playthrough ID and persist to local state.
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] StartPlaythrough(%s)"), *PlaythroughName);
+    return FString::Printf(TEXT("{\"id\":\"exported-playthrough\",\"name\":\"%s\"}"), *PlaythroughName);
 }
 
 // ── Character lookup ──────────────────────────────────────────────────
