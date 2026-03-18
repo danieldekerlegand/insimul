@@ -1380,6 +1380,22 @@ export class GameMenuSystem {
       }
     }
 
+    // ── Quest item markers (gold circles for fetch quest collectibles) ──
+    if (minimapData.questItemMarkers) {
+      for (const item of minimapData.questItemMarkers) {
+        const [ix, iz] = toMap(item.position.x, item.position.z);
+        const itemMarker = new Ellipse(`menuMapQuestItem_${item.id}`);
+        itemMarker.width = "8px";
+        itemMarker.height = "8px";
+        itemMarker.background = "#FFD700";
+        itemMarker.color = "#FFFFFF";
+        itemMarker.thickness = 1;
+        itemMarker.left = `${ix}px`;
+        itemMarker.top = `${iz}px`;
+        mapContainer.addControl(itemMarker);
+      }
+    }
+
     // ── Player marker (always on top) ──
     const [ppx, ppz] = toMap(minimapData.playerPosition.x, minimapData.playerPosition.z);
     const playerOuter = new Ellipse("menuMapPlayerOuter");

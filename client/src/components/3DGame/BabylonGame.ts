@@ -7328,6 +7328,13 @@ export class BabylonGame {
       }
     }
 
+    // Collect quest item markers from active fetch quest collectibles
+    const questItemMarkers = this.questObjectManager?.getCollectibleItemPositions()?.map(item => ({
+      id: item.id,
+      itemName: item.itemName,
+      position: item.position
+    })) ?? [];
+
     // Collect NPC positions
     const npcPositions: Array<{ id: string; position: { x: number; z: number }; role?: string; name?: string }> = [];
     this.npcMeshes.forEach((instance, npcId) => {
@@ -7345,6 +7352,7 @@ export class BabylonGame {
       buildings: this._minimapBuildings,
       streets: this._minimapStreets,
       questMarkers,
+      questItemMarkers,
       npcPositions,
       playerPosition: {
         x: this.playerMesh.position.x,

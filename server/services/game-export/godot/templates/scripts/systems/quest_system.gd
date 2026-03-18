@@ -307,6 +307,20 @@ static func set_marker_debug_label(marker: Node3D, label: String) -> void:
 	marker.set_meta("debug_label", label)
 
 
+## Get world positions of uncollected quest items for minimap markers.
+func get_collectible_item_positions() -> Array[Vector3]:
+	var positions: Array[Vector3] = []
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		var obj_type: String = obj.get("type", "")
+		if obj_type != "collect_item" and obj_type != "identify_object" and obj_type != "find_vocabulary_items":
+			continue
+		var remaining: int = maxi(1, obj.get("required_count", 1) - obj.get("current_count", 0))
+		positions.append_array(generate_item_positions(remaining))
+	return positions
+
+
 func get_active_quests() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for q in all_quests:
