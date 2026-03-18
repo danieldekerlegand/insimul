@@ -8430,11 +8430,43 @@ Respond with this JSON structure:
         return res.status(400).json({ error: "Quest is already completed" });
       }
 
-      // Mark quest as completed
+      // Calculate bonus XP using the unified bonus calculator
+      const { calculateQuestBonus, updatePlayerStreak } = await import('../shared/quest-bonus-calculator.js');
+      const { getTotalHintsUsed } = await import('../shared/quest-hints.js');
+
+      // Determine hints used from quest progress
+      const progress = (quest.progress as Record<string, any>) ?? {};
+      const hintsUsed = progress.hintsData ? getTotalHintsUsed(progress.hintsData) : 0;
+
+      // Calculate player streak from their recent completions
+      const playerName = quest.assignedTo;
+      let currentStreak = 0;
+      if (playerName) {
+        const playerQuests = await storage.getQuestsByPlayer(playerName);
+        const lastCompleted = playerQuests
+          .filter((q) => q.id !== questId && q.status === 'completed' && q.completedAt)
+          .sort((a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime())[0];
+        const lastStreakCount = lastCompleted?.streakCount ?? 0;
+        currentStreak = updatePlayerStreak(
+          lastStreakCount,
+          lastCompleted?.completedAt ?? null,
+        ) - 1; // updatePlayerStreak returns new count; we want the pre-completion count
+      }
+
+      const bonus = calculateQuestBonus({
+        baseXP: quest.experienceReward ?? 0,
+        streakCount: currentStreak,
+        difficulty: quest.difficulty,
+        hintsUsed,
+        isRecurring: !!quest.recurrencePattern,
+      });
+
+      // Mark quest as completed with streak info
       const updated = await storage.updateQuest(questId, {
         status: 'completed',
         completedAt: new Date(),
-        progress: { percentComplete: 100 },
+        progress: { ...progress, percentComplete: 100 },
+        streakCount: bonus.newStreakCount,
       });
 
       // Apply skill rewards to the assigned character
@@ -8459,7 +8491,6 @@ Respond with this JSON structure:
       }
 
       // Check depletion and auto-generate if needed
-      const playerName = quest.assignedTo;
       let depletionResult = null;
 
       if (playerName) {
@@ -8499,6 +8530,18 @@ Respond with this JSON structure:
 
       res.json({
         quest: updated,
+        bonus: {
+          baseXP: bonus.baseXP,
+          difficultyMultiplier: bonus.difficultyMultiplier,
+          streakMultiplier: bonus.streakMultiplier,
+          hintPenalty: bonus.hintPenalty,
+          totalXP: bonus.totalXP,
+          bonusXP: bonus.bonusXP,
+          grandTotalXP: bonus.grandTotalXP,
+          streak: bonus.newStreakCount,
+          milestone: bonus.milestone,
+          milestoneXP: bonus.milestoneXP,
+        },
         chainCompletion,
         skillRewards: skillRewardsApplied,
         depletion: depletionResult
@@ -8712,27 +8755,84 @@ Respond with this JSON structure:
         return res.status(400).json({ error: "Quest is already completed for this period" });
       }
 
-      const { buildRecurringCompletionUpdate, streakBonusMultiplier } = await import('./services/daily-quest-manager.js');
+      const { buildRecurringCompletionUpdate } = await import('./services/daily-quest-manager.js');
+      const { calculateQuestBonus } = await import('../shared/quest-bonus-calculator.js');
+      const { getTotalHintsUsed } = await import('../shared/quest-hints.js');
+
       const updateData = buildRecurringCompletionUpdate(quest, { resetHourUTC });
       const updated = await storage.updateQuest(questId, updateData as any);
 
-      const streak = updateData.streakCount ?? 0;
-      const bonusMultiplier = streakBonusMultiplier(streak);
-      const baseXP = quest.experienceReward ?? 0;
-      const bonusXP = Math.round(baseXP * bonusMultiplier) - baseXP;
+      const progress = (quest.progress as Record<string, any>) ?? {};
+      const hintsUsed = progress.hintsData ? getTotalHintsUsed(progress.hintsData) : 0;
+
+      const bonus = calculateQuestBonus({
+        baseXP: quest.experienceReward ?? 0,
+        streakCount: quest.streakCount ?? 0,
+        difficulty: quest.difficulty,
+        hintsUsed,
+        isRecurring: true,
+      });
 
       res.json({
         quest: updated,
-        streak,
-        bonusMultiplier,
-        baseXP,
-        bonusXP,
-        totalXP: baseXP + bonusXP,
+        streak: bonus.newStreakCount,
+        bonus: {
+          baseXP: bonus.baseXP,
+          difficultyMultiplier: bonus.difficultyMultiplier,
+          streakMultiplier: bonus.streakMultiplier,
+          hintPenalty: bonus.hintPenalty,
+          totalXP: bonus.totalXP,
+          bonusXP: bonus.bonusXP,
+          grandTotalXP: bonus.grandTotalXP,
+          milestone: bonus.milestone,
+          milestoneXP: bonus.milestoneXP,
+        },
         completionCount: updateData.completionCount,
       });
     } catch (error) {
       console.error('[Recurring Quest Complete] Error:', error);
       res.status(500).json({ error: "Failed to complete recurring quest" });
+    }
+  });
+
+  // Get a player's quest streak status
+  app.get("/api/worlds/:worldId/quests/streak/:playerName", async (req, res) => {
+    try {
+      const { worldId, playerName } = req.params;
+      const { updatePlayerStreak, getNextMilestone, streakMultiplier, STREAK_MILESTONES } = await import('../shared/quest-bonus-calculator.js');
+
+      const playerQuests = await storage.getQuestsByPlayer(playerName);
+      const worldPlayerQuests = playerQuests.filter((q) => q.worldId === worldId);
+
+      const completedQuests = worldPlayerQuests
+        .filter((q) => q.status === 'completed' && q.completedAt)
+        .sort((a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime());
+
+      const lastCompleted = completedQuests[0] ?? null;
+      const lastStreakCount = lastCompleted?.streakCount ?? 0;
+
+      const currentStreak = lastCompleted
+        ? updatePlayerStreak(lastStreakCount - 1, lastCompleted.completedAt) - 1
+        : 0;
+
+      const nextMilestone = getNextMilestone(currentStreak);
+      const currentMultiplier = streakMultiplier(currentStreak);
+
+      // Count milestones already achieved
+      const achievedMilestones = STREAK_MILESTONES.filter((m) => m.threshold <= currentStreak);
+
+      res.json({
+        playerName,
+        currentStreak,
+        currentMultiplier,
+        lastCompletedAt: lastCompleted?.completedAt ?? null,
+        totalCompleted: completedQuests.length,
+        nextMilestone,
+        achievedMilestones,
+      });
+    } catch (error) {
+      console.error('[Streak Status] Error:', error);
+      res.status(500).json({ error: "Failed to get streak status" });
     }
   });
 
