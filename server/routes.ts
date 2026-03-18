@@ -8591,6 +8591,29 @@ Respond with this JSON structure:
         }
       }
 
+      // Process vocabulary category unlocks
+      let vocabCategoryUnlocks: string[] = [];
+      if (quest.unlocks) {
+        const { extractVocabCategoryUnlocks, applyVocabCategoryUnlocks, getUnlockedCategoriesFromSaveData } =
+          await import('../shared/language/vocabulary-category-unlock.js');
+        const vocabUnlocks = extractVocabCategoryUnlocks(quest.unlocks as any);
+        if (vocabUnlocks.length > 0) {
+          const userId = (req as any).user?.id;
+          if (userId) {
+            const prog = await storage.getPlayerProgressByUser(userId, worldId);
+            if (prog) {
+              const currentUnlocked = getUnlockedCategoriesFromSaveData(prog.saveData);
+              const { updated, newlyUnlocked } = applyVocabCategoryUnlocks(currentUnlocked, vocabUnlocks);
+              if (newlyUnlocked.length > 0) {
+                const newSaveData = { ...(prog.saveData ?? {}), unlockedVocabularyCategories: updated };
+                await storage.updatePlayerProgress(prog.id, { saveData: newSaveData });
+                vocabCategoryUnlocks = newlyUnlocked;
+              }
+            }
+          }
+        }
+      }
+
       // Check depletion and auto-generate if needed
       let depletionResult = null;
 
@@ -8645,6 +8668,7 @@ Respond with this JSON structure:
         },
         chainCompletion,
         skillRewards: skillRewardsApplied,
+        vocabCategoryUnlocks: vocabCategoryUnlocks.length > 0 ? vocabCategoryUnlocks : undefined,
         depletion: depletionResult
           ? {
               depleted: depletionResult.depleted,

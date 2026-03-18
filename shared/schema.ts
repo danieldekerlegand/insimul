@@ -671,7 +671,7 @@ export const quests = pgTable("quests", {
   // Enhanced rewards (for non-language-learning games)
   itemRewards: jsonb("item_rewards").$type<Array<{ itemId: string; quantity: number; name: string }>>(),
   skillRewards: jsonb("skill_rewards").$type<Array<{ skillId: string; name: string; level: number }>>(),
-  unlocks: jsonb("unlocks").$type<Array<{ type: 'area' | 'npc' | 'feature'; id: string; name: string }>>(),
+  unlocks: jsonb("unlocks").$type<Array<{ type: 'area' | 'npc' | 'feature' | 'vocabulary_category'; id: string; name: string }>>(),
 
   // Multi-stage quests
   stages: jsonb("stages").$type<Array<{
