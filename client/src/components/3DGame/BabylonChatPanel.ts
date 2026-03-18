@@ -83,6 +83,7 @@ export class BabylonChatPanel {
   private inputArea: Rectangle | null = null; // Input area container (hidden during eavesdrop)
   private titleText: TextBlock | null = null; // Store reference to title text
   private _closeBtn: Button | null = null; // Store reference to close button
+  private _copyBtn: Button | null = null; // Store reference to copy button
   private loadingIndicator: TextBlock | null = null; // Loading indicator
   /** Cached message TextBlock controls indexed by position — avoids full rebuild */
   private _messageControls: Map<number, TextBlock> = new Map();
@@ -166,6 +167,7 @@ export class BabylonChatPanel {
   private onConversationSummary: ((result: any) => void) | null = null;
   private onDialogueRating: ((messageIndex: number, rating: number) => void) | null = null;
   private onChatExchange: ((npcId: string, playerMessage: string, npcResponse: string) => void) | null = null;
+  private onTalkRequested: (() => void) | null = null;
   private systemPromptAugmentation: ((npcId: string) => string | null) | null = null;
   private pendingTurnInQuests: any[] = [];
   private questOfferingContext: { questTitle: string; questDescription: string; questType: string; difficulty: string; objectives: string; category: string } | null = null;
@@ -258,8 +260,9 @@ export class BabylonChatPanel {
       this.titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
       this.titleText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
       if (this._closeBtn) this._closeBtn.isVisible = false;
+      if (this._copyBtn) this._copyBtn.isVisible = false;
       if (this.nearbyNPCName) {
-        this.titleText.text = `Press G to talk`;
+        this.titleText.text = `[G]: Talk to ${this.nearbyNPCName}`;
         if (this.chatContainer) this.chatContainer.alpha = 0.8;
       } else {
         this.titleText.text = 'No NPC nearby';
@@ -269,6 +272,7 @@ export class BabylonChatPanel {
       this.titleText.fontSize = 13;
       this.titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
       if (this._closeBtn) this._closeBtn.isVisible = true;
+      if (this._copyBtn) this._copyBtn.isVisible = true;
     }
   }
 
@@ -343,8 +347,9 @@ export class BabylonChatPanel {
         this.titleText.fontSize = 13;
       }
 
-      // Show close button when expanded
+      // Show close and copy buttons when expanded
       if (this._closeBtn) this._closeBtn.isVisible = true;
+      if (this._copyBtn) this._copyBtn.isVisible = true;
 
       this.initializeChat();
       this._advancedTexture.markAsDirty();
@@ -680,20 +685,22 @@ export class BabylonChatPanel {
     header.addControl(closeBtn);
 
     // Copy button — copies full conversation text to clipboard
-    const copyBtn = Button.CreateSimpleButton("copyChat", "C");
-    copyBtn.width = "24px";
+    const copyBtn = Button.CreateSimpleButton("copyChat", "\u{1F4CB}");
+    copyBtn.width = "28px";
     copyBtn.height = "24px";
     copyBtn.color = "white";
     copyBtn.background = "rgba(80, 80, 200, 0.8)";
     copyBtn.cornerRadius = 5;
-    copyBtn.fontSize = 12;
+    copyBtn.fontSize = 14;
     copyBtn.left = "-32px";
     copyBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
     copyBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    copyBtn.isVisible = !this.isCollapsed;
     copyBtn.onPointerClickObservable.add(() => {
       const text = this.messages.map(m => m.content).join('\n');
       navigator.clipboard.writeText(text).catch(() => {});
     });
+    this._copyBtn = copyBtn;
     header.addControl(copyBtn);
 
     // Messages area — ScrollViewer wrapping a StackPanel
