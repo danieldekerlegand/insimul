@@ -648,6 +648,7 @@ export class GeographyGenerator {
       const count = Math.max(1, Math.round(buildingsPerStreet * typeScale));
       const streetName = edge.name || 'Unknown St';
       const districtIdx = nodeDistrict.get(edge.fromNodeId) ?? 0;
+      const districtRole = districts[districtIdx]?.properties?.role as DistrictRole | undefined;
 
       for (let i = 0; i < count; i++) {
         // Position buildings at evenly spaced points along the edge waypoints
@@ -665,7 +666,7 @@ export class GeographyGenerator {
         // Compute facing angle: point from lot toward street center
         const facingAngle = Math.atan2(pos.z - by, pos.x - bx);
 
-        const isResidence = this.shouldBeResidence(edge.streetType, buildingIndex);
+        const isResidence = this.shouldBeResidence(edge.streetType, buildingIndex, districtRole);
         const name = isResidence
           ? `${(buildingIndex % 200) + 1} ${streetName}`
           : this.businessNamesPool[buildingIndex % this.businessNamesPool.length];
@@ -775,22 +776,58 @@ export class GeographyGenerator {
   }
 
   /**
-   * Determine if a building should be residential based on street type and index.
-   * Main roads and avenues have more businesses; residential streets are mostly homes.
+   * Determine if a building should be residential based on street type, district role, and index.
+   * District roles heavily influence the ratio:
+   * - commercial: mostly businesses
+   * - wealthy_residential/working_residential: mostly residences
+   * - industrial: mostly businesses (factories, workshops)
+   * - religious_civic: mixed
+   * Street type provides a secondary influence.
    */
-  private shouldBeResidence(streetType: string, index: number): boolean {
+  private shouldBeResidence(streetType: string, index: number, districtRole?: DistrictRole): boolean {
+    // District role determines the base residential probability
+    let residentialChance: number;
+    switch (districtRole) {
+      case 'commercial':
+        residentialChance = 0.25; // Mostly businesses
+        break;
+      case 'wealthy_residential':
+        residentialChance = 0.90; // Almost all residences
+        break;
+      case 'working_residential':
+        residentialChance = 0.85; // Mostly residences
+        break;
+      case 'industrial':
+        residentialChance = 0.15; // Mostly businesses/factories
+        break;
+      case 'religious_civic':
+        residentialChance = 0.50; // Mixed
+        break;
+      default:
+        residentialChance = 0.65; // General default
+        break;
+    }
+
+    // Street type modifies the probability
     switch (streetType) {
       case 'boulevard':
       case 'main_road':
+        residentialChance *= 0.7; // Main roads attract more businesses
+        break;
       case 'avenue':
-        return index % 3 !== 0; // ~67% residential on main roads
+        residentialChance *= 0.85;
+        break;
       case 'residential':
-        return index % 5 !== 0; // ~80% residential
+        residentialChance = Math.min(1, residentialChance * 1.15);
+        break;
       case 'lane':
-        return index % 7 !== 0; // ~86% residential
-      default:
-        return index % 4 !== 0; // ~75% residential
+        residentialChance = Math.min(1, residentialChance * 1.2);
+        break;
     }
+
+    // Use deterministic hash from index for reproducibility
+    const hash = ((index * 2654435761) >>> 0) / 4294967296;
+    return hash < residentialChance;
   }
 
   /**

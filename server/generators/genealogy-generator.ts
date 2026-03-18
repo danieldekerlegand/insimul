@@ -202,6 +202,8 @@ export class GenealogyGenerator {
     const motherMaidenName = names?.motherMaidenName || await this.getUniqueSurname();
     
     // Create father
+    const fatherPersonality = this.generatePersonality();
+    const fatherAge = config.currentYear - (config.startYear - 25);
     const father = await storage.createCharacter({
       worldId: config.worldId,
       firstName: fatherName,
@@ -210,14 +212,17 @@ export class GenealogyGenerator {
       birthYear: config.startYear - 25,
       isAlive: this.isAlive(config.startYear - 25, config.currentYear, config.deathRate),
       currentLocation: config.settlementId!,
-      personality: this.generatePersonality(),
+      personality: fatherPersonality,
+      skills: this.generateSkills(fatherPersonality, fatherAge),
       socialAttributes: {
         generation: 0,
         founderFamily: true
       }
     });
-    
+
     // Create mother
+    const motherPersonality = this.generatePersonality();
+    const motherAge = config.currentYear - (config.startYear - 23);
     const mother = await storage.createCharacter({
       worldId: config.worldId,
       firstName: motherName,
@@ -228,7 +233,8 @@ export class GenealogyGenerator {
       isAlive: this.isAlive(config.startYear - 23, config.currentYear, config.deathRate),
       spouseId: father.id,
       currentLocation: config.settlementId!,
-      personality: this.generatePersonality(),
+      personality: motherPersonality,
+      skills: this.generateSkills(motherPersonality, motherAge),
       socialAttributes: {
         generation: 0,
         founderFamily: true
@@ -440,6 +446,8 @@ export class GenealogyGenerator {
       const firstName = firstNames[i];
       this.usedNames.add(firstName);
       
+      const childPersonality = this.inheritPersonality(father.personality, mother.personality);
+      const childAge = Math.max(0, config.currentYear - info.birthYear);
       const child = await storage.createCharacter({
         worldId: config.worldId,
         firstName,
@@ -449,7 +457,8 @@ export class GenealogyGenerator {
         isAlive: this.isAlive(info.birthYear, config.currentYear, config.deathRate),
         parentIds: [father.id, mother.id],
         currentLocation: config.settlementId!,
-        personality: this.inheritPersonality(father.personality, mother.personality),
+        personality: childPersonality,
+        skills: this.generateSkills(childPersonality, childAge),
         socialAttributes: {
           generation,
           paternalGrandparents: father.parentIds,
@@ -474,6 +483,58 @@ export class GenealogyGenerator {
       agreeableness: Math.random() * 2 - 1,
       neuroticism: Math.random() * 2 - 1
     };
+  }
+
+  /**
+   * Generate initial skills based on personality traits and age.
+   * Personality influences skill aptitudes:
+   * - Openness → creativity, music, languages
+   * - Conscientiousness → crafting, farming, cooking
+   * - Extroversion → persuasion, leadership, trading
+   * - Agreeableness → medicine, teaching, diplomacy
+   * - Neuroticism (inverse) → combat, athletics, endurance
+   */
+  generateSkills(personality: {
+    openness: number;
+    conscientiousness: number;
+    extroversion: number;
+    agreeableness: number;
+    neuroticism: number;
+  }, age: number): Record<string, number> {
+    const skills: Record<string, number> = {};
+    // Age factor: skills grow with age, peak around 40-50
+    const ageFactor = Math.min(1, Math.max(0.1, age / 40));
+
+    // Map personality traits to skill aptitudes (base 0-1 range)
+    const traitSkills: [string, number][] = [
+      ['creativity', (personality.openness + 1) / 2],
+      ['music', (personality.openness + 1) / 2 * 0.8],
+      ['languages', (personality.openness + 1) / 2 * 0.7],
+      ['crafting', (personality.conscientiousness + 1) / 2],
+      ['farming', (personality.conscientiousness + 1) / 2 * 0.9],
+      ['cooking', (personality.conscientiousness + 1) / 2 * 0.7],
+      ['persuasion', (personality.extroversion + 1) / 2],
+      ['leadership', (personality.extroversion + 1) / 2 * 0.8],
+      ['trading', (personality.extroversion + 1) / 2 * 0.7],
+      ['medicine', (personality.agreeableness + 1) / 2],
+      ['teaching', (personality.agreeableness + 1) / 2 * 0.8],
+      ['diplomacy', (personality.agreeableness + 1) / 2 * 0.7],
+      ['combat', (1 - personality.neuroticism) / 2],
+      ['athletics', (1 - personality.neuroticism) / 2 * 0.9],
+      ['endurance', (1 - personality.neuroticism) / 2 * 0.8],
+    ];
+
+    for (const [skill, aptitude] of traitSkills) {
+      // Add random variation (±20%), scale by age, clamp to 0-1
+      const variation = (Math.random() - 0.5) * 0.4;
+      const value = Math.max(0, Math.min(1, (aptitude + variation) * ageFactor));
+      // Only include skills with meaningful values (> 0.1)
+      if (value > 0.1) {
+        skills[skill] = Math.round(value * 100) / 100;
+      }
+    }
+
+    return skills;
   }
 
   /**
