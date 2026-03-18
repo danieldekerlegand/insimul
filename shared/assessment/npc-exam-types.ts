@@ -115,6 +115,12 @@ export interface NpcExamQuestion {
   maxPoints: number;
   /** Hint text (optional, shown after first wrong attempt) */
   hint?: string;
+  /** If true, this question expects an audio answer for pronunciation scoring */
+  isPronunciation?: boolean;
+  /** The phrase the player should pronounce (used for audio scoring) */
+  expectedPhrase?: string;
+  /** Language hint for pronunciation scoring (e.g. 'French', 'Chitimacha') */
+  languageHint?: string;
 }
 
 export interface NpcExamConfig {
@@ -150,6 +156,22 @@ export interface NpcExamQuestionResult {
   maxPoints: number;
   correct: boolean;
   rationale?: string;
+  /** Present when the question was scored via audio pronunciation analysis */
+  pronunciationData?: {
+    /** Per-word audio scores */
+    audioWordScores: Array<{
+      word: string;
+      confidence: number;
+      pronunciationScore: number;
+      issue?: string;
+    }>;
+    /** Fluency score (0-100) */
+    fluencyScore: number;
+    /** Letter grade */
+    grade: 'A' | 'B' | 'C' | 'D';
+    /** Whether audio or text-fallback was used */
+    scoringMethod: 'audio' | 'text-fallback';
+  };
 }
 
 /** Complete result of an NPC exam */
@@ -320,6 +342,42 @@ export function scoreNpcExamQuestion(
       : score > 0
         ? 'Partial credit — close match'
         : `Expected: ${question.expectedAnswer ?? 'N/A'}`,
+  };
+}
+
+/**
+ * Build an NpcExamQuestionResult from an AudioPronunciationResult.
+ * Maps the 0-100 pronunciation score to the question's point scale.
+ */
+export function scorePronunciationQuestion(
+  question: NpcExamQuestion,
+  audioPronunciationResult: {
+    overallScore: number;
+    spokenPhrase: string;
+    feedback: string;
+    audioWordScores: Array<{ word: string; confidence: number; pronunciationScore: number; issue?: string }>;
+    fluencyScore: number;
+    grade: 'A' | 'B' | 'C' | 'D';
+    scoringMethod: 'audio' | 'text-fallback';
+  },
+): NpcExamQuestionResult {
+  const pctScore = audioPronunciationResult.overallScore / 100;
+  const score = Math.round(pctScore * question.maxPoints);
+  const correct = audioPronunciationResult.overallScore >= 70;
+
+  return {
+    questionId: question.id,
+    playerAnswer: audioPronunciationResult.spokenPhrase,
+    score,
+    maxPoints: question.maxPoints,
+    correct,
+    rationale: audioPronunciationResult.feedback,
+    pronunciationData: {
+      audioWordScores: audioPronunciationResult.audioWordScores,
+      fluencyScore: audioPronunciationResult.fluencyScore,
+      grade: audioPronunciationResult.grade,
+      scoringMethod: audioPronunciationResult.scoringMethod,
+    },
   };
 }
 
