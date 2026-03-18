@@ -94,26 +94,48 @@ export class LanguageGamificationTracker {
     this.eventBus = eventBus;
 
     this.eventBusUnsubscribers.push(
-      eventBus.on('quest_completed', (event) => {
+      eventBus.on('quest_completed', (_event) => {
         this.onQuestCompleted();
       }),
       eventBus.on('utterance_quest_completed', (_event) => {
         this.onQuestCompleted();
       }),
       eventBus.on('puzzle_solved', (_event) => {
+        this.state.puzzlesSolved = (this.state.puzzlesSolved || 0) + 1;
         this.checkAchievements();
       }),
       eventBus.on('item_collected', (_event) => {
+        this.state.itemsCollected = (this.state.itemsCollected || 0) + 1;
         this.checkAchievements();
       }),
       eventBus.on('location_discovered', (_event) => {
+        this.state.locationsDiscovered = (this.state.locationsDiscovered || 0) + 1;
         this.checkAchievements();
       }),
       eventBus.on('enemy_defeated', (_event) => {
         this.checkAchievements();
       }),
+      eventBus.on('npc_talked', (_event) => {
+        this.state.npcsTalked = (this.state.npcsTalked || 0) + 1;
+        this.checkAchievements();
+      }),
+      eventBus.on('object_examined', (_event) => {
+        this.state.objectsExamined = (this.state.objectsExamined || 0) + 1;
+        this.checkAchievements();
+      }),
       eventBus.on('npc_exam_completed', (event) => {
         this.onNpcExamCompleted(event.percentage);
+        let passed = event.passed;
+        if (passed == null && event.percentage != null) {
+          passed = event.percentage >= 60;
+        }
+        if (passed == null && event.totalScore != null && event.totalMaxPoints && event.totalMaxPoints > 0) {
+          passed = (event.totalScore / event.totalMaxPoints) >= 0.6;
+        }
+        if (passed) {
+          this.state.examsPassed = (this.state.examsPassed || 0) + 1;
+          this.checkAchievements();
+        }
       }),
     );
   }
@@ -309,14 +331,18 @@ export class LanguageGamificationTracker {
    * Called when a puzzle is solved
    */
   public onPuzzleSolved(): void {
+    this.state.puzzlesSolved = (this.state.puzzlesSolved || 0) + 1;
     this.addXP(XP_REWARDS.puzzleSolved, 'Puzzle solved');
+    this.checkAchievements();
   }
 
   /**
    * Called when a new location is discovered
    */
   public onLocationDiscovered(): void {
+    this.state.locationsDiscovered = (this.state.locationsDiscovered || 0) + 1;
     this.addXP(XP_REWARDS.locationDiscovered, 'Location discovered');
+    this.checkAchievements();
   }
 
   /**
@@ -399,6 +425,18 @@ export class LanguageGamificationTracker {
         return (this.state.culturalQuestsCompleted || 0) >= threshold;
       case 'articles_read':
         return (this.state.articlesRead || 0) >= threshold;
+      case 'npcs_talked':
+        return (this.state.npcsTalked || 0) >= threshold;
+      case 'items_collected':
+        return (this.state.itemsCollected || 0) >= threshold;
+      case 'exams_passed':
+        return (this.state.examsPassed || 0) >= threshold;
+      case 'locations_discovered':
+        return (this.state.locationsDiscovered || 0) >= threshold;
+      case 'objects_examined':
+        return (this.state.objectsExamined || 0) >= threshold;
+      case 'puzzles_solved':
+        return (this.state.puzzlesSolved || 0) >= threshold;
       default:
         return false;
     }
