@@ -1,10 +1,12 @@
 /**
  * Data Layer Abstraction for BabylonGame
- * 
+ *
  * This provides a unified interface for loading game data
- * that can switch between API calls (for Insimul) and 
+ * that can switch between API calls (for Insimul) and
  * file loading (for exported games).
  */
+
+import { SaveQueue, type QueuedOperation } from './SaveQueue';
 
 export interface DataSource {
   loadWorld(worldId: string): Promise<any>;
@@ -52,7 +54,67 @@ export interface DataSource {
  * API-based data source for Insimul
  */
 export class ApiDataSource implements DataSource {
-  constructor(private authToken: string) {}
+  private saveQueue: SaveQueue;
+
+  constructor(private authToken: string) {
+    this.saveQueue = new SaveQueue((op) => this.executeQueuedOp(op));
+    this.saveQueue.init().catch((err) =>
+      console.warn('[ApiDataSource] SaveQueue init failed (IndexedDB unavailable):', err)
+    );
+  }
+
+  /** Execute a queued operation against the API. */
+  private async executeQueuedOp(op: QueuedOperation): Promise<void> {
+    const headers: HeadersInit = { 'Content-Type': 'application/json', ...this.getHeaders() };
+    let url: string;
+    let method = 'POST';
+    let body: string;
+
+    switch (op.type) {
+      case 'saveGameState': {
+        const { worldId, playthroughId, slotIndex, state } = op.payload;
+        url = `/api/worlds/${worldId}/game-state`;
+        body = JSON.stringify({ playthroughId, slotIndex, state });
+        break;
+      }
+      case 'updateQuest': {
+        const { questId, data } = op.payload;
+        url = `/api/quests/${questId}`;
+        method = 'PUT';
+        body = JSON.stringify(data);
+        break;
+      }
+      case 'transferItem': {
+        const { worldId, transfer } = op.payload;
+        url = `/api/worlds/${worldId}/inventory/transfer`;
+        body = JSON.stringify(transfer);
+        break;
+      }
+      case 'payFines': {
+        const { playthroughId, settlementId } = op.payload;
+        url = `/api/playthroughs/${playthroughId}/reputations/settlement/${settlementId}/pay-fines`;
+        body = '{}';
+        break;
+      }
+      default:
+        throw new Error(`Unknown operation type: ${(op as any).type}`);
+    }
+
+    const res = await fetch(url, { method, headers, body });
+    if (!res.ok) {
+      throw new Error(`API ${method} ${url} returned ${res.status}`);
+    }
+  }
+
+  /** Get the save queue (for status monitoring). */
+  getSaveQueue(): SaveQueue {
+    return this.saveQueue;
+  }
+
+  /** Dispose the save queue when no longer needed. */
+  dispose(): void {
+    this.saveQueue.dispose();
+  }
 
   private getHeaders(): HeadersInit {
     return this.authToken ? { 'Authorization': `Bearer ${this.authToken}` } : {};
@@ -146,11 +208,7 @@ export class ApiDataSource implements DataSource {
   }
 
   async updateQuest(questId: string, data: any): Promise<void> {
-    await fetch(`/api/quests/${questId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
+    await this.saveQueue.enqueue('updateQuest', `quest:${questId}`, { questId, data });
   }
 
   async loadSettlementBusinesses(settlementId: string): Promise<any[]> {
@@ -218,11 +276,11 @@ export class ApiDataSource implements DataSource {
   }
 
   async saveGameState(worldId: string, playthroughId: string, slotIndex: number, state: any): Promise<void> {
-    await fetch(`/api/worlds/${worldId}/game-state`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
-      body: JSON.stringify({ playthroughId, slotIndex, state }),
-    });
+    await this.saveQueue.enqueue(
+      'saveGameState',
+      `save:${worldId}:${playthroughId}:${slotIndex}`,
+      { worldId, playthroughId, slotIndex, state },
+    );
   }
 
   async loadGameState(worldId: string, playthroughId: string, slotIndex: number): Promise<any | null> {
