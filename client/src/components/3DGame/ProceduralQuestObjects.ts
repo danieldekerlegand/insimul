@@ -17,8 +17,67 @@ import {
   Color3,
   Animation,
   GlowLayer,
-  TransformNode,
 } from '@babylonjs/core';
+
+/**
+ * Standardized size categories for quest objects.
+ * All procedural items fall into one of these categories to ensure
+ * consistent visual scale across the game world.
+ */
+export enum ItemSizeCategory {
+  /** Tiny items: coins, rings, gems (≤0.25 units) */
+  TINY = 0.25,
+  /** Small items: keys, potions, food (≤0.35 units) */
+  SMALL = 0.35,
+  /** Medium items: weapons, tools, books (≤0.4 units) */
+  MEDIUM = 0.4,
+  /** Large items: furniture, chests, barrels (≤0.5 units) */
+  LARGE = 0.5,
+}
+
+/** Map each object type to its standardized size category */
+const ITEM_SIZE_MAP: Record<string, ItemSizeCategory> = {
+  // Tiny
+  coin: ItemSizeCategory.TINY,
+  ring: ItemSizeCategory.TINY,
+  gem: ItemSizeCategory.TINY,
+
+  // Small
+  apple: ItemSizeCategory.SMALL,
+  key: ItemSizeCategory.SMALL,
+  scroll: ItemSizeCategory.SMALL,
+  bottle: ItemSizeCategory.SMALL,
+  wine: ItemSizeCategory.SMALL,
+  water: ItemSizeCategory.SMALL,
+  cheese: ItemSizeCategory.SMALL,
+  flower: ItemSizeCategory.SMALL,
+  mushroom: ItemSizeCategory.SMALL,
+  shell: ItemSizeCategory.SMALL,
+  ball: ItemSizeCategory.SMALL,
+  lantern: ItemSizeCategory.SMALL,
+  rope: ItemSizeCategory.SMALL,
+  orb: ItemSizeCategory.SMALL,
+  crystal: ItemSizeCategory.SMALL,
+
+  // Medium
+  bread: ItemSizeCategory.MEDIUM,
+  meat: ItemSizeCategory.MEDIUM,
+  fish: ItemSizeCategory.MEDIUM,
+  book: ItemSizeCategory.MEDIUM,
+  weapon: ItemSizeCategory.MEDIUM,
+  sword: ItemSizeCategory.MEDIUM,
+  shield: ItemSizeCategory.MEDIUM,
+  tool: ItemSizeCategory.MEDIUM,
+  stone: ItemSizeCategory.MEDIUM,
+
+  // Large
+  box: ItemSizeCategory.LARGE,
+  chest: ItemSizeCategory.LARGE,
+  chair: ItemSizeCategory.LARGE,
+  table: ItemSizeCategory.LARGE,
+  barrel: ItemSizeCategory.LARGE,
+  door: ItemSizeCategory.LARGE,
+};
 
 /** Shape primitives used to compose quest objects */
 export type QuestObjectShape = 'sphere' | 'box' | 'cylinder' | 'cone' | 'torus' | 'composite';
@@ -97,79 +156,84 @@ function spec(
   };
 }
 
+/** Resolve the standardized size for an object type */
+function sizeOf(type: string): number {
+  return ITEM_SIZE_MAP[type] ?? ItemSizeCategory.MEDIUM;
+}
+
 const OBJECT_REGISTRY: Record<string, QuestObjectSpec> = {
   // Food / consumables
-  apple: spec('sphere', new Color3(0.85, 0.1, 0.1), 0.4, { diameter: 1, segments: 16 }),
-  bread: spec('box', new Color3(0.82, 0.65, 0.3), 0.4, { width: 1.4, height: 0.6, depth: 0.8 }),
-  cheese: spec('box', new Color3(0.95, 0.85, 0.2), 0.35, { width: 1, height: 0.5, depth: 0.8 }),
-  wine: spec('cylinder', new Color3(0.5, 0.05, 0.15), 0.35, { diameter: 0.5, height: 1.4, tessellation: 16 }),
-  water: spec('cylinder', new Color3(0.3, 0.6, 0.95), 0.35, { diameter: 0.45, height: 1.2, tessellation: 16 }),
-  meat: spec('box', new Color3(0.65, 0.2, 0.15), 0.4, { width: 1, height: 0.4, depth: 0.7 }),
-  fish: spec('box', new Color3(0.5, 0.7, 0.8), 0.4, { width: 1.4, height: 0.35, depth: 0.5 }),
+  apple: spec('sphere', new Color3(0.85, 0.1, 0.1), sizeOf('apple'), { diameter: 1, segments: 16 }),
+  bread: spec('box', new Color3(0.82, 0.65, 0.3), sizeOf('bread'), { width: 1.4, height: 0.6, depth: 0.8 }),
+  cheese: spec('box', new Color3(0.95, 0.85, 0.2), sizeOf('cheese'), { width: 1, height: 0.5, depth: 0.8 }),
+  wine: spec('cylinder', new Color3(0.5, 0.05, 0.15), sizeOf('wine'), { diameter: 0.5, height: 1.4, tessellation: 16 }),
+  water: spec('cylinder', new Color3(0.3, 0.6, 0.95), sizeOf('water'), { diameter: 0.45, height: 1.2, tessellation: 16 }),
+  meat: spec('box', new Color3(0.65, 0.2, 0.15), sizeOf('meat'), { width: 1, height: 0.4, depth: 0.7 }),
+  fish: spec('box', new Color3(0.5, 0.7, 0.8), sizeOf('fish'), { width: 1.4, height: 0.35, depth: 0.5 }),
 
   // Objects / tools
-  key: spec('composite', new Color3(0.85, 0.75, 0.15), 0.3, {}, [
+  key: spec('composite', new Color3(0.85, 0.75, 0.15), sizeOf('key'), {}, [
     { shape: 'torus', position: { x: 0, y: 0.3, z: 0 }, scaling: { x: 0.6, y: 0.6, z: 0.6 } },
     { shape: 'box', position: { x: 0, y: -0.2, z: 0 }, scaling: { x: 0.15, y: 0.7, z: 0.15 } },
   ]),
-  book: spec('box', new Color3(0.4, 0.25, 0.12), 0.4, { width: 0.8, height: 1, depth: 0.2 }),
-  scroll: spec('cylinder', new Color3(0.9, 0.85, 0.7), 0.35, { diameter: 0.3, height: 1.2, tessellation: 16 }),
-  bottle: spec('cylinder', new Color3(0.2, 0.6, 0.3), 0.35, { diameter: 0.45, height: 1.3, tessellation: 16 }),
-  box: spec('box', new Color3(0.6, 0.45, 0.25), 0.5, { width: 1, height: 0.8, depth: 1 }),
-  chest: spec('box', new Color3(0.55, 0.35, 0.12), 0.5, { width: 1.2, height: 0.7, depth: 0.8 }),
-  lantern: spec('composite', new Color3(0.95, 0.8, 0.2), 0.35, {}, [
+  book: spec('box', new Color3(0.4, 0.25, 0.12), sizeOf('book'), { width: 0.8, height: 1, depth: 0.2 }),
+  scroll: spec('cylinder', new Color3(0.9, 0.85, 0.7), sizeOf('scroll'), { diameter: 0.3, height: 1.2, tessellation: 16 }),
+  bottle: spec('cylinder', new Color3(0.2, 0.6, 0.3), sizeOf('bottle'), { diameter: 0.45, height: 1.3, tessellation: 16 }),
+  box: spec('box', new Color3(0.6, 0.45, 0.25), sizeOf('box'), { width: 1, height: 0.8, depth: 1 }),
+  chest: spec('box', new Color3(0.55, 0.35, 0.12), sizeOf('chest'), { width: 1.2, height: 0.7, depth: 0.8 }),
+  lantern: spec('composite', new Color3(0.95, 0.8, 0.2), sizeOf('lantern'), {}, [
     { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.6, y: 0.8, z: 0.6 } },
     { shape: 'sphere', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.5, y: 0.5, z: 0.5 }, color: new Color3(1, 0.9, 0.3) },
   ]),
-  rope: spec('cylinder', new Color3(0.7, 0.6, 0.35), 0.3, { diameter: 0.2, height: 1.5, tessellation: 8 }),
-  weapon: spec('composite', new Color3(0.6, 0.6, 0.65), 0.4, {}, [
+  rope: spec('cylinder', new Color3(0.7, 0.6, 0.35), sizeOf('rope'), { diameter: 0.2, height: 1.5, tessellation: 8 }),
+  weapon: spec('composite', new Color3(0.6, 0.6, 0.65), sizeOf('weapon'), {}, [
     { shape: 'box', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.1, y: 1.2, z: 0.1 } },
     { shape: 'box', position: { x: 0, y: 0.65, z: 0 }, scaling: { x: 0.5, y: 0.15, z: 0.1 } },
   ]),
-  sword: spec('composite', new Color3(0.7, 0.7, 0.75), 0.4, {}, [
+  sword: spec('composite', new Color3(0.7, 0.7, 0.75), sizeOf('sword'), {}, [
     { shape: 'box', position: { x: 0, y: 0.1, z: 0 }, scaling: { x: 0.08, y: 1.3, z: 0.04 } },
     { shape: 'box', position: { x: 0, y: -0.5, z: 0 }, scaling: { x: 0.4, y: 0.08, z: 0.08 } },
   ]),
-  shield: spec('sphere', new Color3(0.45, 0.35, 0.2), 0.5, { diameter: 1, segments: 16 }),
-  tool: spec('composite', new Color3(0.5, 0.4, 0.3), 0.4, {}, [
+  shield: spec('sphere', new Color3(0.45, 0.35, 0.2), sizeOf('shield'), { diameter: 1, segments: 16 }),
+  tool: spec('composite', new Color3(0.5, 0.4, 0.3), sizeOf('tool'), {}, [
     { shape: 'cylinder', position: { x: 0, y: -0.2, z: 0 }, scaling: { x: 0.15, y: 0.8, z: 0.15 } },
     { shape: 'box', position: { x: 0, y: 0.35, z: 0 }, scaling: { x: 0.5, y: 0.3, z: 0.1 } },
   ]),
 
   // Furniture
-  chair: spec('composite', new Color3(0.55, 0.35, 0.18), 0.4, {}, [
+  chair: spec('composite', new Color3(0.55, 0.35, 0.18), sizeOf('chair'), {}, [
     { shape: 'box', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.7, y: 0.08, z: 0.7 } },
     { shape: 'box', position: { x: 0, y: 0.45, z: -0.3 }, scaling: { x: 0.7, y: 0.8, z: 0.08 } },
   ]),
-  table: spec('composite', new Color3(0.5, 0.35, 0.15), 0.5, {}, [
+  table: spec('composite', new Color3(0.5, 0.35, 0.15), sizeOf('table'), {}, [
     { shape: 'box', position: { x: 0, y: 0.3, z: 0 }, scaling: { x: 1.2, y: 0.08, z: 0.8 } },
     { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.15, y: 0.6, z: 0.15 } },
   ]),
-  barrel: spec('cylinder', new Color3(0.5, 0.3, 0.12), 0.5, { diameter: 0.8, height: 1, tessellation: 12 }),
-  door: spec('box', new Color3(0.45, 0.3, 0.15), 0.5, { width: 0.8, height: 1.6, depth: 0.1 }),
+  barrel: spec('cylinder', new Color3(0.5, 0.3, 0.12), sizeOf('barrel'), { diameter: 0.8, height: 1, tessellation: 12 }),
+  door: spec('box', new Color3(0.45, 0.3, 0.15), sizeOf('door'), { width: 0.8, height: 1.6, depth: 0.1 }),
 
   // Collectibles
-  gem: spec('sphere', new Color3(0.3, 0.8, 0.4), 0.3, { diameter: 0.8, segments: 8 }),
-  coin: spec('cylinder', new Color3(1, 0.84, 0), 0.25, { diameter: 0.6, height: 0.08, tessellation: 24 }),
-  crystal: spec('cone', new Color3(0.6, 0.4, 0.95), 0.4, { diameter: 0.5, height: 1.2, tessellation: 6 }),
-  orb: spec('sphere', new Color3(0.4, 0.6, 1), 0.35, { diameter: 1, segments: 24 }),
-  ring: spec('torus', new Color3(0.9, 0.8, 0.2), 0.3, { diameter: 0.6, thickness: 0.1, tessellation: 24 }),
+  gem: spec('sphere', new Color3(0.3, 0.8, 0.4), sizeOf('gem'), { diameter: 0.8, segments: 8 }),
+  coin: spec('cylinder', new Color3(1, 0.84, 0), sizeOf('coin'), { diameter: 0.6, height: 0.08, tessellation: 24 }),
+  crystal: spec('cone', new Color3(0.6, 0.4, 0.95), sizeOf('crystal'), { diameter: 0.5, height: 1.2, tessellation: 6 }),
+  orb: spec('sphere', new Color3(0.4, 0.6, 1), sizeOf('orb'), { diameter: 1, segments: 24 }),
+  ring: spec('torus', new Color3(0.9, 0.8, 0.2), sizeOf('ring'), { diameter: 0.6, thickness: 0.1, tessellation: 24 }),
 
   // Nature
-  flower: spec('composite', new Color3(0.9, 0.3, 0.5), 0.3, {}, [
+  flower: spec('composite', new Color3(0.9, 0.3, 0.5), sizeOf('flower'), {}, [
     { shape: 'cylinder', position: { x: 0, y: -0.15, z: 0 }, scaling: { x: 0.08, y: 0.5, z: 0.08 }, color: new Color3(0.2, 0.6, 0.15) },
     { shape: 'sphere', position: { x: 0, y: 0.15, z: 0 }, scaling: { x: 0.4, y: 0.3, z: 0.4 } },
   ]),
-  mushroom: spec('composite', new Color3(0.85, 0.2, 0.15), 0.35, {}, [
+  mushroom: spec('composite', new Color3(0.85, 0.2, 0.15), sizeOf('mushroom'), {}, [
     { shape: 'cylinder', position: { x: 0, y: -0.1, z: 0 }, scaling: { x: 0.2, y: 0.4, z: 0.2 }, color: new Color3(0.9, 0.85, 0.7) },
     { shape: 'sphere', position: { x: 0, y: 0.15, z: 0 }, scaling: { x: 0.6, y: 0.3, z: 0.6 } },
   ]),
-  stone: spec('sphere', new Color3(0.5, 0.5, 0.48), 0.4, { diameter: 1, segments: 8 }),
-  shell: spec('sphere', new Color3(0.95, 0.85, 0.75), 0.3, { diameter: 0.8, segments: 10 }),
-  ball: spec('sphere', new Color3(0.9, 0.2, 0.2), 0.35, { diameter: 1, segments: 16 }),
+  stone: spec('sphere', new Color3(0.5, 0.5, 0.48), sizeOf('stone'), { diameter: 1, segments: 8 }),
+  shell: spec('sphere', new Color3(0.95, 0.85, 0.75), sizeOf('shell'), { diameter: 0.8, segments: 10 }),
+  ball: spec('sphere', new Color3(0.9, 0.2, 0.2), sizeOf('ball'), { diameter: 1, segments: 16 }),
 
   // Default fallback
-  _default: spec('sphere', new Color3(0.7, 0.7, 0.7), 0.4, { diameter: 1, segments: 16 }),
+  _default: spec('sphere', new Color3(0.7, 0.7, 0.7), ItemSizeCategory.MEDIUM, { diameter: 1, segments: 16 }),
 };
 
 /**
@@ -186,6 +250,10 @@ export class ProceduralQuestObjects {
   private glowLayer: GlowLayer | null = null;
   /** External GLTF asset registry: objectType → Mesh template */
   private assetRegistry: Map<string, Mesh> = new Map();
+  /** Glow colors per mesh (avoids overwriting customEmissiveColorSelector) */
+  private glowColorMap: Map<Mesh, Color3> = new Map();
+  /** Pool of disposed meshes keyed by object type for reuse */
+  private meshPool: Map<string, Mesh[]> = new Map();
 
   constructor(scene: Scene) {
     this.scene = scene;
@@ -212,18 +280,30 @@ export class ProceduralQuestObjects {
 
   /**
    * Generate a quest object mesh.
-   * Tries asset registry first, falls back to procedural generation.
+   * Tries: pool → asset registry → procedural generation.
    */
   public generate(name: string, params: QuestObjectParams): QuestObjectResult {
     const type = params.objectType.toLowerCase();
 
-    // Asset registry lookup — prefer real GLTF models
+    // 1. Check mesh pool for a recyclable mesh
+    const pool = this.meshPool.get(type);
+    if (pool && pool.length > 0) {
+      const recycled = pool.pop()!;
+      recycled.setEnabled(true);
+      recycled.getChildMeshes().forEach(m => m.setEnabled(true));
+      const scale = params.size ?? 1;
+      recycled.scaling = new Vector3(scale, scale, scale);
+      this.addPulseAnimation(recycled, name);
+      return { mesh: recycled };
+    }
+
+    // 2. Asset registry lookup — prefer real GLTF models
     const asset = this.assetRegistry.get(type);
     if (asset) {
       return this.cloneAsset(name, asset, params);
     }
 
-    // Procedural fallback
+    // 3. Procedural fallback
     return this.generateProcedural(name, type, params);
   }
 
@@ -242,11 +322,42 @@ export class ProceduralQuestObjects {
   }
 
   /**
-   * Clean up all cached materials and the glow layer.
+   * Get the standardized size category for an object type.
+   */
+  public static getSizeCategory(objectType: string): ItemSizeCategory {
+    return ITEM_SIZE_MAP[objectType.toLowerCase()] ?? ItemSizeCategory.MEDIUM;
+  }
+
+  /**
+   * Return a mesh to the pool for reuse instead of disposing it.
+   * The mesh is hidden and its animations stopped.
+   */
+  public recycle(objectType: string, mesh: Mesh): void {
+    mesh.setEnabled(false);
+    this.scene.stopAnimation(mesh);
+    this.glowColorMap.delete(mesh);
+    mesh.getChildMeshes().forEach(child => {
+      this.glowColorMap.delete(child as Mesh);
+    });
+    const pool = this.meshPool.get(objectType.toLowerCase()) ?? [];
+    // Cap pool size to avoid unbounded memory growth
+    if (pool.length < 10) {
+      pool.push(mesh);
+      this.meshPool.set(objectType.toLowerCase(), pool);
+    } else {
+      mesh.dispose();
+    }
+  }
+
+  /**
+   * Clean up all cached materials, pooled meshes, and the glow layer.
    */
   public dispose(): void {
     this.materialCache.forEach(mat => mat.dispose());
     this.materialCache.clear();
+    this.meshPool.forEach(pool => pool.forEach(m => m.dispose()));
+    this.meshPool.clear();
+    this.glowColorMap.clear();
     this.glowLayer?.dispose();
     this.glowLayer = null;
     this.assetRegistry.clear();
@@ -261,12 +372,21 @@ export class ProceduralQuestObjects {
     ) as GlowLayer | undefined;
     if (existing) {
       this.glowLayer = existing;
-      return;
+    } else {
+      this.glowLayer = new GlowLayer('questObjectGlow', this.scene, {
+        blurKernelSize: 32,
+      });
+      this.glowLayer.intensity = 0.6;
     }
-    this.glowLayer = new GlowLayer('questObjectGlow', this.scene, {
-      blurKernelSize: 32,
-    });
-    this.glowLayer.intensity = 0.6;
+
+    // Single selector that looks up colors from the shared map
+    this.glowLayer.customEmissiveColorSelector = (m, _subMesh, _material, result) => {
+      const color = this.glowColorMap.get(m as Mesh)
+        || (m.parent ? this.glowColorMap.get(m.parent as Mesh) : undefined);
+      if (color) {
+        result.set(color.r * 0.5, color.g * 0.5, color.b * 0.5, 1);
+      }
+    };
   }
 
   private cloneAsset(name: string, asset: Mesh, params: QuestObjectParams): QuestObjectResult {
@@ -369,6 +489,7 @@ export class ProceduralQuestObjects {
     }
 
     mesh.material = this.getMaterial(color);
+    mesh.freezeNormals();
     return mesh;
   }
 
@@ -378,8 +499,6 @@ export class ProceduralQuestObjects {
     baseColor: Color3,
     size: number,
   ): Mesh {
-    const root = new TransformNode(`quest_proc_${name}_root`, this.scene) as unknown as Mesh;
-    // Create an invisible root mesh so we can return a Mesh type
     const rootMesh = MeshBuilder.CreateBox(`quest_proc_${name}`, { size: 0.001 }, this.scene);
     rootMesh.isVisible = false;
     rootMesh.isPickable = false;
@@ -389,9 +508,9 @@ export class ProceduralQuestObjects {
       const partMesh = this.buildPrimitive(
         `${name}_part${i}`,
         part.shape,
-        {}, // Options are controlled via scaling
+        {},
         partColor,
-        1,  // Size = 1, controlled by scaling below
+        1,
       );
       partMesh.parent = rootMesh;
       partMesh.position = new Vector3(
@@ -404,6 +523,8 @@ export class ProceduralQuestObjects {
         part.scaling.y * size,
         part.scaling.z * size,
       );
+      // Freeze child mesh transforms — they don't move relative to root
+      partMesh.freezeNormals();
     });
 
     return rootMesh;
@@ -427,25 +548,23 @@ export class ProceduralQuestObjects {
     if (!this.glowLayer) return () => {};
 
     this.glowLayer.addIncludedOnlyMesh(mesh);
+    this.glowColorMap.set(mesh, color);
+
     // Also glow child meshes (for composites)
     mesh.getChildMeshes().forEach(child => {
       if (child instanceof Mesh) {
         this.glowLayer!.addIncludedOnlyMesh(child);
+        this.glowColorMap.set(child, color);
       }
     });
 
-    // Set custom emissive color on glow layer for this mesh
-    this.glowLayer.customEmissiveColorSelector = (m, _subMesh, _material, result) => {
-      if (m === mesh || m.parent === mesh) {
-        result.set(color.r * 0.5, color.g * 0.5, color.b * 0.5, 1);
-      }
-    };
-
     return () => {
       this.glowLayer?.removeIncludedOnlyMesh(mesh);
+      this.glowColorMap.delete(mesh);
       mesh.getChildMeshes().forEach(child => {
         if (child instanceof Mesh) {
           this.glowLayer?.removeIncludedOnlyMesh(child);
+          this.glowColorMap.delete(child);
         }
       });
     };
