@@ -272,6 +272,7 @@ interface BabylonGameConfig {
   worldType?: string;
   userId?: string;
   authToken?: string;
+  playthroughId?: string;
   onBack?: () => void;
   dataSource?: DataSource;
 }
@@ -4713,13 +4714,19 @@ export class BabylonGame {
   private async startPlaythrough(): Promise<void> {
     if (!this.config.authToken || !this.config.worldId) return;
 
+    // Use pre-selected playthrough ID if provided
+    if (this.config.playthroughId) {
+      this.playthroughId = this.config.playthroughId;
+      return;
+    }
+
     try {
       const playthrough = await this.dataSource.startPlaythrough(
         this.config.worldId,
         this.config.authToken || '',
         `${this.config.worldName} - Playthrough`
       );
-      
+
       if (playthrough && playthrough.id) {
         this.playthroughId = playthrough.id;
       } else {
