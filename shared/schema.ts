@@ -1171,6 +1171,7 @@ export const insertItemSchema = createInsertSchema(items).pick({
   lootWeight: true,
   tags: true,
   isBase: true,
+  possessable: true,
   metadata: true,
   craftingRecipe: true,
   questRelevance: true,

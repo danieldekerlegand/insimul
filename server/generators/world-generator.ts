@@ -18,6 +18,8 @@ import { addMoney } from '../extensions/tott/economics-system.js';
 import { adjustCommunityMorale, scheduleFestival } from '../extensions/tott/town-events-system.js';
 // GenAI Visual Asset Generation Integration
 import { visualAssetGenerator } from '../services/visual-asset-generator.js';
+// Item placement
+import { placeItemsInWorld } from './item-placement-generator.js';
 
 export interface WorldGenerationConfig {
   worldName: string;
@@ -81,6 +83,7 @@ export class WorldGenerator {
     employed: number;
     routines: number;
     events: number;
+    itemsPlaced: number;
     visualAssets: {
       portraits: number;
       buildings: number;
@@ -216,6 +219,7 @@ export class WorldGenerator {
     let employedCount = 0;
     let routineCount = 0;
     let eventCount = 0;
+    let itemsPlaced = 0;
     
     // TotT Integration: Business Generation
     if (config.generateBusinesses && population > 0) {
@@ -248,6 +252,14 @@ export class WorldGenerator {
         settlementId: settlement.id,
         currentYear: config.currentYear
       });
+    }
+
+    // Item Placement: populate businesses and residences with contextual items
+    if (businessCount > 0 || (config.generateGeography && population > 0)) {
+      console.log('\n📦 Placing items in world locations...');
+      const itemResult = await placeItemsInWorld(world.id, config.worldType || world.worldType || undefined);
+      itemsPlaced = itemResult.totalPlaced;
+      console.log(`   Placed ${itemResult.totalPlaced} items (${itemResult.businessItems} in businesses, ${itemResult.residenceItems} in residences)`);
     }
 
     // TotT Integration: Routine Generation
@@ -365,6 +377,7 @@ export class WorldGenerator {
     console.log(`   Businesses: ${businessCount}`);
     console.log(`   Employed: ${employedCount}`);
     console.log(`   Routines: ${routineCount}`);
+    console.log(`   Items Placed: ${itemsPlaced}`);
     console.log(`   Historical Events: ${eventCount}`);
     if (config.generateVisualAssets) {
       console.log(`   Visual Assets Generated:`);
@@ -386,6 +399,7 @@ export class WorldGenerator {
       employed: employedCount,
       routines: routineCount,
       events: eventCount,
+      itemsPlaced,
       visualAssets: {
         portraits: portraitCount,
         buildings: buildingAssetCount,
