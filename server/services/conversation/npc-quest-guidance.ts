@@ -58,6 +58,12 @@ const GUIDANCE_STRATEGIES: Record<string, GuidanceStrategy> = {
     },
   },
 
+  conversation_initiation: {
+    buildGuidance(obj) {
+      return `You are proactively approaching this player. Open with a natural greeting and engage them in conversation. Evaluate whether the player understands your opening and responds appropriately in the target language. Speak clearly and give them a chance to respond.`;
+    },
+  },
+
   complete_conversation: {
     buildGuidance(obj) {
       const remaining = (obj.required || 1) - (obj.current || 0);

@@ -33,6 +33,11 @@ export interface CompletionObjective {
   requiredCount?: number;
   currentCount?: number;
 
+  // conversation_initiation
+  npcInitiated?: boolean;
+  responseQuality?: number;
+  minResponseQuality?: number;
+
   // pronunciation_check scoring
   pronunciationScores?: number[];
   minAverageScore?: number;
@@ -121,7 +126,8 @@ export type CompletionEvent =
   | { type: 'navigation_waypoint'; questId?: string }
   | { type: 'pronunciation_attempt'; passed: boolean; score?: number; phrase?: string; questId?: string }
   | { type: 'location_visit'; questId: string; objectiveId: string }
-  | { type: 'objective_direct_complete'; questId: string; objectiveId: string };
+  | { type: 'objective_direct_complete'; questId: string; objectiveId: string }
+  | { type: 'conversation_initiation'; npcId: string; accepted: boolean; responseQuality?: number; questId?: string };
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
@@ -214,6 +220,9 @@ export class QuestCompletionEngine {
       case 'objective_direct_complete':
         this.completeObjective(event.questId, event.objectiveId);
         break;
+      case 'conversation_initiation':
+        this.trackConversationInitiation(event.npcId, event.accepted, event.responseQuality, event.questId);
+        break;
     }
   }
 
@@ -298,6 +307,27 @@ export class QuestCompletionEngine {
   trackNPCConversation(npcId: string, questId?: string): void {
     this.forEachObjective(questId, 'talk_to_npc', (quest, obj) => {
       if (obj.npcId === npcId) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
+  trackConversationInitiation(npcId: string, accepted: boolean, responseQuality?: number, questId?: string): void {
+    if (!accepted) return;
+
+    this.forEachObjective(questId, 'conversation_initiation', (quest, obj) => {
+      if (obj.npcId && obj.npcId !== npcId) return;
+
+      obj.currentCount = (obj.currentCount || 0) + 1;
+
+      if (responseQuality !== undefined) {
+        obj.responseQuality = responseQuality;
+      }
+
+      const minQuality = obj.minResponseQuality ?? 0;
+      const meetsQuality = (responseQuality ?? 100) >= minQuality;
+
+      if (obj.currentCount >= (obj.requiredCount || 1) && meetsQuality) {
         this.completeObjective(quest.id, obj.id);
       }
     });
