@@ -1,10 +1,10 @@
-import { db } from "../db";
-import { reputations, type Reputation, type InsertReputation } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { storage } from "../db/storage";
+import type { Reputation, InsertReputation } from "@shared/schema";
 
 /**
  * Reputation Service
- * Handles all reputation/karma business logic for the game
+ * Handles all reputation/karma business logic for the game.
+ * All reputations are playthrough-scoped — different playthroughs maintain independent reputation.
  */
 
 export interface ViolationData {
@@ -42,9 +42,6 @@ export function calculateStanding(score: number): string {
   return 'hostile';
 }
 
-/**
- * Calculate reputation penalty based on severity
- */
 function getSeverityPenalty(severity: 'minor' | 'moderate' | 'severe'): number {
   switch (severity) {
     case 'minor': return -5;
@@ -54,10 +51,6 @@ function getSeverityPenalty(severity: 'minor' | 'moderate' | 'severe'): number {
   }
 }
 
-/**
- * Determine penalty level based on violation count
- * 1 = warning, 2 = fine, 3 = combat, 4+ = banishment
- */
 function getPenaltyLevel(violationCount: number): number {
   return Math.min(violationCount, 4);
 }
@@ -71,25 +64,10 @@ export async function getOrCreateReputation(
   entityType: string,
   entityId: string
 ): Promise<Reputation> {
-  // Try to find existing reputation
-  const existing = await db
-    .select()
-    .from(reputations)
-    .where(
-      and(
-        eq(reputations.playthroughId, playthroughId),
-        eq(reputations.entityType, entityType),
-        eq(reputations.entityId, entityId)
-      )
-    )
-    .limit(1);
+  const existing = await storage.getReputationForEntity(playthroughId, entityType, entityId);
+  if (existing) return existing;
 
-  if (existing.length > 0) {
-    return existing[0];
-  }
-
-  // Create new reputation record with neutral standing
-  const newReputation: InsertReputation = {
+  return await storage.createReputation({
     playthroughId,
     userId,
     entityType,
@@ -105,20 +83,14 @@ export async function getOrCreateReputation(
     hasDiscounts: false,
     hasSpecialAccess: false,
     tags: []
-  };
-
-  const [created] = await db.insert(reputations).values(newReputation).returning();
-  return created;
+  });
 }
 
 /**
  * Get all reputations for a playthrough
  */
 export async function getPlaythroughReputations(playthroughId: string): Promise<Reputation[]> {
-  return await db
-    .select()
-    .from(reputations)
-    .where(eq(reputations.playthroughId, playthroughId));
+  return await storage.getReputationsByPlaythrough(playthroughId);
 }
 
 /**
@@ -131,67 +103,56 @@ export async function recordViolation(
   entityId: string,
   violation: ViolationData
 ): Promise<ViolationResponse> {
-  // Get or create reputation
   const reputation = await getOrCreateReputation(playthroughId, userId, entityType, entityId);
 
   const previousScore = reputation.score;
   const previousStanding = reputation.standing ?? 'neutral';
 
-  // Increment violation count
   const currentViolationCount = reputation.violationCount ?? 0;
   const currentWarningCount = reputation.warningCount ?? 0;
   const newViolationCount = currentViolationCount + 1;
   const newWarningCount = currentWarningCount + (violation.severity === 'minor' ? 1 : 0);
 
-  // Calculate penalty level
   const penaltyLevel = getPenaltyLevel(newViolationCount);
-
-  // Calculate reputation change
   const severityPenalty = getSeverityPenalty(violation.severity);
   let reputationChange = severityPenalty;
   let penaltyAmount = 0;
   let isBanned = false;
   let banExpiry: Date | null = null;
 
-  // Apply graduated enforcement
   let penaltyApplied: 'warning' | 'fine' | 'combat' | 'banishment';
   let message: string;
 
   switch (penaltyLevel) {
-    case 1: // Warning
+    case 1:
       penaltyApplied = 'warning';
       reputationChange = -5;
       message = `Warning issued for ${violation.violationType}. First offense.`;
       break;
-
-    case 2: // Fine
+    case 2:
       penaltyApplied = 'fine';
       reputationChange = -10;
-      penaltyAmount = 50; // 50 gold fine
+      penaltyAmount = 50;
       message = `Fine imposed: 50 gold for ${violation.violationType}. Second offense.`;
       break;
-
-    case 3: // Combat alert
+    case 3:
       penaltyApplied = 'combat';
       reputationChange = -25;
       message = `Guards alerted! ${violation.violationType} detected. Third offense.`;
       break;
-
-    case 4: // Banishment
+    case 4:
     default:
       penaltyApplied = 'banishment';
       reputationChange = -50;
       isBanned = true;
-      banExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
+      banExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
       message = `BANISHED from this location for ${violation.violationType}. You may return in 24 hours.`;
       break;
   }
 
-  // Calculate new score (clamped to -100, 100)
   const newScore = Math.max(-100, Math.min(100, previousScore + reputationChange));
   const newStanding = calculateStanding(newScore);
 
-  // Update violation history
   const violationRecord = {
     type: violation.violationType,
     severity: violation.severity,
@@ -201,24 +162,19 @@ export async function recordViolation(
 
   const history = reputation.violationHistory ?? [];
   const updatedHistory = [...history, violationRecord];
-
-  // Update reputation in database
   const currentOutstandingFines = reputation.outstandingFines ?? 0;
-  await db
-    .update(reputations)
-    .set({
-      score: newScore,
-      standing: newStanding,
-      violationCount: newViolationCount,
-      warningCount: newWarningCount,
-      lastViolation: new Date(),
-      violationHistory: updatedHistory,
-      isBanned,
-      banExpiry,
-      outstandingFines: currentOutstandingFines + penaltyAmount,
-      updatedAt: new Date()
-    })
-    .where(eq(reputations.id, reputation.id));
+
+  await storage.updateReputation(reputation.id, {
+    score: newScore,
+    standing: newStanding,
+    violationCount: newViolationCount,
+    warningCount: newWarningCount,
+    lastViolation: new Date(),
+    violationHistory: updatedHistory,
+    isBanned,
+    banExpiry,
+    outstandingFines: currentOutstandingFines + penaltyAmount,
+  });
 
   return {
     previousScore,
@@ -243,37 +199,27 @@ export async function adjustReputation(
   entityId: string,
   adjustment: ReputationAdjustment
 ): Promise<Reputation> {
-  // Get or create reputation
   const reputation = await getOrCreateReputation(playthroughId, userId, entityType, entityId);
 
-  // Calculate new score (clamped to -100, 100)
   const newScore = Math.max(-100, Math.min(100, reputation.score + adjustment.amount));
   const newStanding = calculateStanding(newScore);
 
-  // Check if we should remove ban if reputation is improving significantly
   let isBanned = !!reputation.isBanned;
   let banExpiry = reputation.banExpiry ?? null;
 
   if (newScore > -50 && reputation.isBanned) {
-    // Reputation improved enough to lift ban
     isBanned = false;
     banExpiry = null;
   }
 
-  // Update reputation in database
-  const [updated] = await db
-    .update(reputations)
-    .set({
-      score: newScore,
-      standing: newStanding,
-      isBanned,
-      banExpiry,
-      updatedAt: new Date()
-    })
-    .where(eq(reputations.id, reputation.id))
-    .returning();
+  const updated = await storage.updateReputation(reputation.id, {
+    score: newScore,
+    standing: newStanding,
+    isBanned,
+    banExpiry,
+  });
 
-  return updated;
+  return updated!;
 }
 
 /**
@@ -284,38 +230,19 @@ export async function checkBanStatus(
   entityType: string,
   entityId: string
 ): Promise<{ isBanned: boolean; banExpiry: Date | null; reason?: string }> {
-  const existing = await db
-    .select()
-    .from(reputations)
-    .where(
-      and(
-        eq(reputations.playthroughId, playthroughId),
-        eq(reputations.entityType, entityType),
-        eq(reputations.entityId, entityId)
-      )
-    )
-    .limit(1);
+  const reputation = await storage.getReputationForEntity(playthroughId, entityType, entityId);
 
-  if (existing.length === 0) {
+  if (!reputation) {
     return { isBanned: false, banExpiry: null };
   }
 
-  const reputation = existing[0];
-
-  // Check if ban has expired
   if (reputation.isBanned && reputation.banExpiry) {
     const now = new Date();
     if (now > reputation.banExpiry) {
-      // Ban expired, automatically lift it
-      await db
-        .update(reputations)
-        .set({
-          isBanned: false,
-          banExpiry: null,
-          updatedAt: new Date()
-        })
-        .where(eq(reputations.id, reputation.id));
-
+      await storage.updateReputation(reputation.id, {
+        isBanned: false,
+        banExpiry: null,
+      });
       return { isBanned: false, banExpiry: null };
     }
   }
@@ -337,36 +264,20 @@ export async function payFines(
   entityId: string,
   amount: number
 ): Promise<Reputation> {
-  const existing = await db
-    .select()
-    .from(reputations)
-    .where(
-      and(
-        eq(reputations.playthroughId, playthroughId),
-        eq(reputations.entityType, entityType),
-        eq(reputations.entityId, entityId)
-      )
-    )
-    .limit(1);
+  const reputation = await storage.getReputationForEntity(playthroughId, entityType, entityId);
 
-  if (existing.length === 0) {
+  if (!reputation) {
     throw new Error('No reputation record found');
   }
 
-  const reputation = existing[0];
   const currentOutstandingFines = reputation.outstandingFines ?? 0;
   const currentTotalFinesPaid = reputation.totalFinesPaid ?? 0;
   const amountPaid = Math.min(amount, currentOutstandingFines);
 
-  const [updated] = await db
-    .update(reputations)
-    .set({
-      totalFinesPaid: currentTotalFinesPaid + amountPaid,
-      outstandingFines: currentOutstandingFines - amountPaid,
-      updatedAt: new Date()
-    })
-    .where(eq(reputations.id, reputation.id))
-    .returning();
+  const updated = await storage.updateReputation(reputation.id, {
+    totalFinesPaid: currentTotalFinesPaid + amountPaid,
+    outstandingFines: currentOutstandingFines - amountPaid,
+  });
 
-  return updated;
+  return updated!;
 }

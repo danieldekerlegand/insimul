@@ -326,6 +326,24 @@ export interface IStorage {
   createTerrainFeature(feature: InsertTerrainFeature): Promise<TerrainFeature>;
   updateTerrainFeature(id: string, feature: Partial<InsertTerrainFeature>): Promise<TerrainFeature | undefined>;
   deleteTerrainFeature(id: string): Promise<boolean>;
+
+  // Reputations (playthrough-scoped)
+  getReputation(id: string): Promise<import("@shared/schema").Reputation | undefined>;
+  getReputationsByPlaythrough(playthroughId: string): Promise<import("@shared/schema").Reputation[]>;
+  getReputationForEntity(playthroughId: string, entityType: string, entityId: string): Promise<import("@shared/schema").Reputation | undefined>;
+  createReputation(reputation: import("@shared/schema").InsertReputation): Promise<import("@shared/schema").Reputation>;
+  updateReputation(id: string, updates: Partial<import("@shared/schema").InsertReputation>): Promise<import("@shared/schema").Reputation | undefined>;
+  upsertReputation(playthroughId: string, entityType: string, entityId: string, updates: Partial<import("@shared/schema").InsertReputation>): Promise<import("@shared/schema").Reputation>;
+  deleteReputation(id: string): Promise<boolean>;
+  deleteReputationsByPlaythrough(playthroughId: string): Promise<number>;
+
+  // Playthrough Relationships (playthrough-scoped overlays)
+  getPlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string): Promise<import("@shared/schema").PlaythroughRelationship | undefined>;
+  getPlaythroughRelationshipsForCharacter(playthroughId: string, characterId: string): Promise<import("@shared/schema").PlaythroughRelationship[]>;
+  getPlaythroughRelationshipsByPlaythrough(playthroughId: string): Promise<import("@shared/schema").PlaythroughRelationship[]>;
+  upsertPlaythroughRelationship(rel: import("@shared/schema").InsertPlaythroughRelationship): Promise<import("@shared/schema").PlaythroughRelationship>;
+  deletePlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string): Promise<boolean>;
+  deletePlaythroughRelationshipsByPlaythrough(playthroughId: string): Promise<number>;
 }
 
 // Export MongoStorage as the default storage implementation
