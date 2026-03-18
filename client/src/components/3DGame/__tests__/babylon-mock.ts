@@ -45,6 +45,7 @@ export class Mesh {
   isDisposed() { return false; }
   getTotalVertices() { return 10; }
   getChildMeshes(): Mesh[] { return this._children; }
+  freezeNormals() {}
   clone(name: string) {
     const m = new Mesh(name);
     m.material = this.material;
@@ -93,6 +94,7 @@ export class Animation {
 export class Scene {
   effectLayers: any[] = [];
   beginAnimation() {}
+  stopAnimation() {}
 }
 
 export class TransformNode {

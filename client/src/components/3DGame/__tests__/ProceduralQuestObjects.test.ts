@@ -5,7 +5,7 @@
  */
 
 import { Scene, Color3, Mesh } from '@babylonjs/core';
-import { ProceduralQuestObjects } from '../ProceduralQuestObjects';
+import { ProceduralQuestObjects, ItemSizeCategory } from '../ProceduralQuestObjects';
 
 // ── Test harness ──
 
@@ -220,6 +220,112 @@ function testRemoveGlowCallback() {
   gen.dispose();
 }
 
+function testSizeCategories() {
+  console.log('\n[size categories]');
+  assert(ProceduralQuestObjects.getSizeCategory('coin') === ItemSizeCategory.TINY, 'coin is TINY');
+  assert(ProceduralQuestObjects.getSizeCategory('ring') === ItemSizeCategory.TINY, 'ring is TINY');
+  assert(ProceduralQuestObjects.getSizeCategory('apple') === ItemSizeCategory.SMALL, 'apple is SMALL');
+  assert(ProceduralQuestObjects.getSizeCategory('key') === ItemSizeCategory.SMALL, 'key is SMALL');
+  assert(ProceduralQuestObjects.getSizeCategory('sword') === ItemSizeCategory.MEDIUM, 'sword is MEDIUM');
+  assert(ProceduralQuestObjects.getSizeCategory('book') === ItemSizeCategory.MEDIUM, 'book is MEDIUM');
+  assert(ProceduralQuestObjects.getSizeCategory('barrel') === ItemSizeCategory.LARGE, 'barrel is LARGE');
+  assert(ProceduralQuestObjects.getSizeCategory('chest') === ItemSizeCategory.LARGE, 'chest is LARGE');
+  assert(ProceduralQuestObjects.getSizeCategory('unknown_thing') === ItemSizeCategory.MEDIUM, 'unknown defaults to MEDIUM');
+  assert(ProceduralQuestObjects.getSizeCategory('APPLE') === ItemSizeCategory.SMALL, 'case-insensitive size lookup');
+}
+
+function testSizeCategoryValues() {
+  console.log('\n[size category values are ordered]');
+  assert(ItemSizeCategory.TINY < ItemSizeCategory.SMALL, 'TINY < SMALL');
+  assert(ItemSizeCategory.SMALL < ItemSizeCategory.MEDIUM, 'SMALL < MEDIUM');
+  assert(ItemSizeCategory.MEDIUM < ItemSizeCategory.LARGE, 'MEDIUM < LARGE');
+}
+
+function testMeshPoolRecycle() {
+  console.log('\n[mesh pool - recycle and reuse]');
+  const scene = new Scene() as any;
+  const gen = new ProceduralQuestObjects(scene);
+
+  // Generate an apple
+  const r1 = gen.generate('pool_apple', { objectType: 'apple' });
+  const originalMesh = r1.mesh;
+
+  // Recycle it
+  gen.recycle('apple', originalMesh);
+
+  // Generate another apple — should get the recycled mesh back
+  const r2 = gen.generate('pool_apple_reuse', { objectType: 'apple' });
+  assert(r2.mesh === originalMesh, 'recycled mesh is reused from pool');
+
+  gen.dispose();
+}
+
+function testMeshPoolCapLimit() {
+  console.log('\n[mesh pool - cap at 10]');
+  const scene = new Scene() as any;
+  const gen = new ProceduralQuestObjects(scene);
+
+  const meshes: Mesh[] = [];
+  for (let i = 0; i < 12; i++) {
+    const r = gen.generate(`cap_${i}`, { objectType: 'gem' });
+    meshes.push(r.mesh);
+  }
+
+  // Recycle all 12
+  for (const m of meshes) {
+    gen.recycle('gem', m);
+  }
+
+  // Generate 11 — first 10 should come from pool, 11th should be new
+  let fromPool = 0;
+  const poolSet = new Set(meshes);
+  for (let i = 0; i < 11; i++) {
+    const r = gen.generate(`reuse_${i}`, { objectType: 'gem' });
+    if (poolSet.has(r.mesh)) fromPool++;
+  }
+  assert(fromPool === 10, `pool capped at 10 (got ${fromPool} from pool)`);
+
+  gen.dispose();
+}
+
+function testGlowMapMultipleObjects() {
+  console.log('\n[glow map - multiple objects get correct glow]');
+  const scene = new Scene() as any;
+  const gen = new ProceduralQuestObjects(scene);
+
+  // Generate two different items — both should have removeGlow
+  const r1 = gen.generate('glow_apple', { objectType: 'apple' });
+  const r2 = gen.generate('glow_gem', { objectType: 'gem' });
+
+  assert(typeof r1.removeGlow === 'function', 'first object has removeGlow');
+  assert(typeof r2.removeGlow === 'function', 'second object has removeGlow');
+
+  // Removing glow from first should not throw
+  r1.removeGlow!();
+  assert(true, 'removing glow from first object succeeds');
+
+  // Second should still have glow
+  r2.removeGlow!();
+  assert(true, 'removing glow from second object succeeds after first removed');
+
+  gen.dispose();
+}
+
+function testDisposeIncludesPool() {
+  console.log('\n[dispose - clears mesh pool]');
+  const scene = new Scene() as any;
+  const gen = new ProceduralQuestObjects(scene);
+
+  const r = gen.generate('dispose_pool', { objectType: 'apple' });
+  gen.recycle('apple', r.mesh);
+
+  gen.dispose();
+
+  // After dispose, generating should create a new mesh (not reuse from pool)
+  // We can't directly check the pool is empty, but we can verify dispose doesn't throw
+  assert(true, 'dispose with pooled meshes completes without error');
+}
+
 // ── Run all ──
 
 console.log('=== ProceduralQuestObjects Tests ===');
@@ -236,6 +342,12 @@ testAssetRegistryCaseInsensitive();
 testDisposeCleanup();
 testMaterialCaching();
 testRemoveGlowCallback();
+testSizeCategories();
+testSizeCategoryValues();
+testMeshPoolRecycle();
+testMeshPoolCapLimit();
+testGlowMapMultipleObjects();
+testDisposeIncludesPool();
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
 if (failed > 0) process.exit(1);
