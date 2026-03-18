@@ -1051,6 +1051,225 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
       { name: 'count', type: 'number', description: 'Locations to visit in order' },
     ],
   },
+
+  // --- Weather & Time-of-Day Vocabulary Quests ---
+  {
+    id: 'morning_weather_chat',
+    name: 'Morning Weather Chat',
+    category: 'weather_time',
+    description: 'Greet {{npcName}} in the morning and discuss the weather using weather and time vocabulary.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Talk to {{npcName}} about the weather during the morning',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} weather words (rain, sun, cloud, etc.)',
+        requiredCount: 4,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{timeWordCount}} time-of-day words (morning, today, etc.)',
+        requiredCount: 2,
+      },
+    ],
+    rewardScale: { xp: 20, fluency: 3 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC available in the morning' },
+      { name: 'wordCount', type: 'number', description: 'Weather words to use' },
+      { name: 'timeWordCount', type: 'number', description: 'Time words to use' },
+    ],
+  },
+  {
+    id: 'weather_watcher',
+    name: 'Weather Watcher',
+    category: 'weather_time',
+    description: 'Observe the sky and describe the current weather to {{npcName}} using weather vocabulary.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'describe_scene',
+        descriptionTemplate: 'Describe the current weather and sky to {{npcName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'collect_vocabulary',
+        descriptionTemplate: 'Collect {{wordCount}} weather words by observing the environment',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 15, fluency: 2 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC to describe weather to' },
+      { name: 'wordCount', type: 'number', description: 'Weather words to collect' },
+    ],
+  },
+  {
+    id: 'evening_routine_report',
+    name: 'Evening Routine',
+    category: 'weather_time',
+    description: 'Find {{npcName}} in the evening and tell them about your day, using time-of-day vocabulary.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'talk_to_npc',
+        descriptionTemplate: 'Find and talk to {{npcName}} during the evening',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} time words (morning, afternoon, evening, night)',
+        requiredCount: 4,
+      },
+    ],
+    rewardScale: { xp: 20, fluency: 3 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC available in the evening' },
+      { name: 'wordCount', type: 'number', description: 'Time-of-day words to use' },
+    ],
+  },
+  {
+    id: 'weather_and_plans',
+    name: 'Weather and Plans',
+    category: 'weather_time',
+    description: 'Ask {{npcName}} about their plans for different weather conditions. Use weather and time vocabulary together.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Discuss weather-dependent plans with {{npcName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{weatherWordCount}} weather words in conversation',
+        requiredCount: 5,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{timeWordCount}} time words (tomorrow, later, soon, always)',
+        requiredCount: 4,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 4 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC to discuss plans with' },
+      { name: 'weatherWordCount', type: 'number', description: 'Weather vocabulary to use' },
+      { name: 'timeWordCount', type: 'number', description: 'Time vocabulary to use' },
+    ],
+  },
+  {
+    id: 'npc_schedule_tracker',
+    name: 'Where Are They Now?',
+    category: 'weather_time',
+    description: 'Track {{npcName}} through their daily routine. Visit them at {{locationCount}} different locations during different times of day.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'talk_to_npc',
+        descriptionTemplate: 'Find and talk to {{npcName}} at {{locationCount}} different locations',
+        requiredCount: 3,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} time-of-day words to describe when you found them',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 35, fluency: 4 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC to track through their schedule' },
+      { name: 'locationCount', type: 'number', description: 'Different locations to visit' },
+      { name: 'wordCount', type: 'number', description: 'Time words to use' },
+    ],
+  },
+  {
+    id: 'storm_story',
+    name: 'Storm Stories',
+    category: 'weather_time',
+    description: 'Visit {{npcName}} and listen to a story about a past storm. Retell it using weather vocabulary and past tense.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'listening_comprehension',
+        descriptionTemplate: 'Listen to {{npcName}} tell a weather story and answer {{questionCount}} questions',
+        requiredCount: 3,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} weather words (storm, wind, rain, cold) in your retelling',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 30, fluency: 4 },
+    parameters: [
+      { name: 'npcName', type: 'npc', description: 'NPC storyteller' },
+      { name: 'questionCount', type: 'number', description: 'Comprehension questions' },
+      { name: 'wordCount', type: 'number', description: 'Weather words to use' },
+    ],
+  },
+  {
+    id: 'seasonal_scene',
+    name: 'Seasonal Scene',
+    category: 'weather_time',
+    description: 'Describe the current season and weather at {{location}} to {{npcName}} using advanced weather and nature vocabulary.',
+    difficulty: 'advanced',
+    objectiveTemplates: [
+      {
+        type: 'visit_location',
+        descriptionTemplate: 'Visit {{location}} to observe the seasonal scene',
+        requiredCount: 1,
+      },
+      {
+        type: 'describe_scene',
+        descriptionTemplate: 'Describe the seasonal weather scene at {{location}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} weather and nature vocabulary words',
+        requiredCount: 8,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Discuss the seasons with {{npcName}} using time expressions',
+        requiredCount: 1,
+      },
+    ],
+    rewardScale: { xp: 45, fluency: 6 },
+    parameters: [
+      { name: 'location', type: 'location', description: 'Location to observe' },
+      { name: 'npcName', type: 'npc', description: 'NPC to discuss seasons with' },
+      { name: 'wordCount', type: 'number', description: 'Weather and nature words to use' },
+    ],
+  },
+  {
+    id: 'day_night_vocabulary',
+    name: 'Day and Night',
+    category: 'weather_time',
+    description: 'Talk to NPCs during both day and night. Collect {{wordCount}} time-of-day words by observing how activities change.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'collect_vocabulary',
+        descriptionTemplate: 'Collect {{wordCount}} time-of-day words (morning, night, early, late)',
+        requiredCount: 5,
+      },
+      {
+        type: 'talk_to_npc',
+        descriptionTemplate: 'Talk to {{npcCount}} NPCs about their daily activities',
+        requiredCount: 2,
+      },
+    ],
+    rewardScale: { xp: 15, fluency: 2 },
+    parameters: [
+      { name: 'wordCount', type: 'number', description: 'Time words to collect' },
+      { name: 'npcCount', type: 'number', description: 'NPCs to talk to' },
+    ],
+  },
 ];
 
 /**

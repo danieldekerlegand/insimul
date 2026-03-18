@@ -127,6 +127,7 @@ const VOCABULARY_CATEGORIES: Record<string, string[]> = {
   family: ['mother', 'father', 'sister', 'brother', 'child', 'grandmother'],
   directions: ['left', 'right', 'straight', 'turn', 'stop', 'go'],
   time: ['morning', 'afternoon', 'evening', 'today', 'tomorrow', 'yesterday'],
+  weather: ['rain', 'snow', 'wind', 'cloud', 'storm', 'hot', 'cold', 'warm', 'sunny', 'foggy'],
   celebration: ['festival', 'celebration', 'music', 'dance', 'tradition', 'feast'],
   cooking: ['stir', 'boil', 'chop', 'bake', 'recipe', 'ingredient', 'measure', 'taste'],
   crafts: ['hammer', 'thread', 'clay', 'forge', 'weave', 'carve', 'tool', 'workshop'],
@@ -406,6 +407,7 @@ function pickQuestGiver(
     navigation: ['guard', 'scout', 'cartographer', 'merchant'],
     listening_comprehension: ['bard', 'elder', 'storyteller', 'priest'],
     time_activity: ['clockmaker', 'merchant', 'innkeeper'],
+    weather_time: ['farmer', 'fisherman', 'guard', 'merchant', 'innkeeper'],
   };
 
   const keywords = categoryKeywords[template.category] ?? [];
