@@ -7,6 +7,7 @@ import { createSettlementHistoryRoutes } from './routes/settlement-history-route
 import { createAssessmentRoutes } from './routes/assessment-routes';
 import { createAssessmentScoringRoutes } from './routes/assessment-scoring';
 import { createNpcExamRoutes } from './routes/npc-exam-routes';
+import { createNarrativeArcRoutes } from './routes/narrative-arc-routes';
 import { enrichHistoricalEvents, type WorldContext } from './services/llm-event-enrichment.js';
 import { prologAutoSync } from './engines/prolog/prolog-auto-sync';
 import { convertActionToProlog } from '../shared/prolog/action-converter';
@@ -12377,6 +12378,9 @@ Respond with this JSON structure:
 
   // Register NPC exam/quiz routes
   app.use('/api', createNpcExamRoutes(storage));
+
+  // Register narrative arc (main quest) routes
+  app.use('/api', createNarrativeArcRoutes());
 
   // Water features routes
   app.get("/api/worlds/:worldId/water-features", async (req, res) => {
