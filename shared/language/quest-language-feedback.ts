@@ -30,6 +30,14 @@ export interface QuestGrammarTarget {
   lastFeedback?: string;
 }
 
+/** A pronunciation phrase targeted by a quest objective. */
+export interface QuestPronunciationTarget {
+  phrase: string;
+  bestScore: number;
+  attempts: number;
+  passed: boolean;
+}
+
 /** Snapshot of language feedback for the current quest. */
 export interface QuestLanguageFeedbackState {
   questId: string;
@@ -48,6 +56,14 @@ export interface QuestLanguageFeedbackState {
   grammarErrorCount: number;
   grammarAccuracy: number; // 0-100
 
+  // Pronunciation tracking
+  pronunciationTargets: QuestPronunciationTarget[];
+  pronunciationAttempts: number;
+  pronunciationPassedCount: number;
+  pronunciationRequiredCount: number;
+  pronunciationAverageScore: number; // 0-100
+  pronunciationProgress: number; // 0-100
+
   // Recent feedback items for display
   recentFeedback: FeedbackItem[];
 }
@@ -55,7 +71,7 @@ export interface QuestLanguageFeedbackState {
 /** A single feedback item to display in the UI. */
 export interface FeedbackItem {
   id: string;
-  type: 'vocabulary_used' | 'vocabulary_hint' | 'grammar_correct' | 'grammar_correction' | 'grammar_focus' | 'milestone';
+  type: 'vocabulary_used' | 'vocabulary_hint' | 'grammar_correct' | 'grammar_correction' | 'grammar_focus' | 'pronunciation_good' | 'pronunciation_retry' | 'milestone';
   message: string;
   detail?: string;
   timestamp: number;
@@ -76,6 +92,8 @@ export interface QuestObjective {
   /** Minimum correct grammar uses required */
   requiredCorrectUses?: number;
   category?: string;
+  /** Target phrases for pronunciation objectives */
+  pronunciationPhrases?: string[];
 }
 
 // ── Service ─────────────────────────────────────────────────────────────────
@@ -108,6 +126,12 @@ export class QuestLanguageFeedbackTracker {
       grammarCorrectCount: 0,
       grammarErrorCount: 0,
       grammarAccuracy: 100,
+      pronunciationTargets: [],
+      pronunciationAttempts: 0,
+      pronunciationPassedCount: 0,
+      pronunciationRequiredCount: 0,
+      pronunciationAverageScore: 0,
+      pronunciationProgress: 0,
       recentFeedback: [],
     };
 
@@ -167,6 +191,25 @@ export class QuestLanguageFeedbackTracker {
           this.state.grammarTargets.push(target);
           this.grammarLookup.set(pattern.toLowerCase(), target);
         }
+      }
+
+      // Pronunciation objectives
+      if (obj.pronunciationPhrases && obj.pronunciationPhrases.length > 0) {
+        for (const phrase of obj.pronunciationPhrases) {
+          this.state.pronunciationTargets.push({
+            phrase,
+            bestScore: 0,
+            attempts: 0,
+            passed: false,
+          });
+        }
+        this.state.pronunciationRequiredCount += obj.required ?? obj.pronunciationPhrases.length;
+      }
+
+      // Infer pronunciation targets from objective type
+      const pronunciationTypes = ['pronunciation_check', 'listen_and_repeat', 'speak_phrase'];
+      if (pronunciationTypes.includes(obj.type) && !obj.pronunciationPhrases) {
+        this.state.pronunciationRequiredCount += obj.required ?? 1;
       }
 
       // Infer targets from objective type
@@ -295,6 +338,70 @@ export class QuestLanguageFeedbackTracker {
   }
 
   /**
+   * Process a pronunciation attempt result.
+   * Returns new feedback items generated.
+   */
+  public processPronunciationFeedback(result: {
+    phrase: string;
+    score: number;
+    passed: boolean;
+    wordFeedback?: Array<{ word: string; status: string; similarity: number }>;
+  }): FeedbackItem[] {
+    const items: FeedbackItem[] = [];
+
+    this.state.pronunciationAttempts++;
+
+    // Update matching target if one exists
+    const target = this.state.pronunciationTargets.find(
+      t => t.phrase.toLowerCase() === result.phrase.toLowerCase(),
+    );
+    if (target) {
+      target.attempts++;
+      if (result.score > target.bestScore) {
+        target.bestScore = result.score;
+      }
+      if (result.passed && !target.passed) {
+        target.passed = true;
+      }
+    }
+
+    if (result.passed) {
+      this.state.pronunciationPassedCount++;
+      const label = result.score >= 90 ? 'Excellent' : result.score >= 70 ? 'Good' : 'Acceptable';
+      items.push(this.createFeedbackItem(
+        'pronunciation_good',
+        `${label} pronunciation! (${result.score}%)`,
+        result.phrase,
+      ));
+    } else {
+      items.push(this.createFeedbackItem(
+        'pronunciation_retry',
+        `Try again: "${result.phrase}" (${result.score}%)`,
+        result.wordFeedback
+          ?.filter(w => w.status === 'needs_work' || w.status === 'missed')
+          .map(w => w.word)
+          .join(', ') || undefined,
+      ));
+    }
+
+    this.updatePronunciationProgress();
+
+    // Milestone feedback
+    const progress = this.state.pronunciationProgress;
+    if (progress >= 100 && result.passed) {
+      items.push(this.createFeedbackItem('milestone', 'Pronunciation objective complete!'));
+    } else if (progress >= 50 && progress - 10 < 50 && result.passed) {
+      items.push(this.createFeedbackItem(
+        'milestone',
+        `Halfway there! ${this.state.pronunciationPassedCount}/${this.state.pronunciationRequiredCount} phrases pronounced`,
+      ));
+    }
+
+    if (items.length > 0) this.notify();
+    return items;
+  }
+
+  /**
    * Generate vocabulary hint feedback for words not yet used.
    */
   public getVocabularyHints(maxHints: number = 3): FeedbackItem[] {
@@ -325,6 +432,23 @@ export class QuestLanguageFeedbackTracker {
   public getGrammarAccuracyFraction(): number {
     const total = this.state.grammarCorrectCount + this.state.grammarErrorCount;
     return total > 0 ? this.state.grammarCorrectCount / total : 1;
+  }
+
+  /** Get pronunciation progress as fraction (0-1). */
+  public getPronunciationProgressFraction(): number {
+    return this.state.pronunciationRequiredCount > 0
+      ? Math.min(1, this.state.pronunciationPassedCount / this.state.pronunciationRequiredCount)
+      : 0;
+  }
+
+  /** Check if all pronunciation targets have been passed. */
+  public isPronunciationComplete(): boolean {
+    if (this.state.pronunciationTargets.length > 0) {
+      return this.state.pronunciationTargets.every(t => t.passed);
+    }
+    return this.state.pronunciationRequiredCount > 0
+      ? this.state.pronunciationPassedCount >= this.state.pronunciationRequiredCount
+      : false;
   }
 
   /** Check if all vocabulary targets have been used. */
@@ -358,6 +482,26 @@ export class QuestLanguageFeedbackTracker {
     } else if (this.state.vocabularyTargets.length > 0) {
       const usedCount = this.state.vocabularyTargets.filter(t => t.used).length;
       this.state.vocabularyProgress = Math.round((usedCount / this.state.vocabularyTargets.length) * 100);
+    }
+  }
+
+  private updatePronunciationProgress(): void {
+    if (this.state.pronunciationRequiredCount > 0) {
+      this.state.pronunciationProgress = Math.min(
+        100,
+        Math.round((this.state.pronunciationPassedCount / this.state.pronunciationRequiredCount) * 100),
+      );
+    } else if (this.state.pronunciationTargets.length > 0) {
+      const passedCount = this.state.pronunciationTargets.filter(t => t.passed).length;
+      this.state.pronunciationProgress = Math.round((passedCount / this.state.pronunciationTargets.length) * 100);
+    }
+
+    // Update average score
+    if (this.state.pronunciationTargets.length > 0) {
+      const scores = this.state.pronunciationTargets.filter(t => t.attempts > 0).map(t => t.bestScore);
+      this.state.pronunciationAverageScore = scores.length > 0
+        ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+        : 0;
     }
   }
 
@@ -397,11 +541,17 @@ export class QuestLanguageFeedbackTracker {
 export function extractQuestLanguageTargets(objectives: QuestObjective[]): {
   vocabularyWords: string[];
   grammarPatterns: string[];
+  pronunciationPhrases: string[];
   vocabularyRequired: number;
+  pronunciationRequired: number;
 } {
   const vocabularyWords: string[] = [];
   const grammarPatterns: string[] = [];
+  const pronunciationPhrases: string[] = [];
   let vocabularyRequired = 0;
+  let pronunciationRequired = 0;
+
+  const pronunciationTypes = ['pronunciation_check', 'listen_and_repeat', 'speak_phrase'];
 
   for (const obj of objectives) {
     if (obj.vocabularyWords) {
@@ -411,14 +561,23 @@ export function extractQuestLanguageTargets(objectives: QuestObjective[]): {
     if (obj.grammarPatterns) {
       grammarPatterns.push(...obj.grammarPatterns);
     }
+    if (obj.pronunciationPhrases) {
+      pronunciationPhrases.push(...obj.pronunciationPhrases);
+      pronunciationRequired += obj.required ?? obj.pronunciationPhrases.length;
+    }
     if (obj.type === 'use_vocabulary' && !obj.vocabularyWords) {
       vocabularyRequired += obj.required ?? 5;
+    }
+    if (pronunciationTypes.includes(obj.type) && !obj.pronunciationPhrases) {
+      pronunciationRequired += obj.required ?? 1;
     }
   }
 
   return {
     vocabularyWords: Array.from(new Set(vocabularyWords)),
     grammarPatterns: Array.from(new Set(grammarPatterns)),
+    pronunciationPhrases: Array.from(new Set(pronunciationPhrases)),
     vocabularyRequired,
+    pronunciationRequired,
   };
 }
