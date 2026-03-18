@@ -9,6 +9,7 @@
  */
 
 import { calculateHintPenalty } from './quest-hints.js';
+import type { TimedChallengeResult } from './timed-challenge.js';
 
 // ── Streak Milestones ───────────────────────────────────────────────────────
 
@@ -82,6 +83,8 @@ export interface BonusInput {
   hintsUsed: number;
   /** Whether this is a recurring quest */
   isRecurring: boolean;
+  /** Timed challenge result (if this was a timed quest) */
+  timedResult?: TimedChallengeResult;
 }
 
 export interface BonusResult {
@@ -93,6 +96,8 @@ export interface BonusResult {
   streakMultiplier: number;
   /** Multiplier from hint penalty (0.5–1.0) */
   hintPenalty: number;
+  /** Multiplier from timed challenge performance (1.0 if not timed) */
+  timedBonusMultiplier: number;
   /** Combined multiplier (all multipliers combined) */
   combinedMultiplier: number;
   /** Final XP after all multipliers */
@@ -118,8 +123,9 @@ export function calculateQuestBonus(input: BonusInput): BonusResult {
   const diffMult = difficultyMultiplier(input.difficulty);
   const streakMult = input.isRecurring ? streakMultiplier(input.streakCount) : 1.0;
   const hintPen = calculateHintPenalty(input.hintsUsed);
+  const timedMult = input.timedResult?.timeBonus ?? 1.0;
 
-  const combinedMultiplier = diffMult * streakMult * hintPen;
+  const combinedMultiplier = diffMult * streakMult * hintPen * timedMult;
   const totalXP = Math.round(input.baseXP * combinedMultiplier);
   const bonusXP = totalXP - input.baseXP;
 
@@ -131,6 +137,7 @@ export function calculateQuestBonus(input: BonusInput): BonusResult {
     difficultyMultiplier: diffMult,
     streakMultiplier: streakMult,
     hintPenalty: hintPen,
+    timedBonusMultiplier: timedMult,
     combinedMultiplier,
     totalXP,
     bonusXP,
