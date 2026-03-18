@@ -1371,6 +1371,19 @@ export class MongoStorage implements IStorage {
     return doc ? docToWorld(doc) : undefined;
   }
 
+  async bumpWorldVersion(worldId: string): Promise<number> {
+    await this.connect();
+    const doc = await WorldModel.findByIdAndUpdate(
+      worldId,
+      { $inc: { version: 1 }, updatedAt: new Date() },
+      { new: true }
+    );
+    if (!doc) {
+      throw new Error(`World ${worldId} not found`);
+    }
+    return doc.version ?? 1;
+  }
+
   async deleteWorld(id: string): Promise<boolean> {
     await this.connect();
     

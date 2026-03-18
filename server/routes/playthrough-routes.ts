@@ -4,6 +4,7 @@ import { AuthService } from "../services/auth-service";
 import { canAccessWorld, canEditWorld } from "../middleware/permissions";
 import * as ReputationService from "../services/reputation-service";
 import { exportPlaythrough, importPlaythrough, validatePortableSave } from "../services/playthrough-portable";
+import { checkSnapshotCompatibility } from "@shared/world-snapshot-version";
 
 export function registerPlaythroughRoutes(app: Express) {
 
@@ -728,16 +729,34 @@ export function registerPlaythroughRoutes(app: Express) {
         return res.status(400).json({ message: "Playthrough does not belong to this world" });
       }
 
+      // Check save compatibility
+      const world = await storage.getWorld(worldId);
+      const compatibility = world
+        ? checkSnapshotCompatibility(world.version ?? 1, playthrough.worldSnapshotVersion ?? 1)
+        : null;
+
+      if (compatibility && !compatibility.compatible) {
+        return res.status(409).json({
+          message: "Save is incompatible with current world version",
+          compatibility,
+        });
+      }
+
       // Store state in playthrough's saveData keyed by slot
       const saveData = (playthrough.saveData as Record<string, any>) || {};
-      saveData[`slot_${slotIndex}`] = state;
+      saveData[`slot_${slotIndex}`] = {
+        ...state,
+        worldVersion: world?.version ?? 1,
+        snapshotVersion: playthrough.worldSnapshotVersion ?? 1,
+      };
 
       await storage.updatePlaythrough(playthroughId, {
         saveData,
         lastPlayedAt: new Date(),
       });
 
-      res.json({ success: true, slotIndex, savedAt: state.savedAt });
+      const warning = compatibility?.status === 'behind' ? compatibility.message : undefined;
+      res.json({ success: true, slotIndex, savedAt: state.savedAt, ...(warning && { warning }) });
     } catch (error) {
       console.error("Save game state error:", error);
       res.status(500).json({ message: "Failed to save game state" });
@@ -786,6 +805,145 @@ export function registerPlaythroughRoutes(app: Express) {
     }
   });
 
+  // ===== WORLD SNAPSHOT VERSIONING =====
+
+  // Get world version info
+  app.get("/api/worlds/:worldId/version", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ message: "World not found" });
+      }
+
+      res.json({ worldId, version: world.version ?? 1 });
+    } catch (error) {
+      console.error("Get world version error:", error);
+      res.status(500).json({ message: "Failed to get world version" });
+    }
+  });
+
+  // Bump world version (owner only)
+  app.post("/api/worlds/:worldId/version/bump", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const { worldId } = req.params;
+
+      if (!(await canEditWorld(payload.userId, worldId))) {
+        return res.status(403).json({ message: "You don't have permission to edit this world" });
+      }
+
+      const newVersion = await storage.bumpWorldVersion(worldId);
+      res.json({ worldId, version: newVersion });
+    } catch (error) {
+      console.error("Bump world version error:", error);
+      res.status(500).json({ message: "Failed to bump world version" });
+    }
+  });
+
+  // Check save compatibility for a playthrough
+  app.get("/api/playthroughs/:id/compatibility", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) {
+        return res.status(404).json({ message: "Playthrough not found" });
+      }
+
+      if (playthrough.userId !== payload.userId) {
+        const canEdit = await canEditWorld(payload.userId, playthrough.worldId);
+        if (!canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const world = await storage.getWorld(playthrough.worldId);
+      if (!world) {
+        return res.status(404).json({ message: "World not found" });
+      }
+
+      const result = checkSnapshotCompatibility(
+        world.version ?? 1,
+        playthrough.worldSnapshotVersion ?? 1,
+      );
+      res.json(result);
+    } catch (error) {
+      console.error("Check compatibility error:", error);
+      res.status(500).json({ message: "Failed to check compatibility" });
+    }
+  });
+
+  // Update playthrough snapshot version to current world version
+  app.post("/api/playthroughs/:id/sync-version", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) {
+        return res.status(404).json({ message: "Playthrough not found" });
+      }
+
+      if (playthrough.userId !== payload.userId) {
+        return res.status(403).json({ message: "You can only sync your own playthroughs" });
+      }
+
+      const world = await storage.getWorld(playthrough.worldId);
+      if (!world) {
+        return res.status(404).json({ message: "World not found" });
+      }
+
+      const worldVersion = world.version ?? 1;
+      const compatibility = checkSnapshotCompatibility(
+        worldVersion,
+        playthrough.worldSnapshotVersion ?? 1,
+      );
+
+      if (!compatibility.compatible) {
+        return res.status(409).json({
+          message: compatibility.message,
+          compatibility,
+        });
+      }
+
+      const updated = await storage.updatePlaythrough(req.params.id, {
+        worldSnapshotVersion: worldVersion,
+      });
+
+      res.json({
+        playthroughId: req.params.id,
+        previousVersion: playthrough.worldSnapshotVersion,
+        newVersion: worldVersion,
+        playthrough: updated,
+      });
+    } catch (error) {
+      console.error("Sync version error:", error);
+      res.status(500).json({ message: "Failed to sync version" });
+    }
+  });
+
   // ===== PORTABLE SAVE EXPORT/IMPORT =====
 
   // Export a playthrough as a portable save file
@@ -795,7 +953,6 @@ export function registerPlaythroughRoutes(app: Express) {
       if (!token) {
         return res.status(401).json({ message: "Authentication required" });
       }
-
       const payload = AuthService.verifyToken(token);
       if (!payload) {
         return res.status(401).json({ message: "Invalid token" });
@@ -830,7 +987,6 @@ export function registerPlaythroughRoutes(app: Express) {
       if (!token) {
         return res.status(401).json({ message: "Authentication required" });
       }
-
       const payload = AuthService.verifyToken(token);
       if (!payload) {
         return res.status(401).json({ message: "Invalid token" });

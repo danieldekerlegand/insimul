@@ -67,6 +67,7 @@ export interface IStorage {
   createWorld(world: InsertWorld): Promise<World>;
   updateWorld(id: string, world: Partial<InsertWorld>): Promise<World | undefined>;
   deleteWorld(id: string): Promise<boolean>;
+  bumpWorldVersion(worldId: string): Promise<number>;
 
   // Countries
   getCountry(id: string): Promise<Country | undefined>;
