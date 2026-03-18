@@ -15,16 +15,27 @@
 import type { GameEventBus } from './GameEventBus';
 import type {
   NpcExamConfig,
+  NpcExamQuestion,
   NpcExamResult,
   NpcExamQuestionResult,
 } from '../../../../shared/assessment/npc-exam-types';
 import {
   scoreNpcExamQuestion,
+  scorePronunciationQuestion,
   npcExamResultToPhaseResult,
 } from '../../../../shared/assessment/npc-exam-types';
 import { mapScoreToCEFR } from '../../../../shared/assessment/cefr-mapping';
+import type { AudioPronunciationResult } from '../../../../shared/language/pronunciation-scoring';
 
 // ── Types ────────────────────────────────────────────────────────────────────
+
+/** Audio answer data for pronunciation questions */
+export interface AudioAnswer {
+  /** Raw audio as a Blob or base64 string */
+  audio: Blob | string;
+  /** MIME type of the audio (default: 'audio/wav') */
+  mimeType?: string;
+}
 
 export interface NpcExamCallbacks {
   /** Called when a question should be displayed to the player */
@@ -35,7 +46,12 @@ export interface NpcExamCallbacks {
     prompt: string;
     hint?: string;
     timeRemainingSeconds: number;
+    /** Whether this question expects an audio answer */
+    isPronunciation: boolean;
+    /** Submit a text answer */
     onAnswer: (answer: string) => void;
+    /** Submit an audio answer (for pronunciation questions) */
+    onAudioAnswer: (audio: AudioAnswer) => void;
   }) => void;
   /** Called after each question is answered */
   onQuestionResult?: (result: NpcExamQuestionResult, questionIndex: number) => void;
@@ -47,11 +63,14 @@ export interface NpcExamCallbacks {
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
+/** Internal answer type — text or audio */
+type ExamAnswer = { type: 'text'; text: string } | { type: 'audio'; audio: AudioAnswer };
+
 export class NpcExamEngine {
   private eventBus: GameEventBus | null;
   private authToken: string;
   private _aborted = false;
-  private _answerResolver: ((answer: string) => void) | null = null;
+  private _answerResolver: ((answer: ExamAnswer) => void) | null = null;
 
   constructor(config: { eventBus?: GameEventBus; authToken: string }) {
     this.eventBus = config.eventBus ?? null;
@@ -118,8 +137,14 @@ export class NpcExamEngine {
         return null;
       }
 
-      // Score the answer
-      const questionResult = scoreNpcExamQuestion(question, answer);
+      // Score the answer — use audio pronunciation scoring if applicable
+      let questionResult: NpcExamQuestionResult;
+      if (answer.type === 'audio' && question.isPronunciation) {
+        questionResult = await this._scorePronunciationAnswer(question, answer.audio, examConfig.targetLanguage);
+      } else {
+        const textAnswer = answer.type === 'text' ? answer.text : '';
+        questionResult = scoreNpcExamQuestion(question, textAnswer);
+      }
       questionResults.push(questionResult);
 
       // Emit per-question event
@@ -187,7 +212,7 @@ export class NpcExamEngine {
   abort(): void {
     this._aborted = true;
     if (this._answerResolver) {
-      this._answerResolver('');
+      this._answerResolver({ type: 'text', text: '' });
       this._answerResolver = null;
     }
   }
@@ -199,13 +224,13 @@ export class NpcExamEngine {
   // ── Private ──────────────────────────────────────────────────────────────────
 
   private _presentQuestion(
-    question: { id: string; prompt: string; hint?: string; maxPoints: number },
+    question: NpcExamQuestion,
     index: number,
     total: number,
     timeRemaining: number,
     callbacks: NpcExamCallbacks,
-  ): Promise<string> {
-    return new Promise<string>((resolve) => {
+  ): Promise<ExamAnswer> {
+    return new Promise<ExamAnswer>((resolve) => {
       this._answerResolver = resolve;
 
       if (callbacks.onQuestion) {
@@ -216,18 +241,85 @@ export class NpcExamEngine {
           prompt: question.prompt,
           hint: question.hint,
           timeRemainingSeconds: timeRemaining,
+          isPronunciation: !!question.isPronunciation,
           onAnswer: (answer: string) => {
             this._answerResolver = null;
-            resolve(answer);
+            resolve({ type: 'text', text: answer });
+          },
+          onAudioAnswer: (audio: AudioAnswer) => {
+            this._answerResolver = null;
+            resolve({ type: 'audio', audio });
           },
         });
       } else {
-        // No UI handler — auto-skip with empty answer
         console.warn('[NpcExamEngine] No onQuestion callback — skipping question');
         this._answerResolver = null;
-        resolve('');
+        resolve({ type: 'text', text: '' });
       }
     });
+  }
+
+  /**
+   * Score a pronunciation question by sending audio to the server endpoint.
+   * Falls back to text-based scoring if the API call fails.
+   */
+  private async _scorePronunciationAnswer(
+    question: NpcExamQuestion,
+    audioAnswer: AudioAnswer,
+    targetLanguage?: string,
+  ): Promise<NpcExamQuestionResult> {
+    const expectedPhrase = question.expectedPhrase || question.expectedAnswer || question.prompt;
+    const languageHint = question.languageHint || targetLanguage;
+
+    try {
+      const result = await this._callPronunciationApi(audioAnswer, expectedPhrase, languageHint);
+      return scorePronunciationQuestion(question, result);
+    } catch (err) {
+      console.warn('[NpcExamEngine] Pronunciation scoring failed, falling back to text:', err);
+      return scoreNpcExamQuestion(question, '');
+    }
+  }
+
+  /**
+   * Call the server pronunciation scoring endpoint.
+   */
+  private async _callPronunciationApi(
+    audioAnswer: AudioAnswer,
+    expectedPhrase: string,
+    languageHint?: string,
+  ): Promise<AudioPronunciationResult> {
+    let audioBase64: string;
+    let mimeType = audioAnswer.mimeType || 'audio/wav';
+
+    if (typeof audioAnswer.audio === 'string') {
+      audioBase64 = audioAnswer.audio;
+    } else {
+      const arrayBuffer = await audioAnswer.audio.arrayBuffer();
+      audioBase64 = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''),
+      );
+      mimeType = audioAnswer.audio.type || mimeType;
+    }
+
+    const res = await fetch('/api/pronunciation/score', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
+      },
+      body: JSON.stringify({
+        audio: audioBase64,
+        expectedPhrase,
+        mimeType,
+        languageHint,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Pronunciation API error: ${res.status}`);
+    }
+
+    return await res.json();
   }
 
   /**
