@@ -819,6 +819,7 @@ export class FileDataSource implements DataSource {
 
   async loadTruths(worldId: string, _playthroughId?: string): Promise<any[]> {
     await this.waitForData();
+    // Base truths from the exported JSON; gameplay truths are merged via the overlay layer
     return this.worldIR?.truths || [];
   }
 
