@@ -9,6 +9,7 @@ import { createAssessmentScoringRoutes } from './routes/assessment-scoring';
 import { createNpcExamRoutes } from './routes/npc-exam-routes';
 import { enrichHistoricalEvents, type WorldContext } from './services/llm-event-enrichment.js';
 import { prologAutoSync } from './engines/prolog/prolog-auto-sync';
+import * as PlaythroughOverlay from './services/playthrough-overlay';
 import { convertActionToProlog } from '../shared/prolog/action-converter';
 import { convertQuestToProlog } from '../shared/prolog/quest-converter';
 import { extractAllMetadata, extractActionMetadata } from '../shared/prolog/prolog-metadata-extractor';
@@ -8115,7 +8116,10 @@ Respond with this JSON structure:
   // Truths
   app.get("/api/worlds/:worldId/truth", async (req, res) => {
     try {
-      const entries = await storage.getTruthsByWorld(req.params.worldId);
+      const playthroughId = req.query.playthroughId as string | undefined;
+      const entries = playthroughId
+        ? await PlaythroughOverlay.getTruthsWithOverlay(req.params.worldId, playthroughId)
+        : await storage.getTruthsByWorld(req.params.worldId);
       res.json(entries);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch Truths" });
@@ -8124,7 +8128,11 @@ Respond with this JSON structure:
 
   app.get("/api/characters/:characterId/truth", async (req, res) => {
     try {
-      const entries = await storage.getTruthsByCharacter(req.params.characterId);
+      const playthroughId = req.query.playthroughId as string | undefined;
+      const worldId = req.query.worldId as string | undefined;
+      const entries = (playthroughId && worldId)
+        ? await PlaythroughOverlay.getTruthsByCharacterWithOverlay(req.params.characterId, playthroughId, worldId)
+        : await storage.getTruthsByCharacter(req.params.characterId);
       res.json(entries);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch character truth" });
@@ -8133,7 +8141,10 @@ Respond with this JSON structure:
 
   app.get("/api/truth/:id", async (req, res) => {
     try {
-      const entry = await storage.getTruth(req.params.id);
+      const playthroughId = req.query.playthroughId as string | undefined;
+      const entry = playthroughId
+        ? await PlaythroughOverlay.getTruthWithOverlay(req.params.id, playthroughId)
+        : await storage.getTruth(req.params.id);
       if (!entry) {
         return res.status(404).json({ error: "Truth entry not found" });
       }
@@ -8145,7 +8156,15 @@ Respond with this JSON structure:
 
   app.post("/api/worlds/:worldId/truth", async (req, res) => {
     try {
+      const playthroughId = req.query.playthroughId as string | undefined;
       const entryData = { ...req.body, worldId: req.params.worldId };
+
+      if (playthroughId) {
+        const timestep = req.body.timestep || 0;
+        const entry = await PlaythroughOverlay.createTruthInPlaythrough(playthroughId, entryData, timestep);
+        return res.status(201).json(entry);
+      }
+
       const validatedData = insertTruthSchema.parse(entryData);
       const entry = await storage.createTruth(validatedData);
 
@@ -8170,6 +8189,14 @@ Respond with this JSON structure:
 
   app.post("/api/truth", async (req, res) => {
     try {
+      const playthroughId = req.query.playthroughId as string | undefined;
+
+      if (playthroughId) {
+        const timestep = req.body.timestep || 0;
+        const entry = await PlaythroughOverlay.createTruthInPlaythrough(playthroughId, req.body, timestep);
+        return res.status(201).json(entry);
+      }
+
       const validatedData = insertTruthSchema.parse(req.body);
       const entry = await storage.createTruth(validatedData);
 
@@ -8195,6 +8222,17 @@ Respond with this JSON structure:
 
   app.put("/api/truth/:id", async (req, res) => {
     try {
+      const playthroughId = req.query.playthroughId as string | undefined;
+
+      if (playthroughId) {
+        const timestep = req.body.timestep || 0;
+        const entry = await PlaythroughOverlay.updateTruthInPlaythrough(playthroughId, req.params.id, req.body, timestep);
+        if (!entry) {
+          return res.status(404).json({ error: "Truth entry not found" });
+        }
+        return res.json(entry);
+      }
+
       const validatedData = insertTruthSchema.partial().parse(req.body);
       const entry = await storage.updateTruth(req.params.id, validatedData);
       if (!entry) {
@@ -8235,6 +8273,17 @@ Respond with this JSON structure:
 
   app.delete("/api/truth/:id", async (req, res) => {
     try {
+      const playthroughId = req.query.playthroughId as string | undefined;
+
+      if (playthroughId) {
+        const timestep = parseInt(req.query.timestep as string) || 0;
+        const deleted = await PlaythroughOverlay.deleteTruthInPlaythrough(playthroughId, req.params.id, timestep);
+        if (!deleted) {
+          return res.status(404).json({ error: "Truth entry not found" });
+        }
+        return res.status(204).send();
+      }
+
       // Get truth before deleting for Prolog sync
       const existingTruth = await storage.getTruth(req.params.id);
 
@@ -12111,7 +12160,10 @@ Respond with this JSON structure:
   app.get("/api/worlds/:worldId/entities/:entityId/inventory", async (req, res) => {
     try {
       const { worldId, entityId } = req.params;
-      const truths = await storage.getTruthsByWorld(worldId);
+      const playthroughId = req.query.playthroughId as string | undefined;
+      const truths = playthroughId
+        ? await PlaythroughOverlay.getTruthsWithOverlay(worldId, playthroughId)
+        : await storage.getTruthsByWorld(worldId);
       const inventoryTruths = truths.filter(
         (t: any) => t.entryType === 'ownership' && t.characterId === entityId
       );
@@ -12140,6 +12192,7 @@ Respond with this JSON structure:
   app.post("/api/worlds/:worldId/inventory/transfer", async (req, res) => {
     try {
       const { worldId } = req.params;
+      const playthroughId = req.query.playthroughId as string | undefined;
       const { fromEntityId, toEntityId, itemId, itemName, itemDescription, itemType, quantity, transactionType, totalPrice } = req.body;
 
       if (!worldId || !itemId || !transactionType) {
@@ -12147,38 +12200,53 @@ Respond with this JSON structure:
       }
 
       const timestamp = Date.now();
+      const timestep = req.body.timestep || 0;
+
+      const ownershipData = {
+        worldId,
+        characterId: '',
+        title: '',
+        content: '',
+        entryType: 'ownership' as const,
+        importance: 3,
+        isPublic: true,
+        timestep,
+        tags: ['ownership', 'inventory', transactionType],
+        customData: {
+          itemId,
+          itemName: itemName || itemId,
+          itemDescription: itemDescription || '',
+          itemType: itemType || 'collectible',
+          quantity: quantity || 1,
+          value: totalPrice || 0,
+          sellValue: Math.floor((totalPrice || 0) * 0.7),
+          tradeable: true,
+          transactionType,
+          fromEntityId: fromEntityId || null,
+          timestamp,
+        },
+      };
 
       // Create ownership truth for receiver (if not discard)
       if (toEntityId && transactionType !== 'discard') {
-        await storage.createTruth({
-          worldId,
+        const receiverData = {
+          ...ownershipData,
           characterId: toEntityId,
           title: `Acquired: ${itemName || itemId}`,
           content: `${toEntityId} acquired ${itemName || itemId} via ${transactionType}`,
-          entryType: 'ownership',
-          importance: 3,
-          isPublic: true,
-          timestep: 0,
-          tags: ['ownership', 'inventory', transactionType],
-          customData: {
-            itemId,
-            itemName: itemName || itemId,
-            itemDescription: itemDescription || '',
-            itemType: itemType || 'collectible',
-            quantity: quantity || 1,
-            value: totalPrice || 0,
-            sellValue: Math.floor((totalPrice || 0) * 0.7),
-            tradeable: true,
-            transactionType,
-            fromEntityId: fromEntityId || null,
-            timestamp,
-          },
-        });
+        };
+        if (playthroughId) {
+          await PlaythroughOverlay.createTruthInPlaythrough(playthroughId, receiverData, timestep);
+        } else {
+          await storage.createTruth(receiverData);
+        }
       }
 
       // Remove ownership truth from sender (if applicable)
       if (fromEntityId) {
-        const senderTruths = await storage.getTruthsByWorld(worldId);
+        const senderTruths = playthroughId
+          ? await PlaythroughOverlay.getTruthsWithOverlay(worldId, playthroughId)
+          : await storage.getTruthsByWorld(worldId);
         const matchingTruth = senderTruths.find(
           (t: any) =>
             t.entryType === 'ownership' &&
@@ -12190,17 +12258,24 @@ Respond with this JSON structure:
           const existingQty = existingData.quantity || 1;
           const removeQty = quantity || 1;
           if (removeQty >= existingQty) {
-            await storage.deleteTruth(matchingTruth.id);
+            if (playthroughId) {
+              await PlaythroughOverlay.deleteTruthInPlaythrough(playthroughId, matchingTruth.id, timestep);
+            } else {
+              await storage.deleteTruth(matchingTruth.id);
+            }
           } else {
-            await storage.updateTruth(matchingTruth.id, {
-              customData: { ...existingData, quantity: existingQty - removeQty },
-            });
+            const updates = { customData: { ...existingData, quantity: existingQty - removeQty } };
+            if (playthroughId) {
+              await PlaythroughOverlay.updateTruthInPlaythrough(playthroughId, matchingTruth.id, updates, timestep);
+            } else {
+              await storage.updateTruth(matchingTruth.id, updates);
+            }
           }
         }
       }
 
       // Create a transaction event truth
-      await storage.createTruth({
+      const eventData = {
         worldId,
         characterId: fromEntityId || toEntityId,
         title: `Transaction: ${transactionType} ${itemName || itemId}`,
@@ -12208,7 +12283,7 @@ Respond with this JSON structure:
         entryType: 'event',
         importance: 2,
         isPublic: true,
-        timestep: 0,
+        timestep,
         tags: ['transaction', transactionType, 'mercantile'],
         customData: {
           transactionType,
@@ -12220,7 +12295,12 @@ Respond with this JSON structure:
           toEntityId: toEntityId || null,
           timestamp,
         },
-      });
+      };
+      if (playthroughId) {
+        await PlaythroughOverlay.createTruthInPlaythrough(playthroughId, eventData, timestep);
+      } else {
+        await storage.createTruth(eventData);
+      }
 
       res.json({
         success: true,
