@@ -417,6 +417,23 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'ask_owner': 'talk_to_npc',
   'collect_business_item': 'collect_item',
 
+  // Customer service quest aliases
+  'request_refund': 'complete_conversation',
+  'explain_problem': 'complete_conversation',
+  'negotiate_resolution': 'complete_conversation',
+  'reserve_slot': 'complete_conversation',
+  'describe_preference': 'complete_conversation',
+  'express_urgency': 'complete_conversation',
+  'make_return': 'complete_conversation',
+  'file_complaint': 'complete_conversation',
+  'make_reservation': 'complete_conversation',
+  'ask_recommendation': 'complete_conversation',
+  'request_exchange': 'complete_conversation',
+  'complain': 'complete_conversation',
+  'reserve': 'complete_conversation',
+  'book_table': 'complete_conversation',
+  'book_room': 'complete_conversation',
+
   // Language learning action aliases
   'examine': 'examine_object',
   'inspect_object': 'examine_object',

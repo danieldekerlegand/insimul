@@ -1535,6 +1535,168 @@ export const QUEST_TEMPLATES: QuestTemplate[] = [
       { name: 'phraseCount', type: 'number', description: 'Instructions to translate' },
     ],
   },
+
+  // --- Customer Service Quests ---
+  {
+    id: 'make_return',
+    name: 'I Need to Return This',
+    category: 'customer_service',
+    description: 'Return a wrong item to {{businessName}} and request a refund in the target language.',
+    difficulty: 'beginner',
+    objectiveTemplates: [
+      {
+        type: 'visit_location',
+        descriptionTemplate: 'Visit {{businessName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'talk_to_npc',
+        descriptionTemplate: 'Talk to {{ownerName}} about the return',
+        requiredCount: 1,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Explain the problem and request a refund from {{ownerName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} return/exchange vocabulary words',
+        requiredCount: 3,
+      },
+    ],
+    rewardScale: { xp: 25, fluency: 4 },
+    parameters: [
+      { name: 'businessName', type: 'location', description: 'Business to return item to' },
+      { name: 'ownerName', type: 'npc', description: 'Shop owner NPC' },
+      { name: 'wordCount', type: 'number', description: 'Vocabulary words to use' },
+    ],
+  },
+  {
+    id: 'file_complaint',
+    name: 'A Polite Complaint',
+    category: 'customer_service',
+    description: 'Politely complain to {{ownerName}} at {{businessName}} about unsatisfactory service.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'visit_location',
+        descriptionTemplate: 'Visit {{businessName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Politely explain your complaint to {{ownerName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} polite complaint phrases',
+        requiredCount: 4,
+      },
+    ],
+    rewardScale: { xp: 35, fluency: 5 },
+    parameters: [
+      { name: 'businessName', type: 'location', description: 'Business to complain at' },
+      { name: 'ownerName', type: 'npc', description: 'Owner to speak to' },
+      { name: 'wordCount', type: 'number', description: 'Complaint phrases to use' },
+    ],
+  },
+  {
+    id: 'make_reservation',
+    name: 'Table for Two',
+    category: 'customer_service',
+    description: 'Reserve a table or room at {{businessName}} for a specific date and time.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'visit_location',
+        descriptionTemplate: 'Visit {{businessName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'talk_to_npc',
+        descriptionTemplate: 'Speak to {{ownerName}} about a reservation',
+        requiredCount: 1,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Make a reservation specifying date, time, and party size',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} time/date expressions',
+        requiredCount: 4,
+      },
+    ],
+    rewardScale: { xp: 35, fluency: 5 },
+    parameters: [
+      { name: 'businessName', type: 'location', description: 'Inn or restaurant' },
+      { name: 'ownerName', type: 'npc', description: 'Staff NPC' },
+      { name: 'wordCount', type: 'number', description: 'Time/date words to use' },
+    ],
+  },
+  {
+    id: 'ask_recommendations',
+    name: 'What Do You Recommend?',
+    category: 'customer_service',
+    description: 'Ask {{ownerName}} at {{businessName}} for recommendations and describe your preferences.',
+    difficulty: 'intermediate',
+    objectiveTemplates: [
+      {
+        type: 'visit_location',
+        descriptionTemplate: 'Visit {{businessName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Ask for recommendations and describe your preferences to {{ownerName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} preference and comparison words',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 35, fluency: 5 },
+    parameters: [
+      { name: 'businessName', type: 'location', description: 'Shop to visit' },
+      { name: 'ownerName', type: 'npc', description: 'Shopkeeper NPC' },
+      { name: 'wordCount', type: 'number', description: 'Preference words to use' },
+    ],
+  },
+  {
+    id: 'urgent_request',
+    name: 'I Need This Now!',
+    category: 'customer_service',
+    description: 'Communicate an urgent request to {{ownerName}} at {{businessName}} — polite but insistent.',
+    difficulty: 'advanced',
+    objectiveTemplates: [
+      {
+        type: 'visit_location',
+        descriptionTemplate: 'Visit {{businessName}}',
+        requiredCount: 1,
+      },
+      {
+        type: 'complete_conversation',
+        descriptionTemplate: 'Explain the urgency to {{ownerName}} while staying polite',
+        requiredCount: 1,
+      },
+      {
+        type: 'use_vocabulary',
+        descriptionTemplate: 'Use {{wordCount}} urgency and polite insistence phrases',
+        requiredCount: 5,
+      },
+    ],
+    rewardScale: { xp: 50, fluency: 7 },
+    parameters: [
+      { name: 'businessName', type: 'location', description: 'Business to visit' },
+      { name: 'ownerName', type: 'npc', description: 'Staff NPC' },
+      { name: 'wordCount', type: 'number', description: 'Urgency phrases to use' },
+    ],
+  },
 ];
 
 /**
