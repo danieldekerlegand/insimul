@@ -87,6 +87,11 @@ export interface CompletionObjective {
   // timed objectives
   timeLimitSeconds?: number;
   startedAt?: number;
+
+  // dependency ordering — objective IDs that must be completed before this one
+  dependsOn?: string[];
+  // numeric order for simple sequential completion (lower = earlier)
+  order?: number;
 }
 
 export interface CompletionQuest {
@@ -221,6 +226,8 @@ export class QuestCompletionEngine {
     const objective = quest.objectives?.find(o => o.id === objectiveId);
     if (!objective || objective.completed) return false;
 
+    if (this.isObjectiveLocked(quest, objective)) return false;
+
     objective.completed = true;
     this.onObjectiveCompleted?.(questId, objectiveId);
 
@@ -230,6 +237,60 @@ export class QuestCompletionEngine {
     }
 
     return true;
+  }
+
+  /**
+   * Check if an objective is locked due to unmet dependencies.
+   * An objective is locked if:
+   * 1. It has `dependsOn` IDs and any of those objectives are incomplete, OR
+   * 2. It has an `order` value and any objective with a lower `order` is incomplete.
+   */
+  isObjectiveLocked(quest: CompletionQuest, objective: CompletionObjective): boolean {
+    const objectives = quest.objectives || [];
+
+    // Check explicit dependsOn
+    if (objective.dependsOn && objective.dependsOn.length > 0) {
+      for (const depId of objective.dependsOn) {
+        const dep = objectives.find(o => o.id === depId);
+        if (dep && !dep.completed) return true;
+      }
+    }
+
+    // Check order-based sequencing
+    if (objective.order != null) {
+      for (const other of objectives) {
+        if (other.id === objective.id) continue;
+        if (other.order != null && other.order < objective.order && !other.completed) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Get all currently available (unlocked, incomplete) objectives for a quest.
+   */
+  getAvailableObjectives(questId: string): CompletionObjective[] {
+    const quest = this.quests.find(q => q.id === questId);
+    if (!quest) return [];
+
+    return (quest.objectives || []).filter(
+      o => !o.completed && !this.isObjectiveLocked(quest, o),
+    );
+  }
+
+  /**
+   * Get all locked (incomplete, dependencies not met) objectives for a quest.
+   */
+  getLockedObjectives(questId: string): CompletionObjective[] {
+    const quest = this.quests.find(q => q.id === questId);
+    if (!quest) return [];
+
+    return (quest.objectives || []).filter(
+      o => !o.completed && this.isObjectiveLocked(quest, o),
+    );
   }
 
   // ── Type-specific tracking methods ──────────────────────────────────────
@@ -505,9 +566,14 @@ export class QuestCompletionEngine {
     for (const quest of this.quests) {
       if (questId && quest.id !== questId) continue;
 
-      for (const obj of quest.objectives || []) {
-        if (obj.completed) continue;
-        if (!types.includes(obj.type)) continue;
+      // Snapshot eligible objectives before iteration so that completing
+      // one objective within the callback doesn't immediately unlock the next.
+      const eligible = (quest.objectives || []).filter(
+        obj => !obj.completed && types.includes(obj.type) && !this.isObjectiveLocked(quest, obj),
+      );
+
+      for (const obj of eligible) {
+        if (obj.completed) continue; // re-check in case a prior callback already completed it
         callback(quest, obj);
       }
     }
