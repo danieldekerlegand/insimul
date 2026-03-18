@@ -201,6 +201,29 @@ func track_pronunciation_attempt(passed: bool, score: float = 0.0, quest_id: Str
 			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
 
 
+## Track a writing submission for write_response / describe_scene objectives.
+func track_writing_submission(text: String, word_count: int, quest_id: String = "") -> void:
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		if not quest_id.is_empty() and obj.get("quest_id") != quest_id:
+			continue
+		var obj_type: String = obj.get("type", "")
+		if obj_type != "write_response" and obj_type != "describe_scene":
+			continue
+
+		obj["current_count"] = obj.get("current_count", 0) + 1
+
+		# Reject submissions below minimum word count
+		var min_words: int = obj.get("min_word_count", 0)
+		if min_words > 0 and word_count < min_words:
+			continue
+
+		var required: int = obj.get("required_count", 1)
+		if obj["current_count"] >= required:
+			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
 ## Check if player is near a direction/navigation waypoint.
 ## Call this from _physics_process with the player's position.
 func check_direction_proximity(player_pos: Vector3) -> void:

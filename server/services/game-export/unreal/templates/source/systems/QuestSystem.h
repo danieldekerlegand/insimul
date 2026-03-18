@@ -40,6 +40,12 @@ struct FQuestObjective
 
     /** Words already used (for deduplication) */
     UPROPERTY(BlueprintReadWrite) TArray<FString> WordsUsed;
+
+    /** Writing prompt for write_response / describe_scene objectives */
+    UPROPERTY(BlueprintReadWrite) FString WritingPrompt;
+
+    /** Minimum word count required per submission (0 = no minimum) */
+    UPROPERTY(BlueprintReadWrite) int32 MinWordCount = 0;
 };
 
 /**
@@ -108,6 +114,10 @@ public:
     /** Track a pronunciation attempt for pronunciation_check objectives. Score is 0-100. */
     UFUNCTION(BlueprintCallable, Category = "Quests")
     void TrackPronunciationAttempt(bool bPassed, float Score = 0.f, const FString& QuestId = TEXT(""));
+
+    /** Track a writing submission for write_response / describe_scene objectives. */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    void TrackWritingSubmission(const FString& Text, int32 WordCount, const FString& QuestId = TEXT(""));
 
     /** Check if player is near a direction/navigation waypoint. Call from Tick(). */
     UFUNCTION(BlueprintCallable, Category = "Quests")

@@ -40,7 +40,10 @@ export type QuestObjectiveType =
   // Language learning — advanced exercises
   | 'listening_comprehension' // Listen to NPC speech, answer comprehension questions
   | 'translation_challenge'   // Translate text between languages
-  | 'navigate_language';      // Navigate the world following target-language directions
+  | 'navigate_language'       // Navigate the world following target-language directions
+  // Language learning — composition
+  | 'write_response'          // Write text in target language in response to a prompt
+  | 'describe_scene';         // Describe current scene in target language
 
 export interface QuestObjective {
   id: string;
@@ -129,6 +132,11 @@ export interface QuestObjective {
 
   // For scavenger hunt category rotation
   vocabularyCategory?: string;       // Current category for vocabulary scavenger hunt
+
+  // For write_response / describe_scene
+  writingPrompt?: string;            // The composition prompt to display
+  writtenResponses?: string[];       // Submitted responses
+  minWordCount?: number;             // Minimum word count required per response
 }
 
 export interface Quest {
