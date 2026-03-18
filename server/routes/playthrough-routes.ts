@@ -3,6 +3,7 @@ import { storage } from '../db/storage';
 import { AuthService } from "../services/auth-service";
 import { canAccessWorld, canEditWorld } from "../middleware/permissions";
 import * as ReputationService from "../services/reputation-service";
+import { exportPlaythrough, importPlaythrough, validatePortableSave } from "../services/playthrough-portable";
 
 export function registerPlaythroughRoutes(app: Express) {
 
@@ -782,6 +783,76 @@ export function registerPlaythroughRoutes(app: Express) {
     } catch (error) {
       console.error("Load game state error:", error);
       res.status(500).json({ message: "Failed to load game state" });
+    }
+  });
+
+  // ===== PORTABLE SAVE EXPORT/IMPORT =====
+
+  // Export a playthrough as a portable save file
+  app.get("/api/playthroughs/:id/export", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) {
+        return res.status(404).json({ message: "Playthrough not found" });
+      }
+
+      if (playthrough.userId !== payload.userId) {
+        return res.status(403).json({ message: "You can only export your own playthroughs" });
+      }
+
+      const includeTraces = req.query.includeTraces !== 'false';
+      const portable = await exportPlaythrough(req.params.id, { includeTraces });
+
+      const filename = `playthrough-${(playthrough.name || 'save').replace(/[^a-zA-Z0-9-_]/g, '_')}.json`;
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Type', 'application/json');
+      res.json(portable);
+    } catch (error) {
+      console.error("Export playthrough error:", error);
+      res.status(500).json({ message: "Failed to export playthrough" });
+    }
+  });
+
+  // Import a portable save file into a world
+  app.post("/api/worlds/:worldId/playthroughs/import", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const { worldId } = req.params;
+
+      if (!(await canAccessWorld(payload.userId, worldId))) {
+        return res.status(403).json({ message: "You don't have access to this world" });
+      }
+
+      const saveData = req.body;
+      const validationError = validatePortableSave(saveData);
+      if (validationError) {
+        return res.status(400).json({ message: validationError });
+      }
+
+      const playthrough = await importPlaythrough(saveData, payload.userId, worldId);
+      res.status(201).json(playthrough);
+    } catch (error) {
+      console.error("Import playthrough error:", error);
+      res.status(500).json({ message: "Failed to import playthrough" });
     }
   });
 }
