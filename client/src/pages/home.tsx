@@ -18,6 +18,7 @@ import { BabylonWorld } from '@/components/3DGame/BabylonWorld';
 import { AuthDialog } from '@/components/AuthDialog';
 import { AdminPanel } from '@/components/AdminPanel';
 import { PlaythroughsList } from '@/components/PlaythroughsList';
+import { PlaythroughSelector } from '@/components/PlaythroughSelector';
 import { PlaythroughAnalytics } from '@/components/PlaythroughAnalytics';
 import { ResearcherDashboard } from '@/components/ResearcherDashboard';
 import { PlayerAssessmentDetail } from '@/components/PlayerAssessmentDetail';
@@ -47,6 +48,7 @@ export default function Home() {
   const [worldDeleteDialogOpen, setWorldDeleteDialogOpen] = useState(false);
   const [worldEditDialogOpen, setWorldEditDialogOpen] = useState(false);
   const [assessmentPlayerId, setAssessmentPlayerId] = useState<string | null>(null);
+  const [selectedPlaythroughId, setSelectedPlaythroughId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const ruleCompiler = new InsimulRuleCompiler();
   const { toast } = useToast();
@@ -126,9 +128,12 @@ export default function Home() {
             });
             return;
           }
+          if (tab !== '3d-game') {
+            setSelectedPlaythroughId(null);
+          }
           setActiveTab(tab);
         }}
-        onChangeWorld={() => setSelectedWorld('')}
+        onChangeWorld={() => { setSelectedWorld(''); setSelectedPlaythroughId(null); }}
         onOpenAuth={() => setAuthDialogOpen(true)}
       />
 
@@ -187,14 +192,23 @@ export default function Home() {
           </div>
         )}
 
-        {/* 3D Game Tab */}
-        {activeTab === '3d-game' && selectedWorld && isAuthenticated && (
+        {/* 3D Game Tab - Playthrough Selection then Game */}
+        {activeTab === '3d-game' && selectedWorld && isAuthenticated && !selectedPlaythroughId && (
+          <PlaythroughSelector
+            worldId={selectedWorld}
+            worldName={currentWorld?.name || 'Unknown World'}
+            onSelectPlaythrough={(playthroughId) => setSelectedPlaythroughId(playthroughId)}
+            onBack={() => { setActiveTab('home'); }}
+          />
+        )}
+        {activeTab === '3d-game' && selectedWorld && isAuthenticated && selectedPlaythroughId && (
           <BabylonWorld
             worldId={selectedWorld}
             worldName={currentWorld?.name || 'Unknown World'}
             worldType={currentWorld?.config?.worldType}
             userId={user?.id}
-            onBack={() => setActiveTab('world-intelligence')}
+            playthroughId={selectedPlaythroughId}
+            onBack={() => { setSelectedPlaythroughId(null); }}
           />
         )}
 
@@ -227,6 +241,7 @@ export default function Home() {
           <PlaythroughsList
             onResumePlaythrough={(worldId, playthroughId) => {
               setSelectedWorld(worldId);
+              setSelectedPlaythroughId(playthroughId);
               setActiveTab('3d-game');
             }}
           />

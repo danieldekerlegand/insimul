@@ -2,9 +2,12 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Play, Trash2, Clock, Activity, Calendar, Loader2 } from 'lucide-react';
+import { Play, Trash2, Clock, Activity, Calendar, Loader2, Edit3, Pause, XCircle } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,6 +18,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface Playthrough {
   id: string;
@@ -23,6 +39,7 @@ interface Playthrough {
   worldName?: string;
   worldVisibility?: string;
   name?: string;
+  notes?: string;
   status: string;
   currentTimestep?: number;
   playtime?: number;
@@ -40,6 +57,10 @@ export function PlaythroughsList({ onResumePlaythrough }: PlaythroughsListProps)
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [playthroughToDelete, setPlaythroughToDelete] = useState<Playthrough | null>(null);
+  const [editingPlaythrough, setEditingPlaythrough] = useState<Playthrough | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [saving, setSaving] = useState(false);
   const { token } = useAuth();
   const { toast } = useToast();
 
@@ -56,28 +77,17 @@ export function PlaythroughsList({ onResumePlaythrough }: PlaythroughsListProps)
     try {
       setLoading(true);
       const response = await fetch('/api/playthroughs/my', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (response.ok) {
-        const data = await response.json();
-        setPlaythroughs(data);
+        setPlaythroughs(await response.json());
       } else {
-        toast({
-          title: 'Error',
-          description: 'Failed to load your playthroughs',
-          variant: 'destructive',
-        });
+        toast({ title: 'Error', description: 'Failed to load your playthroughs', variant: 'destructive' });
       }
     } catch (error) {
       console.error('Failed to load playthroughs:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load your playthroughs',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to load your playthroughs', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -90,36 +100,84 @@ export function PlaythroughsList({ onResumePlaythrough }: PlaythroughsListProps)
       setDeletingId(playthrough.id);
       const response = await fetch(`/api/playthroughs/${playthrough.id}`, {
         method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (response.ok) {
-        toast({
-          title: 'Success',
-          description: 'Playthrough deleted successfully',
-        });
-        // Remove from list
+        toast({ title: 'Success', description: 'Playthrough deleted successfully' });
         setPlaythroughs(playthroughs.filter((p) => p.id !== playthrough.id));
       } else {
-        toast({
-          title: 'Error',
-          description: 'Failed to delete playthrough',
-          variant: 'destructive',
-        });
+        toast({ title: 'Error', description: 'Failed to delete playthrough', variant: 'destructive' });
       }
     } catch (error) {
       console.error('Failed to delete playthrough:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to delete playthrough',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to delete playthrough', variant: 'destructive' });
     } finally {
       setDeletingId(null);
       setPlaythroughToDelete(null);
     }
+  };
+
+  const handleUpdatePlaythrough = async () => {
+    if (!token || !editingPlaythrough) return;
+
+    try {
+      setSaving(true);
+      const response = await fetch(`/api/playthroughs/${editingPlaythrough.id}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: editName.trim() || undefined,
+          notes: editNotes.trim() || undefined,
+        }),
+      });
+
+      if (response.ok) {
+        toast({ title: 'Updated', description: 'Playthrough updated successfully' });
+        setEditingPlaythrough(null);
+        loadPlaythroughs();
+      } else {
+        toast({ title: 'Error', description: 'Failed to update playthrough', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Failed to update playthrough:', error);
+      toast({ title: 'Error', description: 'Failed to update playthrough', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateStatus = async (playthrough: Playthrough, newStatus: string) => {
+    if (!token) return;
+
+    try {
+      const response = await fetch(`/api/playthroughs/${playthrough.id}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (response.ok) {
+        toast({ title: 'Updated', description: `Playthrough ${newStatus}` });
+        loadPlaythroughs();
+      } else {
+        toast({ title: 'Error', description: 'Failed to update status', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Failed to update status:', error);
+    }
+  };
+
+  const openEditDialog = (playthrough: Playthrough) => {
+    setEditName(playthrough.name || '');
+    setEditNotes(playthrough.notes || '');
+    setEditingPlaythrough(playthrough);
   };
 
   const formatDuration = (seconds: number | undefined) => {
@@ -156,6 +214,7 @@ export function PlaythroughsList({ onResumePlaythrough }: PlaythroughsListProps)
   }
 
   const activePlaythroughs = playthroughs.filter((p) => p.status === 'active');
+  const pausedPlaythroughs = playthroughs.filter((p) => p.status === 'paused');
   const completedPlaythroughs = playthroughs.filter((p) => p.status === 'completed');
   const abandonedPlaythroughs = playthroughs.filter((p) => p.status === 'abandoned');
 
@@ -171,7 +230,9 @@ export function PlaythroughsList({ onResumePlaythrough }: PlaythroughsListProps)
             Manage your game sessions across all worlds
             {playthroughs.length > 0 && (
               <span className="ml-2 text-xs">
-                {activePlaythroughs.length} active · {completedPlaythroughs.length} completed
+                {activePlaythroughs.length} active
+                {pausedPlaythroughs.length > 0 && ` · ${pausedPlaythroughs.length} paused`}
+                {completedPlaythroughs.length > 0 && ` · ${completedPlaythroughs.length} completed`}
               </span>
             )}
           </CardDescription>
@@ -191,9 +252,9 @@ export function PlaythroughsList({ onResumePlaythrough }: PlaythroughsListProps)
             <Card key={playthrough.id} className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm hover:bg-white/80 dark:hover:bg-white/10 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 rounded-xl">
               <CardContent className="pt-6">
                 <div className="flex items-start justify-between">
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-semibold text-lg">
+                      <h3 className="font-semibold text-lg truncate">
                         {playthrough.name || 'Unnamed Playthrough'}
                       </h3>
                       <Badge variant={playthrough.status === 'active' ? 'default' : 'secondary'}>
@@ -203,9 +264,12 @@ export function PlaythroughsList({ onResumePlaythrough }: PlaythroughsListProps)
                         <Badge variant="outline">{playthrough.worldVisibility}</Badge>
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground mb-3">
+                    <p className="text-sm text-muted-foreground mb-1">
                       World: <span className="font-medium">{playthrough.worldName}</span>
                     </p>
+                    {playthrough.notes && (
+                      <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{playthrough.notes}</p>
+                    )}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                       <div className="flex items-center gap-2">
                         <Activity className="w-4 h-4 text-muted-foreground" />
@@ -229,7 +293,7 @@ export function PlaythroughsList({ onResumePlaythrough }: PlaythroughsListProps)
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-2 ml-4">
+                  <div className="flex items-center gap-2 ml-4">
                     {playthrough.status === 'active' && onResumePlaythrough && (
                       <Button
                         size="sm"
@@ -239,18 +303,49 @@ export function PlaythroughsList({ onResumePlaythrough }: PlaythroughsListProps)
                         Resume
                       </Button>
                     )}
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      disabled={deletingId === playthrough.id}
-                      onClick={() => setPlaythroughToDelete(playthrough)}
-                    >
-                      {deletingId === playthrough.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="outline">
+                          <Edit3 className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openEditDialog(playthrough)}>
+                          <Edit3 className="w-4 h-4 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
+                        {playthrough.status === 'active' && (
+                          <DropdownMenuItem onClick={() => handleUpdateStatus(playthrough, 'paused')}>
+                            <Pause className="w-4 h-4 mr-2" />
+                            Pause
+                          </DropdownMenuItem>
+                        )}
+                        {playthrough.status === 'paused' && (
+                          <DropdownMenuItem onClick={() => handleUpdateStatus(playthrough, 'active')}>
+                            <Play className="w-4 h-4 mr-2" />
+                            Resume
+                          </DropdownMenuItem>
+                        )}
+                        {(playthrough.status === 'active' || playthrough.status === 'paused') && (
+                          <DropdownMenuItem onClick={() => handleUpdateStatus(playthrough, 'abandoned')}>
+                            <XCircle className="w-4 h-4 mr-2" />
+                            Abandon
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          disabled={deletingId === playthrough.id}
+                          onClick={() => setPlaythroughToDelete(playthrough)}
+                        >
+                          {deletingId === playthrough.id ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4 mr-2" />
+                          )}
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </CardContent>
@@ -258,6 +353,44 @@ export function PlaythroughsList({ onResumePlaythrough }: PlaythroughsListProps)
           ))}
         </div>
       )}
+
+      {/* Edit Dialog */}
+      <Dialog open={editingPlaythrough !== null} onOpenChange={(open) => !open && setEditingPlaythrough(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Playthrough</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label htmlFor="edit-name">Name</Label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-notes">Notes</Label>
+              <Textarea
+                id="edit-notes"
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                placeholder="Add notes about this playthrough..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingPlaythrough(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdatePlaythrough} disabled={saving}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog

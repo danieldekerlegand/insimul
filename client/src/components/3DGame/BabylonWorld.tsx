@@ -23,10 +23,11 @@ interface BabylonWorldProps {
   worldName: string;
   worldType?: string;
   userId?: string;
+  playthroughId?: string;
   onBack: () => void;
 }
 
-export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonWorldProps) {
+export function BabylonWorld({ worldId, worldName, worldType, playthroughId, onBack }: BabylonWorldProps) {
   const { token } = useAuth();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const gameRef = useRef<BabylonGame | null>(null);
@@ -49,6 +50,7 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
       worldName,
       worldType,
       authToken: token,
+      playthroughId,
       onBack: () => onBackRef.current()
     });
 
@@ -65,7 +67,7 @@ export function BabylonWorld({ worldId, worldName, worldType, onBack }: BabylonW
       game.dispose();
       gameRef.current = null;
     };
-  }, [worldId, worldName, worldType, token]);
+  }, [worldId, worldName, worldType, token, playthroughId]);
 
   return (
     <div style={{ width: '100%', height: '100vh', margin: 0, padding: 0, overflow: 'hidden' }}>
