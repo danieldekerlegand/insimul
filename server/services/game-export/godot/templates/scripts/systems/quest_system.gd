@@ -181,7 +181,8 @@ func track_conversation_turn(keywords: Array[String] = [], quest_id: String = ""
 
 
 ## Track a pronunciation attempt for pronunciation_check objectives.
-func track_pronunciation_attempt(passed: bool, quest_id: String = "") -> void:
+## score: pronunciation accuracy score (0-100)
+func track_pronunciation_attempt(passed: bool, score: float = 0.0, quest_id: String = "") -> void:
 	if not passed:
 		return
 

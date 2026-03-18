@@ -20,6 +20,7 @@ import type {
 } from '../../../../shared/assessment/npc-exam-types';
 import {
   scoreNpcExamQuestion,
+  scorePronunciationExamQuestion,
   npcExamResultToPhaseResult,
 } from '../../../../shared/assessment/npc-exam-types';
 import { mapScoreToCEFR } from '../../../../shared/assessment/cefr-mapping';
@@ -118,8 +119,11 @@ export class NpcExamEngine {
         return null;
       }
 
-      // Score the answer
-      const questionResult = scoreNpcExamQuestion(question, answer);
+      // Score the answer — use pronunciation scoring for pronunciation quizzes
+      const usePronunciation = examConfig.category === 'pronunciation_quiz' || question.scoringType === 'pronunciation';
+      const questionResult = usePronunciation
+        ? scorePronunciationExamQuestion(question, answer)
+        : scoreNpcExamQuestion(question, answer);
       questionResults.push(questionResult);
 
       // Emit per-question event

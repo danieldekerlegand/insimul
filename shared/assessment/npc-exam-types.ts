@@ -17,6 +17,7 @@ import type {
   ScoringDimension,
   TaskResult,
 } from './assessment-types';
+import { scorePronunciation } from '../language/pronunciation-scoring';
 
 // ───────────────────────────────────────────────────────────────────────────
 // NPC Exam Types & Categories
@@ -115,6 +116,8 @@ export interface NpcExamQuestion {
   maxPoints: number;
   /** Hint text (optional, shown after first wrong attempt) */
   hint?: string;
+  /** Scoring method: 'text' for exact/close match, 'pronunciation' for speech scoring */
+  scoringType?: 'text' | 'pronunciation';
 }
 
 export interface NpcExamConfig {
@@ -195,6 +198,8 @@ export const NPC_EXAM_SCORING_DIMENSIONS: ScoringDimension[] = [
  */
 export function npcExamToAssessmentDefinition(config: NpcExamConfig): AssessmentDefinition {
   const phaseType = categoryToPhaseType(config.category);
+  const isPronunciation = config.category === 'pronunciation_quiz';
+  const dimensions = isPronunciation ? PRONUNCIATION_EXAM_SCORING_DIMENSIONS : NPC_EXAM_SCORING_DIMENSIONS;
 
   const phase: AssessmentPhase = {
     id: `npc_exam_${config.examId}`,
@@ -210,7 +215,7 @@ export function npcExamToAssessmentDefinition(config: NpcExamConfig): Assessment
     })),
     maxPoints: config.totalMaxPoints,
     timeLimitSeconds: config.timeLimitSeconds || undefined,
-    scoringDimensions: NPC_EXAM_SCORING_DIMENSIONS,
+    scoringDimensions: dimensions,
   };
 
   return {
@@ -221,7 +226,7 @@ export function npcExamToAssessmentDefinition(config: NpcExamConfig): Assessment
     targetLanguage: config.targetLanguage,
     phases: [phase],
     totalMaxPoints: config.totalMaxPoints,
-    scoringDimensions: NPC_EXAM_SCORING_DIMENSIONS,
+    scoringDimensions: dimensions,
     estimatedMinutes: Math.ceil((config.timeLimitSeconds || 300) / 60),
   };
 }
@@ -247,16 +252,17 @@ export function npcExamResultToPhaseResult(result: NpcExamResult): PhaseResult {
   // Derive dimension scores from percentage
   const dimScore = Math.max(1, Math.min(5, Math.round((percentage / 100) * 5 * 10) / 10));
 
+  const isPronunciation = result.category === 'pronunciation_quiz';
+  const dimensionScores: Record<string, number> = isPronunciation
+    ? { pronunciation: dimScore, fluency: dimScore, vocabulary: dimScore }
+    : { accuracy: dimScore, vocabulary: dimScore, comprehension: dimScore };
+
   return {
     phaseId: `npc_exam_${result.examId}`,
     score: totalScore,
     maxPoints: totalMaxPoints,
     taskResults,
-    dimensionScores: {
-      accuracy: dimScore,
-      vocabulary: dimScore,
-      comprehension: dimScore,
-    },
+    dimensionScores,
     startedAt: result.completedAt && result.durationMs
       ? new Date(result.completedAt - result.durationMs).toISOString()
       : undefined,
@@ -323,6 +329,50 @@ export function scoreNpcExamQuestion(
   };
 }
 
+/** Scoring dimensions for pronunciation-focused NPC exams */
+export const PRONUNCIATION_EXAM_SCORING_DIMENSIONS: ScoringDimension[] = [
+  { id: 'pronunciation', name: 'Pronunciation', description: 'Accuracy of spoken phrases', maxScore: 5 },
+  { id: 'fluency', name: 'Fluency', description: 'Natural flow and pacing', maxScore: 5 },
+  { id: 'vocabulary', name: 'Vocabulary', description: 'Word knowledge demonstrated', maxScore: 5 },
+];
+
+/**
+ * Score a pronunciation exam question using speech scoring.
+ * Compares player's spoken answer to expected phrase using Levenshtein-based
+ * word alignment for graded scoring (not just exact/close match).
+ */
+export function scorePronunciationExamQuestion(
+  question: NpcExamQuestion,
+  playerAnswer: string,
+): NpcExamQuestionResult & { pronunciationScore: number } {
+  const expected = question.expectedAnswer ?? '';
+  if (!expected || !playerAnswer.trim()) {
+    return {
+      questionId: question.id,
+      playerAnswer,
+      score: 0,
+      maxPoints: question.maxPoints,
+      correct: false,
+      rationale: playerAnswer.trim() ? `Expected: "${expected}"` : 'No answer provided',
+      pronunciationScore: 0,
+    };
+  }
+
+  const result = scorePronunciation(expected, playerAnswer);
+  const normalizedScore = result.overallScore / 100; // 0-1
+  const score = Math.round(normalizedScore * question.maxPoints);
+
+  return {
+    questionId: question.id,
+    playerAnswer,
+    score,
+    maxPoints: question.maxPoints,
+    correct: result.overallScore >= 70,
+    rationale: result.feedback,
+    pronunciationScore: result.overallScore,
+  };
+}
+
 /**
  * Score an entire NPC exam by evaluating all questions.
  */
@@ -332,8 +382,12 @@ export function scoreNpcExam(
   startedAt: number,
 ): NpcExamResult {
   const now = Date.now();
+  const isPronunciation = config.category === 'pronunciation_quiz';
   const questionResults = config.questions.map(q => {
     const answer = answers[q.id] ?? '';
+    if (isPronunciation || q.scoringType === 'pronunciation') {
+      return scorePronunciationExamQuestion(q, answer);
+    }
     return scoreNpcExamQuestion(q, answer);
   });
 

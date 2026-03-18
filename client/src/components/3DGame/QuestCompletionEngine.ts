@@ -33,6 +33,11 @@ export interface CompletionObjective {
   requiredCount?: number;
   currentCount?: number;
 
+  // pronunciation_check scoring
+  pronunciationScores?: number[];
+  minAverageScore?: number;
+  targetPhrases?: string[];
+
   // defeat_enemies
   enemyType?: string;
   enemiesDefeated?: number;
@@ -104,7 +109,7 @@ export type CompletionEvent =
   | { type: 'listening_answer'; isCorrect: boolean; questId?: string }
   | { type: 'translation_attempt'; isCorrect: boolean; questId?: string }
   | { type: 'navigation_waypoint'; questId?: string }
-  | { type: 'pronunciation_attempt'; passed: boolean; questId?: string }
+  | { type: 'pronunciation_attempt'; passed: boolean; score: number; questId?: string }
   | { type: 'location_visit'; questId: string; objectiveId: string }
   | { type: 'objective_direct_complete'; questId: string; objectiveId: string };
 
@@ -191,7 +196,7 @@ export class QuestCompletionEngine {
         this.trackNavigationWaypoint(event.questId);
         break;
       case 'pronunciation_attempt':
-        this.trackPronunciationAttempt(event.passed, event.questId);
+        this.trackPronunciationAttempt(event.passed, event.score, event.questId);
         break;
       case 'location_visit':
         this.completeObjective(event.questId, event.objectiveId);
@@ -407,16 +412,41 @@ export class QuestCompletionEngine {
     return result;
   }
 
-  trackPronunciationAttempt(passed: boolean, questId?: string): void {
+  trackPronunciationAttempt(passed: boolean, score: number, questId?: string): void {
     this.forEachObjective(questId, 'pronunciation_check', (quest, obj) => {
+      if (!obj.pronunciationScores) {
+        obj.pronunciationScores = [];
+      }
+
       if (passed) {
+        obj.pronunciationScores.push(score);
         obj.currentCount = (obj.currentCount || 0) + 1;
 
-        if (obj.currentCount >= (obj.requiredCount || 3)) {
-          this.completeObjective(quest.id, obj.id);
+        const required = obj.requiredCount || 3;
+        if (obj.currentCount >= required) {
+          // If minAverageScore is set, check average before completing
+          if (obj.minAverageScore && obj.minAverageScore > 0) {
+            const avg = obj.pronunciationScores.reduce((a, b) => a + b, 0) / obj.pronunciationScores.length;
+            if (avg >= obj.minAverageScore) {
+              this.completeObjective(quest.id, obj.id);
+            }
+            // If average is too low, don't complete — player needs more good attempts
+          } else {
+            this.completeObjective(quest.id, obj.id);
+          }
         }
       }
     });
+  }
+
+  getPronunciationStats(questId: string, objectiveId: string): { scores: number[]; average: number; passed: number } | null {
+    const quest = this.quests.find(q => q.id === questId);
+    const obj = quest?.objectives?.find(o => o.id === objectiveId);
+    if (!obj || obj.type !== 'pronunciation_check') return null;
+
+    const scores = obj.pronunciationScores || [];
+    const average = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+    return { scores, average, passed: scores.length };
   }
 
   // ── Timed objectives ────────────────────────────────────────────────────
