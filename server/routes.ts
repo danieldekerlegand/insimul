@@ -9341,6 +9341,52 @@ Respond with this JSON structure:
     }
   });
 
+  // Emergency / Situational Quest Generation
+  app.post("/api/worlds/:worldId/quests/generate-emergency", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { assignedTo, scenarioFilter, maxQuests, difficulty } = req.body;
+
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      const { generateEmergencyQuests } = await import('./services/emergency-quest-generator.js');
+
+      const [businesses, characters, items] = await Promise.all([
+        storage.getBusinessesByWorld(worldId),
+        storage.getCharactersByWorld(worldId),
+        storage.getItemsByWorld(worldId),
+      ]);
+
+      const quests = generateEmergencyQuests({
+        world,
+        businesses,
+        characters,
+        items,
+        assignedTo: assignedTo || 'Player',
+        scenarioFilter,
+        maxQuests,
+        difficulty,
+      });
+
+      const createdQuests = [];
+      for (const questData of quests) {
+        const created = await storage.createQuest(questData as any);
+        createdQuests.push(created);
+      }
+
+      res.status(201).json({
+        count: createdQuests.length,
+        quests: createdQuests,
+      });
+    } catch (error) {
+      console.error('[Emergency Quest Generation] Error:', error);
+      res.status(500).json({ error: "Failed to generate emergency quests" });
+    }
+  });
+
   // Quest Assignment Engine — generates playable quests from templates using real world data
   app.post("/api/worlds/:worldId/quests/assign", async (req, res) => {
     try {
