@@ -450,6 +450,7 @@ export class BabylonGame {
   private playerHealth: number = 100;
   private playerCefrLevel: string | null = null;
   private mainQuestJournalData: MenuJournalData | null = null;
+  private portfolioData: import('@shared/quest/portfolio-types').PortfolioData | null = null;
 
   // NPCs
   private npcMeshes: Map<string, NPCInstance> = new Map();
@@ -1410,6 +1411,7 @@ export class BabylonGame {
       onSaveGame: (slotIndex: number) => this.handleSaveGame(slotIndex),
       onLoadGame: (slotIndex: number) => this.handleLoadGame(slotIndex),
       getJournalData: () => this.mainQuestJournalData,
+      getPortfolioData: () => this.portfolioData,
     };
 
     // Initialize WorldStateManager for save/load
@@ -2386,8 +2388,9 @@ export class BabylonGame {
       this.syncActiveQuestToHud();
       // Load quests into the quest tracker panel
       this.questTracker?.updateQuests(this.config.worldId);
-      // Fetch main quest journal data (non-blocking)
+      // Fetch main quest journal data and portfolio (non-blocking)
       this.fetchMainQuestJournalData();
+      this.fetchPortfolioData();
       this.settlements = settlements;
       this.rules = [...rules, ...baseRules];
       this.countries = countries;
@@ -8358,6 +8361,21 @@ export class BabylonGame {
   }
 
   /**
+   * Fetch quest portfolio and learning journal data from the server.
+   */
+  private async fetchPortfolioData(): Promise<void> {
+    try {
+      const worldId = this.config.worldId;
+      const playerName = this.config.userId || 'Player';
+      const res = await fetch(`/api/worlds/${worldId}/portfolio/${encodeURIComponent(playerName)}`);
+      if (!res.ok) return;
+      this.portfolioData = await res.json();
+    } catch {
+      // Non-critical — portfolio will show empty state
+    }
+  }
+
+  /**
    * Record a quest completion against the main quest progression.
    */
   private async recordMainQuestProgress(questType: string): Promise<void> {
@@ -8387,8 +8405,9 @@ export class BabylonGame {
           }, 3000);
         }
       }
-      // Refresh journal data
+      // Refresh journal and portfolio data
       await this.fetchMainQuestJournalData();
+      this.fetchPortfolioData();
     } catch {
       // Non-critical
     }
