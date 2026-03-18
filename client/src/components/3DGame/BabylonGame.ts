@@ -122,7 +122,8 @@ import { NPCTalkingIndicator } from "@/components/3DGame/NPCTalkingIndicator.ts"
 import { NPCAmbientConversationManager } from "@/components/3DGame/NPCAmbientConversationManager.ts";
 import { NPCInitiatedConversationController } from "@/components/3DGame/NPCInitiatedConversationController.ts";
 import { BuildingInteriorGenerator, InteriorLayout } from "@/components/3DGame/BuildingInteriorGenerator.ts";
-import { GameMenuSystem, GameMenuCallbacks } from "@/components/3DGame/GameMenuSystem.ts";
+import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo } from "@/components/3DGame/GameMenuSystem.ts";
+import { WorldStateManager, type GameStateSource, type GameStateTarget } from "@/components/3DGame/WorldStateManager.ts";
 import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts";
 import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
 import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
@@ -153,6 +154,8 @@ import {
   KEY_PUSH_TO_TALK,
   KEY_EXAMINE_OBJECT,
   KEY_EAVESDROP,
+  KEY_QUICK_SAVE,
+  KEY_QUICK_LOAD,
 } from "@/components/3DGame/KeyboardMap.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 
@@ -428,6 +431,7 @@ export class BabylonGame {
   private npcInitiatedConversationController: NPCInitiatedConversationController | null = null;
   private vrManager: VRManager | null = null;
   private gameMenuSystem: GameMenuSystem | null = null;
+  private worldStateManager: WorldStateManager | null = null;
 
   // Onboarding / assessment
   private onboardingResult: OnboardingLaunchResult | null = null;
@@ -739,6 +743,118 @@ export class BabylonGame {
         variant: "destructive"
       });
     }
+  }
+
+  // ─── Save / Load ──────────────────────────────────────────────────────
+
+  private createGameStateSource(): GameStateSource {
+    return {
+      getPlayerPosition: () => {
+        const p = this.playerMesh?.position;
+        return p ? { x: p.x, y: p.y, z: p.z } : { x: 0, y: 0, z: 0 };
+      },
+      getPlayerRotation: () => {
+        const r = this.playerMesh?.rotation;
+        return r ? { x: r.x, y: r.y, z: r.z } : { x: 0, y: 0, z: 0 };
+      },
+      getPlayerGold: () => this.playerGold,
+      getPlayerHealth: () => this.playerHealth,
+      getPlayerEnergy: () => this.playerEnergy,
+      getInventoryItems: () => this.inventory?.getAllItems() ?? [],
+      getNPCStates: () => {
+        const states: any[] = [];
+        this.npcMeshes.forEach((instance, id) => {
+          states.push({
+            id,
+            position: instance.mesh
+              ? { x: instance.mesh.position.x, y: instance.mesh.position.y, z: instance.mesh.position.z }
+              : { x: 0, y: 0, z: 0 },
+            state: 'idle',
+            disposition: 0,
+          });
+        });
+        return states;
+      },
+      getRelationships: () => ({}),
+      getRomanceData: () => null,
+      getMerchantStates: () => [],
+      getCurrentZone: () => this.currentZone,
+      getQuestProgress: () => {
+        const progress: Record<string, any> = {};
+        (this.quests || []).forEach((q: any) => {
+          progress[q.id] = { status: q.status, progress: q.progress };
+        });
+        return progress;
+      },
+      getGameTime: () => 0,
+      getWorldId: () => this.config.worldId,
+      getPlaythroughId: () => this.playthroughId,
+    };
+  }
+
+  private createGameStateTarget(): GameStateTarget {
+    return {
+      restorePlayerPosition: (pos, rot) => {
+        if (this.playerMesh) {
+          this.playerMesh.position.set(pos.x, pos.y, pos.z);
+          this.playerMesh.rotation.set(rot.x, rot.y, rot.z);
+          this.playerController?.resetPhysicsState();
+        }
+      },
+      restorePlayerStats: (gold, health, energy) => {
+        this.playerGold = gold;
+        this.playerHealth = health;
+        this.playerEnergy = energy;
+        this.inventory?.setGold(gold);
+        this.playerHealthBar?.updateHealth(health / 100);
+      },
+      restoreInventory: (items) => {
+        if (this.inventory) {
+          this.inventory.clearAll();
+          items.forEach((item) => this.inventory!.addItem(item));
+        }
+      },
+      restoreNPCStates: () => { /* NPC positions restored on next tick */ },
+      restoreRelationships: () => { /* Not tracked locally yet */ },
+      restoreRomanceData: () => { /* Not tracked locally yet */ },
+      restoreMerchantStates: () => { /* Not tracked locally yet */ },
+      restoreCurrentZone: (zone) => { this.currentZone = zone; },
+      restoreQuestProgress: (progress) => {
+        for (const q of (this.quests || [])) {
+          const saved = progress[q.id];
+          if (saved) {
+            q.status = saved.status;
+            q.progress = saved.progress;
+          }
+        }
+      },
+      restoreGameTime: () => { /* No game clock tracked */ },
+    };
+  }
+
+  private async getSaveSlots(): Promise<Array<SaveSlotInfo | null>> {
+    if (!this.worldStateManager || !this.playthroughId) return [null, null, null];
+    const slots = await this.worldStateManager.listSaveSlots(this.config.worldId, this.playthroughId);
+    return slots.map((s) => {
+      if (!s) return null;
+      return {
+        slotIndex: s.slotIndex,
+        savedAt: s.savedAt,
+        gameTime: s.gameTime,
+        zoneName: this.currentZone?.name,
+      };
+    });
+  }
+
+  private async handleSaveGame(slotIndex: number): Promise<boolean> {
+    if (!this.worldStateManager) return false;
+    return this.worldStateManager.save(slotIndex);
+  }
+
+  private async handleLoadGame(slotIndex: number): Promise<boolean> {
+    if (!this.worldStateManager || !this.playthroughId) return false;
+    const target = this.createGameStateTarget();
+    return this.worldStateManager.load(target, this.config.worldId, this.playthroughId, slotIndex);
   }
 
   /**
@@ -1286,7 +1402,15 @@ export class BabylonGame {
       onToggleFullscreen: () => this.handleToggleFullscreen(),
       onToggleDebug: () => this.handleToggleDebug(),
       onToggleVR: () => this.handleToggleVR(),
+      getSaveSlots: () => this.getSaveSlots(),
+      onSaveGame: (slotIndex: number) => this.handleSaveGame(slotIndex),
+      onLoadGame: (slotIndex: number) => this.handleLoadGame(slotIndex),
     };
+
+    // Initialize WorldStateManager for save/load
+    this.worldStateManager = new WorldStateManager(this.dataSource);
+    this.worldStateManager.setGameSource(this.createGameStateSource());
+    this.worldStateManager.startAutoSave(0);
 
     this.gameMenuSystem = new GameMenuSystem(this.guiManager.advancedTexture, menuCallbacks);
     this.gameMenuSystem.setOnMenuOpened(() => {
@@ -7293,6 +7417,20 @@ export class BabylonGame {
       return; // Don't process other keys while toggling menu
     }
 
+    // F5 - Quick save (works even with menu open)
+    if (event.code === KEY_QUICK_SAVE && !event.repeat) {
+      event.preventDefault();
+      this.gameMenuSystem?.quickSave();
+      return;
+    }
+
+    // F9 - Quick load (works even with menu open)
+    if (event.code === KEY_QUICK_LOAD && !event.repeat) {
+      event.preventDefault();
+      this.gameMenuSystem?.quickLoad();
+      return;
+    }
+
     // If the unified menu is open, block all other game input
     if (this.gameMenuSystem?.isOpen) {
       return;
@@ -10014,6 +10152,8 @@ export class BabylonGame {
     this.questLanguageFeedbackTracker = null;
     this.questTracker?.dispose();
     this.chatPanel?.dispose();
+    this.worldStateManager?.dispose();
+    this.worldStateManager = null;
     this.gameMenuSystem?.dispose();
     this.gameMenuSystem = null;
     this.guiManager?.dispose();

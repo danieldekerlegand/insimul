@@ -69,6 +69,12 @@ export const KEY_EAVESDROP = 'KeyY';
 /** Open/close game menu */
 export const KEY_GAME_MENU = 'KeyM';
 
+/** Quick save (slot 0) */
+export const KEY_QUICK_SAVE = 'F5';
+
+/** Quick load (slot 0) */
+export const KEY_QUICK_LOAD = 'F9';
+
 // ─── Camera (CameraManager.handleKeyboardShortcut) ────────────────────────
 // These use KeyboardEvent.key (lowercase). Listed here for reference.
 //
