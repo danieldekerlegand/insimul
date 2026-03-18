@@ -15,6 +15,13 @@
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
+interface QuestBranchChoice {
+  choiceId: string;
+  label: string;
+  targetStageId: string;
+  consequence?: string;
+}
+
 interface QuestStage {
   stageId: string;
   title: string;
@@ -23,6 +30,7 @@ interface QuestStage {
   preconditions?: string[];
   postconditions?: string[];
   nextStageIds?: string[];
+  branchChoices?: QuestBranchChoice[];
 }
 
 interface QuestData {
@@ -279,9 +287,18 @@ export function convertQuestToProlog(quest: QuestData): ConversionResult {
           lines.push(`stage_postcondition(${questId}, ${stageAtom}, ${sanitizeAtom(post)}).`);
         }
       }
+
+      // Branch choices — player conversation choices that determine the next stage
+      if (stage.branchChoices && stage.branchChoices.length > 0) {
+        for (const choice of stage.branchChoices) {
+          const choiceAtom = sanitizeAtom(choice.choiceId);
+          const targetAtom = sanitizeAtom(choice.targetStageId);
+          lines.push(`branch_choice(${questId}, ${stageAtom}, ${choiceAtom}, ${targetAtom}, '${escapeString(choice.label)}').`);
+        }
+      }
     }
 
-    predicates.push('quest_stage/3', 'stage_objective/4', 'stage_precondition/3', 'stage_postcondition/3');
+    predicates.push('quest_stage/3', 'stage_objective/4', 'stage_precondition/3', 'stage_postcondition/3', 'branch_choice/5');
 
     // Stage completion rule
     lines.push('');
@@ -329,7 +346,7 @@ export function convertQuestsToProlog(quests: QuestData[]): ConversionResult {
     'quest_unlock/3', 'quest_available/2', 'quest_complete/2',
     'quest_status/3', 'quest_progress/3',
     'quest_stage/3', 'stage_objective/4', 'stage_precondition/3',
-    'stage_postcondition/3', 'stage_complete/3', 'quest_parent/2',
+    'stage_postcondition/3', 'stage_complete/3', 'branch_choice/5', 'quest_parent/2',
   ];
   for (const p of dynamicPreds) {
     allLines.push(`:- dynamic(${p}).`);

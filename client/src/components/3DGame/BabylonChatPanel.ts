@@ -159,6 +159,7 @@ export class BabylonChatPanel {
   // Callbacks
   private onClose: (() => void) | null = null;
   private onQuestAssigned: ((questData: any) => void) | null = null;
+  private onQuestBranched: ((questId: string, choiceId: string, targetStageId: string) => void) | null = null;
   private onActionSelect: ((actionId: string) => void) | null = null;
   private onVocabularyUsed: ((word: string) => void) | null = null;
   private onConversationTurn: ((keywords: string[]) => void) | null = null;
@@ -1268,13 +1269,17 @@ export class BabylonChatPanel {
     responseText: string,
     placeholderMsg: Message,
   ): Promise<void> {
+    // Check for quest branch markers before stripping
+    await this.parseAndHandleQuestBranch(responseText);
+
     // Defensive strip — the LLM should no longer include these, but just in case
     const cleanedResponse = responseText
       .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
       .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
+      .replace(/\*\*QUEST_BRANCH\*\*[\s\S]*?\*\*END_BRANCH\*\*/g, '')
       .replace(/\*\*VOCAB_HINTS\*\*[\s\S]*?\*\*END_VOCAB\*\*/g, '')
       .replace(/\*\*EVAL\*\*[\s\S]*?\*\*END_EVAL\*\*/g, '')
-      .replace(/\*\*(GRAMMAR_FEEDBACK|QUEST_ASSIGN|VOCAB_HINTS|EVAL|END_GRAMMAR|END_QUEST|END_VOCAB|END_EVAL)\*\*/g, '')
+      .replace(/\*\*(GRAMMAR_FEEDBACK|QUEST_ASSIGN|QUEST_BRANCH|VOCAB_HINTS|EVAL|END_GRAMMAR|END_QUEST|END_BRANCH|END_VOCAB|END_EVAL)\*\*/g, '')
       .trim();
 
     // Update displayed message content
@@ -2539,6 +2544,10 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
     this.onQuestAssigned = callback;
   }
 
+  public setOnQuestBranched(callback: (questId: string, choiceId: string, targetStageId: string) => void) {
+    this.onQuestBranched = callback;
+  }
+
   public setOnActionSelect(callback: (actionId: string) => void) {
     this.onActionSelect = callback;
   }
@@ -3249,6 +3258,148 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
     setTimeout(() => {
       this._advancedTexture.removeControl(notification);
     }, 3000);
+  }
+
+  /**
+   * Parse and handle QUEST_BRANCH markers in NPC responses.
+   * Shows branch choice buttons to the player.
+   */
+  private async parseAndHandleQuestBranch(response: string): Promise<void> {
+    const match = response.match(/\*\*QUEST_BRANCH\*\*([\s\S]*?)\*\*END_BRANCH\*\*/);
+    if (!match || !this.character) return;
+
+    const block = match[1];
+    const questIdMatch = block.match(/QuestId:\s*(.+)/);
+    const promptMatch = block.match(/Prompt:\s*(.+)/);
+
+    if (!questIdMatch) return;
+
+    const questId = questIdMatch[1].trim();
+    const prompt = promptMatch ? promptMatch[1].trim() : 'What will you do?';
+
+    interface BranchChoice {
+      choiceId: string;
+      label: string;
+      targetStageId: string;
+      consequence?: string;
+    }
+    const choices: BranchChoice[] = [];
+    const choiceRegex = /Choice:\s*(.+)/g;
+    let choiceMatch;
+    while ((choiceMatch = choiceRegex.exec(block)) !== null) {
+      const parts = choiceMatch[1].split('|').map(s => s.trim());
+      if (parts.length >= 3) {
+        choices.push({
+          choiceId: parts[0],
+          label: parts[1],
+          targetStageId: parts[2],
+          consequence: parts[3] || undefined,
+        });
+      }
+    }
+
+    if (choices.length === 0) return;
+
+    this.showBranchChoices(questId, prompt, choices);
+  }
+
+  /**
+   * Display branch choice buttons in the chat panel.
+   */
+  private showBranchChoices(
+    questId: string,
+    prompt: string,
+    choices: Array<{ choiceId: string; label: string; targetStageId: string; consequence?: string }>,
+  ): void {
+    // Add prompt as a system message
+    this.messages.push({
+      role: 'assistant',
+      content: prompt,
+      timestamp: new Date(),
+    });
+    this.updateMessagesDisplay();
+
+    // Create choice buttons container
+    const choiceContainer = new Rectangle('branchChoices');
+    choiceContainer.width = '100%';
+    choiceContainer.adaptHeightToChildren = true;
+    choiceContainer.background = 'transparent';
+    choiceContainer.thickness = 0;
+
+    const stack = new StackPanel('branchStack');
+    stack.width = '100%';
+    stack.isVertical = true;
+    stack.spacing = 6;
+    choiceContainer.addControl(stack);
+
+    for (const choice of choices) {
+      const btn = Button.CreateSimpleButton(`branch_${choice.choiceId}`, choice.label);
+      btn.width = '90%';
+      btn.height = '36px';
+      btn.color = 'white';
+      btn.background = 'rgba(60, 100, 180, 0.85)';
+      btn.cornerRadius = 8;
+      btn.fontSize = 13;
+      btn.thickness = 1;
+      btn.hoverCursor = 'pointer';
+
+      btn.onPointerClickObservable.add(async () => {
+        // Remove choice buttons
+        if (this.messagesStack) {
+          this.messagesStack.removeControl(choiceContainer);
+        }
+
+        // Show the player's choice as a message
+        this.messages.push({
+          role: 'user',
+          content: choice.label,
+          timestamp: new Date(),
+        });
+        this.updateMessagesDisplay();
+
+        // Call the branch endpoint
+        try {
+          const resp = await fetch(
+            `/api/worlds/${this.character!.worldId}/quests/${questId}/branch`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                choiceId: choice.choiceId,
+                targetStageId: choice.targetStageId,
+              }),
+            },
+          );
+
+          if (resp.ok) {
+            const result = await resp.json();
+            console.log('[BabylonChatPanel] Quest branched:', result);
+
+            if (choice.consequence) {
+              this.messages.push({
+                role: 'assistant',
+                content: choice.consequence,
+                timestamp: new Date(),
+              });
+              this.updateMessagesDisplay();
+            }
+
+            this.onQuestBranched?.(questId, choice.choiceId, choice.targetStageId);
+          } else {
+            console.error('[BabylonChatPanel] Branch failed:', await resp.text());
+          }
+        } catch (error) {
+          console.error('[BabylonChatPanel] Branch request error:', error);
+        }
+      });
+
+      stack.addControl(btn);
+    }
+
+    // Add choice container to the messages scroll area
+    if (this.messagesStack) {
+      this.messagesStack.addControl(choiceContainer);
+    }
   }
 
   /**

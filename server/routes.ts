@@ -8661,6 +8661,49 @@ Respond with this JSON structure:
     }
   });
 
+  // ============= QUEST BRANCHING =============
+
+  // Advance a quest to a new stage based on a player's conversation choice
+  app.post("/api/worlds/:worldId/quests/:questId/branch", async (req, res) => {
+    try {
+      const { worldId, questId } = req.params;
+      const { choiceId, targetStageId } = req.body;
+
+      if (!choiceId || !targetStageId) {
+        return res.status(400).json({ error: "choiceId and targetStageId are required" });
+      }
+
+      const quest = await storage.getQuest(questId);
+      if (!quest) {
+        return res.status(404).json({ error: "Quest not found" });
+      }
+      if (quest.worldId !== worldId) {
+        return res.status(400).json({ error: "Quest does not belong to this world" });
+      }
+
+      const { validateBranchChoice, applyBranchChoice } = await import('../shared/quest-branching.js');
+
+      const validation = validateBranchChoice(quest, targetStageId);
+      if (!validation.valid) {
+        return res.status(400).json({ error: validation.error });
+      }
+
+      const updates = applyBranchChoice(quest, choiceId, targetStageId);
+      const previousStageId = quest.currentStageId || null;
+      const updated = await storage.updateQuest(questId, updates);
+
+      res.json({
+        success: true,
+        quest: updated,
+        previousStageId,
+        newStageId: targetStageId,
+      });
+    } catch (error: any) {
+      console.error("Error branching quest:", error);
+      res.status(500).json({ error: "Failed to branch quest" });
+    }
+  });
+
   // ============= QUEST HINTS =============
 
   // Request a hint for a specific quest objective
