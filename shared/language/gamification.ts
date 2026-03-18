@@ -77,6 +77,10 @@ export const XP_REWARDS = {
   onboardingComplete: 30,
   puzzleSolved: 20,
   locationDiscovered: 5,
+  // NPC exam & listening rewards
+  npcExamComplete: 35,
+  listeningComprehensionComplete: 20,
+  eavesdropConversation: 8,
 };
 
 // --- Achievements ---

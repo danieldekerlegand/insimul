@@ -6750,9 +6750,30 @@ Respond with this JSON structure:
 
   app.post("/api/xp/experiences/update", async (req, res) => {
     try {
-      // This would integrate with your experience/session tracking system
-      // For now, return a success status
-      res.json({ status: "updated" });
+      const { worldId, totalXP, level } = req.body;
+      if (!worldId || totalXP == null) {
+        return res.status(400).json({ error: "worldId and totalXP are required" });
+      }
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const progress = await storage.getPlayerProgressByUser(userId, worldId);
+      if (!progress) {
+        return res.status(404).json({ error: "Player progress not found" });
+      }
+      // Only accept XP increases (prevent rollback)
+      const currentXP = progress.experience ?? 0;
+      if (totalXP <= currentXP) {
+        return res.json({ status: "no_change", experience: currentXP, level: progress.level });
+      }
+      const { getLevelForXP } = await import('../shared/language/language-gamification.js');
+      const newLevel = level ?? getLevelForXP(totalXP);
+      await storage.updatePlayerProgress(progress.id, {
+        experience: totalXP,
+        level: newLevel,
+      });
+      res.json({ status: "updated", experience: totalXP, level: newLevel });
     } catch (error) {
       res.status(500).json({ error: "Failed to update experience" });
     }
@@ -8454,6 +8475,23 @@ Respond with this JSON structure:
             const result = applySkillRewards(currentSkills, rewards);
             await storage.updateCharacter(characterId, { skills: result.skills });
             skillRewardsApplied = result.applied;
+          }
+        }
+      }
+
+      // Persist XP to playerProgress
+      const xpAwarded = quest.experienceReward ?? 25;
+      if (xpAwarded > 0) {
+        const userId = (req as any).user?.id;
+        if (userId) {
+          const progress = await storage.getPlayerProgressByUser(userId, worldId);
+          if (progress) {
+            const newXP = (progress.experience ?? 0) + xpAwarded;
+            const { getLevelForXP } = await import('../shared/language/language-gamification.js');
+            await storage.updatePlayerProgress(progress.id, {
+              experience: newXP,
+              level: getLevelForXP(newXP),
+            });
           }
         }
       }
