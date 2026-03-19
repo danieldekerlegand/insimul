@@ -775,6 +775,70 @@ export class QuestCompletionEngine {
     });
   }
 
+  // ── Serialization ──────────────────────────────────────────────────────
+
+  /** Progress-relevant fields that change at runtime and need persistence. */
+  private static readonly PROGRESS_FIELDS: Array<keyof CompletionObjective> = [
+    'completed', 'collectedCount', 'wordsUsed', 'currentCount',
+    'npcInitiated', 'responseQuality', 'pronunciationScores',
+    'pronunciationBestScore', 'writtenResponses', 'enemiesDefeated',
+    'craftedCount', 'arrived', 'delivered', 'reputationGained',
+    'questionsAnswered', 'questionsCorrect', 'translationsCompleted',
+    'translationsCorrect', 'waypointsReached', 'stepsCompleted',
+    'wordsTaught', 'phrasesTaught', 'startedAt',
+  ];
+
+  /**
+   * Export mutable objective progress for all quests.
+   * Returns a map of questId → array of { id, ...progressFields }.
+   */
+  serializeObjectiveStates(): Record<string, Array<Record<string, any>>> {
+    const result: Record<string, Array<Record<string, any>>> = {};
+    for (const quest of this.quests) {
+      if (!quest.objectives?.length) continue;
+      const objectiveStates: Array<Record<string, any>> = [];
+      for (const obj of quest.objectives) {
+        const state: Record<string, any> = { id: obj.id };
+        let hasProgress = false;
+        for (const field of QuestCompletionEngine.PROGRESS_FIELDS) {
+          const value = obj[field];
+          if (value !== undefined && value !== false && value !== null && value !== 0) {
+            state[field] = value;
+            hasProgress = true;
+          }
+        }
+        if (hasProgress) {
+          objectiveStates.push(state);
+        }
+      }
+      if (objectiveStates.length > 0) {
+        result[quest.id] = objectiveStates;
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Restore objective progress from previously serialized state.
+   * Merges saved progress into existing quest objectives by matching objective IDs.
+   */
+  restoreObjectiveStates(states: Record<string, Array<Record<string, any>>>): void {
+    if (!states) return;
+    for (const [questId, savedObjectives] of Object.entries(states)) {
+      const quest = this.quests.find(q => q.id === questId);
+      if (!quest?.objectives) continue;
+
+      for (const saved of savedObjectives) {
+        const obj = quest.objectives.find(o => o.id === saved.id);
+        if (!obj) continue;
+        for (const [key, value] of Object.entries(saved)) {
+          if (key === 'id') continue;
+          (obj as any)[key] = value;
+        }
+      }
+    }
+  }
+
   // ── Internal helper ─────────────────────────────────────────────────────
 
   private forEachObjective(

@@ -927,6 +927,11 @@ export class BabylonGame {
         // so re-merge base quests with the restored overlay to update this.quests.
         if (this.questOverlay && this.quests) {
           this.quests = this.questOverlay.mergeQuests(this.quests);
+          // Restore objective states into the completion engine
+          const engine = this.questObjectManager?.getCompletionEngine();
+          if (engine) {
+            engine.restoreObjectiveStates(this.questOverlay.getObjectiveStates());
+          }
           this.syncActiveQuestToHud();
           this.questTracker?.updateQuests(this.config.worldId);
           return;
@@ -958,6 +963,14 @@ export class BabylonGame {
         zoneName: this.currentZone?.name,
       };
     });
+  }
+
+  /** Push completion engine objective states into the quest overlay before saving. */
+  private syncObjectiveStatesToOverlay(): void {
+    const engine = this.questObjectManager?.getCompletionEngine();
+    if (engine && this.questOverlay) {
+      this.questOverlay.setObjectiveStates(engine.serializeObjectiveStates());
+    }
   }
 
   private async handleSaveGame(slotIndex: number): Promise<boolean> {
@@ -1549,6 +1562,7 @@ export class BabylonGame {
     this.worldStateManager = new WorldStateManager(this.dataSource);
     this.worldStateManager.setGameSource(this.createGameStateSource());
     this.worldStateManager.attachTriggers(this.eventBus);
+    this.worldStateManager.setPreSaveHook(() => this.syncObjectiveStatesToOverlay());
     this.worldStateManager.startAutoSave(0);
 
     // Wire up save indicator HUD
@@ -5115,6 +5129,11 @@ export class BabylonGame {
         this.questOverlay.deserialize(saved);
         if (this.quests) {
           this.quests = this.questOverlay.mergeQuests(this.quests);
+          // Restore objective states into the completion engine
+          const engine = this.questObjectManager?.getCompletionEngine();
+          if (engine) {
+            engine.restoreObjectiveStates(this.questOverlay.getObjectiveStates());
+          }
           this.syncActiveQuestToHud();
           this.questTracker?.updateQuests(this.config.worldId);
         }
