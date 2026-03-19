@@ -7,12 +7,15 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import PlayPage from "@/pages/play";
+import GamePage from "@/pages/game";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/play/:worldId" component={PlayPage} />
+      <Route path="/game/:worldId" component={GamePage} />
+      <Route path="/game" component={GamePage} />
       <Route component={NotFound} />
     </Switch>
   );
