@@ -6,8 +6,15 @@
  * file loading (for exported games).
  */
 
-import { SaveQueue, type QueuedOperation } from './SaveQueue';
+import { SaveQueue, SaveConflictError, type QueuedOperation, type ConflictHandler } from './SaveQueue';
 import { PlaythroughQuestOverlay } from './PlaythroughQuestOverlay';
+import {
+  detectConflict,
+  resolveConflict,
+  type ConflictDialogHandler,
+  type SaveConflict,
+} from './SaveConflictResolver';
+import type { GameSaveState } from '@shared/game-engine/types';
 
 export interface DataSource {
   /** Playthrough-scoped quest overlay. When set, loadQuests merges overlay
@@ -63,12 +70,89 @@ export interface DataSource {
 export class ApiDataSource implements DataSource {
   public questOverlay: PlaythroughQuestOverlay | null = null;
   private saveQueue: SaveQueue;
+  /** Last-known server state per slot, used as the "base" for three-way merge. */
+  private lastKnownServerState: Map<string, GameSaveState> = new Map();
+  private conflictDialogHandler: ConflictDialogHandler | null = null;
 
   constructor(private authToken: string) {
     this.saveQueue = new SaveQueue((op) => this.executeQueuedOp(op));
+    this.saveQueue.onConflict((op) => this.handleConflict(op));
     this.saveQueue.init().catch((err) =>
       console.warn('[ApiDataSource] SaveQueue init failed (IndexedDB unavailable):', err)
     );
+  }
+
+  /** Register a UI handler for save conflict dialogs. */
+  setConflictDialogHandler(handler: ConflictDialogHandler): void {
+    this.conflictDialogHandler = handler;
+  }
+
+  /** Track the last-known server state for a slot (called after loads). */
+  private slotKey(worldId: string, playthroughId: string, slotIndex: number): string {
+    return `${worldId}:${playthroughId}:${slotIndex}`;
+  }
+
+  /** Handle a save conflict detected during flush. */
+  private async handleConflict(op: QueuedOperation): Promise<'resolved' | 'discard'> {
+    if (op.type !== 'saveGameState') return 'discard';
+
+    const { worldId, playthroughId, slotIndex, state } = op.payload;
+    const key = this.slotKey(worldId, playthroughId, slotIndex);
+    const baseState = this.lastKnownServerState.get(key) ?? null;
+
+    // Fetch current server state
+    const serverState = await this.fetchServerState(worldId, playthroughId, slotIndex);
+    if (!serverState) {
+      // Server has no state — just save directly
+      await this.directSave(worldId, playthroughId, slotIndex, state);
+      this.lastKnownServerState.set(key, state);
+      return 'resolved';
+    }
+
+    const conflict: SaveConflict = {
+      localState: state,
+      serverState,
+      baseState,
+      slotIndex,
+      worldId,
+      playthroughId,
+    };
+
+    const result = await resolveConflict(conflict, this.conflictDialogHandler ?? undefined);
+
+    // Save the resolved state
+    await this.directSave(worldId, playthroughId, slotIndex, result.resolvedState);
+    this.lastKnownServerState.set(key, result.resolvedState);
+
+    console.log(`[ApiDataSource] Conflict resolved via ${result.resolution}`, result.fieldSummary);
+    return 'resolved';
+  }
+
+  /** Fetch game state directly from server (bypassing queue). */
+  private async fetchServerState(worldId: string, playthroughId: string, slotIndex: number): Promise<GameSaveState | null> {
+    try {
+      const res = await fetch(
+        `/api/worlds/${worldId}/game-state?playthroughId=${playthroughId}&slotIndex=${slotIndex}`,
+        { headers: this.getHeaders() },
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.state ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Save directly to the API (bypassing queue). */
+  private async directSave(worldId: string, playthroughId: string, slotIndex: number, state: GameSaveState): Promise<void> {
+    const res = await fetch(`/api/worlds/${worldId}/game-state`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify({ playthroughId, slotIndex, state }),
+    });
+    if (!res.ok) {
+      throw new Error(`Direct save failed: ${res.status}`);
+    }
   }
 
   /** Execute a queued operation against the API. */
@@ -81,6 +165,20 @@ export class ApiDataSource implements DataSource {
     switch (op.type) {
       case 'saveGameState': {
         const { worldId, playthroughId, slotIndex, state } = op.payload;
+
+        // Check for conflicts before saving
+        const key = this.slotKey(worldId, playthroughId, slotIndex);
+        const baseState = this.lastKnownServerState.get(key) ?? null;
+        const serverState = await this.fetchServerState(worldId, playthroughId, slotIndex);
+
+        if (detectConflict(state, serverState, baseState)) {
+          throw new SaveConflictError(
+            'Server has a newer save than expected',
+            op.id,
+            op.payload,
+          );
+        }
+
         url = `/api/worlds/${worldId}/game-state`;
         body = JSON.stringify({ playthroughId, slotIndex, state });
         break;
@@ -118,6 +216,12 @@ export class ApiDataSource implements DataSource {
     const res = await fetch(url, { method, headers, body });
     if (!res.ok) {
       throw new Error(`API ${method} ${url} returned ${res.status}`);
+    }
+
+    // Track server state after successful save
+    if (op.type === 'saveGameState') {
+      const { worldId, playthroughId, slotIndex, state } = op.payload;
+      this.lastKnownServerState.set(this.slotKey(worldId, playthroughId, slotIndex), state);
     }
   }
 
@@ -314,7 +418,14 @@ export class ApiDataSource implements DataSource {
     );
     if (!res.ok) return null;
     const data = await res.json();
-    return data.state || null;
+    const state = data.state || null;
+
+    // Track as last-known server state for future conflict detection
+    if (state) {
+      this.lastKnownServerState.set(this.slotKey(worldId, playthroughId, slotIndex), state);
+    }
+
+    return state;
   }
 
   async saveQuestProgress(playthroughId: string, questProgress: any): Promise<void> {

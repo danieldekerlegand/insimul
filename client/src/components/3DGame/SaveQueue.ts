@@ -24,6 +24,24 @@ export interface QueuedOperation {
 
 export type OperationExecutor = (op: QueuedOperation) => Promise<void>;
 
+/**
+ * Error subclass thrown when a save operation detects a conflict with the
+ * server's current state. The SaveQueue will NOT retry these — instead it
+ * delegates to the registered conflict handler.
+ */
+export class SaveConflictError extends Error {
+  constructor(
+    message: string,
+    public readonly operationId: string,
+    public readonly payload: any,
+  ) {
+    super(message);
+    this.name = 'SaveConflictError';
+  }
+}
+
+export type ConflictHandler = (op: QueuedOperation) => Promise<'resolved' | 'discard'>;
+
 const DB_NAME = 'insimul_save_queue';
 const DB_VERSION = 1;
 const STORE_NAME = 'operations';
@@ -96,9 +114,15 @@ export class SaveQueue {
   private onlineHandler: (() => void) | null = null;
   private offlineHandler: (() => void) | null = null;
   private _onStatusChange: ((online: boolean) => void) | null = null;
+  private _conflictHandler: ConflictHandler | null = null;
 
   constructor(executor: OperationExecutor) {
     this.executor = executor;
+  }
+
+  /** Register a handler for save conflicts (e.g. merge dialog). */
+  onConflict(handler: ConflictHandler): void {
+    this._conflictHandler = handler;
   }
 
   /** Initialize the queue: open IDB, listen for online/offline, flush pending. */
@@ -188,6 +212,23 @@ export class SaveQueue {
           await this.executor(op);
           await idbDelete(this.db, op.id);
         } catch (err) {
+          // Conflicts are not retried — delegate to conflict handler.
+          if (err instanceof SaveConflictError && this._conflictHandler) {
+            try {
+              const result = await this._conflictHandler(op);
+              await idbDelete(this.db, op.id);
+              if (result === 'resolved') {
+                // Conflict handler already saved the resolved state.
+                continue;
+              }
+              // 'discard' — drop the operation.
+              continue;
+            } catch (conflictErr) {
+              console.error('[SaveQueue] Conflict handler failed:', conflictErr);
+              // Fall through to retry logic.
+            }
+          }
+
           op.retries++;
           if (op.retries >= MAX_RETRIES) {
             console.error(`[SaveQueue] Dropping operation after ${MAX_RETRIES} retries:`, op.type, op.dedupeKey);
