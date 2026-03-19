@@ -854,15 +854,7 @@ export class BabylonGame {
   private async getSaveSlots(): Promise<Array<SaveSlotInfo | null>> {
     if (!this.worldStateManager || !this.playthroughId) return [null, null, null];
     const slots = await this.worldStateManager.listSaveSlots(this.config.worldId, this.playthroughId);
-    return slots.map((s) => {
-      if (!s) return null;
-      return {
-        slotIndex: s.slotIndex,
-        savedAt: s.savedAt,
-        gameTime: s.gameTime,
-        zoneName: this.currentZone?.name,
-      };
-    });
+    return slots.map((s) => s as SaveSlotInfo | null);
   }
 
   private async handleSaveGame(slotIndex: number): Promise<boolean> {
@@ -874,6 +866,11 @@ export class BabylonGame {
     if (!this.worldStateManager || !this.playthroughId) return false;
     const target = this.createGameStateTarget();
     return this.worldStateManager.load(target, this.config.worldId, this.playthroughId, slotIndex);
+  }
+
+  private async handleDeleteSave(slotIndex: number): Promise<boolean> {
+    if (!this.worldStateManager || !this.playthroughId) return false;
+    return this.worldStateManager.deleteSlot(this.config.worldId, this.playthroughId, slotIndex);
   }
 
   /**
@@ -1424,6 +1421,7 @@ export class BabylonGame {
       getSaveSlots: () => this.getSaveSlots(),
       onSaveGame: (slotIndex: number) => this.handleSaveGame(slotIndex),
       onLoadGame: (slotIndex: number) => this.handleLoadGame(slotIndex),
+      onDeleteSave: (slotIndex: number) => this.handleDeleteSave(slotIndex),
       getJournalData: () => this.mainQuestJournalData,
       getPortfolioData: () => this.portfolioData,
     };

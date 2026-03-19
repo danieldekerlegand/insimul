@@ -470,18 +470,56 @@ export class WorldStateManager {
     return this.auditSaveState(state);
   }
 
-  /** List available save slots for a world/playthrough. */
-  async listSaveSlots(worldId: string, playthroughId: string): Promise<Array<{ slotIndex: number; savedAt: string; gameTime: number } | null>> {
-    const slots: Array<{ slotIndex: number; savedAt: string; gameTime: number } | null> = [];
+  /** Metadata extracted from a save slot for UI preview. */
+  static extractSlotPreview(state: GameSaveState): {
+    slotIndex: number;
+    savedAt: string;
+    gameTime: number;
+    zoneName?: string;
+    playerGold?: number;
+    playerHealth?: number;
+    playerEnergy?: number;
+    inventoryCount?: number;
+    questCount?: number;
+    playerLevel?: number;
+  } {
+    return {
+      slotIndex: state.slotIndex,
+      savedAt: state.savedAt,
+      gameTime: state.gameTime,
+      zoneName: state.currentZone?.name,
+      playerGold: state.player?.gold,
+      playerHealth: state.player?.health,
+      playerEnergy: state.player?.energy,
+      inventoryCount: state.player?.inventory?.length,
+      questCount: state.questProgress ? Object.keys(state.questProgress).length : undefined,
+      playerLevel: state.gamification?.level,
+    };
+  }
+
+  /** List available save slots for a world/playthrough with rich preview data. */
+  async listSaveSlots(worldId: string, playthroughId: string): Promise<Array<ReturnType<typeof WorldStateManager.extractSlotPreview> | null>> {
+    const slots: Array<ReturnType<typeof WorldStateManager.extractSlotPreview> | null> = [];
     for (let i = 0; i < MAX_SAVE_SLOTS; i++) {
       const state = await this.dataSource.loadGameState(worldId, playthroughId, i);
       if (state) {
-        slots.push({ slotIndex: i, savedAt: state.savedAt, gameTime: state.gameTime });
+        slots.push(WorldStateManager.extractSlotPreview(state));
       } else {
         slots.push(null);
       }
     }
     return slots;
+  }
+
+  /** Delete a save slot. */
+  async deleteSlot(worldId: string, playthroughId: string, slotIndex: number): Promise<boolean> {
+    try {
+      await this.dataSource.deleteGameState(worldId, playthroughId, slotIndex);
+      return true;
+    } catch (err) {
+      console.error(`[WorldStateManager] Failed to delete slot ${slotIndex}:`, err);
+      return false;
+    }
   }
 
   /** Clean up timers and triggers. */

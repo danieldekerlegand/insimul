@@ -336,6 +336,18 @@ func load_game_state(slot_index: int) -> Dictionary:
 	print("[Insimul] load_game_state: loaded slot %d" % slot_index)
 	return json.data if json.data is Dictionary else {}
 
+## Delete game state from a numbered slot (0-2).
+## Returns true if the file was deleted or did not exist.
+func delete_game_state(slot_index: int) -> bool:
+	if slot_index < 0 or slot_index > 2:
+		push_warning("[Insimul] delete_game_state: invalid slot %d (must be 0-2)" % slot_index)
+		return false
+	var save_path := "user://insimul_save_%d.json" % slot_index
+	if FileAccess.file_exists(save_path):
+		DirAccess.remove_absolute(save_path)
+	print("[Insimul] delete_game_state: deleted slot %d" % slot_index)
+	return true
+
 ## Save quest progress dictionary to a dedicated file.
 ## Returns true on success.
 func save_quest_progress(quest_progress: Dictionary) -> bool:
