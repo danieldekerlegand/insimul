@@ -137,6 +137,7 @@ import { BuildingCollisionSystem } from "@/components/3DGame/BuildingCollisionSy
 import { BuildingEntrySystem } from "@/components/3DGame/BuildingEntrySystem.ts";
 import { InteriorNPCManager } from "@/components/3DGame/InteriorNPCManager.ts";
 import { NPCBusinessInteractionSystem, type BusinessInteraction, type ServiceResult } from "@/components/3DGame/NPCBusinessInteractionSystem.ts";
+import { BusinessBehaviorSystem } from "@/components/3DGame/BusinessBehaviorSystem.ts";
 import { NPCSimulationLOD } from "@/components/3DGame/NPCSimulationLOD.ts";
 import { generateNPCAppearance, generateBillboardColor, blendWithRoleTint, type NPCAppearance } from "@/components/3DGame/NPCAppearanceGenerator.ts";
 import { NPCAccessorySystem } from "@/components/3DGame/NPCAccessorySystem.ts";
@@ -596,6 +597,7 @@ export class BabylonGame {
   private interiorNPCManager: InteriorNPCManager | null = null;
   private businessInteractionSystem: NPCBusinessInteractionSystem = new NPCBusinessInteractionSystem();
   private currentBuildingBusinessType: string | undefined = undefined;
+  private businessBehaviorSystem: BusinessBehaviorSystem | null = null;
 
   // NPC Simulation LOD
   private npcSimulationLOD: NPCSimulationLOD | null = null;
@@ -2399,12 +2401,27 @@ export class BabylonGame {
     });
     this.interiorNPCManager.setNPCSource(() => this.npcMeshes as any);
 
+    // Initialize business behavior system for owner/employee work action cycling
+    this.businessBehaviorSystem = new BusinessBehaviorSystem({
+      onAnimationChange: (npcId: string, state: string) => {
+        const instance = this.npcMeshes.get(npcId);
+        if (instance?.controller) {
+          instance.controller.walk(state === 'walk');
+          instance.controller.run(state === 'run');
+        }
+      },
+      onStatusText: (npcId: string, text: string) => {
+        // Status text available for debug/UI if needed
+      },
+    });
+
     // Wire InteriorNPCManager into BuildingEntrySystem for automatic NPC placement
     this.buildingEntrySystem.setInteriorNPCManager(
       this.interiorNPCManager,
       () => this.npcMeshes as any,
       () => undefined
     );
+    this.buildingEntrySystem.setBusinessBehaviorSystem(this.businessBehaviorSystem);
 
     // Pause/resume overworld NPC movement when entering/exiting buildings
     this.buildingEntrySystem.registerNPCPauseCallback(
@@ -6068,6 +6085,14 @@ export class BabylonGame {
     this.isInsideBuilding = true;
     this.currentBuildingBusinessType = businessType;
 
+    // Register placed interior NPCs with business behavior system
+    if (this.businessBehaviorSystem && this.interiorNPCManager && businessType) {
+      this.businessBehaviorSystem.clearAll();
+      for (const placed of this.interiorNPCManager.getPlacedNPCs()) {
+        this.businessBehaviorSystem.registerNPC(placed.npcId, placed.role, businessType);
+      }
+    }
+
     // Create an invisible trigger zone just outside the door opening.
     // When the player walks through the door, this detects it and auto-exits.
     this.createInteriorDoorTrigger(interior);
@@ -6160,6 +6185,9 @@ export class BabylonGame {
     this.activeInterior = null;
     this.savedOverworldPosition = null;
     this.currentBuildingBusinessType = undefined;
+
+    // Clear business behavior tracking
+    this.businessBehaviorSystem?.clearAll();
 
     this.guiManager?.showToast({
       title: 'Exited building',
@@ -6695,6 +6723,27 @@ export class BabylonGame {
         if (this.interiorDoorTrigger.intersectsMesh(this.playerMesh, false)) {
           this.exitBuilding();
         }
+      }
+
+      // Update business behavior system when inside a building
+      if (this.isInsideBuilding && this.businessBehaviorSystem) {
+        const dtSec = dt / 1000;
+        // Check player proximity to owner NPCs for serve-customer mode
+        let nearOwner = false;
+        let nearOwnerId: string | undefined;
+        if (this.playerMesh && this.interiorNPCManager) {
+          for (const placed of this.interiorNPCManager.getPlacedNPCs()) {
+            if (placed.role === 'owner') {
+              const dist = Vector3.Distance(this.playerMesh.position, placed.mesh.position);
+              if (dist < 3.0) {
+                nearOwner = true;
+                nearOwnerId = placed.npcId;
+                break;
+              }
+            }
+          }
+        }
+        this.businessBehaviorSystem.update(dtSec, nearOwner, nearOwnerId);
       }
 
       // Update NPC simulation LOD system
@@ -10556,6 +10605,8 @@ export class BabylonGame {
     // Dispose building entry system, interior NPCs, and interiors
     this.interiorNPCManager?.dispose();
     this.interiorNPCManager = null;
+    this.businessBehaviorSystem?.dispose();
+    this.businessBehaviorSystem = null;
     this.buildingEntrySystem?.dispose();
     this.buildingEntrySystem = null;
     this.interiorGenerator?.dispose();
