@@ -126,6 +126,7 @@ import { NPCInitiatedConversationController } from "@/components/3DGame/NPCIniti
 import { BuildingInteriorGenerator, InteriorLayout } from "@/components/3DGame/BuildingInteriorGenerator.ts";
 import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo, type MenuJournalData } from "@/components/3DGame/GameMenuSystem.ts";
 import { WorldStateManager, type GameStateSource, type GameStateTarget } from "@/components/3DGame/WorldStateManager.ts";
+import { SaveIndicator } from "@/components/3DGame/SaveIndicator.ts";
 import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts";
 import { PlaythroughQuestOverlay } from "@/components/3DGame/PlaythroughQuestOverlay.ts";
 import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
@@ -436,6 +437,7 @@ export class BabylonGame {
   private vrManager: VRManager | null = null;
   private gameMenuSystem: GameMenuSystem | null = null;
   private worldStateManager: WorldStateManager | null = null;
+  private saveIndicator: SaveIndicator | null = null;
 
   // Onboarding / assessment
   private onboardingResult: OnboardingLaunchResult | null = null;
@@ -1433,6 +1435,13 @@ export class BabylonGame {
     this.worldStateManager.setGameSource(this.createGameStateSource());
     this.worldStateManager.attachTriggers(this.eventBus);
     this.worldStateManager.startAutoSave(0);
+
+    // Wire up save indicator HUD
+    this.saveIndicator = new SaveIndicator(this.guiManager.advancedTexture);
+    this.worldStateManager.setAutoSaveCallbacks(
+      () => this.saveIndicator?.showSaving(),
+      (saved) => this.saveIndicator?.showResult(saved),
+    );
 
     this.gameMenuSystem = new GameMenuSystem(this.guiManager.advancedTexture, menuCallbacks);
     this.gameMenuSystem.setOnMenuOpened(() => {
@@ -10329,6 +10338,8 @@ export class BabylonGame {
     this.chatPanel?.dispose();
     this.worldStateManager?.dispose();
     this.worldStateManager = null;
+    this.saveIndicator?.dispose();
+    this.saveIndicator = null;
     this.gameMenuSystem?.dispose();
     this.gameMenuSystem = null;
     this.guiManager?.dispose();
