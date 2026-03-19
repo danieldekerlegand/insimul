@@ -60,6 +60,14 @@ interface FurnitureRole {
   animation: AnimationState;
 }
 
+/** Source of NPC schedule data for dynamic entry/exit */
+export interface InteriorScheduleSource {
+  /** Returns the building ID an NPC's schedule says they should be at, or null */
+  getScheduledBuildingId(npcId: string): string | null;
+  /** Returns all NPC IDs tracked by the schedule system */
+  getScheduledNPCIds(): string[];
+}
+
 /** Callbacks for InteriorNPCManager events */
 export interface InteriorNPCCallbacks {
   /** Called when NPC animation should change */
@@ -70,6 +78,10 @@ export interface InteriorNPCCallbacks {
   onNPCGreeting?: (npcId: string, greeting: string) => void;
   /** Called to get the current game hour (0-23) */
   getGameHour?: () => number;
+  /** Called when an NPC dynamically enters the interior */
+  onNPCEnterInterior?: (npcId: string) => void;
+  /** Called when an NPC dynamically exits the interior */
+  onNPCExitInterior?: (npcId: string) => void;
 }
 
 /** Max NPCs to place in an interior for performance */
@@ -159,8 +171,28 @@ export class InteriorNPCManager {
   private activeBuildingId: string | null = null;
   private activeInterior: InteriorLayout | null = null;
 
+  // Stored references for schedule-based updates
+  private activeMetadata: BuildingMetadata | null = null;
+  private npcSource: (() => Map<string, { mesh: Mesh; characterData?: any }>) | null = null;
+  private scheduleSource: InteriorScheduleSource | null = null;
+  private playerCharacterId: string | undefined = undefined;
+
   constructor(callbacks: InteriorNPCCallbacks) {
     this.callbacks = callbacks;
+  }
+
+  /**
+   * Set the schedule source for dynamic NPC entry/exit.
+   */
+  setScheduleSource(source: InteriorScheduleSource): void {
+    this.scheduleSource = source;
+  }
+
+  /**
+   * Set the NPC data source for dynamic additions.
+   */
+  setNPCSource(source: () => Map<string, { mesh: Mesh; characterData?: any }>): void {
+    this.npcSource = source;
   }
 
   /**
@@ -185,6 +217,8 @@ export class InteriorNPCManager {
 
     this.activeBuildingId = buildingId;
     this.activeInterior = interior;
+    this.activeMetadata = metadata;
+    this.playerCharacterId = playerCharacterId;
 
     // Determine which NPCs should be inside
     const candidates = this.findCandidateNPCs(metadata, allNPCs, playerCharacterId);
@@ -271,6 +305,8 @@ export class InteriorNPCManager {
     this.placedNPCs.clear();
     this.activeBuildingId = null;
     this.activeInterior = null;
+    this.activeMetadata = null;
+    this.playerCharacterId = undefined;
   }
 
   /**
@@ -459,9 +495,165 @@ export class InteriorNPCManager {
   }
 
   /**
+   * Update interior NPC presence based on schedule data.
+   * Called each frame while the player is inside a building.
+   *
+   * - Adds NPCs whose schedules say they should be at this building
+   * - Removes NPCs whose schedules say they should be elsewhere
+   */
+  updateFromSchedules(): void {
+    if (!this.activeBuildingId || !this.activeInterior || !this.scheduleSource) return;
+
+    const buildingId = this.activeBuildingId;
+    const scheduledIds = this.scheduleSource.getScheduledNPCIds();
+
+    // Check for NPCs that should enter
+    for (const npcId of scheduledIds) {
+      if (this.placedNPCs.has(npcId)) continue;
+      if (this.placedNPCs.size >= MAX_INTERIOR_NPCS) break;
+
+      const scheduledBuilding = this.scheduleSource.getScheduledBuildingId(npcId);
+      if (scheduledBuilding !== buildingId) continue;
+
+      this.addNPCToInterior(npcId);
+    }
+
+    // Check for NPCs that should exit
+    const placedIds = Array.from(this.placedNPCs.keys());
+    for (const npcId of placedIds) {
+      const scheduledBuilding = this.scheduleSource.getScheduledBuildingId(npcId);
+      if (scheduledBuilding === buildingId) continue;
+
+      // NPC's schedule no longer says this building — remove them
+      this.removeNPCFromInterior(npcId);
+    }
+  }
+
+  /**
+   * Add a single NPC to the active interior, placing them at available furniture.
+   * Returns the placed NPC or null if the NPC couldn't be added.
+   */
+  addNPCToInterior(npcId: string): PlacedInteriorNPC | null {
+    if (!this.activeInterior || !this.activeMetadata) return null;
+    if (this.placedNPCs.has(npcId)) return this.placedNPCs.get(npcId)!;
+    if (this.placedNPCs.size >= MAX_INTERIOR_NPCS) return null;
+
+    // Resolve the NPC mesh
+    const allNPCs = this.npcSource?.();
+    const npcData = allNPCs?.get(npcId);
+    if (!npcData) return null;
+
+    const role = this.resolveNPCRole(npcId, this.activeMetadata);
+    const interior = this.activeInterior;
+
+    // Find available furniture
+    const furnitureRoles = this.getFurnitureRoles(interior.buildingType, this.activeMetadata.businessType);
+    const usedIndices = this.getUsedFurnitureIndices(furnitureRoles);
+    const furnitureIdx = this.findFurnitureForRole(furnitureRoles, role, usedIndices);
+    const furniture = furnitureIdx >= 0 ? furnitureRoles[furnitureIdx] : null;
+
+    const offset = furniture?.offset ?? new Vector3(
+      (Math.random() - 0.5) * (interior.width * 0.6),
+      0,
+      (Math.random() - 0.5) * (interior.depth * 0.6)
+    );
+    const interiorPos = new Vector3(
+      interior.position.x + offset.x,
+      interior.position.y + 0.1,
+      interior.position.z + offset.z
+    );
+    const animState = furniture?.animation ?? 'idle';
+
+    const savedPos = npcData.mesh.position.clone();
+    const wasEnabled = npcData.mesh.isEnabled();
+
+    npcData.mesh.position = interiorPos.clone();
+    npcData.mesh.setEnabled(true);
+
+    const placedNpc: PlacedInteriorNPC = {
+      npcId,
+      mesh: npcData.mesh,
+      role,
+      interiorPosition: interiorPos,
+      savedPosition: savedPos,
+      wasEnabled,
+      animationState: animState,
+      characterData: npcData.characterData,
+    };
+
+    this.placedNPCs.set(npcId, placedNpc);
+    this.callbacks.onAnimationChange?.(npcId, animState);
+    this.callbacks.onFaceDirection?.(npcId, interior.doorPosition);
+    this.callbacks.onNPCEnterInterior?.(npcId);
+
+    return placedNpc;
+  }
+
+  /**
+   * Remove a single NPC from the interior and restore their overworld state.
+   */
+  removeNPCFromInterior(npcId: string): boolean {
+    const npc = this.placedNPCs.get(npcId);
+    if (!npc) return false;
+
+    npc.mesh.position = npc.savedPosition.clone();
+    npc.mesh.setEnabled(npc.wasEnabled);
+    this.callbacks.onAnimationChange?.(npcId, 'idle');
+    this.callbacks.onNPCExitInterior?.(npcId);
+
+    this.placedNPCs.delete(npcId);
+    return true;
+  }
+
+  /**
+   * Determine the role of an NPC in a building based on metadata.
+   */
+  private resolveNPCRole(npcId: string, metadata: BuildingMetadata): 'employee' | 'owner' | 'visitor' {
+    if (metadata.ownerId === npcId) return 'owner';
+
+    if (metadata.employees) {
+      for (const emp of metadata.employees) {
+        const empId = typeof emp === 'string' ? emp : emp.id;
+        if (empId === npcId) return 'employee';
+      }
+    }
+
+    if (metadata.occupants) {
+      for (const occ of metadata.occupants) {
+        const occId = typeof occ === 'string' ? occ : occ.id;
+        if (occId === npcId) return 'owner';
+      }
+    }
+
+    return 'visitor';
+  }
+
+  /**
+   * Get the set of furniture indices currently in use by placed NPCs.
+   */
+  private getUsedFurnitureIndices(furnitureRoles: FurnitureRole[]): Set<number> {
+    const used = new Set<number>();
+    for (const npc of Array.from(this.placedNPCs.values())) {
+      for (let i = 0; i < furnitureRoles.length; i++) {
+        const offset = furnitureRoles[i].offset;
+        const expectedX = this.activeInterior!.position.x + offset.x;
+        const expectedZ = this.activeInterior!.position.z + offset.z;
+        if (Math.abs(npc.interiorPosition.x - expectedX) < 0.01 &&
+            Math.abs(npc.interiorPosition.z - expectedZ) < 0.01) {
+          used.add(i);
+          break;
+        }
+      }
+    }
+    return used;
+  }
+
+  /**
    * Clean up all resources.
    */
   dispose(): void {
     this.clearInterior();
+    this.scheduleSource = null;
+    this.npcSource = null;
   }
 }
