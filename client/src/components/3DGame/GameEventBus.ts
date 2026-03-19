@@ -120,7 +120,11 @@ export type GameEvent =
   // Playthrough completion
   | { type: 'playthrough_completed'; playthroughId: string; playtime: number; questsCompleted: number; npcsInteracted: number; vocabularyLearned: number; cefrStart: string | null; cefrEnd: string | null }
   | { type: 'playthrough_completion_requested'; trigger: 'main_quest' | 'manual' }
-  | { type: 'departure_assessment_triggered'; playthroughId: string };
+  | { type: 'departure_assessment_triggered'; playthroughId: string }
+  // Time events
+  | { type: 'hour_changed'; hour: number; day: number }
+  | { type: 'day_changed'; day: number; timestep: number }
+  | { type: 'time_of_day_changed'; from: string; to: string; hour: number };
 
 export type GameEventType = GameEvent['type'];
 

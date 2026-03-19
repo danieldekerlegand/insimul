@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-19T13:05:19.227Z",
+  "lastUpdated": "2026-03-19T13:06:32.486Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -262,7 +262,7 @@
     {
       "path": "client/src/components/3DGame/GameEventBus.ts",
       "description": "Centralized typed event bus (20 event types). Exported engines need equivalent event routing for gameplay actions.",
-      "hash": "54502c05a996d59eeab4c16e5e3e6c2bfb0c1e8317619402831f23cb0bcf1177",
+      "hash": "7614306e5edccd1cc50b8313ea37ab8fe920b2e891caf04c12968b53a745b183",
       "engineMappings": [
         {
           "engine": "unreal",

@@ -97,6 +97,10 @@ const EVENT_IDENTIFICATION_INCORRECT := "identification_incorrect"
 const EVENT_PLAYTHROUGH_COMPLETED := "playthrough_completed"
 const EVENT_PLAYTHROUGH_COMPLETION_REQUESTED := "playthrough_completion_requested"
 const EVENT_DEPARTURE_ASSESSMENT_TRIGGERED := "departure_assessment_triggered"
+# Time events
+const EVENT_HOUR_CHANGED := "hour_changed"
+const EVENT_DAY_CHANGED := "day_changed"
+const EVENT_TIME_OF_DAY_CHANGED := "time_of_day_changed"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -149,6 +153,10 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_PLAYTHROUGH_COMPLETED,
 	EVENT_PLAYTHROUGH_COMPLETION_REQUESTED,
 	EVENT_DEPARTURE_ASSESSMENT_TRIGGERED,
+	# Time events
+	EVENT_HOUR_CHANGED,
+	EVENT_DAY_CHANGED,
+	EVENT_TIME_OF_DAY_CHANGED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
@@ -239,6 +247,9 @@ var _global_handlers: Array[Callable] = []
 ##   playthrough_completed: {type, playthrough_id, playtime, quests_completed, npcs_interacted, vocabulary_learned, cefr_start, cefr_end}
 ##   playthrough_completion_requested: {type, trigger}
 ##   departure_assessment_triggered: {type, playthrough_id}
+##   hour_changed:        {type, hour, day}
+##   day_changed:         {type, day, timestep}
+##   time_of_day_changed: {type, from, to, hour}
 ##
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}
 func emit_event(event: Dictionary) -> void:

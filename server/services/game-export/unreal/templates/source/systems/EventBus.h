@@ -98,7 +98,11 @@ enum class EInsimulEventType : uint8
     // Playthrough completion events
     PlaythroughCompleted UMETA(DisplayName = "Playthrough Completed"),
     PlaythroughCompletionRequested UMETA(DisplayName = "Playthrough Completion Requested"),
-    DepartureAssessmentTriggered UMETA(DisplayName = "Departure Assessment Triggered")
+    DepartureAssessmentTriggered UMETA(DisplayName = "Departure Assessment Triggered"),
+    // Time events
+    HourChanged UMETA(DisplayName = "Hour Changed"),
+    DayChanged UMETA(DisplayName = "Day Changed"),
+    TimeOfDayChanged UMETA(DisplayName = "Time Of Day Changed")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────
@@ -325,6 +329,13 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString CefrStart;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString CefrEnd;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Trigger;
+
+    // ── Time fields ──────────────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Hour = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Day = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Timestep = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString From;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString To;
 };
 
 // ── Delegates ────────────────────────────────────────────────────────────────
