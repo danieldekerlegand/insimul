@@ -1,0 +1,493 @@
+/**
+ * Full Game Narrative Template
+ *
+ * A complete NarrativeArcTemplate spanning A1→B2 with 3 acts, 6 chapters,
+ * and ~18 subquests. This defines the main storyline for a language-learning
+ * game where the player arrives as a stranger and becomes a community leader.
+ *
+ * Structure: Arc → 3 Acts → 6 Chapters → 2-4 SubQuests each
+ */
+
+import type {
+  NarrativeArcTemplate,
+  ActTemplate,
+  ChapterTemplate,
+  SubQuestTemplate,
+  CEFRLevel,
+} from '../../shared/narrative-arc-types.js';
+
+// ─── Act I: Introduction ─────────────────────────────────────────────────────
+
+const ch1_firstSteps: ChapterTemplate = {
+  key: 'first_steps',
+  order: 0,
+  title: 'First Steps',
+  narrativeSummary:
+    'You arrive in an unfamiliar settlement. The language is foreign, the faces unknown. A kind local offers to show you around.',
+  requiredCefrLevel: 'A1',
+  prerequisiteChapterKeys: [],
+  vocabularyDomains: ['greetings', 'introductions', 'numbers'],
+  subQuests: [
+    {
+      key: 'hello_stranger',
+      title: 'Hello, Stranger',
+      description:
+        'Your guide greets you in the local language. Learn basic greetings and introduce yourself to three townspeople.',
+      questType: 'vocabulary',
+      difficulty: 'beginner',
+      cefrLevel: 'A1',
+      estimatedMinutes: 10,
+      objectives: [
+        { type: 'talk_to_npc', description: 'Meet your guide', target: 'guide', required: 1 },
+        { type: 'use_vocabulary', description: 'Use 3 greeting phrases', target: 'any', required: 3 },
+        { type: 'talk_to_npc', description: 'Introduce yourself to townspeople', target: 'any', required: 3 },
+      ],
+      vocabularyDomains: ['greetings'],
+      tags: ['greetings', 'beginner', 'social', 'main-quest'],
+    },
+    {
+      key: 'names_and_faces',
+      title: 'Names and Faces',
+      description:
+        'The guide introduces you to key figures in town. Remember their names and roles.',
+      questType: 'vocabulary',
+      difficulty: 'beginner',
+      cefrLevel: 'A1',
+      estimatedMinutes: 10,
+      objectives: [
+        { type: 'talk_to_npc', description: 'Meet the merchant', target: 'merchant', required: 1 },
+        { type: 'talk_to_npc', description: 'Meet the elder', target: 'elder', required: 1 },
+        { type: 'collect_vocabulary', description: 'Learn 5 words for occupations', target: 'any', required: 5 },
+      ],
+      vocabularyDomains: ['introductions', 'occupations'],
+      tags: ['vocabulary', 'beginner', 'social', 'main-quest'],
+    },
+    {
+      key: 'counting_coins',
+      title: 'Counting Coins',
+      description:
+        'Before you can buy anything, you need to learn the local numbers. Practice counting with your guide.',
+      questType: 'vocabulary',
+      difficulty: 'beginner',
+      cefrLevel: 'A1',
+      estimatedMinutes: 8,
+      objectives: [
+        { type: 'talk_to_npc', description: 'Practice numbers with your guide', target: 'guide', required: 1 },
+        { type: 'use_vocabulary', description: 'Use number words correctly', target: 'any', required: 5 },
+      ],
+      vocabularyDomains: ['numbers'],
+      tags: ['vocabulary', 'numbers', 'beginner', 'main-quest'],
+    },
+  ],
+};
+
+const ch2_dailyLife: ChapterTemplate = {
+  key: 'daily_life',
+  order: 1,
+  title: 'Daily Life',
+  narrativeSummary:
+    'You begin to settle in. The market calls, directions must be learned, and daily routines demand new words.',
+  requiredCefrLevel: 'A1',
+  prerequisiteChapterKeys: ['first_steps'],
+  vocabularyDomains: ['food', 'directions', 'shopping', 'daily_routine'],
+  subQuests: [
+    {
+      key: 'market_day',
+      title: 'Market Day',
+      description:
+        'Visit the market and learn the words for common goods. Buy something from the merchant using the local language.',
+      questType: 'vocabulary',
+      difficulty: 'beginner',
+      cefrLevel: 'A1',
+      estimatedMinutes: 12,
+      objectives: [
+        { type: 'visit_location', description: 'Visit the market', target: 'location', required: 1 },
+        { type: 'talk_to_npc', description: 'Ask the merchant about their wares', target: 'merchant', required: 1 },
+        { type: 'collect_vocabulary', description: 'Learn 6 food and goods words', target: 'any', required: 6 },
+        { type: 'trade_item', description: 'Buy an item using the target language', target: 'any', required: 1 },
+      ],
+      vocabularyDomains: ['food', 'shopping'],
+      tags: ['market', 'vocabulary', 'shopping', 'main-quest'],
+    },
+    {
+      key: 'finding_your_way',
+      title: 'Finding Your Way',
+      description:
+        'The town is a maze to newcomers. Learn direction words and navigate to three landmarks.',
+      questType: 'vocabulary',
+      difficulty: 'beginner',
+      cefrLevel: 'A1',
+      estimatedMinutes: 12,
+      objectives: [
+        { type: 'talk_to_npc', description: 'Ask your guide for directions', target: 'guide', required: 1 },
+        { type: 'collect_vocabulary', description: 'Learn 6 direction words', target: 'any', required: 6 },
+        { type: 'discover_location', description: 'Find 3 landmarks', target: 'location', required: 3 },
+      ],
+      vocabularyDomains: ['directions'],
+      tags: ['navigation', 'vocabulary', 'exploration', 'main-quest'],
+    },
+    {
+      key: 'a_place_to_rest',
+      title: 'A Place to Rest',
+      description:
+        'You need somewhere to stay. Talk to the locals about lodging and learn words for daily routine.',
+      questType: 'conversation',
+      difficulty: 'beginner',
+      cefrLevel: 'A1',
+      estimatedMinutes: 10,
+      objectives: [
+        { type: 'talk_to_npc', description: 'Ask about lodging', target: 'any', required: 2 },
+        { type: 'complete_conversation', description: 'Discuss daily routines', target: 'any', required: 1 },
+        { type: 'use_vocabulary', description: 'Use 4 daily routine words', target: 'any', required: 4 },
+      ],
+      vocabularyDomains: ['daily_routine', 'housing'],
+      tags: ['conversation', 'daily_life', 'main-quest'],
+    },
+  ],
+};
+
+// ─── Act II: Rising Action ───────────────────────────────────────────────────
+
+const ch3_earningTrust: ChapterTemplate = {
+  key: 'earning_trust',
+  order: 2,
+  title: 'Earning Trust',
+  narrativeSummary:
+    'The townspeople are cautious of outsiders. Prove yourself through deeper conversations and small acts of kindness.',
+  requiredCefrLevel: 'A2',
+  prerequisiteChapterKeys: ['daily_life'],
+  vocabularyDomains: ['emotions', 'family', 'weather', 'opinions'],
+  subQuests: [
+    {
+      key: 'the_merchants_favor',
+      title: "The Merchant's Favor",
+      description:
+        'The merchant needs help with a delivery. Accept the task and navigate to the destination using directions given in the target language.',
+      questType: 'conversation',
+      difficulty: 'intermediate',
+      cefrLevel: 'A2',
+      estimatedMinutes: 15,
+      objectives: [
+        { type: 'talk_to_npc', description: 'Accept the delivery task from the merchant', target: 'merchant', required: 1 },
+        { type: 'collect_item', description: 'Pick up the delivery package', target: 'item', required: 1 },
+        { type: 'deliver_item', description: 'Deliver the package to its destination', target: 'any', required: 1 },
+        { type: 'use_vocabulary', description: 'Use 5 direction and location words', target: 'any', required: 5 },
+      ],
+      vocabularyDomains: ['directions', 'commerce'],
+      tags: ['fetch', 'conversation', 'trust', 'main-quest'],
+    },
+    {
+      key: 'stories_by_the_fire',
+      title: 'Stories by the Fire',
+      description:
+        'The elder invites you to an evening gathering. Listen to stories, ask questions, and share something about yourself.',
+      questType: 'conversation',
+      difficulty: 'intermediate',
+      cefrLevel: 'A2',
+      estimatedMinutes: 15,
+      objectives: [
+        { type: 'talk_to_npc', description: 'Join the elder for evening stories', target: 'elder', required: 1 },
+        { type: 'complete_conversation', description: 'Have a sustained conversation about family or home', target: 'any', required: 1 },
+        { type: 'use_vocabulary', description: 'Use 6 emotion and family words', target: 'any', required: 6 },
+      ],
+      vocabularyDomains: ['emotions', 'family', 'storytelling'],
+      tags: ['conversation', 'social', 'storytelling', 'main-quest'],
+    },
+    {
+      key: 'weather_talk',
+      title: 'Reading the Sky',
+      description:
+        'A farmer asks you about the weather. Learn to discuss weather and seasons — practical knowledge everyone shares.',
+      questType: 'vocabulary',
+      difficulty: 'intermediate',
+      cefrLevel: 'A2',
+      estimatedMinutes: 12,
+      objectives: [
+        { type: 'talk_to_npc', description: 'Discuss the weather with a farmer', target: 'any', required: 1 },
+        { type: 'collect_vocabulary', description: 'Learn 8 weather and season words', target: 'any', required: 8 },
+        { type: 'use_vocabulary', description: 'Use weather words in conversation', target: 'any', required: 4 },
+      ],
+      vocabularyDomains: ['weather', 'seasons'],
+      tags: ['vocabulary', 'weather', 'main-quest'],
+    },
+  ],
+};
+
+const ch4_hiddenDepths: ChapterTemplate = {
+  key: 'hidden_depths',
+  order: 3,
+  title: 'Hidden Depths',
+  narrativeSummary:
+    'A mystery surfaces. An old tradition is fading, and the elder asks for your help. To understand it, you must dig deeper into the language and culture.',
+  requiredCefrLevel: 'A2',
+  prerequisiteChapterKeys: ['earning_trust'],
+  vocabularyDomains: ['culture', 'history', 'crafts', 'nature'],
+  subQuests: [
+    {
+      key: 'the_elders_request',
+      title: "The Elder's Request",
+      description:
+        'The elder reveals that an important tradition is being forgotten. Listen carefully to understand what is at stake.',
+      questType: 'conversation',
+      difficulty: 'intermediate',
+      cefrLevel: 'A2',
+      estimatedMinutes: 15,
+      objectives: [
+        { type: 'talk_to_npc', description: 'Speak with the elder about the fading tradition', target: 'elder', required: 1 },
+        { type: 'complete_conversation', description: 'Listen to the full story of the tradition', target: 'any', required: 1 },
+        { type: 'collect_vocabulary', description: 'Learn 6 cultural and historical words', target: 'any', required: 6 },
+      ],
+      vocabularyDomains: ['culture', 'history'],
+      tags: ['conversation', 'cultural', 'mystery', 'main-quest'],
+    },
+    {
+      key: 'the_craftsmans_workshop',
+      title: "The Craftsman's Workshop",
+      description:
+        'A local craftsman still practices parts of the old tradition. Visit their workshop and learn the specialized vocabulary.',
+      questType: 'vocabulary',
+      difficulty: 'intermediate',
+      cefrLevel: 'A2',
+      estimatedMinutes: 15,
+      objectives: [
+        { type: 'visit_location', description: 'Visit the workshop', target: 'location', required: 1 },
+        { type: 'talk_to_npc', description: 'Interview the craftsman about their work', target: 'craftsman', required: 1 },
+        { type: 'collect_vocabulary', description: 'Learn 8 craft and tool words', target: 'any', required: 8 },
+        { type: 'use_vocabulary', description: 'Describe 3 objects in the target language', target: 'any', required: 3 },
+      ],
+      vocabularyDomains: ['crafts', 'tools'],
+      tags: ['vocabulary', 'cultural', 'exploration', 'main-quest'],
+    },
+    {
+      key: 'gathering_fragments',
+      title: 'Gathering Fragments',
+      description:
+        'Travel through the settlement to find remnants of the old tradition. Read signs, talk to residents, and piece together the story.',
+      questType: 'conversation',
+      difficulty: 'intermediate',
+      cefrLevel: 'A2',
+      estimatedMinutes: 15,
+      objectives: [
+        { type: 'talk_to_npc', description: 'Interview 3 residents about the tradition', target: 'any', required: 3 },
+        { type: 'discover_location', description: 'Find 2 places connected to the tradition', target: 'location', required: 2 },
+        { type: 'use_vocabulary', description: 'Use 8 cultural and descriptive words', target: 'any', required: 8 },
+      ],
+      vocabularyDomains: ['culture', 'description', 'nature'],
+      tags: ['exploration', 'cultural', 'main-quest'],
+    },
+  ],
+};
+
+// ─── Act III: Climax & Resolution ────────────────────────────────────────────
+
+const ch5_theReckoning: ChapterTemplate = {
+  key: 'the_reckoning',
+  order: 4,
+  title: 'The Reckoning',
+  narrativeSummary:
+    'The tradition cannot be saved alone. You must convince the community to act — and that means speaking with authority and nuance.',
+  requiredCefrLevel: 'B1',
+  prerequisiteChapterKeys: ['hidden_depths'],
+  vocabularyDomains: ['persuasion', 'debate', 'formal_speech', 'abstract_concepts'],
+  subQuests: [
+    {
+      key: 'making_the_case',
+      title: 'Making the Case',
+      description:
+        'Present what you have learned to the elder and key townspeople. Persuade them that the tradition is worth saving.',
+      questType: 'conversation',
+      difficulty: 'advanced',
+      cefrLevel: 'B1',
+      estimatedMinutes: 18,
+      objectives: [
+        { type: 'talk_to_npc', description: 'Present your findings to the elder', target: 'elder', required: 1 },
+        { type: 'complete_conversation', description: 'Persuade 2 townspeople to support the cause', target: 'any', required: 2 },
+        { type: 'use_vocabulary', description: 'Use 8 persuasion and opinion words', target: 'any', required: 8 },
+      ],
+      vocabularyDomains: ['persuasion', 'opinions'],
+      tags: ['conversation', 'persuasion', 'advanced', 'main-quest'],
+    },
+    {
+      key: 'the_debate',
+      title: 'The Great Debate',
+      description:
+        'Not everyone agrees the tradition matters. Face skeptics in a public discussion. Defend your position using complex arguments.',
+      questType: 'conversation',
+      difficulty: 'advanced',
+      cefrLevel: 'B1',
+      estimatedMinutes: 20,
+      objectives: [
+        { type: 'complete_conversation', description: 'Engage in a structured debate', target: 'any', required: 1 },
+        { type: 'use_vocabulary', description: 'Use 10 formal and abstract vocabulary words', target: 'any', required: 10 },
+        { type: 'talk_to_npc', description: 'Respond to 3 counterarguments', target: 'any', required: 3 },
+      ],
+      vocabularyDomains: ['debate', 'formal_speech', 'abstract_concepts'],
+      tags: ['conversation', 'debate', 'advanced', 'main-quest'],
+    },
+  ],
+};
+
+const ch6_newBeginnings: ChapterTemplate = {
+  key: 'new_beginnings',
+  order: 5,
+  title: 'New Beginnings',
+  narrativeSummary:
+    'The community rallies. Together you revive the tradition and celebrate. You are no longer a stranger — you belong.',
+  requiredCefrLevel: 'B2',
+  prerequisiteChapterKeys: ['the_reckoning'],
+  vocabularyDomains: ['ceremony', 'leadership', 'reflection', 'advanced_description'],
+  subQuests: [
+    {
+      key: 'revival_preparations',
+      title: 'Revival Preparations',
+      description:
+        'Coordinate with the craftsman, merchant, and elder to prepare a ceremony that revives the tradition. Lead the planning in the target language.',
+      questType: 'conversation',
+      difficulty: 'advanced',
+      cefrLevel: 'B2',
+      estimatedMinutes: 20,
+      objectives: [
+        { type: 'talk_to_npc', description: 'Coordinate plans with the craftsman', target: 'craftsman', required: 1 },
+        { type: 'talk_to_npc', description: 'Coordinate plans with the merchant', target: 'merchant', required: 1 },
+        { type: 'talk_to_npc', description: 'Coordinate plans with the elder', target: 'elder', required: 1 },
+        { type: 'use_vocabulary', description: 'Use 10 planning and coordination words', target: 'any', required: 10 },
+      ],
+      vocabularyDomains: ['ceremony', 'leadership', 'planning'],
+      tags: ['conversation', 'leadership', 'advanced', 'main-quest'],
+    },
+    {
+      key: 'the_ceremony',
+      title: 'The Ceremony',
+      description:
+        'The day has come. Lead the ceremony, speak to the gathered crowd, and celebrate the tradition reborn.',
+      questType: 'conversation',
+      difficulty: 'advanced',
+      cefrLevel: 'B2',
+      estimatedMinutes: 20,
+      objectives: [
+        { type: 'complete_conversation', description: 'Deliver a speech to the community', target: 'any', required: 1 },
+        { type: 'use_vocabulary', description: 'Use 12 ceremony and reflection words', target: 'any', required: 12 },
+        { type: 'social_interaction', description: 'Celebrate with 3 townspeople', target: 'any', required: 3 },
+      ],
+      vocabularyDomains: ['ceremony', 'reflection', 'celebration'],
+      tags: ['conversation', 'ceremony', 'climax', 'main-quest'],
+    },
+    {
+      key: 'one_of_us',
+      title: 'One of Us',
+      description:
+        'The elder formally welcomes you as a member of the community. Reflect on your journey and how far your language skills have come.',
+      questType: 'conversation',
+      difficulty: 'advanced',
+      cefrLevel: 'B2',
+      estimatedMinutes: 15,
+      objectives: [
+        { type: 'talk_to_npc', description: 'Speak with the elder one final time', target: 'elder', required: 1 },
+        { type: 'complete_conversation', description: 'Reflect on your journey in the target language', target: 'any', required: 1 },
+        { type: 'use_vocabulary', description: 'Use 10 words from across your journey', target: 'any', required: 10 },
+      ],
+      vocabularyDomains: ['reflection', 'identity', 'community'],
+      tags: ['conversation', 'resolution', 'finale', 'main-quest'],
+    },
+  ],
+};
+
+// ─── Acts ────────────────────────────────────────────────────────────────────
+
+const actI: ActTemplate = {
+  actType: 'introduction',
+  title: 'A Stranger Arrives',
+  description:
+    'You arrive in an unfamiliar land with nothing but curiosity. Learn the basics of survival: greetings, numbers, directions, and daily necessities.',
+  chapters: [ch1_firstSteps, ch2_dailyLife],
+};
+
+const actII: ActTemplate = {
+  actType: 'rising_action',
+  title: 'Deeper Roots',
+  description:
+    'As you earn the trust of the townspeople, a mystery emerges. An old tradition is fading, and only you — the outsider with fresh eyes — can help preserve it.',
+  chapters: [ch3_earningTrust, ch4_hiddenDepths],
+};
+
+const actIII: ActTemplate = {
+  actType: 'climax_resolution',
+  title: 'The Tradition Reborn',
+  description:
+    'You must rally the community to save what matters. Persuade, debate, and lead — all in the language you once could not speak.',
+  chapters: [ch5_theReckoning, ch6_newBeginnings],
+};
+
+// ─── The Full Template ───────────────────────────────────────────────────────
+
+/**
+ * The primary full-game narrative arc template.
+ *
+ * Story: A stranger arrives in a settlement, learns the local language,
+ * uncovers a fading tradition, and leads the community to revive it.
+ *
+ * 3 acts, 6 chapters, 18 subquests, spanning A1→B2.
+ */
+export const THE_STRANGERS_JOURNEY: NarrativeArcTemplate = {
+  id: 'the_strangers_journey',
+  name: "The Stranger's Journey",
+  description:
+    'A complete narrative arc in which a newcomer arrives in a settlement, learns the local language through daily life, uncovers a fading cultural tradition, and ultimately leads the community to revive it.',
+  targetLanguage: '', // Set at instantiation from world config
+  acts: [actI, actII, actIII],
+  estimatedHours: 8,
+  requiredArchetypes: ['guide', 'merchant', 'elder', 'craftsman'],
+  requiredLocationTypes: ['settlement', 'market', 'workshop'],
+};
+
+/** Registry of all available full narrative arc templates */
+export const FULL_NARRATIVE_TEMPLATES: Record<string, NarrativeArcTemplate> = {
+  the_strangers_journey: THE_STRANGERS_JOURNEY,
+};
+
+/** Get all subquests across the entire template, in order */
+export function getAllSubQuests(template: NarrativeArcTemplate): SubQuestTemplate[] {
+  const result: SubQuestTemplate[] = [];
+  for (const act of template.acts) {
+    for (const chapter of act.chapters) {
+      result.push(...chapter.subQuests);
+    }
+  }
+  return result;
+}
+
+/** Get total subquest count for a template */
+export function getSubQuestCount(template: NarrativeArcTemplate): number {
+  return getAllSubQuests(template).length;
+}
+
+/** Get all unique vocabulary domains across the template */
+export function getAllVocabularyDomains(template: NarrativeArcTemplate): string[] {
+  const domains = new Set<string>();
+  for (const act of template.acts) {
+    for (const chapter of act.chapters) {
+      for (const domain of chapter.vocabularyDomains) {
+        domains.add(domain);
+      }
+    }
+  }
+  return Array.from(domains);
+}
+
+/** Get chapters accessible at a given CEFR level */
+export function getChaptersForCefrLevel(
+  template: NarrativeArcTemplate,
+  cefrLevel: CEFRLevel,
+): ChapterTemplate[] {
+  const order: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+  const playerIdx = order.indexOf(cefrLevel);
+  const result: ChapterTemplate[] = [];
+  for (const act of template.acts) {
+    for (const chapter of act.chapters) {
+      if (order.indexOf(chapter.requiredCefrLevel) <= playerIdx) {
+        result.push(chapter);
+      }
+    }
+  }
+  return result;
+}
