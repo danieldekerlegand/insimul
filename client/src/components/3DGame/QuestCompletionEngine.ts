@@ -89,8 +89,7 @@ export interface CompletionObjective {
   // deliver_item
   itemId?: string;
 
-  // pronunciation
-  pronunciationScores?: number[];
+  // pronunciation (additional fields — pronunciationScores defined above)
   pronunciationBestScore?: number;
   targetPhrase?: string;
 
@@ -139,7 +138,14 @@ export type CompletionEvent =
   | { type: 'conversation_initiation'; npcId: string; accepted: boolean; responseQuality?: number; questId?: string }
   | { type: 'writing_submitted'; text: string; wordCount: number; questId?: string }
   | { type: 'teach_word'; npcId: string; word: string; questId?: string }
-  | { type: 'teach_phrase_to_npc'; npcId: string; phrase: string; questId?: string };
+  | { type: 'teach_phrase_to_npc'; npcId: string; phrase: string; questId?: string }
+  | { type: 'object_identified'; objectName: string; questId?: string }
+  | { type: 'object_examined'; objectName: string; questId?: string }
+  | { type: 'sign_read'; signId: string; questId?: string }
+  | { type: 'object_pointed_and_named'; objectName: string; questId?: string }
+  | { type: 'npc_conversation_turn'; npcId: string; topicTag?: string; questId?: string }
+  | { type: 'gift_given'; npcId: string; itemName: string; questId?: string }
+  | { type: 'direction_step_completed'; questId?: string };
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
@@ -243,6 +249,27 @@ export class QuestCompletionEngine {
         break;
       case 'teach_phrase_to_npc':
         this.trackTeachPhrase(event.npcId, event.phrase, event.questId);
+        break;
+      case 'object_identified':
+        this.trackObjectIdentified(event.objectName, event.questId);
+        break;
+      case 'object_examined':
+        this.trackObjectExamined(event.objectName, event.questId);
+        break;
+      case 'sign_read':
+        this.trackSignRead(event.signId, event.questId);
+        break;
+      case 'object_pointed_and_named':
+        this.trackPointAndName(event.objectName, event.questId);
+        break;
+      case 'npc_conversation_turn':
+        this.trackNpcConversationTurn(event.npcId, event.topicTag, event.questId);
+        break;
+      case 'gift_given':
+        this.trackGiftGiven(event.npcId, event.itemName, event.questId);
+        break;
+      case 'direction_step_completed':
+        this.trackDirectionStep(event.questId);
         break;
     }
   }
@@ -653,6 +680,96 @@ export class QuestCompletionEngine {
       obj.currentCount = (obj.currentCount || 0) + 1;
 
       if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
+  // ── Object interaction tracking ─────────────────────────────────────
+
+  trackObjectIdentified(objectName: string, questId?: string): void {
+    const lowerName = objectName.toLowerCase();
+
+    this.forEachObjective(questId, 'identify_object', (quest, obj) => {
+      obj.currentCount = (obj.currentCount || 0) + 1;
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
+  trackObjectExamined(objectName: string, questId?: string): void {
+    this.forEachObjective(questId, 'examine_object', (quest, obj) => {
+      obj.currentCount = (obj.currentCount || 0) + 1;
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
+  trackSignRead(signId: string, questId?: string): void {
+    this.forEachObjective(questId, 'read_sign', (quest, obj) => {
+      obj.currentCount = (obj.currentCount || 0) + 1;
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
+  trackPointAndName(objectName: string, questId?: string): void {
+    this.forEachObjective(questId, 'point_and_name', (quest, obj) => {
+      obj.currentCount = (obj.currentCount || 0) + 1;
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
+  // ── Conversation-based objective tracking ──────────────────────────
+
+  /**
+   * Track conversation turns with NPCs for objectives that complete through
+   * sustained dialogue: ask_for_directions, order_food, haggle_price,
+   * introduce_self, build_friendship.
+   * The topicTag helps match the right objective type (e.g. 'directions', 'order', 'haggle', 'introduction').
+   */
+  trackNpcConversationTurn(npcId: string, topicTag?: string, questId?: string): void {
+    // Map topic tags to objective types for targeted matching
+    const tagToTypes: Record<string, string[]> = {
+      directions: ['ask_for_directions'],
+      order: ['order_food'],
+      haggle: ['haggle_price'],
+      introduction: ['introduce_self'],
+      friendship: ['build_friendship'],
+    };
+
+    const targetTypes = topicTag && tagToTypes[topicTag]
+      ? tagToTypes[topicTag]
+      : ['ask_for_directions', 'order_food', 'haggle_price', 'introduce_self', 'build_friendship'];
+
+    this.forEachObjective(questId, targetTypes, (quest, obj) => {
+      if (obj.npcId && obj.npcId !== npcId) return;
+
+      obj.currentCount = (obj.currentCount || 0) + 1;
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
+  trackGiftGiven(npcId: string, itemName: string, questId?: string): void {
+    this.forEachObjective(questId, 'give_gift', (quest, obj) => {
+      if (obj.npcId && obj.npcId !== npcId) return;
+      this.completeObjective(quest.id, obj.id);
+    });
+  }
+
+  trackDirectionStep(questId?: string): void {
+    this.forEachObjective(questId, 'follow_directions', (quest, obj) => {
+      obj.stepsCompleted = (obj.stepsCompleted || 0) + 1;
+      obj.currentCount = obj.stepsCompleted;
+
+      if (obj.stepsCompleted >= (obj.stepsRequired || obj.requiredCount || 1)) {
         this.completeObjective(quest.id, obj.id);
       }
     });
