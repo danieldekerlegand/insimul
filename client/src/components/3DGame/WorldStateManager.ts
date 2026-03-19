@@ -140,6 +140,7 @@ export class WorldStateManager {
   private _isSaving: boolean = false;
   private _onAutoSaveStart?: () => void;
   private _onAutoSaveEnd?: (saved: boolean) => void;
+  private _preSaveHook?: () => void;
 
   constructor(dataSource: DataSource) {
     this.dataSource = dataSource;
@@ -153,6 +154,11 @@ export class WorldStateManager {
   /** Register the game instance as the source/target of state. */
   setGameSource(source: GameStateSource): void {
     this.gameSource = source;
+  }
+
+  /** Register a hook to run before each save (e.g. sync objective states to overlay). */
+  setPreSaveHook(hook: () => void): void {
+    this._preSaveHook = hook;
   }
 
   /** Register callbacks for auto-save indicator in HUD. */
@@ -258,6 +264,7 @@ export class WorldStateManager {
     if (!this.gameSource) {
       throw new Error('No game source registered');
     }
+    this._preSaveHook?.();
     const src = this.gameSource;
     return {
       version: SAVE_VERSION,

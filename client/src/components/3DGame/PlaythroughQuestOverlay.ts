@@ -17,11 +17,14 @@ export interface QuestOverlayState {
   overrides: Record<string, QuestOverride>;
   /** Quest IDs created during this playthrough (not in base world) */
   created: Record<string, any>;
+  /** Map of questId → array of objective progress snapshots (mutable fields only) */
+  objectiveStates?: Record<string, Array<Record<string, any>>>;
 }
 
 export class PlaythroughQuestOverlay {
   private overrides: Map<string, QuestOverride> = new Map();
   private created: Map<string, any> = new Map();
+  private objectiveStates: Record<string, Array<Record<string, any>>> = {};
 
   /**
    * Apply a partial update to a quest's playthrough-local state.
@@ -47,6 +50,20 @@ export class PlaythroughQuestOverlay {
   }
 
   /**
+   * Set objective progress states for persistence (from QuestCompletionEngine).
+   */
+  setObjectiveStates(states: Record<string, Array<Record<string, any>>>): void {
+    this.objectiveStates = states;
+  }
+
+  /**
+   * Get saved objective progress states (for restoring into QuestCompletionEngine).
+   */
+  getObjectiveStates(): Record<string, Array<Record<string, any>>> {
+    return this.objectiveStates;
+  }
+
+  /**
    * Register a quest created during this playthrough (e.g. dynamic quests).
    */
   createQuest(quest: any): void {
@@ -60,19 +77,37 @@ export class PlaythroughQuestOverlay {
   mergeQuests(baseQuests: any[]): any[] {
     const merged = baseQuests.map(quest => {
       const override = this.overrides.get(quest.id);
-      if (!override) return quest;
-      return { ...quest, ...override };
+      const result = override ? { ...quest, ...override } : { ...quest };
+      // Apply saved objective progress on top of base objectives
+      this.applyObjectiveStates(result);
+      return result;
     });
 
     // Append quests created during this playthrough
     this.created.forEach((quest, id) => {
       if (!merged.some(q => q.id === id)) {
         const override = this.overrides.get(id);
-        merged.push(override ? { ...quest, ...override } : quest);
+        const result = override ? { ...quest, ...override } : { ...quest };
+        this.applyObjectiveStates(result);
+        merged.push(result);
       }
     });
 
     return merged;
+  }
+
+  /** Merge saved objective progress into a quest's objectives array (deep-copies first). */
+  private applyObjectiveStates(quest: any): void {
+    const saved = this.objectiveStates[quest.id];
+    if (!saved || !quest.objectives) return;
+    // Deep-copy objectives to avoid mutating the base quest
+    quest.objectives = quest.objectives.map((o: any) => ({ ...o }));
+    for (const savedObj of saved) {
+      const obj = quest.objectives.find((o: any) => o.id === savedObj.id);
+      if (obj) {
+        Object.assign(obj, savedObj);
+      }
+    }
   }
 
   /**
@@ -100,7 +135,11 @@ export class PlaythroughQuestOverlay {
     this.overrides.forEach((data, id) => { overrides[id] = data; });
     const created: Record<string, any> = {};
     this.created.forEach((quest, id) => { created[id] = quest; });
-    return { overrides, created };
+    const result: QuestOverlayState = { overrides, created };
+    if (Object.keys(this.objectiveStates).length > 0) {
+      result.objectiveStates = this.objectiveStates;
+    }
+    return result;
   }
 
   /**
@@ -109,7 +148,7 @@ export class PlaythroughQuestOverlay {
   deserialize(state: QuestOverlayState | Record<string, any>): void {
     this.clear();
 
-    // Handle the new format with { overrides, created }
+    // Handle the new format with { overrides, created, objectiveStates }
     if (state && typeof state === 'object' && 'overrides' in state) {
       const typed = state as QuestOverlayState;
       for (const [id, data] of Object.entries(typed.overrides || {})) {
@@ -117,6 +156,9 @@ export class PlaythroughQuestOverlay {
       }
       for (const [id, quest] of Object.entries(typed.created || {})) {
         this.created.set(id, quest);
+      }
+      if (typed.objectiveStates) {
+        this.objectiveStates = typed.objectiveStates;
       }
     }
     // Backward compat: old questProgress was a flat Record<questId, data>
@@ -135,5 +177,6 @@ export class PlaythroughQuestOverlay {
   clear(): void {
     this.overrides.clear();
     this.created.clear();
+    this.objectiveStates = {};
   }
 }
