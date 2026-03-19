@@ -139,6 +139,7 @@ import { NPCBusinessInteractionSystem, type BusinessInteraction, type ServiceRes
 import { NPCSimulationLOD } from "@/components/3DGame/NPCSimulationLOD.ts";
 import { generateNPCAppearance, generateBillboardColor, blendWithRoleTint, type NPCAppearance } from "@/components/3DGame/NPCAppearanceGenerator.ts";
 import { NPCAccessorySystem } from "@/components/3DGame/NPCAccessorySystem.ts";
+import { NPCModelInstancer } from "@/components/3DGame/NPCModelInstancer.ts";
 import { QuestNotificationManager } from "@/components/3DGame/QuestNotificationManager.ts";
 import { QuestLanguageFeedbackPanel } from "@/components/3DGame/QuestLanguageFeedbackPanel.ts";
 import { QuestLanguageFeedbackTracker } from "@shared/language/quest-language-feedback";
@@ -469,8 +470,8 @@ export class BabylonGame {
   private selectedNPCId: string | null = null;
   private conversationNPCId: string | null = null;
   private preConversationCameraMode: CameraMode | null = null;
-  // NPC model cache: load each model URL once, clone for subsequent NPCs
-  private npcModelCache: Map<string, { root: Mesh; animationGroups: any[] }> = new Map();
+  // NPC model instancer: caches templates, clones for subsequent NPCs, shared materials
+  private npcModelInstancer: NPCModelInstancer | null = null;
 
   // Settlements and world
   private settlementMeshes: Map<string, Mesh> = new Map();
@@ -969,6 +970,9 @@ export class BabylonGame {
 
     // Initialize NPC accessory & occupation-visual system
     this.npcAccessorySystem = new NPCAccessorySystem(scene);
+
+    // Initialize NPC model instancer (template caching + cloning + shared materials)
+    this.npcModelInstancer = new NPCModelInstancer(scene);
 
     // Performance: skip unnecessary per-frame clears when sky dome covers background
     scene.autoClear = false;
@@ -5443,34 +5447,12 @@ export class BabylonGame {
   }
 
   /**
-   * Load or retrieve a cached NPC model template. The first call for a given
-   * cacheKey loads the model via ImportMeshAsync; subsequent calls clone it.
+   * Load or retrieve a cached NPC model via the instancer. First call loads
+   * the template; subsequent calls clone from it (sharing geometry buffers).
    */
-  private async getOrLoadNPCModel(_cacheKey: string, rootUrl: string, file: string): Promise<{ root: Mesh; animationGroups: any[] } | null> {
-    if (!this.scene) return null;
-
-    try {
-      // Load a fresh copy each time — the browser caches the file download.
-      // instantiateHierarchy/clone approaches break for .babylon files where
-      // geometry meshes are siblings rather than children of __root__.
-      const result = await SceneLoader.ImportMeshAsync('', rootUrl, file, this.scene);
-      const root = this.selectPlayerMesh(result.meshes) || result.meshes[0];
-      if (!root || !(root instanceof Mesh)) {
-        result.meshes.forEach((m: any) => m.dispose());
-        return null;
-      }
-
-      // Reparent sibling meshes under root so they move together
-      for (const m of result.meshes) {
-        if (m !== root && !m.parent) {
-          m.parent = root;
-        }
-      }
-
-      return { root, animationGroups: result.animationGroups || [] };
-    } catch (err) {
-      return null;
-    }
+  private async getOrLoadNPCModel(cacheKey: string, rootUrl: string, file: string, npcId: string, role: NPCRole): Promise<{ root: Mesh; animationGroups: any[]; lodProxy: Mesh | null; billboard: Mesh | null } | null> {
+    if (!this.scene || !this.npcModelInstancer) return null;
+    return this.npcModelInstancer.acquire(cacheKey, rootUrl, file, npcId, role);
   }
 
   private async loadNPC(character: WorldCharacter): Promise<void> {
@@ -5480,27 +5462,30 @@ export class BabylonGame {
       const role = this.getRoleForCharacter(character);
       let root: Mesh | null = null;
       let animationGroups: any[] = [];
+      let instancedBillboard: Mesh | null = null;
 
       // Try world-level NPC override first (role-specific, then npcDefault fallback)
       const modelInfo = this.resolveNPCModelUrl(role);
       if (modelInfo) {
-        const modelResult = await this.getOrLoadNPCModel(modelInfo.cacheKey, modelInfo.rootUrl, modelInfo.file);
+        const modelResult = await this.getOrLoadNPCModel(modelInfo.cacheKey, modelInfo.rootUrl, modelInfo.file, character.id, role);
         if (modelResult) {
           root = modelResult.root;
           animationGroups = modelResult.animationGroups;
+          instancedBillboard = modelResult.billboard;
         }
       }
 
-      // Fallback to shared default NPC model
+      // Fallback to shared default NPC model (uses instancer with cloning)
       if (!root) {
-        const defaultResult = await this.getOrLoadNPCModel('__default_npc__', '', NPC_MODEL_URL);
+        const defaultResult = await this.getOrLoadNPCModel('__default_npc__', '', NPC_MODEL_URL, character.id, role);
         if (defaultResult) {
           root = defaultResult.root;
           animationGroups = defaultResult.animationGroups;
+          instancedBillboard = defaultResult.billboard;
         }
       }
 
-      // Final fallback: direct load if caching failed
+      // Final fallback: direct load if instancer failed entirely
       if (!root) {
         const result = await SceneLoader.ImportMeshAsync("", "", NPC_MODEL_URL, this.scene);
         root = (this.selectPlayerMesh(result.meshes) || (result.meshes[0] as Mesh));
@@ -5513,9 +5498,6 @@ export class BabylonGame {
       root.name = `npc_${character.id}`;
       root.metadata = { npcId: character.id, npcRole: role };
       root.checkCollisions = true;
-
-      // Debug: log mesh state to diagnose visibility issues
-      const childMeshes = root.getChildMeshes();
 
       // Collision ellipsoid for NPCs (same as player)
       root.ellipsoid = new Vector3(0.5, 1, 0.5);
@@ -5579,9 +5561,9 @@ export class BabylonGame {
         currentAnimation: null
       };
 
-      // Phase 4: Create billboard LOD plane for distant NPC rendering
+      // Billboard LOD: use instancer's billboard (with mesh-level LOD) or create standalone
       const npcName = `${character.firstName || ''} ${character.lastName || ''}`.trim() || character.id;
-      npcInstance.billboardLOD = this.createNPCBillboard(npcName, role, root.position, appearance);
+      npcInstance.billboardLOD = instancedBillboard || this.createNPCBillboard(npcName, role, root.position, appearance);
 
       // Attach occupation-based accessories and floating name/occupation label
       if (this.npcAccessorySystem) {
@@ -5595,7 +5577,7 @@ export class BabylonGame {
 
       this.npcMeshes.set(character.id, npcInstance);
 
-      // Register with LOD system
+      // Register with simulation LOD system
       if (this.npcSimulationLOD) {
         this.npcSimulationLOD.registerNPC(character.id, root, npcInstance.billboardLOD);
       }
@@ -10428,11 +10410,9 @@ export class BabylonGame {
     this.npcHealthBars.forEach((bar) => bar.dispose());
     this.npcHealthBars.clear();
 
-    // Dispose cached NPC model templates
-    this.npcModelCache.forEach(({ root }) => {
-      if (!root.isDisposed()) root.dispose();
-    });
-    this.npcModelCache.clear();
+    // Dispose NPC model instancer (templates + shared materials)
+    this.npcModelInstancer?.dispose();
+    this.npcModelInstancer = null;
   }
 
   private disposePlayer(): void {
