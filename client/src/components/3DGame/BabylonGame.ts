@@ -88,6 +88,7 @@ import { CombatUI } from "@/components/3DGame/CombatUI.ts";
 import { VRManager } from "@/components/3DGame/VRManager.ts";
 import { VRUIPanel, VRHandMenu } from "@/components/3DGame/VRUIPanel.ts";
 import { VRInteractionManager } from "@/components/3DGame/VRInteractionManager.ts";
+import { resolveNPCModelFromCharacter } from "@/components/3DGame/NPCModelManifest.ts";
 import { VRHUDManager } from "@/components/3DGame/VRHUDManager.ts";
 import { VRCombatAdapter } from "@/components/3DGame/VRCombatAdapter.ts";
 import { BabylonVocabularyPanel } from "@/components/3DGame/BabylonVocabularyPanel.ts";
@@ -186,6 +187,8 @@ interface WorldCharacter {
   occupation?: string;
   faction?: string;
   disposition?: string;
+  gender?: string;
+  physicalTraits?: string[];
 }
 
 interface QuestSummary {
@@ -5466,6 +5469,16 @@ export class BabylonGame {
         if (modelResult) {
           root = modelResult.root;
           animationGroups = modelResult.animationGroups;
+        }
+      }
+
+      // Try diverse NPC model based on gender, body type, and world genre
+      if (!root) {
+        const diverseModel = resolveNPCModelFromCharacter(character, role, this.config.worldType);
+        const diverseResult = await this.getOrLoadNPCModel(diverseModel.cacheKey, diverseModel.rootUrl, diverseModel.file);
+        if (diverseResult) {
+          root = diverseResult.root;
+          animationGroups = diverseResult.animationGroups;
         }
       }
 
