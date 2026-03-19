@@ -1949,3 +1949,39 @@ export interface InsertPlaythroughRelationship {
   lastModified: number;
   metadata?: Record<string, any>;
 }
+
+// Version Alerts — notifies playthrough owners when the world version changes
+export interface VersionAlert {
+  id: string;
+  worldId: string;
+  playthroughId: string;
+  userId: string;
+  /** World version that triggered the alert. */
+  worldVersion: number;
+  /** Playthrough's snapshot version at the time of the alert. */
+  snapshotVersion: number;
+  /** How many versions behind the playthrough is. */
+  versionsBehind: number;
+  /** Compatibility status at alert time. */
+  status: 'behind' | 'incompatible';
+  /** Human-readable message. */
+  message: string;
+  /** Whether the user has dismissed this alert. */
+  dismissed: boolean;
+  /** Optional: entity type that triggered the version bump. */
+  entityType?: string;
+  createdAt?: Date;
+}
+
+export interface InsertVersionAlert {
+  worldId: string;
+  playthroughId: string;
+  userId: string;
+  worldVersion: number;
+  snapshotVersion: number;
+  versionsBehind: number;
+  status: 'behind' | 'incompatible';
+  message: string;
+  dismissed?: boolean;
+  entityType?: string;
+}
