@@ -112,7 +112,11 @@ export type GameEvent =
   | { type: 'knowledge_applied'; key: string; correct: boolean }
   | { type: 'identification_prompted'; targetId: string; questId: string; objectiveId: string; isActivity: boolean }
   | { type: 'identification_correct'; targetId: string; questId: string; score: number; playerAnswer: string }
-  | { type: 'identification_incorrect'; targetId: string; questId: string; score: number; playerAnswer: string };
+  | { type: 'identification_incorrect'; targetId: string; questId: string; score: number; playerAnswer: string }
+  // Playthrough completion
+  | { type: 'playthrough_completed'; playthroughId: string; playtime: number; questsCompleted: number; npcsInteracted: number; vocabularyLearned: number; cefrStart: string | null; cefrEnd: string | null }
+  | { type: 'playthrough_completion_requested'; trigger: 'main_quest' | 'manual' }
+  | { type: 'departure_assessment_triggered'; playthroughId: string };
 
 export type GameEventType = GameEvent['type'];
 

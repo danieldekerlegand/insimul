@@ -93,6 +93,10 @@ const EVENT_KNOWLEDGE_APPLIED := "knowledge_applied"
 const EVENT_IDENTIFICATION_PROMPTED := "identification_prompted"
 const EVENT_IDENTIFICATION_CORRECT := "identification_correct"
 const EVENT_IDENTIFICATION_INCORRECT := "identification_incorrect"
+# Playthrough completion events
+const EVENT_PLAYTHROUGH_COMPLETED := "playthrough_completed"
+const EVENT_PLAYTHROUGH_COMPLETION_REQUESTED := "playthrough_completion_requested"
+const EVENT_DEPARTURE_ASSESSMENT_TRIGGERED := "departure_assessment_triggered"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -142,6 +146,9 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_IDENTIFICATION_PROMPTED,
 	EVENT_IDENTIFICATION_CORRECT,
 	EVENT_IDENTIFICATION_INCORRECT,
+	EVENT_PLAYTHROUGH_COMPLETED,
+	EVENT_PLAYTHROUGH_COMPLETION_REQUESTED,
+	EVENT_DEPARTURE_ASSESSMENT_TRIGGERED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
@@ -229,6 +236,9 @@ var _global_handlers: Array[Callable] = []
 ##   identification_prompted: {type, target_id, quest_id, objective_id, is_activity}
 ##   identification_correct: {type, target_id, quest_id, score, player_answer}
 ##   identification_incorrect: {type, target_id, quest_id, score, player_answer}
+##   playthrough_completed: {type, playthrough_id, playtime, quests_completed, npcs_interacted, vocabulary_learned, cefr_start, cefr_end}
+##   playthrough_completion_requested: {type, trigger}
+##   departure_assessment_triggered: {type, playthrough_id}
 ##
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}
 func emit_event(event: Dictionary) -> void:

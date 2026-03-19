@@ -94,7 +94,11 @@ enum class EInsimulEventType : uint8
     KnowledgeApplied UMETA(DisplayName = "Knowledge Applied"),
     IdentificationPrompted UMETA(DisplayName = "Identification Prompted"),
     IdentificationCorrect UMETA(DisplayName = "Identification Correct"),
-    IdentificationIncorrect UMETA(DisplayName = "Identification Incorrect")
+    IdentificationIncorrect UMETA(DisplayName = "Identification Incorrect"),
+    // Playthrough completion events
+    PlaythroughCompleted UMETA(DisplayName = "Playthrough Completed"),
+    PlaythroughCompletionRequested UMETA(DisplayName = "Playthrough Completion Requested"),
+    DepartureAssessmentTriggered UMETA(DisplayName = "Departure Assessment Triggered")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────
@@ -311,6 +315,16 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Key;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PlayerAnswer;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bIsActivity = false;
+
+    // ── Playthrough completion fields ────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PlaythroughId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Playtime = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 QuestsCompleted = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 NpcsInteracted = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 VocabularyLearned = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString CefrStart;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString CefrEnd;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Trigger;
 };
 
 // ── Delegates ────────────────────────────────────────────────────────────────
