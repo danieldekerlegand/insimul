@@ -927,12 +927,117 @@ export interface SavedNPCState {
   disposition: number;
   currentSchedulePhase?: string;
   emotionalState?: string;
+  // v3: NPC schedule and interior data
+  currentDestination?: Vec3;
+  isInsideBuilding?: boolean;
+  insideBuildingId?: string;
+  schedulePhaseTimeRemaining?: number;
 }
 
 export interface SavedMerchantState {
   merchantId: string;
   goldReserve: number;
   items: ShopItem[];
+}
+
+/** Interior scene state — which building the player is currently inside. */
+export interface SavedInteriorState {
+  buildingId: string;
+  buildingName: string;
+  buildingType: string;
+  layoutSeed: number;
+}
+
+/** Precise game time system state for full restoration. */
+export interface SavedTimeState {
+  gameHour: number;
+  gameMinute: number;
+  dayNumber: number;
+  timeScale: number;
+  isPaused: boolean;
+}
+
+/** Per-quest objective progress for partial progress tracking. */
+export interface SavedObjectiveProgress {
+  objectiveId: string;
+  completed: boolean;
+  currentCount: number;
+  targetCount: number;
+  evidence: string[];
+}
+
+/** Active quest state with detailed objective tracking. */
+export interface SavedQuestActiveState {
+  quests: Record<string, {
+    questId: string;
+    status: string;
+    objectives: SavedObjectiveProgress[];
+    conversationTurnCount?: number;
+    currentBranch?: string;
+    acceptedAt?: string;
+  }>;
+  trackedQuestId?: string;
+}
+
+/** Language learning progress snapshot. */
+export interface SavedLanguageProgressState {
+  targetLanguage: string;
+  overallFluency: number;
+  vocabularyMastery: Record<string, {
+    word: string;
+    translation: string;
+    masteryLevel: number;
+    timesCorrect: number;
+    timesIncorrect: number;
+    lastPracticed?: string;
+  }>;
+  grammarAccuracy: Record<string, {
+    patternId: string;
+    accuracy: number;
+    attempts: number;
+  }>;
+  conversationCount: number;
+  cefrLevel: string;
+  xp: number;
+  level: number;
+  streakDays: number;
+  totalWordsLearned: number;
+}
+
+/** Per-entity reputation state. */
+export interface SavedReputationEntry {
+  entityType: string;
+  entityId: string;
+  score: number;
+  standing: string;
+  violationCount: number;
+  isBanned: boolean;
+  banExpiry?: string;
+  outstandingFines: number;
+}
+
+/** Reputation state across all settlements/factions. */
+export interface SavedReputationState {
+  entries: SavedReputationEntry[];
+}
+
+/** NPC relationship delta from this playthrough. */
+export interface SavedRelationshipDelta {
+  fromCharacterId: string;
+  toCharacterId: string;
+  type: string;
+  strength: number;
+  reciprocal: number;
+  lastModified: number;
+}
+
+/** Main quest chapter progression state. */
+export interface SavedMainQuestState {
+  mainQuestId?: string;
+  currentChapterId?: string;
+  currentChapterIndex: number;
+  chaptersCompleted: string[];
+  objectiveProgress: Record<string, SavedObjectiveProgress>;
 }
 
 export interface GameSaveState {
@@ -963,6 +1068,14 @@ export interface GameSaveState {
   ambientConversations?: any;
   contentGating?: any;
   skillTree?: any;
+  // v3 subsystem state
+  interiorState?: SavedInteriorState | null;
+  timeState?: SavedTimeState;
+  questActiveState?: SavedQuestActiveState;
+  languageProgressDetailed?: SavedLanguageProgressState;
+  reputationState?: SavedReputationState;
+  relationshipDeltas?: SavedRelationshipDelta[];
+  mainQuestState?: SavedMainQuestState;
   /** Trigger that caused this save (for diagnostics) */
   saveTrigger?: string;
 }
