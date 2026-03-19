@@ -300,6 +300,36 @@ export function registerPlaythroughRoutes(app: Express) {
     }
   });
 
+  // Compact deltas for a playthrough (merge redundant deltas per entity)
+  app.post("/api/playthroughs/:id/deltas/compact", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) {
+        return res.status(404).json({ message: "Playthrough not found" });
+      }
+
+      if (playthrough.userId !== payload.userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const result = await storage.compactDeltasByPlaythrough(req.params.id);
+      res.json(result);
+    } catch (error) {
+      console.error("Compact deltas error:", error);
+      res.status(500).json({ message: "Failed to compact deltas" });
+    }
+  });
+
   // ===== PLAY TRACE ROUTES =====
 
   // Get play traces for a playthrough

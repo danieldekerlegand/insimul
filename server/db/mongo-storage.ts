@@ -744,6 +744,8 @@ const PlaythroughDeltaSchema = new Schema({
   tags: { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now }
 });
+PlaythroughDeltaSchema.index({ playthroughId: 1, entityType: 1, entityId: 1 });
+PlaythroughDeltaSchema.index({ playthroughId: 1, timestep: 1 });
 
 const PlayTraceSchema = new Schema({
   playthroughId: { type: String, required: true },
@@ -2859,6 +2861,9 @@ export class MongoStorage implements IStorage {
   async deletePlaythrough(id: string): Promise<boolean> {
     await this.connect();
     const result = await PlaythroughModel.findByIdAndDelete(id);
+    if (result) {
+      await PlaythroughDeltaModel.deleteMany({ playthroughId: id });
+    }
     return !!result;
   }
 
@@ -2891,6 +2896,84 @@ export class MongoStorage implements IStorage {
     await this.connect();
     const result = await PlaythroughDeltaModel.findByIdAndDelete(id);
     return !!result;
+  }
+
+  async deleteDeltasByPlaythrough(playthroughId: string): Promise<number> {
+    await this.connect();
+    const result = await PlaythroughDeltaModel.deleteMany({ playthroughId });
+    return result.deletedCount || 0;
+  }
+
+  async compactDeltasByPlaythrough(playthroughId: string): Promise<{ before: number; after: number }> {
+    await this.connect();
+    const allDeltas = await PlaythroughDeltaModel.find({ playthroughId }).sort({ timestep: 1 });
+    const before = allDeltas.length;
+    if (before <= 1) return { before, after: before };
+
+    // Group by entityType + entityId and merge into single compacted deltas
+    const grouped = new Map<string, { entityType: string; entityId: string; deltas: any[] }>();
+    for (const doc of allDeltas) {
+      const key = `${doc.entityType}:${doc.entityId}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, { entityType: doc.entityType, entityId: doc.entityId, deltas: [] });
+      }
+      grouped.get(key)!.deltas.push(doc);
+    }
+
+    const compacted: any[] = [];
+    for (const { entityType, entityId, deltas } of grouped.values()) {
+      // If only one delta for this entity, keep it as-is
+      if (deltas.length === 1) {
+        compacted.push(deltas[0]);
+        continue;
+      }
+
+      // Replay deltas to compute final state
+      let finalOp: string = deltas[0].operation;
+      let mergedDelta: Record<string, any> = {};
+      let mergedFull: Record<string, any> | null = null;
+      let maxTimestep = 0;
+
+      for (const d of deltas) {
+        maxTimestep = Math.max(maxTimestep, d.timestep);
+        if (d.operation === 'delete') {
+          finalOp = 'delete';
+          mergedDelta = {};
+          mergedFull = null;
+        } else if (d.operation === 'create') {
+          finalOp = 'create';
+          mergedFull = { ...(mergedFull || {}), ...(d.fullData || {}) };
+          mergedDelta = {};
+        } else if (d.operation === 'update') {
+          if (finalOp === 'create' && mergedFull) {
+            mergedFull = { ...mergedFull, ...(d.deltaData || {}) };
+          } else if (finalOp !== 'delete') {
+            finalOp = 'update';
+            mergedDelta = { ...mergedDelta, ...(d.deltaData || {}) };
+          }
+        }
+      }
+
+      compacted.push({
+        playthroughId,
+        entityType,
+        entityId,
+        operation: finalOp,
+        deltaData: Object.keys(mergedDelta).length > 0 ? mergedDelta : null,
+        fullData: mergedFull,
+        timestep: maxTimestep,
+        description: `Compacted ${deltas.length} deltas for ${entityType} ${entityId}`,
+        tags: ['compacted'],
+      });
+    }
+
+    // Replace all deltas with compacted versions in a single transaction-like operation
+    await PlaythroughDeltaModel.deleteMany({ playthroughId });
+    if (compacted.length > 0) {
+      await PlaythroughDeltaModel.insertMany(compacted);
+    }
+
+    return { before, after: compacted.length };
   }
 
   // ===== Play Traces =====
