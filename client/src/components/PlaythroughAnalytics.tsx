@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   GamepadIcon, Clock, Activity, User, GraduationCap, Radio,
-  ChevronRight, ChevronDown, BarChart3, Info, TrendingUp,
+  ChevronRight, ChevronDown, BarChart3, Info, TrendingUp, MapPin, Layers, Shield,
+  ArrowLeft, CheckCircle, XCircle, AlertCircle, Target,
 } from 'lucide-react';
 import { AssessmentDashboard } from './AssessmentDashboard';
 import { TelemetryMonitorDashboard } from './TelemetryMonitorDashboard';
@@ -19,8 +20,51 @@ interface Playthrough {
   currentTimestep?: number;
   playtime?: number;
   actionsCount?: number;
+  decisionsCount?: number;
   createdAt: string;
   lastPlayedAt?: string;
+  completedAt?: string;
+}
+
+interface TimelineEvent {
+  id: string;
+  timestep: number;
+  actionType: string;
+  actionName: string | null;
+  outcome: string | null;
+  locationId: string | null;
+  targetType: string | null;
+  narrativeText: string | null;
+  durationMs: number | null;
+  timestamp: string | null;
+}
+
+interface ReputationEntry {
+  id: string;
+  entityType: string;
+  entityId: string;
+  score: number;
+  violationCount?: number;
+  warningCount?: number;
+}
+
+interface JourneyData {
+  playthrough: Playthrough;
+  summary: {
+    totalTraces: number;
+    totalDeltas: number;
+    totalReputations: number;
+    avgDurationMs: number | null;
+    uniqueLocations: number;
+    uniqueActionTypes: number;
+  };
+  actionBreakdown: Record<string, number>;
+  outcomeBreakdown: Record<string, number>;
+  locationVisits: Record<string, number>;
+  deltaBreakdown: Record<string, { creates: number; updates: number; deletes: number }>;
+  actionsPerTimestep: Record<string, number>;
+  reputations: ReputationEntry[];
+  timeline: TimelineEvent[];
 }
 
 interface PlaythroughAnalyticsProps {
@@ -28,6 +72,7 @@ interface PlaythroughAnalyticsProps {
 }
 
 type ActiveView = 'playthroughs' | 'assessments' | 'learning_progress' | 'telemetry';
+type DetailTab = 'timeline' | 'actions' | 'locations' | 'changes' | 'reputations';
 type RightPanel = 'summary' | 'details';
 
 const VIEW_META: Record<ActiveView, { label: string; icon: typeof Activity; group: string }> = {
@@ -38,6 +83,27 @@ const VIEW_META: Record<ActiveView, { label: string; icon: typeof Activity; grou
 };
 
 const GROUPS = ['Player Data', 'System'];
+
+const DETAIL_TABS: { id: DetailTab; label: string; icon: typeof Activity }[] = [
+  { id: 'timeline', label: 'Timeline', icon: Clock },
+  { id: 'actions', label: 'Actions', icon: Activity },
+  { id: 'locations', label: 'Locations', icon: MapPin },
+  { id: 'changes', label: 'World Changes', icon: Layers },
+  { id: 'reputations', label: 'Reputations', icon: Shield },
+];
+
+const OUTCOME_ICONS: Record<string, typeof CheckCircle> = {
+  success: CheckCircle,
+  failure: XCircle,
+  partial: AlertCircle,
+};
+
+const OUTCOME_COLORS: Record<string, string> = {
+  success: 'text-green-600 dark:text-green-400',
+  failure: 'text-red-600 dark:text-red-400',
+  partial: 'text-yellow-600 dark:text-yellow-400',
+  unknown: 'text-muted-foreground',
+};
 
 export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
   const [playthroughs, setPlaythroughs] = useState<Playthrough[]>([]);
@@ -50,6 +116,11 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
   const [selectedPlaythrough, setSelectedPlaythrough] = useState<Playthrough | null>(null);
   const [expandedSection, setExpandedSection] = useState<RightPanel | null>('summary');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(GROUPS));
+
+  // Journey detail state
+  const [journeyData, setJourneyData] = useState<JourneyData | null>(null);
+  const [journeyLoading, setJourneyLoading] = useState(false);
+  const [detailTab, setDetailTab] = useState<DetailTab>('timeline');
 
   useEffect(() => {
     loadPlaythroughs();
@@ -85,6 +156,36 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
     }
   };
 
+  const loadJourneyData = useCallback(async (playthroughId: string) => {
+    if (!token) return;
+    try {
+      setJourneyLoading(true);
+      const response = await fetch(
+        `/api/worlds/${worldId}/analytics/playthroughs/${playthroughId}/journey`,
+        { headers: { 'Authorization': `Bearer ${token}` } },
+      );
+      if (response.ok) {
+        setJourneyData(await response.json());
+      }
+    } catch (err) {
+      console.error('Failed to load journey data:', err);
+    } finally {
+      setJourneyLoading(false);
+    }
+  }, [worldId, token]);
+
+  const selectPlaythrough = useCallback((p: Playthrough | null) => {
+    setSelectedPlaythrough(p);
+    setActiveView('playthroughs');
+    setDetailTab('timeline');
+    if (p) {
+      setJourneyData(null);
+      loadJourneyData(p.id);
+    } else {
+      setJourneyData(null);
+    }
+  }, [loadJourneyData]);
+
   const formatDuration = (seconds: number | undefined) => {
     if (!seconds) return '0m';
     const hours = Math.floor(seconds / 3600);
@@ -97,6 +198,12 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
     if (!dateString) return 'Never';
     const date = new Date(dateString);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatMs = (ms: number | null) => {
+    if (ms == null) return '-';
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
   };
 
   const totalPlaytime = playthroughs.reduce((sum, p) => sum + (p.playtime || 0), 0);
@@ -113,6 +220,32 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
     });
     return groups;
   }, [playthroughs]);
+
+  // Sorted action breakdown for charts
+  const sortedActionBreakdown = useMemo(() => {
+    if (!journeyData) return [];
+    return Object.entries(journeyData.actionBreakdown)
+      .sort((a, b) => b[1] - a[1]);
+  }, [journeyData]);
+
+  // Sorted location visits
+  const sortedLocationVisits = useMemo(() => {
+    if (!journeyData) return [];
+    return Object.entries(journeyData.locationVisits)
+      .sort((a, b) => b[1] - a[1]);
+  }, [journeyData]);
+
+  // Engagement chart data (actions per timestep)
+  const engagementData = useMemo(() => {
+    if (!journeyData) return [];
+    return Object.entries(journeyData.actionsPerTimestep)
+      .map(([ts, count]) => ({ timestep: Number(ts), count }))
+      .sort((a, b) => a.timestep - b.timestep);
+  }, [journeyData]);
+
+  const maxEngagement = useMemo(() => {
+    return Math.max(1, ...engagementData.map(d => d.count));
+  }, [engagementData]);
 
   const toggleGroup = (key: string) => {
     setExpandedGroups(prev => {
@@ -163,7 +296,7 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
                           className={`w-full text-left flex items-center gap-2 px-6 py-1.5 text-xs hover:bg-muted/50 transition-colors ${
                             isActive && !selectedPlaythrough ? 'bg-primary/15 text-primary font-medium' : ''
                           }`}
-                          onClick={() => { setActiveView('playthroughs'); setSelectedPlaythrough(null); }}
+                          onClick={() => { setActiveView('playthroughs'); selectPlaythrough(null); }}
                         >
                           <Icon className="w-3.5 h-3.5 shrink-0" />
                           <span className="truncate">{meta.label}</span>
@@ -175,7 +308,7 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
                         {/* Individual playthroughs grouped by status */}
                         {activeView === 'playthroughs' && !loading && !error && playthroughs.length > 0 && (
                           <div className="ml-4">
-                            {Array.from(playthroughGroups.entries()).map(([status, items]) => (
+                            {Array.from(playthroughGroups.entries()).map(([status, statusItems]) => (
                               <div key={status}>
                                 <button
                                   className="flex items-center gap-1 w-full px-4 py-1 hover:bg-muted/50 text-left"
@@ -187,16 +320,16 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
                                     <ChevronDown className="w-2.5 h-2.5 text-muted-foreground shrink-0 -rotate-90" />
                                   )}
                                   <span className="text-[10px] font-medium capitalize text-muted-foreground">{status}</span>
-                                  <Badge variant="secondary" className="ml-auto text-[10px] px-1 py-0">{items.length}</Badge>
+                                  <Badge variant="secondary" className="ml-auto text-[10px] px-1 py-0">{statusItems.length}</Badge>
                                 </button>
 
-                                {expandedGroups.has(`pt-${status}`) && items.map(p => (
+                                {expandedGroups.has(`pt-${status}`) && statusItems.map(p => (
                                   <button
                                     key={p.id}
                                     className={`w-full text-left px-8 py-1 text-[11px] hover:bg-muted/50 transition-colors truncate ${
                                       selectedPlaythrough?.id === p.id ? 'bg-primary/15 text-primary font-medium' : ''
                                     }`}
-                                    onClick={() => { setActiveView('playthroughs'); setSelectedPlaythrough(p); }}
+                                    onClick={() => selectPlaythrough(p)}
                                   >
                                     {p.name || `Player ${p.userId.substring(0, 8)}...`}
                                   </button>
@@ -215,7 +348,7 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
                       className={`w-full text-left flex items-center gap-2 px-6 py-1.5 text-xs hover:bg-muted/50 transition-colors ${
                         isActive ? 'bg-primary/15 text-primary font-medium' : ''
                       }`}
-                      onClick={() => { setActiveView(id); setSelectedPlaythrough(null); }}
+                      onClick={() => { setActiveView(id); selectPlaythrough(null); }}
                     >
                       <Icon className="w-3.5 h-3.5 shrink-0" />
                       <span className="truncate">{meta.label}</span>
@@ -229,6 +362,318 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
       </ScrollArea>
     </div>
   );
+
+  // ─── Detail tabs for selected playthrough ─────────────────────────────────
+
+  const renderDetailTabs = () => {
+    if (!journeyData) return null;
+
+    return (
+      <>
+        {detailTab === 'timeline' && renderTimeline()}
+        {detailTab === 'actions' && renderActionBreakdown()}
+        {detailTab === 'locations' && renderLocationVisits()}
+        {detailTab === 'changes' && renderWorldChanges()}
+        {detailTab === 'reputations' && renderReputations()}
+      </>
+    );
+  };
+
+  const renderTimeline = () => {
+    const events = journeyData!.timeline;
+    if (events.length === 0) {
+      return <p className="text-sm text-muted-foreground">No events recorded yet.</p>;
+    }
+
+    return (
+      <div className="space-y-4">
+        {/* Engagement mini-chart */}
+        {engagementData.length > 1 && (
+          <div>
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Actions per Timestep
+            </h4>
+            <div className="flex items-end gap-px h-16 bg-muted/20 rounded p-1">
+              {engagementData.map(d => (
+                <div
+                  key={d.timestep}
+                  className="flex-1 bg-primary/60 hover:bg-primary/80 rounded-t transition-colors min-w-[2px]"
+                  style={{ height: `${(d.count / maxEngagement) * 100}%` }}
+                  title={`Timestep ${d.timestep}: ${d.count} actions`}
+                />
+              ))}
+            </div>
+            <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+              <span>Timestep {engagementData[0]?.timestep}</span>
+              <span>Timestep {engagementData[engagementData.length - 1]?.timestep}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Event list */}
+        <div>
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            Events ({events.length})
+          </h4>
+          <div className="space-y-1">
+            {events.map(event => {
+              const OutcomeIcon = OUTCOME_ICONS[event.outcome || ''] || Target;
+              const outcomeColor = OUTCOME_COLORS[event.outcome || ''] || OUTCOME_COLORS.unknown;
+
+              return (
+                <div key={event.id} className="bg-muted/20 rounded p-2 hover:bg-muted/30 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <OutcomeIcon className={`w-3.5 h-3.5 shrink-0 ${outcomeColor}`} />
+                    <span className="text-xs font-medium truncate">
+                      {event.actionName || event.actionType}
+                    </span>
+                    <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">
+                      {event.actionType}
+                    </Badge>
+                    <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+                      T{event.timestep}
+                    </span>
+                  </div>
+                  {event.narrativeText && (
+                    <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2 pl-5">
+                      {event.narrativeText}
+                    </p>
+                  )}
+                  <div className="flex gap-3 mt-1 pl-5 text-[10px] text-muted-foreground">
+                    {event.locationId && <span>@ {event.locationId.substring(0, 12)}...</span>}
+                    {event.targetType && <span>Target: {event.targetType}</span>}
+                    {event.durationMs != null && <span>{formatMs(event.durationMs)}</span>}
+                    {event.timestamp && <span>{formatDate(event.timestamp)}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderActionBreakdown = () => {
+    if (sortedActionBreakdown.length === 0) {
+      return <p className="text-sm text-muted-foreground">No actions recorded yet.</p>;
+    }
+
+    const total = sortedActionBreakdown.reduce((s, [, c]) => s + c, 0);
+
+    return (
+      <div className="space-y-4">
+        {/* Action type distribution */}
+        <div>
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            Action Types ({sortedActionBreakdown.length})
+          </h4>
+          <div className="space-y-1.5">
+            {sortedActionBreakdown.map(([type, count]) => {
+              const pct = Math.round((count / total) * 100);
+              return (
+                <div key={type}>
+                  <div className="flex justify-between text-xs mb-0.5">
+                    <span className="font-medium capitalize">{type.replace(/_/g, ' ')}</span>
+                    <span className="text-muted-foreground">{count} ({pct}%)</span>
+                  </div>
+                  <div className="h-2 bg-muted/30 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary/70 rounded-full transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Outcome distribution */}
+        {Object.keys(journeyData!.outcomeBreakdown).length > 0 && (
+          <div>
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Outcomes
+            </h4>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(journeyData!.outcomeBreakdown)
+                .sort((a, b) => b[1] - a[1])
+                .map(([outcome, count]) => {
+                  const OutcomeIcon = OUTCOME_ICONS[outcome] || Target;
+                  const color = OUTCOME_COLORS[outcome] || OUTCOME_COLORS.unknown;
+                  return (
+                    <div key={outcome} className="bg-muted/20 rounded p-2 flex items-center gap-2">
+                      <OutcomeIcon className={`w-4 h-4 ${color}`} />
+                      <div>
+                        <p className="text-sm font-bold tabular-nums">{count}</p>
+                        <p className="text-[10px] text-muted-foreground capitalize">{outcome}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+
+        {/* Avg duration */}
+        {journeyData!.summary.avgDurationMs != null && (
+          <div className="bg-muted/20 rounded p-3">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Action Duration</span>
+            <p className="text-lg font-bold">{formatMs(journeyData!.summary.avgDurationMs)}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderLocationVisits = () => {
+    if (sortedLocationVisits.length === 0) {
+      return <p className="text-sm text-muted-foreground">No location data recorded.</p>;
+    }
+
+    const maxVisits = sortedLocationVisits[0]?.[1] || 1;
+
+    return (
+      <div className="space-y-4">
+        <div>
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            Visited Locations ({sortedLocationVisits.length})
+          </h4>
+          <div className="space-y-1.5">
+            {sortedLocationVisits.map(([locId, count]) => (
+              <div key={locId} className="bg-muted/20 rounded p-2">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-xs font-mono truncate max-w-[70%]">{locId}</span>
+                  <span className="text-xs text-muted-foreground">{count} visits</span>
+                </div>
+                <div className="h-1.5 bg-muted/30 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500/70 rounded-full"
+                    style={{ width: `${(count / maxVisits) * 100}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderWorldChanges = () => {
+    const entries = Object.entries(journeyData!.deltaBreakdown);
+    if (entries.length === 0) {
+      return <p className="text-sm text-muted-foreground">No world changes recorded.</p>;
+    }
+
+    return (
+      <div className="space-y-4">
+        <div>
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            World Changes by Entity Type
+          </h4>
+          <div className="space-y-2">
+            {entries.sort((a, b) => {
+              const totalA = a[1].creates + a[1].updates + a[1].deletes;
+              const totalB = b[1].creates + b[1].updates + b[1].deletes;
+              return totalB - totalA;
+            }).map(([entityType, ops]) => {
+              const total = ops.creates + ops.updates + ops.deletes;
+              return (
+                <div key={entityType} className="bg-muted/20 rounded p-2">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-xs font-medium capitalize">{entityType}</span>
+                    <span className="text-[10px] text-muted-foreground">{total} total</span>
+                  </div>
+                  <div className="flex gap-3 text-[10px]">
+                    {ops.creates > 0 && (
+                      <span className="text-green-600 dark:text-green-400">+{ops.creates} created</span>
+                    )}
+                    {ops.updates > 0 && (
+                      <span className="text-blue-600 dark:text-blue-400">{ops.updates} updated</span>
+                    )}
+                    {ops.deletes > 0 && (
+                      <span className="text-red-600 dark:text-red-400">-{ops.deletes} deleted</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="bg-muted/20 rounded p-3">
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Deltas</span>
+          <p className="text-lg font-bold">{journeyData!.summary.totalDeltas}</p>
+        </div>
+      </div>
+    );
+  };
+
+  const renderReputations = () => {
+    const reps = journeyData!.reputations;
+    if (reps.length === 0) {
+      return <p className="text-sm text-muted-foreground">No reputation data recorded.</p>;
+    }
+
+    return (
+      <div className="space-y-4">
+        <div>
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            Reputations ({reps.length})
+          </h4>
+          <div className="space-y-1.5">
+            {reps.sort((a, b) => b.score - a.score).map(rep => {
+              const scoreColor = rep.score > 25 ? 'text-green-600 dark:text-green-400'
+                : rep.score < -25 ? 'text-red-600 dark:text-red-400'
+                : 'text-muted-foreground';
+              const barWidth = Math.abs(rep.score);
+              const isPositive = rep.score >= 0;
+
+              return (
+                <div key={rep.id} className="bg-muted/20 rounded p-2">
+                  <div className="flex justify-between items-center mb-1">
+                    <div className="text-xs">
+                      <span className="font-medium capitalize">{rep.entityType}</span>
+                      <span className="text-muted-foreground"> / {rep.entityId.substring(0, 12)}...</span>
+                    </div>
+                    <span className={`text-sm font-bold tabular-nums ${scoreColor}`}>
+                      {rep.score > 0 ? '+' : ''}{rep.score}
+                    </span>
+                  </div>
+                  {/* Score bar centered at 0 */}
+                  <div className="h-1.5 bg-muted/30 rounded-full overflow-hidden flex">
+                    <div className="w-1/2 flex justify-end">
+                      {!isPositive && (
+                        <div
+                          className="h-full bg-red-500/60 rounded-l-full"
+                          style={{ width: `${barWidth}%` }}
+                        />
+                      )}
+                    </div>
+                    <div className="w-1/2">
+                      {isPositive && (
+                        <div
+                          className="h-full bg-green-500/60 rounded-r-full"
+                          style={{ width: `${barWidth}%` }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                  {(rep.violationCount || rep.warningCount) ? (
+                    <div className="flex gap-3 mt-1 text-[10px] text-muted-foreground">
+                      {rep.violationCount ? <span>{rep.violationCount} violations</span> : null}
+                      {rep.warningCount ? <span>{rep.warningCount} warnings</span> : null}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // ─── Center panel ────────────────────────────────────────────────────────
 
@@ -351,14 +796,29 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
                 <StatCard icon={GamepadIcon} label="Avg. Actions" value={playthroughs.length > 0 ? Math.round(totalActions / playthroughs.length) : 0} sub="Per player" />
               </div>
 
+              {/* Status breakdown */}
+              {playthroughGroups.size > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Status Breakdown</h3>
+                  <div className="flex gap-2 flex-wrap">
+                    {Array.from(playthroughGroups.entries()).map(([status, group]) => (
+                      <div key={status} className="bg-muted/30 rounded-lg px-3 py-2">
+                        <p className="text-lg font-bold">{group.length}</p>
+                        <p className="text-[10px] text-muted-foreground capitalize">{status}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {playthroughs.length > 0 && (
                 <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">All Playthroughs</h3>
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">All Playthroughs</h3>
                   {playthroughs.map(p => (
                     <button
                       key={p.id}
                       className="w-full text-left bg-muted/30 hover:bg-muted/50 rounded-lg p-3 transition-colors"
-                      onClick={() => setSelectedPlaythrough(p)}
+                      onClick={() => selectPlaythrough(p)}
                     >
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">{p.name || 'Unnamed Playthrough'}</span>
@@ -369,6 +829,7 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
                       <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
                         <span>{p.actionsCount || 0} actions</span>
                         <span>{formatDuration(p.playtime)}</span>
+                        <span>Started {formatDate(p.createdAt)}</span>
                       </div>
                     </button>
                   ))}
@@ -380,21 +841,29 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
       );
     }
 
-    // Selected playthrough detail
+    // Selected playthrough detail with journey data
     return (
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
+        {/* Header */}
         <div className="px-4 py-3 border-b shrink-0">
           <div className="flex items-center gap-2 mb-1">
+            <button
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => selectPlaythrough(null)}
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
             <h2 className="text-lg font-bold break-words">{selectedPlaythrough.name || 'Unnamed Playthrough'}</h2>
             <Badge variant={selectedPlaythrough.status === 'active' ? 'default' : 'secondary'}>
               {selectedPlaythrough.status}
             </Badge>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Player ID: {selectedPlaythrough.userId}
+          <p className="text-xs text-muted-foreground pl-6">
+            Player: {selectedPlaythrough.userId.substring(0, 12)}...
           </p>
         </div>
 
+        {/* Stat bar */}
         <div className="px-4 py-2.5 border-b bg-muted/20 shrink-0">
           <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
             <div>
@@ -422,11 +891,40 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
           </div>
         </div>
 
+        {/* Detail tabs */}
+        <div className="px-4 py-1.5 border-b shrink-0 flex gap-1 overflow-x-auto">
+          {DETAIL_TABS.map(tab => {
+            const Icon = tab.icon;
+            const isActive = detailTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors shrink-0 ${
+                  isActive
+                    ? 'bg-primary/15 text-primary font-medium'
+                    : 'hover:bg-muted/50 text-muted-foreground'
+                }`}
+                onClick={() => setDetailTab(tab.id)}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Tab content */}
         <ScrollArea className="flex-1">
           <div className="p-4">
-            <p className="text-sm text-muted-foreground">
-              Detailed playthrough timeline and event data will appear here as the analytics system is expanded.
-            </p>
+            {journeyLoading ? (
+              <div className="flex items-center justify-center py-8 text-muted-foreground">
+                Loading journey data...
+              </div>
+            ) : journeyData ? (
+              renderDetailTabs()
+            ) : (
+              <p className="text-sm text-muted-foreground">Failed to load journey data.</p>
+            )}
           </div>
         </ScrollArea>
       </div>
@@ -467,7 +965,7 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
                 <div className="flex-1 min-h-0 flex flex-col">
                   <ScrollArea className="flex-1">
                     <div className="p-3 space-y-3">
-                      {section.id === 'summary' && (
+                      {section.id === 'summary' && !selectedPlaythrough && (
                         <>
                           <div>
                             <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Players</span>
@@ -488,6 +986,41 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
                         </>
                       )}
 
+                      {section.id === 'summary' && selectedPlaythrough && journeyData && (
+                        <>
+                          <div>
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Events Recorded</span>
+                            <p className="text-lg font-bold">{journeyData.summary.totalTraces}</p>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">World Changes</span>
+                            <p className="text-lg font-bold">{journeyData.summary.totalDeltas}</p>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Action Types</span>
+                            <p className="text-lg font-bold">{journeyData.summary.uniqueActionTypes}</p>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Locations Visited</span>
+                            <p className="text-lg font-bold">{journeyData.summary.uniqueLocations}</p>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Reputations</span>
+                            <p className="text-lg font-bold">{journeyData.summary.totalReputations}</p>
+                          </div>
+                          {journeyData.summary.avgDurationMs != null && (
+                            <div>
+                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Duration</span>
+                              <p className="text-lg font-bold">{formatMs(journeyData.summary.avgDurationMs)}</p>
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {section.id === 'summary' && selectedPlaythrough && !journeyData && !journeyLoading && (
+                        <p className="text-xs text-muted-foreground">No journey data available</p>
+                      )}
+
                       {section.id === 'details' && selectedPlaythrough && (
                         <>
                           <div>
@@ -505,6 +1038,14 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
                                 {selectedPlaythrough.status}
                               </Badge>
                             </div>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Started</span>
+                            <p className="text-xs">{formatDate(selectedPlaythrough.createdAt)}</p>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Last Played</span>
+                            <p className="text-xs">{formatDate(selectedPlaythrough.lastPlayedAt)}</p>
                           </div>
                         </>
                       )}
