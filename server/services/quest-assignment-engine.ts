@@ -15,6 +15,12 @@ import type { PlayerProficiency } from '../../shared/language/utils.js';
 import { convertQuestToProlog } from '../../shared/prolog/quest-converter.js';
 import { validateAndNormalizeObjectives } from '../../shared/quest-objective-types.js';
 import type { TimeBlock, DailyRoutine, RoutineData } from '../extensions/tott/routine-system.js';
+import {
+  buildPerformanceRecords,
+  computeDifficultyAdjustment,
+  applyAdjustment,
+  type DifficultyAdjustment,
+} from '../../shared/quest-difficulty-adjustment.js';
 
 // --- Types ---
 
@@ -38,6 +44,8 @@ export interface AssignmentOptions {
   excludeTemplateIds?: string[]; // Templates to skip
   preferredCategories?: string[]; // Bias toward these categories
   schedule?: ScheduleContext; // Current time for NPC availability filtering
+  /** Completed quest history for dynamic difficulty adjustment */
+  questHistory?: Quest[];
 }
 
 export interface AssignedQuest {
@@ -61,9 +69,10 @@ function difficultyIndex(d: string): number {
   return DIFFICULTY_ORDER.indexOf(d as any);
 }
 
-/** Returns difficulties the player can handle (at-level and one below). */
-function allowedDifficulties(proficiency?: PlayerProficiency): string[] {
-  const primary = proficiencyToDifficulty(proficiency);
+/** Returns difficulties the player can handle, adjusted by performance. */
+function allowedDifficulties(proficiency?: PlayerProficiency, adjustment?: DifficultyAdjustment): string[] {
+  const base = proficiencyToDifficulty(proficiency);
+  const primary = adjustment ? adjustment.recommendedDifficulty : base;
   const idx = difficultyIndex(primary);
   if (idx <= 0) return [primary];
   return [DIFFICULTY_ORDER[idx - 1], primary];
@@ -216,8 +225,9 @@ function selectTemplates(
   count: number,
   options: AssignmentOptions,
   existingQuests: Quest[],
+  adjustment?: DifficultyAdjustment,
 ): QuestTemplate[] {
-  const allowed = allowedDifficulties(options.proficiency);
+  const allowed = allowedDifficulties(options.proficiency, adjustment);
   const exclude = new Set(options.excludeTemplateIds ?? []);
 
   // Also exclude templates already active for this player
@@ -459,15 +469,34 @@ export function assignQuests(
   options: AssignmentOptions,
 ): AssignedQuest[] {
   const count = options.count ?? 3;
-  const templates = selectTemplates(count, options, ctx.existingQuests);
+
+  // Compute dynamic difficulty adjustment from quest history
+  let adjustment: DifficultyAdjustment | undefined;
+  if (options.questHistory && options.questHistory.length > 0) {
+    const records = buildPerformanceRecords(options.questHistory);
+    const currentDifficulty = proficiencyToDifficulty(options.proficiency) as 'beginner' | 'intermediate' | 'advanced';
+    adjustment = computeDifficultyAdjustment(records, currentDifficulty);
+  }
+
+  const templates = selectTemplates(count, options, ctx.existingQuests, adjustment);
   const quests: AssignedQuest[] = [];
 
   for (const template of templates) {
-    const difficulty = template.difficulty;
+    const difficulty = adjustment ? adjustment.recommendedDifficulty : template.difficulty;
     const params = fillParameters(template, ctx, options.playerName, difficulty);
     const rewards = scaleRewards(template, difficulty);
     const rawObjectives = buildObjectives(template, params);
-    const objectives = validateAndNormalizeObjectives(rawObjectives);
+
+    // Apply objective count adjustment if performance warrants it
+    let adjustedObjectives = rawObjectives;
+    if (adjustment && adjustment.objectiveCountMultiplier !== 1.0) {
+      adjustedObjectives = rawObjectives.map(obj => ({
+        ...obj,
+        requiredCount: Math.max(1, Math.round(obj.requiredCount * adjustment!.objectiveCountMultiplier)),
+      }));
+    }
+
+    const objectives = validateAndNormalizeObjectives(adjustedObjectives);
     const questGiver = pickQuestGiver(template, ctx, options.playerName, options.schedule);
 
     const title = template.name;
@@ -496,6 +525,11 @@ export function assignQuests(
       questGiverSchedule: questGiver ? {
         location: questGiver.location ?? null,
         availableHours: questGiver.availableHours ?? [],
+      } : null,
+      difficultyAdjustment: adjustment ? {
+        direction: adjustment.direction,
+        reason: adjustment.reason,
+        confidence: adjustment.confidence,
       } : null,
     };
 
