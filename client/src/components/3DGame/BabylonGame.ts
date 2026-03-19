@@ -136,6 +136,7 @@ import { BuildingEntrySystem } from "@/components/3DGame/BuildingEntrySystem.ts"
 import { InteriorNPCManager } from "@/components/3DGame/InteriorNPCManager.ts";
 import { NPCSimulationLOD } from "@/components/3DGame/NPCSimulationLOD.ts";
 import { QuestNotificationManager } from "@/components/3DGame/QuestNotificationManager.ts";
+import { ReputationManager } from "@/components/3DGame/ReputationManager.ts";
 import { QuestLanguageFeedbackPanel } from "@/components/3DGame/QuestLanguageFeedbackPanel.ts";
 import { QuestLanguageFeedbackTracker } from "@shared/language/quest-language-feedback";
 import {
@@ -517,6 +518,7 @@ export class BabylonGame {
   private playthroughId: string | null = null;
   private questOverlay: PlaythroughQuestOverlay = new PlaythroughQuestOverlay();
   private currentReputation: any | null = null;
+  private reputationManager: ReputationManager | null = null;
 
   // VR
   private vrUIPanels: Map<string, VRUIPanel> = new Map();
@@ -1213,7 +1215,21 @@ export class BabylonGame {
         gold: this.playerGold,
       }),
       getReputations: () => {
-        // Collect all reputation data from settlements
+        // Use ReputationManager for live reputation data
+        if (this.reputationManager) {
+          const reps = this.reputationManager.getAllReputations();
+          if (reps.length > 0) {
+            return reps.map(r => ({
+              settlementName: r.entityName,
+              score: r.score,
+              standing: r.standing,
+              isBanned: r.isBanned,
+              violationCount: r.violationCount,
+              outstandingFines: r.outstandingFines,
+            }));
+          }
+        }
+        // Fallback: show neutral for all settlements
         const reps: any[] = [];
         this.settlementStats.forEach((stats) => {
           reps.push({
@@ -4919,6 +4935,7 @@ export class BabylonGame {
     // Use pre-selected playthrough ID if provided
     if (this.config.playthroughId) {
       this.playthroughId = this.config.playthroughId;
+      this.initReputationManager();
       // Restore quest progress from previous session
       await this.restoreQuestProgressFromServer();
       return;
@@ -4935,6 +4952,7 @@ export class BabylonGame {
         this.playthroughId = playthrough.id;
         this.chatPanel?.setPlaythroughId(playthrough.id);
         this.gamificationTracker?.setPlaythroughId(playthrough.id);
+        this.initReputationManager();
       } else {
         // Continue without playthrough for development/testing
       }
@@ -6154,6 +6172,7 @@ export class BabylonGame {
       // Track location discovery for quest objectives
       this.questObjectManager?.trackLocationDiscovery(zone.id);
       this.eventBus.emit({ type: 'settlement_entered', settlementId: zone.id, settlementName: zone.name || zone.id });
+      this.reputationManager?.setCurrentSettlement(zone.id, zone.name || zone.id);
 
       // Hide NPCs not in this settlement (skip NPCs in active conversation)
       this.npcMeshes.forEach((instance, npcId) => {
@@ -7736,6 +7755,14 @@ export class BabylonGame {
       // Set target language so NPC speaks in the correct language
       this.chatPanel.setTargetLanguage(getTargetLanguage(this.worldData) || (this.worldData as any)?.targetLanguage || null);
 
+      // Inject reputation context into NPC conversation prompt
+      if (this.reputationManager && this.currentZone) {
+        const repContext = this.reputationManager.getConversationContext(this.currentZone.id);
+        if (repContext) {
+          this.chatPanel.setQuestGuidancePrompt(repContext);
+        }
+      }
+
       // Fetch NPC quest guidance (non-blocking — sets context before or shortly after show)
       this.fetchQuestGuidance(npcId, this.config.worldId);
 
@@ -9191,6 +9218,43 @@ export class BabylonGame {
 
   }
 
+  private initReputationManager(): void {
+    if (!this.playthroughId || !this.config.authToken) return;
+    this.reputationManager = new ReputationManager(
+      this.playthroughId,
+      this.config.authToken,
+      this.eventBus,
+    );
+    // Load existing reputations from server
+    this.reputationManager.loadAll();
+    // Listen for reputation changes and show floating notifications
+    this.reputationManager.onReputationChange((change) => {
+      const color = change.delta > 0 ? 'green' : 'red';
+      const sign = change.delta > 0 ? '+' : '';
+      this.guiManager?.showToast({
+        title: `${sign}${change.delta} Reputation`,
+        description: `${change.entityName}: ${change.reason} (${change.newStanding})`,
+        variant: change.delta < 0 ? 'destructive' : 'default',
+        duration: 3000,
+      });
+      // Update the reputation panel in the HUD
+      if (this.currentZone && change.entityId === this.currentZone.id) {
+        const rep = this.reputationManager?.getReputation('settlement', change.entityId);
+        if (rep) {
+          this.currentReputation = rep;
+          this.guiManager?.updateReputation({
+            settlementName: rep.entityName,
+            score: rep.score,
+            standing: rep.standing,
+            isBanned: rep.isBanned,
+            violationCount: rep.violationCount,
+            outstandingFines: rep.outstandingFines,
+          });
+        }
+      }
+    });
+  }
+
   private async handlePayFines(): Promise<void> {
     if (!this.currentZone || !this.playthroughId || !this.currentReputation) {
       this.guiManager?.showToast({
@@ -10311,6 +10375,8 @@ export class BabylonGame {
     this.settlementNoticeBoard?.dispose();
     this.contentGatingManager?.dispose();
     this.ruleEnforcer?.dispose();
+    this.reputationManager?.dispose();
+    this.reputationManager = null;
     this.prologEngine?.dispose();
     this.prologEngine = null;
     this.eventBus.dispose();
