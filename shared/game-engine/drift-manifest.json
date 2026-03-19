@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-18T18:57:54.136Z",
+  "lastUpdated": "2026-03-19T11:45:21.942Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -262,7 +262,7 @@
     {
       "path": "client/src/components/3DGame/GameEventBus.ts",
       "description": "Centralized typed event bus (20 event types). Exported engines need equivalent event routing for gameplay actions.",
-      "hash": "513eac84e4849a0a291d729aa830b41a729768b698353b1ef4267afe69945058",
+      "hash": "2fc9fa77a82489923ac930c41bc0d0717a2dd67130938f9db5ee65b5b2bf7b56",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -316,7 +316,7 @@
     {
       "path": "client/src/components/3DGame/DataSource.ts",
       "description": "Data loading abstraction: ApiDataSource (in-app) and FileDataSource (exports). FileDataSource defines the contract for how exported games load JSON/Prolog data.",
-      "hash": "f952a7948ceddd78f0a437f76605cfb8eab4eec088f7802407a4b5359cc91c80",
+      "hash": "49bc9dda60931a07a4f34a397b5ebcc339263fe3107f7bf9dc8b9bf30c03b9f0",
       "engineMappings": [
         {
           "engine": "unreal",

@@ -93,6 +93,7 @@ const EVENT_KNOWLEDGE_APPLIED := "knowledge_applied"
 const EVENT_IDENTIFICATION_PROMPTED := "identification_prompted"
 const EVENT_IDENTIFICATION_CORRECT := "identification_correct"
 const EVENT_IDENTIFICATION_INCORRECT := "identification_incorrect"
+const EVENT_NPC_RELATIONSHIP_CHANGED := "npc_relationship_changed"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -142,6 +143,7 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_IDENTIFICATION_PROMPTED,
 	EVENT_IDENTIFICATION_CORRECT,
 	EVENT_IDENTIFICATION_INCORRECT,
+	EVENT_NPC_RELATIONSHIP_CHANGED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.

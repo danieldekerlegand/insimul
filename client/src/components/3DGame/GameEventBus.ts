@@ -112,7 +112,9 @@ export type GameEvent =
   | { type: 'knowledge_applied'; key: string; correct: boolean }
   | { type: 'identification_prompted'; targetId: string; questId: string; objectiveId: string; isActivity: boolean }
   | { type: 'identification_correct'; targetId: string; questId: string; score: number; playerAnswer: string }
-  | { type: 'identification_incorrect'; targetId: string; questId: string; score: number; playerAnswer: string };
+  | { type: 'identification_incorrect'; targetId: string; questId: string; score: number; playerAnswer: string }
+  // NPC relationship events
+  | { type: 'npc_relationship_changed'; npcId: string; npcName: string; previousStrength: number; newStrength: number; previousTier: string; newTier: string; cause: string; delta: number };
 
 export type GameEventType = GameEvent['type'];
 

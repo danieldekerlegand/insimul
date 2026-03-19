@@ -172,6 +172,7 @@ export class BabylonChatPanel {
   private onChatExchange: ((npcId: string, playerMessage: string, npcResponse: string) => void) | null = null;
   private onTalkRequested: (() => void) | null = null;
   private systemPromptAugmentation: ((npcId: string) => string | null) | null = null;
+  private _relationshipManager: import('./RelationshipManager').RelationshipManager | null = null;
   private pendingTurnInQuests: any[] = [];
   private questOfferingContext: { questTitle: string; questDescription: string; questType: string; difficulty: string; objectives: string; category: string } | null = null;
   private activeQuestFromNPC: { questTitle: string; questDescription: string; questId: string } | null = null;
@@ -1849,6 +1850,14 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
         prompt += augmentation;
       }
     }
+
+    // Inject playthrough relationship context
+    if (this._relationshipManager && this.character.id) {
+      const relContext = this._relationshipManager.getConversationContext(this.character.id);
+      if (relContext) {
+        prompt += relContext;
+      }
+    }
     this._cachedSystemPrompt = prompt;
     this._systemPromptCharId = this.character.id as string;
     return prompt;
@@ -2534,6 +2543,11 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
 
   public setPlaythroughId(id: string) {
     this.playthroughId = id;
+  }
+
+  public setRelationshipManager(manager: import('./RelationshipManager').RelationshipManager) {
+    this._relationshipManager = manager;
+    this._cachedSystemPrompt = null; // Force prompt rebuild
   }
 
   public setOnClose(callback: () => void) {

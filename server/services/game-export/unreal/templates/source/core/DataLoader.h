@@ -246,6 +246,16 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadQuestProgress();
 
+    // ── Playthrough relationships ─────────────────────────────────────
+
+    /** Load playthrough relationship overlays (returns empty array in exported mode). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadPlaythroughRelationships();
+
+    /** Update a playthrough relationship (no-op in exported mode). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    bool UpdatePlaythroughRelationship(const FString& FromCharacterId, const FString& ToCharacterId, const FString& Type, float Strength);
+
     // ── Status ─────────────────────────────────────────────────────────
 
     /** True once at least one file has been loaded successfully. */

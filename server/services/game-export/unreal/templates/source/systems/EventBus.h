@@ -94,7 +94,9 @@ enum class EInsimulEventType : uint8
     KnowledgeApplied UMETA(DisplayName = "Knowledge Applied"),
     IdentificationPrompted UMETA(DisplayName = "Identification Prompted"),
     IdentificationCorrect UMETA(DisplayName = "Identification Correct"),
-    IdentificationIncorrect UMETA(DisplayName = "Identification Incorrect")
+    IdentificationIncorrect UMETA(DisplayName = "Identification Incorrect"),
+    // NPC relationship events
+    NpcRelationshipChanged UMETA(DisplayName = "NPC Relationship Changed")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────
@@ -311,6 +313,13 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Key;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PlayerAnswer;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bIsActivity = false;
+
+    // ── NPC relationship fields ─────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float PreviousStrength = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float NewStrength = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PreviousTier;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString NewTier;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Cause;
 };
 
 // ── Delegates ────────────────────────────────────────────────────────────────

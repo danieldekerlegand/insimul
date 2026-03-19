@@ -78,6 +78,7 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("identification_prompted"),           EInsimulEventType::IdentificationPrompted },
         { TEXT("identification_correct"),            EInsimulEventType::IdentificationCorrect },
         { TEXT("identification_incorrect"),          EInsimulEventType::IdentificationIncorrect },
+        { TEXT("npc_relationship_changed"),          EInsimulEventType::NpcRelationshipChanged },
     };
     return Map;
 }

@@ -55,6 +55,8 @@ export interface DataSource {
   saveQuestProgress(playthroughId: string, questProgress: any): Promise<void>;
   loadQuestProgress(playthroughId: string): Promise<any | null>;
   loadGeography(worldId: string): Promise<{ heightmap?: number[][]; terrainSize?: number } | null>;
+  loadPlaythroughRelationships(playthroughId: string): Promise<any[]>;
+  updatePlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string, data: { type: string; strength: number; cause?: string }): Promise<any>;
 }
 
 /**
@@ -344,6 +346,20 @@ export class ApiDataSource implements DataSource {
       }
     } catch { /* Geography not available */ }
     return null;
+  }
+
+  async loadPlaythroughRelationships(playthroughId: string): Promise<any[]> {
+    const res = await fetch(`/api/playthroughs/${playthroughId}/relationships`, { headers: this.getHeaders() });
+    return res.ok ? await res.json() : [];
+  }
+
+  async updatePlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string, data: { type: string; strength: number; cause?: string }): Promise<any> {
+    const res = await fetch(`/api/playthroughs/${playthroughId}/relationships`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify({ fromCharacterId, toCharacterId, ...data }),
+    });
+    return res.ok ? await res.json() : null;
   }
 }
 
@@ -986,6 +1002,14 @@ export class FileDataSource implements DataSource {
     const geo = this.worldData?.geography;
     if (!geo) return null;
     return { heightmap: geo.heightmap, terrainSize: geo.terrainSize };
+  }
+
+  async loadPlaythroughRelationships(_playthroughId: string): Promise<any[]> {
+    return []; // No server in exported mode
+  }
+
+  async updatePlaythroughRelationship(_playthroughId: string, _fromCharacterId: string, _toCharacterId: string, _data: { type: string; strength: number; cause?: string }): Promise<any> {
+    return null; // No server in exported mode
   }
 }
 

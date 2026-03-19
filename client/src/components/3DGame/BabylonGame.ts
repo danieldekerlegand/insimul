@@ -128,6 +128,7 @@ import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo, type MenuJournalData }
 import { WorldStateManager, type GameStateSource, type GameStateTarget } from "@/components/3DGame/WorldStateManager.ts";
 import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts";
 import { PlaythroughQuestOverlay } from "@/components/3DGame/PlaythroughQuestOverlay.ts";
+import { RelationshipManager } from "@/components/3DGame/RelationshipManager.ts";
 import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
 import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
 import { GameEventBus } from "@/components/3DGame/GameEventBus.ts";
@@ -516,6 +517,7 @@ export class BabylonGame {
   private currentZone: { id: string; name: string; type: string } | null = null;
   private playthroughId: string | null = null;
   private questOverlay: PlaythroughQuestOverlay = new PlaythroughQuestOverlay();
+  private relationshipManager: RelationshipManager | null = null;
   private currentReputation: any | null = null;
 
   // VR
@@ -721,6 +723,7 @@ export class BabylonGame {
       }
       this.updateLoadingScreen('Loading NPCs...', 70);
       await this.loadNPCs();
+      await this.initializeRelationshipManager();
       this.updateLoadingScreen('Setting up controls...', 90);
       await this.setupKeyboardHandlers();
       this.setupPointerHandlers();
@@ -4941,6 +4944,27 @@ export class BabylonGame {
     } catch (error) {
       console.error('Error starting playthrough:', error);
       // Continue without playthrough for development/testing
+    }
+  }
+
+  /** Initialize the playthrough-scoped NPC relationship manager. */
+  private async initializeRelationshipManager(): Promise<void> {
+    if (!this.playthroughId || !this.eventBus) return;
+    try {
+      this.relationshipManager = new RelationshipManager({
+        playthroughId: this.playthroughId,
+        playerCharacterId: DEFAULT_PLAYER_ID,
+        eventBus: this.eventBus,
+        dataSource: this.dataSource,
+        onNotification: (message, variant) => {
+          this.guiManager?.showToast({ title: 'Relationship', description: message, variant: variant || 'default' });
+        },
+      });
+      await this.relationshipManager.initialize(this.characters);
+      // Wire relationship context into chat panel
+      this.chatPanel?.setRelationshipManager(this.relationshipManager);
+    } catch (err) {
+      console.error('[BabylonGame] RelationshipManager init failed:', err);
     }
   }
 

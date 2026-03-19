@@ -93,7 +93,8 @@ namespace Insimul.Systems
         KnowledgeApplied,
         IdentificationPrompted,
         IdentificationCorrect,
-        IdentificationIncorrect
+        IdentificationIncorrect,
+        NpcRelationshipChanged
     }
 
     /// <summary>
@@ -764,6 +765,19 @@ namespace Insimul.Systems
         public string questId;
         public float score;
         public string playerAnswer;
+    }
+
+    public class NpcRelationshipChangedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.NpcRelationshipChanged;
+        public string npcId;
+        public string npcName;
+        public float previousStrength;
+        public float newStrength;
+        public string previousTier;
+        public string newTier;
+        public string cause;
+        public float delta;
     }
 
     // ── Event Bus ────────────────────────────────────────────────────────────

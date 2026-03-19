@@ -319,6 +319,21 @@ namespace Insimul.Core
             }
         }
 
+        // ── Playthrough relationships ────────────────────────────────────
+
+        /// <summary>Load playthrough relationships (empty in exported mode).</summary>
+        public static string LoadPlaythroughRelationships()
+        {
+            return "[]"; // No server in exported mode
+        }
+
+        /// <summary>Update a playthrough relationship (no-op in exported mode).</summary>
+        public static bool UpdatePlaythroughRelationship(string fromCharacterId, string toCharacterId, string type, float strength)
+        {
+            // No server in exported mode
+            return false;
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────
 
         private static T[] LoadFilteredArray<T>(string resourcePath, string settlementId) where T : class

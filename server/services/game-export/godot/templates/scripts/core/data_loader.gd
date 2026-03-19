@@ -366,6 +366,16 @@ func load_quest_progress() -> Dictionary:
 	print("[Insimul] load_quest_progress: loaded")
 	return json.data if json.data is Dictionary else {}
 
+# ── Playthrough relationships ─────────────────────────────────
+
+## Load playthrough relationship overlays (empty in exported mode).
+func load_playthrough_relationships() -> Array:
+	return []  # No server in exported mode
+
+## Update a playthrough relationship (no-op in exported mode).
+func update_playthrough_relationship(_from_id: String, _to_id: String, _type: String, _strength: float) -> bool:
+	return false  # No server in exported mode
+
 # ── Internal caching ──────────────────────────────────────────
 
 func _ensure_world_ir() -> void:
