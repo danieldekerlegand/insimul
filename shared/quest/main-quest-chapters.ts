@@ -45,10 +45,30 @@ export interface ChapterProgress {
   completedAt?: string;
 }
 
+export type NarrativeBeatType = 'chapter_intro' | 'chapter_outro';
+
+export interface NarrativeBeat {
+  id: string;
+  type: NarrativeBeatType;
+  chapterId: string;
+  text: string;
+  deliveredAt: string;
+}
+
+export interface PendingNarrativeBeat {
+  id: string;
+  type: NarrativeBeatType;
+  chapterId: string;
+  chapterTitle: string;
+  text: string;
+}
+
 export interface MainQuestState {
   currentChapterId: string | null;
   chapters: ChapterProgress[];
   totalXPEarned: number;
+  /** Narrative beats that have been delivered to the player */
+  narrativeBeatsDelivered: NarrativeBeat[];
 }
 
 /** All main quest chapters, ordered by progression */
@@ -262,6 +282,11 @@ export function getChapterById(chapterId: string): MainQuestChapter | undefined 
   return MAIN_QUEST_CHAPTERS.find(ch => ch.id === chapterId);
 }
 
+/** Generate a narrative beat ID from type and chapter */
+export function narrativeBeatId(type: NarrativeBeatType, chapterId: string): string {
+  return `${type}:${chapterId}`;
+}
+
 /** Create initial main quest state — chapter 1 is available */
 export function createInitialMainQuestState(): MainQuestState {
   return {
@@ -272,6 +297,7 @@ export function createInitialMainQuestState(): MainQuestState {
       objectiveProgress: Object.fromEntries(ch.objectives.map(obj => [obj.id, 0])),
     })),
     totalXPEarned: 0,
+    narrativeBeatsDelivered: [],
   };
 }
 

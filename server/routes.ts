@@ -10304,6 +10304,30 @@ Make the action names thematic and immersive.`;
     }
   });
 
+  app.get("/api/worlds/:worldId/main-quest/:playerId/narrative-beats", async (req, res) => {
+    try {
+      const { worldId, playerId } = req.params;
+      const { mainQuestProgressionManager } = await import('./services/main-quest-progression.js');
+      const beats = await mainQuestProgressionManager.getPendingNarrativeBeats(worldId, playerId);
+      res.json({ beats });
+    } catch (error) {
+      console.error('[MainQuest] Error fetching narrative beats:', error);
+      res.status(500).json({ error: "Failed to fetch narrative beats" });
+    }
+  });
+
+  app.post("/api/worlds/:worldId/main-quest/:playerId/narrative-beats/:beatId/deliver", async (req, res) => {
+    try {
+      const { worldId, playerId, beatId } = req.params;
+      const { mainQuestProgressionManager } = await import('./services/main-quest-progression.js');
+      const delivered = await mainQuestProgressionManager.markNarrativeBeatDelivered(worldId, playerId, beatId);
+      res.json({ delivered });
+    } catch (error) {
+      console.error('[MainQuest] Error delivering narrative beat:', error);
+      res.status(500).json({ error: "Failed to deliver narrative beat" });
+    }
+  });
+
   // Quest Portfolio & Learning Journal
   app.get("/api/worlds/:worldId/portfolio/:playerName", async (req, res) => {
     try {
