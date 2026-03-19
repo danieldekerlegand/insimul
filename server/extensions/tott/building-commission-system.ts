@@ -14,6 +14,7 @@
  */
 
 import { storage } from '../../db/storage';
+import * as PlaythroughOverlay from '../../services/playthrough-overlay.js';
 import type { Business, BusinessType, Lot, Character, InsertTruth } from '@shared/schema';
 import { getPersonality } from './personality-behavior-system.js';
 import { getBusinessEmployees, type OccupationData } from './hiring-system.js';
@@ -969,7 +970,8 @@ export async function renovateBuilding(
 export async function handleBusinessSuccession(
   worldId: string,
   businessId: string,
-  departingOwnerId: string
+  departingOwnerId: string,
+  playthroughId?: string,
 ): Promise<SuccessionResult> {
   const business = await storage.getBusiness(businessId);
   if (!business) {
@@ -1001,7 +1003,7 @@ export async function handleBusinessSuccession(
       currentTimestep: 0,
     });
 
-    await createSuccessionTruth(worldId, {
+    await createSuccessionTruth(worldId, playthroughId, {
       businessName: business.name,
       departingOwnerName: ownerName,
       departingOwnerId,
@@ -1037,7 +1039,7 @@ export async function handleBusinessSuccession(
       currentTimestep: 0,
     });
 
-    await createSuccessionTruth(worldId, {
+    await createSuccessionTruth(worldId, playthroughId, {
       businessName: business.name,
       departingOwnerName: ownerName,
       departingOwnerId,
@@ -1069,7 +1071,7 @@ export async function handleBusinessSuccession(
     notifyEmployees: true,
   });
 
-  await createSuccessionTruth(worldId, {
+  await createSuccessionTruth(worldId, playthroughId, {
     businessName: business.name,
     departingOwnerName: ownerName,
     departingOwnerId,
@@ -1201,6 +1203,7 @@ async function findEmployeeSuccessor(
  */
 async function createSuccessionTruth(
   worldId: string,
+  playthroughId: string | undefined,
   opts: {
     businessName: string;
     departingOwnerName: string;
@@ -1249,7 +1252,11 @@ async function createSuccessionTruth(
   };
 
   try {
-    await storage.createTruth(truth);
+    if (playthroughId) {
+      await PlaythroughOverlay.createTruthInPlaythrough(playthroughId, truth as Record<string, any>, 0);
+    } else {
+      await storage.createTruth(truth);
+    }
   } catch (error) {
     console.error('[building-lifecycle] Failed to create succession truth:', error);
   }

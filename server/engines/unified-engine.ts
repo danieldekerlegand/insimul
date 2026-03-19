@@ -83,6 +83,7 @@ export interface SimulationStepResult {
 export interface SimulationContext {
   worldId: string;
   simulationId: string;
+  playthroughId?: string; // When set, truth mutations go through playthrough overlay
   characters: Character[];
   world: World;
   narrativeOutput: string[];
@@ -214,7 +215,7 @@ export class InsimulSimulationEngine {
   /**
    * Initialize simulation context with world and character data
    */
-  async initializeContext(worldId: string, simulationId: string): Promise<void> {
+  async initializeContext(worldId: string, simulationId: string, playthroughId?: string): Promise<void> {
     const world = await this.storage.getWorld(worldId);
     if (!world) {
       throw new Error(`World ${worldId} not found`);
@@ -228,6 +229,7 @@ export class InsimulSimulationEngine {
     this.context = {
       worldId,
       simulationId,
+      playthroughId,
       world,
       characters,
       narrativeOutput: [],
@@ -536,6 +538,22 @@ export class InsimulSimulationEngine {
   }
 
   /**
+   * Create a truth via the playthrough overlay if a playthroughId is set,
+   * otherwise write directly to the world.
+   */
+  private async createTruthEntry(truthEntry: InsertTruth): Promise<{ id: string }> {
+    if (this.context?.playthroughId) {
+      const { createTruthInPlaythrough } = await import('../services/playthrough-overlay.js');
+      return createTruthInPlaythrough(
+        this.context.playthroughId,
+        truthEntry as Record<string, any>,
+        this.context.currentTimestep,
+      );
+    }
+    return this.storage.createTruth(truthEntry);
+  }
+
+  /**
    * Create a Truth entry from a narrative event
    */
   private async createTruthFromNarrative(
@@ -578,7 +596,7 @@ export class InsimulSimulationEngine {
         }
       };
 
-      const truth = await this.storage.createTruth(truthEntry);
+      const truth = await this.createTruthEntry(truthEntry);
       this.context.truthsCreated.push(truth.id);
     } catch (error) {
       console.error('Error creating Truth from narrative:', error);
@@ -623,7 +641,7 @@ export class InsimulSimulationEngine {
         }
       };
 
-      const truth = await this.storage.createTruth(truthEntry);
+      const truth = await this.createTruthEntry(truthEntry);
       this.context.truthsCreated.push(truth.id);
     } catch (error) {
       console.error('Error creating Truth from event:', error);
