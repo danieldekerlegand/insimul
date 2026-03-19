@@ -303,6 +303,16 @@ export interface IStorage {
   createPlayTrace(trace: import("@shared/schema").InsertPlayTrace): Promise<import("@shared/schema").PlayTrace>;
   deletePlayTrace(id: string): Promise<boolean>;
 
+  // Playthrough Conversations (research data)
+  getPlaythroughConversation(id: string): Promise<import("@shared/schema").PlaythroughConversation | undefined>;
+  getConversationsByPlaythrough(playthroughId: string): Promise<import("@shared/schema").PlaythroughConversation[]>;
+  getConversationsByWorld(worldId: string): Promise<import("@shared/schema").PlaythroughConversation[]>;
+  getConversationsByNpc(playthroughId: string, npcCharacterId: string): Promise<import("@shared/schema").PlaythroughConversation[]>;
+  createPlaythroughConversation(conversation: import("@shared/schema").InsertPlaythroughConversation): Promise<import("@shared/schema").PlaythroughConversation>;
+  updatePlaythroughConversation(id: string, updates: Partial<import("@shared/schema").InsertPlaythroughConversation>): Promise<import("@shared/schema").PlaythroughConversation | undefined>;
+  deletePlaythroughConversation(id: string): Promise<boolean>;
+  deleteConversationsByPlaythrough(playthroughId: string): Promise<number>;
+
   // Assessment Sessions
   createAssessmentSession(data: Omit<AssessmentSession, 'id'>): Promise<AssessmentSession>;
   getAssessmentSession(id: string): Promise<AssessmentSession | undefined>;

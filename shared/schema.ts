@@ -1407,6 +1407,65 @@ export const playTraces = pgTable("play_traces", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Playthrough Conversations - stores full conversation transcripts for research
+// Each record captures a complete player-NPC conversation with dialogue turns,
+// language metrics, and contextual metadata for linguistic research analysis
+export const playthroughConversations = pgTable("playthrough_conversations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  playthroughId: varchar("playthrough_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  worldId: varchar("world_id").notNull(),
+
+  // Participants
+  playerCharacterId: varchar("player_character_id"),
+  npcCharacterId: varchar("npc_character_id").notNull(),
+  npcCharacterName: text("npc_character_name"),
+
+  // Conversation content
+  turns: jsonb("turns").$type<ConversationTurn[]>().default([]),
+  turnCount: integer("turn_count").default(0),
+
+  // Context
+  locationId: varchar("location_id"),
+  locationName: text("location_name"),
+  timestep: integer("timestep"),
+  initiatedBy: text("initiated_by"), // player, npc, ambient
+
+  // Language metrics (for language learning research)
+  targetLanguage: text("target_language"),
+  targetLanguagePercentage: integer("target_language_percentage"), // 0-100
+  wordsUsed: jsonb("words_used").$type<string[]>().default([]),
+  newWordsLearned: jsonb("new_words_learned").$type<string[]>().default([]),
+  fluencyGained: integer("fluency_gained").default(0),
+  grammarErrorCount: integer("grammar_error_count").default(0),
+  grammarCorrectCount: integer("grammar_correct_count").default(0),
+
+  // Quest/topic context
+  activeQuestIds: jsonb("active_quest_ids").$type<string[]>().default([]),
+  topics: jsonb("topics").$type<string[]>().default([]),
+
+  // Timing
+  durationMs: integer("duration_ms"),
+  startedAt: timestamp("started_at").defaultNow(),
+  endedAt: timestamp("ended_at"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// A single turn in a conversation
+export interface ConversationTurn {
+  role: "player" | "npc" | "system";
+  text: string;
+  timestamp: number;
+  targetLanguageUsed?: boolean;
+  wordsUsed?: string[];
+  grammarFeedback?: {
+    status: "correct" | "corrected" | "no_target_language";
+    errorCount: number;
+  };
+  metadata?: Record<string, any>;
+}
+
 // Reputations - tracks player reputation/karma per settlement and faction
 // Used for graduated rule enforcement and access control
 export const reputations = pgTable("reputations", {
@@ -1890,6 +1949,11 @@ export const insertPlayTraceSchema = createInsertSchema(playTraces).omit({
   createdAt: true,
 });
 
+export const insertPlaythroughConversationSchema = createInsertSchema(playthroughConversations).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertReputationSchema = createInsertSchema(reputations).omit({
   id: true,
   createdAt: true,
@@ -1918,6 +1982,9 @@ export type InsertPlaythroughDelta = z.infer<typeof insertPlaythroughDeltaSchema
 
 export type PlayTrace = typeof playTraces.$inferSelect;
 export type InsertPlayTrace = z.infer<typeof insertPlayTraceSchema>;
+
+export type PlaythroughConversation = typeof playthroughConversations.$inferSelect;
+export type InsertPlaythroughConversation = z.infer<typeof insertPlaythroughConversationSchema>;
 
 export type Reputation = typeof reputations.$inferSelect;
 export type InsertReputation = z.infer<typeof insertReputationSchema>;

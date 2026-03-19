@@ -55,6 +55,9 @@ export interface DataSource {
   saveQuestProgress(playthroughId: string, questProgress: any): Promise<void>;
   loadQuestProgress(playthroughId: string): Promise<any | null>;
   loadGeography(worldId: string): Promise<{ heightmap?: number[][]; terrainSize?: number } | null>;
+  saveConversation(playthroughId: string, conversation: any): Promise<any>;
+  updateConversation(playthroughId: string, conversationId: string, updates: any): Promise<any>;
+  getConversations(playthroughId: string, npcCharacterId?: string): Promise<any[]>;
 }
 
 /**
@@ -109,6 +112,19 @@ export class ApiDataSource implements DataSource {
         url = `/api/playthroughs/${ptId}/quest-progress`;
         method = 'PUT';
         body = JSON.stringify({ questProgress });
+        break;
+      }
+      case 'saveConversation': {
+        const { playthroughId: ptId2, conversation } = op.payload;
+        url = `/api/playthroughs/${ptId2}/conversations`;
+        body = JSON.stringify(conversation);
+        break;
+      }
+      case 'updateConversation': {
+        const { playthroughId: ptId3, conversationId, updates } = op.payload;
+        url = `/api/playthroughs/${ptId3}/conversations/${conversationId}`;
+        method = 'PATCH';
+        body = JSON.stringify(updates);
         break;
       }
       default:
@@ -344,6 +360,42 @@ export class ApiDataSource implements DataSource {
       }
     } catch { /* Geography not available */ }
     return null;
+  }
+
+  async saveConversation(playthroughId: string, conversation: any): Promise<any> {
+    const res = await fetch(
+      `/api/playthroughs/${playthroughId}/conversations`,
+      {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(conversation),
+      }
+    );
+    if (!res.ok) throw new Error('Failed to save conversation');
+    return res.json();
+  }
+
+  async updateConversation(playthroughId: string, conversationId: string, updates: any): Promise<any> {
+    const res = await fetch(
+      `/api/playthroughs/${playthroughId}/conversations/${conversationId}`,
+      {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify(updates),
+      }
+    );
+    if (!res.ok) throw new Error('Failed to update conversation');
+    return res.json();
+  }
+
+  async getConversations(playthroughId: string, npcCharacterId?: string): Promise<any[]> {
+    const query = npcCharacterId ? `?npcCharacterId=${npcCharacterId}` : '';
+    const res = await fetch(
+      `/api/playthroughs/${playthroughId}/conversations${query}`,
+      { headers: this.getHeaders() }
+    );
+    if (!res.ok) return [];
+    return res.json();
   }
 }
 
@@ -986,6 +1038,37 @@ export class FileDataSource implements DataSource {
     const geo = this.worldData?.geography;
     if (!geo) return null;
     return { heightmap: geo.heightmap, terrainSize: geo.terrainSize };
+  }
+
+  async saveConversation(_playthroughId: string, conversation: any): Promise<any> {
+    try {
+      const key = 'insimul_conversations';
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
+      const record = { ...conversation, id: `local-${Date.now()}`, createdAt: new Date().toISOString() };
+      existing.push(record);
+      localStorage.setItem(key, JSON.stringify(existing));
+      return record;
+    } catch { return conversation; }
+  }
+
+  async updateConversation(_playthroughId: string, conversationId: string, updates: any): Promise<any> {
+    try {
+      const key = 'insimul_conversations';
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
+      const idx = existing.findIndex((c: any) => c.id === conversationId);
+      if (idx >= 0) {
+        existing[idx] = { ...existing[idx], ...updates };
+        localStorage.setItem(key, JSON.stringify(existing));
+        return existing[idx];
+      }
+    } catch { /* noop */ }
+    return updates;
+  }
+
+  async getConversations(_playthroughId: string, _npcCharacterId?: string): Promise<any[]> {
+    try {
+      return JSON.parse(localStorage.getItem('insimul_conversations') || '[]');
+    } catch { return []; }
   }
 }
 

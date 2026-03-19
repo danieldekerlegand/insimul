@@ -1212,4 +1212,161 @@ export function registerPlaythroughRoutes(app: Express) {
       res.status(500).json({ message: "Failed to import playthrough" });
     }
   });
+
+  // ===== PLAYTHROUGH CONVERSATION ROUTES (Research Data) =====
+
+  // Get all conversations for a playthrough
+  app.get("/api/playthroughs/:id/conversations", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) {
+        return res.status(404).json({ message: "Playthrough not found" });
+      }
+
+      if (playthrough.userId !== payload.userId) {
+        const canEdit = await canEditWorld(payload.userId, playthrough.worldId);
+        if (!canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      const { npcCharacterId } = req.query;
+      const conversations = npcCharacterId
+        ? await storage.getConversationsByNpc(req.params.id, npcCharacterId as string)
+        : await storage.getConversationsByPlaythrough(req.params.id);
+      res.json(conversations);
+    } catch (error) {
+      console.error("Get conversations error:", error);
+      res.status(500).json({ message: "Failed to get conversations" });
+    }
+  });
+
+  // Get a single conversation by ID
+  app.get("/api/playthroughs/:id/conversations/:conversationId", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const conversation = await storage.getPlaythroughConversation(req.params.conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      // Verify access
+      if (conversation.userId !== payload.userId) {
+        const canEdit = await canEditWorld(payload.userId, conversation.worldId);
+        if (!canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      res.json(conversation);
+    } catch (error) {
+      console.error("Get conversation error:", error);
+      res.status(500).json({ message: "Failed to get conversation" });
+    }
+  });
+
+  // Record a conversation (create)
+  app.post("/api/playthroughs/:id/conversations", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) {
+        return res.status(404).json({ message: "Playthrough not found" });
+      }
+
+      if (playthrough.userId !== payload.userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const conversation = await storage.createPlaythroughConversation({
+        playthroughId: req.params.id,
+        userId: payload.userId,
+        worldId: playthrough.worldId,
+        ...req.body,
+      });
+      res.status(201).json(conversation);
+    } catch (error) {
+      console.error("Create conversation error:", error);
+      res.status(500).json({ message: "Failed to create conversation" });
+    }
+  });
+
+  // Update a conversation (e.g., add turns, finalize metrics)
+  app.patch("/api/playthroughs/:id/conversations/:conversationId", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const conversation = await storage.getPlaythroughConversation(req.params.conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      if (conversation.userId !== payload.userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const updated = await storage.updatePlaythroughConversation(req.params.conversationId, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error("Update conversation error:", error);
+      res.status(500).json({ message: "Failed to update conversation" });
+    }
+  });
+
+  // Get all conversations for a world (research/analytics - world owner only)
+  app.get("/api/worlds/:worldId/research/conversations", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const canEdit = await canEditWorld(payload.userId, req.params.worldId);
+      if (!canEdit) {
+        return res.status(403).json({ message: "Only the world owner can access research data" });
+      }
+
+      const conversations = await storage.getConversationsByWorld(req.params.worldId);
+      res.json(conversations);
+    } catch (error) {
+      console.error("Get world conversations error:", error);
+      res.status(500).json({ message: "Failed to get world conversations" });
+    }
+  });
 }
