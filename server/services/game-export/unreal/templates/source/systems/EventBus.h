@@ -94,7 +94,11 @@ enum class EInsimulEventType : uint8
     KnowledgeApplied UMETA(DisplayName = "Knowledge Applied"),
     IdentificationPrompted UMETA(DisplayName = "Identification Prompted"),
     IdentificationCorrect UMETA(DisplayName = "Identification Correct"),
-    IdentificationIncorrect UMETA(DisplayName = "Identification Incorrect")
+    IdentificationIncorrect UMETA(DisplayName = "Identification Incorrect"),
+    // Time events
+    HourChanged UMETA(DisplayName = "Hour Changed"),
+    DayChanged UMETA(DisplayName = "Day Changed"),
+    TimeOfDayChanged UMETA(DisplayName = "Time Of Day Changed")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────
@@ -311,6 +315,13 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Key;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PlayerAnswer;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bIsActivity = false;
+
+    // ── Time fields ──────────────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Hour = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Day = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Timestep = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString From;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString To;
 };
 
 // ── Delegates ────────────────────────────────────────────────────────────────

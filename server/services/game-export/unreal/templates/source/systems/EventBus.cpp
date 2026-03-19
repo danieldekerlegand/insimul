@@ -78,6 +78,10 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("identification_prompted"),           EInsimulEventType::IdentificationPrompted },
         { TEXT("identification_correct"),            EInsimulEventType::IdentificationCorrect },
         { TEXT("identification_incorrect"),          EInsimulEventType::IdentificationIncorrect },
+        // Time events
+        { TEXT("hour_changed"),                     EInsimulEventType::HourChanged },
+        { TEXT("day_changed"),                      EInsimulEventType::DayChanged },
+        { TEXT("time_of_day_changed"),              EInsimulEventType::TimeOfDayChanged },
     };
     return Map;
 }

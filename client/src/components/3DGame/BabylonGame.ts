@@ -131,6 +131,7 @@ import { PlaythroughQuestOverlay } from "@/components/3DGame/PlaythroughQuestOve
 import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
 import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
 import { GameEventBus } from "@/components/3DGame/GameEventBus.ts";
+import { GameTimeManager } from "@/components/3DGame/GameTimeManager.ts";
 import { BuildingCollisionSystem } from "@/components/3DGame/BuildingCollisionSystem.ts";
 import { BuildingEntrySystem } from "@/components/3DGame/BuildingEntrySystem.ts";
 import { InteriorNPCManager } from "@/components/3DGame/InteriorNPCManager.ts";
@@ -417,6 +418,7 @@ export class BabylonGame {
   private ruleEnforcer: RuleEnforcer | null = null;
   private prologEngine: GamePrologEngine | null = null;
   private eventBus: GameEventBus = new GameEventBus();
+  private gameTimeManager: GameTimeManager = new GameTimeManager();
   private combatSystem: CombatSystem | null = null;
   private equipmentManager: EquipmentManager | null = null;
   private rangedCombat: RangedCombatSystem | null = null;
@@ -794,7 +796,10 @@ export class BabylonGame {
         });
         return progress;
       },
-      getGameTime: () => 0,
+      getGameTime: () => {
+        const s = this.gameTimeManager.getState();
+        return s.day * 10000 + s.hour * 100 + s.minute;
+      },
       getWorldId: () => this.config.worldId,
       getPlaythroughId: () => this.playthroughId,
     };
@@ -847,7 +852,12 @@ export class BabylonGame {
           }
         }
       },
-      restoreGameTime: () => { /* No game clock tracked */ },
+      restoreGameTime: (encoded: number) => {
+        const day = Math.floor(encoded / 10000);
+        const hour = Math.floor((encoded % 10000) / 100);
+        const minute = encoded % 100;
+        this.gameTimeManager.setTime(hour, minute, day || 1);
+      },
     };
   }
 
@@ -1173,6 +1183,9 @@ export class BabylonGame {
     }
 
     const scene = this.scene;
+
+    // Wire game time manager to event bus
+    this.gameTimeManager.setEventBus(this.eventBus);
 
     // Initialize texture manager
     this.textureManager = new TextureManager(scene);
@@ -7480,6 +7493,9 @@ export class BabylonGame {
     this.engine.runRenderLoop(() => {
       if (!this.scene) return;
 
+      // Advance game time
+      this.gameTimeManager.update(this.engine!.getDeltaTime());
+
       this.scene.render();
 
       // Update perf overlay every 500ms
@@ -10313,6 +10329,7 @@ export class BabylonGame {
     this.ruleEnforcer?.dispose();
     this.prologEngine?.dispose();
     this.prologEngine = null;
+    this.gameTimeManager.dispose();
     this.eventBus.dispose();
     this.questObjectManager?.dispose();
     this.questIndicatorManager?.dispose();

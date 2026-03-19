@@ -93,6 +93,10 @@ const EVENT_KNOWLEDGE_APPLIED := "knowledge_applied"
 const EVENT_IDENTIFICATION_PROMPTED := "identification_prompted"
 const EVENT_IDENTIFICATION_CORRECT := "identification_correct"
 const EVENT_IDENTIFICATION_INCORRECT := "identification_incorrect"
+# Time events
+const EVENT_HOUR_CHANGED := "hour_changed"
+const EVENT_DAY_CHANGED := "day_changed"
+const EVENT_TIME_OF_DAY_CHANGED := "time_of_day_changed"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -142,6 +146,10 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_IDENTIFICATION_PROMPTED,
 	EVENT_IDENTIFICATION_CORRECT,
 	EVENT_IDENTIFICATION_INCORRECT,
+	# Time events
+	EVENT_HOUR_CHANGED,
+	EVENT_DAY_CHANGED,
+	EVENT_TIME_OF_DAY_CHANGED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
@@ -229,6 +237,9 @@ var _global_handlers: Array[Callable] = []
 ##   identification_prompted: {type, target_id, quest_id, objective_id, is_activity}
 ##   identification_correct: {type, target_id, quest_id, score, player_answer}
 ##   identification_incorrect: {type, target_id, quest_id, score, player_answer}
+##   hour_changed:        {type, hour, day}
+##   day_changed:         {type, day, timestep}
+##   time_of_day_changed: {type, from, to, hour}
 ##
 ## taxonomy (optional Dictionary): {category, material, base_type, rarity, item_type}
 func emit_event(event: Dictionary) -> void:

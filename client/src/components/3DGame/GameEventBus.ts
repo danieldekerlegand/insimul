@@ -112,7 +112,11 @@ export type GameEvent =
   | { type: 'knowledge_applied'; key: string; correct: boolean }
   | { type: 'identification_prompted'; targetId: string; questId: string; objectiveId: string; isActivity: boolean }
   | { type: 'identification_correct'; targetId: string; questId: string; score: number; playerAnswer: string }
-  | { type: 'identification_incorrect'; targetId: string; questId: string; score: number; playerAnswer: string };
+  | { type: 'identification_incorrect'; targetId: string; questId: string; score: number; playerAnswer: string }
+  // Time events
+  | { type: 'hour_changed'; hour: number; day: number }
+  | { type: 'day_changed'; day: number; timestep: number }
+  | { type: 'time_of_day_changed'; from: string; to: string; hour: number };
 
 export type GameEventType = GameEvent['type'];
 
