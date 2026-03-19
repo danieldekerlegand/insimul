@@ -376,6 +376,71 @@ export function registerPlaythroughRoutes(app: Express) {
     }
   });
 
+  // Batch create play traces (for efficient client-side batching)
+  app.post("/api/playthroughs/:id/traces/batch", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) {
+        return res.status(404).json({ message: "Playthrough not found" });
+      }
+
+      if (playthrough.userId !== payload.userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const { traces } = req.body;
+      if (!Array.isArray(traces) || traces.length === 0) {
+        return res.status(400).json({ message: "traces array is required" });
+      }
+
+      if (traces.length > 500) {
+        return res.status(400).json({ message: "Maximum 500 traces per batch" });
+      }
+
+      const created = await Promise.all(
+        traces.map((trace: any) =>
+          storage.createPlayTrace({
+            playthroughId: req.params.id,
+            userId: payload.userId,
+            actionType: trace.actionType,
+            actionName: trace.actionName,
+            actionData: trace.actionData,
+            timestep: trace.timestep ?? 0,
+            characterId: trace.characterId,
+            targetId: trace.targetId,
+            targetType: trace.targetType,
+            locationId: trace.locationId,
+            outcome: trace.outcome,
+            outcomeData: trace.outcomeData,
+            durationMs: trace.durationMs,
+            timestamp: trace.timestamp ? new Date(trace.timestamp) : new Date(),
+          })
+        )
+      );
+
+      // Update playthrough action count
+      await storage.updatePlaythrough(req.params.id, {
+        actionsCount: (playthrough.actionsCount || 0) + created.length,
+        lastPlayedAt: new Date(),
+      });
+
+      res.status(201).json({ inserted: created.length });
+    } catch (error) {
+      console.error("Batch create traces error:", error);
+      res.status(500).json({ message: "Failed to create traces" });
+    }
+  });
+
   // ===== REPUTATION ROUTES =====
 
   // Get all reputations for a playthrough
