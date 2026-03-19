@@ -3231,6 +3231,60 @@ app.get("/api/rules", async (req, res) => {
     }
   });
 
+  // NPC-to-NPC ambient social conversation endpoint
+  // Uses the NPC conversation engine with personality-driven topic selection,
+  // relationship-aware dialogue, and relationship persistence.
+  app.post("/api/worlds/:worldId/npc-npc-conversation", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { npc1Id, npc2Id, topic, maxExchanges, gameHour, weather, season } = req.body;
+
+      if (!npc1Id || !npc2Id) {
+        return res.status(400).json({ error: "npc1Id and npc2Id are required" });
+      }
+
+      const { initiateConversation } = await import('./services/conversation/npc-conversation-engine.js');
+      const { updateRelationship } = await import('./extensions/tott/social-dynamics-system.js');
+
+      const environment = (gameHour !== undefined || weather || season)
+        ? { gameHour, weather, season }
+        : undefined;
+
+      const result = await initiateConversation(npc1Id, npc2Id, worldId, {
+        topic,
+        maxExchanges,
+        environment,
+      });
+
+      // Persist relationship changes
+      const world = await storage.getWorld(worldId);
+      const currentYear = (world as any)?.currentGameYear ?? new Date().getFullYear();
+      const interactionQuality = result.relationshipDelta.friendshipChange >= 0 ? 0.5 : -0.3;
+      await Promise.all([
+        updateRelationship(npc1Id, npc2Id, interactionQuality, currentYear),
+        updateRelationship(npc2Id, npc1Id, interactionQuality, currentYear),
+      ]).catch(() => { /* non-fatal: don't fail the response */ });
+
+      res.json({
+        conversationId: result.conversationId,
+        topic: result.topic,
+        exchanges: result.exchanges,
+        relationshipDelta: result.relationshipDelta,
+        languageUsed: result.languageUsed,
+        durationMs: result.durationMs,
+      });
+    } catch (error) {
+      const message = (error as Error).message;
+      if (message.includes('Rate limit')) {
+        return res.status(429).json({ error: message });
+      }
+      if (message.includes('not found')) {
+        return res.status(404).json({ error: message });
+      }
+      res.status(500).json({ error: "Failed to generate NPC conversation", details: message });
+    }
+  });
+
   // Rich NPC-NPC conversation generation using Gemini
   app.post("/api/conversations/simulate-rich", async (req, res) => {
     try {
