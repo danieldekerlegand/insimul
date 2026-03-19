@@ -47,6 +47,84 @@ interface PathNode {
   h: number;
   f: number;
   parent: PathNode | null;
+  /** Index in the binary heap (for efficient decrease-key) */
+  heapIndex: number;
+}
+
+/**
+ * Binary min-heap for A* open set. O(log n) insert/extract-min/decrease-key
+ * instead of O(n) linear scan.
+ */
+class PathNodeHeap {
+  private nodes: PathNode[] = [];
+
+  get length(): number {
+    return this.nodes.length;
+  }
+
+  push(node: PathNode): void {
+    node.heapIndex = this.nodes.length;
+    this.nodes.push(node);
+    this.bubbleUp(node.heapIndex);
+  }
+
+  pop(): PathNode | undefined {
+    if (this.nodes.length === 0) return undefined;
+    const min = this.nodes[0];
+    const last = this.nodes.pop()!;
+    if (this.nodes.length > 0) {
+      last.heapIndex = 0;
+      this.nodes[0] = last;
+      this.sinkDown(0);
+    }
+    return min;
+  }
+
+  /** Re-heapify after decreasing a node's f score */
+  decreaseKey(node: PathNode): void {
+    this.bubbleUp(node.heapIndex);
+  }
+
+  findByCoord(x: number, z: number): PathNode | undefined {
+    return this.nodes.find(n => n.x === x && n.z === z);
+  }
+
+  private bubbleUp(i: number): void {
+    const node = this.nodes[i];
+    while (i > 0) {
+      const parentIdx = (i - 1) >> 1;
+      const parent = this.nodes[parentIdx];
+      if (node.f >= parent.f) break;
+      this.nodes[i] = parent;
+      parent.heapIndex = i;
+      i = parentIdx;
+    }
+    this.nodes[i] = node;
+    node.heapIndex = i;
+  }
+
+  private sinkDown(i: number): void {
+    const length = this.nodes.length;
+    const node = this.nodes[i];
+    while (true) {
+      let smallest = i;
+      const left = 2 * i + 1;
+      const right = 2 * i + 2;
+      if (left < length && this.nodes[left].f < this.nodes[smallest].f) {
+        smallest = left;
+      }
+      if (right < length && this.nodes[right].f < this.nodes[smallest].f) {
+        smallest = right;
+      }
+      if (smallest === i) break;
+      const swap = this.nodes[smallest];
+      this.nodes[i] = swap;
+      swap.heapIndex = i;
+      this.nodes[smallest] = node;
+      node.heapIndex = smallest;
+      i = smallest;
+    }
+  }
 }
 
 const DEFAULT_CONFIG: NavMeshConfig = {
@@ -403,7 +481,7 @@ export class NavigationSystem {
   // --- A* Pathfinding ---
 
   private astar(startX: number, startZ: number, endX: number, endZ: number): PathNode[] {
-    const openSet: PathNode[] = [];
+    const openSet = new PathNodeHeap();
     const closedSet = new Set<string>();
 
     const key = (x: number, z: number) => `${x},${z}`;
@@ -414,6 +492,7 @@ export class NavigationSystem {
       h: this.heuristic(startX, startZ, endX, endZ),
       f: 0,
       parent: null,
+      heapIndex: 0,
     };
     startNode.f = startNode.g + startNode.h;
     openSet.push(startNode);
@@ -430,15 +509,7 @@ export class NavigationSystem {
     while (openSet.length > 0 && iterations < maxIterations) {
       iterations++;
 
-      // Find node with lowest f score
-      let bestIdx = 0;
-      for (let i = 1; i < openSet.length; i++) {
-        if (openSet[i].f < openSet[bestIdx].f) {
-          bestIdx = i;
-        }
-      }
-      const current = openSet[bestIdx];
-      openSet.splice(bestIdx, 1);
+      const current = openSet.pop()!;
 
       // Goal reached
       if (current.x === endX && current.z === endZ) {
@@ -472,16 +543,17 @@ export class NavigationSystem {
         const g = current.g + cost;
 
         // Check if this path to neighbor is better
-        const existingIdx = openSet.findIndex(n => n.x === nx && n.z === nz);
-        if (existingIdx >= 0) {
-          if (g < openSet[existingIdx].g) {
-            openSet[existingIdx].g = g;
-            openSet[existingIdx].f = g + openSet[existingIdx].h;
-            openSet[existingIdx].parent = current;
+        const existing = openSet.findByCoord(nx, nz);
+        if (existing) {
+          if (g < existing.g) {
+            existing.g = g;
+            existing.f = g + existing.h;
+            existing.parent = current;
+            openSet.decreaseKey(existing);
           }
         } else {
           const h = this.heuristic(nx, nz, endX, endZ);
-          openSet.push({ x: nx, z: nz, g, h, f: g + h, parent: current });
+          openSet.push({ x: nx, z: nz, g, h, f: g + h, parent: current, heapIndex: 0 });
         }
       }
     }
@@ -509,19 +581,19 @@ export class NavigationSystem {
   // --- Path Smoothing ---
 
   /**
-   * Remove unnecessary waypoints by checking line-of-sight.
-   * If we can walk directly from A to C without hitting obstacles, skip B.
+   * Remove unnecessary waypoints by checking line-of-sight,
+   * then apply Catmull-Rom spline interpolation for smooth curves.
    */
   private smoothPath(path: Vector3[]): Vector3[] {
     if (path.length <= 2) return path;
 
-    const smoothed: Vector3[] = [path[0]];
+    // Phase 1: Line-of-sight culling
+    const culled: Vector3[] = [path[0]];
     let current = 0;
 
     while (current < path.length - 1) {
       let furthest = current + 1;
 
-      // Find the furthest visible waypoint from current
       for (let i = path.length - 1; i > current + 1; i--) {
         if (this.hasLineOfSight(path[current], path[i])) {
           furthest = i;
@@ -529,11 +601,70 @@ export class NavigationSystem {
         }
       }
 
-      smoothed.push(path[furthest]);
+      culled.push(path[furthest]);
       current = furthest;
     }
 
-    return smoothed;
+    // Phase 2: Catmull-Rom spline interpolation for smooth curves
+    return this.catmullRomSmooth(culled);
+  }
+
+  /**
+   * Interpolate waypoints with Catmull-Rom splines for smooth, curved paths.
+   * Inserts intermediate points between waypoints following natural curves.
+   */
+  private catmullRomSmooth(points: Vector3[]): Vector3[] {
+    if (points.length <= 2) return points;
+
+    const result: Vector3[] = [points[0]];
+    // Segments per span — more = smoother curves, fewer = better performance
+    const segmentsPerSpan = 4;
+
+    for (let i = 0; i < points.length - 1; i++) {
+      // Catmull-Rom needs 4 control points: p0, p1, p2, p3
+      // Clamp at boundaries
+      const p0 = points[Math.max(0, i - 1)];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[Math.min(points.length - 1, i + 2)];
+
+      for (let s = 1; s <= segmentsPerSpan; s++) {
+        const t = s / segmentsPerSpan;
+        const t2 = t * t;
+        const t3 = t2 * t;
+
+        // Catmull-Rom basis functions
+        const x = 0.5 * (
+          (2 * p1.x) +
+          (-p0.x + p2.x) * t +
+          (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+          (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3
+        );
+        const y = 0.5 * (
+          (2 * p1.y) +
+          (-p0.y + p2.y) * t +
+          (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+          (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3
+        );
+        const z = 0.5 * (
+          (2 * p1.z) +
+          (-p0.z + p2.z) * t +
+          (2 * p0.z - 5 * p1.z + 4 * p2.z - p3.z) * t2 +
+          (-p0.z + 3 * p1.z - 3 * p2.z + p3.z) * t3
+        );
+
+        // Validate spline point is still walkable; if not, keep the original waypoint
+        if (this.isWalkable(x, z)) {
+          result.push(new Vector3(x, y, z));
+        } else {
+          // Fall back: push the end point of this span and move on
+          result.push(p2.clone());
+          break;
+        }
+      }
+    }
+
+    return result;
   }
 
   /**

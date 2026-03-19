@@ -40,11 +40,20 @@ const SPEED_VALUES: Record<MovementSpeed, number> = {
 /** Arrival tolerance in world units */
 const ARRIVAL_TOLERANCE = 0.5;
 
+/** Look-ahead distance: start steering toward next waypoint early */
+const LOOK_AHEAD_DISTANCE = 2.0;
+
 /** Smooth turn speed in radians per second */
 const TURN_SPEED = 5.0;
 
 /** Minimum angle difference to trigger turning (radians) */
 const TURN_THRESHOLD = 0.05;
+
+/** Angle threshold (radians) for a "sharp" turn that triggers speed reduction */
+const SHARP_TURN_ANGLE = Math.PI / 3; // 60 degrees
+
+/** Minimum speed multiplier when cornering */
+const CORNER_SPEED_MIN = 0.4;
 
 // --- Minimal CharacterController interface (avoid importing the full 2000-line class) ---
 
@@ -192,7 +201,8 @@ export class NPCMovementController {
 
   /**
    * Called every frame to update NPC position along the pathfinding route.
-   * Should be called from the game loop.
+   * Uses look-ahead steering to blend toward upcoming waypoints and
+   * modulates speed when approaching sharp corners.
    */
   update(deltaTime: number): void {
     // Update dynamic obstacle position for this NPC
@@ -215,19 +225,21 @@ export class NPCMovementController {
 
     // Check arrival at current waypoint
     if (distXZ < ARRIVAL_TOLERANCE) {
-      // Advance to next waypoint
       const next = this.pathfinding.advanceWaypoint(this.npcId);
       if (next) {
         this.currentWaypoint = next;
       } else {
-        // Reached final destination
         this.arriveAtDestination();
       }
       return;
     }
 
-    // Rotate NPC to face movement direction (smooth slerp)
-    const targetAngle = Math.atan2(dx, dz);
+    // Look-ahead steering: blend toward next waypoint when close to current one
+    const steerTarget = this.computeLookAheadTarget(position, target, distXZ);
+    const steerDx = steerTarget.x - position.x;
+    const steerDz = steerTarget.z - position.z;
+
+    const targetAngle = Math.atan2(steerDx, steerDz);
     this.smoothRotateToward(targetAngle, deltaTime);
 
     // Apply avoidance steering
@@ -242,8 +254,10 @@ export class NPCMovementController {
       heading
     );
 
-    // Move forward via CharacterController walk/run
-    const speedValue = SPEED_VALUES[this._currentSpeed];
+    // Corner speed modulation: slow down for sharp upcoming turns
+    const cornerMultiplier = this.computeCornerSpeedMultiplier(position, target);
+    const speedValue = SPEED_VALUES[this._currentSpeed] * cornerMultiplier;
+
     if (this._currentSpeed === 'hurry') {
       this.controller.setRunSpeed(speedValue);
       this.controller.run(true);
@@ -370,6 +384,71 @@ export class NPCMovementController {
     // Normalize result
     while (this.mesh.rotation.y > Math.PI) this.mesh.rotation.y -= Math.PI * 2;
     while (this.mesh.rotation.y < -Math.PI) this.mesh.rotation.y += Math.PI * 2;
+  }
+
+  /**
+   * Blend the steering target toward the next waypoint when the NPC
+   * is within LOOK_AHEAD_DISTANCE of the current waypoint.
+   * This produces smooth, arc-like turns instead of sharp corners.
+   */
+  private computeLookAheadTarget(position: Vector3, currentWP: Vector3, distToWP: number): Vector3 {
+    const activePath = this.pathfinding.getActivePath(this.npcId);
+    if (!activePath || activePath.currentIndex >= activePath.waypoints.length - 1) {
+      return currentWP;
+    }
+
+    if (distToWP > LOOK_AHEAD_DISTANCE) {
+      return currentWP;
+    }
+
+    const nextWP = activePath.waypoints[activePath.currentIndex + 1];
+    // Blend factor: 0 when at LOOK_AHEAD_DISTANCE, 1 when at waypoint
+    const blend = 1 - (distToWP / LOOK_AHEAD_DISTANCE);
+    return new Vector3(
+      currentWP.x + (nextWP.x - currentWP.x) * blend * 0.5,
+      currentWP.y + (nextWP.y - currentWP.y) * blend * 0.5,
+      currentWP.z + (nextWP.z - currentWP.z) * blend * 0.5,
+    );
+  }
+
+  /**
+   * Compute a speed multiplier (CORNER_SPEED_MIN..1.0) based on the angle
+   * of the upcoming turn. Sharp turns = slower speed for natural movement.
+   */
+  private computeCornerSpeedMultiplier(position: Vector3, currentWP: Vector3): number {
+    const activePath = this.pathfinding.getActivePath(this.npcId);
+    if (!activePath || activePath.currentIndex >= activePath.waypoints.length - 1) {
+      return 1.0;
+    }
+
+    const nextWP = activePath.waypoints[activePath.currentIndex + 1];
+
+    // Vectors: current direction and next segment direction
+    const toCurrent_x = currentWP.x - position.x;
+    const toCurrent_z = currentWP.z - position.z;
+    const toNext_x = nextWP.x - currentWP.x;
+    const toNext_z = nextWP.z - currentWP.z;
+
+    const lenA = Math.sqrt(toCurrent_x * toCurrent_x + toCurrent_z * toCurrent_z);
+    const lenB = Math.sqrt(toNext_x * toNext_x + toNext_z * toNext_z);
+    if (lenA < 0.01 || lenB < 0.01) return 1.0;
+
+    // Dot product gives cosine of angle between segments
+    const dot = (toCurrent_x * toNext_x + toCurrent_z * toNext_z) / (lenA * lenB);
+    const angle = Math.acos(Math.max(-1, Math.min(1, dot)));
+
+    // Only slow down within approach distance of the turn
+    const distToWP = lenA;
+    if (distToWP > LOOK_AHEAD_DISTANCE * 2) return 1.0;
+
+    if (angle > SHARP_TURN_ANGLE) {
+      // Interpolate: sharper angle = slower speed
+      const sharpness = Math.min(1, (angle - SHARP_TURN_ANGLE) / (Math.PI - SHARP_TURN_ANGLE));
+      const approachFactor = 1 - (distToWP / (LOOK_AHEAD_DISTANCE * 2));
+      return 1.0 - (1.0 - CORNER_SPEED_MIN) * sharpness * approachFactor;
+    }
+
+    return 1.0;
   }
 
   /**
