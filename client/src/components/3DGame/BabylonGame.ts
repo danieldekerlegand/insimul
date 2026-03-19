@@ -59,6 +59,7 @@ import { RiverGenerator } from "@/components/3DGame/RiverGenerator.ts";
 import { WaterRenderer } from "@/components/3DGame/WaterRenderer.ts";
 import { buildStreetNetwork } from "@/components/3DGame/StreetNetworkLayout.ts";
 import { NPCScheduleSystem } from "@/components/3DGame/NPCScheduleSystem.ts";
+import { VolitionSystem, type NPCState as VolitionNPCState, type VolitionGoal, TERMINAL_ACTIONS } from "@/components/3DGame/VolitionSystem.ts";
 import { WorldScaleManager, ScaledSettlement } from "@/components/3DGame/WorldScaleManager.ts";
 import { BuildingInfoDisplay } from "@/components/3DGame/BuildingInfoDisplay.ts";
 import { ChunkManager } from "@/components/3DGame/ChunkManager.ts";
@@ -275,6 +276,10 @@ interface NPCInstance {
   insideBuildingId?: string;
   // Building exit fade-in
   fadeInProgress?: number; // 0..1, undefined = not fading
+  // Volition-driven spontaneous behavior
+  volitionGoalId?: string;
+  volitionActionId?: string;
+  volitionTargetNpcId?: string;
   // Debug
   _debugLogged?: boolean;
 }
@@ -613,6 +618,14 @@ export class BabylonGame {
 
   // NPC Schedule System — sidewalk pathfinding and goal-directed behavior
   private npcScheduleSystem: NPCScheduleSystem = new NPCScheduleSystem();
+
+  // Volition System — Ensemble-style spontaneous NPC goal formation
+  private volitionSystem: VolitionSystem = new VolitionSystem({
+    emit: (eventName: string, data: any) => {
+      this.eventBus.emit({ type: eventName, ...data } as any);
+    }
+  });
+  private _volitionTimestep = 0;
 
   // Eavesdrop state
   private isEavesdropping: boolean = false;
@@ -6039,6 +6052,35 @@ export class BabylonGame {
             neuroticism: personality.neuroticism ?? personality.Neuroticism,
           } : undefined
         );
+
+        // Register with Volition System for spontaneous goal formation
+        const volitionPersonality = {
+          openness: personality?.openness ?? personality?.Openness ?? 0.5,
+          conscientiousness: personality?.conscientiousness ?? personality?.Conscientiousness ?? 0.5,
+          extroversion: personality?.extroversion ?? personality?.Extroversion ?? 0.5,
+          agreeableness: personality?.agreeableness ?? personality?.Agreeableness ?? 0.5,
+          neuroticism: personality?.neuroticism ?? personality?.Neuroticism ?? 0.5,
+        };
+        const volitionRelationships: Record<string, { charge: number; spark: number; type: string }> = {};
+        if (charAny.relationships) {
+          for (const [relId, relData] of Object.entries(charAny.relationships as Record<string, any>)) {
+            volitionRelationships[relId] = {
+              charge: relData?.charge ?? relData?.affinity ?? 0,
+              spark: relData?.spark ?? 0,
+              type: relData?.type ?? 'acquaintance',
+            };
+          }
+        }
+        this.volitionSystem.registerNPC({
+          id: character.id,
+          name: `${character.firstName || ''} ${character.lastName || ''}`.trim() || character.id,
+          personality: volitionPersonality,
+          relationships: volitionRelationships,
+          currentLocation: 'settlement',
+          health: 1.0,
+          emotionalState: 'content',
+          recentEvents: [],
+        });
       }
 
       const npcInfo: NPCDisplayInfo = {
@@ -7358,6 +7400,17 @@ export class BabylonGame {
       }
     }
 
+    // Volition system: recalculate NPC spontaneous goals periodically
+    this._volitionTimestep++;
+    this.volitionSystem.update(this._volitionTimestep);
+
+    // Sync volition location state for NPCs (building-based co-location)
+    for (const { npcId, instance } of npcList) {
+      const location = instance.isInsideBuilding && instance.insideBuildingId
+        ? instance.insideBuildingId : 'settlement';
+      this.volitionSystem.updateNPCState(npcId, { currentLocation: location } as any);
+    }
+
     // Pass 2: AI behavior updates (budget-limited, round-robin)
     const startTime = performance.now();
     if (this._npcBatchIndex >= count) this._npcBatchIndex = 0;
@@ -7469,6 +7522,54 @@ export class BabylonGame {
       instance.controller.turnLeft(false);
       instance.controller.turnRight(false);
       return;
+    }
+
+    // --- Volition override: spontaneous behavior from VolitionSystem ---
+    if (this.volitionSystem.isOnScheduleOverride(characterId)) {
+      const override = this.volitionSystem.getScheduleOverride(characterId);
+      if (override && !instance.volitionGoalId) {
+        // Start executing the volition goal
+        instance.volitionGoalId = override.goalId;
+        const goals = this.volitionSystem.getTopGoals(characterId, 10);
+        const activeGoal = goals.find(g => g.goalId === override.goalId);
+        if (activeGoal) {
+          instance.volitionActionId = activeGoal.actionId;
+          instance.volitionTargetNpcId = activeGoal.targetId;
+          this.executeVolitionGoal(instance, activeGoal, now);
+          return;
+        }
+      }
+
+      // Continue executing an active volition goal (follow path)
+      if (instance.volitionGoalId && instance.schedulePathWaypoints) {
+        const waypoints = instance.schedulePathWaypoints;
+        const wpIdx = instance.schedulePathIndex ?? 0;
+        if (wpIdx < waypoints.length) {
+          const targetWP = waypoints[wpIdx];
+          const dx = targetWP.x - currentPos.x;
+          const dz = targetWP.z - currentPos.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist < 1.5) {
+            instance.schedulePathIndex = wpIdx + 1;
+            if (wpIdx + 1 >= waypoints.length) {
+              // Arrived at volition destination — complete the goal
+              this.completeVolitionGoal(instance, characterId);
+              return;
+            }
+          }
+          this.moveNPCToward(instance, targetWP);
+          return;
+        } else {
+          // Path exhausted — complete
+          this.completeVolitionGoal(instance, characterId);
+          return;
+        }
+      }
+    } else if (instance.volitionGoalId) {
+      // Override was cleared externally — clean up volition state
+      instance.volitionGoalId = undefined;
+      instance.volitionActionId = undefined;
+      instance.volitionTargetNpcId = undefined;
     }
 
     // --- Schedule system available? Use goal-directed behavior ---
@@ -7593,6 +7694,91 @@ export class BabylonGame {
 
     // --- Fallback: random wander if no street data ---
     this.updateNPCRandomWander(instance, now);
+  }
+
+  /**
+   * Translate a volition goal into concrete NPC movement.
+   * Maps terminal actions to destinations: social actions → target NPC position,
+   * commerce → random business, self-care → home, explore → random sidewalk.
+   */
+  private executeVolitionGoal(instance: NPCInstance, goal: VolitionGoal, now: number): void {
+    if (!instance.mesh) return;
+    const currentPos = instance.mesh.position;
+    let destination: Vector3 | null = null;
+
+    const terminal = TERMINAL_ACTIONS[goal.actionId];
+    const characterId = instance.characterData?.id;
+
+    if (terminal?.requiresTarget && goal.targetId) {
+      // Social/hostile/romantic actions: walk toward target NPC
+      const targetInstance = this.npcMeshes.get(goal.targetId);
+      if (targetInstance?.mesh) {
+        destination = targetInstance.mesh.position.clone();
+      }
+    } else if (['visit_shop', 'trade_goods', 'walk_to_tavern'].includes(goal.actionId)) {
+      // Commerce/tavern: walk to a random business
+      const door = this.findRandomBusinessDoor();
+      if (door) destination = door;
+    } else if (['rest', 'eat_food', 'seek_solitude'].includes(goal.actionId)) {
+      // Self-care: go home
+      if (characterId) {
+        const schedEntry = this.npcScheduleSystem.getEntry(characterId);
+        if (schedEntry?.homeBuildingId) {
+          const door = this.npcScheduleSystem.getBuildingDoor(schedEntry.homeBuildingId);
+          if (door) destination = door;
+        }
+      }
+    }
+
+    // Fallback: random sidewalk destination for explore/wander/other
+    if (!destination) {
+      destination = this.npcScheduleSystem.getRandomSidewalkTarget();
+    }
+
+    if (destination && this.npcScheduleSystem.hasStreetData()) {
+      const path = this.npcScheduleSystem.findSidewalkPath(currentPos, destination);
+      instance.schedulePathWaypoints = path;
+      instance.schedulePathIndex = 0;
+    }
+  }
+
+  /**
+   * Complete the current volition goal and return to schedule.
+   */
+  private completeVolitionGoal(instance: NPCInstance, characterId: string): void {
+    if (!instance.controller) return;
+    instance.controller.walk(false);
+    instance.controller.turnLeft(false);
+    instance.controller.turnRight(false);
+
+    const goalId = instance.volitionGoalId;
+    if (goalId) {
+      this.volitionSystem.completeGoal(characterId, goalId);
+    }
+
+    // Clear volition state — NPC returns to schedule
+    instance.volitionGoalId = undefined;
+    instance.volitionActionId = undefined;
+    instance.volitionTargetNpcId = undefined;
+    instance.schedulePathWaypoints = undefined;
+    instance.schedulePathIndex = undefined;
+    // Brief idle before resuming schedule
+    instance.wanderWaitUntil = Date.now() + 2000 + Math.random() * 3000;
+  }
+
+  /**
+   * Find a random business building door position.
+   */
+  private findRandomBusinessDoor(): Vector3 | null {
+    const businesses: string[] = [];
+    this.buildingData.forEach((data, buildingId) => {
+      if (data.metadata?.buildingType === 'business') {
+        businesses.push(buildingId);
+      }
+    });
+    if (businesses.length === 0) return null;
+    const chosen = businesses[Math.floor(Math.random() * businesses.length)];
+    return this.npcScheduleSystem.getBuildingDoor(chosen);
   }
 
   /**
