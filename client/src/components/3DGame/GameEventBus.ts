@@ -53,7 +53,9 @@ export type GameEvent =
   | { type: 'romance_action'; npcId: string; npcName: string; actionType: string; accepted: boolean; stageChange?: string }
   | { type: 'romance_stage_changed'; npcId: string; npcName: string; fromStage: string; toStage: string }
   // Volition events
-  | { type: 'npc_volition_action'; npcId: string; actionId: string; targetId: string; score: number }
+  | { type: 'npc_volition_action'; npcId: string; actionId: string; targetId?: string; score: number; category?: string; grammarLevel?: string; goalId?: string }
+  | { type: 'volition_schedule_override'; npcId: string; goalId: string; reason: string; returnToSchedule: boolean }
+  | { type: 'volition_return_to_schedule'; npcId: string; goalId: string }
   // Puzzle events
   | { type: 'puzzle_failed'; puzzleId: string; puzzleType: string; attempts: number }
   // Quest events
