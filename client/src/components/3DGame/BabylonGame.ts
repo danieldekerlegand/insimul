@@ -134,6 +134,7 @@ import { GameEventBus } from "@/components/3DGame/GameEventBus.ts";
 import { BuildingCollisionSystem } from "@/components/3DGame/BuildingCollisionSystem.ts";
 import { BuildingEntrySystem } from "@/components/3DGame/BuildingEntrySystem.ts";
 import { InteriorNPCManager } from "@/components/3DGame/InteriorNPCManager.ts";
+import { NPCBusinessInteractionSystem, type BusinessInteraction, type ServiceResult } from "@/components/3DGame/NPCBusinessInteractionSystem.ts";
 import { NPCSimulationLOD } from "@/components/3DGame/NPCSimulationLOD.ts";
 import { QuestNotificationManager } from "@/components/3DGame/QuestNotificationManager.ts";
 import { QuestLanguageFeedbackPanel } from "@/components/3DGame/QuestLanguageFeedbackPanel.ts";
@@ -580,6 +581,8 @@ export class BabylonGame {
   private interiorDoorTrigger: Mesh | null = null;
   private buildingEntrySystem: BuildingEntrySystem | null = null;
   private interiorNPCManager: InteriorNPCManager | null = null;
+  private businessInteractionSystem: NPCBusinessInteractionSystem = new NPCBusinessInteractionSystem();
+  private currentBuildingBusinessType: string | undefined = undefined;
 
   // NPC Simulation LOD
   private npcSimulationLOD: NPCSimulationLOD | null = null;
@@ -5976,6 +5979,7 @@ export class BabylonGame {
     }
     this.playerController?.resetPhysicsState();
     this.isInsideBuilding = true;
+    this.currentBuildingBusinessType = businessType;
 
     // Create an invisible trigger zone just outside the door opening.
     // When the player walks through the door, this detects it and auto-exits.
@@ -6068,6 +6072,7 @@ export class BabylonGame {
     this.isInsideBuilding = false;
     this.activeInterior = null;
     this.savedOverworldPosition = null;
+    this.currentBuildingBusinessType = undefined;
 
     this.guiManager?.showToast({
       title: 'Exited building',
@@ -7643,7 +7648,17 @@ export class BabylonGame {
 
     if (nearestId) {
       this.setSelectedNPC(nearestId);
-      // Directly open chat with the nearest NPC
+
+      // If inside a business building, show business interaction menu
+      if (this.isInsideBuilding && this.currentBuildingBusinessType && this.interiorNPCManager) {
+        const placedNPC = this.interiorNPCManager.getPlacedNPC(nearestId);
+        if (placedNPC) {
+          await this.handleBusinessInteraction(placedNPC);
+          return;
+        }
+      }
+
+      // Default: open chat directly
       await this.handleOpenChat();
     }
   }
@@ -8029,6 +8044,143 @@ export class BabylonGame {
       transactionType: 'sell',
       totalPrice: transaction.totalPrice,
     }).catch(() => {});
+  }
+
+  // ─── Business Interaction Handlers ────────────────────────────────────────
+
+  private async handleBusinessInteraction(placedNPC: import('./InteriorNPCManager').PlacedInteriorNPC): Promise<void> {
+    if (!this.playerMesh) return;
+
+    const playerStats = {
+      gold: this.playerGold,
+      health: this.playerHealth,
+      maxHealth: 100,
+      energy: this.playerEnergy,
+      maxEnergy: INITIAL_ENERGY,
+    };
+
+    const interactions = this.businessInteractionSystem.getInteractionsForNPC(
+      placedNPC,
+      this.currentBuildingBusinessType,
+      playerStats,
+      { x: this.playerMesh.position.x, z: this.playerMesh.position.z }
+    );
+
+    if (interactions.length === 0) {
+      // No business interactions — fall back to regular chat
+      await this.handleOpenChat();
+      return;
+    }
+
+    // If only chat is available, go straight to chat
+    if (interactions.length === 1 && interactions[0].id === '__chat__') {
+      await this.handleOpenChat();
+      return;
+    }
+
+    // Convert business interactions to radial menu actions
+    if (!this.radialMenu) {
+      await this.handleOpenChat();
+      return;
+    }
+
+    const npcName = placedNPC.characterData?.firstName || 'NPC';
+    const actions = interactions.map((interaction) => ({
+      id: interaction.id,
+      name: `${interaction.icon} ${interaction.label}`,
+      description: interaction.enabled
+        ? interaction.description
+        : interaction.disabledReason || interaction.description,
+      category: 'social' as const,
+      energyCost: 0,
+      effects: [],
+      conditions: [],
+    }));
+
+    this.radialMenu.show(
+      actions,
+      this.playerEnergy,
+      async (actionId: string) => {
+        if (actionId === '__chat__') {
+          await this.handleOpenChat();
+        } else if (actionId === '__browse_wares__') {
+          await this.handleOpenShop(placedNPC.npcId);
+        } else {
+          await this.handleBusinessServiceAction(actionId, placedNPC);
+        }
+      },
+      () => { /* no-op on close */ }
+    );
+
+    this.guiManager?.showToast({
+      title: `${npcName}`,
+      description: 'Choose an interaction',
+      duration: 2000,
+    });
+  }
+
+  private async handleBusinessServiceAction(
+    serviceId: string,
+    placedNPC: import('./InteriorNPCManager').PlacedInteriorNPC
+  ): Promise<void> {
+    if (!this.currentBuildingBusinessType) return;
+
+    const services = this.businessInteractionSystem.getServicesForBusinessType(this.currentBuildingBusinessType);
+    const service = services.find(s => s.id === serviceId);
+    if (!service) return;
+
+    const playerStats = {
+      gold: this.playerGold,
+      health: this.playerHealth,
+      maxHealth: 100,
+      energy: this.playerEnergy,
+      maxEnergy: INITIAL_ENERGY,
+    };
+
+    const result = this.businessInteractionSystem.executeService(service, playerStats);
+
+    if (!result.success) {
+      this.guiManager?.showToast({
+        title: 'Service Unavailable',
+        description: result.message,
+        variant: 'destructive',
+        duration: 3000,
+      });
+      return;
+    }
+
+    // Apply effects
+    for (const effect of result.effects) {
+      switch (effect.type) {
+        case 'gold':
+          this.playerGold += effect.amount;
+          this.inventory?.setGold(this.playerGold);
+          break;
+        case 'health':
+          this.playerHealth = Math.min(100, Math.max(0, this.playerHealth + effect.amount));
+          this.playerHealthBar?.updateHealth(this.playerHealth / 100);
+          break;
+        case 'energy':
+          this.playerEnergy = Math.min(INITIAL_ENERGY, Math.max(0, this.playerEnergy + effect.amount));
+          break;
+      }
+    }
+
+    const npcName = placedNPC.characterData?.firstName || 'NPC';
+    this.guiManager?.showToast({
+      title: `${npcName}`,
+      description: result.message,
+      duration: 3000,
+    });
+
+    this.eventBus.emit({
+      type: 'business_service_used',
+      serviceId: service.id,
+      serviceName: service.name,
+      businessType: this.currentBuildingBusinessType,
+      npcId: placedNPC.npcId,
+      cost: service.cost,
+    } as any);
   }
 
   private handleDropItem(item: InventoryItem): void {
@@ -8986,9 +9138,16 @@ export class BabylonGame {
 
     const actions = this.actionManager.getSocialActionsForNPC(npcId, context);
 
-    // Add "Browse Wares" action for merchant NPCs
+    // Add "Browse Wares" action for merchant NPCs or business owner/employees inside buildings
     const npcInstance = this.npcMeshes.get(npcId);
-    if (npcInstance?.role === 'merchant') {
+    const shouldShowShop = npcInstance?.role === 'merchant' || (
+      this.isInsideBuilding &&
+      this.currentBuildingBusinessType &&
+      this.businessInteractionSystem.isMercantileBusiness(this.currentBuildingBusinessType) &&
+      this.interiorNPCManager?.getPlacedNPC(npcId)?.role !== 'visitor'
+    );
+
+    if (shouldShowShop) {
       actions.unshift({
         id: '__browse_wares__',
         name: 'Browse Wares',
@@ -8998,6 +9157,37 @@ export class BabylonGame {
         effects: [],
         conditions: [],
       } as any);
+    }
+
+    // Add business service actions when inside a business building
+    if (this.isInsideBuilding && this.currentBuildingBusinessType) {
+      const placedNPC = this.interiorNPCManager?.getPlacedNPC(npcId);
+      if (placedNPC) {
+        const playerStats = {
+          gold: this.playerGold,
+          health: this.playerHealth,
+          maxHealth: 100,
+          energy: this.playerEnergy,
+          maxEnergy: INITIAL_ENERGY,
+        };
+        const interactions = this.businessInteractionSystem.getInteractionsForNPC(
+          placedNPC,
+          this.currentBuildingBusinessType,
+          playerStats
+        );
+        for (const interaction of interactions) {
+          if (interaction.isShopAction || interaction.id === '__chat__') continue;
+          actions.push({
+            id: interaction.id,
+            name: `${interaction.icon} ${interaction.label}`,
+            description: interaction.description,
+            category: 'social',
+            energyCost: 0,
+            effects: [],
+            conditions: [],
+          } as any);
+        }
+      }
     }
 
     return actions;
@@ -9033,6 +9223,18 @@ export class BabylonGame {
     if (actionId === '__browse_wares__') {
       await this.handleOpenShop(this.selectedNPCId);
       return;
+    }
+
+    // Handle business service actions
+    if (this.isInsideBuilding && this.currentBuildingBusinessType) {
+      const placedNPC = this.interiorNPCManager?.getPlacedNPC(this.selectedNPCId);
+      if (placedNPC) {
+        const services = this.businessInteractionSystem.getServicesForBusinessType(this.currentBuildingBusinessType);
+        if (services.some(s => s.id === actionId)) {
+          await this.handleBusinessServiceAction(actionId, placedNPC);
+          return;
+        }
+      }
     }
 
     if (!this.actionManager) return;
