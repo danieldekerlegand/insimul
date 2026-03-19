@@ -1,0 +1,194 @@
+/**
+ * NPCAppearanceGenerator — Procedural NPC appearance variation system.
+ *
+ * Generates deterministic color, scale, and material modifications for NPCs
+ * based on a hash of their character ID. Every NPC gets a unique but stable
+ * appearance that persists across sessions.
+ */
+
+import { Color3, Vector3 } from '@babylonjs/core';
+
+/** Role types matching BabylonGame's NPCRole */
+export type NPCRole = 'guard' | 'merchant' | 'questgiver' | 'civilian';
+
+/** Generated appearance parameters for a single NPC */
+export interface NPCAppearance {
+  /** Skin tone color */
+  skinColor: Color3;
+  /** Primary clothing/outfit color */
+  clothingColor: Color3;
+  /** Secondary accent color for clothing details */
+  accentColor: Color3;
+  /** Uniform scale factor (height/build variation) */
+  scale: Vector3;
+  /** Material roughness 0-1 (lower = shinier) */
+  roughness: number;
+  /** Emissive intensity for subtle glow variation */
+  emissiveIntensity: number;
+  /** Role-based tint to blend on top */
+  roleTint: Color3;
+  /** How strongly to apply the role tint (0-1) */
+  roleTintStrength: number;
+}
+
+// Skin tone palette — diverse range of natural skin tones
+const SKIN_TONES: Color3[] = [
+  new Color3(0.96, 0.87, 0.78), // fair
+  new Color3(0.92, 0.80, 0.68), // light
+  new Color3(0.85, 0.72, 0.58), // medium-light
+  new Color3(0.76, 0.60, 0.44), // medium
+  new Color3(0.65, 0.48, 0.35), // medium-dark
+  new Color3(0.55, 0.38, 0.26), // dark
+  new Color3(0.45, 0.30, 0.20), // deep
+  new Color3(0.82, 0.67, 0.52), // warm olive
+];
+
+// Clothing color palette — muted, natural-looking outfit colors
+const CLOTHING_COLORS: Color3[] = [
+  new Color3(0.35, 0.25, 0.18), // brown
+  new Color3(0.20, 0.28, 0.18), // forest green
+  new Color3(0.18, 0.22, 0.35), // navy
+  new Color3(0.55, 0.15, 0.15), // burgundy
+  new Color3(0.45, 0.40, 0.30), // khaki
+  new Color3(0.30, 0.30, 0.32), // charcoal
+  new Color3(0.60, 0.55, 0.45), // tan
+  new Color3(0.25, 0.20, 0.30), // plum
+  new Color3(0.50, 0.35, 0.20), // russet
+  new Color3(0.22, 0.32, 0.30), // teal
+  new Color3(0.70, 0.65, 0.55), // cream
+  new Color3(0.40, 0.22, 0.18), // sienna
+];
+
+// Accent colors — complementary highlights
+const ACCENT_COLORS: Color3[] = [
+  new Color3(0.65, 0.55, 0.35), // gold trim
+  new Color3(0.50, 0.50, 0.52), // silver
+  new Color3(0.45, 0.25, 0.15), // leather
+  new Color3(0.70, 0.68, 0.60), // bone
+  new Color3(0.30, 0.35, 0.25), // olive
+  new Color3(0.55, 0.30, 0.25), // rust
+  new Color3(0.35, 0.35, 0.40), // slate
+  new Color3(0.60, 0.45, 0.30), // copper
+];
+
+/** Role-based tint colors (same as original system but used as overlay) */
+const ROLE_TINTS: Record<NPCRole, Color3> = {
+  guard: new Color3(0.85, 0.5, 0.45),
+  merchant: new Color3(0.85, 0.75, 0.45),
+  questgiver: new Color3(0.5, 0.65, 0.9),
+  civilian: new Color3(0.7, 0.7, 0.7),
+};
+
+/**
+ * Simple deterministic hash from a string.
+ * Returns a 32-bit unsigned integer.
+ */
+export function hashString(str: string): number {
+  let hash = 0x811c9dc5; // FNV offset basis
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = (hash * 0x01000193) >>> 0; // FNV prime, keep as uint32
+  }
+  return hash;
+}
+
+/**
+ * Extract a float [0, 1) from a hash using a specific "slot".
+ * Different slots give independent-seeming values from the same hash.
+ */
+export function hashFloat(hash: number, slot: number): number {
+  // Mix the slot into the hash for variety
+  let mixed = hash ^ (slot * 2654435761);
+  mixed = ((mixed >>> 16) ^ mixed) * 0x45d9f3b;
+  mixed = ((mixed >>> 16) ^ mixed) * 0x45d9f3b;
+  mixed = (mixed >>> 16) ^ mixed;
+  return (mixed >>> 0) / 0xffffffff;
+}
+
+/**
+ * Pick an item from an array using a hash float.
+ */
+function pickFromPalette<T>(palette: T[], value: number): T {
+  const index = Math.floor(value * palette.length) % palette.length;
+  return palette[index];
+}
+
+/**
+ * Generate a complete appearance for an NPC.
+ *
+ * @param characterId - Unique character identifier (used as seed)
+ * @param role - NPC role for tint overlay
+ * @returns Deterministic appearance parameters
+ */
+export function generateNPCAppearance(characterId: string, role: NPCRole): NPCAppearance {
+  const hash = hashString(characterId);
+
+  // Each slot produces an independent float from the same hash
+  const skinVal = hashFloat(hash, 0);
+  const clothingVal = hashFloat(hash, 1);
+  const accentVal = hashFloat(hash, 2);
+  const scaleVal = hashFloat(hash, 3);
+  const widthVal = hashFloat(hash, 4);
+  const roughnessVal = hashFloat(hash, 5);
+  const emissiveVal = hashFloat(hash, 6);
+  const skinVariation = hashFloat(hash, 7);
+
+  // Skin: pick base tone then apply slight random variation
+  const baseSkin = pickFromPalette(SKIN_TONES, skinVal);
+  const skinColor = new Color3(
+    Math.max(0, Math.min(1, baseSkin.r + (skinVariation - 0.5) * 0.06)),
+    Math.max(0, Math.min(1, baseSkin.g + (skinVariation - 0.5) * 0.06)),
+    Math.max(0, Math.min(1, baseSkin.b + (skinVariation - 0.5) * 0.06)),
+  );
+
+  // Clothing: pick from palette
+  const clothingColor = pickFromPalette(CLOTHING_COLORS, clothingVal);
+
+  // Accent: pick from palette, ensure it differs from clothing
+  let accentIndex = Math.floor(accentVal * ACCENT_COLORS.length) % ACCENT_COLORS.length;
+  const accentColor = ACCENT_COLORS[accentIndex];
+
+  // Scale: height varies ±10%, width varies ±5% for build variation
+  const heightScale = 0.90 + scaleVal * 0.20; // 0.90 to 1.10
+  const widthScale = 0.95 + widthVal * 0.10;  // 0.95 to 1.05
+  const scale = new Vector3(widthScale, heightScale, widthScale);
+
+  // Material properties
+  const roughness = 0.6 + roughnessVal * 0.35; // 0.6 to 0.95
+  const emissiveIntensity = emissiveVal * 0.08; // 0.0 to 0.08 (subtle)
+
+  // Role tint
+  const roleTint = ROLE_TINTS[role] || ROLE_TINTS.civilian;
+  const roleTintStrength = role === 'civilian' ? 0.1 : 0.2;
+
+  return {
+    skinColor,
+    clothingColor,
+    accentColor,
+    scale,
+    roughness,
+    emissiveIntensity,
+    roleTint,
+    roleTintStrength,
+  };
+}
+
+/**
+ * Compute the final diffuse color for a mesh material by blending the
+ * appearance color with the role tint.
+ *
+ * @param baseColor - The appearance-generated color (skin, clothing, or accent)
+ * @param appearance - The full appearance parameters
+ * @returns Final blended color
+ */
+export function blendWithRoleTint(baseColor: Color3, appearance: NPCAppearance): Color3 {
+  return Color3.Lerp(baseColor, appearance.roleTint, appearance.roleTintStrength);
+}
+
+/**
+ * Generate a billboard color for distant NPC rendering.
+ * Blends clothing color with role tint for a representative silhouette color.
+ */
+export function generateBillboardColor(appearance: NPCAppearance): Color3 {
+  return Color3.Lerp(appearance.clothingColor, appearance.roleTint, 0.4);
+}

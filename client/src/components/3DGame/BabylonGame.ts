@@ -135,6 +135,7 @@ import { BuildingCollisionSystem } from "@/components/3DGame/BuildingCollisionSy
 import { BuildingEntrySystem } from "@/components/3DGame/BuildingEntrySystem.ts";
 import { InteriorNPCManager } from "@/components/3DGame/InteriorNPCManager.ts";
 import { NPCSimulationLOD } from "@/components/3DGame/NPCSimulationLOD.ts";
+import { generateNPCAppearance, generateBillboardColor, blendWithRoleTint, type NPCAppearance } from "@/components/3DGame/NPCAppearanceGenerator.ts";
 import { QuestNotificationManager } from "@/components/3DGame/QuestNotificationManager.ts";
 import { QuestLanguageFeedbackPanel } from "@/components/3DGame/QuestLanguageFeedbackPanel.ts";
 import { QuestLanguageFeedbackTracker } from "@shared/language/quest-language-feedback";
@@ -5503,9 +5504,9 @@ export class BabylonGame {
       const spawnPos = this.findNPCSpawnPosition(character, role);
       root.position = spawnPos;
 
-      // Phase 8B: Apply role-based color tint for visual distinction
+      // Phase 8B: Apply procedural appearance variation for visual distinction
       const allNpcMeshes = [root, ...root.getChildMeshes()];
-      this.applyNPCRoleTint(allNpcMeshes, role);
+      const appearance = this.applyNPCAppearance(allNpcMeshes, character.id, role);
 
       // Create CharacterController for NPCs (with null camera for programmatic control)
       let controller: CharacterController | null = null;
@@ -5557,7 +5558,7 @@ export class BabylonGame {
 
       // Phase 4: Create billboard LOD plane for distant NPC rendering
       const npcName = `${character.firstName || ''} ${character.lastName || ''}`.trim() || character.id;
-      npcInstance.billboardLOD = this.createNPCBillboard(npcName, role, root.position);
+      npcInstance.billboardLOD = this.createNPCBillboard(npcName, role, root.position, appearance);
 
       this.npcMeshes.set(character.id, npcInstance);
 
@@ -5807,35 +5808,55 @@ export class BabylonGame {
   }
 
   /**
-   * Phase 8B: Apply role-based color tint to NPC mesh materials.
-   * Guards get a reddish tint, merchants get a golden tint, questgivers get a blue tint.
+   * Phase 8B: Apply procedural appearance variation to NPC meshes.
+   * Each NPC gets a unique, deterministic combination of skin tone,
+   * clothing color, scale, and material properties based on their character ID.
    */
-  private applyNPCRoleTint(meshes: AbstractMesh[], role: NPCRole): void {
-    const tintColors: Record<NPCRole, Color3> = {
-      guard: new Color3(0.85, 0.5, 0.45),
-      merchant: new Color3(0.85, 0.75, 0.45),
-      questgiver: new Color3(0.5, 0.65, 0.9),
-      civilian: new Color3(0.7, 0.7, 0.7)
-    };
+  private applyNPCAppearance(meshes: AbstractMesh[], characterId: string, role: NPCRole): NPCAppearance {
+    const appearance = generateNPCAppearance(characterId, role);
 
-    const tint = tintColors[role] || tintColors.civilian;
+    // Apply scale to root mesh (first in array)
+    if (meshes.length > 0) {
+      const root = meshes[0];
+      root.scaling = appearance.scale;
+    }
 
-    // Apply subtle tint to all sub-meshes that have a standard material
+    // Apply color and material variations to all sub-meshes
+    let meshIndex = 0;
     for (const mesh of meshes) {
       if (mesh.material && mesh.material instanceof StandardMaterial) {
-        const mat = mesh.material.clone(`${mesh.material.name}_${role}_tint`) as StandardMaterial;
-        mat.diffuseColor = Color3.Lerp(mat.diffuseColor, tint, 0.3);
+        const mat = mesh.material.clone(`${mesh.material.name}_appearance_${characterId.slice(-6)}`) as StandardMaterial;
+
+        // Alternate between skin and clothing colors based on mesh index
+        // Typically mesh 0 is body/skin, others are clothing/accessories
+        const baseColor = meshIndex === 0 ? appearance.skinColor
+          : meshIndex % 2 === 1 ? appearance.clothingColor
+          : appearance.accentColor;
+
+        // Blend base color with role tint
+        mat.diffuseColor = blendWithRoleTint(baseColor, appearance);
+
+        // Apply material property variations
+        mat.specularPower = appearance.roughness * 100;
+        if (appearance.emissiveIntensity > 0) {
+          mat.emissiveColor = mat.diffuseColor.scale(appearance.emissiveIntensity);
+        }
+
         mesh.material = mat;
+        meshIndex++;
       }
     }
+
+    return appearance;
   }
 
   /**
    * Phase 4: Create a billboard LOD plane for an NPC.
    * At medium distance (60-120u), the full mesh is hidden and replaced
    * with a simple colored rectangle + name label. Starts hidden.
+   * Uses the NPC's procedural appearance for consistent color at distance.
    */
-  private createNPCBillboard(name: string, role: NPCRole, position: Vector3): Mesh {
+  private createNPCBillboard(name: string, role: NPCRole, position: Vector3, appearance?: NPCAppearance): Mesh {
     const billboard = MeshBuilder.CreatePlane(
       `npc_billboard_${name}`,
       { width: 1.2, height: 2.4 },
@@ -5847,15 +5868,10 @@ export class BabylonGame {
     billboard.isPickable = false;
     billboard.setEnabled(false); // Hidden by default
 
-    const roleColors: Record<NPCRole, Color3> = {
-      guard: new Color3(0.85, 0.4, 0.35),
-      merchant: new Color3(0.85, 0.75, 0.35),
-      questgiver: new Color3(0.4, 0.55, 0.9),
-      civilian: new Color3(0.6, 0.6, 0.6),
-    };
-
     const mat = new StandardMaterial(`npc_billboard_mat_${name}`, this.scene!);
-    const color = roleColors[role] || roleColors.civilian;
+    const color = appearance
+      ? generateBillboardColor(appearance)
+      : new Color3(0.6, 0.6, 0.6);
     mat.diffuseColor = color;
     mat.emissiveColor = color.scale(0.4);
     mat.disableLighting = true;
