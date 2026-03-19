@@ -135,6 +135,7 @@ import { BuildingCollisionSystem } from "@/components/3DGame/BuildingCollisionSy
 import { BuildingEntrySystem } from "@/components/3DGame/BuildingEntrySystem.ts";
 import { InteriorNPCManager } from "@/components/3DGame/InteriorNPCManager.ts";
 import { NPCSimulationLOD } from "@/components/3DGame/NPCSimulationLOD.ts";
+import { NPCAccessorySystem } from "@/components/3DGame/NPCAccessorySystem.ts";
 import { QuestNotificationManager } from "@/components/3DGame/QuestNotificationManager.ts";
 import { QuestLanguageFeedbackPanel } from "@/components/3DGame/QuestLanguageFeedbackPanel.ts";
 import { QuestLanguageFeedbackTracker } from "@shared/language/quest-language-feedback";
@@ -584,6 +585,9 @@ export class BabylonGame {
   // NPC Simulation LOD
   private npcSimulationLOD: NPCSimulationLOD | null = null;
 
+  // NPC Accessory & Occupation-Visual System
+  private npcAccessorySystem: NPCAccessorySystem | null = null;
+
   // NPC Schedule System — sidewalk pathfinding and goal-directed behavior
   private npcScheduleSystem: NPCScheduleSystem = new NPCScheduleSystem();
 
@@ -954,6 +958,9 @@ export class BabylonGame {
 
     // Initialize NPC simulation LOD system
     this.npcSimulationLOD = new NPCSimulationLOD(scene);
+
+    // Initialize NPC accessory & occupation-visual system
+    this.npcAccessorySystem = new NPCAccessorySystem(scene);
 
     // Performance: skip unnecessary per-frame clears when sky dome covers background
     scene.autoClear = false;
@@ -5559,6 +5566,16 @@ export class BabylonGame {
       const npcName = `${character.firstName || ''} ${character.lastName || ''}`.trim() || character.id;
       npcInstance.billboardLOD = this.createNPCBillboard(npcName, role, root.position);
 
+      // Attach occupation-based accessories and floating name/occupation label
+      if (this.npcAccessorySystem) {
+        this.npcAccessorySystem.attachAccessories(
+          character.id,
+          root,
+          npcName,
+          character.occupation || '',
+        );
+      }
+
       this.npcMeshes.set(character.id, npcInstance);
 
       // Register with LOD system
@@ -10070,6 +10087,11 @@ export class BabylonGame {
     if (this.npcSimulationLOD) {
       this.npcSimulationLOD.dispose();
       this.npcSimulationLOD = null;
+    }
+    // Clean up NPC accessory system
+    if (this.npcAccessorySystem) {
+      this.npcAccessorySystem.dispose();
+      this.npcAccessorySystem = null;
     }
   }
 
