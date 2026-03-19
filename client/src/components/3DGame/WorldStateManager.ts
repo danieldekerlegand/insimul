@@ -13,12 +13,19 @@ import type {
   GameSaveState,
   SavedNPCState,
   SavedMerchantState,
+  SavedInteriorState,
+  SavedTimeState,
+  SavedQuestActiveState,
+  SavedLanguageProgressState,
+  SavedReputationState,
+  SavedRelationshipDelta,
+  SavedMainQuestState,
   InventoryItem,
   Vec3,
 } from '@shared/game-engine/types';
 import type { GameEventBus, GameEventType } from './GameEventBus';
 
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
 const AUTO_SAVE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_SAVE_SLOTS = 3;
 const AUTO_SAVE_DEBOUNCE_MS = 5_000; // debounce event-driven saves
@@ -49,6 +56,14 @@ export interface GameStateSource {
   getAmbientConversationState?(): any;
   getContentGatingState?(): any;
   getSkillTreeState?(): any;
+  // v3 subsystem getters
+  getInteriorState?(): SavedInteriorState | null;
+  getTimeState?(): SavedTimeState;
+  getQuestActiveState?(): SavedQuestActiveState;
+  getLanguageProgressDetailed?(): SavedLanguageProgressState;
+  getReputationState?(): SavedReputationState;
+  getRelationshipDeltas?(): SavedRelationshipDelta[];
+  getMainQuestState?(): SavedMainQuestState;
 }
 
 /** Minimal interface for restoring state back into the game. */
@@ -72,6 +87,14 @@ export interface GameStateTarget {
   restoreAmbientConversationState?(data: any): void;
   restoreContentGatingState?(data: any): void;
   restoreSkillTreeState?(data: any): void;
+  // v3 subsystem restorers
+  restoreInteriorState?(data: SavedInteriorState | null): void;
+  restoreTimeState?(data: SavedTimeState): void;
+  restoreQuestActiveState?(data: SavedQuestActiveState): void;
+  restoreLanguageProgressDetailed?(data: SavedLanguageProgressState): void;
+  restoreReputationState?(data: SavedReputationState): void;
+  restoreRelationshipDeltas?(data: SavedRelationshipDelta[]): void;
+  restoreMainQuestState?(data: SavedMainQuestState): void;
 }
 
 /** Events that trigger an auto-save. */
@@ -105,6 +128,14 @@ const SUBSYSTEM_KEYS: Array<keyof GameSaveState> = [
   'ambientConversations',
   'contentGating',
   'skillTree',
+  // v3 subsystems
+  'interiorState',
+  'timeState',
+  'questActiveState',
+  'languageProgressDetailed',
+  'reputationState',
+  'relationshipDeltas',
+  'mainQuestState',
 ];
 
 export interface SaveStateAuditResult {
@@ -286,6 +317,14 @@ export class WorldStateManager {
       ambientConversations: src.getAmbientConversationState?.() ?? undefined,
       contentGating: src.getContentGatingState?.() ?? undefined,
       skillTree: src.getSkillTreeState?.() ?? undefined,
+      // v3 subsystems
+      interiorState: src.getInteriorState?.() ?? undefined,
+      timeState: src.getTimeState?.() ?? undefined,
+      questActiveState: src.getQuestActiveState?.() ?? undefined,
+      languageProgressDetailed: src.getLanguageProgressDetailed?.() ?? undefined,
+      reputationState: src.getReputationState?.() ?? undefined,
+      relationshipDeltas: src.getRelationshipDeltas?.() ?? undefined,
+      mainQuestState: src.getMainQuestState?.() ?? undefined,
       saveTrigger: trigger,
     };
   }
@@ -308,6 +347,10 @@ export class WorldStateManager {
       'temporaryStates', 'languageProgress', 'gamification',
       'volition', 'utteranceQuests', 'ambientConversations',
       'contentGating', 'skillTree',
+      // v3 fields
+      'interiorState', 'timeState', 'questActiveState',
+      'languageProgressDetailed', 'reputationState',
+      'relationshipDeltas', 'mainQuestState',
     ];
 
     for (const field of fieldsToCompare) {
@@ -378,10 +421,63 @@ export class WorldStateManager {
       return false;
     }
 
-    this.applyState(target, state);
-    this.lastSavedState = state;
-    console.log(`[WorldStateManager] Loaded from slot ${slotIndex}`);
+    const migrated = WorldStateManager.migrateSaveState(state);
+    this.applyState(target, migrated);
+    this.lastSavedState = migrated;
+    console.log(`[WorldStateManager] Loaded from slot ${slotIndex} (v${state.version}→v${migrated.version})`);
     return true;
+  }
+
+  /** Migrate a save state from any older version to the current version. */
+  static migrateSaveState(state: GameSaveState): GameSaveState {
+    let migrated = { ...state };
+
+    if (migrated.version < 3) {
+      migrated = WorldStateManager.migrateV2ToV3(migrated);
+    }
+
+    return migrated;
+  }
+
+  /** Migrate v2 save state to v3 by adding default values for new subsystem fields. */
+  static migrateV2ToV3(state: GameSaveState): GameSaveState {
+    const migrated: GameSaveState = {
+      ...state,
+      version: 3,
+      // Add v3 fields with sensible defaults derived from v2 data where possible
+      interiorState: state.interiorState ?? null,
+      timeState: state.timeState ?? {
+        gameHour: Math.floor(state.gameTime % 24),
+        gameMinute: Math.floor((state.gameTime % 1) * 60),
+        dayNumber: Math.floor(state.gameTime / 24) + 1,
+        timeScale: 1,
+        isPaused: false,
+      },
+      questActiveState: state.questActiveState ?? {
+        quests: {},
+        trackedQuestId: undefined,
+      },
+      languageProgressDetailed: state.languageProgressDetailed ?? undefined,
+      reputationState: state.reputationState ?? { entries: [] },
+      relationshipDeltas: state.relationshipDeltas ?? [],
+      mainQuestState: state.mainQuestState ?? {
+        currentChapterIndex: 0,
+        chaptersCompleted: [],
+        objectiveProgress: {},
+      },
+    };
+
+    // Migrate NPC states to include v3 fields with defaults
+    if (migrated.npcs) {
+      migrated.npcs = migrated.npcs.map((npc) => ({
+        ...npc,
+        isInsideBuilding: npc.isInsideBuilding ?? false,
+        schedulePhaseTimeRemaining: npc.schedulePhaseTimeRemaining ?? 0,
+      }));
+    }
+
+    console.log('[WorldStateManager] Migrated save state from v2 to v3');
+    return migrated;
   }
 
   /** Apply a saved state to the game target. */
@@ -439,6 +535,28 @@ export class WorldStateManager {
     }
     if (state.skillTree != null) {
       target.restoreSkillTreeState?.(state.skillTree);
+    }
+    // v3 subsystems
+    if (state.interiorState !== undefined) {
+      target.restoreInteriorState?.(state.interiorState ?? null);
+    }
+    if (state.timeState != null) {
+      target.restoreTimeState?.(state.timeState);
+    }
+    if (state.questActiveState != null) {
+      target.restoreQuestActiveState?.(state.questActiveState);
+    }
+    if (state.languageProgressDetailed != null) {
+      target.restoreLanguageProgressDetailed?.(state.languageProgressDetailed);
+    }
+    if (state.reputationState != null) {
+      target.restoreReputationState?.(state.reputationState);
+    }
+    if (state.relationshipDeltas != null) {
+      target.restoreRelationshipDeltas?.(state.relationshipDeltas);
+    }
+    if (state.mainQuestState != null) {
+      target.restoreMainQuestState?.(state.mainQuestState);
     }
   }
 
