@@ -123,6 +123,8 @@ import { VRAccessibilityManager } from "@/components/3DGame/VRAccessibilityManag
 import { NPCTalkingIndicator } from "@/components/3DGame/NPCTalkingIndicator.ts";
 import { NPCAmbientConversationManager } from "@/components/3DGame/NPCAmbientConversationManager.ts";
 import { NPCInitiatedConversationController } from "@/components/3DGame/NPCInitiatedConversationController.ts";
+import { NPCSocializationController } from "@/components/3DGame/NPCSocializationController.ts";
+import type { SocializableNPC, ConversationResult } from "@/components/3DGame/NPCSocializationController.ts";
 import { BuildingInteriorGenerator, InteriorLayout } from "@/components/3DGame/BuildingInteriorGenerator.ts";
 import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo, type MenuJournalData } from "@/components/3DGame/GameMenuSystem.ts";
 import { WorldStateManager, type GameStateSource, type GameStateTarget } from "@/components/3DGame/WorldStateManager.ts";
@@ -432,6 +434,7 @@ export class BabylonGame {
   private combatUI: CombatUI | null = null;
   private npcTalkingIndicator: NPCTalkingIndicator | null = null;
   private ambientConversationManager: NPCAmbientConversationManager | null = null;
+  private socializationController: NPCSocializationController | null = null;
   private npcInitiatedConversationController: NPCInitiatedConversationController | null = null;
   private vrManager: VRManager | null = null;
   private gameMenuSystem: GameMenuSystem | null = null;
@@ -2210,6 +2213,88 @@ export class BabylonGame {
         this.startEavesdropConversation(npc1Id, npc2Id);
       }
     );
+
+    // Initialize NPC socialization controller (personality-driven NPC-NPC interactions)
+    this.socializationController = new NPCSocializationController({
+      onMoveTo: (npcId, targetPos, _speed) => {
+        const instance = this.npcMeshes.get(npcId);
+        if (instance?.mesh && instance.controller) {
+          const dir = targetPos.subtract(instance.mesh.position);
+          dir.y = 0;
+          if (dir.lengthSquared() > 0.001) {
+            instance.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+            instance.controller.walk(true);
+          }
+        }
+      },
+      onFaceDirection: (npcId, targetPos) => {
+        const instance = this.npcMeshes.get(npcId);
+        if (instance?.mesh) {
+          const dir = targetPos.subtract(instance.mesh.position);
+          dir.y = 0;
+          if (dir.lengthSquared() > 0.001) {
+            instance.mesh.rotation.y = Math.atan2(dir.x, dir.z) + Math.PI;
+          }
+        }
+      },
+      onAnimationChange: (npcId, state) => {
+        const instance = this.npcMeshes.get(npcId);
+        if (instance?.controller) {
+          instance.controller.walk(false);
+          instance.controller.turnLeft(false);
+          instance.controller.turnRight(false);
+        }
+        if (instance?.animationGroups?.length) {
+          const animNames: Record<string, string[]> = {
+            talk: ['talk', 'Talk', 'talking', 'speak', 'gesture'],
+            listen: ['listen', 'Listen', 'listening', 'nod'],
+            idle: ['idle', 'Idle', 'standing', 'breathe'],
+          };
+          const searchNames = animNames[state] || [state];
+          const group = instance.animationGroups.find((ag: any) =>
+            searchNames.some((n: string) => ag.name?.toLowerCase().includes(n.toLowerCase()))
+          );
+          if (group) {
+            for (const ag of instance.animationGroups) {
+              if (ag !== group) ag.stop();
+            }
+            group.start(true);
+          }
+        }
+      },
+      onStartConversation: async (npc1Id: string, npc2Id: string, topic?: string): Promise<ConversationResult | null> => {
+        try {
+          const response = await fetch(`/api/worlds/${this.config.worldId}/npc-npc-conversation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ npc1Id, npc2Id, topic }),
+          });
+          if (!response.ok) return null;
+          const data = await response.json();
+          return {
+            exchanges: data.exchanges ?? [],
+            relationshipDelta: data.relationshipDelta ?? { friendshipChange: 0, trustChange: 0, romanceSpark: 0 },
+            topic: data.topic ?? 'small_talk',
+            languageUsed: data.languageUsed ?? 'English',
+          };
+        } catch {
+          return null;
+        }
+      },
+      onRelationshipUpdate: (_npc1Id, _npc2Id, _delta) => {
+        // Relationship updates are handled server-side in the endpoint
+      },
+      onEmitEvent: (event) => this.eventBus?.emit(event),
+      onStreamToPlayer: (text, _speakerId, speakerName) => {
+        this.guiManager?.showToast({
+          title: speakerName,
+          description: `"${text}"`,
+          duration: 4000,
+        });
+      },
+      getGameHour: () => 12,
+      getPlayerPosition: () => this.playerMesh?.position ?? null,
+    });
 
     // Initialize NPC-initiated conversation controller
     this.npcInitiatedConversationController = new NPCInitiatedConversationController({
@@ -5690,6 +5775,24 @@ export class BabylonGame {
         );
       }
 
+      // Register NPC for socialization (personality-driven NPC-NPC interactions)
+      if (this.socializationController) {
+        const charAny = character as any;
+        const personality = charAny.personality || {
+          openness: 0.5, conscientiousness: 0.5, extroversion: 0.5,
+          agreeableness: 0.5, neuroticism: 0.5,
+        };
+        this.socializationController.registerNPC({
+          id: character.id,
+          position: root.position.clone(),
+          personality,
+          relationships: charAny.relationships || {},
+          mood: charAny.mood || 'neutral',
+          isInConversation: false,
+          locationId: charAny.currentLocation || 'overworld',
+        });
+      }
+
       // Register NPC for NPC-initiated conversations
       if (this.npcInitiatedConversationController) {
         const personality = character.personality || {
@@ -6739,6 +6842,20 @@ export class BabylonGame {
       if (this._npcBehaviorAccum < 100) return; // Check at most every 100ms
       this._npcBehaviorAccum = 0;
       this.updateNPCBehaviorsBatched();
+
+      // Update socialization controller — uses 60s real = 1 game hour
+      if (this.socializationController) {
+        this.socializationController.update(dt, 60000);
+        // Sync NPC positions into the controller
+        this.npcMeshes.forEach((instance, npcId) => {
+          if (instance.mesh) {
+            this.socializationController!.updateNPC(npcId, {
+              position: instance.mesh.position.clone(),
+              isInConversation: this.conversationNPCId === npcId,
+            });
+          }
+        });
+      }
     });
   }
 
@@ -10287,7 +10404,9 @@ export class BabylonGame {
     this.onboardingResult = null;
     this.ambientConversationManager?.dispose();
     this.npcInitiatedConversationController?.dispose();
+    this.socializationController?.dispose();
     this.ambientConversationManager = null;
+    this.socializationController = null;
     this.npcTalkingIndicator?.dispose();
     this.npcTalkingIndicator = null;
     this.buildingCollisionSystem?.dispose();
