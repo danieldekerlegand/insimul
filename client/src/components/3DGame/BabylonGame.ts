@@ -531,6 +531,7 @@ export class BabylonGame {
   // Zone system
   private currentZone: { id: string; name: string; type: string } | null = null;
   private playthroughId: string | null = null;
+  private playthroughMeta: PlaythroughInfo | null = null;
   private questOverlay: PlaythroughQuestOverlay = new PlaythroughQuestOverlay();
   private currentReputation: any | null = null;
   private reputationManager: ReputationManager | null = null;
@@ -982,6 +983,119 @@ export class BabylonGame {
     if (!this.worldStateManager || !this.playthroughId) return false;
     const target = this.createGameStateTarget();
     return this.worldStateManager.load(target, this.config.worldId, this.playthroughId, slotIndex);
+  }
+
+  // ─── Playthrough Management ──────────────────────────────────────────────
+
+  private getPlaythroughInfo(): PlaythroughInfo | null {
+    if (!this.playthroughId) return null;
+    if (this.playthroughMeta) return this.playthroughMeta;
+    return {
+      id: this.playthroughId,
+      name: this.config.worldName + ' Playthrough',
+      status: 'active',
+      playtime: 0,
+      actionsCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  private async fetchPlaythroughMeta(): Promise<void> {
+    if (!this.playthroughId || !this.config.authToken) return;
+    try {
+      const res = await fetch(`/api/playthroughs/${this.playthroughId}`, {
+        headers: { Authorization: `Bearer ${this.config.authToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        this.playthroughMeta = {
+          id: data.id,
+          name: data.name || this.config.worldName + ' Playthrough',
+          status: data.status || 'active',
+          playtime: data.playtime || 0,
+          actionsCount: data.actionsCount || 0,
+          createdAt: data.createdAt || data.startedAt || new Date().toISOString(),
+          lastPlayedAt: data.lastPlayedAt,
+        };
+      }
+    } catch {
+      // Non-critical — we'll use fallback info
+    }
+  }
+
+  private async patchPlaythrough(updates: Record<string, any>): Promise<boolean> {
+    if (!this.playthroughId || !this.config.authToken) return false;
+    try {
+      const res = await fetch(`/api/playthroughs/${this.playthroughId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.config.authToken}`,
+        },
+        body: JSON.stringify(updates),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  private async handleRenamePlaythrough(newName: string): Promise<boolean> {
+    const ok = await this.patchPlaythrough({ name: newName });
+    if (ok && this.playthroughMeta) {
+      this.playthroughMeta.name = newName;
+    }
+    return ok;
+  }
+
+  private async handlePausePlaythrough(): Promise<void> {
+    // Auto-save first
+    if (this.worldStateManager) {
+      await this.worldStateManager.save(0);
+    }
+    await this.patchPlaythrough({ status: 'paused' });
+    this.gameMenuSystem?.close();
+    this.config.onBack?.();
+  }
+
+  private async handleAbandonPlaythrough(): Promise<void> {
+    await this.patchPlaythrough({ status: 'abandoned' });
+    this.gameMenuSystem?.close();
+    this.config.onBack?.();
+  }
+
+  private async handleDeletePlaythrough(): Promise<void> {
+    if (!this.playthroughId || !this.config.authToken) return;
+    try {
+      await fetch(`/api/playthroughs/${this.playthroughId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${this.config.authToken}` },
+      });
+    } catch {
+      // Best-effort
+    }
+    this.gameMenuSystem?.close();
+    this.config.onBack?.();
+  }
+
+  private async handleReturnToMainMenu(): Promise<void> {
+    // Auto-save and pause
+    if (this.worldStateManager) {
+      await this.worldStateManager.save(0);
+    }
+    await this.patchPlaythrough({ status: 'paused' });
+    this.gameMenuSystem?.close();
+    this.config.onBack?.();
+  }
+
+  private async handleQuitGame(): Promise<void> {
+    // Auto-save before quit
+    if (this.worldStateManager) {
+      await this.worldStateManager.save(0);
+    }
+    await this.patchPlaythrough({ status: 'paused' });
+    this.gameMenuSystem?.close();
+    this.config.onBack?.();
   }
 
   /**
@@ -1556,6 +1670,14 @@ export class BabylonGame {
       onLoadGame: (slotIndex: number) => this.handleLoadGame(slotIndex),
       getJournalData: () => this.mainQuestJournalData,
       getPortfolioData: () => this.portfolioData,
+      // Playthrough management
+      getPlaythroughInfo: () => this.getPlaythroughInfo(),
+      onRenamePlaythrough: (newName: string) => this.handleRenamePlaythrough(newName),
+      onPausePlaythrough: () => this.handlePausePlaythrough(),
+      onAbandonPlaythrough: () => this.handleAbandonPlaythrough(),
+      onDeletePlaythrough: () => this.handleDeletePlaythrough(),
+      onReturnToMainMenu: () => this.handleReturnToMainMenu(),
+      onQuitGame: () => this.handleQuitGame(),
     };
 
     // Initialize WorldStateManager for save/load
@@ -5096,6 +5218,7 @@ export class BabylonGame {
       this.initReputationManager();
       // Restore quest progress from previous session
       await this.restoreQuestProgressFromServer();
+      this.fetchPlaythroughMeta();
       return;
     }
 
@@ -5111,6 +5234,7 @@ export class BabylonGame {
         this.chatPanel?.setPlaythroughId(playthrough.id);
         this.gamificationTracker?.setPlaythroughId(playthrough.id);
         this.initReputationManager();
+        this.fetchPlaythroughMeta();
       } else {
         // Continue without playthrough for development/testing
       }

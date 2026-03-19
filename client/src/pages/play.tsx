@@ -19,17 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
-  Play, Plus, Clock, Activity, Calendar, Loader2, Trash2, LogIn, UserPlus, LogOut,
+  Play, Plus, Clock, Activity, Calendar, Loader2, LogIn, UserPlus, LogOut,
 } from 'lucide-react';
 
 interface Playthrough {
@@ -75,8 +65,6 @@ export default function PlayPage() {
   const [creating, setCreating] = useState(false);
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [newPlaythroughName, setNewPlaythroughName] = useState('');
-  const [deletingPlaythrough, setDeletingPlaythrough] = useState<Playthrough | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Auth form state
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -226,28 +214,6 @@ export default function PlayPage() {
       toast({ title: 'Error', description: 'Failed to create playthrough', variant: 'destructive' });
     } finally {
       setCreating(false);
-    }
-  };
-
-  const handleDelete = async (playthrough: Playthrough) => {
-    if (!token) return;
-    try {
-      setDeletingId(playthrough.id);
-      const res = await fetch(`/api/playthroughs/${playthrough.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        toast({ title: 'Deleted', description: 'Playthrough deleted' });
-        setPlaythroughs(playthroughs.filter((p) => p.id !== playthrough.id));
-      } else {
-        toast({ title: 'Error', description: 'Failed to delete playthrough', variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: 'Error', description: 'Failed to delete playthrough', variant: 'destructive' });
-    } finally {
-      setDeletingId(null);
-      setDeletingPlaythrough(null);
     }
   };
 
@@ -506,8 +472,6 @@ export default function PlayPage() {
                     key={p.id}
                     playthrough={p}
                     onPlay={() => setSelectedPlaythroughId(p.id)}
-                    onDelete={() => setDeletingPlaythrough(p)}
-                    deleting={deletingId === p.id}
                     formatDuration={formatDuration}
                     formatDate={formatDate}
                   />
@@ -526,8 +490,6 @@ export default function PlayPage() {
                     key={p.id}
                     playthrough={p}
                     onPlay={() => setSelectedPlaythroughId(p.id)}
-                    onDelete={() => setDeletingPlaythrough(p)}
-                    deleting={deletingId === p.id}
                     formatDuration={formatDuration}
                     formatDate={formatDate}
                   />
@@ -567,46 +529,20 @@ export default function PlayPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
-      <AlertDialog
-        open={deletingPlaythrough !== null}
-        onOpenChange={(open) => !open && setDeletingPlaythrough(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Playthrough?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete "{deletingPlaythrough?.name || 'Unnamed Playthrough'}" and all its progress. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deletingPlaythrough && handleDelete(deletingPlaythrough)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
 
-/** Compact playthrough card for the player portal */
+/** Compact playthrough card for the player portal.
+ * Management actions (rename, pause, abandon, delete) are handled in-game via the pause menu. */
 function PlaythroughCard({
   playthrough,
   onPlay,
-  onDelete,
-  deleting,
   formatDuration,
   formatDate,
 }: {
   playthrough: Playthrough;
   onPlay: () => void;
-  onDelete: () => void;
-  deleting: boolean;
   formatDuration: (s: number | undefined) => string;
   formatDate: (s: string | undefined) => string;
 }) {
@@ -648,15 +584,6 @@ function PlaythroughCard({
             <Button size="sm" onClick={onPlay}>
               <Play className="w-4 h-4 mr-1" />
               Play
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-destructive hover:text-destructive"
-              onClick={onDelete}
-              disabled={deleting}
-            >
-              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
             </Button>
           </div>
         </div>
