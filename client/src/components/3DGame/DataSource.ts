@@ -981,7 +981,12 @@ export class FileDataSource implements DataSource {
           }
           if (a.role === 'npc_guard') characterModels['guard'] = 'npc_guard';
           if (a.role === 'npc_merchant') characterModels['merchant'] = 'npc_merchant';
-          if (a.role === 'npc_civilian_male' || a.role === 'npc_civilian_female') {
+          if (a.role === 'npc_civilian_male') {
+            characterModels['civilianMale'] = a.role;
+            if (!characterModels['civilian']) characterModels['civilian'] = a.role;
+          }
+          if (a.role === 'npc_civilian_female') {
+            characterModels['civilianFemale'] = a.role;
             if (!characterModels['civilian']) characterModels['civilian'] = a.role;
           }
         }

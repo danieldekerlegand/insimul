@@ -196,6 +196,7 @@ interface WorldCharacter {
   id: string;
   firstName?: string;
   lastName?: string;
+  gender?: string;
   occupation?: string;
   faction?: string;
   disposition?: string;
