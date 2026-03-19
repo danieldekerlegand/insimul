@@ -17,6 +17,7 @@ import {
 } from '@babylonjs/core';
 import { BuildingInteriorGenerator, InteriorLayout } from './BuildingInteriorGenerator';
 import type { InteriorNPCManager, BuildingMetadata } from './InteriorNPCManager';
+import type { BusinessBehaviorSystem } from './BusinessBehaviorSystem';
 
 /** Data for a registered building */
 export interface BuildingEntryData {
@@ -99,6 +100,7 @@ export class BuildingEntrySystem {
 
   // Interior NPC management
   private interiorNPCManager: InteriorNPCManager | null = null;
+  private businessBehaviorSystem: BusinessBehaviorSystem | null = null;
   private npcDataSource: (() => Map<string, { mesh: Mesh; characterData?: any }>) | null = null;
   private playerCharacterIdSource: (() => string | undefined) | null = null;
 
@@ -179,6 +181,13 @@ export class BuildingEntrySystem {
    */
   getInteriorNPCManager(): InteriorNPCManager | null {
     return this.interiorNPCManager;
+  }
+
+  /**
+   * Wire a BusinessBehaviorSystem for owner/employee work action cycling.
+   */
+  setBusinessBehaviorSystem(system: BusinessBehaviorSystem): void {
+    this.businessBehaviorSystem = system;
   }
 
   /**
@@ -265,6 +274,14 @@ export class BuildingEntrySystem {
         npcMap,
         playerCharId
       );
+
+      // Register placed NPCs with business behavior system
+      if (this.businessBehaviorSystem && data.businessType) {
+        this.businessBehaviorSystem.clearAll();
+        for (const placed of this.interiorNPCManager.getPlacedNPCs()) {
+          this.businessBehaviorSystem.registerNPC(placed.npcId, placed.role, data.businessType);
+        }
+      }
     }
 
     // Notify callback
@@ -315,6 +332,7 @@ export class BuildingEntrySystem {
 
     // Clear interior NPCs via wired InteriorNPCManager
     this.interiorNPCManager?.clearInterior();
+    this.businessBehaviorSystem?.clearAll();
 
     // Resume overworld NPC movement
     for (const cb of this.npcPauseCallbacks) {
@@ -696,6 +714,7 @@ export class BuildingEntrySystem {
     this.doorEntryPoints.clear();
     this.npcPauseCallbacks = [];
     this.interiorNPCManager = null;
+    this.businessBehaviorSystem = null;
     this.npcDataSource = null;
     this.playerCharacterIdSource = null;
     this.isInsideBuilding = false;
