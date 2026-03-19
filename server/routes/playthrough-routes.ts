@@ -6,6 +6,7 @@ import * as ReputationService from "../services/reputation-service";
 import { accumulateMetrics, isDecisionAction, getMetricsSnapshot } from "../services/playthrough-metrics";
 import { exportPlaythrough, importPlaythrough, validatePortableSave } from "../services/playthrough-portable";
 import { checkSnapshotCompatibility } from "@shared/world-snapshot-version";
+import { computeCrossPlaythroughAnalytics } from "../services/playthrough-analytics";
 import {
   setRelationship,
   getRelationshipStrength,
@@ -815,6 +816,34 @@ export function registerPlaythroughRoutes(app: Express) {
     } catch (error) {
       console.error("Get analytics error:", error);
       res.status(500).json({ message: "Failed to get analytics" });
+    }
+  });
+
+  // Get aggregated cross-playthrough analytics for a world (owner only)
+  app.get("/api/worlds/:worldId/analytics/playthroughs/summary", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const { worldId } = req.params;
+
+      if (!(await canEditWorld(payload.userId, worldId))) {
+        return res.status(403).json({ message: "Only world owner can view analytics" });
+      }
+
+      const playthroughs = await storage.getPlaythroughsByWorld(worldId);
+      const analytics = computeCrossPlaythroughAnalytics(playthroughs);
+      res.json(analytics);
+    } catch (error) {
+      console.error("Get cross-playthrough analytics error:", error);
+      res.status(500).json({ message: "Failed to get cross-playthrough analytics" });
     }
   });
 

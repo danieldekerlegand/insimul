@@ -11,6 +11,7 @@ import { AssessmentDashboard } from './AssessmentDashboard';
 import { TelemetryMonitorDashboard } from './TelemetryMonitorDashboard';
 import { LearningProgressVisualization } from './LearningProgressVisualization';
 import { PlaythroughComparison } from './PlaythroughComparison';
+import { AnalyticsOverview } from './AnalyticsOverview';
 
 interface Playthrough {
   id: string;
@@ -72,16 +73,17 @@ interface PlaythroughAnalyticsProps {
   worldId: string;
 }
 
-type ActiveView = 'playthroughs' | 'comparison' | 'assessments' | 'learning_progress' | 'telemetry';
+type ActiveView = 'overview' | 'playthroughs' | 'comparison' | 'assessments' | 'learning_progress' | 'telemetry';
 type DetailTab = 'timeline' | 'actions' | 'locations' | 'changes' | 'reputations';
 type RightPanel = 'summary' | 'details';
 
 const VIEW_META: Record<ActiveView, { label: string; icon: typeof Activity; group: string }> = {
-  playthroughs:      { label: 'Playthroughs',      icon: GamepadIcon,    group: 'Player Data' },
-  comparison:        { label: 'Compare',            icon: GitCompareArrows, group: 'Player Data' },
-  assessments:       { label: 'Assessments',        icon: GraduationCap, group: 'Player Data' },
-  learning_progress: { label: 'Learning Progress',  icon: TrendingUp,    group: 'Player Data' },
-  telemetry:         { label: 'Telemetry',          icon: Radio,         group: 'System' },
+  overview:          { label: 'Overview',           icon: BarChart3,      group: 'Player Data' },
+  playthroughs:      { label: 'Playthroughs',       icon: GamepadIcon,    group: 'Player Data' },
+  comparison:        { label: 'Compare',             icon: GitCompareArrows, group: 'Player Data' },
+  assessments:       { label: 'Assessments',         icon: GraduationCap, group: 'Player Data' },
+  learning_progress: { label: 'Learning Progress',   icon: TrendingUp,    group: 'Player Data' },
+  telemetry:         { label: 'Telemetry',           icon: Radio,         group: 'System' },
 };
 
 const GROUPS = ['Player Data', 'System'];
@@ -114,7 +116,7 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
   const { token } = useAuth();
 
   // Three-panel state
-  const [activeView, setActiveView] = useState<ActiveView>('playthroughs');
+  const [activeView, setActiveView] = useState<ActiveView>('overview');
   const [selectedPlaythrough, setSelectedPlaythrough] = useState<Playthrough | null>(null);
   const [expandedSection, setExpandedSection] = useState<RightPanel | null>('summary');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(GROUPS));
@@ -680,6 +682,22 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
   // ─── Center panel ────────────────────────────────────────────────────────
 
   const renderCenter = () => {
+    // Overview — cross-playthrough aggregated insights
+    if (activeView === 'overview') {
+      return (
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+          <div className="px-4 py-3 border-b shrink-0">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-primary" />
+              <h2 className="text-lg font-bold">Analytics Overview</h2>
+              <Badge variant="outline" className="text-[10px]">Cross-Playthrough</Badge>
+            </div>
+          </div>
+          <AnalyticsOverview worldId={worldId} />
+        </div>
+      );
+    }
+
     // Assessments
     if (activeView === 'assessments') {
       return (
