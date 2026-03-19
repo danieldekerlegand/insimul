@@ -3,6 +3,7 @@ import { storage } from '../db/storage';
 import { AuthService } from "../services/auth-service";
 import { canAccessWorld, canEditWorld } from "../middleware/permissions";
 import * as ReputationService from "../services/reputation-service";
+import { accumulateMetrics, isDecisionAction, getMetricsSnapshot } from "../services/playthrough-metrics";
 import { exportPlaythrough, importPlaythrough, validatePortableSave } from "../services/playthrough-portable";
 import { checkSnapshotCompatibility } from "@shared/world-snapshot-version";
 import {
@@ -363,11 +364,12 @@ export function registerPlaythroughRoutes(app: Express) {
         ...req.body,
       });
 
-      // Update playthrough action count
-      await storage.updatePlaythrough(req.params.id, {
-        actionsCount: (playthrough.actionsCount || 0) + 1,
-        lastPlayedAt: new Date(),
-      });
+      // Update playthrough action count and decisions count
+      const deltas: { actions: number; decisions: number } = {
+        actions: 1,
+        decisions: isDecisionAction(req.body.actionType) ? 1 : 0,
+      };
+      await accumulateMetrics(req.params.id, deltas);
 
       res.status(201).json(trace);
     } catch (error) {
@@ -438,6 +440,88 @@ export function registerPlaythroughRoutes(app: Express) {
     } catch (error) {
       console.error("Batch create traces error:", error);
       res.status(500).json({ message: "Failed to create traces" });
+    }
+  });
+
+  // ===== PLAYTHROUGH METRICS =====
+
+  // Sync accumulated metrics (playtime, actions, decisions) from the client
+  app.post("/api/playthroughs/:id/metrics", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) {
+        return res.status(404).json({ message: "Playthrough not found" });
+      }
+
+      if (playthrough.userId !== payload.userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const { playtimeSeconds, actions, decisions } = req.body;
+
+      // Validate inputs are non-negative numbers if provided
+      if (playtimeSeconds !== undefined && (typeof playtimeSeconds !== 'number' || playtimeSeconds < 0)) {
+        return res.status(400).json({ message: "playtimeSeconds must be a non-negative number" });
+      }
+      if (actions !== undefined && (typeof actions !== 'number' || actions < 0)) {
+        return res.status(400).json({ message: "actions must be a non-negative number" });
+      }
+      if (decisions !== undefined && (typeof decisions !== 'number' || decisions < 0)) {
+        return res.status(400).json({ message: "decisions must be a non-negative number" });
+      }
+
+      const updated = await accumulateMetrics(req.params.id, {
+        playtimeSeconds,
+        actions,
+        decisions,
+      });
+
+      res.json({ metrics: getMetricsSnapshot(updated || playthrough) });
+    } catch (error) {
+      console.error("Sync metrics error:", error);
+      res.status(500).json({ message: "Failed to sync metrics" });
+    }
+  });
+
+  // Get current metrics snapshot for a playthrough
+  app.get("/api/playthroughs/:id/metrics", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) {
+        return res.status(404).json({ message: "Playthrough not found" });
+      }
+
+      if (playthrough.userId !== payload.userId) {
+        const canEdit = await canEditWorld(payload.userId, playthrough.worldId);
+        if (!canEdit) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+      }
+
+      res.json({ metrics: getMetricsSnapshot(playthrough) });
+    } catch (error) {
+      console.error("Get metrics error:", error);
+      res.status(500).json({ message: "Failed to get metrics" });
     }
   });
 
