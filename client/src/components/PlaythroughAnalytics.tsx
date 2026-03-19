@@ -531,7 +531,7 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
   // ─── Root ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-[calc(100vh-10rem)] min-h-[480px] rounded-lg border overflow-hidden bg-background">
+    <div data-testid="playthrough-analytics-readonly" className="flex h-[calc(100vh-10rem)] min-h-[480px] rounded-lg border overflow-hidden bg-background">
       <div className="w-56 shrink-0 flex flex-col">
         {renderTree()}
       </div>
