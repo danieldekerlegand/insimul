@@ -12,7 +12,22 @@
 
 import { Vector3, Scene, Mesh } from '@babylonjs/core';
 import { NPCTalkingIndicator } from './NPCTalkingIndicator';
+import { GREETINGS } from '@shared/language/utils';
 import type { GamePrologEngine } from './GamePrologEngine';
+
+/** Short ambient dialogue phrases in target languages for NPC-NPC speech bubbles. */
+const AMBIENT_DIALOGUE_PHRASES: Record<string, string[]> = {
+  French: ['Oui, bien sûr!', 'Ah bon?', 'C\'est vrai?', 'Exactement!', 'Pas mal!', 'Incroyable!', 'Tu as raison.', 'Quelle histoire!'],
+  Spanish: ['¡Sí, claro!', '¿De verdad?', '¡Exacto!', '¡No me digas!', '¡Qué bien!', 'Tienes razón.', '¡Increíble!', '¡Qué historia!'],
+  German: ['Ja, natürlich!', 'Wirklich?', 'Genau!', 'Nicht schlecht!', 'Unglaublich!', 'Du hast Recht.', 'Was für eine Geschichte!'],
+  Italian: ['Sì, certo!', 'Davvero?', 'Esatto!', 'Incredibile!', 'Hai ragione.', 'Che storia!', 'Non male!'],
+  Portuguese: ['Sim, claro!', 'Sério?', 'Exatamente!', 'Incrível!', 'Você tem razão.', 'Que história!'],
+  Japanese: ['そうですね！', 'ほんとう？', 'なるほど！', 'すごい！', 'そうだね。', 'えー！'],
+  Chinese: ['是的！', '真的吗？', '没错！', '太厉害了！', '你说得对。', '不错！'],
+  'Mandarin Chinese': ['是的！', '真的吗？', '没错！', '太厉害了！', '你说得对。', '不错！'],
+  Korean: ['맞아요!', '정말요?', '대단해요!', '그래요!', '맞아, 맞아!'],
+  Russian: ['Да, конечно!', 'Правда?', 'Точно!', 'Невероятно!', 'Ты прав.'],
+};
 
 interface NPCInstance {
   mesh: Mesh;
@@ -92,6 +107,9 @@ export class NPCAmbientConversationManager {
   private currentEavesdropConvId: string | null = null;
   private lastPromptConvId: string | null = null;
 
+  // Target language for ambient dialogue phrases
+  private targetLanguage: string = 'English';
+
   constructor(scene: Scene, _worldId: string, talkingIndicator: NPCTalkingIndicator) {
     this.scene = scene;
     this.talkingIndicator = talkingIndicator;
@@ -119,6 +137,10 @@ export class NPCAmbientConversationManager {
 
   public setPrologEngine(_engine: GamePrologEngine): void {
     // Prolog-based matching not used in lightweight ambient system
+  }
+
+  public setTargetLanguage(language: string): void {
+    this.targetLanguage = language;
   }
 
   public setAnimationCallback(cb: AnimationChangeCallback): void {
@@ -231,7 +253,7 @@ export class NPCAmbientConversationManager {
   private tryStartConversation(now: number): void {
     const available: NPCInstance[] = [];
 
-    for (const npc of this.npcMeshes.values()) {
+    for (const npc of Array.from(this.npcMeshes.values())) {
       if (this.isInConversation(npc.id)) continue;
       if (npc.state === 'combat') continue;
       if (!npc.mesh.isEnabled()) continue;
@@ -297,12 +319,31 @@ export class NPCAmbientConversationManager {
     this.onAnimationChange?.(speakerId, 'talk');
     this.onAnimationChange?.(listenerId, 'idle');
 
-    // Show "..." chat bubble above the speaker, hide the listener's
+    // Show a target-language snippet in the speech bubble (or "..." fallback)
     const speakerNPC = this.npcMeshes.get(speakerId);
     if (this.talkingIndicator && speakerNPC) {
       this.talkingIndicator.hide(listenerId);
-      this.talkingIndicator.show(speakerId, speakerNPC.mesh);
+      const snippet = this.pickAmbientSnippet();
+      if (snippet) {
+        this.talkingIndicator.show(speakerId, speakerNPC.mesh, snippet);
+      } else {
+        this.talkingIndicator.show(speakerId, speakerNPC.mesh);
+      }
     }
+  }
+
+  /** Pick a random target-language snippet for ambient NPC-NPC speech bubbles. */
+  private pickAmbientSnippet(): string | undefined {
+    const lang = this.targetLanguage;
+    if (!lang || lang === 'English') return undefined;
+
+    const greetings = GREETINGS[lang];
+    if (!greetings || greetings.length === 0) return undefined;
+
+    // Mix greeting snippets with simple ambient phrases
+    const ambientPhrases = AMBIENT_DIALOGUE_PHRASES[lang];
+    const pool = ambientPhrases ? [...greetings, ...ambientPhrases] : greetings;
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 
   private endConversation(convId: string): void {
