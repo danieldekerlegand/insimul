@@ -180,6 +180,16 @@ export interface SaveSlotInfo {
   zoneName?: string;
 }
 
+export interface PlaythroughInfo {
+  id: string;
+  name: string;
+  status: string;
+  playtime: number;
+  actionsCount: number;
+  createdAt: string;
+  lastPlayedAt?: string;
+}
+
 /** Callback interface for requesting data and dispatching actions from the menu */
 export interface MenuJournalChapter {
   chapter: MainQuestChapter;
@@ -231,6 +241,14 @@ export interface GameMenuCallbacks {
   onLoadGame?: (slotIndex: number) => Promise<boolean>;
   getJournalData?: () => MenuJournalData | null;
   getPortfolioData?: () => PortfolioData | null;
+  // Playthrough management
+  getPlaythroughInfo?: () => PlaythroughInfo | null;
+  onRenamePlaythrough?: (newName: string) => Promise<boolean>;
+  onPausePlaythrough?: () => Promise<void>;
+  onAbandonPlaythrough?: () => Promise<void>;
+  onDeletePlaythrough?: () => Promise<void>;
+  onReturnToMainMenu?: () => void;
+  onQuitGame?: () => void;
 }
 
 export type MenuTab =
@@ -309,9 +327,12 @@ export class GameMenuSystem {
   private noticeShowTranslations: boolean = true;
 
   // Save/Load state
-  private systemSubView: 'main' | 'save' | 'load' = 'main';
+  private systemSubView: 'main' | 'save' | 'load' | 'playthrough' = 'main';
   private saveSlotCache: Array<SaveSlotInfo | null> = [null, null, null];
   private saveLoadBusy = false;
+
+  // Playthrough management state
+  private playthroughRenameBusy = false;
 
   // Vocabulary tab state
   private vocabSubTab: 'vocabulary' | 'grammar' = 'vocabulary';
@@ -2050,6 +2071,9 @@ export class GameMenuSystem {
       case 'load':
         this.renderSaveLoadView('load');
         return;
+      case 'playthrough':
+        this.renderPlaythroughManagementView();
+        return;
     }
 
     const { stack } = this.makeScrollableContent("system");
@@ -2099,6 +2123,66 @@ export class GameMenuSystem {
 
       this.addDivider(stack);
     }
+
+    // Playthrough Management button
+    if (this.callbacks.getPlaythroughInfo) {
+      const ptInfo = this.callbacks.getPlaythroughInfo();
+      if (ptInfo) {
+        const ptBtn = this.makeSystemButton("sys_playthroughMgmt", `Playthrough: ${ptInfo.name || 'Unnamed'}`);
+        ptBtn.width = 1;
+        ptBtn.height = "34px";
+        ptBtn.fontSize = 13;
+        ptBtn.paddingBottom = "4px";
+        ptBtn.onPointerClickObservable.add(() => {
+          this.systemSubView = 'playthrough';
+          this.refreshActiveTab();
+        });
+        stack.addControl(ptBtn);
+      }
+    }
+
+    // Return to Main Menu / Quit buttons
+    const exitRow = new StackPanel("exitRow");
+    exitRow.isVertical = false;
+    exitRow.width = 1;
+    exitRow.height = "40px";
+    exitRow.paddingBottom = "8px";
+    stack.addControl(exitRow);
+
+    if (this.callbacks.onReturnToMainMenu) {
+      const menuBtn = this.makeSystemButton("sys_returnMainMenu", "Main Menu");
+      menuBtn.width = "140px";
+      menuBtn.height = "34px";
+      menuBtn.fontSize = 13;
+      menuBtn.paddingRight = "8px";
+      menuBtn.onPointerClickObservable.add(() => {
+        this.showConfirmDialog(
+          "Return to Main Menu?",
+          "Your game will be auto-saved and paused.",
+          "Return",
+          () => { this.callbacks.onReturnToMainMenu?.(); }
+        );
+      });
+      exitRow.addControl(menuBtn);
+    }
+
+    if (this.callbacks.onQuitGame) {
+      const quitBtn = this.makeSystemButton("sys_quitGame", "Quit Game");
+      quitBtn.width = "140px";
+      quitBtn.height = "34px";
+      quitBtn.fontSize = 13;
+      quitBtn.onPointerClickObservable.add(() => {
+        this.showConfirmDialog(
+          "Quit Game?",
+          "Your game will be auto-saved before exiting.",
+          "Quit",
+          () => { this.callbacks.onQuitGame?.(); }
+        );
+      });
+      exitRow.addControl(quitBtn);
+    }
+
+    this.addDivider(stack);
 
     // Keyboard shortcuts
     const shortcutsTitle = new TextBlock();
@@ -2580,6 +2664,428 @@ export class GameMenuSystem {
     okBtn.onPointerClickObservable.add(() => {
       this.overlay?.removeControl(confirmBg);
       this.executeLoad(slotIndex);
+    });
+    btnRow.addControl(okBtn);
+  }
+
+  // ─── Playthrough Management View ─────────────────────────────────────────
+
+  private renderPlaythroughManagementView(): void {
+    const { stack } = this.makeScrollableContent("playthroughMgmt");
+
+    // Back button + header
+    const headerRow = new Rectangle();
+    headerRow.width = 1;
+    headerRow.height = "36px";
+    headerRow.thickness = 0;
+    headerRow.background = "transparent";
+    stack.addControl(headerRow);
+
+    const backBtn = Button.CreateSimpleButton("pt_back", "< Back");
+    backBtn.width = "70px";
+    backBtn.height = "28px";
+    backBtn.color = COLORS.textSecondary;
+    backBtn.background = COLORS.cardBg;
+    backBtn.cornerRadius = 4;
+    backBtn.fontSize = 11;
+    backBtn.thickness = 1;
+    (backBtn as any).borderColor = COLORS.cardBorder;
+    backBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    backBtn.onPointerEnterObservable.add(() => { backBtn.background = COLORS.tabHover; backBtn.color = COLORS.textPrimary; });
+    backBtn.onPointerOutObservable.add(() => { backBtn.background = COLORS.cardBg; backBtn.color = COLORS.textSecondary; });
+    backBtn.onPointerClickObservable.add(() => {
+      this.systemSubView = 'main';
+      this.refreshActiveTab();
+    });
+    headerRow.addControl(backBtn);
+
+    this.addSectionHeader(stack, "Playthrough Management");
+
+    const ptInfo = this.callbacks.getPlaythroughInfo?.();
+    if (!ptInfo) {
+      this.addSubHeader(stack, "No active playthrough");
+      return;
+    }
+
+    // Playthrough info card
+    const infoCard = this.makeCard(stack);
+    this.addStatRow(infoCard, "Name", ptInfo.name || "Unnamed", COLORS.textPrimary);
+    this.addStatRow(infoCard, "Status", ptInfo.status, COLORS.accentGreen);
+    this.addStatRow(infoCard, "Play Time", this.formatGameTime(ptInfo.playtime || 0), COLORS.textSecondary);
+    this.addStatRow(infoCard, "Actions", String(ptInfo.actionsCount || 0), COLORS.textSecondary);
+    this.addStatRow(infoCard, "Started", this.formatSaveDate(ptInfo.createdAt), COLORS.textMuted);
+    if (ptInfo.lastPlayedAt) {
+      this.addStatRow(infoCard, "Last Played", this.formatSaveDate(ptInfo.lastPlayedAt), COLORS.textMuted);
+    }
+
+    this.addDivider(stack);
+
+    // Rename Playthrough
+    if (this.callbacks.onRenamePlaythrough) {
+      const renameTitle = new TextBlock();
+      renameTitle.text = "Rename Playthrough";
+      renameTitle.color = COLORS.textPrimary;
+      renameTitle.fontSize = 13;
+      renameTitle.fontWeight = "bold";
+      renameTitle.height = "24px";
+      renameTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      stack.addControl(renameTitle);
+
+      const renameRow = new StackPanel("renameRow");
+      renameRow.isVertical = false;
+      renameRow.width = 1;
+      renameRow.height = "36px";
+      renameRow.paddingBottom = "8px";
+      stack.addControl(renameRow);
+
+      // Use a button that shows current name and opens rename dialog
+      const renameBtn = this.makeSystemButton("pt_rename", `Rename: "${ptInfo.name || 'Unnamed'}"`);
+      renameBtn.width = 1;
+      renameBtn.height = "32px";
+      renameBtn.fontSize = 12;
+      renameBtn.onPointerClickObservable.add(() => {
+        this.showRenameDialog(ptInfo.name || '');
+      });
+      renameRow.addControl(renameBtn);
+    }
+
+    this.addDivider(stack);
+
+    // Action buttons
+    const actionsTitle = new TextBlock();
+    actionsTitle.text = "Actions";
+    actionsTitle.color = COLORS.textPrimary;
+    actionsTitle.fontSize = 13;
+    actionsTitle.fontWeight = "bold";
+    actionsTitle.height = "24px";
+    actionsTitle.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    stack.addControl(actionsTitle);
+
+    // Pause Playthrough
+    if (this.callbacks.onPausePlaythrough) {
+      const pauseBtn = this.makeSystemButton("pt_pause", "Pause Playthrough & Return to Menu");
+      pauseBtn.width = 1;
+      pauseBtn.height = "34px";
+      pauseBtn.fontSize = 12;
+      pauseBtn.paddingBottom = "6px";
+      pauseBtn.onPointerClickObservable.add(() => {
+        this.showConfirmDialog(
+          "Pause Playthrough?",
+          "Your game will be auto-saved. You can resume later from the main menu.",
+          "Pause & Exit",
+          async () => { await this.callbacks.onPausePlaythrough?.(); }
+        );
+      });
+      stack.addControl(pauseBtn);
+    }
+
+    // Abandon Playthrough
+    if (this.callbacks.onAbandonPlaythrough) {
+      const abandonBtn = this.makeSystemButton("pt_abandon", "Abandon Playthrough");
+      abandonBtn.width = 1;
+      abandonBtn.height = "34px";
+      abandonBtn.fontSize = 12;
+      abandonBtn.color = COLORS.accentYellow;
+      abandonBtn.paddingBottom = "6px";
+      abandonBtn.onPointerClickObservable.add(() => {
+        this.showConfirmDialog(
+          "Abandon Playthrough?",
+          "Your progress will be marked as abandoned but not deleted. You won't be able to resume.",
+          "Abandon",
+          async () => { await this.callbacks.onAbandonPlaythrough?.(); },
+          COLORS.accentYellow
+        );
+      });
+      stack.addControl(abandonBtn);
+    }
+
+    // Delete Playthrough
+    if (this.callbacks.onDeletePlaythrough) {
+      const deleteBtn = this.makeSystemButton("pt_delete", "Delete Playthrough");
+      deleteBtn.width = 1;
+      deleteBtn.height = "34px";
+      deleteBtn.fontSize = 12;
+      deleteBtn.color = COLORS.accentRed;
+      deleteBtn.paddingBottom = "6px";
+      deleteBtn.onPointerClickObservable.add(() => {
+        this.showDeletePlaythroughConfirm();
+      });
+      stack.addControl(deleteBtn);
+    }
+  }
+
+  private showRenameDialog(currentName: string): void {
+    if (!this.overlay) return;
+    const confirmBg = new Rectangle("renameOverlay");
+    confirmBg.width = 1;
+    confirmBg.height = 1;
+    confirmBg.background = "rgba(0, 0, 0, 0.6)";
+    confirmBg.thickness = 0;
+    confirmBg.zIndex = 200;
+    this.overlay.addControl(confirmBg);
+
+    const dialog = new Rectangle("renameDialog");
+    dialog.width = "380px";
+    dialog.height = "180px";
+    dialog.background = COLORS.sidebarBg;
+    dialog.color = COLORS.cardBorder;
+    dialog.thickness = 1;
+    dialog.cornerRadius = 10;
+    confirmBg.addControl(dialog);
+
+    const msg = new TextBlock();
+    msg.text = "Rename Playthrough";
+    msg.color = COLORS.textPrimary;
+    msg.fontSize = 15;
+    msg.fontWeight = "bold";
+    msg.top = "-50px";
+    dialog.addControl(msg);
+
+    // Input field simulation using a button (Babylon.js GUI has no native text input)
+    let newName = currentName;
+    const inputBtn = Button.CreateSimpleButton("renameInput", currentName || "Enter name...");
+    inputBtn.width = "320px";
+    inputBtn.height = "32px";
+    inputBtn.fontSize = 13;
+    inputBtn.color = COLORS.textPrimary;
+    inputBtn.background = COLORS.cardBg;
+    inputBtn.cornerRadius = 4;
+    inputBtn.thickness = 1;
+    (inputBtn as any).borderColor = COLORS.cardBorder;
+    inputBtn.top = "-10px";
+    inputBtn.onPointerClickObservable.add(() => {
+      const result = prompt("Enter new playthrough name:", currentName);
+      if (result !== null) {
+        newName = result;
+        const tb = inputBtn.textBlock;
+        if (tb) tb.text = result || "Enter name...";
+      }
+    });
+    dialog.addControl(inputBtn);
+
+    const hint = new TextBlock();
+    hint.text = "Click above to edit name";
+    hint.color = COLORS.textMuted;
+    hint.fontSize = 10;
+    hint.top = "14px";
+    dialog.addControl(hint);
+
+    const btnRow = new StackPanel();
+    btnRow.isVertical = false;
+    btnRow.width = "220px";
+    btnRow.height = "34px";
+    btnRow.top = "48px";
+    dialog.addControl(btnRow);
+
+    const cancelBtn = Button.CreateSimpleButton("renameCancel", "Cancel");
+    cancelBtn.width = "100px";
+    cancelBtn.height = "30px";
+    cancelBtn.fontSize = 12;
+    cancelBtn.color = COLORS.textSecondary;
+    cancelBtn.background = COLORS.cardBg;
+    cancelBtn.cornerRadius = 4;
+    cancelBtn.thickness = 0;
+    cancelBtn.paddingRight = "8px";
+    cancelBtn.onPointerClickObservable.add(() => { this.overlay?.removeControl(confirmBg); });
+    btnRow.addControl(cancelBtn);
+
+    const saveBtn = Button.CreateSimpleButton("renameSave", "Save");
+    saveBtn.width = "100px";
+    saveBtn.height = "30px";
+    saveBtn.fontSize = 12;
+    saveBtn.color = "#FFFFFF";
+    saveBtn.background = COLORS.accent;
+    saveBtn.cornerRadius = 4;
+    saveBtn.thickness = 0;
+    saveBtn.onPointerClickObservable.add(async () => {
+      if (this.playthroughRenameBusy || !newName.trim()) return;
+      this.playthroughRenameBusy = true;
+      const ok = await this.callbacks.onRenamePlaythrough?.(newName.trim());
+      this.playthroughRenameBusy = false;
+      this.overlay?.removeControl(confirmBg);
+      if (ok) {
+        this.refreshActiveTab();
+      }
+    });
+    btnRow.addControl(saveBtn);
+  }
+
+  private showDeletePlaythroughConfirm(): void {
+    if (!this.overlay) return;
+    const confirmBg = new Rectangle("deletePlaythroughOverlay");
+    confirmBg.width = 1;
+    confirmBg.height = 1;
+    confirmBg.background = "rgba(0, 0, 0, 0.6)";
+    confirmBg.thickness = 0;
+    confirmBg.zIndex = 200;
+    this.overlay.addControl(confirmBg);
+
+    const dialog = new Rectangle("deletePlaythroughDialog");
+    dialog.width = "400px";
+    dialog.height = "200px";
+    dialog.background = COLORS.sidebarBg;
+    dialog.color = COLORS.cardBorder;
+    dialog.thickness = 1;
+    dialog.cornerRadius = 10;
+    confirmBg.addControl(dialog);
+
+    const msg = new TextBlock();
+    msg.text = "Delete Playthrough?";
+    msg.color = COLORS.accentRed;
+    msg.fontSize = 16;
+    msg.fontWeight = "bold";
+    msg.top = "-55px";
+    dialog.addControl(msg);
+
+    const sub = new TextBlock();
+    sub.text = "This will permanently delete all save data,\nprogress, and history. This cannot be undone.";
+    sub.color = COLORS.textSecondary;
+    sub.fontSize = 11;
+    sub.top = "-20px";
+    sub.textWrapping = TextWrapping.WordWrap;
+    dialog.addControl(sub);
+
+    // Type DELETE to confirm
+    const instruction = new TextBlock();
+    instruction.text = "Type DELETE below to confirm:";
+    instruction.color = COLORS.textMuted;
+    instruction.fontSize = 11;
+    instruction.top = "14px";
+    dialog.addControl(instruction);
+
+    let confirmText = '';
+    const inputBtn = Button.CreateSimpleButton("deleteInput", "Click to type DELETE...");
+    inputBtn.width = "300px";
+    inputBtn.height = "30px";
+    inputBtn.fontSize = 12;
+    inputBtn.color = COLORS.textMuted;
+    inputBtn.background = COLORS.cardBg;
+    inputBtn.cornerRadius = 4;
+    inputBtn.thickness = 1;
+    (inputBtn as any).borderColor = COLORS.cardBorder;
+    inputBtn.top = "40px";
+    inputBtn.onPointerClickObservable.add(() => {
+      const result = prompt("Type DELETE to confirm deletion:");
+      if (result !== null) {
+        confirmText = result;
+        const tb = inputBtn.textBlock;
+        if (tb) tb.text = result || "Click to type DELETE...";
+        if (result === 'DELETE') {
+          deleteBtn.isEnabled = true;
+          deleteBtn.color = "#FFFFFF";
+          deleteBtn.background = COLORS.accentRed;
+        }
+      }
+    });
+    dialog.addControl(inputBtn);
+
+    const btnRow = new StackPanel();
+    btnRow.isVertical = false;
+    btnRow.width = "220px";
+    btnRow.height = "34px";
+    btnRow.top = "75px";
+    dialog.addControl(btnRow);
+
+    const cancelBtn = Button.CreateSimpleButton("deleteCancel", "Cancel");
+    cancelBtn.width = "100px";
+    cancelBtn.height = "30px";
+    cancelBtn.fontSize = 12;
+    cancelBtn.color = COLORS.textSecondary;
+    cancelBtn.background = COLORS.cardBg;
+    cancelBtn.cornerRadius = 4;
+    cancelBtn.thickness = 0;
+    cancelBtn.paddingRight = "8px";
+    cancelBtn.onPointerClickObservable.add(() => { this.overlay?.removeControl(confirmBg); });
+    btnRow.addControl(cancelBtn);
+
+    const deleteBtn = Button.CreateSimpleButton("deleteOk", "Delete");
+    deleteBtn.width = "100px";
+    deleteBtn.height = "30px";
+    deleteBtn.fontSize = 12;
+    deleteBtn.color = COLORS.textMuted;
+    deleteBtn.background = COLORS.cardBg;
+    deleteBtn.cornerRadius = 4;
+    deleteBtn.thickness = 0;
+    deleteBtn.isEnabled = false;
+    deleteBtn.onPointerClickObservable.add(async () => {
+      if (confirmText !== 'DELETE') return;
+      this.overlay?.removeControl(confirmBg);
+      await this.callbacks.onDeletePlaythrough?.();
+    });
+    btnRow.addControl(deleteBtn);
+  }
+
+  private showConfirmDialog(
+    title: string,
+    description: string,
+    confirmLabel: string,
+    onConfirm: () => void,
+    confirmColor: string = COLORS.accent
+  ): void {
+    if (!this.overlay) return;
+    const confirmBg = new Rectangle("genericConfirmOverlay");
+    confirmBg.width = 1;
+    confirmBg.height = 1;
+    confirmBg.background = "rgba(0, 0, 0, 0.6)";
+    confirmBg.thickness = 0;
+    confirmBg.zIndex = 200;
+    this.overlay.addControl(confirmBg);
+
+    const dialog = new Rectangle("genericConfirmDialog");
+    dialog.width = "380px";
+    dialog.height = "160px";
+    dialog.background = COLORS.sidebarBg;
+    dialog.color = COLORS.cardBorder;
+    dialog.thickness = 1;
+    dialog.cornerRadius = 10;
+    confirmBg.addControl(dialog);
+
+    const msg = new TextBlock();
+    msg.text = title;
+    msg.color = COLORS.textPrimary;
+    msg.fontSize = 15;
+    msg.fontWeight = "bold";
+    msg.top = "-30px";
+    dialog.addControl(msg);
+
+    const sub = new TextBlock();
+    sub.text = description;
+    sub.color = COLORS.textSecondary;
+    sub.fontSize = 11;
+    sub.top = "4px";
+    sub.textWrapping = TextWrapping.WordWrap;
+    dialog.addControl(sub);
+
+    const btnRow = new StackPanel();
+    btnRow.isVertical = false;
+    btnRow.width = "240px";
+    btnRow.height = "34px";
+    btnRow.top = "46px";
+    dialog.addControl(btnRow);
+
+    const cancelBtn = Button.CreateSimpleButton("genericCancel", "Cancel");
+    cancelBtn.width = "110px";
+    cancelBtn.height = "30px";
+    cancelBtn.fontSize = 12;
+    cancelBtn.color = COLORS.textSecondary;
+    cancelBtn.background = COLORS.cardBg;
+    cancelBtn.cornerRadius = 4;
+    cancelBtn.thickness = 0;
+    cancelBtn.paddingRight = "8px";
+    cancelBtn.onPointerClickObservable.add(() => { this.overlay?.removeControl(confirmBg); });
+    btnRow.addControl(cancelBtn);
+
+    const okBtn = Button.CreateSimpleButton("genericOk", confirmLabel);
+    okBtn.width = "110px";
+    okBtn.height = "30px";
+    okBtn.fontSize = 12;
+    okBtn.color = "#FFFFFF";
+    okBtn.background = confirmColor;
+    okBtn.cornerRadius = 4;
+    okBtn.thickness = 0;
+    okBtn.onPointerClickObservable.add(() => {
+      this.overlay?.removeControl(confirmBg);
+      onConfirm();
     });
     btnRow.addControl(okBtn);
   }
