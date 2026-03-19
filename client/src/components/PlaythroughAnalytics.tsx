@@ -4,10 +4,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   GamepadIcon, Clock, Activity, User, GraduationCap, Radio,
-  ChevronRight, ChevronDown, BarChart3, Info,
+  ChevronRight, ChevronDown, BarChart3, Info, TrendingUp,
 } from 'lucide-react';
 import { AssessmentDashboard } from './AssessmentDashboard';
 import { TelemetryMonitorDashboard } from './TelemetryMonitorDashboard';
+import { LearningProgressVisualization } from './LearningProgressVisualization';
 
 interface Playthrough {
   id: string;
@@ -26,13 +27,14 @@ interface PlaythroughAnalyticsProps {
   worldId: string;
 }
 
-type ActiveView = 'playthroughs' | 'assessments' | 'telemetry';
+type ActiveView = 'playthroughs' | 'assessments' | 'learning_progress' | 'telemetry';
 type RightPanel = 'summary' | 'details';
 
 const VIEW_META: Record<ActiveView, { label: string; icon: typeof Activity; group: string }> = {
-  playthroughs: { label: 'Playthroughs', icon: GamepadIcon, group: 'Player Data' },
-  assessments:  { label: 'Assessments',  icon: GraduationCap, group: 'Player Data' },
-  telemetry:    { label: 'Telemetry',    icon: Radio, group: 'System' },
+  playthroughs:      { label: 'Playthroughs',      icon: GamepadIcon,    group: 'Player Data' },
+  assessments:       { label: 'Assessments',        icon: GraduationCap, group: 'Player Data' },
+  learning_progress: { label: 'Learning Progress',  icon: TrendingUp,    group: 'Player Data' },
+  telemetry:         { label: 'Telemetry',          icon: Radio,         group: 'System' },
 };
 
 const GROUPS = ['Player Data', 'System'];
@@ -271,6 +273,49 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
       );
     }
 
+    // Learning Progress
+    if (activeView === 'learning_progress') {
+      return (
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+          <div className="px-4 py-3 border-b shrink-0">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-primary" />
+              <h2 className="text-lg font-bold">Learning Progress</h2>
+              <Badge variant="outline" className="text-[10px]">Player Data</Badge>
+            </div>
+          </div>
+          <ScrollArea className="flex-1">
+            <div className="p-4">
+              {selectedPlaythrough ? (
+                <LearningProgressVisualization
+                  worldId={worldId}
+                  playerName={selectedPlaythrough.name || selectedPlaythrough.userId}
+                  playthroughId={selectedPlaythrough.id}
+                />
+              ) : playthroughs.length > 0 ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Select a player to view their learning progress, or view aggregate data below.
+                  </p>
+                  {playthroughs.map(p => (
+                    <button
+                      key={p.id}
+                      className="w-full text-left bg-muted/30 hover:bg-muted/50 rounded-lg p-3 transition-colors"
+                      onClick={() => setSelectedPlaythrough(p)}
+                    >
+                      <span className="text-sm font-medium">{p.name || `Player ${p.userId.substring(0, 8)}...`}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No playthroughs available.</p>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+      );
+    }
+
     // Playthroughs: no selection — overview
     if (!selectedPlaythrough) {
       if (loading) {
@@ -468,6 +513,7 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
                         <p className="text-xs text-muted-foreground">
                           {activeView === 'playthroughs' && 'Select a playthrough to see details'}
                           {activeView === 'assessments' && 'Assessment data and CEFR distribution is shown in the center panel'}
+                          {activeView === 'learning_progress' && 'Select a player to view skill trajectories and mastery curves'}
                           {activeView === 'telemetry' && 'Real-time telemetry monitoring is shown in the center panel'}
                         </p>
                       )}
