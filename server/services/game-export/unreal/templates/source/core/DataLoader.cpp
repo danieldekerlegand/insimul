@@ -217,6 +217,13 @@ FString UDataLoader::PayFines(const FString& SettlementId)
     return TEXT("{\"success\":true,\"finesPaid\":0}");
 }
 
+FString UDataLoader::ListPlaythroughs()
+{
+    // Exported games run locally — return empty array (no server-side playthroughs).
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] ListPlaythroughs()"));
+    return TEXT("[]");
+}
+
 FString UDataLoader::StartPlaythrough(const FString& PlaythroughName)
 {
     // TODO: Generate unique playthrough ID and persist to local state.

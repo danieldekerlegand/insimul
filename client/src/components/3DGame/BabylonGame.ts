@@ -134,6 +134,7 @@ import { WorldStateManager, type GameStateSource, type GameStateTarget } from "@
 import { SaveIndicator } from "@/components/3DGame/SaveIndicator.ts";
 import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts";
 import { PlaythroughQuestOverlay } from "@/components/3DGame/PlaythroughQuestOverlay.ts";
+import { PlaythroughMainMenu, type PlaythroughMenuEntry } from "@/components/3DGame/PlaythroughMainMenu.ts";
 import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
 import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
 import { GameEventBus } from "@/components/3DGame/GameEventBus.ts";
@@ -542,7 +543,7 @@ export class BabylonGame {
   // Zone system
   private currentZone: { id: string; name: string; type: string } | null = null;
   private playthroughId: string | null = null;
-  private playthroughMeta: PlaythroughInfo | null = null;
+  private playthroughMainMenu: PlaythroughMainMenu | null = null;
   private questOverlay: PlaythroughQuestOverlay = new PlaythroughQuestOverlay();
   private currentReputation: any | null = null;
   private reputationManager: ReputationManager | null = null;
@@ -742,14 +743,11 @@ export class BabylonGame {
         this.scene?.render();
       });
 
-      // If no playthrough was pre-selected, show the main menu and wait
-      if (!this.config.playthroughId) {
+      // If no playthroughId was provided, show the playthrough selection menu
+      if (!this.config.playthroughId && this.config.authToken) {
         this.hideLoadingScreen();
-        const selectedId = await this.showMainMenu();
-        if (!selectedId) {
-          // User chose "Back" — nothing more to do
-          return;
-        }
+        const selectedId = await this.showPlaythroughSelectionMenu();
+        if (!selectedId) return; // User went back
         this.config.playthroughId = selectedId;
         this.showLoadingScreen();
       }
@@ -809,62 +807,58 @@ export class BabylonGame {
   }
 
   /**
-   * Show the main menu and return the selected playthrough ID, or null if
-   * the user chose "Back".
+   * Show the playthrough selection/creation menu and wait for the user to pick one.
+   * Returns the selected playthrough ID, or null if the user cancelled (went back).
    */
-  private showMainMenu(): Promise<string | null> {
-    return new Promise((resolve) => {
-      if (!this.guiManager) {
-        resolve(null);
-        return;
-      }
+  private async showPlaythroughSelectionMenu(): Promise<string | null> {
+    if (!this.guiManager) return null;
 
-      const authToken = this.config.authToken || '';
-      const worldId = this.config.worldId;
+    // Fetch existing playthroughs
+    let playthroughs: PlaythroughMenuEntry[] = [];
+    try {
+      playthroughs = await this.dataSource.listPlaythroughs(
+        this.config.worldId,
+        this.config.authToken || '',
+      );
+    } catch (err) {
+      console.error('[BabylonGame] Failed to list playthroughs:', err);
+    }
 
-      this.mainMenuScreen = new MainMenuScreen(
-        this.guiManager.advancedTexture,
-        this.config.worldName,
+    return new Promise<string | null>((resolve) => {
+      this.playthroughMainMenu = new PlaythroughMainMenu(
+        this.guiManager!.advancedTexture,
         {
-          getPlaythroughs: async (): Promise<PlaythroughInfo[]> => {
+          onSelect: (playthroughId: string) => {
+            this.playthroughMainMenu = null;
+            resolve(playthroughId);
+          },
+          onCreateNew: async (name: string) => {
+            const playthroughName = name || `${this.config.worldName} Playthrough`;
             try {
-              const res = await fetch(`/api/worlds/${worldId}/playthroughs`, {
-                headers: { 'Authorization': `Bearer ${authToken}` },
-              });
-              if (!res.ok) return [];
-              return await res.json();
-            } catch {
-              return [];
+              const playthrough = await this.dataSource.startPlaythrough(
+                this.config.worldId,
+                this.config.authToken || '',
+                playthroughName,
+              );
+              if (playthrough?.id) {
+                this.playthroughMainMenu = null;
+                resolve(playthrough.id);
+                return playthrough.id;
+              }
+            } catch (err) {
+              console.error('[BabylonGame] Failed to create playthrough:', err);
             }
-          },
-          onNewGame: async (): Promise<string | null> => {
-            const pt = await this.dataSource.startPlaythrough(
-              worldId,
-              authToken,
-              `${this.config.worldName} - Playthrough`,
-            );
-            return pt?.id || null;
-          },
-          onContinue: (playthroughId: string) => {
-            this.mainMenuScreen?.hide();
-            this.mainMenuScreen = null;
-            resolve(playthroughId);
-          },
-          onLoadGame: (playthroughId: string) => {
-            this.mainMenuScreen?.hide();
-            this.mainMenuScreen = null;
-            resolve(playthroughId);
+            return null;
           },
           onBack: () => {
-            this.mainMenuScreen?.hide();
-            this.mainMenuScreen = null;
+            this.playthroughMainMenu?.dispose();
+            this.playthroughMainMenu = null;
             this.config.onBack?.();
             resolve(null);
           },
         },
       );
-
-      this.mainMenuScreen.show();
+      this.playthroughMainMenu.show(playthroughs);
     });
   }
 
@@ -1129,8 +1123,8 @@ export class BabylonGame {
    * Dispose of all game resources
    */
   public dispose(): void {
-    this.mainMenuScreen?.dispose();
-    this.mainMenuScreen = null;
+    this.playthroughMainMenu?.dispose();
+    this.playthroughMainMenu = null;
     this.disposeKeyboardHandlers();
     this.disposePointerHandlers();
     this.disposeUpdateLoop();

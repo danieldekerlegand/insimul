@@ -168,6 +168,12 @@ public:
     FString PayFines(const FString& SettlementId);
 
     /**
+     * List existing playthroughs. Returns JSON array of playthrough objects.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString ListPlaythroughs();
+
+    /**
      * Start a new playthrough. Returns JSON with unique playthrough ID and name.
      */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
