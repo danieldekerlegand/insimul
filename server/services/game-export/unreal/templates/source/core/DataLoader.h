@@ -239,6 +239,13 @@ public:
     FString LoadGameState(int32 SlotIndex);
 
     /**
+     * Delete game state from a numbered slot (0-2).
+     * Returns true if the file was deleted or did not exist.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    bool DeleteGameState(int32 SlotIndex);
+
+    /**
      * Save quest progress JSON to a dedicated file.
      * Returns true on success.
      */

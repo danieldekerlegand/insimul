@@ -60,6 +60,7 @@ export interface DataSource {
   loadWorldItems(worldId: string): Promise<any[]>;
   saveGameState(worldId: string, playthroughId: string, slotIndex: number, state: any): Promise<void>;
   loadGameState(worldId: string, playthroughId: string, slotIndex: number): Promise<any | null>;
+  deleteGameState(worldId: string, playthroughId: string, slotIndex: number): Promise<void>;
   saveQuestProgress(playthroughId: string, questProgress: any): Promise<void>;
   loadQuestProgress(playthroughId: string): Promise<any | null>;
   loadGeography(worldId: string): Promise<{ heightmap?: number[][]; terrainSize?: number } | null>;
@@ -452,6 +453,16 @@ export class ApiDataSource implements DataSource {
     }
 
     return state;
+  }
+
+  async deleteGameState(worldId: string, playthroughId: string, slotIndex: number): Promise<void> {
+    const res = await fetch(
+      `/api/worlds/${worldId}/game-state?playthroughId=${playthroughId}&slotIndex=${slotIndex}`,
+      { method: 'DELETE', headers: this.getHeaders() }
+    );
+    if (!res.ok) {
+      throw new Error(`Failed to delete save slot ${slotIndex}`);
+    }
   }
 
   async saveQuestProgress(playthroughId: string, questProgress: any): Promise<void> {
@@ -1156,6 +1167,10 @@ export class FileDataSource implements DataSource {
     } catch {
       return null;
     }
+  }
+
+  async deleteGameState(_worldId: string, _playthroughId: string, slotIndex: number): Promise<void> {
+    localStorage.removeItem(`insimul_save_${slotIndex}`);
   }
 
   async saveQuestProgress(_playthroughId: string, questProgress: any): Promise<void> {

@@ -330,6 +330,23 @@ FString UDataLoader::LoadGameState(int32 SlotIndex)
     return Contents;
 }
 
+bool UDataLoader::DeleteGameState(int32 SlotIndex)
+{
+    if (SlotIndex < 0 || SlotIndex > 2)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Insimul] DeleteGameState: invalid slot %d (must be 0-2)"), SlotIndex);
+        return false;
+    }
+    const FString SaveDir = FPaths::ProjectSavedDir() / TEXT("SaveGames");
+    const FString SavePath = SaveDir / FString::Printf(TEXT("insimul_save_%d.json"), SlotIndex);
+    if (IFileManager::Get().FileExists(*SavePath))
+    {
+        IFileManager::Get().Delete(*SavePath);
+    }
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] DeleteGameState: deleted slot %d"), SlotIndex);
+    return true;
+}
+
 bool UDataLoader::SaveQuestProgress(const FString& QuestProgressJSON)
 {
     const FString SaveDir = FPaths::ProjectSavedDir() / TEXT("SaveGames");

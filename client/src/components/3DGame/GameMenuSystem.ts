@@ -178,6 +178,12 @@ export interface SaveSlotInfo {
   savedAt: string;
   gameTime: number;
   zoneName?: string;
+  playerGold?: number;
+  playerHealth?: number;
+  playerEnergy?: number;
+  inventoryCount?: number;
+  questCount?: number;
+  playerLevel?: number;
 }
 
 export interface PlaythroughInfo {
@@ -239,6 +245,7 @@ export interface GameMenuCallbacks {
   getSaveSlots?: () => Promise<Array<SaveSlotInfo | null>>;
   onSaveGame?: (slotIndex: number) => Promise<boolean>;
   onLoadGame?: (slotIndex: number) => Promise<boolean>;
+  onDeleteSave?: (slotIndex: number) => Promise<boolean>;
   getJournalData?: () => MenuJournalData | null;
   getPortfolioData?: () => PortfolioData | null;
   // Playthrough management
@@ -2421,7 +2428,7 @@ export class GameMenuSystem {
   private renderSlotCard(parent: StackPanel, slotIndex: number, slot: SaveSlotInfo | null, mode: 'save' | 'load'): void {
     const card = new Rectangle(`slot_card_${slotIndex}`);
     card.width = 1;
-    card.height = "80px";
+    card.height = slot ? "110px" : "80px";
     card.background = COLORS.cardBg;
     card.color = COLORS.cardBorder;
     card.thickness = 1;
@@ -2431,47 +2438,68 @@ export class GameMenuSystem {
     parent.addControl(card);
 
     const slotLabel = new TextBlock();
-    slotLabel.text = `Slot ${slotIndex + 1}${slotIndex === 0 ? ' (Quick Save)' : ''}`;
+    slotLabel.text = `Slot ${slotIndex + 1}${slotIndex === 0 ? ' (Auto)' : ''}`;
     slotLabel.color = COLORS.textPrimary;
     slotLabel.fontSize = 14;
     slotLabel.fontWeight = "bold";
     slotLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     slotLabel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
     slotLabel.left = "14px";
-    slotLabel.top = "12px";
+    slotLabel.top = "10px";
     card.addControl(slotLabel);
 
     if (slot) {
+      // Date and play time row
       const dateText = new TextBlock();
-      dateText.text = this.formatSaveDate(slot.savedAt);
+      dateText.text = `${this.formatSaveDate(slot.savedAt)}  |  ${this.formatGameTime(slot.gameTime)}`;
       dateText.color = COLORS.textSecondary;
       dateText.fontSize = 11;
       dateText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       dateText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
       dateText.left = "14px";
-      dateText.top = "34px";
+      dateText.top = "30px";
       card.addControl(dateText);
 
-      const timeText = new TextBlock();
-      timeText.text = `Play time: ${this.formatGameTime(slot.gameTime)}`;
-      timeText.color = COLORS.textMuted;
-      timeText.fontSize = 11;
-      timeText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      timeText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-      timeText.left = "14px";
-      timeText.top = "50px";
-      card.addControl(timeText);
-
+      // Zone name
       if (slot.zoneName) {
         const zoneText = new TextBlock();
         zoneText.text = slot.zoneName;
-        zoneText.color = COLORS.textMuted;
+        zoneText.color = COLORS.accent;
         zoneText.fontSize = 11;
         zoneText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
         zoneText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
         zoneText.left = "-14px";
-        zoneText.top = "34px";
+        zoneText.top = "10px";
         card.addControl(zoneText);
+      }
+
+      // Stats preview row
+      const statsRow = new StackPanel(`slot_stats_${slotIndex}`);
+      statsRow.isVertical = false;
+      statsRow.width = "280px";
+      statsRow.height = "18px";
+      statsRow.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      statsRow.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+      statsRow.left = "14px";
+      statsRow.top = "48px";
+      card.addControl(statsRow);
+
+      const statItems: Array<{ label: string; value: string; color: string }> = [];
+      if (slot.playerHealth != null) statItems.push({ label: "HP", value: `${slot.playerHealth}`, color: COLORS.accentRed });
+      if (slot.playerGold != null) statItems.push({ label: "Gold", value: `${slot.playerGold}`, color: COLORS.gold });
+      if (slot.playerEnergy != null) statItems.push({ label: "EN", value: `${slot.playerEnergy}`, color: COLORS.accentGreen });
+      if (slot.inventoryCount != null) statItems.push({ label: "Items", value: `${slot.inventoryCount}`, color: COLORS.textSecondary });
+      if (slot.questCount != null) statItems.push({ label: "Quests", value: `${slot.questCount}`, color: COLORS.accentYellow });
+      if (slot.playerLevel != null) statItems.push({ label: "Lv", value: `${slot.playerLevel}`, color: COLORS.accent });
+
+      for (const stat of statItems) {
+        const statText = new TextBlock();
+        statText.text = `${stat.label}: ${stat.value}`;
+        statText.color = stat.color;
+        statText.fontSize = 10;
+        statText.width = "65px";
+        statText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        statsRow.addControl(statText);
       }
     } else {
       const emptyText = new TextBlock();
@@ -2483,6 +2511,38 @@ export class GameMenuSystem {
       emptyText.left = "14px";
       emptyText.top = "36px";
       card.addControl(emptyText);
+    }
+
+    // Button row at bottom-right
+    const btnRow = new StackPanel(`slot_btns_${slotIndex}`);
+    btnRow.isVertical = false;
+    btnRow.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    btnRow.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+    btnRow.width = "180px";
+    btnRow.height = "28px";
+    btnRow.left = "-10px";
+    btnRow.top = "-10px";
+    card.addControl(btnRow);
+
+    // Delete button (only for occupied slots)
+    if (slot && this.callbacks.onDeleteSave) {
+      const deleteBtn = Button.CreateSimpleButton(`slot_delete_${slotIndex}`, "Delete");
+      deleteBtn.width = "60px";
+      deleteBtn.height = "28px";
+      deleteBtn.fontSize = 10;
+      deleteBtn.color = COLORS.textMuted;
+      deleteBtn.background = "transparent";
+      deleteBtn.cornerRadius = 4;
+      deleteBtn.thickness = 1;
+      (deleteBtn as any).borderColor = COLORS.cardBorder;
+      deleteBtn.paddingRight = "6px";
+      deleteBtn.onPointerEnterObservable.add(() => { deleteBtn.color = COLORS.accentRed; (deleteBtn as any).borderColor = COLORS.accentRed; });
+      deleteBtn.onPointerOutObservable.add(() => { deleteBtn.color = COLORS.textMuted; (deleteBtn as any).borderColor = COLORS.cardBorder; });
+      deleteBtn.onPointerClickObservable.add(() => {
+        if (this.saveLoadBusy) return;
+        this.showDeleteConfirm(slotIndex);
+      });
+      btnRow.addControl(deleteBtn);
     }
 
     // Action button
@@ -2497,10 +2557,6 @@ export class GameMenuSystem {
     actionBtn.fontWeight = "bold";
     actionBtn.cornerRadius = 4;
     actionBtn.thickness = 0;
-    actionBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-    actionBtn.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
-    actionBtn.left = "-14px";
-    actionBtn.top = "-12px";
 
     if (isDisabled) {
       actionBtn.color = COLORS.textMuted;
@@ -2515,9 +2571,8 @@ export class GameMenuSystem {
       actionBtn.onPointerOutObservable.add(() => { actionBtn.background = baseColor; });
       actionBtn.onPointerClickObservable.add(() => {
         if (this.saveLoadBusy) return;
-        // For save with existing data, show overwrite confirmation
         if (mode === 'save' && slot) {
-          this.showOverwriteConfirm(slotIndex);
+          this.showOverwriteConfirm(slotIndex, slot);
         } else if (mode === 'load' && slot) {
           this.showLoadConfirm(slotIndex);
         } else {
@@ -2525,14 +2580,28 @@ export class GameMenuSystem {
         }
       });
     }
-    card.addControl(actionBtn);
+    btnRow.addControl(actionBtn);
 
     // Hover effects on card
     card.onPointerEnterObservable.add(() => { card.background = COLORS.tabHover; });
     card.onPointerOutObservable.add(() => { card.background = COLORS.cardBg; });
   }
 
-  private showOverwriteConfirm(slotIndex: number): void {
+  /** Build a short preview string from slot info for confirmation dialogs. */
+  private buildSlotPreviewText(slot: SaveSlotInfo): string {
+    const parts: string[] = [];
+    parts.push(this.formatSaveDate(slot.savedAt));
+    parts.push(`Play time: ${this.formatGameTime(slot.gameTime)}`);
+    if (slot.zoneName) parts.push(`Location: ${slot.zoneName}`);
+    const stats: string[] = [];
+    if (slot.playerHealth != null) stats.push(`HP ${slot.playerHealth}`);
+    if (slot.playerGold != null) stats.push(`Gold ${slot.playerGold}`);
+    if (slot.questCount != null) stats.push(`${slot.questCount} quests`);
+    if (stats.length) parts.push(stats.join('  |  '));
+    return parts.join('\n');
+  }
+
+  private showOverwriteConfirm(slotIndex: number, slot: SaveSlotInfo): void {
     if (!this.overlay) return;
     const confirmBg = new Rectangle("confirmOverlay");
     confirmBg.width = 1;
@@ -2543,8 +2612,8 @@ export class GameMenuSystem {
     this.overlay.addControl(confirmBg);
 
     const dialog = new Rectangle("confirmDialog");
-    dialog.width = "340px";
-    dialog.height = "140px";
+    dialog.width = "360px";
+    dialog.height = "210px";
     dialog.background = COLORS.sidebarBg;
     dialog.color = COLORS.cardBorder;
     dialog.thickness = 1;
@@ -2556,21 +2625,49 @@ export class GameMenuSystem {
     msg.color = COLORS.textPrimary;
     msg.fontSize = 15;
     msg.fontWeight = "bold";
-    msg.top = "-20px";
+    msg.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    msg.top = "16px";
     dialog.addControl(msg);
 
-    const sub = new TextBlock();
-    sub.text = "This will replace the existing save.";
-    sub.color = COLORS.textSecondary;
-    sub.fontSize = 11;
-    sub.top = "8px";
-    dialog.addControl(sub);
+    // Preview of existing save being overwritten
+    const previewBox = new Rectangle("overwritePreview");
+    previewBox.width = "320px";
+    previewBox.height = "80px";
+    previewBox.background = "rgba(234, 67, 53, 0.1)";
+    previewBox.color = "rgba(234, 67, 53, 0.3)";
+    previewBox.thickness = 1;
+    previewBox.cornerRadius = 6;
+    previewBox.top = "-8px";
+    dialog.addControl(previewBox);
+
+    const previewLabel = new TextBlock();
+    previewLabel.text = "This save will be replaced:";
+    previewLabel.color = COLORS.accentRed;
+    previewLabel.fontSize = 10;
+    previewLabel.fontWeight = "bold";
+    previewLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    previewLabel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    previewLabel.left = "10px";
+    previewLabel.top = "8px";
+    previewBox.addControl(previewLabel);
+
+    const previewText = new TextBlock();
+    previewText.text = this.buildSlotPreviewText(slot);
+    previewText.color = COLORS.textSecondary;
+    previewText.fontSize = 10;
+    previewText.textWrapping = true;
+    previewText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    previewText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    previewText.left = "10px";
+    previewText.top = "24px";
+    previewBox.addControl(previewText);
 
     const btnRow = new StackPanel();
     btnRow.isVertical = false;
     btnRow.width = "220px";
     btnRow.height = "34px";
-    btnRow.top = "38px";
+    btnRow.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+    btnRow.top = "-16px";
     dialog.addControl(btnRow);
 
     const cancelBtn = Button.CreateSimpleButton("confirmCancel", "Cancel");
@@ -2593,9 +2690,98 @@ export class GameMenuSystem {
     okBtn.background = COLORS.accentRed;
     okBtn.cornerRadius = 4;
     okBtn.thickness = 0;
+    okBtn.onPointerEnterObservable.add(() => { okBtn.background = "#D93025"; });
+    okBtn.onPointerOutObservable.add(() => { okBtn.background = COLORS.accentRed; });
     okBtn.onPointerClickObservable.add(() => {
       this.overlay?.removeControl(confirmBg);
       this.executeSave(slotIndex);
+    });
+    btnRow.addControl(okBtn);
+  }
+
+  private showDeleteConfirm(slotIndex: number): void {
+    if (!this.overlay) return;
+    const slot = this.saveSlotCache[slotIndex];
+    const confirmBg = new Rectangle("deleteConfirmOverlay");
+    confirmBg.width = 1;
+    confirmBg.height = 1;
+    confirmBg.background = "rgba(0, 0, 0, 0.6)";
+    confirmBg.thickness = 0;
+    confirmBg.zIndex = 200;
+    this.overlay.addControl(confirmBg);
+
+    const dialog = new Rectangle("deleteConfirmDialog");
+    dialog.width = "340px";
+    dialog.height = slot ? "190px" : "140px";
+    dialog.background = COLORS.sidebarBg;
+    dialog.color = COLORS.cardBorder;
+    dialog.thickness = 1;
+    dialog.cornerRadius = 10;
+    confirmBg.addControl(dialog);
+
+    const msg = new TextBlock();
+    msg.text = `Delete Slot ${slotIndex + 1}?`;
+    msg.color = COLORS.textPrimary;
+    msg.fontSize = 15;
+    msg.fontWeight = "bold";
+    msg.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    msg.top = "16px";
+    dialog.addControl(msg);
+
+    const sub = new TextBlock();
+    sub.text = "This save will be permanently deleted.";
+    sub.color = COLORS.accentRed;
+    sub.fontSize = 11;
+    sub.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    sub.top = "38px";
+    dialog.addControl(sub);
+
+    if (slot) {
+      const previewText = new TextBlock();
+      previewText.text = this.buildSlotPreviewText(slot);
+      previewText.color = COLORS.textMuted;
+      previewText.fontSize = 10;
+      previewText.textWrapping = true;
+      previewText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      previewText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+      previewText.left = "20px";
+      previewText.top = "58px";
+      dialog.addControl(previewText);
+    }
+
+    const btnRow = new StackPanel();
+    btnRow.isVertical = false;
+    btnRow.width = "220px";
+    btnRow.height = "34px";
+    btnRow.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+    btnRow.top = "-16px";
+    dialog.addControl(btnRow);
+
+    const cancelBtn = Button.CreateSimpleButton("deleteCancel", "Cancel");
+    cancelBtn.width = "100px";
+    cancelBtn.height = "30px";
+    cancelBtn.fontSize = 12;
+    cancelBtn.color = COLORS.textSecondary;
+    cancelBtn.background = COLORS.cardBg;
+    cancelBtn.cornerRadius = 4;
+    cancelBtn.thickness = 0;
+    cancelBtn.paddingRight = "8px";
+    cancelBtn.onPointerClickObservable.add(() => { this.overlay?.removeControl(confirmBg); });
+    btnRow.addControl(cancelBtn);
+
+    const okBtn = Button.CreateSimpleButton("deleteOk", "Delete");
+    okBtn.width = "100px";
+    okBtn.height = "30px";
+    okBtn.fontSize = 12;
+    okBtn.color = "#FFFFFF";
+    okBtn.background = COLORS.accentRed;
+    okBtn.cornerRadius = 4;
+    okBtn.thickness = 0;
+    okBtn.onPointerEnterObservable.add(() => { okBtn.background = "#D93025"; });
+    okBtn.onPointerOutObservable.add(() => { okBtn.background = COLORS.accentRed; });
+    okBtn.onPointerClickObservable.add(() => {
+      this.overlay?.removeControl(confirmBg);
+      this.executeDelete(slotIndex);
     });
     btnRow.addControl(okBtn);
   }
@@ -3133,6 +3319,27 @@ export class GameMenuSystem {
       }
     } catch {
       this.showSaveLoadOverlay("Load failed");
+      setTimeout(() => {
+        this.removeSaveLoadOverlay();
+        this.saveLoadBusy = false;
+      }, 1500);
+    }
+  }
+
+  private async executeDelete(slotIndex: number): Promise<void> {
+    if (this.saveLoadBusy || !this.callbacks.onDeleteSave) return;
+    this.saveLoadBusy = true;
+    this.showSaveLoadOverlay("Deleting...");
+    try {
+      await this.callbacks.onDeleteSave(slotIndex);
+      this.showSaveLoadOverlay("Deleted!");
+      setTimeout(() => {
+        this.removeSaveLoadOverlay();
+        this.saveLoadBusy = false;
+        this.refreshSaveSlots();
+      }, 800);
+    } catch {
+      this.showSaveLoadOverlay("Delete failed");
       setTimeout(() => {
         this.removeSaveLoadOverlay();
         this.saveLoadBusy = false;

@@ -267,6 +267,71 @@ describe('Save and Load game state', () => {
   });
 });
 
+// ---------- Delete save slot ----------
+
+describe('Delete save slot', () => {
+  it('should delete a single save slot without affecting others', async () => {
+    const pt = await createPlaythrough(USER_A, WORLD_ID);
+
+    // Save to all 3 slots
+    const saveData: Record<string, any> = {
+      slot_0: makeSaveState(0, { gameTime: 100 }),
+      slot_1: makeSaveState(1, { gameTime: 200 }),
+      slot_2: makeSaveState(2, { gameTime: 300 }),
+    };
+    await storage.updatePlaythrough(pt.id, { saveData });
+
+    // Delete slot 1
+    const loaded = await storage.getPlaythrough(pt.id);
+    const sd = { ...(loaded!.saveData as Record<string, any>) };
+    delete sd['slot_1'];
+    await storage.updatePlaythrough(pt.id, { saveData: sd });
+
+    // Verify slot 1 is gone but 0 and 2 remain
+    const after = await storage.getPlaythrough(pt.id);
+    const afterSd = after!.saveData as Record<string, any>;
+    expect(afterSd.slot_0).toBeDefined();
+    expect(afterSd.slot_0.gameTime).toBe(100);
+    expect(afterSd.slot_1).toBeUndefined();
+    expect(afterSd.slot_2).toBeDefined();
+    expect(afterSd.slot_2.gameTime).toBe(300);
+  });
+
+  it('should handle deleting from empty save data', async () => {
+    const pt = await createPlaythrough(USER_A, WORLD_ID);
+
+    // Delete from empty - should not throw
+    const loaded = await storage.getPlaythrough(pt.id);
+    const sd = { ...(loaded!.saveData as Record<string, any> || {}) };
+    delete sd['slot_0'];
+    await storage.updatePlaythrough(pt.id, { saveData: sd });
+
+    const after = await storage.getPlaythrough(pt.id);
+    expect(after).toBeDefined();
+  });
+
+  it('should allow saving to a previously deleted slot', async () => {
+    const pt = await createPlaythrough(USER_A, WORLD_ID);
+
+    // Save to slot 0
+    await storage.updatePlaythrough(pt.id, {
+      saveData: { slot_0: makeSaveState(0, { gameTime: 100 }) },
+    });
+
+    // Delete slot 0
+    await storage.updatePlaythrough(pt.id, { saveData: {} });
+
+    // Save again to slot 0
+    await storage.updatePlaythrough(pt.id, {
+      saveData: { slot_0: makeSaveState(0, { gameTime: 999 }) },
+    });
+
+    const loaded = await storage.getPlaythrough(pt.id);
+    const sd = loaded!.saveData as Record<string, any>;
+    expect(sd.slot_0.gameTime).toBe(999);
+  });
+});
+
 // ---------- Save / Load isolation between playthroughs ----------
 
 describe('Playthrough save isolation', () => {

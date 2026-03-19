@@ -1524,6 +1524,54 @@ export function registerPlaythroughRoutes(app: Express) {
     }
   });
 
+  // Delete game state from a slot
+  app.delete("/api/worlds/:worldId/game-state", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const { worldId } = req.params;
+      const playthroughId = req.query.playthroughId as string;
+      const slotIndex = parseInt(req.query.slotIndex as string, 10);
+
+      if (!playthroughId || isNaN(slotIndex)) {
+        return res.status(400).json({ message: "playthroughId and slotIndex query params required" });
+      }
+
+      if (slotIndex < 0 || slotIndex > 2) {
+        return res.status(400).json({ message: "slotIndex must be 0, 1, or 2" });
+      }
+
+      // Verify playthrough ownership
+      const playthrough = await storage.getPlaythrough(playthroughId);
+      if (!playthrough) {
+        return res.status(404).json({ message: "Playthrough not found" });
+      }
+      if (playthrough.userId !== payload.userId) {
+        return res.status(403).json({ message: "Not your playthrough" });
+      }
+      if (playthrough.worldId !== worldId) {
+        return res.status(400).json({ message: "Playthrough does not belong to this world" });
+      }
+
+      const saveData = (playthrough.saveData as Record<string, any>) || {};
+      delete saveData[`slot_${slotIndex}`];
+
+      await storage.updatePlaythrough(playthroughId, { saveData });
+
+      res.json({ success: true, slotIndex });
+    } catch (error) {
+      console.error("Delete game state error:", error);
+      res.status(500).json({ message: "Failed to delete game state" });
+    }
+  });
+
   // ===== WORLD SNAPSHOT VERSIONING =====
 
   // Get world version info
