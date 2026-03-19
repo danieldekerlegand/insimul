@@ -4,10 +4,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   GamepadIcon, Clock, Activity, User, GraduationCap, Radio,
-  ChevronRight, ChevronDown, BarChart3, Info,
+  ChevronRight, ChevronDown, BarChart3, Info, GitCompareArrows,
 } from 'lucide-react';
 import { AssessmentDashboard } from './AssessmentDashboard';
 import { TelemetryMonitorDashboard } from './TelemetryMonitorDashboard';
+import { PlaythroughComparison } from './PlaythroughComparison';
 
 interface Playthrough {
   id: string;
@@ -26,11 +27,12 @@ interface PlaythroughAnalyticsProps {
   worldId: string;
 }
 
-type ActiveView = 'playthroughs' | 'assessments' | 'telemetry';
+type ActiveView = 'playthroughs' | 'comparison' | 'assessments' | 'telemetry';
 type RightPanel = 'summary' | 'details';
 
 const VIEW_META: Record<ActiveView, { label: string; icon: typeof Activity; group: string }> = {
   playthroughs: { label: 'Playthroughs', icon: GamepadIcon, group: 'Player Data' },
+  comparison:   { label: 'Compare',      icon: GitCompareArrows, group: 'Player Data' },
   assessments:  { label: 'Assessments',  icon: GraduationCap, group: 'Player Data' },
   telemetry:    { label: 'Telemetry',    icon: Radio, group: 'System' },
 };
@@ -265,6 +267,26 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
           <ScrollArea className="flex-1">
             <div className="p-4">
               <TelemetryMonitorDashboard worldId={worldId} />
+            </div>
+          </ScrollArea>
+        </div>
+      );
+    }
+
+    // Comparison view
+    if (activeView === 'comparison') {
+      return (
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+          <div className="px-4 py-3 border-b shrink-0">
+            <div className="flex items-center gap-2">
+              <GitCompareArrows className="w-4 h-4 text-primary" />
+              <h2 className="text-lg font-bold">Compare Playthroughs</h2>
+              <Badge variant="outline" className="text-[10px]">Research</Badge>
+            </div>
+          </div>
+          <ScrollArea className="flex-1">
+            <div className="p-4">
+              <PlaythroughComparison worldId={worldId} playthroughs={playthroughs} />
             </div>
           </ScrollArea>
         </div>

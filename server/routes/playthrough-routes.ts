@@ -669,6 +669,80 @@ export function registerPlaythroughRoutes(app: Express) {
     }
   });
 
+  // Compare multiple playthroughs (owner only) — returns traces and stats for selected playthroughs
+  app.get("/api/worlds/:worldId/analytics/compare", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const { worldId } = req.params;
+      if (!(await canEditWorld(payload.userId, worldId))) {
+        return res.status(403).json({ message: "Only world owner can compare playthroughs" });
+      }
+
+      const idsParam = req.query.ids;
+      if (!idsParam || typeof idsParam !== 'string') {
+        return res.status(400).json({ message: "ids query parameter required (comma-separated)" });
+      }
+      const ids = idsParam.split(',').filter(Boolean);
+      if (ids.length < 2) {
+        return res.status(400).json({ message: "At least 2 playthrough IDs required for comparison" });
+      }
+      if (ids.length > 10) {
+        return res.status(400).json({ message: "Maximum 10 playthroughs can be compared at once" });
+      }
+
+      const results = await Promise.all(
+        ids.map(async (id) => {
+          const playthrough = await storage.getPlaythrough(id);
+          if (!playthrough || playthrough.worldId !== worldId) return null;
+          const traces = await storage.getTracesByPlaythrough(id);
+
+          // Aggregate trace data by action type
+          const actionTypeCounts: Record<string, number> = {};
+          const outcomeCounts: Record<string, number> = {};
+          let totalDurationMs = 0;
+          let traceCount = 0;
+          for (const t of traces) {
+            actionTypeCounts[t.actionType] = (actionTypeCounts[t.actionType] || 0) + 1;
+            if (t.outcome) outcomeCounts[t.outcome] = (outcomeCounts[t.outcome] || 0) + 1;
+            if (t.durationMs) totalDurationMs += t.durationMs;
+            traceCount++;
+          }
+
+          return {
+            playthrough: {
+              id: playthrough.id,
+              userId: playthrough.userId,
+              name: playthrough.name,
+              status: playthrough.status,
+              playtime: playthrough.playtime,
+              actionsCount: playthrough.actionsCount,
+              decisionsCount: playthrough.decisionsCount,
+              currentTimestep: playthrough.currentTimestep,
+              createdAt: playthrough.createdAt,
+              lastPlayedAt: playthrough.lastPlayedAt,
+              completedAt: playthrough.completedAt,
+            },
+            traceStats: {
+              totalTraces: traceCount,
+              actionTypeCounts,
+              outcomeCounts,
+              avgDurationMs: traceCount > 0 ? Math.round(totalDurationMs / traceCount) : 0,
+            },
+          };
+        })
+      );
+
+      res.json(results.filter(Boolean));
+    } catch (error) {
+      console.error("Compare playthroughs error:", error);
+      res.status(500).json({ message: "Failed to compare playthroughs" });
+    }
+  });
+
   // Check world access (helper endpoint for UI)
   app.get("/api/worlds/:worldId/access", async (req, res) => {
     try {
