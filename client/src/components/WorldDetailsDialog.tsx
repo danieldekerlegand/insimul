@@ -9,7 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Globe, Edit3, Trash2, Save, X, Info, Sparkles, Image as ImageIcon, BarChart3, Plus, Package } from 'lucide-react';
+import { Globe, Edit3, Trash2, Save, X, Info, Sparkles, Image as ImageIcon, BarChart3, Plus, Package, Users } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -18,6 +20,17 @@ import { AssetBrowserDialog } from './AssetBrowserDialog';
 import { BatchGenerationDialog } from './BatchGenerationDialog';
 import { JobQueueViewer } from './JobQueueViewer';
 import type { World, VisualAsset, AssetCollection } from '@shared/schema';
+import {
+  CHARACTER_STYLES,
+  CHARACTER_STYLE_LABELS,
+  DIVERSITY_LEVELS,
+  DIVERSITY_LEVEL_LABELS,
+  DEFAULT_NPC_APPEARANCE_CONFIG,
+  worldTypeToCharacterStyle,
+  type NpcAppearanceConfig,
+  type CharacterStyle,
+  type DiversityLevel,
+} from '@shared/npc-appearance-config';
 
 type World3DConfig = {
   buildingModels?: Record<string, string>;
@@ -74,6 +87,10 @@ export function WorldDetailsDialog({
   } | null>(null);
   const [isSyncing3DDefaults, setIsSyncing3DDefaults] = useState(false);
   
+  // NPC Appearance config state
+  const [npcAppearance, setNpcAppearance] = useState<NpcAppearanceConfig>(DEFAULT_NPC_APPEARANCE_CONFIG);
+  const [isSavingAppearance, setIsSavingAppearance] = useState(false);
+
   // User collection creation state
   const [showCreateCollection, setShowCreateCollection] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState('');
@@ -113,7 +130,22 @@ export function WorldDetailsDialog({
       setName(world.name);
       setDescription(world.description || '');
       setSelectedCollectionId((world as any).selectedAssetCollectionId || '');
-      
+
+      // Load NPC appearance config from world.config
+      const worldConfig = (world as any).config as Record<string, any> | undefined;
+      if (worldConfig?.npcAppearance) {
+        setNpcAppearance({
+          ...DEFAULT_NPC_APPEARANCE_CONFIG,
+          ...worldConfig.npcAppearance,
+        });
+      } else {
+        // Auto-detect style from world type
+        setNpcAppearance({
+          ...DEFAULT_NPC_APPEARANCE_CONFIG,
+          characterStyle: worldTypeToCharacterStyle(world.worldType),
+        });
+      }
+
       // Fetch countries and settlements
       fetchGeographicalData(world.id);
     }
@@ -231,6 +263,36 @@ export function WorldDetailsDialog({
   const objectRoles = world3DConfig?.objectModels
     ? Object.keys(world3DConfig.objectModels).sort()
     : [];
+
+  const handleSaveAppearance = async (updated: NpcAppearanceConfig) => {
+    if (!world || !token) return;
+    setIsSavingAppearance(true);
+    try {
+      const worldConfig = (world as any).config as Record<string, any> || {};
+      const response = await fetch(`/api/worlds/${world.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          config: { ...worldConfig, npcAppearance: updated },
+        }),
+      });
+      if (!response.ok) throw new Error('Failed to save appearance config');
+      setNpcAppearance(updated);
+      onWorldUpdated();
+      toast({ title: 'Appearance settings saved' });
+    } catch (error) {
+      toast({
+        title: 'Save failed',
+        description: error instanceof Error ? error.message : 'Failed to save appearance config',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingAppearance(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!world) return;
@@ -966,6 +1028,157 @@ export function WorldDetailsDialog({
                   </CardContent>
                 </Card>
 
+                {/* NPC Appearance Configuration */}
+                <Card>
+                  <CardContent className="pt-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium mb-1 flex items-center gap-2">
+                          <Users className="w-4 h-4" />
+                          NPC Appearance
+                        </h4>
+                        <p className="text-sm text-muted-foreground">
+                          Configure genre-specific character model selection and diversity settings.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      {/* Character Style */}
+                      <div className="space-y-2">
+                        <Label htmlFor="character-style">Character Style</Label>
+                        <Select
+                          value={npcAppearance.characterStyle}
+                          onValueChange={(value: string) => {
+                            const updated = { ...npcAppearance, characterStyle: value as CharacterStyle };
+                            setNpcAppearance(updated);
+                            handleSaveAppearance(updated);
+                          }}
+                        >
+                          <SelectTrigger id="character-style">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CHARACTER_STYLES.map((style) => (
+                              <SelectItem key={style} value={style}>
+                                {CHARACTER_STYLE_LABELS[style]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Determines which set of NPC models are used based on genre.
+                          {world?.worldType && (
+                            <> Auto-detected from world type: <strong>{world.worldType}</strong></>
+                          )}
+                        </p>
+                      </div>
+
+                      {/* Character Diversity */}
+                      <div className="space-y-2">
+                        <Label>Character Diversity</Label>
+                        <div className="flex items-center gap-4">
+                          {DIVERSITY_LEVELS.map((level) => (
+                            <button
+                              key={level}
+                              className={`px-3 py-1.5 rounded text-sm border transition-colors ${
+                                npcAppearance.diversityLevel === level
+                                  ? 'bg-primary text-primary-foreground border-primary'
+                                  : 'bg-background hover:bg-muted border-input'
+                              }`}
+                              onClick={() => {
+                                const updated = { ...npcAppearance, diversityLevel: level as DiversityLevel };
+                                setNpcAppearance(updated);
+                                handleSaveAppearance(updated);
+                              }}
+                            >
+                              {level.charAt(0).toUpperCase() + level.slice(1)}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {DIVERSITY_LEVEL_LABELS[npcAppearance.diversityLevel]}
+                        </p>
+                      </div>
+
+                      {/* Gender-Specific Models Toggle */}
+                      <div className="flex items-center justify-between rounded border px-3 py-2">
+                        <div>
+                          <p className="text-sm font-medium">Gender-Specific Models</p>
+                          <p className="text-xs text-muted-foreground">
+                            Use separate male/female model variants for NPCs
+                          </p>
+                        </div>
+                        <Switch
+                          checked={npcAppearance.enableGenderModels}
+                          onCheckedChange={(checked: boolean) => {
+                            const updated = { ...npcAppearance, enableGenderModels: checked };
+                            setNpcAppearance(updated);
+                            handleSaveAppearance(updated);
+                          }}
+                        />
+                      </div>
+
+                      {/* Per-Role Model Overrides */}
+                      <div className="space-y-2">
+                        <Label>Per-Role Model Overrides</Label>
+                        <p className="text-xs text-muted-foreground mb-2">
+                          Override the default model for specific NPC roles. These take precedence over the character style defaults above.
+                        </p>
+                        {['civilian', 'guard', 'merchant', 'questgiver'].map((role) => {
+                          const override = npcAppearance.roleOverrides.find((o) => o.role === role);
+                          const overrideAsset = override
+                            ? worldAssets.find((a) => a.id === override.assetId)
+                            : undefined;
+                          const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+                          return (
+                            <div key={role} className="flex items-center justify-between rounded border px-3 py-2">
+                              <div className="mr-2">
+                                <p className="text-sm font-medium">{roleLabel}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {overrideAsset ? overrideAsset.name : 'Using style default'}
+                                </p>
+                              </div>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setModelBrowserContext({ group: 'character', key: `override_${role}` });
+                                    setShowModelBrowser(true);
+                                  }}
+                                >
+                                  Select
+                                </Button>
+                                {override && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      const updated = {
+                                        ...npcAppearance,
+                                        roleOverrides: npcAppearance.roleOverrides.filter((o) => o.role !== role),
+                                      };
+                                      setNpcAppearance(updated);
+                                      handleSaveAppearance(updated);
+                                    }}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {isSavingAppearance && (
+                      <p className="text-xs text-muted-foreground">Saving...</p>
+                    )}
+                  </CardContent>
+                </Card>
+
                 {/* Existing Assets Preview */}
                 {worldAssets.length > 0 && (
                   <div>
@@ -1137,6 +1350,19 @@ export function WorldDetailsDialog({
                 ...(world3DConfig?.natureModels || {}),
                 [modelBrowserContext.key]: asset.id
               };
+            } else if (group === 'character' && modelBrowserContext.key.startsWith('override_')) {
+              // Role override — save to NPC appearance config
+              const role = modelBrowserContext.key.replace('override_', '');
+              const updatedOverrides = [
+                ...npcAppearance.roleOverrides.filter((o) => o.role !== role),
+                { role, assetId: asset.id, label: asset.name },
+              ];
+              const updatedConfig = { ...npcAppearance, roleOverrides: updatedOverrides };
+              setNpcAppearance(updatedConfig);
+              await handleSaveAppearance(updatedConfig);
+              setShowModelBrowser(false);
+              setModelBrowserContext(null);
+              return;
             } else if (group === 'character') {
               body.characterModels = {
                 ...(world3DConfig?.characterModels || {}),
