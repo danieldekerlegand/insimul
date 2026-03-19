@@ -5643,8 +5643,11 @@ export class BabylonGame {
           homeBuildingId,
           friendBuildingIds.length > 0 ? friendBuildingIds : undefined,
           personality ? {
-            extroversion: personality.extroversion ?? personality.Extroversion,
+            openness: personality.openness ?? personality.Openness,
             conscientiousness: personality.conscientiousness ?? personality.Conscientiousness,
+            extroversion: personality.extroversion ?? personality.Extroversion,
+            agreeableness: personality.agreeableness ?? personality.Agreeableness,
+            neuroticism: personality.neuroticism ?? personality.Neuroticism,
           } : undefined
         );
       }

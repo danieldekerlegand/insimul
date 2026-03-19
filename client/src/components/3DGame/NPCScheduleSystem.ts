@@ -1,21 +1,17 @@
 /**
  * NPCScheduleSystem — Gives NPCs goal-directed behavior using street networks.
  *
- * NPCs follow a personality-driven daily schedule:
+ * NPCs follow a personality-driven daily schedule with day-to-day variety.
+ * Each NPC's Big Five personality traits influence their choices:
  *
- * Employed NPCs:
- *   - Morning (6-9): Leave home, go to work
- *   - Work hours (9-12): At work
- *   - Lunch break (12-13): Visit a random business for lunch
- *   - Afternoon work (13-17): Back to work
- *   - Evening social (17-20): Extroverts visit friends/businesses; introverts go home
- *   - Night (20-6): Go home, stay inside
+ * - Openness: Explore new places vs. stick to familiar routines
+ * - Conscientiousness: Punctual/structured vs. spontaneous/loose schedule
+ * - Extroversion: Social venues & friend visits vs. solitary activities
+ * - Agreeableness: Visit friends & help vs. solo pursuits
+ * - Neuroticism: Prefer safe/familiar locations vs. adventurous outings
  *
- * Unemployed NPCs:
- *   - Morning: Wander or visit shops
- *   - Midday: Visit a random business
- *   - Afternoon: Visit friend or wander
- *   - Evening: Go home
+ * A deterministic day-seed (NPC ID + game day) ensures variety across days
+ * while keeping behavior consistent within a single day.
  *
  * Movement follows the street network sidewalks rather than random wandering.
  * NPCs "enter" buildings by walking to the door and becoming invisible,
@@ -34,6 +30,15 @@ export interface NPCGoal {
   expiresAt: number;
 }
 
+/** Big Five personality traits (0-1 scale) */
+export interface NPCPersonality {
+  openness?: number;
+  conscientiousness?: number;
+  extroversion?: number;
+  agreeableness?: number;
+  neuroticism?: number;
+}
+
 export interface NPCScheduleEntry {
   npcId: string;
   currentGoal: NPCGoal | null;
@@ -48,8 +53,8 @@ export interface NPCScheduleEntry {
   homeBuildingId?: string;
   /** Residences of friends/family this NPC can visit */
   friendBuildingIds?: string[];
-  /** Personality modifiers that influence schedule choices */
-  personality?: { extroversion?: number; conscientiousness?: number };
+  /** Big Five personality traits that influence schedule choices */
+  personality?: NPCPersonality;
 }
 
 interface BuildingInfo {
@@ -117,7 +122,7 @@ export class NPCScheduleSystem {
     workBuildingId?: string,
     homeBuildingId?: string,
     friendBuildingIds?: string[],
-    personality?: { extroversion?: number; conscientiousness?: number }
+    personality?: NPCPersonality
   ): void {
     this.schedules.set(npcId, {
       npcId,
@@ -341,6 +346,18 @@ export class NPCScheduleSystem {
   }
 
   /**
+   * Helper: pick a business deterministically using a seed value (0-1).
+   * Neurotic NPCs use this to consistently visit the same "familiar" places.
+   */
+  private pickSeededBusiness(seed: number, excludeId?: string): string | null {
+    const shops = Array.from(this.buildings.entries())
+      .filter(([id, b]) => b.buildingType === 'business' && id !== excludeId)
+      .map(([id]) => id);
+    if (shops.length === 0) return null;
+    return shops[Math.floor(seed * shops.length) % shops.length];
+  }
+
+  /**
    * Helper: pick a random valid friend building from the entry's friendBuildingIds.
    */
   private pickRandomFriend(entry: NPCScheduleEntry): string | null {
@@ -357,115 +374,241 @@ export class NPCScheduleSystem {
   }
 
   /**
+   * Deterministic hash from NPC ID + game day, producing a 0-1 float.
+   * Ensures each NPC gets different-but-consistent choices per day.
+   */
+  public daySeed(npcId: string, now: number, slot: number = 0): number {
+    const gameDay = Math.floor(now / (60000 * 24));
+    let hash = 0;
+    const key = `${npcId}:${gameDay}:${slot}`;
+    for (let i = 0; i < key.length; i++) {
+      hash = ((hash << 5) - hash + key.charCodeAt(i)) | 0;
+    }
+    return (((hash >>> 0) % 10000) / 10000);
+  }
+
+  /**
+   * Personality-weighted coin flip. Returns true with probability influenced
+   * by a trait value (0-1). traitWeight controls how much the trait shifts
+   * the base probability.
+   */
+  private personalityCheck(
+    base: number,
+    traitValue: number,
+    traitWeight: number,
+    seed: number,
+  ): boolean {
+    const adjusted = Math.max(0, Math.min(1, base + (traitValue - 0.5) * traitWeight));
+    return seed < adjusted;
+  }
+
+  /**
    * Determine what goal an NPC should pursue based on time-of-day and personality.
    * Uses a simulated 24-hour day cycle (1 real minute = 1 game hour).
    *
-   * Employed NPCs follow a structured work schedule with lunch breaks and
-   * personality-driven evening behavior. Unemployed NPCs have a more relaxed
-   * routine of wandering, shopping, and socializing.
+   * All five Big Five traits influence schedule variety:
+   * - Openness: explore new businesses vs. repeat favorites
+   * - Conscientiousness: arrive early, skip fewer breaks, structured day
+   * - Extroversion: social venues, friend visits, staying out late
+   * - Agreeableness: friend visits, cooperative activities
+   * - Neuroticism: stay home more, avoid unfamiliar places
+   *
+   * A per-day seed ensures NPCs vary their routine day-to-day.
    */
   public pickNextGoal(npcId: string, now: number): NPCGoal | null {
     const entry = this.schedules.get(npcId);
     if (!entry) return null;
 
-    // Simulated hour: cycle through 24 hours every 24 minutes
     const gameHour = ((now / 60000) % 24);
-    const extroversion = entry.personality?.extroversion ?? 0.5;
+    const p = {
+      openness: entry.personality?.openness ?? 0.5,
+      conscientiousness: entry.personality?.conscientiousness ?? 0.5,
+      extroversion: entry.personality?.extroversion ?? 0.5,
+      agreeableness: entry.personality?.agreeableness ?? 0.5,
+      neuroticism: entry.personality?.neuroticism ?? 0.5,
+    };
     const hasJob = !!(entry.workBuildingId && this.buildings.has(entry.workBuildingId));
+    const hasHome = !!(entry.homeBuildingId && this.buildings.has(entry.homeBuildingId));
 
-    // --- Night (20-6): Everyone goes home ---
-    if (gameHour >= 20 || gameHour < 6) {
-      if (entry.homeBuildingId && this.buildings.has(entry.homeBuildingId)) {
-        const duration = this.randRange(180000, 300000); // 3-5 minutes
-        return this.makeBuildingGoal(entry.homeBuildingId, now, duration);
+    // Per-day seeds for different decision slots
+    const seed0 = this.daySeed(npcId, now, 0);
+    const seed1 = this.daySeed(npcId, now, 1);
+    const seed2 = this.daySeed(npcId, now, 2);
+    const seed3 = this.daySeed(npcId, now, 3);
+
+    // --- Night: bedtime varies by personality ---
+    // Extroverts/low-C stay out later (up to hour 22); neurotic/high-C go home earlier (20)
+    const bedtimeHour = 20 + (p.extroversion - 0.5) * 2 - (p.conscientiousness - 0.5);
+    const wakeHour = 6 - (p.conscientiousness - 0.5); // High C wakes earlier
+    if (gameHour >= Math.max(20, Math.min(23, bedtimeHour)) || gameHour < Math.max(4, Math.min(7, wakeHour))) {
+      if (hasHome) {
+        return this.makeBuildingGoal(entry.homeBuildingId!, now, this.randRange(180000, 300000));
       }
       return { type: 'idle_at_building', expiresAt: now + 180000 };
     }
 
     // --- Employed NPC schedule ---
     if (hasJob) {
-      if (gameHour >= 6 && gameHour < 9) {
-        // Morning: leave home, go to work
-        const duration = this.randRange(180000, 300000); // 3-5 minutes
-        return this.makeBuildingGoal(entry.workBuildingId!, now, duration);
-      } else if (gameHour >= 9 && gameHour < 12) {
-        // Work hours: at work
-        const duration = this.randRange(180000, 300000); // 3-5 minutes
-        return this.makeBuildingGoal(entry.workBuildingId!, now, duration);
-      } else if (gameHour >= 12 && gameHour < 13) {
-        // Lunch break: visit a random business
-        const shopId = this.pickRandomBusiness(entry.workBuildingId);
-        if (shopId) {
-          const duration = this.randRange(60000, 120000); // 1-2 minutes
-          return this.makeBuildingGoal(shopId, now, duration);
-        }
-        // No shops available, wander
-        return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
-      } else if (gameHour >= 13 && gameHour < 17) {
-        // Afternoon work: back to work
-        const duration = this.randRange(180000, 300000); // 3-5 minutes
-        return this.makeBuildingGoal(entry.workBuildingId!, now, duration);
-      } else if (gameHour >= 17 && gameHour < 20) {
-        // Evening social: personality-driven
-        if (extroversion > 0.5) {
-          // Extroverted: visit friend's home or a business
-          const friendId = this.pickRandomFriend(entry);
-          if (friendId && Math.random() < 0.6) {
-            const duration = this.randRange(120000, 180000); // 2-3 minutes
-            return this.makeFriendVisitGoal(friendId, now, duration);
-          }
-          const shopId = this.pickRandomBusiness(entry.workBuildingId);
-          if (shopId) {
-            const duration = this.randRange(60000, 120000); // 1-2 minutes
-            return this.makeBuildingGoal(shopId, now, duration);
-          }
-        }
-        // Introverted or no social options: go home
-        if (entry.homeBuildingId && this.buildings.has(entry.homeBuildingId)) {
-          const duration = this.randRange(180000, 300000); // 3-5 minutes
-          return this.makeBuildingGoal(entry.homeBuildingId, now, duration);
-        }
-      }
-    } else {
-      // --- Unemployed NPC schedule ---
-      if (gameHour >= 6 && gameHour < 12) {
-        // Morning: wander or visit shops
-        const shopId = this.pickRandomBusiness();
-        if (shopId && Math.random() < 0.5) {
-          const duration = this.randRange(60000, 120000); // 1-2 minutes
-          return this.makeBuildingGoal(shopId, now, duration);
-        }
-        return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
-      } else if (gameHour >= 12 && gameHour < 14) {
-        // Midday: visit a random business
-        const shopId = this.pickRandomBusiness();
-        if (shopId) {
-          const duration = this.randRange(60000, 120000); // 1-2 minutes
-          return this.makeBuildingGoal(shopId, now, duration);
-        }
-        return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
-      } else if (gameHour >= 14 && gameHour < 17) {
-        // Afternoon: visit friend or wander
-        const friendId = this.pickRandomFriend(entry);
-        if (friendId && Math.random() < 0.5) {
-          const duration = this.randRange(120000, 180000); // 2-3 minutes
-          return this.makeFriendVisitGoal(friendId, now, duration);
-        }
-        return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
-      } else if (gameHour >= 17 && gameHour < 20) {
-        // Evening: go home
-        if (entry.homeBuildingId && this.buildings.has(entry.homeBuildingId)) {
-          const duration = this.randRange(180000, 300000); // 3-5 minutes
-          return this.makeBuildingGoal(entry.homeBuildingId, now, duration);
-        }
-      }
+      return this.pickEmployedGoal(entry, p, gameHour, now, seed0, seed1, seed2, seed3);
     }
 
-    // Fallback: wander along sidewalk
-    return {
-      type: 'wander_sidewalk',
-      expiresAt: now + this.randRange(30000, 60000),
-    };
+    // --- Unemployed NPC schedule ---
+    return this.pickUnemployedGoal(entry, p, gameHour, now, seed0, seed1, seed2, seed3);
+  }
+
+  private pickEmployedGoal(
+    entry: NPCScheduleEntry,
+    p: Required<NPCPersonality>,
+    gameHour: number,
+    now: number,
+    seed0: number, seed1: number, seed2: number, seed3: number,
+  ): NPCGoal {
+    const hasHome = !!(entry.homeBuildingId && this.buildings.has(entry.homeBuildingId));
+
+    if (gameHour < 9) {
+      // Morning: high-C NPCs go straight to work; others may take a morning walk first
+      const takeMorningWalk = this.personalityCheck(0.2, p.openness, 0.4, seed0)
+        && !this.personalityCheck(0.5, p.conscientiousness, 0.6, seed0);
+      if (takeMorningWalk && gameHour < 7) {
+        return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
+      }
+      return this.makeBuildingGoal(entry.workBuildingId!, now, this.randRange(180000, 300000));
+
+    } else if (gameHour < 12) {
+      // Work hours
+      return this.makeBuildingGoal(entry.workBuildingId!, now, this.randRange(180000, 300000));
+
+    } else if (gameHour < 13) {
+      // Lunch: high-C may eat at work (skip going out); open NPCs explore new places
+      const eatAtDesk = this.personalityCheck(0.3, p.conscientiousness, 0.5, seed1);
+      if (eatAtDesk) {
+        return this.makeBuildingGoal(entry.workBuildingId!, now, this.randRange(60000, 120000));
+      }
+      // Neurotic NPCs prefer familiar places — use seed to pick consistently
+      const shopId = p.neuroticism > 0.6
+        ? this.pickSeededBusiness(seed1, entry.workBuildingId)
+        : this.pickRandomBusiness(entry.workBuildingId);
+      if (shopId) {
+        return this.makeBuildingGoal(shopId, now, this.randRange(60000, 120000));
+      }
+      return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
+
+    } else if (gameHour < 17) {
+      // Afternoon work: low-C NPCs may leave early on some days
+      const leaveEarly = gameHour >= 15
+        && this.personalityCheck(0.15, 1 - p.conscientiousness, 0.4, seed2);
+      if (leaveEarly) {
+        // Do what they'd do in the evening, early
+        return this.pickEveningGoal(entry, p, now, seed2, seed3);
+      }
+      return this.makeBuildingGoal(entry.workBuildingId!, now, this.randRange(180000, 300000));
+
+    } else {
+      // Evening (17-bedtime): personality-driven social/solo activities
+      return this.pickEveningGoal(entry, p, now, seed2, seed3);
+    }
+  }
+
+  /**
+   * Evening goal selection — shared by employed (after work) and early-leavers.
+   * Extroverts visit friends/businesses; agreeable NPCs visit friends;
+   * open NPCs explore; neurotic/introverts go home.
+   */
+  private pickEveningGoal(
+    entry: NPCScheduleEntry,
+    p: Required<NPCPersonality>,
+    now: number,
+    seedA: number, seedB: number,
+  ): NPCGoal {
+    const hasHome = !!(entry.homeBuildingId && this.buildings.has(entry.homeBuildingId));
+
+    // Weighted choice: socialize vs. explore vs. go home
+    const socialWeight = p.extroversion * 0.5 + p.agreeableness * 0.3;
+    const exploreWeight = p.openness * 0.4 - p.neuroticism * 0.2;
+    const homeWeight = (1 - p.extroversion) * 0.3 + p.neuroticism * 0.3 + (1 - p.openness) * 0.1;
+
+    const total = socialWeight + Math.max(0, exploreWeight) + homeWeight;
+    const roll = seedA * total;
+
+    if (roll < socialWeight) {
+      // Social: visit friend or social business
+      const friendId = this.pickRandomFriend(entry);
+      if (friendId && seedB < 0.5 + p.agreeableness * 0.3) {
+        return this.makeFriendVisitGoal(friendId, now, this.randRange(120000, 180000));
+      }
+      const shopId = this.pickRandomBusiness(entry.workBuildingId);
+      if (shopId) {
+        return this.makeBuildingGoal(shopId, now, this.randRange(60000, 120000));
+      }
+    } else if (roll < socialWeight + Math.max(0, exploreWeight)) {
+      // Explore: visit a random business or wander
+      const shopId = this.pickRandomBusiness();
+      if (shopId && seedB > 0.3) {
+        return this.makeBuildingGoal(shopId, now, this.randRange(60000, 120000));
+      }
+      return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
+    }
+
+    // Go home
+    if (hasHome) {
+      return this.makeBuildingGoal(entry.homeBuildingId!, now, this.randRange(180000, 300000));
+    }
+    return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
+  }
+
+  private pickUnemployedGoal(
+    entry: NPCScheduleEntry,
+    p: Required<NPCPersonality>,
+    gameHour: number,
+    now: number,
+    seed0: number, seed1: number, seed2: number, seed3: number,
+  ): NPCGoal {
+    const hasHome = !!(entry.homeBuildingId && this.buildings.has(entry.homeBuildingId));
+
+    if (gameHour < 10) {
+      // Morning: neurotic/introverted NPCs stay home longer; open NPCs go out early
+      const stayHome = this.personalityCheck(0.3, p.neuroticism, 0.4, seed0)
+        || this.personalityCheck(0.2, 1 - p.openness, 0.3, seed0);
+      if (stayHome && hasHome && gameHour < 8) {
+        return this.makeBuildingGoal(entry.homeBuildingId!, now, this.randRange(60000, 120000));
+      }
+      // Otherwise visit shop or wander
+      const shopId = this.pickRandomBusiness();
+      if (shopId && seed1 < 0.4 + p.openness * 0.3) {
+        return this.makeBuildingGoal(shopId, now, this.randRange(60000, 120000));
+      }
+      return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
+
+    } else if (gameHour < 14) {
+      // Midday: visit business — agreeable NPCs may visit friends instead
+      const visitFriend = this.personalityCheck(0.2, p.agreeableness, 0.5, seed1);
+      if (visitFriend) {
+        const friendId = this.pickRandomFriend(entry);
+        if (friendId) {
+          return this.makeFriendVisitGoal(friendId, now, this.randRange(120000, 180000));
+        }
+      }
+      const shopId = this.pickRandomBusiness();
+      if (shopId) {
+        return this.makeBuildingGoal(shopId, now, this.randRange(60000, 120000));
+      }
+      return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
+
+    } else if (gameHour < 17) {
+      // Afternoon: personality-driven mix
+      return this.pickEveningGoal(entry, p, now, seed2, seed3);
+
+    } else {
+      // Evening: head home, but extroverts may stay out
+      const stayOut = this.personalityCheck(0.2, p.extroversion, 0.5, seed3);
+      if (stayOut) {
+        return this.pickEveningGoal(entry, p, now, seed2, seed3);
+      }
+      if (hasHome) {
+        return this.makeBuildingGoal(entry.homeBuildingId!, now, this.randRange(180000, 300000));
+      }
+      return { type: 'idle_at_building', expiresAt: now + 180000 };
+    }
   }
 
   /**
