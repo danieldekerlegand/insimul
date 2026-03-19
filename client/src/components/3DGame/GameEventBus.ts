@@ -124,7 +124,9 @@ export type GameEvent =
   // Time events
   | { type: 'hour_changed'; hour: number; day: number }
   | { type: 'day_changed'; day: number; timestep: number }
-  | { type: 'time_of_day_changed'; from: string; to: string; hour: number };
+  | { type: 'time_of_day_changed'; from: string; to: string; hour: number }
+  // NPC relationship events
+  | { type: 'npc_relationship_changed'; npcId: string; npcName: string; previousStrength: number; newStrength: number; previousTier: string; newTier: string; cause: string; delta: number };
 
 export type GameEventType = GameEvent['type'];
 

@@ -69,6 +69,8 @@ export interface DataSource {
   getConversations(playthroughId: string, npcCharacterId?: string): Promise<any[]>;
   getPlaythrough(playthroughId: string): Promise<any | null>;
   markPlaythroughInitialized(playthroughId: string): Promise<void>;
+  loadPlaythroughRelationships(playthroughId: string): Promise<any[]>;
+  updatePlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string, data: { type: string; strength: number; cause?: string }): Promise<any>;
 }
 
 /**
@@ -540,6 +542,20 @@ export class ApiDataSource implements DataSource {
       method: 'POST',
       headers: this.getHeaders(),
     });
+  }
+
+  async loadPlaythroughRelationships(playthroughId: string): Promise<any[]> {
+    const res = await fetch(`/api/playthroughs/${playthroughId}/relationships`, { headers: this.getHeaders() });
+    return res.ok ? await res.json() : [];
+  }
+
+  async updatePlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string, data: { type: string; strength: number; cause?: string }): Promise<any> {
+    const res = await fetch(`/api/playthroughs/${playthroughId}/relationships`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.getHeaders() },
+      body: JSON.stringify({ fromCharacterId, toCharacterId, ...data }),
+    });
+    return res.ok ? await res.json() : null;
   }
 }
 
@@ -1234,6 +1250,14 @@ export class FileDataSource implements DataSource {
 
   async markPlaythroughInitialized(_playthroughId: string): Promise<void> {
     // No-op for file-based data source
+  }
+
+  async loadPlaythroughRelationships(_playthroughId: string): Promise<any[]> {
+    return []; // No server in exported mode
+  }
+
+  async updatePlaythroughRelationship(_playthroughId: string, _fromCharacterId: string, _toCharacterId: string, _data: { type: string; strength: number; cause?: string }): Promise<any> {
+    return null; // No server in exported mode
   }
 }
 

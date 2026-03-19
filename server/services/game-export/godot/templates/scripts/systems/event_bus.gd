@@ -101,6 +101,8 @@ const EVENT_DEPARTURE_ASSESSMENT_TRIGGERED := "departure_assessment_triggered"
 const EVENT_HOUR_CHANGED := "hour_changed"
 const EVENT_DAY_CHANGED := "day_changed"
 const EVENT_TIME_OF_DAY_CHANGED := "time_of_day_changed"
+# NPC relationship events
+const EVENT_NPC_RELATIONSHIP_CHANGED := "npc_relationship_changed"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -157,6 +159,8 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_HOUR_CHANGED,
 	EVENT_DAY_CHANGED,
 	EVENT_TIME_OF_DAY_CHANGED,
+	# NPC relationship events
+	EVENT_NPC_RELATIONSHIP_CHANGED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.

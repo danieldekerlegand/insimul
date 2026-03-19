@@ -102,7 +102,9 @@ enum class EInsimulEventType : uint8
     // Time events
     HourChanged UMETA(DisplayName = "Hour Changed"),
     DayChanged UMETA(DisplayName = "Day Changed"),
-    TimeOfDayChanged UMETA(DisplayName = "Time Of Day Changed")
+    TimeOfDayChanged UMETA(DisplayName = "Time Of Day Changed"),
+    // NPC relationship events
+    NpcRelationshipChanged UMETA(DisplayName = "NPC Relationship Changed")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────
@@ -336,6 +338,12 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Timestep = 0;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString From;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString To;
+
+    // ── NPC relationship fields ─────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float PreviousStrength = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float NewStrength = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PreviousTier;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString NewTier;
 };
 
 // ── Delegates ────────────────────────────────────────────────────────────────

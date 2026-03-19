@@ -373,3 +373,16 @@ FString UDataLoader::LoadQuestProgress()
     UE_LOG(LogTemp, Log, TEXT("[Insimul] LoadQuestProgress: loaded (%d chars)"), Contents.Len());
     return Contents;
 }
+
+FString UDataLoader::LoadPlaythroughRelationships()
+{
+    // No server in exported mode — return empty JSON array
+    return TEXT("[]");
+}
+
+bool UDataLoader::UpdatePlaythroughRelationship(const FString& FromCharacterId, const FString& ToCharacterId, const FString& Type, float Strength)
+{
+    // No server in exported mode — no-op
+    UE_LOG(LogTemp, Verbose, TEXT("[Insimul] UpdatePlaythroughRelationship: no-op in exported mode"));
+    return false;
+}

@@ -1338,6 +1338,63 @@ export function registerPlaythroughRoutes(app: Express) {
     }
   });
 
+  // Get all relationships for a playthrough (client RelationshipManager bootstrap)
+  app.get("/api/playthroughs/:id/relationships", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) return res.status(404).json({ message: "Playthrough not found" });
+      if (playthrough.userId !== payload.userId) {
+        const canEdit = await canEditWorld(payload.userId, playthrough.worldId);
+        if (!canEdit) return res.status(403).json({ message: "Access denied" });
+      }
+
+      const overlays = await storage.getPlaythroughRelationshipsByPlaythrough(req.params.id);
+      res.json(overlays);
+    } catch (error) {
+      console.error("Get playthrough relationships error:", error);
+      res.status(500).json({ message: "Failed to get relationships" });
+    }
+  });
+
+  // Upsert a relationship within a playthrough (from client RelationshipManager)
+  app.post("/api/playthroughs/:id/relationships", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) return res.status(404).json({ message: "Playthrough not found" });
+      if (playthrough.userId !== payload.userId) return res.status(403).json({ message: "Access denied" });
+
+      const { fromCharacterId, toCharacterId, type, strength, cause } = req.body;
+      if (!fromCharacterId || !toCharacterId || !type || typeof strength !== 'number') {
+        return res.status(400).json({ message: "fromCharacterId, toCharacterId, type, and strength are required" });
+      }
+
+      await storage.upsertPlaythroughRelationship({
+        playthroughId: req.params.id,
+        fromCharacterId,
+        toCharacterId,
+        type,
+        strength: Math.max(-1, Math.min(1, strength)),
+        lastModified: Date.now(),
+        metadata: cause ? { cause } : undefined,
+      });
+
+      res.json({ success: true, strength: Math.max(-1, Math.min(1, strength)) });
+    } catch (error) {
+      console.error("Upsert playthrough relationship error:", error);
+      res.status(500).json({ message: "Failed to upsert relationship" });
+    }
+  });
+
   // ===== PLAYTHROUGH QUEST PROGRESS =====
 
   // Save quest progress for a playthrough (incremental, without full game-state save)
