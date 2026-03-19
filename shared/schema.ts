@@ -1343,6 +1343,9 @@ export const playthroughs = pgTable("playthroughs", {
   // Save state
   saveData: jsonb("save_data").$type<Record<string, any>>().default({}),
 
+  // Migration flag: true for editor-created playthroughs that need in-game initialization
+  needsInitialization: boolean("needs_initialization").default(false),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

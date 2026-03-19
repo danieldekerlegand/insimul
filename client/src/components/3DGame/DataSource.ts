@@ -55,6 +55,8 @@ export interface DataSource {
   saveQuestProgress(playthroughId: string, questProgress: any): Promise<void>;
   loadQuestProgress(playthroughId: string): Promise<any | null>;
   loadGeography(worldId: string): Promise<{ heightmap?: number[][]; terrainSize?: number } | null>;
+  getPlaythrough(playthroughId: string): Promise<any | null>;
+  markPlaythroughInitialized(playthroughId: string): Promise<void>;
 }
 
 /**
@@ -344,6 +346,18 @@ export class ApiDataSource implements DataSource {
       }
     } catch { /* Geography not available */ }
     return null;
+  }
+
+  async getPlaythrough(playthroughId: string): Promise<any | null> {
+    const res = await fetch(`/api/playthroughs/${playthroughId}`, { headers: this.getHeaders() });
+    return res.ok ? await res.json() : null;
+  }
+
+  async markPlaythroughInitialized(playthroughId: string): Promise<void> {
+    await fetch(`/api/playthroughs/${playthroughId}/mark-initialized`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
   }
 }
 
@@ -986,6 +1000,14 @@ export class FileDataSource implements DataSource {
     const geo = this.worldData?.geography;
     if (!geo) return null;
     return { heightmap: geo.heightmap, terrainSize: geo.terrainSize };
+  }
+
+  async getPlaythrough(_playthroughId: string): Promise<any | null> {
+    return null;
+  }
+
+  async markPlaythroughInitialized(_playthroughId: string): Promise<void> {
+    // No-op for file-based data source
   }
 }
 
