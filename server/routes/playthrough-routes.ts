@@ -669,6 +669,130 @@ export function registerPlaythroughRoutes(app: Express) {
     }
   });
 
+  // Get detailed journey analytics for a specific playthrough (owner only)
+  app.get("/api/worlds/:worldId/analytics/playthroughs/:playthroughId/journey", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const { worldId, playthroughId } = req.params;
+
+      if (!(await canEditWorld(payload.userId, worldId))) {
+        return res.status(403).json({ message: "Only world owner can view analytics" });
+      }
+
+      const playthrough = await storage.getPlaythrough(playthroughId);
+      if (!playthrough || playthrough.worldId !== worldId) {
+        return res.status(404).json({ message: "Playthrough not found" });
+      }
+
+      const [traces, deltas, reputations] = await Promise.all([
+        storage.getTracesByPlaythrough(playthroughId),
+        storage.getDeltasByPlaythrough(playthroughId),
+        storage.getReputationsByPlaythrough(playthroughId),
+      ]);
+
+      // Action type breakdown
+      const actionBreakdown: Record<string, number> = {};
+      const outcomeBreakdown: Record<string, number> = {};
+      const locationVisits: Record<string, number> = {};
+      const timelineEvents: Array<{
+        id: string;
+        timestep: number;
+        actionType: string;
+        actionName: string | null;
+        outcome: string | null;
+        locationId: string | null;
+        targetType: string | null;
+        narrativeText: string | null;
+        durationMs: number | null;
+        timestamp: string | Date | null;
+      }> = [];
+
+      for (const trace of traces) {
+        // Action breakdown
+        const aType = trace.actionType || 'unknown';
+        actionBreakdown[aType] = (actionBreakdown[aType] || 0) + 1;
+
+        // Outcome breakdown
+        const outcome = trace.outcome || 'unknown';
+        outcomeBreakdown[outcome] = (outcomeBreakdown[outcome] || 0) + 1;
+
+        // Location visits
+        if (trace.locationId) {
+          locationVisits[trace.locationId] = (locationVisits[trace.locationId] || 0) + 1;
+        }
+
+        // Timeline events
+        timelineEvents.push({
+          id: trace.id,
+          timestep: trace.timestep,
+          actionType: trace.actionType,
+          actionName: trace.actionName,
+          outcome: trace.outcome,
+          locationId: trace.locationId,
+          targetType: trace.targetType,
+          narrativeText: trace.narrativeText,
+          durationMs: trace.durationMs,
+          timestamp: trace.timestamp,
+        });
+      }
+
+      // Delta summary by entity type
+      const deltaBreakdown: Record<string, { creates: number; updates: number; deletes: number }> = {};
+      for (const delta of deltas) {
+        if (!deltaBreakdown[delta.entityType]) {
+          deltaBreakdown[delta.entityType] = { creates: 0, updates: 0, deletes: 0 };
+        }
+        const op = delta.operation as 'create' | 'update' | 'delete';
+        if (op === 'create') deltaBreakdown[delta.entityType].creates++;
+        else if (op === 'update') deltaBreakdown[delta.entityType].updates++;
+        else if (op === 'delete') deltaBreakdown[delta.entityType].deletes++;
+      }
+
+      // Average action duration
+      const durations = traces.filter(t => t.durationMs != null).map(t => t.durationMs!);
+      const avgDurationMs = durations.length > 0
+        ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
+        : null;
+
+      // Actions per timestep for engagement chart
+      const actionsPerTimestep: Record<number, number> = {};
+      for (const trace of traces) {
+        actionsPerTimestep[trace.timestep] = (actionsPerTimestep[trace.timestep] || 0) + 1;
+      }
+
+      res.json({
+        playthrough,
+        summary: {
+          totalTraces: traces.length,
+          totalDeltas: deltas.length,
+          totalReputations: reputations.length,
+          avgDurationMs,
+          uniqueLocations: Object.keys(locationVisits).length,
+          uniqueActionTypes: Object.keys(actionBreakdown).length,
+        },
+        actionBreakdown,
+        outcomeBreakdown,
+        locationVisits,
+        deltaBreakdown,
+        actionsPerTimestep,
+        reputations,
+        timeline: timelineEvents,
+      });
+    } catch (error) {
+      console.error("Get journey analytics error:", error);
+      res.status(500).json({ message: "Failed to get journey analytics" });
+    }
+  });
+
   // Check world access (helper endpoint for UI)
   app.get("/api/worlds/:worldId/access", async (req, res) => {
     try {
