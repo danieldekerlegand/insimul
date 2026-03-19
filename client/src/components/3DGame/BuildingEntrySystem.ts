@@ -343,6 +343,8 @@ export class BuildingEntrySystem {
             this.exitBuilding();
           }
         }
+        // Update interior NPCs based on schedules
+        this.interiorNPCManager?.updateFromSchedules();
         return;
       }
       this.updateDoorProximity();

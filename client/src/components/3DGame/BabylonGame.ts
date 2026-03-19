@@ -2378,6 +2378,27 @@ export class BabylonGame {
       },
     });
 
+    // Wire schedule source for dynamic NPC entry/exit in interiors
+    this.interiorNPCManager.setScheduleSource({
+      getScheduledBuildingId: (npcId: string) => {
+        const instance = this.npcMeshes.get(npcId);
+        if (instance?.isInsideBuilding && instance.insideBuildingId) {
+          return instance.insideBuildingId;
+        }
+        return null;
+      },
+      getScheduledNPCIds: () => {
+        const ids: string[] = [];
+        this.npcMeshes.forEach((instance, id) => {
+          if (instance.isInsideBuilding && instance.insideBuildingId) {
+            ids.push(id);
+          }
+        });
+        return ids;
+      },
+    });
+    this.interiorNPCManager.setNPCSource(() => this.npcMeshes as any);
+
     // Wire InteriorNPCManager into BuildingEntrySystem for automatic NPC placement
     this.buildingEntrySystem.setInteriorNPCManager(
       this.interiorNPCManager,
