@@ -6,6 +6,7 @@
  */
 
 import { storage } from '../db/storage.js';
+import * as PlaythroughOverlay from './playthrough-overlay.js';
 import type { CEFRLevel } from '../../shared/assessment/cefr-mapping.js';
 import {
   MAIN_QUEST_CHAPTERS,
@@ -44,10 +45,12 @@ export class MainQuestProgressionManager {
    * Get or initialize main quest state for a player in a world.
    * State is stored as a world truth with a special category.
    */
-  async getMainQuestState(worldId: string, playerId: string): Promise<MainQuestState> {
-    const truths = await storage.getTruthsByWorld(worldId);
+  async getMainQuestState(worldId: string, playerId: string, playthroughId?: string): Promise<MainQuestState> {
+    const truths = playthroughId
+      ? await PlaythroughOverlay.getTruthsWithOverlay(worldId, playthroughId)
+      : await storage.getTruthsByWorld(worldId);
     const stateTruth = truths.find(
-      t => t.category === 'main_quest_state' && t.characterId === playerId,
+      (t: any) => t.category === 'main_quest_state' && t.characterId === playerId,
     );
 
     if (stateTruth?.content) {
@@ -62,31 +65,44 @@ export class MainQuestProgressionManager {
   }
 
   /**
-   * Save main quest state.
+   * Save main quest state. When playthroughId is provided, mutations go through
+   * the playthrough overlay so base world truths are never modified.
    */
   async saveMainQuestState(
     worldId: string,
     playerId: string,
     state: MainQuestState,
+    playthroughId?: string,
   ): Promise<void> {
-    const truths = await storage.getTruthsByWorld(worldId);
+    const truths = playthroughId
+      ? await PlaythroughOverlay.getTruthsWithOverlay(worldId, playthroughId)
+      : await storage.getTruthsByWorld(worldId);
     const existing = truths.find(
-      t => t.category === 'main_quest_state' && t.characterId === playerId,
+      (t: any) => t.category === 'main_quest_state' && t.characterId === playerId,
     );
 
     const content = JSON.stringify(state);
 
     if (existing) {
-      await storage.updateTruth(existing.id, { content });
+      if (playthroughId) {
+        await PlaythroughOverlay.updateTruthInPlaythrough(playthroughId, existing.id, { content }, 0);
+      } else {
+        await storage.updateTruth(existing.id, { content });
+      }
     } else {
-      await storage.createTruth({
+      const truthData = {
         worldId,
         characterId: playerId,
         title: 'Main Quest Progress',
         content,
         entryType: 'fact',
         category: 'main_quest_state',
-      });
+      };
+      if (playthroughId) {
+        await PlaythroughOverlay.createTruthInPlaythrough(playthroughId, truthData, 0);
+      } else {
+        await storage.createTruth(truthData);
+      }
     }
   }
 
@@ -99,8 +115,9 @@ export class MainQuestProgressionManager {
     playerId: string,
     questType: string,
     playerCefrLevel: CEFRLevel | null,
+    playthroughId?: string,
   ): Promise<ObjectiveProgressResult | null> {
-    const state = await this.getMainQuestState(worldId, playerId);
+    const state = await this.getMainQuestState(worldId, playerId, playthroughId);
     if (!state.currentChapterId) return null;
 
     const chapterProgress = state.chapters.find(
@@ -131,7 +148,7 @@ export class MainQuestProgressionManager {
       chapterAdvance = this.advanceChapter(state, chapter, chapterProgress, playerCefrLevel);
     }
 
-    await this.saveMainQuestState(worldId, playerId, state);
+    await this.saveMainQuestState(worldId, playerId, state, playthroughId);
 
     return {
       updated: true,
@@ -199,8 +216,9 @@ export class MainQuestProgressionManager {
     worldId: string,
     playerId: string,
     newCefrLevel: CEFRLevel,
+    playthroughId?: string,
   ): Promise<MainQuestChapter | null> {
-    const state = await this.getMainQuestState(worldId, playerId);
+    const state = await this.getMainQuestState(worldId, playerId, playthroughId);
 
     // Find the first chapter that is 'available' (completed prereq but CEFR-locked)
     for (const cp of state.chapters) {
@@ -212,7 +230,7 @@ export class MainQuestProgressionManager {
         cp.status = 'active';
         cp.startedAt = new Date().toISOString();
         state.currentChapterId = chapter.id;
-        await this.saveMainQuestState(worldId, playerId, state);
+        await this.saveMainQuestState(worldId, playerId, state, playthroughId);
         return chapter;
       }
     }
@@ -227,6 +245,7 @@ export class MainQuestProgressionManager {
     worldId: string,
     playerId: string,
     playerCefrLevel: CEFRLevel | null,
+    playthroughId?: string,
   ): Promise<{
     state: MainQuestState;
     chapters: Array<{
@@ -236,7 +255,7 @@ export class MainQuestProgressionManager {
       cefrMet: boolean;
     }>;
   }> {
-    const state = await this.getMainQuestState(worldId, playerId);
+    const state = await this.getMainQuestState(worldId, playerId, playthroughId);
 
     const chapters = MAIN_QUEST_CHAPTERS.map(chapter => {
       const progress = state.chapters.find(cp => cp.chapterId === chapter.id) ?? {

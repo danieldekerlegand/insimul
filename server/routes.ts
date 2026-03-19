@@ -8407,18 +8407,25 @@ Respond with this JSON structure:
   // Bulk delete world truths
   app.post("/api/worlds/:worldId/truths/bulk-delete", async (req, res) => {
     try {
+      const playthroughId = req.query.playthroughId as string | undefined;
       const { ids } = req.body;
       if (!Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({ error: "ids array is required" });
       }
       let deleted = 0;
+      const timestep = parseInt(req.query.timestep as string) || 0;
       for (const id of ids) {
-        const truth = await storage.getTruth(id);
-        if (truth && (truth as any).worldId === req.params.worldId) {
-          const ok = await storage.deleteTruth(id);
-          if (ok) {
-            deleted++;
-            prologAutoSync.onTruthDeleted(req.params.worldId, truth as any).catch(e => console.warn('[PrologAutoSync] truth delete:', e));
+        if (playthroughId) {
+          const ok = await PlaythroughOverlay.deleteTruthInPlaythrough(playthroughId, id, timestep);
+          if (ok) deleted++;
+        } else {
+          const truth = await storage.getTruth(id);
+          if (truth && (truth as any).worldId === req.params.worldId) {
+            const ok = await storage.deleteTruth(id);
+            if (ok) {
+              deleted++;
+              prologAutoSync.onTruthDeleted(req.params.worldId, truth as any).catch(e => console.warn('[PrologAutoSync] truth delete:', e));
+            }
           }
         }
       }
@@ -10250,11 +10257,13 @@ Make the action names thematic and immersive.`;
     try {
       const { worldId, playerId } = req.params;
       const cefrLevel = (req.query.cefrLevel as string) || null;
+      const playthroughId = req.query.playthroughId as string | undefined;
       const { mainQuestProgressionManager } = await import('./services/main-quest-progression.js');
       const summary = await mainQuestProgressionManager.getJournalSummary(
         worldId,
         playerId,
         cefrLevel as any,
+        playthroughId,
       );
       res.json(summary);
     } catch (error) {
@@ -10267,6 +10276,7 @@ Make the action names thematic and immersive.`;
     try {
       const { worldId, playerId } = req.params;
       const { questType, cefrLevel } = req.body;
+      const playthroughId = req.query.playthroughId as string | undefined;
       if (!questType) {
         return res.status(400).json({ error: "questType is required" });
       }
@@ -10276,6 +10286,7 @@ Make the action names thematic and immersive.`;
         playerId,
         questType,
         cefrLevel || null,
+        playthroughId,
       );
       res.json({ result });
     } catch (error) {
@@ -10288,6 +10299,7 @@ Make the action names thematic and immersive.`;
     try {
       const { worldId, playerId } = req.params;
       const { cefrLevel } = req.body;
+      const playthroughId = req.query.playthroughId as string | undefined;
       if (!cefrLevel) {
         return res.status(400).json({ error: "cefrLevel is required" });
       }
@@ -10296,6 +10308,7 @@ Make the action names thematic and immersive.`;
         worldId,
         playerId,
         cefrLevel,
+        playthroughId,
       );
       res.json({ unlocked: !!chapter, chapter: chapter ?? null });
     } catch (error) {
