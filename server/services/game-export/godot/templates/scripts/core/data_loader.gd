@@ -254,6 +254,10 @@ func pay_fines(settlement_id: String) -> Dictionary:
 	_fines_paid[settlement_id] = 0
 	return {"success": true, "finesPaid": amount}
 
+## List existing playthroughs. Returns empty array for exported games.
+func list_playthroughs() -> Array:
+	return []
+
 ## Start a new playthrough with a unique local ID.
 func start_playthrough(playthrough_name: String) -> Dictionary:
 	if _playthrough_id.is_empty():

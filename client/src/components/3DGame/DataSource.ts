@@ -29,6 +29,7 @@ export interface DataSource {
   loadConfig3D(worldId: string): Promise<any>;
   loadTruths(worldId: string, playthroughId?: string): Promise<any[]>;
   loadCharacter(characterId: string): Promise<any>;
+  listPlaythroughs(worldId: string, authToken: string): Promise<any[]>;
   startPlaythrough(worldId: string, authToken: string, playthroughName: string): Promise<any>;
   updateQuest(questId: string, data: any): Promise<void>;
   loadSettlementBusinesses(settlementId: string): Promise<any[]>;
@@ -212,6 +213,13 @@ export class ApiDataSource implements DataSource {
   async loadCharacter(characterId: string): Promise<any> {
     const res = await fetch(`/api/characters/${characterId}`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : null;
+  }
+
+  async listPlaythroughs(worldId: string, authToken: string): Promise<any[]> {
+    const res = await fetch(`/api/worlds/${worldId}/playthroughs`, {
+      headers: { 'Authorization': `Bearer ${authToken}` },
+    });
+    return res.ok ? await res.json() : [];
   }
 
   async startPlaythrough(worldId: string, authToken: string, playthroughName: string): Promise<any> {
@@ -856,6 +864,10 @@ export class FileDataSource implements DataSource {
     const npcs = this.worldData?.npcs || [];
     return chars.find((c: any) => c.id === characterId) ||
            npcs.find((c: any) => c.id === characterId) || null;
+  }
+
+  async listPlaythroughs(_worldId: string, _authToken: string): Promise<any[]> {
+    return [];
   }
 
   async startPlaythrough(_worldId: string, _authToken: string, playthroughName: string): Promise<any> {

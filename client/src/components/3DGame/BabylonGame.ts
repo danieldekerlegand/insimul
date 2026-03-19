@@ -128,6 +128,7 @@ import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo, type MenuJournalData }
 import { WorldStateManager, type GameStateSource, type GameStateTarget } from "@/components/3DGame/WorldStateManager.ts";
 import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts";
 import { PlaythroughQuestOverlay } from "@/components/3DGame/PlaythroughQuestOverlay.ts";
+import { PlaythroughMainMenu, type PlaythroughMenuEntry } from "@/components/3DGame/PlaythroughMainMenu.ts";
 import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
 import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
 import { GameEventBus } from "@/components/3DGame/GameEventBus.ts";
@@ -515,6 +516,7 @@ export class BabylonGame {
   // Zone system
   private currentZone: { id: string; name: string; type: string } | null = null;
   private playthroughId: string | null = null;
+  private playthroughMainMenu: PlaythroughMainMenu | null = null;
   private questOverlay: PlaythroughQuestOverlay = new PlaythroughQuestOverlay();
   private currentReputation: any | null = null;
 
@@ -699,6 +701,15 @@ export class BabylonGame {
         this.scene?.render();
       });
 
+      // If no playthroughId was provided, show the playthrough selection menu
+      if (!this.config.playthroughId && this.config.authToken) {
+        this.hideLoadingScreen();
+        const selectedId = await this.showPlaythroughSelectionMenu();
+        if (!selectedId) return; // User went back
+        this.config.playthroughId = selectedId;
+        this.showLoadingScreen();
+      }
+
       this.updateLoadingScreen('Loading world data...', 20);
       await this.loadWorldData();
       this.updateLoadingScreen('Generating world...', 30);
@@ -751,6 +762,62 @@ export class BabylonGame {
         variant: "destructive"
       });
     }
+  }
+
+  /**
+   * Show the playthrough selection/creation menu and wait for the user to pick one.
+   * Returns the selected playthrough ID, or null if the user cancelled (went back).
+   */
+  private async showPlaythroughSelectionMenu(): Promise<string | null> {
+    if (!this.guiManager) return null;
+
+    // Fetch existing playthroughs
+    let playthroughs: PlaythroughMenuEntry[] = [];
+    try {
+      playthroughs = await this.dataSource.listPlaythroughs(
+        this.config.worldId,
+        this.config.authToken || '',
+      );
+    } catch (err) {
+      console.error('[BabylonGame] Failed to list playthroughs:', err);
+    }
+
+    return new Promise<string | null>((resolve) => {
+      this.playthroughMainMenu = new PlaythroughMainMenu(
+        this.guiManager!.advancedTexture,
+        {
+          onSelect: (playthroughId: string) => {
+            this.playthroughMainMenu = null;
+            resolve(playthroughId);
+          },
+          onCreateNew: async (name: string) => {
+            const playthroughName = name || `${this.config.worldName} Playthrough`;
+            try {
+              const playthrough = await this.dataSource.startPlaythrough(
+                this.config.worldId,
+                this.config.authToken || '',
+                playthroughName,
+              );
+              if (playthrough?.id) {
+                this.playthroughMainMenu = null;
+                resolve(playthrough.id);
+                return playthrough.id;
+              }
+            } catch (err) {
+              console.error('[BabylonGame] Failed to create playthrough:', err);
+            }
+            return null;
+          },
+          onBack: () => {
+            this.playthroughMainMenu?.dispose();
+            this.playthroughMainMenu = null;
+            this.config.onBack?.();
+            resolve(null);
+          },
+        },
+      );
+      this.playthroughMainMenu.show(playthroughs);
+    });
   }
 
   // ─── Save / Load ──────────────────────────────────────────────────────
@@ -880,6 +947,8 @@ export class BabylonGame {
    * Dispose of all game resources
    */
   public dispose(): void {
+    this.playthroughMainMenu?.dispose();
+    this.playthroughMainMenu = null;
     this.disposeKeyboardHandlers();
     this.disposePointerHandlers();
     this.disposeUpdateLoop();

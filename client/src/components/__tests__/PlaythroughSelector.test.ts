@@ -1,26 +1,12 @@
 /**
- * Tests for PlaythroughSelector and PlaythroughsList component logic
+ * Tests for PlaythroughMainMenu helper functions and playthrough logic
  *
  * Tests the helper functions, data grouping, and formatting used
- * in the playthrough selection and management UI.
+ * in the in-game playthrough selection menu (PlaythroughMainMenu).
  */
 
 import { describe, it, expect } from 'vitest';
-
-// Re-implement the pure helper functions from the components to test in isolation
-
-function formatDuration(seconds: number | undefined): string {
-  if (!seconds) return '0m';
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m`;
-}
-
-function formatDate(dateString: string | undefined): string {
-  if (!dateString) return 'Never';
-  return new Date(dateString).toLocaleDateString();
-}
+import { formatDuration, formatDate } from '../3DGame/PlaythroughMainMenu';
 
 interface Playthrough {
   id: string;
@@ -52,7 +38,7 @@ function isValidStatusTransition(current: string, next: string): boolean {
   return false;
 }
 
-describe('PlaythroughSelector helpers', () => {
+describe('PlaythroughMainMenu helpers', () => {
   describe('formatDuration', () => {
     it('returns 0m for undefined', () => {
       expect(formatDuration(undefined)).toBe('0m');

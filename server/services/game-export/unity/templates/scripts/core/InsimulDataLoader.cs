@@ -202,6 +202,26 @@ namespace Insimul.Core
             return null;
         }
 
+        // ── Playthrough management ────────────────────────────────────────
+
+        /// <summary>
+        /// List existing playthroughs. Returns empty array for exported games.
+        /// </summary>
+        public static string[] ListPlaythroughs()
+        {
+            return new string[0];
+        }
+
+        /// <summary>
+        /// Start a new playthrough with a local ID.
+        /// </summary>
+        public static string StartPlaythrough(string playthroughName)
+        {
+            string id = $"exported-{System.DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+            Debug.Log($"[Insimul] StartPlaythrough({playthroughName}) => {id}");
+            return $"{{\"id\":\"{id}\",\"name\":\"{playthroughName}\"}}";
+        }
+
         // ── Text file loaders ─────────────────────────────────────────────
 
         /// <summary>
