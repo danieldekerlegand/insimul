@@ -126,6 +126,7 @@ import { NPCAmbientConversationManager } from "@/components/3DGame/NPCAmbientCon
 import { NPCInitiatedConversationController } from "@/components/3DGame/NPCInitiatedConversationController.ts";
 import { BuildingInteriorGenerator, InteriorLayout } from "@/components/3DGame/BuildingInteriorGenerator.ts";
 import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo, type MenuJournalData } from "@/components/3DGame/GameMenuSystem.ts";
+import { MainMenuScreen, type PlaythroughInfo } from "@/components/3DGame/MainMenuScreen.ts";
 import { WorldStateManager, type GameStateSource, type GameStateTarget } from "@/components/3DGame/WorldStateManager.ts";
 import { SaveIndicator } from "@/components/3DGame/SaveIndicator.ts";
 import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts";
@@ -448,6 +449,7 @@ export class BabylonGame {
   private npcInitiatedConversationController: NPCInitiatedConversationController | null = null;
   private vrManager: VRManager | null = null;
   private gameMenuSystem: GameMenuSystem | null = null;
+  private mainMenuScreen: MainMenuScreen | null = null;
   private worldStateManager: WorldStateManager | null = null;
   private saveIndicator: SaveIndicator | null = null;
 
@@ -720,6 +722,18 @@ export class BabylonGame {
         this.scene?.render();
       });
 
+      // If no playthrough was pre-selected, show the main menu and wait
+      if (!this.config.playthroughId) {
+        this.hideLoadingScreen();
+        const selectedId = await this.showMainMenu();
+        if (!selectedId) {
+          // User chose "Back" — nothing more to do
+          return;
+        }
+        this.config.playthroughId = selectedId;
+        this.showLoadingScreen();
+      }
+
       this.updateLoadingScreen('Loading world data...', 20);
       await this.loadWorldData();
       this.updateLoadingScreen('Generating world...', 30);
@@ -772,6 +786,66 @@ export class BabylonGame {
         variant: "destructive"
       });
     }
+  }
+
+  /**
+   * Show the main menu and return the selected playthrough ID, or null if
+   * the user chose "Back".
+   */
+  private showMainMenu(): Promise<string | null> {
+    return new Promise((resolve) => {
+      if (!this.guiManager) {
+        resolve(null);
+        return;
+      }
+
+      const authToken = this.config.authToken || '';
+      const worldId = this.config.worldId;
+
+      this.mainMenuScreen = new MainMenuScreen(
+        this.guiManager.advancedTexture,
+        this.config.worldName,
+        {
+          getPlaythroughs: async (): Promise<PlaythroughInfo[]> => {
+            try {
+              const res = await fetch(`/api/worlds/${worldId}/playthroughs`, {
+                headers: { 'Authorization': `Bearer ${authToken}` },
+              });
+              if (!res.ok) return [];
+              return await res.json();
+            } catch {
+              return [];
+            }
+          },
+          onNewGame: async (): Promise<string | null> => {
+            const pt = await this.dataSource.startPlaythrough(
+              worldId,
+              authToken,
+              `${this.config.worldName} - Playthrough`,
+            );
+            return pt?.id || null;
+          },
+          onContinue: (playthroughId: string) => {
+            this.mainMenuScreen?.hide();
+            this.mainMenuScreen = null;
+            resolve(playthroughId);
+          },
+          onLoadGame: (playthroughId: string) => {
+            this.mainMenuScreen?.hide();
+            this.mainMenuScreen = null;
+            resolve(playthroughId);
+          },
+          onBack: () => {
+            this.mainMenuScreen?.hide();
+            this.mainMenuScreen = null;
+            this.config.onBack?.();
+            resolve(null);
+          },
+        },
+      );
+
+      this.mainMenuScreen.show();
+    });
   }
 
   // ─── Save / Load ──────────────────────────────────────────────────────
@@ -901,6 +975,8 @@ export class BabylonGame {
    * Dispose of all game resources
    */
   public dispose(): void {
+    this.mainMenuScreen?.dispose();
+    this.mainMenuScreen = null;
     this.disposeKeyboardHandlers();
     this.disposePointerHandlers();
     this.disposeUpdateLoop();

@@ -287,15 +287,15 @@ export default function PlayPage() {
     );
   }
 
-  // --- RENDER: Game is active ---
-  if (isAuthenticated && selectedPlaythroughId) {
+  // --- RENDER: Game is active (with or without pre-selected playthrough) ---
+  if (isAuthenticated && (selectedPlaythroughId || selectedPlaythroughId === '')) {
     return (
       <BabylonWorld
         worldId={worldId}
         worldName={world.name}
         worldType={world.config?.worldType}
         userId={user?.id}
-        playthroughId={selectedPlaythroughId}
+        playthroughId={selectedPlaythroughId || undefined}
         onBack={() => setSelectedPlaythroughId(null)}
       />
     );
@@ -448,8 +448,18 @@ export default function PlayPage() {
         )}
 
         {/* --- Authenticated: show playthrough selector --- */}
-        {isAuthenticated && !selectedPlaythroughId && (
+        {isAuthenticated && selectedPlaythroughId === null && (
           <div className="space-y-6">
+            {/* Quick launch with in-game main menu */}
+            <Button
+              size="lg"
+              className="w-full py-6 text-lg"
+              onClick={() => setSelectedPlaythroughId('')}
+            >
+              <Play className="w-5 h-5 mr-2" />
+              Play Game
+            </Button>
+
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold">Your Playthroughs</h2>
