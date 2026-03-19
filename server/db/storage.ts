@@ -295,6 +295,8 @@ export interface IStorage {
   getDeltasByEntityType(playthroughId: string, entityType: string): Promise<import("@shared/schema").PlaythroughDelta[]>;
   createPlaythroughDelta(delta: import("@shared/schema").InsertPlaythroughDelta): Promise<import("@shared/schema").PlaythroughDelta>;
   deletePlaythroughDelta(id: string): Promise<boolean>;
+  deleteDeltasByPlaythrough(playthroughId: string): Promise<number>;
+  compactDeltasByPlaythrough(playthroughId: string): Promise<{ before: number; after: number }>;
 
   // Play Traces
   getPlayTrace(id: string): Promise<import("@shared/schema").PlayTrace | undefined>;

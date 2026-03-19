@@ -401,6 +401,35 @@ export class PlaythroughOverlayStorage {
     });
   }
 
+  /**
+   * Compact all persisted deltas for this playthrough by merging
+   * multiple deltas per entity into a single record. Also rebuilds
+   * the in-memory index from the compacted result.
+   */
+  async compactDeltas(): Promise<{ before: number; after: number }> {
+    const result = await this.baseStorage.compactDeltasByPlaythrough(this.playthroughId);
+
+    // Rebuild in-memory index from compacted DB state
+    for (const type of OVERLAID_ENTITY_TYPES) {
+      this.deltaIndex.set(type, new Map());
+    }
+    const deltas = await this.baseStorage.getDeltasByPlaythrough(this.playthroughId);
+    for (const delta of deltas) {
+      const entityType = delta.entityType as OverlaidEntityType;
+      if (!this.deltaIndex.has(entityType)) continue;
+      const typeMap = this.deltaIndex.get(entityType)!;
+      typeMap.set(delta.entityId, {
+        operation: delta.operation as DeltaEntry["operation"],
+        entityId: delta.entityId,
+        entityType,
+        deltaData: (delta.deltaData as Record<string, any>) || undefined,
+        fullData: (delta.fullData as Record<string, any>) || undefined,
+      });
+    }
+
+    return result;
+  }
+
   private async persistDelta(
     delta: Omit<InsertPlaythroughDelta, "id" | "createdAt" | "appliedAt" | "tags">,
   ): Promise<PlaythroughDelta> {
