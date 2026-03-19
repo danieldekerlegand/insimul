@@ -12,11 +12,15 @@ import {
   type MainQuestState,
   type ChapterProgress,
   type MainQuestChapter,
+  type NarrativeBeat,
+  type PendingNarrativeBeat,
+  type NarrativeBeatType,
   createInitialMainQuestState,
   meetsChapterCefrRequirement,
   isChapterComplete,
   getChapterCompletionPercent,
   getChapterById,
+  narrativeBeatId,
 } from '../../shared/quest/main-quest-chapters.js';
 
 export interface ChapterAdvanceResult {
@@ -254,6 +258,98 @@ export class MainQuestProgressionManager {
     });
 
     return { state, chapters };
+  }
+
+  /**
+   * Get pending narrative beats that haven't been delivered yet.
+   * Returns intro beats for active chapters and outro beats for just-completed chapters.
+   */
+  async getPendingNarrativeBeats(
+    worldId: string,
+    playerId: string,
+  ): Promise<PendingNarrativeBeat[]> {
+    const state = await this.getMainQuestState(worldId, playerId);
+    const delivered = new Set(
+      (state.narrativeBeatsDelivered || []).map(b => b.id),
+    );
+    const pending: PendingNarrativeBeat[] = [];
+
+    for (const cp of state.chapters) {
+      const chapter = getChapterById(cp.chapterId);
+      if (!chapter) continue;
+
+      // Intro beat: chapter is active and intro hasn't been delivered
+      if (cp.status === 'active') {
+        const introId = narrativeBeatId('chapter_intro', cp.chapterId);
+        if (!delivered.has(introId)) {
+          pending.push({
+            id: introId,
+            type: 'chapter_intro',
+            chapterId: cp.chapterId,
+            chapterTitle: chapter.title,
+            text: chapter.introNarrative,
+          });
+        }
+      }
+
+      // Outro beat: chapter is completed and outro hasn't been delivered
+      if (cp.status === 'completed') {
+        const outroId = narrativeBeatId('chapter_outro', cp.chapterId);
+        if (!delivered.has(outroId)) {
+          pending.push({
+            id: outroId,
+            type: 'chapter_outro',
+            chapterId: cp.chapterId,
+            chapterTitle: chapter.title,
+            text: chapter.outroNarrative,
+          });
+        }
+      }
+    }
+
+    return pending;
+  }
+
+  /**
+   * Mark a narrative beat as delivered so it won't be shown again.
+   */
+  async markNarrativeBeatDelivered(
+    worldId: string,
+    playerId: string,
+    beatId: string,
+  ): Promise<boolean> {
+    const state = await this.getMainQuestState(worldId, playerId);
+    if (!state.narrativeBeatsDelivered) {
+      state.narrativeBeatsDelivered = [];
+    }
+
+    // Already delivered
+    if (state.narrativeBeatsDelivered.some(b => b.id === beatId)) {
+      return false;
+    }
+
+    // Parse the beat ID to find the beat details
+    const [type, ...chapterParts] = beatId.split(':');
+    const chapterId = chapterParts.join(':');
+    const chapter = getChapterById(chapterId);
+    if (!chapter) return false;
+
+    const beatType = type as NarrativeBeatType;
+    const text = beatType === 'chapter_intro'
+      ? chapter.introNarrative
+      : chapter.outroNarrative;
+
+    const beat: NarrativeBeat = {
+      id: beatId,
+      type: beatType,
+      chapterId,
+      text,
+      deliveredAt: new Date().toISOString(),
+    };
+
+    state.narrativeBeatsDelivered.push(beat);
+    await this.saveMainQuestState(worldId, playerId, state);
+    return true;
   }
 }
 
