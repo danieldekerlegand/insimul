@@ -135,6 +135,7 @@ import { BuildingCollisionSystem } from "@/components/3DGame/BuildingCollisionSy
 import { BuildingEntrySystem } from "@/components/3DGame/BuildingEntrySystem.ts";
 import { InteriorNPCManager } from "@/components/3DGame/InteriorNPCManager.ts";
 import { NPCSimulationLOD } from "@/components/3DGame/NPCSimulationLOD.ts";
+import { selectNPCModel, type NPCGender } from "@/components/3DGame/NPCModelVariety.ts";
 import { QuestNotificationManager } from "@/components/3DGame/QuestNotificationManager.ts";
 import { QuestLanguageFeedbackPanel } from "@/components/3DGame/QuestLanguageFeedbackPanel.ts";
 import { QuestLanguageFeedbackTracker } from "@shared/language/quest-language-feedback";
@@ -186,6 +187,7 @@ interface WorldCharacter {
   occupation?: string;
   faction?: string;
   disposition?: string;
+  gender?: string;
 }
 
 interface QuestSummary {
@@ -5399,13 +5401,16 @@ export class BabylonGame {
   }
 
   /**
-   * Resolve the model URL for an NPC based on role overrides and world config.
+   * Resolve the model URL for an NPC based on role, gender, and available asset pool.
+   * Uses deterministic selection so the same character always gets the same model.
    */
-  private resolveNPCModelUrl(role: NPCRole): { rootUrl: string; file: string; cacheKey: string } | null {
+  private resolveNPCModelUrl(role: NPCRole, character?: WorldCharacter): { rootUrl: string; file: string; cacheKey: string } | null {
     const characterModels = this.world3DConfig?.characterModels || {};
-    const roleSpecificId = characterModels[role];
-    const defaultId = characterModels.npcDefault;
-    const npcConfigId = roleSpecificId || defaultId;
+    const gender: NPCGender = (character?.gender?.toLowerCase() as NPCGender) || 'other';
+    const characterId = character?.id || '';
+
+    // Use variety system to pick from available pool
+    const npcConfigId = selectNPCModel(characterModels, characterId, role, gender);
 
     if (npcConfigId && this.worldAssets && this.worldAssets.length > 0) {
       const overrideAsset = this.worldAssets.find((a) => a.id === npcConfigId);
@@ -5459,8 +5464,8 @@ export class BabylonGame {
       let root: Mesh | null = null;
       let animationGroups: any[] = [];
 
-      // Try world-level NPC override first (role-specific, then npcDefault fallback)
-      const modelInfo = this.resolveNPCModelUrl(role);
+      // Try world-level NPC override first (role+gender specific, with fallback chain)
+      const modelInfo = this.resolveNPCModelUrl(role, character);
       if (modelInfo) {
         const modelResult = await this.getOrLoadNPCModel(modelInfo.cacheKey, modelInfo.rootUrl, modelInfo.file);
         if (modelResult) {

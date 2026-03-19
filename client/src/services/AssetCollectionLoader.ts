@@ -167,9 +167,15 @@ export class AssetCollectionLoader {
   }
 
   /**
-   * Get a character model by role (e.g., 'npcDefault', 'guard', 'merchant')
+   * Get a character model by role (e.g., 'npcDefault', 'guard', 'merchant').
+   * Supports gender-aware lookups: tries role_gender first, then role, then npcDefault.
    */
-  getCharacterModel(role: string, assets: CollectionAssets): VisualAsset | null {
+  getCharacterModel(role: string, assets: CollectionAssets, gender?: string): VisualAsset | null {
+    if (gender) {
+      const genderKey = `${role}_${gender.toLowerCase()}`;
+      const genderMatch = assets.characterModels.get(genderKey);
+      if (genderMatch) return genderMatch;
+    }
     return assets.characterModels.get(role) || assets.characterModels.get('npcDefault') || null;
   }
 
