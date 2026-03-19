@@ -161,7 +161,85 @@ const OBJECTIVE_ACTION_MAP: Record<string, ActionRequirement> = {
     categories: ['language', 'pronunciation', 'speech'],
     tags: ['pronounce', 'speech', 'language'],
   },
+  conversation_initiation: {
+    actionTypes: ['social'],
+    categories: ['conversation', 'dialogue', 'social'],
+    tags: ['conversation', 'dialogue', 'social', 'npc_initiated'],
+  },
+  examine_object: {
+    actionTypes: ['mental', 'language'],
+    categories: ['vocabulary', 'language', 'examination'],
+    tags: ['examine', 'inspect', 'vocabulary', 'language'],
+  },
+  read_sign: {
+    actionTypes: ['mental', 'language'],
+    categories: ['vocabulary', 'language', 'reading'],
+    tags: ['read', 'sign', 'language'],
+  },
+  write_response: {
+    actionTypes: ['mental', 'language'],
+    categories: ['language', 'writing', 'composition'],
+    tags: ['write', 'compose', 'language'],
+  },
+  listen_and_repeat: {
+    actionTypes: ['mental', 'language'],
+    categories: ['language', 'pronunciation', 'speech', 'listening'],
+    tags: ['listen', 'repeat', 'pronunciation', 'language'],
+  },
+  point_and_name: {
+    actionTypes: ['mental', 'language'],
+    categories: ['vocabulary', 'language', 'identification'],
+    tags: ['point', 'name', 'vocabulary', 'language'],
+  },
+  ask_for_directions: {
+    actionTypes: ['social', 'language'],
+    categories: ['conversation', 'dialogue', 'language', 'navigation'],
+    tags: ['directions', 'ask', 'language', 'conversation'],
+  },
+  order_food: {
+    actionTypes: ['social', 'language'],
+    categories: ['conversation', 'dialogue', 'language', 'trade'],
+    tags: ['order', 'food', 'language', 'conversation'],
+  },
+  haggle_price: {
+    actionTypes: ['social', 'language', 'economic'],
+    categories: ['conversation', 'dialogue', 'language', 'trade', 'negotiation'],
+    tags: ['haggle', 'negotiate', 'language', 'conversation'],
+  },
+  introduce_self: {
+    actionTypes: ['social', 'language'],
+    categories: ['conversation', 'dialogue', 'language', 'social'],
+    tags: ['introduce', 'greeting', 'language', 'conversation'],
+  },
+  describe_scene: {
+    actionTypes: ['mental', 'language'],
+    categories: ['language', 'writing', 'composition', 'description'],
+    tags: ['describe', 'scene', 'language', 'writing'],
+  },
+  teach_vocabulary: {
+    actionTypes: ['social', 'language'],
+    categories: ['conversation', 'dialogue', 'language', 'teaching'],
+    tags: ['teach', 'vocabulary', 'language', 'conversation'],
+  },
+  teach_phrase: {
+    actionTypes: ['social', 'language'],
+    categories: ['conversation', 'dialogue', 'language', 'teaching'],
+    tags: ['teach', 'phrase', 'language', 'conversation'],
+  },
+  build_friendship: {
+    actionTypes: ['social'],
+    categories: ['conversation', 'dialogue', 'social', 'relationship'],
+    tags: ['friendship', 'social', 'conversation', 'rapport'],
+  },
+  give_gift: {
+    actionTypes: ['social', 'physical'],
+    categories: ['social', 'inventory', 'relationship'],
+    tags: ['gift', 'give', 'social', 'item'],
+  },
 };
+
+/** All objective types that have an action mapping defined. */
+export const ACTION_MAPPED_OBJECTIVE_TYPES = Object.keys(OBJECTIVE_ACTION_MAP);
 
 // ── Core validator ──────────────────────────────────────────────────────────
 
