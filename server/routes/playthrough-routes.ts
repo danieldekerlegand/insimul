@@ -12,6 +12,7 @@ import {
   getActiveAlertsForUser,
   dismissAlertsForPlaythrough,
 } from "../services/version-alert-service";
+import { completePlaythrough } from "../services/playthrough-completion";
 import {
   setRelationship,
   getRelationshipStrength,
@@ -200,6 +201,36 @@ export function registerPlaythroughRoutes(app: Express) {
     } catch (error) {
       console.error("Update playthrough error:", error);
       res.status(500).json({ message: "Failed to update playthrough" });
+    }
+  });
+
+  // Complete a playthrough — generates journey summary and updates status
+  app.post("/api/playthroughs/:id/complete", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const result = await completePlaythrough(req.params.id, payload.userId);
+      res.json(result);
+    } catch (error: any) {
+      if (error.message === 'Playthrough not found') {
+        return res.status(404).json({ message: error.message });
+      }
+      if (error.message === 'Not your playthrough') {
+        return res.status(403).json({ message: error.message });
+      }
+      if (error.message === 'Playthrough already completed') {
+        return res.status(409).json({ message: error.message });
+      }
+      console.error("Complete playthrough error:", error);
+      res.status(500).json({ message: "Failed to complete playthrough" });
     }
   });
 

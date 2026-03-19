@@ -78,6 +78,9 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("identification_prompted"),           EInsimulEventType::IdentificationPrompted },
         { TEXT("identification_correct"),            EInsimulEventType::IdentificationCorrect },
         { TEXT("identification_incorrect"),          EInsimulEventType::IdentificationIncorrect },
+        { TEXT("playthrough_completed"),             EInsimulEventType::PlaythroughCompleted },
+        { TEXT("playthrough_completion_requested"),  EInsimulEventType::PlaythroughCompletionRequested },
+        { TEXT("departure_assessment_triggered"),    EInsimulEventType::DepartureAssessmentTriggered },
     };
     return Map;
 }
