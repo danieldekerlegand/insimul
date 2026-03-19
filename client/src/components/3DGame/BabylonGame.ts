@@ -259,6 +259,8 @@ interface NPCInstance {
   scheduleGoalExpiry?: number;
   isInsideBuilding?: boolean;
   insideBuildingId?: string;
+  // Building exit fade-in
+  fadeInProgress?: number; // 0..1, undefined = not fading
   // Debug
   _debugLogged?: boolean;
 }
@@ -5532,8 +5534,10 @@ export class BabylonGame {
         // Disable keyboard control - NPCs are controlled programmatically
         controller.enableKeyBoard(false);
 
-        // Slow NPC walk speed to a natural stroll (default is 3, player speed)
-        controller.setWalkSpeed(1.2);
+        // NPC walk speed: natural walking pace (default is 3, player speed)
+        controller.setWalkSpeed(2.0);
+        // Faster turn speed for NPCs so they don't circle around targets (default ~22.5 deg/s)
+        controller.setTurnSpeed(180);
 
         // Start the controller
         controller.start();
@@ -6928,6 +6932,19 @@ export class BabylonGame {
   private updateSingleNPCBehavior(instance: NPCInstance, now: number): void {
     if (!instance.mesh || !instance.controller) return;
 
+    // Update building-exit fade-in (runs even during conversation)
+    if (instance.fadeInProgress !== undefined && instance.fadeInProgress < 1) {
+      const dt = Math.min(this.scene.getEngine().getDeltaTime() / 1000, 0.1);
+      const fadeSpeed = 2.0; // fully visible in 0.5 seconds
+      instance.fadeInProgress = Math.min(1, instance.fadeInProgress + fadeSpeed * dt);
+      const v = instance.fadeInProgress;
+      instance.mesh.visibility = v;
+      instance.mesh.getChildMeshes().forEach(m => { m.visibility = v; });
+      if (instance.fadeInProgress >= 1) {
+        instance.fadeInProgress = undefined;
+      }
+    }
+
     // Skip AI if NPC is in conversation (player or ambient)
     const characterId = instance.characterData?.id;
     if (instance.isInConversation ||
@@ -6952,16 +6969,20 @@ export class BabylonGame {
         instance.schedulePathWaypoints = undefined;
         instance.schedulePathIndex = undefined;
 
-        // Show the NPC mesh again
-        instance.mesh.setEnabled(true);
-        if (instance.billboardLOD) instance.billboardLOD.setEnabled(true);
-
-        // Place NPC at the building door
+        // Place NPC at the building door before showing
         const entry = this.npcScheduleSystem.getEntry(characterId);
         if (entry?.currentGoal?.doorPosition) {
           instance.mesh.position = entry.currentGoal.doorPosition.clone();
           instance.controller?.resetPhysicsState();
         }
+
+        // Show the NPC mesh with fade-in to avoid teleportation pop-in
+        instance.mesh.setEnabled(true);
+        if (instance.billboardLOD) instance.billboardLOD.setEnabled(true);
+        instance.fadeInProgress = 0;
+        // Start fully transparent
+        instance.mesh.getChildMeshes().forEach(m => { m.visibility = 0; });
+        instance.mesh.visibility = 0;
       } else {
         // Still inside — do nothing
         return;
@@ -7048,7 +7069,7 @@ export class BabylonGame {
         const dz = targetWP.z - currentPos.z;
         const dist = Math.sqrt(dx * dx + dz * dz);
 
-        if (dist < 1.5) {
+        if (dist < 1.0) {
           // Reached this waypoint — advance to next
           instance.schedulePathIndex = wpIdx + 1;
 
@@ -7101,7 +7122,9 @@ export class BabylonGame {
   }
 
   /**
-   * Steer an NPC toward a target position using CharacterController walk/turn commands.
+   * Steer an NPC toward a target position using smooth direct rotation + walk command.
+   * Uses direct rotation interpolation instead of slow discrete turn commands
+   * to eliminate circling behavior and teleportation-like jitter.
    */
   private moveNPCToward(instance: NPCInstance, target: Vector3): void {
     if (!instance.mesh || !instance.controller) return;
@@ -7117,31 +7140,38 @@ export class BabylonGame {
       return;
     }
 
-    // Ensure NPC is at stroll speed and not in run mode
     instance.controller.run(false);
-    instance.controller.setWalkSpeed(1.2);
 
+    // Smooth direct rotation toward target
     const targetRotation = Math.atan2(dx, dz);
-    const currentRotation = instance.mesh.rotation.y;
-    let rotationDiff = targetRotation - currentRotation;
+    let rotationDiff = targetRotation - instance.mesh.rotation.y;
     while (rotationDiff > Math.PI) rotationDiff -= Math.PI * 2;
     while (rotationDiff < -Math.PI) rotationDiff += Math.PI * 2;
 
-    const turnThreshold = 0.1;
-    if (Math.abs(rotationDiff) < turnThreshold) {
-      instance.controller.walk(true);
-      instance.controller.turnLeft(false);
-      instance.controller.turnRight(false);
-    } else if (rotationDiff > 0) {
-      // Positive diff = target is clockwise from current facing → turn right
-      instance.controller.turnRight(true);
-      instance.controller.turnLeft(false);
+    const turnThreshold = 0.15;
+    if (Math.abs(rotationDiff) > turnThreshold) {
+      // Smooth interpolation: rotate toward target at ~5 rad/s, capped by dt
+      const dt = Math.min(this.scene.getEngine().getDeltaTime() / 1000, 0.1);
+      const turnSpeed = 5.0; // radians per second
+      const step = turnSpeed * dt;
+      if (Math.abs(rotationDiff) <= step) {
+        instance.mesh.rotation.y = targetRotation;
+      } else {
+        instance.mesh.rotation.y += Math.sign(rotationDiff) * step;
+      }
+    } else {
+      instance.mesh.rotation.y = targetRotation;
+    }
+
+    // Stop discrete turn commands — rotation is handled directly above
+    instance.controller.turnLeft(false);
+    instance.controller.turnRight(false);
+
+    // Only walk forward when roughly facing the target
+    if (Math.abs(rotationDiff) < Math.PI / 3) {
       instance.controller.walk(true);
     } else {
-      // Negative diff = target is counter-clockwise → turn left
-      instance.controller.turnLeft(true);
-      instance.controller.turnRight(false);
-      instance.controller.walk(true);
+      instance.controller.walk(false);
     }
   }
 
