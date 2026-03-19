@@ -5322,6 +5322,22 @@ export class BabylonGame {
     if (this.config.playthroughId) {
       this.playthroughId = this.config.playthroughId;
       this.initReputationManager();
+
+      // Check if this is an editor-created playthrough that needs initialization
+      const ptData = await this.dataSource.getPlaythrough(this.config.playthroughId);
+      if (ptData?.needsInitialization) {
+        console.log('[BabylonGame] Editor-created playthrough needs initialization — running new-game flow');
+        this.guiManager?.showToast({
+          title: "Starting Adventure",
+          description: "This adventure was started but not yet played. Starting from the beginning...",
+          variant: "default"
+        });
+        // Clear the flag so subsequent loads restore normally
+        await this.dataSource.markPlaythroughInitialized(this.config.playthroughId);
+        // Skip save restoration — let the game run its normal first-time init
+        return;
+      }
+
       // Restore quest progress from previous session
       await this.restoreQuestProgressFromServer();
       this.fetchPlaythroughMeta();

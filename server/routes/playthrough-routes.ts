@@ -855,6 +855,82 @@ export function registerPlaythroughRoutes(app: Express) {
     }
   });
 
+  // ===== PLAYTHROUGH MIGRATION =====
+
+  // Mark editor-created playthroughs that need in-game initialization
+  app.post("/api/admin/migrate-playthroughs", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const playthroughs = await storage.getPlaythroughsByUser(payload.userId);
+
+      let migrated = 0;
+      let skipped = 0;
+
+      for (const pt of playthroughs) {
+        if (pt.status === 'completed' || pt.status === 'abandoned') {
+          skipped++;
+          continue;
+        }
+
+        const saveData = (pt.saveData as Record<string, any>) || {};
+        const hasSaveSlots = Object.keys(saveData).some(k => k.startsWith('slot_'));
+        const hasPlaytime = (pt.playtime || 0) > 0;
+        const hasActions = (pt.actionsCount || 0) > 0;
+
+        if (!hasSaveSlots && !hasPlaytime && !hasActions) {
+          await storage.updatePlaythrough(pt.id, { needsInitialization: true } as any);
+          migrated++;
+        } else {
+          skipped++;
+        }
+      }
+
+      res.json({ migrated, skipped, total: playthroughs.length });
+    } catch (error) {
+      console.error("Migrate playthroughs error:", error);
+      res.status(500).json({ message: "Failed to migrate playthroughs" });
+    }
+  });
+
+  // Clear the needsInitialization flag after in-game initialization completes
+  app.post("/api/playthroughs/:id/mark-initialized", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      const payload = AuthService.verifyToken(token);
+      if (!payload) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) {
+        return res.status(404).json({ message: "Playthrough not found" });
+      }
+      if (playthrough.userId !== payload.userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const updated = await storage.updatePlaythrough(req.params.id, {
+        needsInitialization: false,
+      } as any);
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Mark initialized error:", error);
+      res.status(500).json({ message: "Failed to mark playthrough as initialized" });
+    }
+  });
+
   // ===== WORLD OWNER ANALYTICS =====
 
   // Get all playthroughs for a world (owner only)

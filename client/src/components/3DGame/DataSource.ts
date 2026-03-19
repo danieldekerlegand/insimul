@@ -66,6 +66,8 @@ export interface DataSource {
   saveConversation(playthroughId: string, conversation: any): Promise<any>;
   updateConversation(playthroughId: string, conversationId: string, updates: any): Promise<any>;
   getConversations(playthroughId: string, npcCharacterId?: string): Promise<any[]>;
+  getPlaythrough(playthroughId: string): Promise<any | null>;
+  markPlaythroughInitialized(playthroughId: string): Promise<void>;
 }
 
 /**
@@ -515,6 +517,18 @@ export class ApiDataSource implements DataSource {
     );
     if (!res.ok) return [];
     return res.json();
+  }
+
+  async getPlaythrough(playthroughId: string): Promise<any | null> {
+    const res = await fetch(`/api/playthroughs/${playthroughId}`, { headers: this.getHeaders() });
+    return res.ok ? await res.json() : null;
+  }
+
+  async markPlaythroughInitialized(playthroughId: string): Promise<void> {
+    await fetch(`/api/playthroughs/${playthroughId}/mark-initialized`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
   }
 }
 
@@ -1197,6 +1211,14 @@ export class FileDataSource implements DataSource {
     try {
       return JSON.parse(localStorage.getItem('insimul_conversations') || '[]');
     } catch { return []; }
+  }
+
+  async getPlaythrough(_playthroughId: string): Promise<any | null> {
+    return null;
+  }
+
+  async markPlaythroughInitialized(_playthroughId: string): Promise<void> {
+    // No-op for file-based data source
   }
 }
 

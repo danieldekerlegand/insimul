@@ -739,6 +739,7 @@ const PlaythroughSchema = new Schema({
   completedAt: { type: Date, default: null },
   playerCharacterId: { type: String, default: null },
   saveData: { type: Schema.Types.Mixed, default: {} },
+  needsInitialization: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
