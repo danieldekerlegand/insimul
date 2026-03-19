@@ -52,7 +52,9 @@ import {
   type PlaythroughRelationship,
   type InsertPlaythroughRelationship,
   type VersionAlert,
-  type InsertVersionAlert
+  type InsertVersionAlert,
+  type PlaythroughConversation,
+  type InsertPlaythroughConversation
 } from "@shared/schema";
 import type {
   WorldLanguage,
@@ -157,6 +159,10 @@ interface PlaythroughDeltaDoc extends Omit<PlaythroughDelta, 'id'>, Document {
 }
 
 interface PlayTraceDoc extends Omit<PlayTrace, 'id'>, Document {
+  _id: string;
+}
+
+interface PlaythroughConversationDoc extends Omit<PlaythroughConversation, 'id'>, Document {
   _id: string;
 }
 
@@ -773,6 +779,38 @@ const PlayTraceSchema = new Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+const PlaythroughConversationSchema = new Schema({
+  playthroughId: { type: String, required: true },
+  userId: { type: String, required: true },
+  worldId: { type: String, required: true },
+  playerCharacterId: { type: String, default: null },
+  npcCharacterId: { type: String, required: true },
+  npcCharacterName: { type: String, default: null },
+  turns: { type: Schema.Types.Mixed, default: [] },
+  turnCount: { type: Number, default: 0 },
+  locationId: { type: String, default: null },
+  locationName: { type: String, default: null },
+  timestep: { type: Number, default: null },
+  initiatedBy: { type: String, default: null },
+  targetLanguage: { type: String, default: null },
+  targetLanguagePercentage: { type: Number, default: null },
+  wordsUsed: { type: [String], default: [] },
+  newWordsLearned: { type: [String], default: [] },
+  fluencyGained: { type: Number, default: 0 },
+  grammarErrorCount: { type: Number, default: 0 },
+  grammarCorrectCount: { type: Number, default: 0 },
+  activeQuestIds: { type: [String], default: [] },
+  topics: { type: [String], default: [] },
+  durationMs: { type: Number, default: null },
+  startedAt: { type: Date, default: Date.now },
+  endedAt: { type: Date, default: null },
+  createdAt: { type: Date, default: Date.now }
+});
+
+PlaythroughConversationSchema.index({ playthroughId: 1, createdAt: -1 });
+PlaythroughConversationSchema.index({ worldId: 1, userId: 1 });
+PlaythroughConversationSchema.index({ npcCharacterId: 1 });
+
 const ReputationSchema = new Schema({
   playthroughId: { type: String, required: true },
   userId: { type: String, required: true },
@@ -1172,6 +1210,7 @@ const AchievementModel = mongoose.model<AchievementDoc>('Achievement', Achieveme
 const PlaythroughModel = mongoose.model<PlaythroughDoc>('Playthrough', PlaythroughSchema);
 const PlaythroughDeltaModel = mongoose.model<PlaythroughDeltaDoc>('PlaythroughDelta', PlaythroughDeltaSchema);
 const PlayTraceModel = mongoose.model<PlayTraceDoc>('PlayTrace', PlayTraceSchema);
+const PlaythroughConversationModel = mongoose.model<PlaythroughConversationDoc>('PlaythroughConversation', PlaythroughConversationSchema);
 const ReputationModel = mongoose.model<ReputationDoc>('Reputation', ReputationSchema);
 const PlaythroughRelationshipModel = mongoose.model<PlaythroughRelationshipDoc>('PlaythroughRelationship', PlaythroughRelationshipSchema);
 const WorldLanguageModel = mongoose.model<WorldLanguageDoc>('WorldLanguage', WorldLanguageSchema);
@@ -1331,6 +1370,10 @@ function docToPlaythroughDelta(doc: PlaythroughDeltaDoc): PlaythroughDelta {
 }
 
 function docToPlayTrace(doc: PlayTraceDoc): PlayTrace {
+  return { ...doc.toObject(), id: doc._id.toString() };
+}
+
+function docToPlaythroughConversation(doc: PlaythroughConversationDoc): PlaythroughConversation {
   return { ...doc.toObject(), id: doc._id.toString() };
 }
 
@@ -3033,6 +3076,55 @@ export class MongoStorage implements IStorage {
     await this.connect();
     const result = await PlayTraceModel.findByIdAndDelete(id);
     return !!result;
+  }
+
+  // ===== Playthrough Conversations =====
+  async getPlaythroughConversation(id: string): Promise<PlaythroughConversation | undefined> {
+    await this.connect();
+    const doc = await PlaythroughConversationModel.findById(id);
+    return doc ? docToPlaythroughConversation(doc) : undefined;
+  }
+
+  async getConversationsByPlaythrough(playthroughId: string): Promise<PlaythroughConversation[]> {
+    await this.connect();
+    const docs = await PlaythroughConversationModel.find({ playthroughId }).sort({ createdAt: -1 });
+    return docs.map(docToPlaythroughConversation);
+  }
+
+  async getConversationsByWorld(worldId: string): Promise<PlaythroughConversation[]> {
+    await this.connect();
+    const docs = await PlaythroughConversationModel.find({ worldId }).sort({ createdAt: -1 });
+    return docs.map(docToPlaythroughConversation);
+  }
+
+  async getConversationsByNpc(playthroughId: string, npcCharacterId: string): Promise<PlaythroughConversation[]> {
+    await this.connect();
+    const docs = await PlaythroughConversationModel.find({ playthroughId, npcCharacterId }).sort({ createdAt: -1 });
+    return docs.map(docToPlaythroughConversation);
+  }
+
+  async createPlaythroughConversation(conversation: InsertPlaythroughConversation): Promise<PlaythroughConversation> {
+    await this.connect();
+    const doc = await PlaythroughConversationModel.create(conversation);
+    return docToPlaythroughConversation(doc);
+  }
+
+  async updatePlaythroughConversation(id: string, updates: Partial<InsertPlaythroughConversation>): Promise<PlaythroughConversation | undefined> {
+    await this.connect();
+    const doc = await PlaythroughConversationModel.findByIdAndUpdate(id, { $set: updates }, { new: true });
+    return doc ? docToPlaythroughConversation(doc) : undefined;
+  }
+
+  async deletePlaythroughConversation(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await PlaythroughConversationModel.findByIdAndDelete(id);
+    return !!result;
+  }
+
+  async deleteConversationsByPlaythrough(playthroughId: string): Promise<number> {
+    await this.connect();
+    const result = await PlaythroughConversationModel.deleteMany({ playthroughId });
+    return result.deletedCount;
   }
 
   // ============= LANGUAGE PROGRESS =============
