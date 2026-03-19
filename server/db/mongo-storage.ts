@@ -50,7 +50,9 @@ import {
   type Reputation,
   type InsertReputation,
   type PlaythroughRelationship,
-  type InsertPlaythroughRelationship
+  type InsertPlaythroughRelationship,
+  type VersionAlert,
+  type InsertVersionAlert
 } from "@shared/schema";
 import type {
   WorldLanguage,
@@ -171,6 +173,10 @@ interface ReputationDoc extends Omit<Reputation, 'id'>, Document {
 }
 
 interface PlaythroughRelationshipDoc extends Omit<PlaythroughRelationship, 'id'>, Document {
+  _id: string;
+}
+
+interface VersionAlertDoc extends Omit<VersionAlert, 'id'>, Document {
   _id: string;
 }
 
@@ -807,6 +813,23 @@ const PlaythroughRelationshipSchema = new Schema({
 PlaythroughRelationshipSchema.index({ playthroughId: 1, fromCharacterId: 1, toCharacterId: 1 }, { unique: true });
 PlaythroughRelationshipSchema.index({ playthroughId: 1, fromCharacterId: 1 });
 
+const VersionAlertSchema = new Schema({
+  worldId: { type: String, required: true },
+  playthroughId: { type: String, required: true },
+  userId: { type: String, required: true },
+  worldVersion: { type: Number, required: true },
+  snapshotVersion: { type: Number, required: true },
+  versionsBehind: { type: Number, required: true },
+  status: { type: String, required: true },
+  message: { type: String, required: true },
+  dismissed: { type: Boolean, default: false },
+  entityType: { type: String, default: null },
+  createdAt: { type: Date, default: Date.now },
+});
+VersionAlertSchema.index({ userId: 1, dismissed: 1 });
+VersionAlertSchema.index({ playthroughId: 1 });
+VersionAlertSchema.index({ worldId: 1 });
+
 const WorldLanguageSchema = new Schema({
   worldId: { type: String, required: true },
   scopeType: { type: String, required: true },
@@ -1156,6 +1179,7 @@ const LotModel = mongoose.model('Lot', LotSchema);
 const ResidenceModel = mongoose.model('Residence', ResidenceSchema);
 const BusinessMongoModel = mongoose.model('Business', BusinessMongoSchema);
 const OccupationModel = mongoose.model('Occupation', OccupationSchema);
+const VersionAlertModel = mongoose.model<VersionAlertDoc>('VersionAlert', VersionAlertSchema);
 const LanguageChatMessageModel = mongoose.model<LanguageChatMessageDoc>('LanguageChatMessage', LanguageChatMessageSchema);
 // Generic collection names (renamed from language-specific names).
 // Run server/db/migrations/rename-collections-for-feature-modules.ts to rename
@@ -1315,6 +1339,10 @@ function docToReputation(doc: ReputationDoc): Reputation {
 }
 
 function docToPlaythroughRelationship(doc: PlaythroughRelationshipDoc): PlaythroughRelationship {
+  return { ...doc.toObject(), id: doc._id.toString() };
+}
+
+function docToVersionAlert(doc: VersionAlertDoc): VersionAlert {
   return { ...doc.toObject(), id: doc._id.toString() };
 }
 
@@ -3559,6 +3587,67 @@ export class MongoStorage implements IStorage {
   async deletePlaythroughRelationshipsByPlaythrough(playthroughId: string): Promise<number> {
     await this.connect();
     const result = await PlaythroughRelationshipModel.deleteMany({ playthroughId });
+    return result.deletedCount;
+  }
+
+  // ===== Version Alerts =====
+
+  async getVersionAlert(id: string): Promise<VersionAlert | undefined> {
+    await this.connect();
+    const doc = await VersionAlertModel.findById(id);
+    return doc ? docToVersionAlert(doc) : undefined;
+  }
+
+  async getVersionAlertsByUser(userId: string, dismissed?: boolean): Promise<VersionAlert[]> {
+    await this.connect();
+    const filter: Record<string, any> = { userId };
+    if (dismissed !== undefined) filter.dismissed = dismissed;
+    const docs = await VersionAlertModel.find(filter).sort({ createdAt: -1 });
+    return docs.map(docToVersionAlert);
+  }
+
+  async getVersionAlertsByPlaythrough(playthroughId: string): Promise<VersionAlert[]> {
+    await this.connect();
+    const docs = await VersionAlertModel.find({ playthroughId }).sort({ createdAt: -1 });
+    return docs.map(docToVersionAlert);
+  }
+
+  async getVersionAlertsByWorld(worldId: string): Promise<VersionAlert[]> {
+    await this.connect();
+    const docs = await VersionAlertModel.find({ worldId }).sort({ createdAt: -1 });
+    return docs.map(docToVersionAlert);
+  }
+
+  async createVersionAlert(alert: InsertVersionAlert): Promise<VersionAlert> {
+    await this.connect();
+    const doc = await VersionAlertModel.create(alert);
+    return docToVersionAlert(doc);
+  }
+
+  async dismissVersionAlert(id: string): Promise<VersionAlert | undefined> {
+    await this.connect();
+    const doc = await VersionAlertModel.findByIdAndUpdate(id, { dismissed: true }, { new: true });
+    return doc ? docToVersionAlert(doc) : undefined;
+  }
+
+  async dismissVersionAlertsByPlaythrough(playthroughId: string): Promise<number> {
+    await this.connect();
+    const result = await VersionAlertModel.updateMany(
+      { playthroughId, dismissed: false },
+      { dismissed: true },
+    );
+    return result.modifiedCount;
+  }
+
+  async deleteVersionAlert(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await VersionAlertModel.findByIdAndDelete(id);
+    return !!result;
+  }
+
+  async deleteVersionAlertsByPlaythrough(playthroughId: string): Promise<number> {
+    await this.connect();
+    const result = await VersionAlertModel.deleteMany({ playthroughId });
     return result.deletedCount;
   }
 

@@ -8,6 +8,11 @@ import { exportPlaythrough, importPlaythrough, validatePortableSave } from "../s
 import { checkSnapshotCompatibility } from "@shared/world-snapshot-version";
 import { computeCrossPlaythroughAnalytics } from "../services/playthrough-analytics";
 import {
+  bumpVersionWithAlerts,
+  getActiveAlertsForUser,
+  dismissAlertsForPlaythrough,
+} from "../services/version-alert-service";
+import {
   setRelationship,
   getRelationshipStrength,
   getCharacterRelationships,
@@ -1430,7 +1435,7 @@ export function registerPlaythroughRoutes(app: Express) {
     }
   });
 
-  // Bump world version (owner only)
+  // Bump world version (owner only) — also generates alerts for active playthroughs
   app.post("/api/worlds/:worldId/version/bump", async (req, res) => {
     try {
       const token = AuthService.extractTokenFromHeader(req.headers.authorization);
@@ -1448,8 +1453,9 @@ export function registerPlaythroughRoutes(app: Express) {
         return res.status(403).json({ message: "You don't have permission to edit this world" });
       }
 
-      const newVersion = await storage.bumpWorldVersion(worldId);
-      res.json({ worldId, version: newVersion });
+      const { entityType } = req.body || {};
+      const result = await bumpVersionWithAlerts(worldId, entityType);
+      res.json({ worldId, version: result.newVersion, alertsCreated: result.alertsCreated });
     } catch (error) {
       console.error("Bump world version error:", error);
       res.status(500).json({ message: "Failed to bump world version" });
@@ -1539,6 +1545,9 @@ export function registerPlaythroughRoutes(app: Express) {
         worldSnapshotVersion: worldVersion,
       });
 
+      // Auto-dismiss version alerts since the playthrough is now synced
+      await dismissAlertsForPlaythrough(req.params.id);
+
       res.json({
         playthroughId: req.params.id,
         previousVersion: playthrough.worldSnapshotVersion,
@@ -1548,6 +1557,109 @@ export function registerPlaythroughRoutes(app: Express) {
     } catch (error) {
       console.error("Sync version error:", error);
       res.status(500).json({ message: "Failed to sync version" });
+    }
+  });
+
+  // ===== VERSION ALERTS =====
+
+  // Get undismissed version alerts for the current user
+  app.get("/api/version-alerts", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const worldId = req.query.worldId as string | undefined;
+      const alerts = await getActiveAlertsForUser(payload.userId, worldId);
+      res.json(alerts);
+    } catch (error) {
+      console.error("Get version alerts error:", error);
+      res.status(500).json({ message: "Failed to get version alerts" });
+    }
+  });
+
+  // Get version alerts for a specific playthrough
+  app.get("/api/playthroughs/:id/version-alerts", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) return res.status(404).json({ message: "Playthrough not found" });
+      if (playthrough.userId !== payload.userId) {
+        const canEdit = await canEditWorld(payload.userId, playthrough.worldId);
+        if (!canEdit) return res.status(403).json({ message: "Access denied" });
+      }
+
+      const alerts = await storage.getVersionAlertsByPlaythrough(req.params.id);
+      res.json(alerts);
+    } catch (error) {
+      console.error("Get playthrough version alerts error:", error);
+      res.status(500).json({ message: "Failed to get version alerts" });
+    }
+  });
+
+  // Dismiss a single version alert
+  app.post("/api/version-alerts/:id/dismiss", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const alert = await storage.getVersionAlert(req.params.id);
+      if (!alert) return res.status(404).json({ message: "Alert not found" });
+      if (alert.userId !== payload.userId) return res.status(403).json({ message: "Access denied" });
+
+      const dismissed = await storage.dismissVersionAlert(req.params.id);
+      res.json(dismissed);
+    } catch (error) {
+      console.error("Dismiss version alert error:", error);
+      res.status(500).json({ message: "Failed to dismiss alert" });
+    }
+  });
+
+  // Dismiss all version alerts for a playthrough
+  app.post("/api/playthroughs/:id/version-alerts/dismiss-all", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const playthrough = await storage.getPlaythrough(req.params.id);
+      if (!playthrough) return res.status(404).json({ message: "Playthrough not found" });
+      if (playthrough.userId !== payload.userId) return res.status(403).json({ message: "Access denied" });
+
+      const count = await dismissAlertsForPlaythrough(req.params.id);
+      res.json({ dismissed: count });
+    } catch (error) {
+      console.error("Dismiss all version alerts error:", error);
+      res.status(500).json({ message: "Failed to dismiss alerts" });
+    }
+  });
+
+  // Get version alerts for a world (owner only — for analytics)
+  app.get("/api/worlds/:worldId/version-alerts", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const { worldId } = req.params;
+      if (!(await canEditWorld(payload.userId, worldId))) {
+        return res.status(403).json({ message: "Only world owner can view world alerts" });
+      }
+
+      const alerts = await storage.getVersionAlertsByWorld(worldId);
+      res.json(alerts);
+    } catch (error) {
+      console.error("Get world version alerts error:", error);
+      res.status(500).json({ message: "Failed to get version alerts" });
     }
   });
 

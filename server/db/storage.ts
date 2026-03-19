@@ -347,6 +347,17 @@ export interface IStorage {
   upsertPlaythroughRelationship(rel: import("@shared/schema").InsertPlaythroughRelationship): Promise<import("@shared/schema").PlaythroughRelationship>;
   deletePlaythroughRelationship(playthroughId: string, fromCharacterId: string, toCharacterId: string): Promise<boolean>;
   deletePlaythroughRelationshipsByPlaythrough(playthroughId: string): Promise<number>;
+
+  // Version Alerts
+  getVersionAlert(id: string): Promise<import("@shared/schema").VersionAlert | undefined>;
+  getVersionAlertsByUser(userId: string, dismissed?: boolean): Promise<import("@shared/schema").VersionAlert[]>;
+  getVersionAlertsByPlaythrough(playthroughId: string): Promise<import("@shared/schema").VersionAlert[]>;
+  getVersionAlertsByWorld(worldId: string): Promise<import("@shared/schema").VersionAlert[]>;
+  createVersionAlert(alert: import("@shared/schema").InsertVersionAlert): Promise<import("@shared/schema").VersionAlert>;
+  dismissVersionAlert(id: string): Promise<import("@shared/schema").VersionAlert | undefined>;
+  dismissVersionAlertsByPlaythrough(playthroughId: string): Promise<number>;
+  deleteVersionAlert(id: string): Promise<boolean>;
+  deleteVersionAlertsByPlaythrough(playthroughId: string): Promise<number>;
 }
 
 // Export MongoStorage as the default storage implementation
