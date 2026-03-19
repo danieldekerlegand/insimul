@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Sparkles, Target, Map, Trophy, Zap } from 'lucide-react';
+import { Plus, Sparkles, Target, Map, Trophy, Zap, RefreshCw, AlertTriangle } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 
 interface QuestCreateDialogProps {
@@ -42,6 +43,10 @@ export function QuestCreateDialog({ open, onOpenChange, worldId, onSuccess, chil
   const [useBulk, setUseBulk] = useState(false);
   const [difficulty, setDifficulty] = useState(5);
   const [numSteps, setNumSteps] = useState(3);
+
+  // Regenerate state
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,6 +193,38 @@ export function QuestCreateDialog({ open, onOpenChange, worldId, onSuccess, chil
     }
   };
 
+  const handleRegenerate = async () => {
+    setShowRegenerateConfirm(false);
+    setIsRegenerating(true);
+    try {
+      const res = await fetch(`/api/worlds/${worldId}/quests/regenerate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(err.error || 'Failed to regenerate quests');
+      }
+
+      const data = await res.json();
+      toast({
+        title: 'Quests Regenerated',
+        description: `Deleted ${data.deleted} quests, created ${data.created} new quests`,
+      });
+      onSuccess();
+      onOpenChange(false);
+    } catch (error) {
+      toast({
+        title: 'Regeneration Failed',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {children && (
@@ -207,7 +244,7 @@ export function QuestCreateDialog({ open, onOpenChange, worldId, onSuccess, chil
         </DialogHeader>
 
         <Tabs defaultValue="manual" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="manual">
               <Plus className="w-4 h-4 mr-2" />
               Manual
@@ -215,6 +252,10 @@ export function QuestCreateDialog({ open, onOpenChange, worldId, onSuccess, chil
             <TabsTrigger value="ai">
               <Sparkles className="w-4 h-4 mr-2" />
               AI Generator
+            </TabsTrigger>
+            <TabsTrigger value="regenerate">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Regenerate
             </TabsTrigger>
           </TabsList>
 
@@ -488,6 +529,66 @@ export function QuestCreateDialog({ open, onOpenChange, worldId, onSuccess, chil
                 </>
               )}
             </Button>
+          </TabsContent>
+
+          <TabsContent value="regenerate" className="space-y-4 mt-4">
+            <Card className="border-destructive/50 bg-destructive/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-destructive" />
+                  Wipe &amp; Regenerate All Quests
+                </CardTitle>
+                <CardDescription>
+                  This will permanently delete all existing quests for this world
+                  and regenerate them from scratch using the seed quest generator.
+                  This includes one quest per objective type plus assessment quests
+                  for language-learning worlds.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-3 bg-destructive/10 rounded-lg text-sm text-destructive">
+                  <strong>Warning:</strong> This action cannot be undone. All quest progress,
+                  custom quests, and manually created quests will be lost.
+                </div>
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowRegenerateConfirm(true)}
+                  disabled={isRegenerating}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isRegenerating ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Regenerating Quests...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Wipe &amp; Regenerate All Quests
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <AlertDialog open={showRegenerateConfirm} onOpenChange={setShowRegenerateConfirm}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will delete all quests for this world and regenerate them.
+                    This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleRegenerate} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Yes, Regenerate
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </TabsContent>
         </Tabs>
       </DialogContent>

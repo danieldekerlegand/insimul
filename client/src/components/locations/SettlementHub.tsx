@@ -6,7 +6,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { useToast } from '@/hooks/use-toast';
 import { useWorldPermissions } from '@/hooks/use-world-permissions';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Globe, ChevronRight, ChevronDown, MapPinned, Plus, Users, Home, Briefcase, GitBranch, Trash2 } from 'lucide-react';
+import { Globe, ChevronRight, ChevronDown, MapPinned, Plus, Users, Home, Briefcase, GitBranch, Trash2, RefreshCw } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import type { Character } from '@shared/schema';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,7 +16,6 @@ import { BusinessDialog } from '../dialogs/BusinessDialog';
 import { ResidenceDialog } from '../dialogs/ResidenceDialog';
 import { LotDialog } from '../dialogs/LotDialog';
 import { CharacterDetailView } from '../characters/CharacterDetailView';
-import { CharacterEditDialog } from '../CharacterEditDialog';
 import { CharacterChatDialog } from '../CharacterChatDialog';
 import { FamilyTreeFlow } from '../visualization/FamilyTreeFlow';
 import { LocationMapPreview, type ViewLevel } from './LocationMapPreview';
@@ -66,9 +65,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
 
   // Character sidebar
   const [selectedChar, setSelectedChar] = useState<Character | null>(null);
-  const [editChar, setEditChar] = useState<Character | null>(null);
   const [chatChar, setChatChar] = useState<Character | null>(null);
-  const [showEdit, setShowEdit] = useState(false);
   const [showChat, setShowChat] = useState(false);
 
   // Family tree
@@ -130,6 +127,55 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
       toast({ title: `Failed to delete ${type}`, variant: 'destructive' });
     }
     setDeleteTarget(null);
+  };
+
+  // Regeneration
+  const [regenerateTarget, setRegenerateTarget] = useState<{
+    type: 'world' | 'country' | 'settlement';
+    id: string;
+    name: string;
+  } | null>(null);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+
+  const handleRegenerate = async () => {
+    if (!regenerateTarget) return;
+    setIsRegenerating(true);
+    const { type, id } = regenerateTarget;
+    const endpoints: Record<string, string> = {
+      world: `/api/worlds/${worldId}/society/regenerate`,
+      country: `/api/countries/${id}/regenerate`,
+      settlement: `/api/settlements/${id}/regenerate`,
+    };
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(endpoints[type], { method: 'POST', headers });
+      if (res.ok) {
+        const data = await res.json();
+        const createdInfo = type === 'settlement'
+          ? `${data.created?.characters || 0} characters`
+          : `${data.created?.numSettlements || 0} settlements, ${data.created?.totalPopulation || 0} characters`;
+        toast({ title: `${type.charAt(0).toUpperCase() + type.slice(1)} regenerated`, description: `Created ${createdInfo}` });
+        fetchCountries();
+        fetchAllSettlements();
+        fetchAllCharacters();
+        if (type === 'country' && selectedCountry?.id === id) selectWorld();
+        if (type === 'settlement' && selectedSettlement?.id === id) {
+          fetchLots(id);
+          fetchBusinesses(id);
+          fetchResidences(id);
+          fetchResidents(id);
+        }
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: `Failed to regenerate ${type}`, description: data.error, variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: `Failed to regenerate ${type}`, variant: 'destructive' });
+    } finally {
+      setIsRegenerating(false);
+      setRegenerateTarget(null);
+    }
   };
 
   useEffect(() => {
@@ -310,18 +356,29 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-0.5">
           {/* World root node */}
-          <button
-            className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm font-medium text-left transition-colors ${
+          <div
+            className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm font-medium text-left transition-colors group ${
               viewLevel === 'world'
                 ? 'bg-primary/10 text-primary'
                 : 'hover:bg-muted text-foreground'
             }`}
-            onClick={selectWorld}
           >
-            <Globe className="w-3.5 h-3.5 shrink-0 text-primary" />
-            <span className="truncate">World</span>
-            <span className="ml-auto text-xs text-muted-foreground">{settlements.length}</span>
-          </button>
+            <button className="flex items-center gap-1.5 flex-1 min-w-0" onClick={selectWorld}>
+              <Globe className="w-3.5 h-3.5 shrink-0 text-primary" />
+              <span className="truncate">World</span>
+            </button>
+            <span className="text-xs text-muted-foreground">{settlements.length}</span>
+            {canEdit && (
+              <span
+                role="button"
+                className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-primary transition-opacity"
+                onClick={() => setRegenerateTarget({ type: 'world', id: worldId, name: 'World Society' })}
+                title="Regenerate all society data"
+              >
+                <RefreshCw className="w-3 h-3" />
+              </span>
+            )}
+          </div>
 
           {/* Countries */}
           <div className="ml-3 space-y-0.5">
@@ -354,14 +411,24 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                       <span className="truncate">{country.name}</span>
                       <span className="shrink-0 text-xs text-muted-foreground">{countrySettlements.length}</span>
                       {canEdit && (
-                        <span
-                          role="button"
-                          className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-destructive transition-opacity"
-                          onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'country', id: country.id, name: country.name }); }}
-                          title="Delete country"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </span>
+                        <>
+                          <span
+                            role="button"
+                            className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-primary transition-opacity"
+                            onClick={(e) => { e.stopPropagation(); setRegenerateTarget({ type: 'country', id: country.id, name: country.name }); }}
+                            title="Regenerate country"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                          </span>
+                          <span
+                            role="button"
+                            className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-destructive transition-opacity"
+                            onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'country', id: country.id, name: country.name }); }}
+                            title="Delete country"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </span>
+                        </>
                       )}
                     </button>
                   </div>
@@ -381,13 +448,23 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                           <MapPinned className="w-3.5 h-3.5 shrink-0" />
                           <span className="truncate">{s.name}</span>
                           {canEdit && (
-                            <span
-                              role="button"
-                              className="ml-auto opacity-0 group-hover:opacity-100 p-0.5 hover:text-destructive transition-opacity"
-                              onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'settlement', id: s.id, name: s.name }); }}
-                              title="Delete settlement"
-                            >
-                              <Trash2 className="w-3 h-3" />
+                            <span className="ml-auto flex items-center gap-0.5">
+                              <span
+                                role="button"
+                                className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-primary transition-opacity"
+                                onClick={(e) => { e.stopPropagation(); setRegenerateTarget({ type: 'settlement', id: s.id, name: s.name }); }}
+                                title="Regenerate settlement"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                              </span>
+                              <span
+                                role="button"
+                                className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-destructive transition-opacity"
+                                onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'settlement', id: s.id, name: s.name }); }}
+                                title="Delete settlement"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </span>
                             </span>
                           )}
                         </button>
@@ -427,13 +504,23 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                     <MapPinned className="w-3.5 h-3.5 shrink-0" />
                     <span className="truncate">{s.name}</span>
                     {canEdit && (
-                      <span
-                        role="button"
-                        className="ml-auto opacity-0 group-hover:opacity-100 p-0.5 hover:text-destructive transition-opacity"
-                        onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'settlement', id: s.id, name: s.name }); }}
-                        title="Delete settlement"
-                      >
-                        <Trash2 className="w-3 h-3" />
+                      <span className="ml-auto flex items-center gap-0.5">
+                        <span
+                          role="button"
+                          className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-primary transition-opacity"
+                          onClick={(e) => { e.stopPropagation(); setRegenerateTarget({ type: 'settlement', id: s.id, name: s.name }); }}
+                          title="Regenerate settlement"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                        </span>
+                        <span
+                          role="button"
+                          className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-destructive transition-opacity"
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'settlement', id: s.id, name: s.name }); }}
+                          title="Delete settlement"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </span>
                       </span>
                     )}
                   </button>
@@ -509,13 +596,22 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
               {selectedSettlement.settlementType}
             </span>
             {canEdit && (
-              <button
-                className="ml-auto p-1 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-colors"
-                onClick={() => setDeleteTarget({ type: 'settlement', id: selectedSettlement.id, name: selectedSettlement.name })}
-                title="Delete settlement"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              <div className="ml-auto flex items-center gap-1">
+                <button
+                  className="p-1 rounded hover:bg-primary/10 hover:text-primary text-muted-foreground transition-colors"
+                  onClick={() => setRegenerateTarget({ type: 'settlement', id: selectedSettlement.id, name: selectedSettlement.name })}
+                  title="Regenerate settlement"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+                <button
+                  className="p-1 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-colors"
+                  onClick={() => setDeleteTarget({ type: 'settlement', id: selectedSettlement.id, name: selectedSettlement.name })}
+                  title="Delete settlement"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             )}
           </div>
           <div className="flex gap-4 text-xs text-muted-foreground">
@@ -532,13 +628,22 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold">{selectedCountry.name}</h2>
             {canEdit && (
-              <button
-                className="ml-auto p-1 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-colors"
-                onClick={() => setDeleteTarget({ type: 'country', id: selectedCountry.id, name: selectedCountry.name })}
-                title="Delete country"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              <div className="ml-auto flex items-center gap-1">
+                <button
+                  className="p-1 rounded hover:bg-primary/10 hover:text-primary text-muted-foreground transition-colors"
+                  onClick={() => setRegenerateTarget({ type: 'country', id: selectedCountry.id, name: selectedCountry.name })}
+                  title="Regenerate country"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+                <button
+                  className="p-1 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-colors"
+                  onClick={() => setDeleteTarget({ type: 'country', id: selectedCountry.id, name: selectedCountry.name })}
+                  title="Delete country"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             )}
           </div>
           <p className="text-xs text-muted-foreground">
@@ -859,7 +964,8 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
               <CharacterDetailView
                 character={selectedChar}
                 allCharacters={allCharacters}
-                onEditCharacter={(c) => { setEditChar(c); setShowEdit(true); }}
+                onCharacterUpdated={() => fetchAllCharacters()}
+                onCharacterDeleted={() => { fetchAllCharacters(); setSelectedChar(null); }}
                 onChatWithCharacter={(c) => { setChatChar(c); setShowChat(true); }}
                 onViewCharacter={setSelectedChar}
               />
@@ -867,15 +973,6 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
           )}
         </SheetContent>
       </Sheet>
-
-      {/* Character edit dialog */}
-      <CharacterEditDialog
-        open={showEdit}
-        onOpenChange={setShowEdit}
-        character={editChar}
-        onCharacterUpdated={() => { fetchAllCharacters(); setShowEdit(false); }}
-        onCharacterDeleted={() => { fetchAllCharacters(); setShowEdit(false); setSelectedChar(null); }}
-      />
 
       {/* Character chat dialog */}
       <CharacterChatDialog
@@ -915,6 +1012,32 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Regenerate confirmation */}
+      <AlertDialog open={!!regenerateTarget} onOpenChange={(open) => { if (!open && !isRegenerating) setRegenerateTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Regenerate {regenerateTarget?.type}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete and regenerate all society data for <strong>{regenerateTarget?.name}</strong>.
+              {regenerateTarget?.type === 'world' && ' All countries, settlements, and characters will be replaced. Rules, quests, actions, items, and other editor data will NOT be affected.'}
+              {regenerateTarget?.type === 'country' && ' The country and all its settlements and characters will be replaced with newly generated ones.'}
+              {regenerateTarget?.type === 'settlement' && ' All characters, businesses, and residences in this settlement will be replaced with newly generated ones.'}
+              {' '}This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRegenerating}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRegenerate} disabled={isRegenerating}>
+              {isRegenerating ? (
+                <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Regenerating...</>
+              ) : (
+                'Regenerate'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

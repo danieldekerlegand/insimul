@@ -806,7 +806,7 @@ export function RulesHub({ worldId }: RulesHubProps) {
 
   return (
     <>
-      <div className="flex h-[640px] rounded-lg border overflow-hidden bg-background">
+      <div className="flex h-[calc(100vh-10rem)] min-h-[480px] rounded-lg border overflow-hidden bg-background">
         <div className="w-56 shrink-0 flex flex-col">
           {renderTree()}
         </div>

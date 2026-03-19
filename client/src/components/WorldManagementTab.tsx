@@ -12,7 +12,7 @@ import {
   Scroll, Zap, Target, FileText, Sparkles,
   BookOpen, Brain,
   Play, Gamepad2, BarChart3,
-  Upload, Download, ChevronRight, Package, GraduationCap,
+  Upload, Download, ChevronRight, Package,
 } from 'lucide-react';
 import { WorldSettingsDialog } from './WorldSettingsDialog';
 import { WORLD_TYPES, GAME_TYPES } from './WorldCreateDialog';
@@ -313,8 +313,7 @@ export function WorldManagementTab({ worldId, worldName, worldDescription, onWor
   const playItems: (typeof contentItems[0])[] = [
     { id: 'simulations', label: 'Simulations', icon: Play, description: 'Run and configure simulations', color: 'from-green-500/20 to-emerald-500/20', iconColor: 'text-green-500', quickLinks: simulationLinks, totalCount: simulations.length, emptyHint: 'No simulations run yet' },
     { id: '3d-game', label: 'Explore World', icon: Gamepad2, description: 'Enter the 3D world environment', color: 'from-violet-500/20 to-purple-500/20', iconColor: 'text-violet-500' },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3, description: 'Playthrough data and insights', color: 'from-sky-500/20 to-blue-500/20', iconColor: 'text-sky-500' },
-    { id: 'assessments', label: 'Assessments', icon: GraduationCap, description: 'Language assessment scores and CEFR levels', color: 'from-amber-500/20 to-yellow-500/20', iconColor: 'text-amber-500' },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3, description: 'Playthroughs, assessments, and player insights', color: 'from-sky-500/20 to-blue-500/20', iconColor: 'text-sky-500' },
     { id: 'export-game', label: 'Export Game', icon: Package, description: 'Download project for Babylon, Unreal, Unity, or Godot', color: 'from-indigo-500/20 to-blue-500/20', iconColor: 'text-indigo-500' },
   ];
 

@@ -29,7 +29,6 @@ import {
   Home,
   FileText,
   Gamepad2,
-  History,
   LogOut,
   LogIn,
   UserPlus,
@@ -70,8 +69,6 @@ const tabMeta: Record<string, { label: string; icon: any }> = {
   "3d-game": { label: "Explore World", icon: Gamepad2 },
   analytics: { label: "Analytics", icon: BarChart3 },
   research: { label: "Research", icon: FlaskConical },
-  assessments: { label: "Assessments", icon: BarChart3 },
-  "my-playthroughs": { label: "My Playthroughs", icon: History },
 };
 
 export type ExportEngineType = 'babylon' | 'unreal' | 'unity' | 'godot';
@@ -303,13 +300,6 @@ export function ModernNavbar({
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => onTabChange("my-playthroughs")}
-                  className="cursor-pointer"
-                >
-                  <History className="w-4 h-4 mr-2" />
-                  My Playthroughs
-                </DropdownMenuItem>
                 {onOpenAdminPanel && (
                   <DropdownMenuItem
                     onClick={onOpenAdminPanel}
@@ -469,17 +459,6 @@ export function ModernNavbar({
                           </span>
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          onTabChange("my-playthroughs");
-                          setMobileMenuOpen(false);
-                        }}
-                        className="w-full justify-start gap-3 px-3"
-                      >
-                        <History className="w-5 h-5" />
-                        <span className="font-medium">My Playthroughs</span>
-                      </Button>
                       {onOpenAdminPanel && (
                         <Button
                           variant="ghost"

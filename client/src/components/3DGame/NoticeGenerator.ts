@@ -10,7 +10,7 @@
 
 import type { NoticeArticle } from './BabylonNoticeBoardPanel';
 
-interface NPCAuthorInfo {
+export interface NPCAuthorInfo {
   characterId: string;
   name: string;
   occupation?: string;

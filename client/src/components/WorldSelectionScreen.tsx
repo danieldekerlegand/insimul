@@ -29,11 +29,16 @@ export function WorldSelectionScreen({ onWorldSelected, onOpenAuth, onOpenAdminP
   const [generationTaskId, setGenerationTaskId] = useState<string | null>(null);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const { toast } = useToast();
-  const { token } = useAuth();
+  const { token, isLoading: authLoading } = useAuth();
 
   useEffect(() => {
-    fetchWorlds();
-  }, [token]); // Refetch when auth state changes
+    // Wait for auth to finish loading before fetching worlds,
+    // otherwise the first request goes out without a token and
+    // returns an empty list (private worlds filtered out).
+    if (!authLoading) {
+      fetchWorlds();
+    }
+  }, [token, authLoading]); // Refetch when auth state changes
 
   const fetchWorlds = async () => {
     try {
@@ -464,7 +469,7 @@ export function WorldSelectionScreen({ onWorldSelected, onOpenAuth, onOpenAdminP
             )}
 
           {/* Empty State */}
-          {!loading && worlds.length === 0 && (
+          {!loading && worlds.length === 0 && token && (
             <div className="text-center py-16">
               <div className="inline-flex items-center justify-center w-20 h-20 bg-primary/10 rounded-full mb-6">
                 <Sparkles className="w-10 h-10 text-primary" />
@@ -473,7 +478,7 @@ export function WorldSelectionScreen({ onWorldSelected, onOpenAuth, onOpenAdminP
               <p className="text-muted-foreground mb-6">
                 Create your first world to get started with Insimul
               </p>
-              <Button 
+              <Button
                 onClick={() => setShowCreateDialog(true)}
                 size="lg"
                 className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"

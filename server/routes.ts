@@ -280,9 +280,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const payload = token ? AuthService.verifyToken(token) : null;
       const currentUserId = payload?.userId;
 
+      // Filter worlds based on access permissions (inline to avoid
+      // redundant DB lookups — we already have the world objects)
+      const accessibleWorlds = worlds.filter((world) => {
+        // Public worlds are accessible to everyone
+        if (world.visibility === 'public') return true;
+        // Unlisted worlds that don't require auth are accessible to everyone
+        if (!world.requiresAuth && world.visibility === 'unlisted') return true;
+        // Everything else requires authentication
+        if (!currentUserId) return false;
+        // Legacy worlds without an owner are accessible to any authenticated user
+        if (!world.ownerId) return true;
+        // Owner always has access
+        if (world.ownerId === currentUserId) return true;
+        // Check allowed list
+        if (world.allowedUserIds && world.allowedUserIds.includes(currentUserId)) return true;
+        return false;
+      });
+
       // Enrich worlds with ownership info and player count
       const enrichedWorlds = await Promise.all(
-        worlds.map(async (world) => {
+        accessibleWorlds.map(async (world) => {
           // Get playthrough count for this world
           const playthroughs = await storage.getPlaythroughsByWorld(world.id);
           const playerCount = new Set(playthroughs.map(p => p.userId)).size;
@@ -4067,13 +4085,32 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                 // Create families using pre-generated names
                 const familiesForSettlement = allNames.families.filter((f: any) => f.settlementIndex === settlementIdx);
 
+                // Pool of occupations for random assignment
+                const adultOccupations = [
+                  'Farmer', 'Blacksmith', 'Carpenter', 'Baker', 'Weaver',
+                  'Merchant', 'Fisher', 'Hunter', 'Healer', 'Scholar',
+                  'Guard', 'Innkeeper', 'Mason', 'Tailor', 'Brewer',
+                  'Herbalist', 'Scribe', 'Shepherd', 'Tanner', 'Potter',
+                ];
+                const youthOccupations = ['Student', 'Apprentice', 'Farmhand', 'Errand Runner'];
+                let occIdx = 0;
+
+                // Current year for age calculation (foundedYear + some elapsed time)
+                const currentYear = cc.foundedYear + (cc.generations || 4) * 25;
+
                 for (const familyData of familiesForSettlement) {
+                  const fatherBirthYear = cc.foundedYear - 25;
+                  const motherBirthYear = cc.foundedYear - 23;
+                  const childBirthYear = cc.foundedYear + 1;
+
                   const father = await storage.createCharacter({
                     worldId: config.worldId,
                     firstName: familyData.fatherFirstName,
                     lastName: familyData.surname,
                     gender: 'male',
-                    birthYear: cc.foundedYear - 25,
+                    birthYear: fatherBirthYear,
+                    age: currentYear - fatherBirthYear,
+                    occupation: adultOccupations[occIdx++ % adultOccupations.length],
                     isAlive: true,
                     currentLocation: settlement.id,
                     socialAttributes: { generation: 0, founderFamily: true }
@@ -4085,7 +4122,9 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
                     lastName: familyData.surname,
                     maidenName: familyData.motherMaidenName,
                     gender: 'female',
-                    birthYear: cc.foundedYear - 23,
+                    birthYear: motherBirthYear,
+                    age: currentYear - motherBirthYear,
+                    occupation: adultOccupations[occIdx++ % adultOccupations.length],
                     isAlive: true,
                     spouseId: father.id,
                     currentLocation: settlement.id,
@@ -4096,12 +4135,17 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
 
                   const childIds = [];
                   for (const childData of familyData.children || []) {
+                    const childAge = currentYear - childBirthYear;
                     const child = await storage.createCharacter({
                       worldId: config.worldId,
                       firstName: childData.firstName,
                       lastName: familyData.surname,
                       gender: childData.gender,
-                      birthYear: cc.foundedYear + 1,
+                      birthYear: childBirthYear,
+                      age: childAge,
+                      occupation: childAge >= 18
+                        ? adultOccupations[occIdx++ % adultOccupations.length]
+                        : youthOccupations[Math.floor(Math.random() * youthOccupations.length)],
                       isAlive: true,
                       parentIds: [father.id, mother.id],
                       currentLocation: settlement.id,
@@ -7208,6 +7252,45 @@ Respond with this JSON structure:
     }
   });
 
+  // Get full knowledge base content as sectioned .pl files for the KB viewer
+  app.get("/api/worlds/:worldId/knowledge-base", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { generateWorldIR } = await import('./services/game-export/ir-generator.js');
+      const ir = await generateWorldIR(worldId, 'babylon');
+      const fullKB = (ir as any).systems?.knowledgeBase || '';
+
+      // Split the monolithic KB into named sections by "% ===" markers
+      const sections: { name: string; filename: string; content: string }[] = [];
+      const rawSections = fullKB.split(/^(% === .+ ===)$/m);
+
+      // rawSections alternates: [preamble, marker1, content1, marker2, content2, ...]
+      const preamble = rawSections[0]?.trim();
+      if (preamble) {
+        sections.push({ name: 'Header', filename: 'header.pl', content: preamble });
+      }
+
+      for (let i = 1; i < rawSections.length; i += 2) {
+        const marker = rawSections[i]; // e.g. "% === Character Facts ==="
+        const content = (rawSections[i + 1] || '').trim();
+        const name = marker.replace(/^% === /, '').replace(/ ===$/, '');
+        const filename = name.toLowerCase().replace(/\s+/g, '_') + '.pl';
+        if (content) {
+          sections.push({ name, filename, content });
+        }
+      }
+
+      res.json({
+        worldId,
+        totalLines: fullKB.split('\n').length,
+        sections,
+      });
+    } catch (error: any) {
+      console.error('[Knowledge Base] Failed to generate:', error);
+      res.status(500).json({ error: error.message || 'Failed to generate knowledge base' });
+    }
+  });
+
   // Tau-prolog sync-back endpoint: sync Prolog state changes back to DB
   app.post("/api/prolog/tau/sync-back/:worldId", async (req, res) => {
     try {
@@ -9365,6 +9448,524 @@ Respond with this JSON structure:
     } catch (error) {
       console.error('[Quest Generation] Error:', error);
       res.status(500).json({ error: "Failed to generate quests" });
+    }
+  });
+
+  // Wipe and regenerate all quests for a world
+  app.post("/api/worlds/:worldId/quests/regenerate", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      // Delete all existing quests for this world
+      const existing = await storage.getQuestsByWorld(worldId);
+      let deleted = 0;
+      for (const quest of existing) {
+        await storage.deleteQuest(quest.id);
+        deleted++;
+      }
+
+      // Regenerate using seed quest generator
+      const { generateSeedQuests } = await import('./services/quest-seed-generator.js');
+      const [characters, settlements] = await Promise.all([
+        storage.getCharactersByWorld(worldId),
+        storage.getSettlementsByWorld(worldId),
+      ]);
+
+      const seedQuests = generateSeedQuests({
+        world, characters, settlements,
+        assignedTo: 'Player',
+      });
+
+      const createdQuests = [];
+      for (const questData of seedQuests) {
+        const created = await storage.createQuest(questData);
+        createdQuests.push(created);
+      }
+
+      console.log(`🔄 Regenerated quests for world ${worldId}: deleted ${deleted}, created ${createdQuests.length}`);
+      res.status(200).json({
+        deleted,
+        created: createdQuests.length,
+        quests: createdQuests,
+      });
+    } catch (error) {
+      console.error('[Quest Regeneration] Error:', error);
+      res.status(500).json({ error: "Failed to regenerate quests" });
+    }
+  });
+
+  // Wipe and regenerate all rules for a world
+  app.post("/api/worlds/:worldId/rules/regenerate", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      // Delete all existing world rules (not base rules)
+      const existing = await storage.getRulesByWorld(worldId);
+      let deleted = 0;
+      for (const rule of existing) {
+        await storage.deleteRule(rule.id);
+        deleted++;
+      }
+
+      // Regenerate rules using LLM if available
+      const createdRules = [];
+      if (isGeminiConfigured()) {
+        const { GoogleGenerativeAI } = await import("@google/generative-ai");
+        const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+
+        const worldContext = `A ${(world as any).worldType || 'medieval-fantasy'} world named "${world.name}". ${world.description || ''}`;
+        const rulesPrompt = `Generate 10 social rules and norms for ${worldContext}.
+
+Include rules about:
+- Social hierarchy and status
+- Cultural customs and etiquette
+- Taboos and forbidden actions
+- Traditions and rituals
+- Daily life expectations
+
+Return as a JSON array with this structure:
+[
+  {
+    "name": "Short descriptive rule name",
+    "content": "The actual rule in Insimul format",
+    "ruleType": "social|cultural|legal|moral"
+  }
+]
+
+IMPORTANT: The "content" field must be a complete Insimul rule following this exact syntax:
+
+rule rule_name {
+  when (
+    Condition1(?var1) and
+    Condition2(?var2)
+  )
+  then {
+    effect_action(?var1)
+    another_effect(?var2)
+  }
+  priority: 5
+  tags: [social, generated]
+}
+
+Make the rule names creative and fitting for the world's theme.`;
+
+        const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
+        const model = genAI.getGenerativeModel({
+          model: GEMINI_MODELS.PRO,
+          generationConfig: { temperature: 0.9, responseMimeType: 'application/json' },
+        });
+
+        const result = await model.generateContent(rulesPrompt);
+        const generatedRules = JSON.parse(result.response.text().trim());
+
+        if (Array.isArray(generatedRules)) {
+          for (const rule of generatedRules.slice(0, 10)) {
+            if (rule.name && rule.content) {
+              const created = await storage.createRule({
+                worldId,
+                name: rule.name,
+                content: rule.content,
+                sourceFormat: 'insimul',
+                ruleType: rule.ruleType || 'default',
+                priority: 5,
+                likelihood: 1.0,
+                tags: ['generated', 'ai'],
+                isActive: true,
+              });
+              createdRules.push(created);
+            }
+          }
+        }
+      }
+
+      console.log(`🔄 Regenerated rules for world ${worldId}: deleted ${deleted}, created ${createdRules.length}`);
+      res.status(200).json({
+        deleted,
+        created: createdRules.length,
+        rules: createdRules,
+      });
+    } catch (error) {
+      console.error('[Rule Regeneration] Error:', error);
+      res.status(500).json({ error: "Failed to regenerate rules" });
+    }
+  });
+
+  // Wipe and regenerate all actions for a world
+  app.post("/api/worlds/:worldId/actions/regenerate", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const world = await storage.getWorld(worldId);
+      if (!world) {
+        return res.status(404).json({ error: "World not found" });
+      }
+
+      // Delete all existing world actions (not base actions)
+      const existing = await storage.getActionsByWorld(worldId);
+      let deleted = 0;
+      for (const action of existing) {
+        await storage.deleteAction(action.id);
+        deleted++;
+      }
+
+      // Regenerate actions — grammar-first, LLM fallback
+      const createdActions = [];
+      const wt = (world as any).worldType || 'medieval-fantasy';
+      const actionNames = await nameGenerator.generateNamesFromGrammar('action', wt, worldId, 10);
+
+      if (actionNames.length >= 5) {
+        const actionTypes = ['social', 'combat', 'movement', 'mental', 'economic', 'social', 'combat', 'mental', 'economic', 'movement'];
+
+        if (isGeminiConfigured()) {
+          const { GoogleGenerativeAI } = await import("@google/generative-ai");
+          const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+          const worldCtxStr = `A ${wt} world named "${world.name}". ${world.description || ''}`;
+          const descPrompt = `For this world: ${worldCtxStr}
+
+Write a short 1-sentence description for each of these character actions. Return as a JSON array of objects with "name", "description", and "actionType" fields.
+
+Actions:
+${actionNames.map((n: string, i: number) => `${i + 1}. "${n}"`).join('\n')}
+
+Return ONLY valid JSON array.`;
+          const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
+          const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.7, responseMimeType: 'application/json' } });
+          const result = await model.generateContent(descPrompt);
+          const described = JSON.parse(result.response.text().trim());
+          if (Array.isArray(described)) {
+            for (const action of described.slice(0, 10)) {
+              if (action.name) {
+                const actionData: any = {
+                  worldId, name: action.name, description: action.description || '',
+                  actionType: action.actionType || 'social', sourceFormat: 'prolog',
+                  tags: ['generated', 'grammar'], isActive: true,
+                };
+                try { const r = convertActionToProlog(actionData); if (r.prologContent) actionData.content = r.prologContent; } catch (e) { /* skip */ }
+                const created = await storage.createAction(actionData);
+                createdActions.push(created);
+              }
+            }
+          }
+        } else {
+          for (let i = 0; i < actionNames.length; i++) {
+            const actionData: any = {
+              worldId, name: actionNames[i],
+              description: `A ${actionTypes[i % actionTypes.length]} action in ${world.name}`,
+              actionType: actionTypes[i % actionTypes.length], sourceFormat: 'prolog',
+              tags: ['generated', 'grammar'], isActive: true,
+            };
+            try { const r = convertActionToProlog(actionData); if (r.prologContent) actionData.content = r.prologContent; } catch (e) { /* skip */ }
+            const created = await storage.createAction(actionData);
+            createdActions.push(created);
+          }
+        }
+      } else if (isGeminiConfigured()) {
+        const { GoogleGenerativeAI } = await import("@google/generative-ai");
+        const { getGeminiApiKey, GEMINI_MODELS } = await import("./config/gemini.js");
+        const worldCtxStr = `A ${wt} world named "${world.name}". ${world.description || ''}`;
+        const actionsPrompt = `Generate 10 character actions for ${worldCtxStr}.
+
+Include diverse action types:
+- Social interactions (talking, persuading, befriending)
+- Physical actions (moving, working, fighting)
+- Mental actions (thinking, planning, studying)
+- Cultural actions specific to this world's theme
+
+Return as a JSON array with this structure:
+[
+  {
+    "name": "Creative action name fitting the world",
+    "description": "What this action does and when it's used",
+    "actionType": "social|combat|movement|mental|economic"
+  }
+]
+
+Make the action names thematic and immersive.`;
+        const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
+        const model = genAI.getGenerativeModel({ model: GEMINI_MODELS.PRO, generationConfig: { temperature: 0.9, responseMimeType: 'application/json' } });
+        const result = await model.generateContent(actionsPrompt);
+        const generatedActions = JSON.parse(result.response.text().trim());
+        if (Array.isArray(generatedActions)) {
+          for (const action of generatedActions.slice(0, 10)) {
+            if (action.name && action.description) {
+              const actionData: any = {
+                worldId, name: action.name, description: action.description,
+                actionType: action.actionType || 'social', sourceFormat: 'prolog',
+                tags: ['generated', 'ai'], isActive: true,
+              };
+              try { const r = convertActionToProlog(actionData); if (r.prologContent) actionData.content = r.prologContent; } catch (e) { /* skip */ }
+              const created = await storage.createAction(actionData);
+              createdActions.push(created);
+            }
+          }
+        }
+      }
+
+      console.log(`🔄 Regenerated actions for world ${worldId}: deleted ${deleted}, created ${createdActions.length}`);
+      res.status(200).json({
+        deleted,
+        created: createdActions.length,
+        actions: createdActions,
+      });
+    } catch (error) {
+      console.error('[Action Regeneration] Error:', error);
+      res.status(500).json({ error: "Failed to regenerate actions" });
+    }
+  });
+
+  // ─── Society Regeneration Endpoints ────────────────────────────────────────
+
+  // Regenerate all society data for a world (countries, states, settlements, characters)
+  // Does NOT touch rules, actions, quests, items, grammars, languages, or truths
+  app.post("/api/worlds/:worldId/society/regenerate", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const world = await storage.getWorld(worldId);
+      if (!world) return res.status(404).json({ error: "World not found" });
+
+      // Delete all existing society data
+      const countries = await storage.getCountriesByWorld(worldId);
+      let deletedCountries = 0;
+      for (const country of countries) {
+        await storage.deleteCountry(country.id);
+        deletedCountries++;
+      }
+      // Delete any orphaned settlements/characters not tied to a country
+      const orphanedSettlements = await storage.getSettlementsByWorld(worldId);
+      for (const s of orphanedSettlements) {
+        await storage.deleteSettlement(s.id);
+      }
+
+      // Re-run hierarchical generation using the world's existing config
+      const generateRes = await fetch(`${req.protocol}://${req.get('host')}/api/generate/hierarchical`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          worldId,
+          worldType: (world as any).worldType,
+          gameType: (world as any).gameType,
+          worldDescription: world.description,
+          generateGenealogy: true,
+          generateGeography: true,
+        }),
+      });
+
+      const result = generateRes.ok ? await generateRes.json() : { error: 'Generation failed' };
+
+      console.log(`🔄 Regenerated society for world ${worldId}: deleted ${deletedCountries} countries, created ${result.numCountries || 0} countries, ${result.numSettlements || 0} settlements, ${result.totalPopulation || 0} characters`);
+      res.status(200).json({
+        deleted: { countries: deletedCountries },
+        created: result,
+      });
+    } catch (error) {
+      console.error('[Society Regeneration] Error:', error);
+      res.status(500).json({ error: "Failed to regenerate society" });
+    }
+  });
+
+  // Regenerate a single country and all its settlements/characters
+  app.post("/api/countries/:countryId/regenerate", async (req, res) => {
+    try {
+      const { countryId } = req.params;
+      const country = await storage.getCountry(countryId);
+      if (!country) return res.status(404).json({ error: "Country not found" });
+
+      const world = await storage.getWorld(country.worldId);
+      if (!world) return res.status(404).json({ error: "World not found" });
+
+      // Count existing data before deletion
+      const existingSettlements = await storage.getSettlementsByCountry(countryId);
+
+      // Delete the country (cascade deletes states, settlements, characters)
+      await storage.deleteCountry(countryId);
+
+      // Regenerate one country using hierarchical generation
+      const generateRes = await fetch(`${req.protocol}://${req.get('host')}/api/generate/hierarchical`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          worldId: country.worldId,
+          worldType: (world as any).worldType,
+          gameType: (world as any).gameType,
+          worldDescription: world.description,
+          numCountries: 1,
+          generateGenealogy: true,
+          generateGeography: true,
+        }),
+      });
+
+      const result = generateRes.ok ? await generateRes.json() : { error: 'Generation failed' };
+
+      console.log(`🔄 Regenerated country ${country.name}: deleted ${existingSettlements.length} settlements, created ${result.numSettlements || 0} settlements`);
+      res.status(200).json({
+        deleted: { settlements: existingSettlements.length },
+        created: result,
+      });
+    } catch (error) {
+      console.error('[Country Regeneration] Error:', error);
+      res.status(500).json({ error: "Failed to regenerate country" });
+    }
+  });
+
+  // Regenerate a single settlement (delete its characters, regenerate families)
+  app.post("/api/settlements/:settlementId/regenerate", async (req, res) => {
+    try {
+      const { settlementId } = req.params;
+      const settlement = await storage.getSettlement(settlementId);
+      if (!settlement) return res.status(404).json({ error: "Settlement not found" });
+
+      const world = await storage.getWorld(settlement.worldId);
+      if (!world) return res.status(404).json({ error: "World not found" });
+
+      // Delete existing characters in this settlement
+      const existingCharacters = await storage.getCharactersByWorld(settlement.worldId);
+      const settlementCharacters = existingCharacters.filter(
+        (c: any) => c.currentLocation === settlementId
+      );
+      let deletedChars = 0;
+      for (const char of settlementCharacters) {
+        await storage.deleteCharacter(char.id);
+        deletedChars++;
+      }
+
+      // Delete existing businesses and residences
+      const existingBusinesses = await storage.getBusinessesBySettlement(settlementId);
+      for (const b of existingBusinesses) {
+        await storage.deleteBusiness(b.id);
+      }
+      const existingResidences = await storage.getResidencesBySettlement(settlementId);
+      for (const r of existingResidences) {
+        await storage.deleteResidence(r.id);
+      }
+
+      // Regenerate families for this settlement
+      const foundedYear = settlement.foundedYear || 1850;
+      const numFamilies = 10;
+      const generations = 4;
+      const currentYear = foundedYear + generations * 25;
+
+      const adultOccupations = [
+        'Farmer', 'Blacksmith', 'Carpenter', 'Baker', 'Weaver',
+        'Merchant', 'Fisher', 'Hunter', 'Healer', 'Scholar',
+        'Guard', 'Innkeeper', 'Mason', 'Tailor', 'Brewer',
+        'Herbalist', 'Scribe', 'Shepherd', 'Tanner', 'Potter',
+      ];
+      const youthOccupations = ['Student', 'Apprentice', 'Farmhand', 'Errand Runner'];
+      let occIdx = 0;
+      let createdChars = 0;
+
+      // Generate families using name generator if available
+      let familyNames: any[] = [];
+      try {
+        const allNames = await nameGenerator.generateCompleteWorldNames({
+          worldId: settlement.worldId,
+          worldName: world.name,
+          worldDescription: world.description || undefined,
+          worldType: (world as any).worldType || undefined,
+          countries: [{
+            countryIndex: 0,
+            settlements: [{ settlementIndex: 0, type: settlement.settlementType || 'town', numFamilies }]
+          }],
+          totalFamilies: numFamilies,
+          totalSettlements: 1,
+          totalStates: 0,
+          totalCountries: 0,
+        });
+        familyNames = allNames.families || [];
+      } catch (e) {
+        // Fallback: generate simple names
+        for (let i = 0; i < numFamilies; i++) {
+          familyNames.push({
+            settlementIndex: 0,
+            surname: `Family${i + 1}`,
+            fatherFirstName: `Father${i + 1}`,
+            motherFirstName: `Mother${i + 1}`,
+            motherMaidenName: `Maiden${i + 1}`,
+            children: [{ firstName: `Child${i + 1}A`, gender: 'male' }, { firstName: `Child${i + 1}B`, gender: 'female' }],
+          });
+        }
+      }
+
+      for (const familyData of familyNames) {
+        const fatherBirthYear = foundedYear - 25;
+        const motherBirthYear = foundedYear - 23;
+        const childBirthYear = foundedYear + 1;
+
+        const father = await storage.createCharacter({
+          worldId: settlement.worldId,
+          firstName: familyData.fatherFirstName,
+          lastName: familyData.surname,
+          gender: 'male',
+          birthYear: fatherBirthYear,
+          age: currentYear - fatherBirthYear,
+          occupation: adultOccupations[occIdx++ % adultOccupations.length],
+          isAlive: true,
+          currentLocation: settlementId,
+          socialAttributes: { generation: 0, founderFamily: true },
+        });
+
+        const mother = await storage.createCharacter({
+          worldId: settlement.worldId,
+          firstName: familyData.motherFirstName,
+          lastName: familyData.surname,
+          maidenName: familyData.motherMaidenName,
+          gender: 'female',
+          birthYear: motherBirthYear,
+          age: currentYear - motherBirthYear,
+          occupation: adultOccupations[occIdx++ % adultOccupations.length],
+          isAlive: true,
+          spouseId: father.id,
+          currentLocation: settlementId,
+          socialAttributes: { generation: 0, founderFamily: true },
+        });
+
+        await storage.updateCharacter(father.id, { spouseId: mother.id });
+        createdChars += 2;
+
+        const childIds: string[] = [];
+        for (const childData of familyData.children || []) {
+          const childAge = currentYear - childBirthYear;
+          const child = await storage.createCharacter({
+            worldId: settlement.worldId,
+            firstName: childData.firstName,
+            lastName: familyData.surname,
+            gender: childData.gender || 'male',
+            birthYear: childBirthYear,
+            age: childAge,
+            occupation: childAge >= 18
+              ? adultOccupations[occIdx++ % adultOccupations.length]
+              : youthOccupations[Math.floor(Math.random() * youthOccupations.length)],
+            isAlive: true,
+            parentIds: [father.id, mother.id],
+            currentLocation: settlementId,
+            socialAttributes: { generation: 1 },
+          });
+          childIds.push(child.id);
+          createdChars++;
+        }
+
+        await storage.updateCharacter(father.id, { childIds });
+        await storage.updateCharacter(mother.id, { childIds });
+      }
+
+      // Update settlement population
+      await storage.updateSettlement(settlementId, { population: createdChars });
+
+      console.log(`🔄 Regenerated settlement ${settlement.name}: deleted ${deletedChars} characters, created ${createdChars} characters`);
+      res.status(200).json({
+        deleted: { characters: deletedChars, businesses: existingBusinesses.length, residences: existingResidences.length },
+        created: { characters: createdChars, families: familyNames.length },
+      });
+    } catch (error) {
+      console.error('[Settlement Regeneration] Error:', error);
+      res.status(500).json({ error: "Failed to regenerate settlement" });
     }
   });
 

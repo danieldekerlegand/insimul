@@ -931,7 +931,7 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
       cityName,
     });
     arrivalData.status = 'active'; // Immediately active when a player starts a new game
-    arrivalData.assignedTo = '';
+    arrivalData.assignedTo = 'unassigned';
     quests.push(arrivalData as InsertQuest);
 
     // Departure Assessment
@@ -948,7 +948,7 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
 
     const departureQuest: InsertQuest = {
       worldId: world.id,
-      assignedTo: '',
+      assignedTo: 'unassigned',
       assignedBy: null,
       title: 'Departure Assessment',
       description: resolveTemplate(DEPARTURE_ENCOUNTER.description, departureVars),

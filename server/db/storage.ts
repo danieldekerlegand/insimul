@@ -151,7 +151,7 @@ export interface IStorage {
   // Characters
   getCharacter(id: string): Promise<Character | undefined>;
   getCharactersByWorld(worldId: string): Promise<Character[]>;
-  createCharacter(character: InsertCharacter): Promise<Character>;
+  createCharacter(character: InsertCharacter & { age?: number; occupation?: string }): Promise<Character>;
   updateCharacter(id: string, character: Partial<InsertCharacter>): Promise<Character | undefined>;
   deleteCharacter(id: string): Promise<boolean>;
 

@@ -100,6 +100,8 @@ import { BabylonSkillTreePanel } from "@/components/3DGame/BabylonSkillTreePanel
 import { EnvironmentalAudioManager } from "@/components/3DGame/EnvironmentalAudioManager.ts";
 import { CulturalEventManager } from "@/components/3DGame/CulturalEventManager.ts";
 import { BabylonNoticeBoardPanel, SAMPLE_ARTICLES, type NoticeArticle } from "@/components/3DGame/BabylonNoticeBoardPanel.ts";
+import { SettlementNoticeBoard } from "@/components/3DGame/SettlementNoticeBoard.ts";
+import { generateSettlementNotices, type NPCAuthorInfo } from "@/components/3DGame/NoticeGenerator.ts";
 import { ContentGatingManager } from "@/components/3DGame/ContentGatingManager.ts";
 import { generateQuestSuggestions, selectQuestForNPC } from "@/components/3DGame/DynamicQuestBoard.ts";
 import { VRChatPanel } from "@/components/3DGame/VRChatPanel.ts";
@@ -410,6 +412,7 @@ export class BabylonGame {
   private environmentalAudio: EnvironmentalAudioManager | null = null;
   private culturalEventManager: CulturalEventManager | null = null;
   private noticeBoardPanel: BabylonNoticeBoardPanel | null = null;
+  private settlementNoticeBoard: SettlementNoticeBoard | null = null;
   private contentGatingManager: ContentGatingManager | null = null;
   private ruleEnforcer: RuleEnforcer | null = null;
   private prologEngine: GamePrologEngine | null = null;
@@ -1852,6 +1855,18 @@ export class BabylonGame {
           description: 'Try reading the article again!',
           duration: 3000,
         });
+      }
+    });
+
+    // Initialize physical notice boards for settlements
+    this.settlementNoticeBoard = new SettlementNoticeBoard(scene);
+    this.settlementNoticeBoard.setOnBoardClicked((settlementId, articles) => {
+      if (this.noticeBoardPanel) {
+        // Load articles into the GUI panel and show it
+        for (const article of articles) {
+          this.noticeBoardPanel.addArticle(article);
+        }
+        this.noticeBoardPanel.show();
       }
     });
 
@@ -3793,6 +3808,26 @@ export class BabylonGame {
           scaledSettlement.position.clone(),
           scaledSettlement.radius
         );
+
+        // Place physical notice board at settlement center
+        if (this.settlementNoticeBoard) {
+          const settlementNPCs: NPCAuthorInfo[] = (this.characters || [])
+            .filter((c: any) => c.settlementId === settlement.id || c.currentLocation === settlement.id)
+            .slice(0, 6)
+            .map((c: any) => ({
+              characterId: c.id,
+              name: `${c.firstName || ''} ${c.lastName || ''}`.trim(),
+              occupation: c.occupation || undefined,
+            }));
+          const articles = generateSettlementNotices(settlement.id, settlement.name, settlementNPCs);
+          this.settlementNoticeBoard.createBoard({
+            settlementId: settlement.id,
+            settlementName: settlement.name,
+            position: settlementCenter.clone(),
+            articles,
+            playerFluency: 0,
+          });
+        }
       } catch (error) {
         console.error(`Failed to generate buildings for settlement ${settlement.name}:`, error);
       }
@@ -10273,6 +10308,7 @@ export class BabylonGame {
     this.environmentalAudio?.dispose();
     this.culturalEventManager?.dispose();
     this.noticeBoardPanel?.dispose();
+    this.settlementNoticeBoard?.dispose();
     this.contentGatingManager?.dispose();
     this.ruleEnforcer?.dispose();
     this.prologEngine?.dispose();

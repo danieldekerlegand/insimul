@@ -8,7 +8,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Character } from '@shared/schema';
 import { CharacterDetailView } from './characters/CharacterDetailView';
-import { CharacterEditDialog } from './CharacterEditDialog';
 import { CharacterChatDialog } from './CharacterChatDialog';
 
 const PAGE_SIZE = 30;
@@ -28,9 +27,7 @@ export function CharacterBrowserTable({ worldId }: CharacterBrowserTableProps) {
   const [page, setPage] = useState(1);
 
   const [selectedChar, setSelectedChar] = useState<Character | null>(null);
-  const [editChar, setEditChar] = useState<Character | null>(null);
   const [chatChar, setChatChar] = useState<Character | null>(null);
-  const [showEdit, setShowEdit] = useState(false);
   const [showChat, setShowChat] = useState(false);
 
   useEffect(() => {
@@ -94,25 +91,18 @@ export function CharacterBrowserTable({ worldId }: CharacterBrowserTableProps) {
     setSelectedChar(char);
   };
 
-  const handleEdit = (char: Character) => {
-    setEditChar(char);
-    setShowEdit(true);
+  const handleCharacterUpdated = () => {
+    fetchAll();
+  };
+
+  const handleCharacterDeleted = () => {
+    fetchAll();
+    setSelectedChar(null);
   };
 
   const handleChat = (char: Character) => {
     setChatChar(char);
     setShowChat(true);
-  };
-
-  const handleCharacterUpdated = () => {
-    fetchAll();
-    setShowEdit(false);
-  };
-
-  const handleCharacterDeleted = () => {
-    fetchAll();
-    setShowEdit(false);
-    setSelectedChar(null);
   };
 
   return (
@@ -240,7 +230,8 @@ export function CharacterBrowserTable({ worldId }: CharacterBrowserTableProps) {
               <CharacterDetailView
                 character={selectedChar}
                 allCharacters={characters}
-                onEditCharacter={handleEdit}
+                onCharacterUpdated={handleCharacterUpdated}
+                onCharacterDeleted={handleCharacterDeleted}
                 onChatWithCharacter={handleChat}
                 onViewCharacter={setSelectedChar}
               />
@@ -248,15 +239,6 @@ export function CharacterBrowserTable({ worldId }: CharacterBrowserTableProps) {
           )}
         </SheetContent>
       </Sheet>
-
-      {/* Edit dialog */}
-      <CharacterEditDialog
-        open={showEdit}
-        onOpenChange={setShowEdit}
-        character={editChar}
-        onCharacterUpdated={handleCharacterUpdated}
-        onCharacterDeleted={handleCharacterDeleted}
-      />
 
       {/* Chat dialog */}
       <CharacterChatDialog

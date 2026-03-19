@@ -2180,15 +2180,13 @@ export class MongoStorage implements IStorage {
     return docs.map(docToCharacter);
   }
 
-  async createCharacter(insertCharacter: InsertCharacter): Promise<Character> {
+  async createCharacter(insertCharacter: InsertCharacter & { age?: number; occupation?: string }): Promise<Character> {
     await this.connect();
     const doc = await CharacterModel.create({
       ...insertCharacter,
-      maidenName: null,
-      birthYear: null,
-      isAlive: true,
-      generationConfig: null,
-      status: null
+      isAlive: insertCharacter.isAlive ?? true,
+      generationConfig: insertCharacter.generationConfig ?? null,
+      status: insertCharacter.status ?? null,
     });
     return docToCharacter(doc);
   }

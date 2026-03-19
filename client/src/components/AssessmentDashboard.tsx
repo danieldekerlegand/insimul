@@ -145,19 +145,10 @@ export function AssessmentDashboard({ worldId }: AssessmentDashboardProps) {
   const cefrOrder = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
   return (
-    <div className="space-y-4 p-6">
-      {/* Header */}
+    <div className="space-y-4">
+      {/* Assessment sub-tabs */}
       <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
-        <CardHeader>
-          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent flex items-center gap-2">
-            <GraduationCap className="w-6 h-6 text-primary" />
-            Assessment Dashboard
-          </CardTitle>
-          <CardDescription className="mt-1">
-            Language assessment scores, CEFR distribution, and per-player performance
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-4 bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-xl p-1 h-auto">
               <TabsTrigger value="overview" className="gap-1 text-xs">

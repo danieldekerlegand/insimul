@@ -17,12 +17,10 @@ import { ImportDialog } from '@/components/ImportDialog';
 import { BabylonWorld } from '@/components/3DGame/BabylonWorld';
 import { AuthDialog } from '@/components/AuthDialog';
 import { AdminPanel } from '@/components/AdminPanel';
-import { PlaythroughsList } from '@/components/PlaythroughsList';
 import { PlaythroughSelector } from '@/components/PlaythroughSelector';
 import { PlaythroughAnalytics } from '@/components/PlaythroughAnalytics';
 import { ResearcherDashboard } from '@/components/ResearcherDashboard';
 import { PlayerAssessmentDetail } from '@/components/PlayerAssessmentDetail';
-import { AssessmentDashboard } from '@/components/AssessmentDashboard';
 import { WorldBrowser } from '@/components/WorldBrowser';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -36,8 +34,18 @@ interface Character {
 }
 
 export default function Home() {
-  const [selectedWorld, setSelectedWorld] = useState<string>('');
+  const [selectedWorld, setSelectedWorld] = useState<string>(() => sessionStorage.getItem('insimul_selectedWorld') || '');
   const [activeTab, setActiveTab] = useState('home');
+
+  // Persist selectedWorld so it survives page reloads (e.g. from HMR)
+  const handleSetSelectedWorld = (worldId: string) => {
+    setSelectedWorld(worldId);
+    if (worldId) {
+      sessionStorage.setItem('insimul_selectedWorld', worldId);
+    } else {
+      sessionStorage.removeItem('insimul_selectedWorld');
+    }
+  };
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [engineExportDialogOpen, setEngineExportDialogOpen] = useState(false);
@@ -85,11 +93,20 @@ export default function Home() {
   // Show world selection if no world selected
   if (!selectedWorld) {
     return (
-      <WorldSelectionScreen
-        onWorldSelected={setSelectedWorld}
-        onOpenAuth={() => setAuthDialogOpen(true)}
-        onOpenAdminPanel={() => setAdminPanelOpen(true)}
-      />
+      <>
+        <WorldSelectionScreen
+          onWorldSelected={handleSetSelectedWorld}
+          onOpenAuth={() => setAuthDialogOpen(true)}
+          onOpenAdminPanel={() => setAdminPanelOpen(true)}
+        />
+        <AuthDialog
+          open={authDialogOpen}
+          onOpenChange={setAuthDialogOpen}
+          onAuthSuccess={(user, token) => {
+            login(user, token);
+          }}
+        />
+      </>
     );
   }
 
@@ -133,65 +150,66 @@ export default function Home() {
           }
           setActiveTab(tab);
         }}
-        onChangeWorld={() => { setSelectedWorld(''); setSelectedPlaythroughId(null); }}
+        onChangeWorld={() => { handleSetSelectedWorld(''); setSelectedPlaythroughId(null); }}
         onOpenAuth={() => setAuthDialogOpen(true)}
       />
 
-      {/* Society Tab - full width, outside max-w constraint */}
+      {/* Full-width panel tabs (three-panel layouts) */}
       {activeTab === 'society' && selectedWorld && (
         <div className="px-6 py-4">
           <UnifiedWorldExplorerTab worldId={selectedWorld} />
         </div>
       )}
 
-      <div className="max-w-6xl mx-auto p-6">
-        {/* Rules Tab */}
-        {activeTab === 'rules' && selectedWorld && (
-          <div className="px-2 py-4">
-            <RulesHub worldId={selectedWorld} />
-          </div>
-        )}
+      {activeTab === 'rules' && selectedWorld && (
+        <div className="px-6 py-4">
+          <RulesHub worldId={selectedWorld} />
+        </div>
+      )}
 
-        {/* Actions Tab */}
-        {activeTab === 'actions' && selectedWorld && (
-          <div className="px-2 py-4">
-            <ActionsHub worldId={selectedWorld} />
-          </div>
-        )}
+      {activeTab === 'actions' && selectedWorld && (
+        <div className="px-6 py-4">
+          <ActionsHub worldId={selectedWorld} />
+        </div>
+      )}
 
-        {/* World Intelligence Tab — Merged History, KB, Simulations, Truth */}
-        {activeTab === 'world-intelligence' && selectedWorld && (
+      {activeTab === 'world-intelligence' && selectedWorld && (
+        <div className="px-6 py-4">
           <WorldIntelligenceTab worldId={selectedWorld} characters={characters} />
-        )}
+        </div>
+      )}
 
-        {/* Quests Tab */}
-        {activeTab === 'quests' && selectedWorld && (
-          <div className="px-2 py-4">
-            <QuestsHub worldId={selectedWorld} />
-          </div>
-        )}
+      {activeTab === 'quests' && selectedWorld && (
+        <div className="px-6 py-4">
+          <QuestsHub worldId={selectedWorld} />
+        </div>
+      )}
 
-        {/* Items Tab */}
-        {activeTab === 'items' && selectedWorld && (
-          <div className="px-2 py-4">
-            <ItemsHub worldId={selectedWorld} />
-          </div>
-        )}
+      {activeTab === 'items' && selectedWorld && (
+        <div className="px-6 py-4">
+          <ItemsHub worldId={selectedWorld} />
+        </div>
+      )}
 
-        {/* Grammars Tab */}
-        {activeTab === 'grammars' && selectedWorld && (
-          <div className="px-2 py-4">
-            <GrammarsHub worldId={selectedWorld} />
-          </div>
-        )}
+      {activeTab === 'grammars' && selectedWorld && (
+        <div className="px-6 py-4">
+          <GrammarsHub worldId={selectedWorld} />
+        </div>
+      )}
 
-        {/* Languages Tab */}
-        {activeTab === 'languages' && selectedWorld && (
-          <div className="px-2 py-4">
-            <LanguagesHub worldId={selectedWorld} />
-          </div>
-        )}
+      {activeTab === 'languages' && selectedWorld && (
+        <div className="px-6 py-4">
+          <LanguagesHub worldId={selectedWorld} />
+        </div>
+      )}
 
+      {activeTab === 'analytics' && selectedWorld && (
+        <div className="px-6 py-4">
+          <PlaythroughAnalytics worldId={selectedWorld} />
+        </div>
+      )}
+
+      <div className="max-w-6xl mx-auto p-6">
         {/* 3D Game Tab - Playthrough Selection then Game */}
         {activeTab === '3d-game' && selectedWorld && isAuthenticated && !selectedPlaythroughId && (
           <PlaythroughSelector
@@ -212,11 +230,6 @@ export default function Home() {
           />
         )}
 
-        {/* Analytics Tab */}
-        {activeTab === 'analytics' && selectedWorld && (
-          <PlaythroughAnalytics worldId={selectedWorld} />
-        )}
-
         {/* Research Dashboard Tab */}
         {activeTab === 'research' && selectedWorld && !assessmentPlayerId && (
           <ResearcherDashboard worldId={selectedWorld} onViewPlayerDetail={setAssessmentPlayerId} />
@@ -231,27 +244,12 @@ export default function Home() {
           />
         )}
 
-        {/* Assessment Dashboard Tab */}
-        {activeTab === 'assessments' && selectedWorld && (
-          <AssessmentDashboard worldId={selectedWorld} />
-        )}
-
-        {/* My Playthroughs Tab */}
-        {activeTab === 'my-playthroughs' && (
-          <PlaythroughsList
-            onResumePlaythrough={(worldId, playthroughId) => {
-              setSelectedWorld(worldId);
-              setSelectedPlaythroughId(playthroughId);
-              setActiveTab('3d-game');
-            }}
-          />
-        )}
 
         {/* Browse Worlds Tab */}
         {activeTab === 'browse-worlds' && (
           <WorldBrowser
             onPlayWorld={(worldId) => {
-              setSelectedWorld(worldId);
+              handleSetSelectedWorld(worldId);
               setActiveTab('3d-game');
             }}
           />
@@ -264,7 +262,7 @@ export default function Home() {
             worldId={selectedWorld}
             worldName={currentWorld.name}
             worldDescription={currentWorld.description}
-            onWorldDeleted={() => setSelectedWorld('')}
+            onWorldDeleted={() => handleSetSelectedWorld('')}
             onWorldUpdated={() => {
               queryClient.invalidateQueries({ queryKey: ['/api/worlds'] });
               queryClient.invalidateQueries({ queryKey: ['/api/worlds', selectedWorld] });
@@ -319,6 +317,8 @@ export default function Home() {
         <ExportDialog
           open={exportDialogOpen}
           onOpenChange={setExportDialogOpen}
+          worldId={selectedWorld}
+          worldName={worlds.find(w => w.id === selectedWorld)?.name || 'world'}
           rules={rules.flatMap(file => {
             try {
               return ruleCompiler.compile(file.content, file.sourceFormat as any);
@@ -327,11 +327,8 @@ export default function Home() {
               return [];
             }
           })}
-          worldName={worlds.find(w => w.id === selectedWorld)?.name || 'world'}
           characters={characters}
           actions={actions}
-          includeCharacters={true}
-          includeActions={false}
         />
       )}
 

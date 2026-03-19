@@ -973,7 +973,378 @@
 
 ---
 
-## 29. AUTHENTICATION & MULTIPLAYER
+## 29. PLAYTHROUGH & SAVE SYSTEM
+
+### 29.1 Playthrough Overlay Layer
+- [ ] PlaythroughOverlayLayer intercepts world-mutating writes
+- [ ] Overlay maintains in-memory map of entity overrides (entityType+entityId)
+- [ ] Reading world data merges base world data with playthrough-local changes
+- [ ] Writing (quest completion, inventory transfer, truth creation) captured in overlay
+- [ ] Overlay serialized into GameSaveState on save and deserialized on load
+- [ ] Both ApiDataSource and FileDataSource route writes through overlay
+
+### 29.2 Quest State Isolation
+- [ ] Quest completion goes through overlay, not PUT /api/quests/:questId directly
+- [ ] Quest chain progression works entirely from overlayed quest data
+- [ ] QuestObjectManager and BabylonQuestTracker read from overlayed data
+- [ ] World quest data unchanged after playthrough quest completion
+
+### 29.3 Inventory & Truth Isolation
+- [ ] Inventory ownership truths stored in playthrough overlay, not world truth collection
+- [ ] Loading entity inventory merges world-level truths with overlay truths
+- [ ] Item transfers create overlay truths, base world truths untouched
+- [ ] Gold/currency changes tracked in overlay
+- [ ] Merchant inventory restock/depletion is overlay-local (resets on new playthrough)
+
+### 29.4 XP, Proficiency & Progress Scoping
+- [ ] LanguageGamificationTracker XP state stored in playthrough overlay/save state
+- [ ] Assessment results associated with the playthrough
+- [ ] New playthrough re-assesses proficiency level
+- [ ] OnboardingLauncher first-play detection checks per-playthrough
+
+### 29.5 Playthrough Selection & Management UI
+- [ ] PlaythroughSelectScreen shows list of existing playthroughs for current world
+- [ ] Each playthrough displays: name, last played date, play time, proficiency level, completion %
+- [ ] 'New Game' creates fresh playthrough
+- [ ] 'Continue' loads most recent auto-save
+- [ ] 'Delete' removes playthrough with confirmation
+- [ ] Maximum 5 playthroughs per world per user enforced
+- [ ] Screen appears after world loads but before game starts
+
+### 29.6 Save/Load Game Menu
+- [ ] 'Save Game' and 'Load Game' options in pause menu (GameMenuSystem)
+- [ ] 3 save slots displayed with slot name, date, time played, location
+- [ ] Empty slots show 'Empty Slot — Save Here'
+- [ ] Occupied slots overwritable with confirmation
+- [ ] Load screen shows 3 slots plus latest auto-save
+- [ ] Quick-save (F5) saves to slot 0, quick-load (F9) loads from slot 0
+- [ ] Save/load operations show brief overlay indicator
+- [ ] Warning shown if loading will lose unsaved progress
+
+### 29.7 FileDataSource Completeness (Exported Games)
+- [ ] FileDataSource.transferItem() updates overlay and persists to save state
+- [ ] FileDataSource.getEntityInventory() reads from overlay merged with base JSON data
+- [ ] FileDataSource.getMerchantInventory() generates from base item data + overlay
+- [ ] FileDataSource.updateQuest() updates overlay
+- [ ] IndexedDB support for save states exceeding localStorage 5MB limit
+- [ ] Save keys scoped by world ID: insimul_save_{worldId}_{slotIndex}
+
+### 29.8 Playthrough-Scoped Truths
+- [ ] Truth schema has optional 'playthroughId' field
+- [ ] Loading truths merges base (playthroughId=null) with playthrough-specific truths
+- [ ] Creating a truth during gameplay always sets playthroughId
+- [ ] Deleting a truth during gameplay marks as deleted in overlay, not removed from base
+- [ ] NPC dialogue reads from merged truths (base + gameplay events)
+
+### 29.9 World Snapshot Versioning
+- [ ] World schema has auto-incrementing 'version' counter
+- [ ] Playthrough captures world version at creation in worldSnapshotVersion
+- [ ] Loading a save compares playthrough snapshot version against current world version
+- [ ] Version mismatch shows warning dialog
+- [ ] Graceful handling of deleted quest/character IDs in stale saves
+
+### 29.10 Auto-Save System
+- [ ] Auto-save triggers on: quest completion, assessment completion, entering/exiting buildings, significant inventory changes
+- [ ] Auto-save triggers on beforeunload event (navigator.sendBeacon)
+- [ ] Save state captures: language progress, assessment results, gamification state, content gating unlocks, NPC schedule states, world time/date, weather state
+- [ ] Save state compressed for large data
+- [ ] Save state integrity checks (version, checksum, corrupt save handling)
+- [ ] 'Last auto-save' indicator in HUD
+
+### 29.11 NPC Relationship Isolation
+- [ ] NPC-to-player relationships playthrough-scoped (stored in overlay)
+- [ ] NPC-to-NPC relationships start from world-defined baseline each playthrough
+- [ ] NPC conversation history is playthrough-scoped
+- [ ] BabylonChatPanel conversation history included in saves
+
+### 29.12 Playthrough Data Export/Import
+- [ ] 'Export Save' generates .insimul-save file (JSON + compressed state + deltas)
+- [ ] 'Import Save' validates against current world and creates new playthrough
+- [ ] World compatibility validated on import (worldId match, version mismatch warning)
+- [ ] Server-specific fields stripped from exports
+
+### 29.13 Offline-First Save Queue
+- [ ] Failed saves queued in IndexedDB
+- [ ] 'Offline — saves queued locally' indicator in HUD
+- [ ] Queue flushed to server when connectivity returns
+- [ ] Conflict resolution dialog when server has newer save
+- [ ] Language progress and assessment submissions queue offline
+
+---
+
+## 30. BASE ITEMS & WORLD PLACEMENT
+
+### 30.1 Base Items Default Inclusion
+- [ ] Base Items included in all worlds by default (like Base Actions and Base Rules)
+- [ ] Per-world 'disabledBaseItems' mechanism allows selective disabling
+- [ ] Items admin page shows Base Items with enabled/disabled toggle (not import button)
+- [ ] DataSource.loadItems() includes Base Items automatically (both ApiDataSource and FileDataSource)
+- [ ] GET /api/worlds/:worldId/items merges Base Items into responses
+- [ ] Game export pipeline includes all enabled Base Items
+- [ ] No duplicate items for worlds that previously imported Base Items
+
+### 30.2 Item 3D Asset Coverage
+- [ ] All 270+ Base Items have associated 3D models
+- [ ] Item asset manifest (docs/item-asset-manifest.json) maps items to assets, sources, licenses
+- [ ] Assets in GLB format in client/public/assets/models/items/
+- [ ] Additional items added to reach 400+ total (kitchen, office, tools, clothing, food, books, instruments, sports, garden, bathroom, cultural items)
+
+### 30.3 Item Asset Optimization
+- [ ] Item models within polygon budget (2K-5K tris small, 10K large)
+- [ ] Textures within resolution budget (512x512 small, 1024x1024 large)
+- [ ] Consistent scale (1 unit = 1 meter) across all items
+- [ ] Collision meshes for pickable/walkable items
+- [ ] Materials render correctly in Babylon.js (PBR metallic-roughness)
+- [ ] Total item asset bundle under 200MB
+
+### 30.4 Procedural Item Placement
+- [ ] Item placement configuration maps items to valid business types (bread → bakery, hammer → hardware)
+- [ ] Item placement maps items to residence room types (pan → kitchen, towel → bathroom)
+- [ ] Interior generation populates businesses/residences with contextually appropriate items
+- [ ] Density rules enforced (bakery 5-15 items, kitchen 3-8, park 2-5)
+- [ ] Items placed on valid surfaces (tables, counters, shelves, floors, walls)
+- [ ] Slight randomization so each world feels unique
+- [ ] Placed items recorded as truths (item X at building Y, position Z)
+- [ ] Placed items interactable (examine, pick up if takeable)
+- [ ] Shop items have prices and are purchasable via merchant system
+
+---
+
+## 31. MAIN QUEST SYSTEM
+
+### 31.1 Main Quest Framework
+- [ ] MainQuest composed of sequential Chapters, each with SubQuests/Tasks
+- [ ] Quest schema supports: isMainQuest, chapter, chapterTitle, mainQuestOrder
+- [ ] Main quest procedurally generated during world creation
+- [ ] Narrative follows 3-act structure (Introduction → Rising Action → Climax/Resolution)
+- [ ] Target: 20-30 chapters with 2-5 subquests each
+- [ ] Each chapter introduces new vocabulary themes and grammar patterns
+
+### 31.2 Narrative Template System
+- [ ] Library of narrative templates (Lost Heritage, Festival Planner, New Neighbor, Mystery, Apprentice)
+- [ ] Templates define: arc, character archetypes, location types, plot points, vocabulary domains
+- [ ] Generator maps template requirements to actual world (real NPCs for roles, real buildings for locations)
+- [ ] Chapter content includes: quest objectives (fetch, dialogue, exploration, skill-check), NPC dialogue, journal entries
+- [ ] Branching moments where player choices affect later chapters
+- [ ] Main quest references and incorporates side quests
+
+### 31.3 Main Quest Progression
+- [ ] Chapter unlocking: all subquests in chapter completed → next chapter available
+- [ ] Chapter transition screen with narrative summary and chapter title in target language
+- [ ] CEFR gating: certain chapters require minimum proficiency level
+- [ ] Gated chapter shows message to practice more if proficiency too low
+- [ ] MainQuestTracker UI in HUD shows current chapter and progress
+- [ ] Main quest completion percentage in playthrough selection screen
+
+### 31.4 Quest Journal
+- [ ] Quest Journal UI accessible (J key or game menu)
+- [ ] Shows main quest storyline with completed/upcoming chapters
+- [ ] Current chapter's subquests with completion status
+- [ ] Narrative log of key story events as journal entries in target language
+- [ ] Translation toggle for lower-level players
+
+### 31.5 Main Quest Completion
+- [ ] Completion ceremony: congratulations, statistics (vocabulary learned, conversations held, time played)
+- [ ] 'New Game+' unlocked with harder language content
+- [ ] Main quest state fully captured in playthrough overlay and save system
+
+---
+
+## 32. EXPANDED QUEST TYPES
+
+### 32.1 Fetch Quests (Expanded)
+- [ ] Beginner fetch quests: 1 common item from known location with minimap marker
+- [ ] Intermediate fetch quests: 2-3 items from different locations
+- [ ] Advanced fetch quests: items requiring NPC interaction first (ask librarian which book)
+- [ ] At least 30 unique fetch quest templates spanning all item categories
+- [ ] Scavenger hunt quests: find many items across the whole town
+- [ ] Investigation-style fetch quests: locations discovered through NPC conversations (showItemLocations=false)
+- [ ] Fetch quests chain together (cooking ingredients → help chef prepare dish)
+
+### 32.2 Minimap Markers for Fetch Quest Items
+- [ ] Active fetch quest with showItemLocations=true shows item markers on minimap
+- [ ] Distinct icon for item markers (differentiated from NPC/building markers)
+- [ ] Markers update in real-time (disappear when item picked up)
+- [ ] Quests with showItemLocations=false show no item markers
+- [ ] Optional proximity reveal mode (markers appear within radius)
+- [ ] Markers work inside buildings (indicate room/area)
+- [ ] Legend entry for item marker type
+
+### 32.3 Customer Service Quests
+- [ ] Make a Return quest (explain problem, request refund/exchange)
+- [ ] File a Complaint quest (politely but firmly complain)
+- [ ] Make a Reservation quest (reserve room/table with date/time)
+- [ ] Ask for Recommendations quest (describe preferences, make decision)
+- [ ] Urgent Request quest (communicate urgency appropriately)
+- [ ] All require entering businesses and talking to interior NPCs
+
+### 32.4 Item Interaction Quests
+- [ ] Recipe Crafting quest (collect ingredients, describe to baker in target language)
+- [ ] Tool Identification quest (correctly name tools at blacksmith)
+- [ ] Potion Making quest (follow verbal instructions in target language)
+- [ ] Items with 'requiresLanguageCheck' flag require correct naming before use
+
+### 32.5 Error Correction Quests
+- [ ] Correction Challenge: NPC presents sentences with errors matching player's common mistakes
+- [ ] Spot the Error: identify what's wrong and provide correction
+- [ ] Progressive: identify → correct → use correct form in new sentence
+- [ ] Limited to 1 active error correction quest at a time
+- [ ] Business context (correcting misprinted menu, fixing wrong sign)
+
+### 32.6 Conversation-Only Quests
+- [ ] All objectives accomplished through conversation (5-15 turns, no physical actions)
+- [ ] Objectives tracked via conversation analysis: specific vocabulary, grammar patterns, topics
+- [ ] NPC guides conversation through objectives naturally
+- [ ] Tagged as conversation-only in quest log
+- [ ] Business variant: extended negotiation, detailed product discussion
+
+### 32.7 Emergency/Situational Quests
+- [ ] Lost and Found quest (describe found item to businesses)
+- [ ] Medical Emergency quest (communicate symptoms to healer)
+- [ ] Wrong Order quest (politely explain mistake, request correct item)
+- [ ] Rush Delivery quest (relay order between businesses in target language)
+- [ ] Soft time pressure with bonus XP for quick completion
+
+### 32.8 Multi-NPC Quest Scenarios
+- [ ] Message Relay quest (accurately relay message between NPCs)
+- [ ] Supply Chain quest (visit multiple businesses, order correct items)
+- [ ] Business Dispute quest (mediate by understanding both sides)
+- [ ] Town Feast quest (coordinate between restaurant, baker, farmer)
+- [ ] Per-NPC completion tracked in checklist
+- [ ] Conversations reference info from prior NPC interactions
+
+### 32.9 Number & Counting Practice Quests
+- [ ] Inventory Count quest (count items, report numbers in target language)
+- [ ] Market Prices quest (ask prices, remember/report correctly)
+- [ ] Make Change quest (pay for items, verify change)
+- [ ] House Numbers quest (find buildings by address in target language)
+- [ ] Number vocabulary progression by CEFR level (1-10 A1, 10-100 A2, etc.)
+- [ ] Time-telling exercises (meet at bakery at [time in target language])
+
+### 32.10 Teaching-Back Quests
+- [ ] Teach the Child quest (correctly teach words player has mastered)
+- [ ] Translation Helper quest (translate between visiting NPC and local business owner)
+- [ ] Pronunciation Coach quest (model correct pronunciation via speech input)
+- [ ] Student NPC deliberately makes mistakes player must catch and correct
+- [ ] Only assigned for vocabulary/grammar at 'familiar' or 'mastered' level
+- [ ] Successful teaching boosts spaced repetition interval
+
+### 32.11 Timed Challenge Quests
+- [ ] Speed Round quest (name objects across businesses in time limit)
+- [ ] Rapid Conversation quest (meaningful exchanges with multiple NPCs in time limit)
+- [ ] Vocabulary Sprint quest (use specific words in conversation in time limit)
+- [ ] Shopping Spree quest (buy items from shops, naming each correctly, in time limit)
+- [ ] Timer displayed in HUD
+- [ ] Scoring: bronze/silver/gold based on completion count
+- [ ] Retry option to beat score
+- [ ] Always optional
+
+### 32.12 Weather & Time-of-Day Vocabulary Quests
+- [ ] Weather Report quest (observe and describe weather to NPC in target language)
+- [ ] Business Hours quest (ask NPCs about opening times, practice time expressions)
+- [ ] Schedule Keeper quest (meet NPCs at specific times at their businesses)
+- [ ] Morning Routine quest (follow NPC, describe routine in target language)
+- [ ] Leverages NPCScheduleSystem schedule data
+
+---
+
+## 33. QUEST ENHANCEMENTS
+
+### 33.1 Quest Branching
+- [ ] BranchingObjective type with conditional outcomes based on dialogue choices
+- [ ] Maximum 2 branch points per quest
+- [ ] All branches lead to completion via different paths
+- [ ] Branch choices recorded for learning analytics
+- [ ] UI shows branching with fork icon in quest checklist
+
+### 33.2 Quest Objective Dependencies
+- [ ] 'dependsOn' field on quest objectives (array of objective IDs)
+- [ ] Dependent objectives grayed out with 'Complete [prerequisite] first'
+- [ ] QuestCompletionEngine respects dependencies
+- [ ] Circular dependency detection at creation time
+- [ ] Prerequisite completion activates dependent with pulse animation
+
+### 33.3 Quest-Driven Vocabulary Introduction
+- [ ] Vocabulary-heavy quests show 'New Words' panel introducing 3-5 key words on accept
+- [ ] Each word: target language spelling, romanization, English meaning, example, audio
+- [ ] Brief flashcard review before quest starts
+- [ ] Business quests pre-teach product names, transaction vocab, polite phrases
+- [ ] Skippable for B1+ players or known words
+
+### 33.4 Vocabulary Category Unlocking
+- [ ] Tier 1 (greetings, numbers, colors, family) available from start
+- [ ] Complete 3+ quests using Tier N → unlock Tier N+1
+- [ ] Celebration on unlock
+- [ ] Quest generator only uses unlocked categories
+- [ ] Visual vocabulary tree in quest log
+- [ ] Business vocabulary unlocks progressively by tier
+
+### 33.5 Quest Analytics & Learning Outcome Tracking
+- [ ] Per-quest recording: vocabulary used, grammar accuracy, conversation turns, time spent, hints used
+- [ ] Aggregated analytics per: quest type, objective type, vocabulary category, CEFR level, business type
+- [ ] API: GET /api/worlds/:worldId/analytics/quests
+- [ ] Vocabulary retention tracking (% of introduced words used correctly in subsequent quests)
+- [ ] Analytics feed back into quest recommendation engine
+
+### 33.6 Quest Completion Portfolio & Learning Journal
+- [ ] Learning Journal panel accessible from game menu
+- [ ] Shows: vocabulary by category/business with mastery, grammar accuracy trends, conversation quality scores, quest performance history
+- [ ] CEFR progress tracker with criteria needed for next level
+- [ ] Achievements section with milestone badges
+- [ ] Export functionality (PDF report for teachers/researchers)
+
+### 33.7 Peer Comparison (Anonymized)
+- [ ] Post-quest optional comparison: 'You scored [X]%. Average: [Y]%'
+- [ ] Data aggregated from all players, minimum 5 completions required
+- [ ] Encouraging framing, never discouraging
+- [ ] Toggleable in settings
+
+### 33.8 NPC-Initiated Quest Objectives
+- [ ] 'npcInitiated' flag on quest objectives
+- [ ] NPCConversationInitiator triggers conversation, quest tracks player response quality
+- [ ] Conversation quality scorer evaluates understanding and contextual appropriateness
+- [ ] Tests receptive skills (understanding unprompted speech)
+
+### 33.9 Multi-Line Writing Interface
+- [ ] Chat input expands to 5-10 line text area for composition tasks
+- [ ] Word count and character count displayed
+- [ ] Separate 'Submit' button for writing mode
+- [ ] Sidebar shows: quest prompt, required word count, vocabulary suggestions
+- [ ] Auto-save drafts every 30 seconds
+- [ ] NPC responds with detailed feedback in formatted evaluation panel
+
+---
+
+## 34. NPC CONTEXTUAL AWARENESS
+
+### 34.1 Event & State Awareness
+- [ ] NPCs reference active quests in dialogue
+- [ ] NPCs comment on player's recent quest completions
+- [ ] NPCs reference current weather conditions
+- [ ] NPCs reference time of day in greetings and dialogue
+- [ ] NPCs aware of player progress and language proficiency
+
+### 34.2 Schedule-Driven Behavior
+- [ ] NPCs more active during daytime, close shops at night
+- [ ] NPCs comment on rain or seek shelter in bad weather
+- [ ] Personal facts, relationships, and occupations influence NPC reactions
+- [ ] Routine-aware dialogue (morning greetings differ from evening)
+
+---
+
+## 35. SETTLEMENT PROCEDURAL GENERATION (Enhanced)
+
+### 35.1 Character Richness
+- [ ] Generated characters have occupations assigned
+- [ ] Characters have truths/facts generated
+- [ ] Characters connected to businesses and residences
+- [ ] NPC routines derivable from generated data
+- [ ] Talk of the Town style procgen used where possible to reduce LLM requests
+- [ ] Grammar-based generation produces rich character details
+
+---
+
+## 36. AUTHENTICATION & MULTIPLAYER
 
 ### 29.1 Auth
 - [ ] User registration works
@@ -1134,24 +1505,31 @@
 12. Shopping/economy (Section 11.3, 13)
 13. Combat (Section 9)
 14. Crafting/resources (Section 10)
+15. Playthrough overlay and save/load system (Section 29)
+16. Base items default inclusion and world placement (Section 30)
+17. Main quest system and progression (Section 31)
 
 ### P2 — Social Simulation
-15. NPC schedules and routines (Section 5.2)
-16. Social dynamics (Section 5.8, 12)
-17. Business system (Section 14)
-18. Events and lifecycle (Section 15)
-19. Simulation engine (Section 16)
+18. NPC schedules and routines (Section 5.2)
+19. Social dynamics (Section 5.8, 12)
+20. Business system (Section 14)
+21. Events and lifecycle (Section 15)
+22. Simulation engine (Section 16)
+23. NPC contextual awareness — events, weather, time, quests (Section 34)
+24. Enhanced settlement procgen — character richness (Section 35)
 
 ### P3 — Advanced Features
-20. Prolog integration (Section 17)
-21. Gamification, skill tree, pattern recognition modules (Section 7.7, 7.8, 7.4)
-22. Puzzles (Section 23)
-23. VR (Section 27)
-24. Export (Section 28)
-25. Asset generation (Section 21)
+25. Prolog integration (Section 17)
+26. Gamification, skill tree, pattern recognition modules (Section 7.7, 7.8, 7.4)
+27. Expanded quest types — fetch, customer service, conversation-only, etc. (Section 32)
+28. Quest enhancements — branching, dependencies, analytics, journal (Section 33)
+29. Puzzles (Section 23)
+30. VR (Section 27)
+31. Export (Section 28)
+32. Asset generation (Section 21)
 
 ### P4 — Admin & Polish
-26. Module picker UI in world creation (Phase 9 from LL_AUDIT — not yet implemented)
-27. All admin UI (Section 30)
-28. Telemetry (Section 31)
-29. Performance (Section 32)
+33. Module picker UI in world creation (Phase 9 from LL_AUDIT — not yet implemented)
+34. All admin UI (Section 37)
+35. Telemetry (Section 38)
+36. Performance (Section 39)

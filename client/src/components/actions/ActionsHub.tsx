@@ -292,7 +292,7 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
   const isEnabled = selectedAction ? enabledBaseActionIds.includes(selectedAction.id) : false;
 
   return (
-    <div className="flex h-[640px] gap-0 border border-white/20 dark:border-white/10 rounded-xl overflow-hidden bg-white/40 dark:bg-white/[0.02] backdrop-blur-xl">
+    <div className="flex h-[calc(100vh-10rem)] min-h-[480px] gap-0 border border-white/20 dark:border-white/10 rounded-xl overflow-hidden bg-white/40 dark:bg-white/[0.02] backdrop-blur-xl">
       {/* Left Panel - Tree */}
       <div className="w-56 flex-shrink-0 border-r border-white/15 dark:border-white/10 flex flex-col">
         <div className="p-3 border-b border-white/15 dark:border-white/10 flex items-center justify-between">
@@ -701,6 +701,7 @@ export function ActionsHub({ worldId }: ActionsHubProps) {
       <ActionCreateDialog
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
+        worldId={worldId}
         onSubmit={(data) => {
           createActionMutation.mutate({ ...data, worldId });
           setShowCreateDialog(false);

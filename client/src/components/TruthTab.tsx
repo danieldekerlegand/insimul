@@ -113,6 +113,12 @@ export function TruthTab({ worldId, characters }: TruthTabProps) {
   // Orphan filter state
   const [showOrphansOnly, setShowOrphansOnly] = useState(false);
 
+  // Timeline-style filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterEra, setFilterEra] = useState('all');
+  const [filterSignificance, setFilterSignificance] = useState('all');
+  const [filterImportanceMin, setFilterImportanceMin] = useState(1);
+
   // Bulk operations state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkEra, setBulkEra] = useState('');
@@ -167,11 +173,41 @@ export function TruthTab({ worldId, characters }: TruthTabProps) {
     return { minTimestep: min, maxTimestep: max };
   }, [truths]);
 
-  // Filter truths (orphan filter applied before temporal split)
+  // Available eras for filter dropdown
+  const availableEras = useMemo(() => {
+    const eras = new Set<string>();
+    for (const t of truths) {
+      if (t.historicalEra) eras.add(t.historicalEra);
+    }
+    return Array.from(eras).sort();
+  }, [truths]);
+
+  const SIGNIFICANCE_OPTIONS = ['world', 'country', 'state', 'settlement', 'family', 'personal'];
+
+  // Filter truths (all filters combined)
   const filteredTruths = useMemo(() => {
-    if (!showOrphansOnly) return truths;
-    return truths.filter(t => orphanTruthIds.has(t.id));
-  }, [truths, showOrphansOnly, orphanTruthIds]);
+    let result = truths;
+    if (showOrphansOnly) {
+      result = result.filter(t => orphanTruthIds.has(t.id));
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter(t =>
+        t.title.toLowerCase().includes(q) ||
+        t.content.toLowerCase().includes(q)
+      );
+    }
+    if (filterEra !== 'all') {
+      result = result.filter(t => t.historicalEra === filterEra);
+    }
+    if (filterSignificance !== 'all') {
+      result = result.filter(t => t.historicalSignificance === filterSignificance);
+    }
+    if (filterImportanceMin > 1) {
+      result = result.filter(t => (t.importance ?? 5) >= filterImportanceMin);
+    }
+    return result;
+  }, [truths, showOrphansOnly, orphanTruthIds, searchQuery, filterEra, filterSignificance, filterImportanceMin]);
 
   // Categorize entries by temporal relation to current timestep
   const { pastEntries, presentEntries, futureEntries } = useMemo(() => {
@@ -553,18 +589,12 @@ export function TruthTab({ worldId, characters }: TruthTabProps) {
   const selectedCount = selectedIds.size;
 
   return (
-    <div className="space-y-4 p-6">
+    <div className="space-y-4">
       <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
-        <CardHeader>
+        <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent flex items-center gap-2">
-                <Compass className="w-6 h-6 text-primary" />
-                World Truth ({truths.length})
-              </CardTitle>
-              <CardDescription className="mt-1">
-                Past, present, and future truths about the world and its characters
-              </CardDescription>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="font-medium">{truths.length} truths</span>
             </div>
             <div className="flex gap-2">
               {/* View mode toggle: List | Timeline | Graph */}
@@ -766,18 +796,87 @@ export function TruthTab({ worldId, characters }: TruthTabProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Filters toolbar */}
-          <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Search */}
+            <div className="relative">
+              <Filter className="w-3 h-3 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search truths..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="h-8 w-[160px] pl-7 text-xs"
+              />
+            </div>
+
+            {/* Era filter */}
+            {availableEras.length > 0 && (
+              <Select value={filterEra} onValueChange={setFilterEra}>
+                <SelectTrigger className="h-8 w-[140px] text-xs">
+                  <SelectValue placeholder="Era" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Eras</SelectItem>
+                  {availableEras.map(era => (
+                    <SelectItem key={era} value={era}>
+                      {era.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Significance filter */}
+            <Select value={filterSignificance} onValueChange={setFilterSignificance}>
+              <SelectTrigger className="h-8 w-[130px] text-xs">
+                <SelectValue placeholder="Scope" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Scopes</SelectItem>
+                {SIGNIFICANCE_OPTIONS.map(s => (
+                  <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Importance tier */}
+            <div className="flex items-center rounded-md border border-input bg-background h-8">
+              {([
+                { label: 'All', min: 1 },
+                { label: 'Notable', min: 4 },
+                { label: 'Headlines', min: 7 },
+              ] as const).map(({ label, min }, i) => (
+                <button
+                  key={label}
+                  className={`px-2.5 h-full text-xs font-medium transition-colors ${
+                    filterImportanceMin === min
+                      ? 'bg-primary text-primary-foreground'
+                      : 'hover:bg-muted text-muted-foreground'
+                  } ${i === 0 ? 'rounded-l-md' : ''} ${i === 2 ? 'rounded-r-md' : ''}`}
+                  onClick={() => setFilterImportanceMin(min)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Orphan filter */}
             <div className="flex items-center gap-2">
               <Checkbox
                 id="orphan-filter"
                 checked={showOrphansOnly}
                 onCheckedChange={(checked) => setShowOrphansOnly(checked === true)}
               />
-              <Label htmlFor="orphan-filter" className="text-sm font-normal cursor-pointer flex items-center gap-1">
-                <Filter className="w-3 h-3" />
-                Show Orphan Truths ({orphanTruthIds.size})
+              <Label htmlFor="orphan-filter" className="text-xs font-normal cursor-pointer">
+                Orphans ({orphanTruthIds.size})
               </Label>
             </div>
+
+            {/* Active filter count */}
+            {(searchQuery || filterEra !== 'all' || filterSignificance !== 'all' || filterImportanceMin > 1 || showOrphansOnly) && (
+              <Badge variant="secondary" className="text-xs">
+                {filteredTruths.length}/{truths.length}
+              </Badge>
+            )}
           </div>
 
           {/* Bulk operations toolbar */}

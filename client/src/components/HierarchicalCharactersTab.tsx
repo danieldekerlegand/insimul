@@ -11,7 +11,6 @@ import { StatesListView } from './characters/StatesListView';
 import { SettlementsListView } from './characters/SettlementsListView';
 import { CharactersListView } from './characters/CharactersListView';
 import { CharacterDetailView } from './characters/CharacterDetailView';
-import { CharacterEditDialog } from './CharacterEditDialog';
 import { CharacterChatDialog } from './CharacterChatDialog';
 
 interface HierarchicalCharactersTabProps {
@@ -40,8 +39,6 @@ export function HierarchicalCharactersTab({ worldId }: HierarchicalCharactersTab
   const [truths, setTruths] = useState<any[]>([]);
 
   // Dialog states
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [characterToEdit, setCharacterToEdit] = useState<Character | null>(null);
   const [showChatDialog, setShowChatDialog] = useState(false);
   const [chatCharacter, setChatCharacter] = useState<Character | null>(null);
 
@@ -373,9 +370,14 @@ export function HierarchicalCharactersTab({ worldId }: HierarchicalCharactersTab
         <CharacterDetailView
           character={selectedCharacter}
           allCharacters={allCharacters}
-          onEditCharacter={(char) => {
-            setCharacterToEdit(char);
-            setShowEditDialog(true);
+          onCharacterUpdated={() => {
+            if (selectedSettlement) fetchCharacters(selectedSettlement.id);
+            fetchAllCharacters();
+          }}
+          onCharacterDeleted={() => {
+            if (selectedSettlement) fetchCharacters(selectedSettlement.id);
+            fetchAllCharacters();
+            goBack();
           }}
           onChatWithCharacter={(char) => {
             setChatCharacter(char);
@@ -384,48 +386,6 @@ export function HierarchicalCharactersTab({ worldId }: HierarchicalCharactersTab
           onViewCharacter={selectCharacter}
         />
       )}
-
-      {/* Edit Dialog */}
-      <CharacterEditDialog
-        open={showEditDialog}
-        onOpenChange={setShowEditDialog}
-        character={characterToEdit}
-        navigationContext={{
-          worldName: 'World',
-          countryName: selectedCountry?.name,
-          stateName: selectedState?.name,
-          settlementName: selectedSettlement?.name,
-          onNavigateBack: goBack,
-          onNavigateToCountries: navigateToCountries,
-          onNavigateToStates: navigateToStates,
-          onNavigateToSettlements: navigateToSettlements,
-          onNavigateToCharacters: navigateToCharacters
-        }}
-        onCharacterUpdated={() => {
-          if (selectedSettlement) {
-            fetchCharacters(selectedSettlement.id);
-          }
-          fetchAllCharacters();
-          // Refresh the selected character
-          if (selectedCharacter && characterToEdit?.id === selectedCharacter.id) {
-            fetchAllCharacters().then(() => {
-              const updated = allCharacters.find(c => c.id === selectedCharacter.id);
-              if (updated) setSelectedCharacter(updated);
-            });
-          }
-          setShowEditDialog(false);
-        }}
-        onCharacterDeleted={() => {
-          if (selectedSettlement) {
-            fetchCharacters(selectedSettlement.id);
-          }
-          fetchAllCharacters();
-          if (selectedCharacter && characterToEdit?.id === selectedCharacter.id) {
-            goBack();
-          }
-          setShowEditDialog(false);
-        }}
-      />
 
       {/* Chat Dialog */}
       {chatCharacter && (

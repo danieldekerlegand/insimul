@@ -16,6 +16,9 @@ export async function canAccessWorld(userId: string | undefined, worldId: string
   // Private worlds or auth-required worlds need a logged-in user
   if (!userId) return false;
 
+  // Legacy worlds without an owner are accessible to any authenticated user
+  if (!world.ownerId) return true;
+
   // Owner always has access
   if (world.ownerId === userId) return true;
 

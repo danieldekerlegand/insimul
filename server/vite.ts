@@ -22,7 +22,10 @@ export function log(message: string, source = "express") {
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
-    hmr: { server },
+    // Use a dedicated port for HMR WebSocket to avoid conflicts with
+    // other WebSocket handlers (voice chat, conversation bridge) on the
+    // main HTTP server.
+    hmr: { port: 24680 },
     allowedHosts: true as const,
   };
 
