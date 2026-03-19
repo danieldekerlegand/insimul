@@ -310,6 +310,7 @@ export interface IStorage {
   addAssessmentRecording(sessionId: string, recording: RecordingReference): Promise<AssessmentSession | undefined>;
   completeAssessmentSession(sessionId: string, totalScore: number, maxScore: number, cefrLevel: string): Promise<AssessmentSession | undefined>;
   getPlayerAssessments(playerId: string, worldId?: string, assessmentType?: string): Promise<AssessmentSession[]>;
+  getWorldAssessmentSessions(worldId: string): Promise<AssessmentSession[]>;
   getWorldAssessmentSummary(worldId: string): Promise<{
     totalSessions: number;
     completedSessions: number;

@@ -3225,6 +3225,12 @@ export class MongoStorage implements IStorage {
     return docs.map(d => docToAssessmentSession(d));
   }
 
+  async getWorldAssessmentSessions(worldId: string): Promise<AssessmentSession[]> {
+    await this.connect();
+    const docs = await AssessmentSessionModel.find({ worldId }).sort({ createdAt: -1 });
+    return docs.map(d => docToAssessmentSession(d));
+  }
+
   async getWorldAssessmentSummary(worldId: string): Promise<{
     totalSessions: number;
     completedSessions: number;

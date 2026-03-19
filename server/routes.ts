@@ -160,6 +160,7 @@ import { registerPlaythroughRoutes } from "./routes/playthrough-routes.js";
 import { registerExportRoutes } from "./routes/export-routes.js";
 import { registerQuestAnalyticsRoutes } from "./routes/quest-analytics-routes.js";
 import { registerResearchExportRoutes } from "./routes/research-export-routes.js";
+import { registerAssessmentAnalyticsRoutes } from "./routes/assessment-analytics-routes.js";
 import { AuthService } from "./services/auth-service.js";
 import { autoLinkTruth } from "./services/truth-auto-linker.js";
 import { canEditWorld, canAccessWorld } from "./middleware/permissions.js";
@@ -267,6 +268,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register research data export routes
   registerResearchExportRoutes(app);
+
+  // Register assessment analytics routes
+  registerAssessmentAnalyticsRoutes(app, storage);
 
   // Worlds (now the primary containers, replacing projects)
   app.get("/api/worlds", async (req, res) => {
