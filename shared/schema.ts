@@ -2108,3 +2108,70 @@ export interface InsertVersionAlert {
   dismissed?: boolean;
   entityType?: string;
 }
+
+// ============= TEXTS (reading content for language learning) =============
+
+export type TextCategory = 'book' | 'journal' | 'letter' | 'flyer' | 'recipe';
+export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2';
+export type TextStatus = 'draft' | 'published';
+
+export interface TextPage {
+  content: string;
+  contentTranslation: string;
+}
+
+export interface VocabularyHighlight {
+  word: string;
+  translation: string;
+  partOfSpeech: string;
+}
+
+export interface ComprehensionQuestion {
+  question: string;
+  questionTranslation: string;
+  options: string[];
+  correctIndex: number;
+}
+
+export interface GameText {
+  id: string;
+  worldId: string;
+  title: string;
+  titleTranslation: string;
+  textCategory: TextCategory;
+  pages: TextPage[];
+  vocabularyHighlights: VocabularyHighlight[];
+  comprehensionQuestions: ComprehensionQuestion[];
+  cefrLevel: CefrLevel;
+  targetLanguage: string;
+  authorName?: string;
+  clueText?: string;
+  difficulty: string;
+  tags: string[];
+  isGenerated: boolean;
+  generationPrompt?: string;
+  spawnLocationHint: string;
+  status: TextStatus;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface InsertGameText {
+  worldId: string;
+  title: string;
+  titleTranslation: string;
+  textCategory: TextCategory;
+  pages: TextPage[];
+  vocabularyHighlights: VocabularyHighlight[];
+  comprehensionQuestions: ComprehensionQuestion[];
+  cefrLevel: CefrLevel;
+  targetLanguage: string;
+  authorName?: string;
+  clueText?: string;
+  difficulty: string;
+  tags?: string[];
+  isGenerated?: boolean;
+  generationPrompt?: string;
+  spawnLocationHint: string;
+  status?: TextStatus;
+}
