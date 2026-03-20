@@ -22,6 +22,7 @@ import { visualAssetGenerator } from '../services/visual-asset-generator.js';
 import { placeItemsInWorld } from './item-placement-generator.js';
 // Main quest NPC spawning
 import { spawnMainQuestNPCs } from '../services/main-quest-npc-spawner.js';
+import { assignDefaultOccupations } from './occupation-assignment.js';
 
 export interface WorldGenerationConfig {
   worldName: string;
@@ -246,7 +247,17 @@ export class WorldGenerator {
         });
       }
     }
-    
+
+    // Assign default occupations to all remaining characters (students, retired, laborers, etc.)
+    if (population > 0) {
+      console.log('\n🏷️ Assigning default occupations...');
+      await assignDefaultOccupations({
+        worldId: world.id,
+        currentYear: config.currentYear,
+        terrain: config.terrain
+      });
+    }
+
     // TotT Integration: Housing Assignment
     if (config.assignHousing !== false && config.generateGeography && population > 0) {
       console.log('\n🏠 Assigning housing...');
@@ -708,12 +719,15 @@ export class WorldGenerator {
     currentYear: number;
   }): Promise<number> {
     const characters = await storage.getCharactersByWorld(config.worldId);
+    // Collect all founder/owner IDs so we don't reassign them
+    const ownerIds = new Set(config.businesses.map(b => b.ownerId).filter(Boolean));
     const employableCharacters = characters.filter(c =>
       this.getAge(c, config.currentYear) >= 18 &&
       this.getAge(c, config.currentYear) <= 65 &&
-      c.isAlive
+      c.isAlive &&
+      !ownerIds.has(c.id)
     );
-    
+
     // Shuffle to randomize hiring
     const shuffled = employableCharacters.sort(() => Math.random() - 0.5);
     let employedCount = 0;
