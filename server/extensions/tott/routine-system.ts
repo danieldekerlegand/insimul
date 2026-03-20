@@ -525,7 +525,25 @@ export async function getRoutine(characterId: string): Promise<RoutineData | nul
 }
 
 /**
- * Update all characters' whereabouts for a given timestep
+ * Determine if a given hour falls in evening or night (17:00–05:59).
+ * Characters without explicit routines default to their residence during these hours.
+ */
+export function isEveningOrNight(hour: number): boolean {
+  return hour >= 17 || hour < 6;
+}
+
+/**
+ * Pick the default occasion for a character at home based on the hour.
+ * Night hours (22–5) → sleeping, evening hours (17–21) → relaxing.
+ */
+export function defaultHomeOccasion(hour: number): ActivityOccasion {
+  return (hour >= 22 || hour < 6) ? 'sleeping' as ActivityOccasion : 'relaxing' as ActivityOccasion;
+}
+
+/**
+ * Update all characters' whereabouts for a given timestep.
+ * Characters with routines follow their schedule; characters without routines
+ * default to their residence during evening and night hours (17:00–05:59).
  */
 export async function updateAllWhereabouts(
   worldId: string,
@@ -537,8 +555,10 @@ export async function updateAllWhereabouts(
   let updatedCount = 0;
 
   for (const character of characters) {
+    if (!character.isAlive) continue;
+
     const activity = await getCurrentActivity(character.id, timeOfDay, currentHour);
-    
+
     if (activity) {
       await updateWhereabouts(
         worldId,
@@ -546,6 +566,18 @@ export async function updateAllWhereabouts(
         activity.location,
         activity.locationType,
         activity.occasion,
+        timestep,
+        timeOfDay
+      );
+      updatedCount++;
+    } else if (isEveningOrNight(currentHour) && character.currentResidenceId) {
+      // Default: send characters home during evening/night when no routine is set
+      await updateWhereabouts(
+        worldId,
+        character.id,
+        character.currentResidenceId,
+        'home' as LocationType,
+        defaultHomeOccasion(currentHour),
         timestep,
         timeOfDay
       );
