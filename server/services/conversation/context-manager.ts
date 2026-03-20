@@ -20,6 +20,7 @@ import {
   type ReviewWordForNPC,
   type WeakGrammarPattern,
 } from '@shared/language/npc-conversation-prompts';
+import { getMainQuestNPCDefinition, isMainQuestNPC } from '@shared/quest/main-quest-npcs';
 
 // ── Storage interface (subset needed by context manager) ──────────────
 
@@ -652,6 +653,19 @@ function buildSystemPrompt(p: PromptParts): string {
   // Weather-aware behavioral hint
   if (p.weather === 'storm' || p.weather === 'rain') {
     lines.push(`The weather is ${weatherDesc} — you might comment on it or suggest shelter.`);
+  }
+
+  // Main quest NPC context
+  if (isMainQuestNPC(p.character)) {
+    const mqDef = getMainQuestNPCDefinition(p.character);
+    if (mqDef) {
+      lines.push(`\nMAIN QUEST ROLE: ${mqDef.role.replace(/_/g, ' ').toUpperCase()}`);
+      lines.push(mqDef.conversationContext);
+      // Include all chapter hints the NPC has — the LLM will adapt based on conversation
+      for (const [chapterId, hint] of Object.entries(mqDef.chapterHints)) {
+        lines.push(`[If the player is on ${chapterId}]: ${hint}`);
+      }
+    }
   }
 
   // Behavioral instructions
