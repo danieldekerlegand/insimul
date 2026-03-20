@@ -148,6 +148,7 @@ import { BusinessBehaviorSystem } from "@/components/3DGame/BusinessBehaviorSyst
 import { NPCSimulationLOD } from "@/components/3DGame/NPCSimulationLOD.ts";
 import { generateNPCAppearance, generateBillboardColor, blendWithRoleTint, type NPCAppearance } from "@/components/3DGame/NPCAppearanceGenerator.ts";
 import { NPCAccessorySystem } from "@/components/3DGame/NPCAccessorySystem.ts";
+import { NPCInteractionPrompt } from "@/components/3DGame/NPCInteractionPrompt.ts";
 import { NPCModelInstancer } from "@/components/3DGame/NPCModelInstancer.ts";
 import { selectNPCModel, type NPCGender } from "@/components/3DGame/NPCModelVariety.ts";
 import { QuestNotificationManager } from "@/components/3DGame/QuestNotificationManager.ts";
@@ -627,6 +628,9 @@ export class BabylonGame {
 
   // NPC Accessory & Occupation-Visual System
   private npcAccessorySystem: NPCAccessorySystem | null = null;
+
+  // NPC Interaction Prompt — shows contextual prompts when looking at NPCs
+  private npcInteractionPrompt: NPCInteractionPrompt | null = null;
 
   // NPC Schedule System — sidewalk pathfinding and goal-directed behavior
   private npcScheduleSystem: NPCScheduleSystem = new NPCScheduleSystem();
@@ -1232,6 +1236,12 @@ export class BabylonGame {
 
     // Initialize NPC accessory & occupation-visual system
     this.npcAccessorySystem = new NPCAccessorySystem(scene);
+
+    // Initialize NPC interaction prompt (look-at based contextual prompts)
+    this.npcInteractionPrompt = new NPCInteractionPrompt(scene);
+    this.npcInteractionPrompt.setConversationPartnerCallback((npcId) => {
+      return this.ambientConversationManager?.getConversationPartner(npcId) ?? null;
+    });
 
     // Initialize NPC model instancer (template caching + cloning + shared materials)
     this.npcModelInstancer = new NPCModelInstancer(scene);
@@ -6032,7 +6042,7 @@ export class BabylonGame {
       const npcName = `${character.firstName || ''} ${character.lastName || ''}`.trim() || character.id;
       npcInstance.billboardLOD = instancedBillboard || this.createNPCBillboard(npcName, role, root.position, appearance);
 
-      // Attach occupation-based accessories and floating name/occupation label
+      // Attach occupation-based accessories (hats, tools, etc.)
       if (this.npcAccessorySystem) {
         this.npcAccessorySystem.attachAccessories(
           character.id,
@@ -6040,6 +6050,11 @@ export class BabylonGame {
           npcName,
           character.occupation || '',
         );
+      }
+
+      // Register with interaction prompt system (look-at based contextual prompts)
+      if (this.npcInteractionPrompt) {
+        this.npcInteractionPrompt.registerNPC({ id: character.id, name: npcName, mesh: root });
       }
 
       this.npcMeshes.set(character.id, npcInstance);
@@ -7144,6 +7159,7 @@ export class BabylonGame {
   private _minimapUpdateTimer = 0;
   private _fpsDisplayTimer = 0;
   private _settlementCheckTimer = 0;
+  private _interactionPromptTimer = 0;
 
   private setupUpdateLoop(): void {
     if (!this.scene) return;
@@ -7160,6 +7176,13 @@ export class BabylonGame {
         if (pos.x > half) pos.x = half;
         if (pos.z < -half) pos.z = -half;
         if (pos.z > half) pos.z = half;
+      }
+
+      // Update NPC interaction prompt (throttled to every 100ms)
+      this._interactionPromptTimer += dt;
+      if (this._interactionPromptTimer >= 100) {
+        this._interactionPromptTimer = 0;
+        this.npcInteractionPrompt?.update();
       }
 
       // Check if player walked through the interior door trigger zone
@@ -11090,6 +11113,11 @@ export class BabylonGame {
     if (this.npcAccessorySystem) {
       this.npcAccessorySystem.dispose();
       this.npcAccessorySystem = null;
+    }
+    // Clean up NPC interaction prompt
+    if (this.npcInteractionPrompt) {
+      this.npcInteractionPrompt.dispose();
+      this.npcInteractionPrompt = null;
     }
   }
 

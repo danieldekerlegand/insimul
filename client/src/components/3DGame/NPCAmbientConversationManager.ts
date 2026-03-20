@@ -184,6 +184,24 @@ export class NPCAmbientConversationManager {
   }
 
   /**
+   * If the NPC is in an ambient conversation, return the partner's id and name.
+   */
+  public getConversationPartner(npcId: string): { partnerId: string; partnerName: string } | null {
+    for (const conv of this.activeConversations.values()) {
+      const idx = conv.participants.indexOf(npcId);
+      if (idx !== -1) {
+        const partnerId = conv.participants[idx === 0 ? 1 : 0];
+        const partnerNpc = this.npcMeshes.get(partnerId);
+        return {
+          partnerId,
+          partnerName: partnerNpc?.name || partnerId,
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
    * Called by BabylonGame when the player presses the eavesdrop key (F).
    */
   public activateEavesdrop(): void {

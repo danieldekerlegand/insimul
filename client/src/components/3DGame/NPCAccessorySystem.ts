@@ -366,11 +366,8 @@ export class NPCAccessorySystem {
 
     this.npcAccessories.set(npcId, meshes);
 
-    // Create floating label
-    const label = this.createFloatingLabel(npcId, npcRoot, npcName, occupation, set.labelColor);
-    if (label) {
-      this.npcLabels.set(npcId, label);
-    }
+    // Floating labels removed — interaction prompts now shown only when
+    // the player is looking directly at an NPC (see NPCInteractionPrompt).
   }
 
   /**
