@@ -171,6 +171,8 @@ export class BabylonChatPanel {
   private onDialogueRating: ((messageIndex: number, rating: number) => void) | null = null;
   private onChatExchange: ((npcId: string, playerMessage: string, npcResponse: string) => void) | null = null;
   private onTalkRequested: (() => void) | null = null;
+  private onNpcConversationTurn: ((npcId: string, topicTag: string | undefined) => void) | null = null;
+  private onWritingSubmitted: ((text: string, wordCount: number) => void) | null = null;
   private systemPromptAugmentation: ((npcId: string) => string | null) | null = null;
   private _relationshipManager: import('./RelationshipManager').RelationshipManager | null = null;
   private pendingTurnInQuests: any[] = [];
@@ -2535,6 +2537,52 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
     if (this.onConversationTurn) {
       this.onConversationTurn(words);
     }
+
+    // Detect conversation topic and fire topic-tagged event for objectives like
+    // ask_for_directions, order_food, haggle_price, introduce_self, build_friendship
+    if (this.onNpcConversationTurn && this.character) {
+      const topicTag = this.detectConversationTopic(words);
+      this.onNpcConversationTurn(this.character.id, topicTag);
+    }
+
+    // Detect writing submissions: if the player's message is substantial enough,
+    // track it for write_response / describe_scene objectives
+    if (this.onWritingSubmitted) {
+      const playerWords = userMessage.trim().split(/\s+/).filter(w => w.length > 0);
+      if (playerWords.length >= 3) {
+        this.onWritingSubmitted(userMessage, playerWords.length);
+      }
+    }
+  }
+
+  /**
+   * Detect conversation topic from keywords for topic-based quest objectives.
+   * Returns a topic tag if keywords match a known topic, undefined otherwise.
+   */
+  private detectConversationTopic(words: string[]): string | undefined {
+    const wordSet = new Set(words);
+
+    const topicKeywords: Record<string, string[]> = {
+      directions: ['direction', 'directions', 'where', 'left', 'right', 'straight', 'turn', 'north', 'south', 'east', 'west', 'find', 'locate', 'route', 'navigate'],
+      order: ['order', 'menu', 'food', 'drink', 'meal', 'serve', 'plate', 'dish', 'eat', 'restaurant', 'waiter', 'waitress', 'chef', 'kitchen', 'table', 'bill', 'coffee', 'water', 'bread'],
+      haggle: ['price', 'cost', 'cheap', 'expensive', 'discount', 'deal', 'bargain', 'haggle', 'negotiate', 'offer', 'sell', 'buy', 'gold', 'coins', 'money', 'worth', 'lower'],
+      introduction: ['name', 'hello', 'greet', 'greeting', 'meet', 'introduce', 'introduction', 'pleased', 'nice', 'yourself', 'who', 'call'],
+      friendship: ['friend', 'friends', 'friendship', 'like', 'enjoy', 'hobby', 'hobbies', 'favorite', 'favourite', 'together', 'share', 'trust', 'kind', 'help', 'care'],
+    };
+
+    let bestTopic: string | undefined;
+    let bestCount = 0;
+
+    for (const [topic, keywords] of Object.entries(topicKeywords)) {
+      const matchCount = keywords.filter(kw => wordSet.has(kw)).length;
+      if (matchCount > bestCount) {
+        bestCount = matchCount;
+        bestTopic = topic;
+      }
+    }
+
+    // Require at least 2 keyword matches to avoid false positives
+    return bestCount >= 2 ? bestTopic : undefined;
   }
 
   public getLanguageTracker(): import('./LanguageProgressTracker').LanguageProgressTracker | null {
@@ -2616,6 +2664,16 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
   /** Set callback invoked when the player clicks the collapsed header to initiate a conversation. */
   public setOnTalkRequested(callback: () => void) {
     this.onTalkRequested = callback;
+  }
+
+  /** Set callback for topic-tagged conversation turns (directions, ordering, haggling, etc.). */
+  public setOnNpcConversationTurn(callback: (npcId: string, topicTag: string | undefined) => void) {
+    this.onNpcConversationTurn = callback;
+  }
+
+  /** Set callback for writing submissions (write_response / describe_scene objectives). */
+  public setOnWritingSubmitted(callback: (text: string, wordCount: number) => void) {
+    this.onWritingSubmitted = callback;
   }
 
   /** Set a function that provides additional system prompt text for specific NPCs. */

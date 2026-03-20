@@ -27,6 +27,7 @@ export type GameEvent =
   | { type: 'vocabulary_used'; word: string; correct: boolean }
   | { type: 'object_examined'; objectId: string; objectName: string; targetWord: string; targetLanguage: string; pronunciation?: string; category?: string }
   | { type: 'conversation_turn'; npcId: string; keywords: string[] }
+  | { type: 'npc_conversation_turn'; npcId: string; topicTag: string | undefined }
   | { type: 'quest_accepted'; questId: string; questTitle: string; assignedByNpcId?: string; assignedByNpcName?: string }
   | { type: 'quest_completed'; questId: string; assignedByNpcId?: string }
   | { type: 'combat_action'; actionType: string; targetId: string }

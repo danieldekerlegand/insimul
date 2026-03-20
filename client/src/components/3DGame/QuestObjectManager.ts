@@ -1708,6 +1708,42 @@ export class QuestObjectManager {
   }
 
   /**
+   * Track conversation turns with topic context for objectives like
+   * ask_for_directions, order_food, haggle_price, introduce_self, build_friendship.
+   */
+  public trackNpcConversationTurn(npcId: string, topicTag?: string, questId?: string) {
+    this.completionEngine.trackNpcConversationTurn(npcId, topicTag, questId);
+  }
+
+  /**
+   * Track writing submissions for write_response and describe_scene objectives.
+   */
+  public trackWritingSubmission(text: string, wordCount: number, questId?: string) {
+    this.completionEngine.trackWritingSubmission(text, wordCount, questId);
+  }
+
+  /**
+   * Track NPC-initiated conversation acceptance for conversation_initiation objectives.
+   */
+  public trackConversationInitiation(npcId: string, accepted: boolean, responseQuality?: number, questId?: string) {
+    this.completionEngine.trackConversationInitiation(npcId, accepted, responseQuality, questId);
+  }
+
+  /**
+   * Track teaching a vocabulary word to an NPC for teach_vocabulary objectives.
+   */
+  public trackTeachWord(npcId: string, word: string, questId?: string) {
+    this.completionEngine.trackTeachWord(npcId, word, questId);
+  }
+
+  /**
+   * Track teaching a phrase to an NPC for teach_phrase objectives.
+   */
+  public trackTeachPhrase(npcId: string, phrase: string, questId?: string) {
+    this.completionEngine.trackTeachPhrase(npcId, phrase, questId);
+  }
+
+  /**
    * Get the current vocabulary category for a scavenger hunt objective.
    * Categories rotate each time a scavenger hunt quest is completed.
    */

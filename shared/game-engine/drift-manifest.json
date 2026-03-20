@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-19T13:13:59.159Z",
+  "lastUpdated": "2026-03-20T12:56:11.766Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -262,7 +262,7 @@
     {
       "path": "client/src/components/3DGame/GameEventBus.ts",
       "description": "Centralized typed event bus (20 event types). Exported engines need equivalent event routing for gameplay actions.",
-      "hash": "9bec02beae85c9803b621e0319cf0e46e9ec716659975ce64fc3d3e7dcefd4a8",
+      "hash": "6f60c0ebfdee67df0ce9a0467e34094652370643976d398e9a8d2d0ac8ec7d7b",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -392,7 +392,7 @@
     {
       "path": "client/src/components/3DGame/QuestObjectManager.ts",
       "description": "Quest object lifecycle: 15 objective types, collectible tracking, completion logic. New objective types need handling in exported quest systems.",
-      "hash": "745735019e475fa06f1de1e841c3f5e1686f6031ad76120839ea7c6933a99864",
+      "hash": "0875d54fb168adb4eda3a96f725b7ca5bbec46ea2ae3f328c8ede8be2e149261",
       "engineMappings": [
         {
           "engine": "unreal",
