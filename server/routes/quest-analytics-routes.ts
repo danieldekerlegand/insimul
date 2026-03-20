@@ -5,6 +5,11 @@ import {
   computeLearningOutcomes,
   computeObjectiveAnalytics,
 } from '../services/quest-analytics';
+import {
+  auditQuestCompletability,
+  type WorldContext,
+} from '@shared/quest-completability-audit';
+import type { GameAction } from '@shared/quest-feasibility-validator';
 
 export function registerQuestAnalyticsRoutes(app: Express) {
 
@@ -29,6 +34,58 @@ export function registerQuestAnalyticsRoutes(app: Express) {
       const quests = await storage.getQuestsByWorld(worldId);
       const analytics = computeObjectiveAnalytics(quests);
       res.json(analytics);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Run quest completability audit for a world
+  app.get("/api/worlds/:worldId/analytics/quest-completability", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+
+      // Fetch all data in parallel
+      const [quests, characters, items, actions, businesses, settlements] = await Promise.all([
+        storage.getQuestsByWorld(worldId),
+        storage.getCharactersByWorld(worldId),
+        storage.getItemsByWorld(worldId),
+        storage.getActionsByWorld(worldId),
+        storage.getBusinessesByWorld(worldId),
+        storage.getSettlementsByWorld(worldId),
+      ]);
+
+      // Build world context
+      const npcNames = new Set(characters.map((c: any) => c.name as string).filter(Boolean));
+      const npcCharacterIds = new Set(characters.map((c: any) => String(c.id)).filter(Boolean));
+      const itemNames = new Set(items.map((i: any) => i.name as string).filter(Boolean));
+      const locationNames = new Set<string>();
+      for (const b of businesses) {
+        if (b.name) locationNames.add(b.name as string);
+      }
+      for (const s of settlements) {
+        if (s.name) locationNames.add(s.name as string);
+      }
+      const questIds = new Set(quests.map(q => String(q.id)));
+
+      const worldContext: WorldContext = {
+        npcNames,
+        npcCharacterIds,
+        itemNames,
+        locationNames,
+        questIds,
+      };
+
+      const gameActions: GameAction[] = actions.map((a: any) => ({
+        name: a.name ?? '',
+        actionType: a.actionType ?? '',
+        category: a.category ?? undefined,
+        targetType: a.targetType ?? undefined,
+        isActive: a.isActive ?? true,
+        tags: a.tags ?? [],
+      }));
+
+      const report = auditQuestCompletability(worldId, quests as any, worldContext, gameActions);
+      res.json(report);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
