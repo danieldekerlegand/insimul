@@ -6139,6 +6139,59 @@ Return ONLY valid JSON array.`;
     }
   });
 
+  // Background metadata extraction endpoint — separate LLM call for grammar feedback & vocab hints.
+  // Called by the client after each NPC response to analyze the player's grammar.
+  app.post("/api/conversation/metadata", async (req, res) => {
+    try {
+      const { playerMessage, npcResponse, targetLanguage, playerProficiency } = req.body;
+
+      if (!playerMessage || !npcResponse || !targetLanguage) {
+        return res.status(400).json({ error: "playerMessage, npcResponse, and targetLanguage are required" });
+      }
+
+      if (!isGeminiConfigured()) {
+        return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
+      }
+
+      const { buildMetadataExtractionPrompt } = await import('../shared/language/utils.js');
+      const { GoogleGenerativeAI } = await import("@google/generative-ai");
+      const { getGeminiApiKey } = await import('./config/gemini.js');
+
+      const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
+      const model = genAI.getGenerativeModel({
+        model: GEMINI_MODELS.FLASH,
+        generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
+      });
+
+      const prompt = buildMetadataExtractionPrompt(
+        targetLanguage,
+        playerMessage,
+        npcResponse,
+        { playerProficiency: playerProficiency || 'beginner' }
+      );
+
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text().trim();
+
+      // Parse the JSON response, stripping markdown code fences if present
+      const jsonText = responseText
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+
+      const metadata = JSON.parse(jsonText);
+
+      res.json({
+        vocabHints: metadata.vocabHints || [],
+        grammarFeedback: metadata.grammarFeedback || null,
+      });
+    } catch (error) {
+      console.error("Metadata extraction error:", error);
+      // Non-critical endpoint — return empty results rather than 500
+      res.json({ vocabHints: [], grammarFeedback: null });
+    }
+  });
+
   // Gemini Chat Endpoint
   app.post("/api/gemini/chat", async (req, res) => {
     try {
@@ -6442,11 +6495,10 @@ Return ONLY valid JSON array.`;
 
       console.log("Gemini response:", response.substring(0, 100));
 
-      // Strip system markers (GRAMMAR_FEEDBACK, QUEST_ASSIGN) from displayed/spoken text
-      const cleanedForDisplay = response
-        .replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/g, '')
-        .replace(/\*\*QUEST_ASSIGN\*\*[\s\S]*?\*\*END_QUEST\*\*/g, '')
-        .trim();
+      // Parse any inline grammar feedback before stripping markers
+      const { parseGrammarFeedbackBlock, stripSystemMarkers } = await import('../shared/language/progress.js');
+      const { feedback: grammarFeedback } = parseGrammarFeedbackBlock(response);
+      const cleanedForDisplay = stripSystemMarkers(response).trim();
 
       // Update server-side conversation cache with the new exchange
       if (cacheKey) {
@@ -6457,6 +6509,7 @@ Return ONLY valid JSON array.`;
 
       // Prepare response object — send both raw (for parsing) and cleaned (for display)
       const responseData: any = { response, cleanedResponse: cleanedForDisplay };
+      if (grammarFeedback) responseData.grammarFeedback = grammarFeedback;
 
       if (userTranscript) {
         responseData.userTranscript = userTranscript;

@@ -231,7 +231,7 @@ export function parseGrammarFeedbackBlock(response: string): {
   const block = grammarMatch[0];
   const cleanedResponse = response.replace(/\*\*GRAMMAR_FEEDBACK\*\*[\s\S]*?\*\*END_GRAMMAR\*\*/, '').trim();
 
-  const statusMatch = block.match(/Status:\s*(correct|corrected|no_target_language)/);
+  const statusMatch = block.match(/Status:\s*(corrected|correct|no_target_language)/);
   const errorsCountMatch = block.match(/Errors:\s*(\d+)/);
 
   const status = (statusMatch?.[1] as GrammarFeedback['status']) || 'no_target_language';
