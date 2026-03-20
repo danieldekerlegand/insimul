@@ -16,3 +16,4 @@ export * from './character-profile';
 export * from './bilingual-names';
 export * from './vocabulary-review';
 export * from './speech-complexity';
+export * from './french-vocabulary-corpus';
