@@ -1289,6 +1289,12 @@ export class BabylonChatPanel {
     placeholderMsg.content = cleanedResponse;
     this.updateMessagesDisplay();
 
+    // Track vocabulary usage — analyze every message exchange, not just when vocabHints are present
+    if (this.languageTracker) {
+      this.languageTracker.analyzePlayerMessage(userMessage);
+      this.languageTracker.analyzeNPCResponse(cleanedResponse);
+    }
+
     // Track vocabulary usage for quests
     this.trackQuestProgress(userMessage, cleanedResponse);
 
@@ -1365,10 +1371,6 @@ export class BabylonChatPanel {
         // Process vocab hints — log for now, can display as tooltip later
         if (metadata.vocabHints?.length > 0) {
           console.log('[VocabHints]', metadata.vocabHints);
-          if (this.languageTracker) {
-            this.languageTracker.analyzePlayerMessage(playerMessage);
-            this.languageTracker.analyzeNPCResponse(npcResponse);
-          }
         }
       })
       .catch(err => {
