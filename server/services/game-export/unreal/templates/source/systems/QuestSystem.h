@@ -122,6 +122,14 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Quests")
     void TrackWritingSubmission(const FString& Text, int32 WordCount, const FString& QuestId = TEXT(""));
 
+    /** Track an enemy defeat for defeat_enemies objectives. */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    void TrackEnemyDefeated(const FString& EnemyType, const FString& QuestId = TEXT(""));
+
+    /** Track escort NPC arrival for escort_npc objectives. */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    void TrackEscortArrival(const FString& NpcId, bool bReached, const FString& QuestId = TEXT(""));
+
     /** Check if player is near a direction/navigation waypoint. Call from Tick(). */
     UFUNCTION(BlueprintCallable, Category = "Quests")
     void CheckDirectionProximity(const FVector& PlayerPos);

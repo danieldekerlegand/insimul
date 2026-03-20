@@ -231,6 +231,36 @@ func track_writing_submission(text: String, word_count: int, quest_id: String = 
 			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
 
 
+## Track an enemy defeat for defeat_enemies objectives.
+func track_enemy_defeated(enemy_type: String, quest_id: String = "") -> void:
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		if not quest_id.is_empty() and obj.get("quest_id") != quest_id:
+			continue
+		if obj.get("type", "") != "defeat_enemies":
+			continue
+
+		obj["current_count"] = obj.get("current_count", 0) + 1
+		var required: int = obj.get("required_count", 1)
+		if obj["current_count"] >= required:
+			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
+## Track escort NPC arrival for escort_npc objectives.
+func track_escort_arrival(npc_id: String, reached: bool, quest_id: String = "") -> void:
+	if not reached:
+		return
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		if not quest_id.is_empty() and obj.get("quest_id") != quest_id:
+			continue
+		if obj.get("type", "") != "escort_npc":
+			continue
+		complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
 ## Check if player is near a direction/navigation waypoint.
 ## Call this from _physics_process with the player's position.
 func check_direction_proximity(player_pos: Vector3) -> void:

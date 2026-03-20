@@ -103,6 +103,9 @@ const EVENT_DAY_CHANGED := "day_changed"
 const EVENT_TIME_OF_DAY_CHANGED := "time_of_day_changed"
 # NPC relationship events
 const EVENT_NPC_RELATIONSHIP_CHANGED := "npc_relationship_changed"
+# Escort quest events
+const EVENT_ESCORT_STARTED := "escort_started"
+const EVENT_ESCORT_COMPLETED := "escort_completed"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -161,6 +164,9 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_TIME_OF_DAY_CHANGED,
 	# NPC relationship events
 	EVENT_NPC_RELATIONSHIP_CHANGED,
+	# Escort quest events
+	EVENT_ESCORT_STARTED,
+	EVENT_ESCORT_COMPLETED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
