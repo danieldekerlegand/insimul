@@ -7,6 +7,17 @@ export class Vector3 {
   constructor(public x = 0, public y = 0, public z = 0) {}
   clone() { return new Vector3(this.x, this.y, this.z); }
   scale(s: number) { return new Vector3(this.x * s, this.y * s, this.z * s); }
+  set(x: number, y: number, z: number) { this.x = x; this.y = y; this.z = z; }
+  setAll(v: number) { this.x = v; this.y = v; this.z = v; }
+  subtract(other: Vector3) { return new Vector3(this.x - other.x, this.y - other.y, this.z - other.z); }
+  static Zero() { return new Vector3(0, 0, 0); }
+  static One() { return new Vector3(1, 1, 1); }
+  static Minimize(a: Vector3, b: Vector3) {
+    return new Vector3(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.min(a.z, b.z));
+  }
+  static Maximize(a: Vector3, b: Vector3) {
+    return new Vector3(Math.max(a.x, b.x), Math.max(a.y, b.y), Math.max(a.z, b.z));
+  }
 }
 
 export class Color3 {
@@ -23,6 +34,7 @@ export class Mesh {
   parent: any = null;
   isVisible = true;
   isPickable = true;
+  metadata: any = null;
   _children: Mesh[] = [];
 
   constructor(name: string, _scene?: any) {
@@ -44,8 +56,19 @@ export class Mesh {
   setEnabled(_v: boolean) {}
   isDisposed() { return false; }
   getTotalVertices() { return 10; }
-  getChildMeshes(): Mesh[] { return this._children; }
+  getChildMeshes(_directOnly?: boolean): Mesh[] { return this._children; }
   freezeNormals() {}
+  freezeWorldMatrix() {}
+  computeWorldMatrix(_force?: boolean) {}
+  getAbsolutePosition() { return new Vector3(); }
+  getBoundingInfo() {
+    return {
+      boundingBox: {
+        minimumWorld: new Vector3(0, 0, 0),
+        maximumWorld: new Vector3(1, 1, 1),
+      }
+    };
+  }
   clone(name: string) {
     const m = new Mesh(name);
     m.material = this.material;
@@ -111,3 +134,27 @@ export class ActionManager {
 export class ExecuteCodeAction {
   constructor(_trigger: any, _fn: any) {}
 }
+
+export class AbstractMesh extends Mesh {}
+
+export class Texture {
+  constructor(_url: string, _scene: any) {}
+}
+
+export class DynamicTexture {
+  constructor(_name: string, _opts: any, _scene: any) {}
+  getContext() { return { fillStyle: '', fillRect() {}, fillText() {} }; }
+  update() {}
+}
+
+export class VertexData {
+  positions: number[] = [];
+  indices: number[] = [];
+  normals: number[] = [];
+  applyToMesh() {}
+  static ComputeNormals() {}
+}
+
+export const SceneLoader = {
+  ImportMeshAsync: async () => ({ meshes: [new Mesh('imported')] }),
+};

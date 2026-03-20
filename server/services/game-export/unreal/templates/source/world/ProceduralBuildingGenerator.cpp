@@ -22,11 +22,15 @@ UMaterialInstanceDynamic* AProceduralBuildingGenerator::GetSharedMaterial(
     return Mat;
 }
 
-void AProceduralBuildingGenerator::RegisterRoleModel(const FString& Role, UStaticMesh* Mesh)
+void AProceduralBuildingGenerator::RegisterRoleModel(const FString& Role, UStaticMesh* Mesh, float ScaleHint)
 {
     if (Role.IsEmpty() || !Mesh) return;
     RoleModelPrototypes.Add(Role, Mesh);
-    UE_LOG(LogTemp, Log, TEXT("[Insimul] Registered role model: %s"), *Role);
+    if (ScaleHint > 0.0f)
+    {
+        RoleScaleHints.Add(Role, ScaleHint);
+    }
+    UE_LOG(LogTemp, Log, TEXT("[Insimul] Registered role model: %s (scaleHint=%.4f)"), *Role, ScaleHint);
 }
 
 void AProceduralBuildingGenerator::SetWallTexture(UTexture2D* Texture)
@@ -195,6 +199,14 @@ void AProceduralBuildingGenerator::GenerateBuilding(FVector Position, float Rota
             MeshComp->SetStaticMesh(Model);
             MeshComp->SetWorldLocation(Position);
             MeshComp->SetWorldRotation(FRotator(0, FMath::RadiansToDegrees(Rotation), 0));
+            // Apply stored scaleHint if available; otherwise leave at default scale.
+            // scaleHint converts the model's native units to real-world meters.
+            if (auto* HintPtr = RoleScaleHints.Find(BuildingRole))
+            {
+                float S = *HintPtr;
+                MeshComp->SetWorldScale3D(FVector(S, S, S));
+                UE_LOG(LogTemp, Log, TEXT("[Insimul] Applied scaleHint=%.4f to %s"), S, *BuildingRole);
+            }
             MeshComp->SetMobility(EComponentMobility::Static);
             MeshComp->SetCullDistance(LODCullDistance);
             MeshComp->RegisterComponent();

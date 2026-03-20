@@ -10,6 +10,9 @@ var _material_cache := {}
 ## Role-based model prototypes registered via register_role_model.
 var _role_model_prototypes: Dictionary = {}
 
+## Pre-computed scale hints per role (converts native model units to meters).
+var _role_scale_hints: Dictionary = {}
+
 ## Optional wall texture override for procedural buildings.
 var _wall_texture: Texture2D = null
 
@@ -105,11 +108,15 @@ const BUILDING_TYPES := {
 
 ## Register a prefab scene for a building role. Matching roles instance this
 ## scene instead of generating procedural geometry.
-func register_role_model(role: String, scene: PackedScene) -> void:
+## scale_hint is a pre-computed factor that converts the model's native units
+## to real-world meters at its intended size. Pass 0 to use floor-based estimation.
+func register_role_model(role: String, scene: PackedScene, scale_hint: float = 0.0) -> void:
 	if role.is_empty() or scene == null:
 		return
 	_role_model_prototypes[role] = scene
-	print("[Insimul] Registered role model: %s" % role)
+	if scale_hint > 0.0:
+		_role_scale_hints[role] = scale_hint
+	print("[Insimul] Registered role model: %s (scale_hint=%.4f)" % [role, scale_hint])
 
 
 ## Override wall texture for procedural buildings.
@@ -172,6 +179,10 @@ func generate_building(pos: Vector3, rotation_y: float, floors: int,
 			instance.name = "Building_%s" % role
 			instance.position = pos
 			instance.rotation.y = rotation_y
+			# Apply stored scale_hint if available; converts native model units to meters.
+			if _role_scale_hints.has(role):
+				var s: float = _role_scale_hints[role]
+				instance.scale = Vector3(s, s, s)
 			add_child(instance)
 			print("[Insimul] Placed role model for %s" % role)
 			return

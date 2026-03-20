@@ -606,6 +606,7 @@ export class BabylonGame {
   // Prop/object model templates loaded from world3DConfig.objectModels
   private objectModelTemplates: Map<string, Mesh> = new Map();
   private objectModelOriginalHeights: Map<string, number> = new Map();
+  private objectModelScaleHints: Map<string, number> = new Map();
   private worldPropMeshes: Mesh[] = [];
 
   // Shared material cache for furniture props (avoids duplicate materials)
@@ -2800,7 +2801,7 @@ export class BabylonGame {
     this.riverGenerator = new RiverGenerator(scene);
     this.waterRenderer = new WaterRenderer(scene);
     this.interiorGenerator = new BuildingInteriorGenerator(scene);
-    this.interiorItemManager = new InteriorItemManager(scene, this.objectModelTemplates, this.objectModelOriginalHeights);
+    this.interiorItemManager = new InteriorItemManager(scene, this.objectModelTemplates, this.objectModelOriginalHeights, this.objectModelScaleHints);
     this.buildingEntrySystem = new BuildingEntrySystem(scene, this.interiorGenerator, {
       onTeleportPlayer: (pos: Vector3) => {
         if (this.playerMesh) {
@@ -3335,6 +3336,7 @@ export class BabylonGame {
     // Measure original height at import time; downstream cloning uses absolute scaling.
     this.objectModelTemplates.clear();
     this.objectModelOriginalHeights.clear();
+    this.objectModelScaleHints.clear();
     if (config3D.objectModels) {
       for (const [role, id] of Object.entries(config3D.objectModels)) {
         const asset = findAssetById(id);
@@ -3355,6 +3357,11 @@ export class BabylonGame {
             if (h > 0.001) {
               this.objectModelOriginalHeights.set(role, h);
             }
+          }
+          // Store pre-computed scaleHint from asset metadata if available
+          const scaleHint = (asset?.metadata as any)?.scaleHint;
+          if (scaleHint != null && scaleHint > 0) {
+            this.objectModelScaleHints.set(role, scaleHint);
           }
           this.objectModelTemplates.set(role, template);
         }
@@ -4369,17 +4376,23 @@ export class BabylonGame {
             propInstance.setEnabled(true);
             propInstance.checkCollisions = true;
             propInstance.isPickable = true;
-            // Compute absolute scale from original height to reach target meters
-            const propSizeMap: Record<string, number> = {
-              'chest': 0.6, 'data_pad': 0.3, 'lantern': 0.5,
-              'lamp': 2.5, 'lamp_table': 0.5, 'storage': 0.8,
-              'storage_alt': 0.8, 'furniture_stool': 0.5, 'furniture_chair': 0.8,
-              'furniture_table': 0.8, 'prop': 0.8, 'decoration': 0.6,
-              'electronics': 0.4,
-            };
-            const propTarget = propSizeMap[role] || 0.8;
-            const propOrigH = this.objectModelOriginalHeights.get(role) || 1;
-            const propAbsScale = propTarget / propOrigH;
+            // Use stored scaleHint if available; fall back to target/originalH
+            const propScaleHint = this.objectModelScaleHints.get(role);
+            let propAbsScale: number;
+            if (propScaleHint != null && propScaleHint > 0) {
+              propAbsScale = propScaleHint;
+            } else {
+              const propSizeMap: Record<string, number> = {
+                'chest': 0.6, 'data_pad': 0.3, 'lantern': 0.5,
+                'lamp': 2.5, 'lamp_table': 0.5, 'storage': 0.8,
+                'storage_alt': 0.8, 'furniture_stool': 0.5, 'furniture_chair': 0.8,
+                'furniture_table': 0.8, 'prop': 0.8, 'decoration': 0.6,
+                'electronics': 0.4,
+              };
+              const propTarget = propSizeMap[role] || 0.8;
+              const propOrigH = this.objectModelOriginalHeights.get(role) || 1;
+              propAbsScale = propTarget / propOrigH;
+            }
             propInstance.scaling.set(propAbsScale, propAbsScale, propAbsScale);
             propInstance.metadata = {
               ...(propInstance.metadata || {}),
@@ -4975,22 +4988,27 @@ export class BabylonGame {
         }
         if (cloned) {
           cloned.setEnabled(true);
-          // Templates are normalized to 1 unit height at load time.
-          // Scale by desired real-world height in meters.
-          const furnitureSizeMap: Record<string, number> = {
-            'lamp_post': 2.5,
-            'streetlight': 3.0,
-            'bench': 0.8,
-            'well': 1.2,
-            'barrel': 0.8,
-            'crate': 0.6,
-            'market_stall': 2.0,
-            'terminal': 1.2,
-            'planter': 0.6,
-          };
-          const targetSize = furnitureSizeMap[type] || 1.0;
-          const furnOrigH = this.objectModelOriginalHeights.get(role) || 1;
-          const furnAbsScale = targetSize / furnOrigH;
+          // Use stored scaleHint if available; fall back to target/originalH
+          const furnScaleHint = this.objectModelScaleHints.get(role);
+          let furnAbsScale: number;
+          if (furnScaleHint != null && furnScaleHint > 0) {
+            furnAbsScale = furnScaleHint;
+          } else {
+            const furnitureSizeMap: Record<string, number> = {
+              'lamp_post': 2.5,
+              'streetlight': 3.0,
+              'bench': 0.8,
+              'well': 1.2,
+              'barrel': 0.8,
+              'crate': 0.6,
+              'market_stall': 2.0,
+              'terminal': 1.2,
+              'planter': 0.6,
+            };
+            const targetSize = furnitureSizeMap[type] || 1.0;
+            const furnOrigH = this.objectModelOriginalHeights.get(role) || 1;
+            furnAbsScale = targetSize / furnOrigH;
+          }
           cloned.scaling.set(furnAbsScale, furnAbsScale, furnAbsScale);
           return cloned;
         }
