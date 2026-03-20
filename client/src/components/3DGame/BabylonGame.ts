@@ -2721,13 +2721,15 @@ export class BabylonGame {
       onEnterBuilding: (buildingId: string, interior: InteriorLayout) => {
         this.activeInterior = interior;
         this.isInsideBuilding = true;
-        // NPC population is now handled internally by BuildingEntrySystem
+        // Update quest markers for building interior
+        this.questObjectManager?.onEnterBuilding(buildingId, interior.position);
       },
       onExitBuilding: () => {
         this.activeInterior = null;
         this.isInsideBuilding = false;
         this.savedOverworldPosition = null;
-        // NPC cleanup is now handled internally by BuildingEntrySystem
+        // Restore quest markers for overworld
+        this.questObjectManager?.onExitBuilding();
       },
       onShowToast: (title: string, description?: string, duration?: number) => {
         this.guiManager?.showToast({ title, description, duration });
@@ -7278,12 +7280,16 @@ export class BabylonGame {
 
       // Phase 8: Settlement proximity detection (every 500ms)
       this._settlementCheckTimer += dt;
-      if (this._settlementCheckTimer >= 500 && this.settlementSceneManager && this.playerMesh && !this.isInsideBuilding) {
+      if (this._settlementCheckTimer >= 500 && this.settlementSceneManager && this.playerMesh) {
         this._settlementCheckTimer = 0;
-        this.checkSettlementTransition();
 
-        // Check quest location and direction proximity while we have the timer
-        if (this.questObjectManager && this.playerMesh) {
+        // Settlement transitions only when outside
+        if (!this.isInsideBuilding) {
+          this.checkSettlementTransition();
+        }
+
+        // Quest proximity checks run both inside and outside buildings
+        if (this.questObjectManager) {
           this.questObjectManager.checkLocationProximity(this.playerMesh.position);
           this.questObjectManager.checkDirectionProximity(this.playerMesh.position);
         }
