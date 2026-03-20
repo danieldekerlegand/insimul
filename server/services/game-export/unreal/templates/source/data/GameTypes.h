@@ -261,6 +261,24 @@ struct FInsimulLootTable
 // ─── Containers ──────────────────────────────────────────────────────────────
 
 /**
+ * Container type enum.
+ * Mirrors ContainerType from types.ts.
+ */
+UENUM(BlueprintType)
+enum class EInsimulContainerType : uint8
+{
+    Chest    UMETA(DisplayName = "Chest"),
+    Cupboard UMETA(DisplayName = "Cupboard"),
+    Barrel   UMETA(DisplayName = "Barrel"),
+    Crate    UMETA(DisplayName = "Crate"),
+    Shelf    UMETA(DisplayName = "Shelf"),
+    Cabinet  UMETA(DisplayName = "Cabinet"),
+    Wardrobe UMETA(DisplayName = "Wardrobe"),
+    Safe     UMETA(DisplayName = "Safe"),
+    Sack     UMETA(DisplayName = "Sack"),
+};
+
+/**
  * An item stored inside a container.
  * Mirrors ContainerItem from types.ts.
  */
@@ -301,6 +319,23 @@ struct FInsimulContainer
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ObjectRole;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bRespawns = false;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 RespawnTimeMinutes = 0;
+};
+
+/**
+ * Simplified container view for UI browsing.
+ * Mirrors GameContainer from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulGameContainer
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Id;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Name;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) EInsimulContainerType ContainerType = EInsimulContainerType::Chest;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Capacity = 10;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bIsLocked = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString BuildingId;
 };
 
 // ─── Resources ───────────────────────────────────────────────────────────────

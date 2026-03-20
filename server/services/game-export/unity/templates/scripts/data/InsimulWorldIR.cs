@@ -242,11 +242,12 @@ namespace Insimul.Data
         public int quantity = 1;
     }
 
+    /// <summary>Mirrors Container from types.ts.</summary>
     [Serializable] public class InsimulContainerData
     {
         public string id;
         public string name;
-        public string containerType;
+        public string containerType; // chest, cupboard, barrel, crate, shelf, cabinet, wardrobe, safe, sack
         public int capacity = 10;
         public InsimulContainerItemData[] items;
         public bool locked;
@@ -262,6 +263,17 @@ namespace Insimul.Data
         public string objectRole;
         public bool respawns;
         public int respawnTimeMinutes;
+    }
+
+    /// <summary>Simplified container view for UI browsing. Mirrors GameContainer from types.ts.</summary>
+    [Serializable] public class InsimulGameContainerData
+    {
+        public string id;
+        public string name;
+        public string containerType;
+        public int capacity = 10;
+        public bool isLocked;
+        public string buildingId;
     }
 
     // ── Truths / Grammars / Dialogue / Language ──────────────────────────

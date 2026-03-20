@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks Babylon.js game-system source files that must stay aligned with Unreal/Unity/Godot export templates.",
-  "lastUpdated": "2026-03-20T13:48:25.717Z",
+  "lastUpdated": "2026-03-20T13:50:54.199Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -370,7 +370,7 @@
     {
       "path": "shared/game-engine/types.ts",
       "description": "Engine-agnostic type primitives (InventoryItem, LootTableEntry, Action, Rule, etc.) shared across in-app and export systems.",
-      "hash": "473817066addd17f3d49ddf0ab82d5fcd26ea7e9469afd5d784d2d539949ea47",
+      "hash": "d0de7d44a40b087109996fd30313be3b2fc60db03fde149db12e0e385a358d99",
       "engineMappings": [
         {
           "engine": "unreal",

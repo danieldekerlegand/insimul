@@ -97,6 +97,7 @@ func load_world_items() -> Array:
 func load_loot_tables() -> Array:
 	return _load_json_array("loot_tables.json")
 
+## Mirrors Container from types.ts.
 func load_containers() -> Array:
 	return _load_json_array("containers.json")
 

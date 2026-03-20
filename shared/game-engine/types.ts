@@ -747,7 +747,7 @@ export interface TradeTransaction {
 
 // ─── Containers ─────────────────────────────────────────────────────────────
 
-export type ContainerType = 'chest' | 'cupboard' | 'barrel' | 'crate' | 'wardrobe' | 'shelf' | 'safe' | 'sack';
+export type ContainerType = 'chest' | 'cupboard' | 'barrel' | 'crate' | 'wardrobe' | 'shelf' | 'safe' | 'sack' | 'cabinet';
 
 export interface ContainerItem {
   itemId: string;
@@ -780,6 +780,17 @@ export interface Container {
   respawns: boolean;
   respawnTimeMinutes?: number;
   lastOpenedAt?: string;
+}
+
+/** Simplified container view for UI browsing panels. */
+export interface GameContainer {
+  id: string;
+  name: string;
+  containerType: ContainerType;
+  items: InventoryItem[];
+  capacity: number;
+  isLocked: boolean;
+  buildingId?: string;
 }
 
 // ─── Loot Tables ────────────────────────────────────────────────────────────
