@@ -160,6 +160,153 @@
             "assetType": "model_prop",
             "priority": 2,
             "description": "Historic thrusting sword"
+          },
+          {
+            "polyhavenId": "WoodenTable_03",
+            "semanticRole": "furniture_table_round",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Round wooden table"
+          },
+          {
+            "polyhavenId": "CoffeeTable_01",
+            "semanticRole": "furniture_coffee_table",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Low coffee table"
+          },
+          {
+            "polyhavenId": "WoodenChair_01",
+            "semanticRole": "furniture_chair_wooden",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Simple wooden chair"
+          },
+          {
+            "polyhavenId": "dining_chair_02",
+            "semanticRole": "furniture_chair_dining",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Upholstered dining chair"
+          },
+          {
+            "polyhavenId": "ClassicNightstand_01",
+            "semanticRole": "furniture_nightstand",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Classic wooden nightstand"
+          },
+          {
+            "polyhavenId": "GothicCommode_01",
+            "semanticRole": "furniture_dresser",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Gothic commode/dresser"
+          },
+          {
+            "polyhavenId": "Sofa_01",
+            "semanticRole": "furniture_sofa",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "Upholstered sofa"
+          },
+          {
+            "polyhavenId": "Ottoman_01",
+            "semanticRole": "furniture_ottoman",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Upholstered ottoman"
+          },
+          {
+            "polyhavenId": "SchoolDesk_01",
+            "semanticRole": "furniture_desk",
+            "assetType": "model_prop",
+            "priority": 1,
+            "description": "School desk"
+          },
+          {
+            "polyhavenId": "Chandelier_02",
+            "semanticRole": "chandelier_ornate",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Ornate chandelier variant"
+          },
+          {
+            "polyhavenId": "Chandelier_03",
+            "semanticRole": "chandelier_simple",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Simple chandelier"
+          },
+          {
+            "polyhavenId": "brass_pan_01",
+            "semanticRole": "kitchen_pan",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Brass cooking pan"
+          },
+          {
+            "polyhavenId": "brass_pot_01",
+            "semanticRole": "kitchen_pot",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Brass cooking pot"
+          },
+          {
+            "polyhavenId": "croissant",
+            "semanticRole": "food_croissant",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Croissant pastry"
+          },
+          {
+            "polyhavenId": "carrot_cake",
+            "semanticRole": "food_cake",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Carrot cake"
+          },
+          {
+            "polyhavenId": "antique_ceramic_vase_01",
+            "semanticRole": "vase",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Antique ceramic vase"
+          },
+          {
+            "polyhavenId": "chess_set",
+            "semanticRole": "decoration_chess",
+            "assetType": "model_prop",
+            "priority": 3,
+            "description": "Chess set"
+          },
+          {
+            "polyhavenId": "carved_wooden_plate",
+            "semanticRole": "kitchen_plate",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Carved wooden serving plate"
+          },
+          {
+            "polyhavenId": "bench_vice_01",
+            "semanticRole": "tool_vice",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Bench vice"
+          },
+          {
+            "polyhavenId": "Barrel_02",
+            "semanticRole": "barrel_small",
+            "assetType": "model_prop",
+            "priority": 2,
+            "description": "Small barrel"
+          },
+          {
+            "polyhavenId": "alarm_clock_01",
+            "semanticRole": "clock",
+            "assetType": "model_prop",
+            "priority": 3,
+            "description": "Alarm clock"
           }
         ],
         "textures": [
@@ -215,6 +362,27 @@
           "furniture_table": "${polyhavenId:WoodenTable_01}",
           "furniture_chair": "${polyhavenId:GreenChair_01}",
           "furniture_shelf": "${polyhavenId:Shelf_01}",
+          "furniture_table_round": "${polyhavenId:WoodenTable_03}",
+          "furniture_coffee_table": "${polyhavenId:CoffeeTable_01}",
+          "furniture_chair_wooden": "${polyhavenId:WoodenChair_01}",
+          "furniture_chair_dining": "${polyhavenId:dining_chair_02}",
+          "furniture_nightstand": "${polyhavenId:ClassicNightstand_01}",
+          "furniture_dresser": "${polyhavenId:GothicCommode_01}",
+          "furniture_sofa": "${polyhavenId:Sofa_01}",
+          "furniture_ottoman": "${polyhavenId:Ottoman_01}",
+          "furniture_desk": "${polyhavenId:SchoolDesk_01}",
+          "chandelier_ornate": "${polyhavenId:Chandelier_02}",
+          "chandelier_simple": "${polyhavenId:Chandelier_03}",
+          "kitchen_pan": "${polyhavenId:brass_pan_01}",
+          "kitchen_pot": "${polyhavenId:brass_pot_01}",
+          "kitchen_plate": "${polyhavenId:carved_wooden_plate}",
+          "food_croissant": "${polyhavenId:croissant}",
+          "food_cake": "${polyhavenId:carrot_cake}",
+          "vase": "${polyhavenId:antique_ceramic_vase_01}",
+          "decoration_chess": "${polyhavenId:chess_set}",
+          "tool_vice": "${polyhavenId:bench_vice_01}",
+          "barrel_small": "${polyhavenId:Barrel_02}",
+          "clock": "${polyhavenId:alarm_clock_01}",
           "sword": "${polyhavenId:antique_estoc}",
           "dagger": "${polyhavenId:antique_katana_01}",
           "saber": "${polyhavenId:wooden_handle_saber}",
@@ -234,11 +402,11 @@
           "lantern": "${polyhavenId:Lantern_01}",
           "torch": "${polyhavenId:Lantern_01}",
           "candle": "${polyhavenId:wooden_candlestick}",
-          "food_loaf": "${polyhavenId:wooden_bucket_01}",
-          "food_plate": "${polyhavenId:brass_goblets}",
-          "food_bowl": "${polyhavenId:brass_goblets}",
-          "food_wedge": "${polyhavenId:wooden_bucket_01}",
-          "food_small": "${polyhavenId:wooden_bucket_01}",
+          "food_loaf": "${polyhavenId:croissant}",
+          "food_plate": "${polyhavenId:carved_wooden_plate}",
+          "food_bowl": "${polyhavenId:brass_pot_01}",
+          "food_wedge": "${polyhavenId:carrot_cake}",
+          "food_small": "${polyhavenId:croissant}",
           "barrel": "${polyhavenId:wine_barrel_01}",
           "crate": "${polyhavenId:wooden_crate_01}",
           "sack": "${polyhavenId:wooden_bucket_01}",
