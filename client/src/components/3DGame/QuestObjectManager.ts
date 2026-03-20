@@ -64,6 +64,8 @@ export interface QuestObjective {
   locationName?: string;
   locationPosition?: Vector3;
   locationRadius?: number;
+  /** If set, the location is inside this building's interior */
+  buildingId?: string;
 
   // For talk_to_npc
   npcId?: string;
@@ -195,6 +197,11 @@ export class QuestObjectManager {
   private onIdentificationPrompt?: (prompt: IdentificationPrompt) => void;
   /** Check whether a world-space XZ point falls inside a building footprint. */
   private isPointInBuilding?: (x: number, z: number) => boolean;
+
+  /** Current building the player is inside (null if outside) */
+  private currentBuildingId: string | null = null;
+  /** Saved overworld positions for markers moved to interior space */
+  private savedMarkerPositions: Map<string, Vector3> = new Map();
 
   constructor(scene: Scene, eventBus?: GameEventBus) {
     this.scene = scene;
@@ -954,6 +961,13 @@ export class QuestObjectManager {
     this.scene.beginAnimation(beacon, 0, 60, true);
 
     this.locationMarkers.set(markerId, beacon);
+
+    // If the marker is for a building interior, hide it unless the player is inside that building
+    if (objective.buildingId) {
+      if (this.currentBuildingId !== objective.buildingId) {
+        beacon.setEnabled(false);
+      }
+    }
   }
 
   /**
@@ -1246,13 +1260,14 @@ export class QuestObjectManager {
       quest.objectives?.forEach(objective => {
         if (objective.type === 'visit_location' && !objective.completed) {
           const marker = this.locationMarkers.get(objective.id);
-          if (marker && objective.locationPosition) {
-            const distance = Vector3.Distance(playerPosition, objective.locationPosition);
-            const radius = objective.locationRadius || 5;
+          if (!marker || !marker.isEnabled()) return;
 
-            if (distance <= radius) {
-              this.visitLocation(quest.id, objective.id);
-            }
+          // Use the marker's actual position (accounts for interior repositioning)
+          const distance = Vector3.Distance(playerPosition, marker.position);
+          const radius = objective.locationRadius || 5;
+
+          if (distance <= radius) {
+            this.visitLocation(quest.id, objective.id);
           }
         }
       });
@@ -1480,6 +1495,66 @@ export class QuestObjectManager {
   /** Register a building-check callback so spawned items avoid building interiors. */
   public setPointInBuildingCheck(check: (x: number, z: number) => boolean) {
     this.isPointInBuilding = check;
+  }
+
+  /**
+   * Notify that the player has entered a building interior.
+   * Shows markers targeting this building and repositions them to interior coordinates.
+   */
+  public onEnterBuilding(buildingId: string, interiorPosition: Vector3): void {
+    this.currentBuildingId = buildingId;
+
+    // Hide overworld markers and show interior markers for this building
+    this.activeQuests.forEach(quest => {
+      quest.objectives?.forEach(objective => {
+        if (objective.type !== 'visit_location' || objective.completed) return;
+        const marker = this.locationMarkers.get(objective.id);
+        if (!marker) return;
+
+        if (objective.buildingId === buildingId) {
+          // Save original position and move marker to interior space
+          this.savedMarkerPositions.set(objective.id, marker.position.clone());
+          marker.position = new Vector3(
+            interiorPosition.x + (objective.locationPosition?.x ?? 0),
+            interiorPosition.y + 1,
+            interiorPosition.z + (objective.locationPosition?.z ?? 0)
+          );
+          marker.setEnabled(true);
+        } else if (!objective.buildingId) {
+          // Hide overworld markers while inside
+          marker.setEnabled(false);
+        }
+      });
+    });
+  }
+
+  /**
+   * Notify that the player has exited a building interior.
+   * Restores overworld markers and hides interior markers.
+   */
+  public onExitBuilding(): void {
+    this.activeQuests.forEach(quest => {
+      quest.objectives?.forEach(objective => {
+        if (objective.type !== 'visit_location' || objective.completed) return;
+        const marker = this.locationMarkers.get(objective.id);
+        if (!marker) return;
+
+        if (objective.buildingId) {
+          // Restore saved position and hide interior markers
+          const savedPos = this.savedMarkerPositions.get(objective.id);
+          if (savedPos) {
+            marker.position = savedPos;
+            this.savedMarkerPositions.delete(objective.id);
+          }
+          marker.setEnabled(false);
+        } else {
+          // Show overworld markers again
+          marker.setEnabled(true);
+        }
+      });
+    });
+
+    this.currentBuildingId = null;
   }
 
   /**
