@@ -12,6 +12,8 @@ import {
 } from "@babylonjs/gui";
 import { Scene, Mesh } from "@babylonjs/core";
 import { BabylonDialogueActions } from "./BabylonDialogueActions.ts";
+import { HoverTranslationSystem } from "./HoverTranslationSystem.ts";
+import type { VocabHint } from "./HoverTranslationSystem.ts";
 import { Action } from "./types/actions";
 import { NPCTalkingIndicator } from "./NPCTalkingIndicator";
 import { buildLanguageAwareSystemPrompt, buildWorldLanguageContext, extractLanguageFluencies, getLanguageBCP47 } from "@shared/language/language-utils";
@@ -181,6 +183,13 @@ export class BabylonChatPanel {
   private questGuidancePrompt: string | null = null;
   private _targetLanguage: string | null = null;
 
+  // Hover-to-translate system for target-language words
+  private hoverTranslation: HoverTranslationSystem = new HoverTranslationSystem();
+  private _translationTooltip: Rectangle | null = null;
+  private _translationTooltipText: TextBlock | null = null;
+  /** Message controls that have been rebuilt with interactive word hover */
+  private _interactiveMessages: Set<number> = new Set();
+
   // Listening mode — hides NPC text and shows audio waveform during listening exams
   private _listeningMode = false;
   private _listeningAudioElement: HTMLAudioElement | null = null;
@@ -283,8 +292,10 @@ export class BabylonChatPanel {
     this._lockedVoice = this._lockedGender === 'female' ? 'Kore' : 'Charon';
     console.log(`[ChatPanel] Locked voice: ${this._lockedVoice} (gender: ${this._lockedGender}, raw: ${character.gender})`);
 
-    // Clear previous messages for new conversation
+    // Clear previous messages and translation state for new conversation
     this.messages = [];
+    this.hoverTranslation.clear();
+    this._interactiveMessages.clear();
     console.log('[ChatPanel] Cleared previous messages');
 
     // Initialize streaming conversation client
@@ -531,6 +542,7 @@ export class BabylonChatPanel {
       || this.worldLanguageContext?.targetLanguage
       || this.world?.targetLanguage;
     if (learningLang && learningLang !== 'English') {
+      this.hoverTranslation.setTargetLanguage(learningLang);
       this.languageTracker = new LanguageProgressTracker(
         'player',
         this.character.worldId,
@@ -819,6 +831,34 @@ export class BabylonChatPanel {
     this.loadingIndicator.isVisible = false;
     this.messagesStack.addControl(this.loadingIndicator);
 
+    // Translation tooltip (shared, hidden by default) — floats above hovered words
+    this._translationTooltip = new Rectangle("translationTooltip");
+    this._translationTooltip.width = "200px";
+    this._translationTooltip.adaptHeightToChildren = true;
+    this._translationTooltip.background = "rgba(0, 0, 0, 0.92)";
+    this._translationTooltip.color = "rgba(100, 180, 255, 0.6)";
+    this._translationTooltip.thickness = 1;
+    this._translationTooltip.cornerRadius = 6;
+    this._translationTooltip.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this._translationTooltip.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    this._translationTooltip.isVisible = false;
+    this._translationTooltip.isPointerBlocker = false;
+    this._translationTooltip.zIndex = 200;
+
+    this._translationTooltipText = new TextBlock("translationTooltipText");
+    this._translationTooltipText.color = "white";
+    this._translationTooltipText.fontSize = 11;
+    this._translationTooltipText.textWrapping = TextWrapping.WordWrap;
+    this._translationTooltipText.resizeToFit = true;
+    this._translationTooltipText.paddingLeft = "8px";
+    this._translationTooltipText.paddingRight = "8px";
+    this._translationTooltipText.paddingTop = "6px";
+    this._translationTooltipText.paddingBottom = "6px";
+    this._translationTooltipText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this._translationTooltip.addControl(this._translationTooltipText);
+
+    this._advancedTexture.addControl(this._translationTooltip);
+
     console.log('[ChatPanel] Chat UI created');
   }
 
@@ -896,6 +936,225 @@ export class BabylonChatPanel {
     messageText.paddingTop = "3px";
     messageText.paddingBottom = "3px";
     return messageText;
+  }
+
+  /**
+   * Rebuild a message control with interactive word-level hover for translations.
+   * Called after vocab hints arrive from metadata extraction.
+   * Replaces the plain TextBlock with a vertical StackPanel of word-flow lines.
+   */
+  private rebuildMessageWithHover(messageIndex: number): void {
+    if (!this.messagesStack) return;
+    if (this._interactiveMessages.has(messageIndex)) return;
+
+    const msg = this.messages[messageIndex];
+    if (!msg || msg.role !== 'assistant') return;
+
+    // Skip system-like messages (grammar feedback, etc.)
+    const content = msg.content || '';
+    if (content.startsWith('✓ ') || content.startsWith('✎ Tip: ') ||
+        content.startsWith('📖 Grammar Focus') || content.startsWith('(')) return;
+
+    const oldCtrl = this._messageControls.get(messageIndex);
+    if (!oldCtrl) return;
+
+    // Build interactive container
+    const container = this.createInteractiveMessageContainer(messageIndex, content);
+    if (!container) return;
+
+    // Replace in stack
+    const parent = oldCtrl.parent;
+    if (parent) {
+      const idx = parent.children.indexOf(oldCtrl);
+      parent.removeControl(oldCtrl);
+      // StackPanel doesn't have insertAt, so we rebuild order
+      // Remove all children after idx, add container, then re-add them
+      const after: Control[] = [];
+      while (parent.children.length > idx) {
+        const child = parent.children[parent.children.length - 1];
+        parent.removeControl(child);
+        after.unshift(child);
+      }
+      parent.addControl(container);
+      for (const child of after) {
+        parent.addControl(child);
+      }
+    }
+
+    this._messageControls.set(messageIndex, container as any);
+    this._interactiveMessages.add(messageIndex);
+  }
+
+  /**
+   * Create an interactive message container with word-level hover.
+   * Uses a flow layout: vertical StackPanel of horizontal line StackPanels.
+   */
+  private createInteractiveMessageContainer(
+    messageIndex: number,
+    content: string,
+  ): StackPanel | null {
+    const tokens = this.hoverTranslation.tokenize(content);
+    if (tokens.length === 0) return null;
+
+    const container = new StackPanel(`msg-interactive-${messageIndex}`);
+    container.isVertical = true;
+    container.width = "95%";
+    container.adaptHeightToChildren = true;
+    container.paddingLeft = "8px";
+    container.paddingRight = "8px";
+    container.paddingTop = "3px";
+    container.paddingBottom = "3px";
+
+    // Approximate max width in pixels (95% of 320px panel - padding)
+    const maxLineWidth = 270;
+    const charWidth = 7; // approximate px per character at fontSize 12
+
+    let currentLine = this.createFlowLine(messageIndex);
+    let lineWidth = 0;
+
+    for (const token of tokens) {
+      const tokenWidth = token.text.length * charWidth;
+
+      // Wrap to next line if needed (but don't wrap whitespace-only tokens)
+      if (token.isWord && lineWidth + tokenWidth > maxLineWidth && lineWidth > 0) {
+        container.addControl(currentLine);
+        currentLine = this.createFlowLine(messageIndex);
+        lineWidth = 0;
+      }
+
+      if (token.isWord) {
+        const stripped = this.hoverTranslation.stripPunctuation(token.text);
+        const hint = this.hoverTranslation.getTranslation(stripped);
+
+        if (hint) {
+          // Hoverable word with known translation
+          const wordContainer = this.createHoverableWord(token.text, hint);
+          currentLine.addControl(wordContainer);
+        } else {
+          // Regular word (no known translation)
+          const wordBlock = new TextBlock();
+          wordBlock.text = token.text;
+          wordBlock.fontSize = 12;
+          wordBlock.color = "rgba(255, 255, 255, 0.9)";
+          wordBlock.resizeToFit = true;
+          wordBlock.height = "16px";
+          currentLine.addControl(wordBlock);
+        }
+      } else {
+        // Whitespace — add a small spacer
+        const spacer = new TextBlock();
+        spacer.text = token.text;
+        spacer.fontSize = 12;
+        spacer.color = "transparent";
+        spacer.resizeToFit = true;
+        spacer.height = "16px";
+        currentLine.addControl(spacer);
+      }
+
+      lineWidth += tokenWidth;
+    }
+
+    // Add the last line
+    if (currentLine.children.length > 0) {
+      container.addControl(currentLine);
+    }
+
+    return container;
+  }
+
+  private createFlowLine(messageIndex: number): StackPanel {
+    const line = new StackPanel(`msg-line-${messageIndex}-${Date.now()}`);
+    line.isVertical = false;
+    line.height = "16px";
+    line.width = "100%";
+    line.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    return line;
+  }
+
+  /**
+   * Create a hoverable word control that shows a translation tooltip on hover.
+   */
+  private createHoverableWord(text: string, hint: VocabHint): Rectangle {
+    const wordContainer = new Rectangle();
+    wordContainer.width = `${text.length * 7 + 2}px`;
+    wordContainer.height = "16px";
+    wordContainer.thickness = 0;
+    wordContainer.background = "transparent";
+    wordContainer.isPointerBlocker = true;
+
+    const wordBlock = new TextBlock();
+    wordBlock.text = text;
+    wordBlock.fontSize = 12;
+    wordBlock.color = "#90CAF9"; // Light blue to indicate translatable
+    wordBlock.underline = true;
+    wordBlock.resizeToFit = false;
+    wordBlock.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    wordContainer.addControl(wordBlock);
+
+    wordContainer.onPointerEnterObservable.add(() => {
+      wordBlock.color = "#BBDEFB"; // Brighter on hover
+      this.showTranslationTooltip(hint, wordContainer);
+    });
+
+    wordContainer.onPointerOutObservable.add(() => {
+      wordBlock.color = "#90CAF9";
+      this.hideTranslationTooltip();
+    });
+
+    // Also fetch translation on click for words without context
+    wordContainer.onPointerClickObservable.add(async () => {
+      const stripped = this.hoverTranslation.stripPunctuation(text);
+      const result = await this.hoverTranslation.fetchTranslation(stripped);
+      if (result) {
+        this.showTranslationTooltip(
+          { word: result.word, translation: result.translation, context: result.context },
+          wordContainer,
+        );
+      }
+    });
+
+    return wordContainer;
+  }
+
+  /**
+   * Show the translation tooltip near a hovered word control.
+   */
+  private showTranslationTooltip(hint: VocabHint, anchor: Control): void {
+    if (!this._translationTooltip || !this._translationTooltipText) return;
+
+    let tooltipText = `${hint.word} → ${hint.translation}`;
+    if (hint.context) {
+      tooltipText += `\n${hint.context}`;
+    }
+    this._translationTooltipText.text = tooltipText;
+
+    // Position near the anchor control
+    const x = anchor.centerX;
+    const y = anchor.centerY;
+    this._translationTooltip.left = `${x - 100}px`;
+    this._translationTooltip.top = `${y - 40}px`;
+    this._translationTooltip.isVisible = true;
+  }
+
+  /**
+   * Hide the translation tooltip.
+   */
+  private hideTranslationTooltip(): void {
+    if (this._translationTooltip) {
+      this._translationTooltip.isVisible = false;
+    }
+  }
+
+  /**
+   * Rebuild all NPC message controls with interactive word hover.
+   * Called after vocab hints arrive from metadata extraction.
+   */
+  private rebuildMessagesWithTranslations(): void {
+    for (let i = 0; i < this.messages.length; i++) {
+      if (this.messages[i].role === 'assistant') {
+        this.rebuildMessageWithHover(i);
+      }
+    }
   }
 
   /** Create a row of 1-5 star rating buttons for an NPC message. */
@@ -1362,9 +1621,12 @@ export class BabylonChatPanel {
           }
         }
 
-        // Process vocab hints — log for now, can display as tooltip later
+        // Process vocab hints — feed into hover-to-translate system
         if (metadata.vocabHints?.length > 0) {
           console.log('[VocabHints]', metadata.vocabHints);
+          this.hoverTranslation.addVocabHints(metadata.vocabHints as VocabHint[]);
+          // Rebuild NPC messages with interactive word hover
+          this.rebuildMessagesWithTranslations();
           if (this.languageTracker) {
             this.languageTracker.analyzePlayerMessage(playerMessage);
             this.languageTracker.analyzeNPCResponse(npcResponse);
