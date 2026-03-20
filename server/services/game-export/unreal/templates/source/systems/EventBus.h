@@ -122,7 +122,9 @@ enum class EInsimulEventType : uint8
     // Mercantile events
     ItemPurchased UMETA(DisplayName = "Item Purchased"),
     FoodOrdered UMETA(DisplayName = "Food Ordered"),
-    PriceHaggled UMETA(DisplayName = "Price Haggled")
+    PriceHaggled UMETA(DisplayName = "Price Haggled"),
+    // Vocabulary hover-lookup events
+    VocabularyLookup UMETA(DisplayName = "Vocabulary Lookup")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────
@@ -359,6 +361,11 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Timestep = 0;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString From;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString To;
+
+    // ── Vocabulary lookup fields ─────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Meaning;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Source;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 DwellMs = 0;
 
     // ── NPC relationship fields ─────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float PreviousStrength = 0.f;
