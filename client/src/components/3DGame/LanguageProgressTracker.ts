@@ -548,49 +548,56 @@ export class LanguageProgressTracker {
   }
 
   /**
-   * Load progress from the server, merging with any local state.
-   * Call this on initialization to restore previously persisted progress.
+   * Load persisted progress from the server.
+   * Merges server data into local state so vocabulary/grammar accumulated
+   * in prior sessions is available immediately.
    */
   public async loadFromServer(): Promise<boolean> {
+    const { playerId, worldId, playthroughId } = this.progress;
+    const url = `/api/language-progress/${encodeURIComponent(playerId)}/${encodeURIComponent(worldId)}`
+      + (playthroughId ? `?playthroughId=${encodeURIComponent(playthroughId)}` : '');
     try {
-      const params = new URLSearchParams();
-      if (this.progress.playthroughId) params.set('playthroughId', this.progress.playthroughId);
-      const qs = params.toString() ? `?${params.toString()}` : '';
-      const url = `/api/language-progress/${encodeURIComponent(this.progress.playerId)}/${encodeURIComponent(this.progress.worldId)}${qs}`;
-
-      const response = await fetch(url);
-      if (!response.ok) {
-        console.warn('[LanguageProgressTracker] Load from server returned', response.status);
+      const res = await fetch(url);
+      if (!res.ok) {
+        console.warn('[LanguageProgressTracker] Load from server returned', res.status);
         return false;
       }
+      const data = await res.json();
 
-      const data = await response.json();
-
-      // Merge server progress into local state
+      // Merge progress summary
       if (data.progress) {
-        this.progress.overallFluency = data.progress.overallFluency ?? this.progress.overallFluency;
-        this.progress.totalConversations = data.progress.totalConversations ?? this.progress.totalConversations;
-        this.progress.totalWordsLearned = data.progress.totalWordsLearned ?? this.progress.totalWordsLearned;
-        this.progress.streakDays = data.progress.streakDays ?? this.progress.streakDays;
+        this.progress.overallFluency = Math.max(this.progress.overallFluency, data.progress.overallFluency ?? 0);
+        this.progress.totalConversations = Math.max(this.progress.totalConversations, data.progress.totalConversations ?? 0);
+        this.progress.totalWordsLearned = Math.max(this.progress.totalWordsLearned, data.progress.totalWordsLearned ?? 0);
+        this.progress.streakDays = Math.max(this.progress.streakDays, data.progress.streakDays ?? 0);
+        if (data.progress.totalCorrectUsages != null) {
+          this.progress.totalCorrectUsages = Math.max(this.progress.totalCorrectUsages, data.progress.totalCorrectUsages);
+        }
       }
 
       // Merge vocabulary — server entries keyed by word
-      if (data.vocabulary && Array.isArray(data.vocabulary)) {
+      if (Array.isArray(data.vocabulary)) {
+        const localByWord = new Map(this.progress.vocabulary.map(v => [v.word, v]));
         for (const sv of data.vocabulary) {
-          const existing = this.progress.vocabulary.find(v => v.word === sv.word);
+          const existing = localByWord.get(sv.word);
           if (existing) {
-            // Keep the higher counts (server may have data from other sessions)
-            existing.timesEncountered = Math.max(existing.timesEncountered, sv.timesEncountered ?? 0);
-            existing.timesUsedCorrectly = Math.max(existing.timesUsedCorrectly, sv.timesUsedCorrectly ?? 0);
-            existing.masteryLevel = sv.masteryLevel ?? existing.masteryLevel;
-            existing.lastEncountered = Math.max(existing.lastEncountered, sv.lastEncountered ?? 0);
+            // Keep whichever has more encounters
+            if ((sv.timesEncountered ?? 0) > existing.timesEncountered) {
+              Object.assign(existing, {
+                timesEncountered: sv.timesEncountered,
+                timesUsedCorrectly: sv.timesUsedCorrectly ?? existing.timesUsedCorrectly,
+                timesUsedIncorrectly: sv.timesUsedIncorrectly ?? existing.timesUsedIncorrectly,
+                lastEncountered: sv.lastEncountered ?? existing.lastEncountered,
+                masteryLevel: sv.masteryLevel ?? existing.masteryLevel,
+              });
+            }
           } else {
             this.progress.vocabulary.push({
               word: sv.word,
               language: sv.language || this.progress.language,
               meaning: sv.meaning || '',
-              category: sv.category,
-              timesEncountered: sv.timesEncountered ?? 0,
+              category: sv.category || 'general',
+              timesEncountered: sv.timesEncountered ?? 1,
               timesUsedCorrectly: sv.timesUsedCorrectly ?? 0,
               timesUsedIncorrectly: sv.timesUsedIncorrectly ?? 0,
               lastEncountered: sv.lastEncountered ?? Date.now(),
@@ -599,16 +606,18 @@ export class LanguageProgressTracker {
             });
           }
         }
+        this.progress.totalWordsLearned = Math.max(this.progress.totalWordsLearned, this.progress.vocabulary.length);
       }
 
-      // Merge grammar patterns
-      if (data.grammarPatterns && Array.isArray(data.grammarPatterns)) {
+      // Merge grammar patterns — keyed by pattern string
+      if (Array.isArray(data.grammarPatterns)) {
+        const localByPattern = new Map(this.progress.grammarPatterns.map(g => [g.pattern, g]));
         for (const sg of data.grammarPatterns) {
-          const existing = this.progress.grammarPatterns.find(g => g.pattern === sg.pattern);
+          const existing = localByPattern.get(sg.pattern);
           if (existing) {
-            existing.timesUsedCorrectly = Math.max(existing.timesUsedCorrectly, sg.correctUsages ?? 0);
-            existing.timesUsedIncorrectly = Math.max(existing.timesUsedIncorrectly, sg.incorrectUsages ?? 0);
-            existing.mastered = sg.masteryLevel === 'mastered' || existing.mastered;
+            existing.timesUsedCorrectly = Math.max(existing.timesUsedCorrectly, sg.correctUsages ?? sg.timesUsedCorrectly ?? 0);
+            existing.timesUsedIncorrectly = Math.max(existing.timesUsedIncorrectly, sg.incorrectUsages ?? sg.timesUsedIncorrectly ?? 0);
+            existing.mastered = existing.mastered || (sg.masteryLevel === 'mastered') || (sg.mastered === true);
             if (sg.examples?.length) {
               const existingSet = new Set(existing.examples);
               for (const ex of sg.examples) {
@@ -617,12 +626,12 @@ export class LanguageProgressTracker {
             }
           } else {
             this.progress.grammarPatterns.push({
-              id: sg.id || `gp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              id: sg.id || sg.pattern || `gp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
               pattern: sg.pattern,
               language: sg.language || this.progress.language,
-              timesUsedCorrectly: sg.correctUsages ?? 0,
-              timesUsedIncorrectly: sg.incorrectUsages ?? 0,
-              mastered: sg.masteryLevel === 'mastered',
+              timesUsedCorrectly: sg.correctUsages ?? sg.timesUsedCorrectly ?? 0,
+              timesUsedIncorrectly: sg.incorrectUsages ?? sg.timesUsedIncorrectly ?? 0,
+              mastered: (sg.masteryLevel === 'mastered') || (sg.mastered === true),
               examples: sg.examples || [],
               explanations: sg.explanations || [],
             });
@@ -630,9 +639,36 @@ export class LanguageProgressTracker {
         }
       }
 
+      // Merge conversations
+      if (Array.isArray(data.conversations)) {
+        const localIds = new Set(this.progress.conversations.map(c => c.id));
+        for (const sc of data.conversations) {
+          const id = sc.id || `conv_${sc.timestamp || Date.now()}`;
+          if (!localIds.has(id)) {
+            this.progress.conversations.push({
+              id,
+              characterId: sc.characterId || '',
+              characterName: sc.characterName || '',
+              timestamp: sc.timestamp || Date.now(),
+              turns: sc.turns || 0,
+              wordsUsed: sc.wordsUsed || [],
+              targetLanguagePercentage: sc.targetLanguagePercentage || 0,
+              fluencyGained: sc.fluencyGained || 0,
+              grammarErrorCount: sc.grammarErrorCount || sc.grammarErrors?.length || 0,
+              grammarCorrectCount: sc.grammarCorrectCount || 0,
+            });
+          }
+        }
+      }
+
+      // Recompute totalCorrectUsages from vocabulary
+      this.progress.totalCorrectUsages = this.progress.vocabulary.reduce(
+        (sum, v) => sum + v.timesUsedCorrectly, 0
+      );
+
       // Update the sync timestamp so we don't immediately re-sync
       this.lastSyncTimestamp = Date.now();
-      console.log(`[LanguageProgressTracker] Loaded from server: ${data.vocabulary?.length ?? 0} vocab, ${data.grammarPatterns?.length ?? 0} grammar patterns`);
+      console.log(`[LanguageProgressTracker] Loaded from server: ${this.progress.vocabulary.length} words, ${this.progress.grammarPatterns.length} patterns`);
       return true;
     } catch (err) {
       console.warn('[LanguageProgressTracker] Failed to load from server:', err);
