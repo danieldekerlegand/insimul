@@ -20,6 +20,8 @@ import { adjustCommunityMorale, scheduleFestival } from '../extensions/tott/town
 import { visualAssetGenerator } from '../services/visual-asset-generator.js';
 // Item placement
 import { placeItemsInWorld } from './item-placement-generator.js';
+// Main quest NPC spawning
+import { spawnMainQuestNPCs } from '../services/main-quest-npc-spawner.js';
 
 export interface WorldGenerationConfig {
   worldName: string;
@@ -261,6 +263,20 @@ export class WorldGenerator {
       const itemResult = await placeItemsInWorld(world.id, config.worldType || world.worldType || undefined);
       itemsPlaced = itemResult.totalPlaced;
       console.log(`   Placed ${itemResult.totalPlaced} items (${itemResult.businessItems} in businesses, ${itemResult.residenceItems} in residences, ${itemResult.exteriorItems} in exterior locations)`);
+    }
+
+    // Main Quest NPC Spawning: create the writer's associates for language-learning worlds
+    if (population > 0) {
+      console.log('\n📝 Spawning main quest NPCs...');
+      const worldForLang = await storage.getWorld(world.id);
+      const targetLang = worldForLang?.targetLanguage || undefined;
+      const mqResult = await spawnMainQuestNPCs(world.id, targetLang);
+      if (mqResult.created > 0) {
+        console.log(`   Created ${mqResult.created} main quest NPCs`);
+        for (const npc of mqResult.npcs) {
+          console.log(`   - ${npc.role}: ${npc.name} (${npc.characterId})`);
+        }
+      }
     }
 
     // TotT Integration: Routine Generation

@@ -10570,6 +10570,40 @@ Make the action names thematic and immersive.`;
     }
   });
 
+  // Main Quest NPCs
+  app.get("/api/worlds/:worldId/main-quest-npcs", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { getMainQuestNPCs } = await import('./services/main-quest-npc-spawner.js');
+      const npcMap = await getMainQuestNPCs(worldId);
+      const npcs = Array.from(npcMap.entries()).map(([role, character]) => ({
+        role,
+        characterId: character.id,
+        firstName: character.firstName,
+        lastName: character.lastName,
+        occupation: character.occupation,
+        currentLocation: character.currentLocation,
+      }));
+      res.json({ npcs });
+    } catch (error) {
+      console.error('[MainQuestNPCs] Error:', error);
+      res.status(500).json({ error: "Failed to fetch main quest NPCs" });
+    }
+  });
+
+  app.post("/api/worlds/:worldId/main-quest-npcs/spawn", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { targetLanguage } = req.body;
+      const { spawnMainQuestNPCs } = await import('./services/main-quest-npc-spawner.js');
+      const result = await spawnMainQuestNPCs(worldId, targetLanguage);
+      res.json(result);
+    } catch (error) {
+      console.error('[MainQuestNPCs] Spawn error:', error);
+      res.status(500).json({ error: "Failed to spawn main quest NPCs" });
+    }
+  });
+
   // Quest Portfolio & Learning Journal
   app.get("/api/worlds/:worldId/portfolio/:playerName", async (req, res) => {
     try {

@@ -116,6 +116,9 @@ export class QuestIndicatorManager {
    * Determine if an NPC can give quests based on their properties
    */
   private canNPCGiveQuests(npc: Character): boolean {
+    // Main quest NPCs always show as quest givers
+    if (npc.generationConfig?.mainQuestNPC) return true;
+
     // Explicit flag
     if (npc.canGiveQuests === true) return true;
     if (npc.canGiveQuests === false) return false;
