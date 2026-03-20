@@ -143,6 +143,7 @@ import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/Sett
 import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
 import { GameEventBus } from "@/components/3DGame/GameEventBus.ts";
 import { GameTimeManager } from "@/components/3DGame/GameTimeManager.ts";
+import { DayNightCycle } from "@/components/3DGame/DayNightCycle.ts";
 import { BuildingCollisionSystem } from "@/components/3DGame/BuildingCollisionSystem.ts";
 import { BuildingEntrySystem } from "@/components/3DGame/BuildingEntrySystem.ts";
 import { InteriorNPCManager } from "@/components/3DGame/InteriorNPCManager.ts";
@@ -464,6 +465,7 @@ export class BabylonGame {
   private prologEngine: GamePrologEngine | null = null;
   private eventBus: GameEventBus = new GameEventBus();
   private gameTimeManager: GameTimeManager = new GameTimeManager();
+  private dayNightCycle: DayNightCycle | null = null;
   private combatSystem: CombatSystem | null = null;
   private equipmentManager: EquipmentManager | null = null;
   private rangedCombat: RangedCombatSystem | null = null;
@@ -1233,6 +1235,13 @@ export class BabylonGame {
     this.scene = new Scene(this.engine);
     await this.setupScene(this.scene, this.canvas, this.worldTheme);
 
+    // Initialize day/night cycle (drives lighting + sky transitions from game time)
+    this.dayNightCycle = new DayNightCycle({
+      scene: this.scene,
+      timeManager: this.gameTimeManager,
+      baseSkyColor: this.worldTheme.skyColor,
+    });
+
     // Create camera
     this.camera = this.createCamera(this.scene, this.canvas);
 
@@ -1363,26 +1372,10 @@ export class BabylonGame {
     });
     skyMat.backFaceCulling = false;
 
-    // Derive sky gradient colors from theme
-    const zenith = new Color3(
-      theme.skyColor.r * 0.5,
-      theme.skyColor.g * 0.55,
-      theme.skyColor.b * 1.1
-    );
-    const horizon = new Color3(
-      Math.min(1, theme.skyColor.r * 1.3 + 0.15),
-      Math.min(1, theme.skyColor.g * 1.2 + 0.12),
-      Math.min(1, theme.skyColor.b * 0.95 + 0.1)
-    );
-    const ground = new Color3(
-      theme.skyColor.r * 0.6 + 0.15,
-      theme.skyColor.g * 0.65 + 0.1,
-      theme.skyColor.b * 0.5 + 0.08
-    );
-
-    skyMat.setColor3("zenithColor", zenith);
-    skyMat.setColor3("horizonColor", horizon);
-    skyMat.setColor3("groundColor", ground);
+    // Initial sky colors — DayNightCycle will override these each frame
+    skyMat.setColor3("zenithColor", new Color3(0.4, 0.6, 0.9));
+    skyMat.setColor3("horizonColor", new Color3(0.7, 0.75, 0.85));
+    skyMat.setColor3("groundColor", new Color3(0.35, 0.35, 0.3));
     skyDome.material = skyMat;
 
     // Create ground and wait for it to be ready
@@ -8626,8 +8619,9 @@ export class BabylonGame {
     this.engine.runRenderLoop(() => {
       if (!this.scene) return;
 
-      // Advance game time
+      // Advance game time and update day/night visuals
       this.gameTimeManager.update(this.engine!.getDeltaTime());
+      this.dayNightCycle?.update();
 
       this.scene.render();
 
@@ -12007,6 +12001,8 @@ export class BabylonGame {
     this.reputationManager = null;
     this.prologEngine?.dispose();
     this.prologEngine = null;
+    this.dayNightCycle?.dispose();
+    this.dayNightCycle = null;
     this.gameTimeManager.dispose();
     this.eventBus.dispose();
     this.questObjectManager?.dispose();
