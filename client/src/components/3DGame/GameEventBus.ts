@@ -32,6 +32,8 @@ export type GameEvent =
   | { type: 'quest_completed'; questId: string; assignedByNpcId?: string }
   | { type: 'combat_action'; actionType: string; targetId: string }
   | { type: 'reputation_changed'; factionId: string; delta: number }
+  | { type: 'item_purchased'; itemId: string; itemName: string; quantity: number; totalPrice: number }
+  | { type: 'gift_given'; npcId: string; npcName: string; itemName: string }
   | { type: 'item_crafted'; itemId: string; itemName: string; quantity: number; taxonomy?: ItemTaxonomy }
   | { type: 'location_discovered'; locationId: string; locationName: string }
   | { type: 'settlement_entered'; settlementId: string; settlementName: string }

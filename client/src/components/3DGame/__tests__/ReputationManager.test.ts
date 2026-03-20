@@ -403,6 +403,81 @@ describe('ReputationManager', () => {
     });
   });
 
+  describe('item_purchased event', () => {
+    it('grants +2 reputation when in a settlement', async () => {
+      manager.setCurrentSettlement('s1', 'Town');
+
+      fetchMock.mockResolvedValueOnce(okJson({
+        entityType: 'settlement',
+        entityId: 's1',
+        score: 2,
+        standing: 'neutral',
+      }));
+
+      eventBus.emit({ type: 'item_purchased', itemId: 'i1', itemName: 'Bread', quantity: 1, totalPrice: 10 });
+
+      await vi.waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith(
+          expect.stringContaining('/adjust'),
+          expect.objectContaining({
+            body: expect.stringContaining('"amount":2'),
+          }),
+        );
+      });
+    });
+
+    it('does not grant reputation when not in a settlement', () => {
+      eventBus.emit({ type: 'item_purchased', itemId: 'i1', itemName: 'Bread', quantity: 1, totalPrice: 10 });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('gift_given event', () => {
+    it('grants +3 reputation when in a settlement', async () => {
+      manager.setCurrentSettlement('s1', 'Town');
+
+      fetchMock.mockResolvedValueOnce(okJson({
+        entityType: 'settlement',
+        entityId: 's1',
+        score: 3,
+        standing: 'neutral',
+      }));
+
+      eventBus.emit({ type: 'gift_given', npcId: 'npc-1', npcName: 'Alice', itemName: 'Flowers' });
+
+      await vi.waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith(
+          expect.stringContaining('/adjust'),
+          expect.objectContaining({
+            body: expect.stringContaining('"amount":3'),
+          }),
+        );
+      });
+    });
+
+    it('includes NPC name in reason', async () => {
+      manager.setCurrentSettlement('s1', 'Town');
+
+      fetchMock.mockResolvedValueOnce(okJson({
+        entityType: 'settlement',
+        entityId: 's1',
+        score: 3,
+        standing: 'neutral',
+      }));
+
+      eventBus.emit({ type: 'gift_given', npcId: 'npc-1', npcName: 'Alice', itemName: 'Flowers' });
+
+      await vi.waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith(
+          expect.stringContaining('/adjust'),
+          expect.objectContaining({
+            body: expect.stringContaining('Alice'),
+          }),
+        );
+      });
+    });
+  });
+
   describe('settlement_entered event', () => {
     it('creates default neutral record for new settlement', () => {
       eventBus.emit({ type: 'settlement_entered', settlementId: 's-new', settlementName: 'New Town' });

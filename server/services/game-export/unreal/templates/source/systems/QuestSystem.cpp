@@ -174,6 +174,25 @@ void UQuestSystem::TrackPronunciationAttempt(bool bPassed, float Score, const FS
     }
 }
 
+void UQuestSystem::TrackReputationGain(const FString& FactionId, int32 Amount, const FString& QuestId)
+{
+    for (auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+        if (!QuestId.IsEmpty() && Obj.QuestId != QuestId) continue;
+        if (Obj.Type != TEXT("gain_reputation")) continue;
+        if (Obj.FactionId != FactionId) continue;
+
+        Obj.ReputationGained += Amount;
+
+        if (Obj.ReputationGained >= (Obj.ReputationRequired > 0 ? Obj.ReputationRequired : 100))
+        {
+            Obj.bCompleted = true;
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Reputation objective completed: %s"), *Obj.Id);
+        }
+    }
+}
+
 void UQuestSystem::TrackWritingSubmission(const FString& Text, int32 WordCount, const FString& QuestId)
 {
     for (auto& Obj : Objectives)

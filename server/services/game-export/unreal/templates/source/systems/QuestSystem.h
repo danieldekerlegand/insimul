@@ -127,6 +127,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Quests")
     void TrackPronunciationAttempt(bool bPassed, float Score = 0.f, const FString& QuestId = TEXT(""));
 
+    /** Track reputation gain for gain_reputation objectives. */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    void TrackReputationGain(const FString& FactionId, int32 Amount, const FString& QuestId = TEXT(""));
+
     /** Track a writing submission for write_response / describe_scene objectives. */
     UFUNCTION(BlueprintCallable, Category = "Quests")
     void TrackWritingSubmission(const FString& Text, int32 WordCount, const FString& QuestId = TEXT(""));
