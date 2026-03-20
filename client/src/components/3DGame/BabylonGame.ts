@@ -129,6 +129,7 @@ import { NPCInitiatedConversationController } from "@/components/3DGame/NPCIniti
 import { NPCSocializationController } from "@/components/3DGame/NPCSocializationController.ts";
 import type { SocializableNPC, ConversationResult } from "@/components/3DGame/NPCSocializationController.ts";
 import { BuildingInteriorGenerator, InteriorLayout } from "@/components/3DGame/BuildingInteriorGenerator.ts";
+import { InteriorItemManager } from "@/components/3DGame/InteriorItemManager.ts";
 import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo, type MenuJournalData } from "@/components/3DGame/GameMenuSystem.ts";
 import { MainMenuScreen, type PlaythroughInfo } from "@/components/3DGame/MainMenuScreen.ts";
 import { WorldStateManager, type GameStateSource, type GameStateTarget } from "@/components/3DGame/WorldStateManager.ts";
@@ -617,6 +618,7 @@ export class BabylonGame {
   private savedOverworldCameraAlpha: number = 0;
   private isInsideBuilding: boolean = false;
   private interiorDoorTrigger: Mesh | null = null;
+  private interiorItemManager: InteriorItemManager | null = null;
   private buildingEntrySystem: BuildingEntrySystem | null = null;
   private interiorNPCManager: InteriorNPCManager | null = null;
   private businessInteractionSystem: NPCBusinessInteractionSystem = new NPCBusinessInteractionSystem();
@@ -2680,6 +2682,7 @@ export class BabylonGame {
     this.riverGenerator = new RiverGenerator(scene);
     this.waterRenderer = new WaterRenderer(scene);
     this.interiorGenerator = new BuildingInteriorGenerator(scene);
+    this.interiorItemManager = new InteriorItemManager(scene, this.objectModelTemplates, this.objectModelOriginalHeights);
     this.buildingEntrySystem = new BuildingEntrySystem(scene, this.interiorGenerator, {
       onTeleportPlayer: (pos: Vector3) => {
         if (this.playerMesh) {
@@ -6549,6 +6552,9 @@ export class BabylonGame {
       }
     }
 
+    // Spawn item props inside the interior
+    this.interiorItemManager?.spawnItems(buildingId, interior, this.worldItems);
+
     // Create an invisible trigger zone just outside the door opening.
     // When the player walks through the door, this detects it and auto-exits.
     this.createInteriorDoorTrigger(interior);
@@ -6636,7 +6642,8 @@ export class BabylonGame {
     }
     this.playerController?.resetPhysicsState();
 
-    // Clean up door trigger
+    // Clean up interior items and door trigger
+    this.interiorItemManager?.clearItems();
     this.interiorDoorTrigger?.dispose();
     this.interiorDoorTrigger = null;
 
@@ -11242,6 +11249,8 @@ export class BabylonGame {
     this.businessBehaviorSystem = null;
     this.buildingEntrySystem?.dispose();
     this.buildingEntrySystem = null;
+    this.interiorItemManager?.dispose();
+    this.interiorItemManager = null;
     this.interiorGenerator?.dispose();
     this.activeInterior = null;
     this.savedOverworldPosition = null;
