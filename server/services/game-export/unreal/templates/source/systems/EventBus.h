@@ -111,7 +111,10 @@ enum class EInsimulEventType : uint8
     // NPC relationship events
     NpcRelationshipChanged UMETA(DisplayName = "NPC Relationship Changed"),
     // Container events
-    ContainerOpened UMETA(DisplayName = "Container Opened")
+    ContainerOpened UMETA(DisplayName = "Container Opened"),
+    // Escort quest events
+    EscortStarted UMETA(DisplayName = "Escort Started"),
+    EscortCompleted UMETA(DisplayName = "Escort Completed")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────

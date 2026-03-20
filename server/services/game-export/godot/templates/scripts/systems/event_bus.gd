@@ -110,6 +110,9 @@ const EVENT_SIGN_READ := "sign_read"
 const EVENT_NPC_RELATIONSHIP_CHANGED := "npc_relationship_changed"
 # Container events
 const EVENT_CONTAINER_OPENED := "container_opened"
+# Escort quest events
+const EVENT_ESCORT_STARTED := "escort_started"
+const EVENT_ESCORT_COMPLETED := "escort_completed"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -172,6 +175,9 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_NPC_RELATIONSHIP_CHANGED,
 	# Container events
 	EVENT_CONTAINER_OPENED,
+	# Escort quest events
+	EVENT_ESCORT_STARTED,
+	EVENT_ESCORT_COMPLETED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.

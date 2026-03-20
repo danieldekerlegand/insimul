@@ -233,6 +233,39 @@ void UQuestSystem::TrackGiftGiven(const FString& NpcId, const FString& ItemName,
     }
 }
 
+void UQuestSystem::TrackEnemyDefeated(const FString& EnemyType, const FString& QuestId)
+{
+    for (auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+        if (!QuestId.IsEmpty() && Obj.QuestId != QuestId) continue;
+        if (Obj.Type != TEXT("defeat_enemies")) continue;
+
+        Obj.CurrentCount++;
+
+        if (Obj.CurrentCount >= (Obj.RequiredCount > 0 ? Obj.RequiredCount : 1))
+        {
+            Obj.bCompleted = true;
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Defeat enemies objective completed: %s"), *Obj.Id);
+        }
+    }
+}
+
+void UQuestSystem::TrackEscortArrival(const FString& NpcId, bool bReached, const FString& QuestId)
+{
+    if (!bReached) return;
+
+    for (auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+        if (!QuestId.IsEmpty() && Obj.QuestId != QuestId) continue;
+        if (Obj.Type != TEXT("escort_npc")) continue;
+
+        Obj.bCompleted = true;
+        UE_LOG(LogTemp, Log, TEXT("[Insimul] Escort NPC objective completed: %s"), *Obj.Id);
+    }
+}
+
 void UQuestSystem::CheckDirectionProximity(const FVector& PlayerPos)
 {
     for (auto& Obj : Objectives)

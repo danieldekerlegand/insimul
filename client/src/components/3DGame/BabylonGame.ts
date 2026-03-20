@@ -298,6 +298,8 @@ interface NPCInstance {
   volitionGoalId?: string;
   volitionActionId?: string;
   volitionTargetNpcId?: string;
+  // Escort quest — NPC follows the player
+  isBeingEscorted?: boolean;
   // Debug
   _debugLogged?: boolean;
 }
@@ -2413,6 +2415,36 @@ export class BabylonGame {
         const engine = this.questObjectManager?.getCompletionEngine();
         engine?.trackEvent({ type: 'object_pointed_and_named', objectName: event.targetWord });
         this.updateQuestIndicators();
+      }
+    });
+
+    // Wire escort quest events — make NPC follow the player
+    this.eventBus.on('escort_started', (event: any) => {
+      const npcId = event.npcId;
+      if (!npcId) return;
+      const instance = this.npcMeshes.get(npcId);
+      if (instance) {
+        instance.isBeingEscorted = true;
+        // Bring NPC outside if currently inside a building
+        if (instance.isInsideBuilding) {
+          instance.isInsideBuilding = false;
+          instance.insideBuildingId = undefined;
+          if (instance.mesh) {
+            instance.mesh.setEnabled(true);
+            instance.mesh.isVisible = true;
+          }
+        }
+        console.log(`[BabylonGame] NPC ${npcId} is now being escorted`);
+      }
+    });
+    this.eventBus.on('escort_completed', (event: any) => {
+      const npcId = event.npcId;
+      if (!npcId) return;
+      const instance = this.npcMeshes.get(npcId);
+      if (instance) {
+        instance.isBeingEscorted = false;
+        instance.wanderTarget = undefined;
+        console.log(`[BabylonGame] NPC ${npcId} escort completed`);
       }
     });
 
@@ -7403,9 +7435,13 @@ export class BabylonGame {
         }
 
         // Quest proximity checks run both inside and outside buildings
-        if (this.questObjectManager) {
+        if (this.questObjectManager && this.playerMesh) {
           this.questObjectManager.checkLocationProximity(this.playerMesh.position);
           this.questObjectManager.checkDirectionProximity(this.playerMesh.position);
+          this.questObjectManager.checkEscortProximity((npcId: string) => {
+            const instance = this.npcMeshes.get(npcId);
+            return instance?.mesh?.position ?? null;
+          });
         }
 
         // Update quest waypoint fading and compass
@@ -7771,6 +7807,31 @@ export class BabylonGame {
     if (!characterId) return;
 
     const currentPos = instance.mesh.position;
+
+    // Escort behavior — NPC follows the player at a short distance
+    if (instance.isBeingEscorted && this.playerMesh) {
+      const playerPos = this.playerMesh.position;
+      const distToPlayer = Vector3.Distance(currentPos, playerPos);
+      const followDistance = 4; // Stay 4 units behind the player
+      const maxFollowRange = 30; // If player is too far, teleport closer
+
+      if (distToPlayer > maxFollowRange) {
+        // Teleport NPC closer if player ran too far ahead
+        const dir = playerPos.subtract(currentPos).normalize();
+        instance.mesh.position = playerPos.subtract(dir.scale(followDistance));
+        instance.controller.walk(false);
+      } else if (distToPlayer > followDistance) {
+        // Walk toward the player
+        instance.wanderTarget = playerPos.clone();
+      } else {
+        // Close enough — stop moving
+        instance.wanderTarget = undefined;
+        instance.controller.walk(false);
+        instance.controller.turnLeft(false);
+        instance.controller.turnRight(false);
+      }
+      // Fall through to normal wander movement logic which handles wanderTarget
+    }
 
     // --- Handle NPC inside a building (hidden) ---
     if (instance.isInsideBuilding) {

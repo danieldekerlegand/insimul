@@ -151,10 +151,34 @@ const EVENT_RESEARCH_CATEGORY: Record<GameEventType, ResearchCategory> = {
   // Achievement
   achievement_unlocked: 'achievement',
 
+  // Escort quests
+  escort_started: 'quest_engagement',
+  escort_completed: 'quest_engagement',
+
   // Session / onboarding
   onboarding_step_started: 'session',
   onboarding_step_completed: 'session',
   onboarding_completed: 'session',
+
+  // Volition schedule events
+  volition_schedule_override: 'social_interaction',
+  volition_return_to_schedule: 'social_interaction',
+
+  // NPC greetings
+  npc_greeting: 'social_interaction',
+
+  // Playthrough lifecycle
+  playthrough_completed: 'session',
+  playthrough_completion_requested: 'session',
+  departure_assessment_triggered: 'assessment',
+
+  // Time events
+  hour_changed: 'session',
+  day_changed: 'session',
+  time_of_day_changed: 'session',
+
+  // NPC relationship events
+  npc_relationship_changed: 'social_interaction',
 };
 
 // ── Event-to-Trace Mapping ──────────────────────────────────────────────────

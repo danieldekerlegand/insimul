@@ -133,7 +133,10 @@ export type GameEvent =
   // NPC relationship events
   | { type: 'npc_relationship_changed'; npcId: string; npcName: string; previousStrength: number; newStrength: number; previousTier: string; newTier: string; cause: string; delta: number }
   // Container events
-  | { type: 'container_opened'; containerId: string; containerType: string; buildingId?: string; location: 'interior' | 'outdoor'; itemCount: number };
+  | { type: 'container_opened'; containerId: string; containerType: string; buildingId?: string; location: 'interior' | 'outdoor'; itemCount: number }
+  // Escort quest events
+  | { type: 'escort_started'; questId: string; objectiveId: string; npcId: string; npcName?: string; destinationX: number; destinationZ: number }
+  | { type: 'escort_completed'; questId: string; objectiveId: string; npcId: string };
 
 export type GameEventType = GameEvent['type'];
 

@@ -94,6 +94,9 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("npc_relationship_changed"),          EInsimulEventType::NpcRelationshipChanged },
         // Container events
         { TEXT("container_opened"),                  EInsimulEventType::ContainerOpened },
+        // Escort quest events
+        { TEXT("escort_started"),                    EInsimulEventType::EscortStarted },
+        { TEXT("escort_completed"),                  EInsimulEventType::EscortCompleted },
     };
     return Map;
 }

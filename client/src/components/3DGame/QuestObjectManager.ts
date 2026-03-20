@@ -374,6 +374,7 @@ export class QuestObjectManager {
         enemyType: quest.completionCriteria.enemyType,
         enemiesDefeated: 0,
         enemiesRequired: quest.completionCriteria.count || 1,
+        spawnPositions: this.generateSpawnPositions(1),
       });
     }
 
@@ -405,6 +406,9 @@ export class QuestObjectManager {
 
     // Check for escort_npc objectives
     if (quest.completionCriteria?.type === 'escort_npc') {
+      const destPos = quest.completionCriteria.destinationX !== undefined
+        ? new Vector3(quest.completionCriteria.destinationX, 0, quest.completionCriteria.destinationZ)
+        : this.generateLocationPosition();
       objectives.push({
         id: `${quest.id}_escort`,
         questId: quest.id,
@@ -414,6 +418,8 @@ export class QuestObjectManager {
         escortNpcId: quest.completionCriteria.npcId,
         npcName: quest.completionCriteria.npcName,
         arrived: false,
+        destinationPosition: destPos,
+        locationRadius: quest.completionCriteria.arrivalRadius || 8,
       });
     }
 
@@ -676,6 +682,8 @@ export class QuestObjectManager {
             description: obj.description,
             completed: obj.isCompleted || false,
             arrived: false,
+            destinationPosition: this.generateLocationPosition(),
+            locationRadius: 8,
           });
         } else if (desc.includes('identify') || desc.includes('point to') || desc.includes('show me')) {
           // Visual vocabulary / identify object
@@ -762,6 +770,16 @@ export class QuestObjectManager {
       case 'navigate_language':
         // Spawn navigation waypoints (reuses direction waypoint visuals with blue color)
         this.spawnNavigationWaypoints(objective);
+        break;
+
+      case 'defeat_enemies':
+        // Spawn a red combat zone marker at the enemy location
+        this.spawnCombatZoneMarker(objective);
+        break;
+
+      case 'escort_npc':
+        // Spawn a purple destination marker for the escort target
+        this.spawnEscortDestination(objective);
         break;
     }
   }
@@ -1170,6 +1188,138 @@ export class QuestObjectManager {
 
     this.locationMarkers.set(markerId, beacon);
     console.log(`[QuestObjectManager] Navigation waypoint spawned for step 0: "${wp.instruction}"`);
+  }
+
+  /**
+   * Spawn a red combat zone marker for defeat_enemies objectives.
+   * Guides the player to the area where combat-enabled NPCs can be found.
+   */
+  private spawnCombatZoneMarker(objective: QuestObjective) {
+    const position = objective.spawnPositions?.[0] || this.generateSpawnPositions(1)[0];
+    const markerId = `${objective.id}_combat`;
+
+    const beacon = MeshBuilder.CreateCylinder(
+      `quest_combat_${markerId}`,
+      { height: 10, diameter: 3, tessellation: 24 },
+      this.scene
+    );
+    beacon.position = position.clone();
+    beacon.position.y += 5;
+
+    const material = new StandardMaterial(`quest_combat_mat_${markerId}`, this.scene);
+    material.diffuseColor = new Color3(1, 0, 0);
+    material.emissiveColor = new Color3(0.5, 0, 0);
+    material.alpha = 0.3;
+    beacon.material = material;
+
+    const pulseAnim = new Animation(
+      `quest_combat_pulse_${markerId}`, 'material.alpha', 30,
+      Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CYCLE
+    );
+    pulseAnim.setKeys([
+      { frame: 0, value: 0.15 },
+      { frame: 30, value: 0.4 },
+      { frame: 60, value: 0.15 },
+    ]);
+    beacon.animations.push(pulseAnim);
+    this.scene.beginAnimation(beacon, 0, 60, true);
+
+    this.locationMarkers.set(markerId, beacon);
+    console.log(`[QuestObjectManager] Combat zone marker spawned for defeat_enemies: ${objective.description}`);
+  }
+
+  /**
+   * Spawn a purple destination marker for escort_npc objectives.
+   * The player must bring the escorted NPC to this location.
+   */
+  private spawnEscortDestination(objective: QuestObjective) {
+    if (!objective.destinationPosition) return;
+
+    const markerId = `${objective.id}_escort_dest`;
+
+    const beacon = MeshBuilder.CreateCylinder(
+      `quest_escort_${markerId}`,
+      { height: 10, diameter: 2.5, tessellation: 24 },
+      this.scene
+    );
+    beacon.position = objective.destinationPosition.clone();
+    beacon.position.y += 5;
+
+    const material = new StandardMaterial(`quest_escort_mat_${markerId}`, this.scene);
+    material.diffuseColor = new Color3(0.5, 0, 1);
+    material.emissiveColor = new Color3(0.25, 0, 0.5);
+    material.alpha = 0.35;
+    beacon.material = material;
+
+    const pulseAnim = new Animation(
+      `quest_escort_pulse_${markerId}`, 'material.alpha', 30,
+      Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CYCLE
+    );
+    pulseAnim.setKeys([
+      { frame: 0, value: 0.2 },
+      { frame: 30, value: 0.5 },
+      { frame: 60, value: 0.2 },
+    ]);
+    beacon.animations.push(pulseAnim);
+    this.scene.beginAnimation(beacon, 0, 60, true);
+
+    this.locationMarkers.set(markerId, beacon);
+
+    // Emit escort_started event so BabylonGame can set up NPC following behavior
+    if (objective.escortNpcId) {
+      this.eventBus?.emit({
+        type: 'escort_started',
+        questId: objective.questId,
+        objectiveId: objective.id,
+        npcId: objective.escortNpcId,
+        npcName: objective.npcName,
+        destinationX: objective.destinationPosition.x,
+        destinationZ: objective.destinationPosition.z,
+      });
+    }
+
+    console.log(`[QuestObjectManager] Escort destination marker spawned for: ${objective.description}`);
+  }
+
+  /**
+   * Check if an escorted NPC has reached their destination.
+   * Called from the game loop alongside other proximity checks.
+   * @param getNpcPosition callback to retrieve an NPC mesh position by ID
+   */
+  public checkEscortProximity(getNpcPosition: (npcId: string) => Vector3 | null): void {
+    this.activeQuests.forEach(quest => {
+      quest.objectives?.forEach(objective => {
+        if (objective.type !== 'escort_npc' || objective.completed || objective.arrived) return;
+        if (!objective.escortNpcId || !objective.destinationPosition) return;
+
+        const npcPos = getNpcPosition(objective.escortNpcId);
+        if (!npcPos) return;
+
+        const distance = Vector3.Distance(npcPos, objective.destinationPosition);
+        const radius = objective.locationRadius || 8;
+
+        if (distance <= radius) {
+          // NPC has arrived at the destination
+          this.trackArrival(objective.escortNpcId, true, quest.id);
+
+          // Clean up the destination marker
+          const markerId = `${objective.id}_escort_dest`;
+          const marker = this.locationMarkers.get(markerId);
+          if (marker) {
+            marker.dispose();
+            this.locationMarkers.delete(markerId);
+          }
+
+          // Emit escort completion event
+          this.eventBus?.emit({
+            type: 'escort_completed',
+            questId: quest.id,
+            objectiveId: objective.id,
+            npcId: objective.escortNpcId,
+          });
+        }
+      });
+    });
   }
 
   /**
