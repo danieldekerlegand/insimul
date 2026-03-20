@@ -12,6 +12,14 @@ import type { WorldLanguage } from '@shared/language';
 import type { ConversationContext } from './providers/llm-provider';
 import type { WeatherCondition, NPCAwareQuest } from '@shared/npc-awareness-context';
 import { describeWeather, describeTime } from '@shared/npc-awareness-context';
+import type { VocabularyEntry, GrammarPattern } from '@shared/language/progress';
+import {
+  getReviewWordsForNPC,
+  getWeakGrammarPatterns,
+  buildVocabGrammarPrompt,
+  type ReviewWordForNPC,
+  type WeakGrammarPattern,
+} from '@shared/language/npc-conversation-prompts';
 
 // ── Storage interface (subset needed by context manager) ──────────────
 
@@ -295,6 +303,8 @@ export async function buildContext(
     season?: string;
     activeQuests?: NPCAwareQuest[];
     playerProgress?: { questsCompleted: number; reputation: number; isNewToTown: boolean };
+    playerVocabulary?: VocabularyEntry[];
+    playerGrammarPatterns?: GrammarPattern[];
   },
 ): Promise<FullConversationContext> {
   const storage = storageOverride ?? defaultStorage;
@@ -401,6 +411,14 @@ export async function buildContext(
   const romantic = romanticStatus(character);
   const playerRel = playerRelationshipFromCharacter(character, playerId);
 
+  // Compute vocabulary review words and weak grammar patterns
+  const reviewWords = languageLearning && gameState?.playerVocabulary
+    ? getReviewWordsForNPC(gameState.playerVocabulary)
+    : [];
+  const weakGrammarPatterns = languageLearning && gameState?.playerGrammarPatterns
+    ? getWeakGrammarPatterns(gameState.playerGrammarPatterns)
+    : [];
+
   // Build system prompt (kept concise to fit under 4000 tokens)
   const systemPrompt = buildSystemPrompt({
     character,
@@ -423,6 +441,8 @@ export async function buildContext(
     era,
     worldLanguageNames,
     languageLearning,
+    reviewWords,
+    weakGrammarPatterns,
     playerRel,
     settlement: characterSettlement ?? null,
   });
@@ -484,6 +504,8 @@ interface PromptParts {
   era: string;
   worldLanguageNames: string[];
   languageLearning: LanguageLearningDirectives | null;
+  reviewWords: ReviewWordForNPC[];
+  weakGrammarPatterns: WeakGrammarPattern[];
   playerRel: { friendshipLevel: number; romanceStage: string; trust: number; previousTopics: string[] };
   settlement: Settlement | null;
 }
@@ -589,6 +611,17 @@ function buildSystemPrompt(p: PromptParts): string {
     }
     lines.push(`Incorporate the target language naturally. For a ${ll.playerProficiency} learner, adjust complexity accordingly.`);
     lines.push(`CRITICAL: Your ENTIRE response is read aloud by TTS. Respond with ONLY natural spoken dialogue — no English translations, no glosses, no parenthetical hints, no vocabulary blocks, no structured data, no markup of any kind.`);
+
+    // Vocabulary review & grammar focus prompt
+    const vocabGrammarPrompt = buildVocabGrammarPrompt({
+      reviewWords: p.reviewWords,
+      weakGrammarPatterns: p.weakGrammarPatterns,
+      playerProficiency: ll.playerProficiency,
+      targetLanguage: ll.targetLanguage,
+    });
+    if (vocabGrammarPrompt) {
+      lines.push(vocabGrammarPrompt);
+    }
   }
 
   // Quest awareness — NPC knows about quests they assigned
