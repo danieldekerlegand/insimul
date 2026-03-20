@@ -3732,7 +3732,8 @@ export class BabylonGame {
             building.position.clone(),
             buildingSpec.rotation,
             buildingSpec.depth,
-            'business'
+            'business',
+            business.businessType
           );
 
           // Generate wall collision meshes
