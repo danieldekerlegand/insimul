@@ -17,6 +17,7 @@ import { BusinessDialog } from '../dialogs/BusinessDialog';
 import { ResidenceDialog } from '../dialogs/ResidenceDialog';
 import { LotDialog } from '../dialogs/LotDialog';
 import { CharacterDetailView } from '../characters/CharacterDetailView';
+import { ResidenceDetailView } from './ResidenceDetailView';
 import { CharacterChatDialog } from '../CharacterChatDialog';
 import { FamilyTreeFlow } from '../visualization/FamilyTreeFlow';
 import { LocationMapPreview, type ViewLevel } from './LocationMapPreview';
@@ -1183,7 +1184,8 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                 </CardContent>
               </Card>
 
-              {/* Building details */}
+              {/* Building details (business/lot only; residence uses ResidenceDetailView) */}
+              {selectedBuilding.type !== 'residence' && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm">Details</CardTitle>
@@ -1209,26 +1211,6 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Owner</span>
                           <span className="font-medium">{selectedBuilding.data.ownerName}</span>
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {selectedBuilding.type === 'residence' && (
-                    <>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Address</span>
-                        <span className="font-medium">{selectedBuilding.data.address || '—'}</span>
-                      </div>
-                      {selectedBuilding.data.residenceType && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Type</span>
-                          <Badge variant="outline">{selectedBuilding.data.residenceType}</Badge>
-                        </div>
-                      )}
-                      {selectedBuilding.data.occupantCount !== undefined && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Occupants</span>
-                          <span className="font-medium">{selectedBuilding.data.occupantCount}</span>
                         </div>
                       )}
                     </>
@@ -1272,6 +1254,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                   )}
                 </CardContent>
               </Card>
+              )}
 
               {/* Residents/Employees */}
               {selectedBuilding.type === 'business' && (() => {
@@ -1301,33 +1284,14 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                   </Card>
                 ) : null;
               })()}
-              {selectedBuilding.type === 'residence' && (() => {
-                const occupants = allCharacters.filter((c: any) => c.residenceId === selectedBuilding.data.id);
-                return occupants.length > 0 ? (
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm">Residents ({occupants.length})</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-1">
-                      {occupants.map((c: Character) => (
-                        <button
-                          key={c.id}
-                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted text-left"
-                          onClick={() => { setSelectedBuilding(null); setSelectedChar(c); }}
-                        >
-                          <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
-                            {(c.firstName ?? '?')[0]}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm truncate">{c.firstName} {c.lastName}</p>
-                            {c.occupation && <p className="text-xs text-muted-foreground truncate">{c.occupation}</p>}
-                          </div>
-                        </button>
-                      ))}
-                    </CardContent>
-                  </Card>
-                ) : null;
-              })()}
+              {selectedBuilding.type === 'residence' && (
+                <ResidenceDetailView
+                  residence={selectedBuilding.data}
+                  characters={allCharacters}
+                  lots={lots}
+                  onViewCharacter={(c) => { setSelectedBuilding(null); setSelectedChar(c); }}
+                />
+              )}
             </div>
           )}
         </SheetContent>

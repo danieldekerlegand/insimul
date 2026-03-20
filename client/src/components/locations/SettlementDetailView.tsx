@@ -23,6 +23,7 @@ interface SettlementDetailViewProps {
   onDeleteLot?: (lotId: string) => void;
   onDeleteBusiness?: (businessId: string) => void;
   onDeleteResidence?: (residenceId: string) => void;
+  onViewResidence?: (residence: any) => void;
   onAddCharacter?: () => void;
   onAddLot?: () => void;
   onAddBusiness?: () => void;
@@ -40,6 +41,7 @@ export function SettlementDetailView({
   onDeleteLot,
   onDeleteBusiness,
   onDeleteResidence,
+  onViewResidence,
   onAddCharacter,
   onAddLot,
   onAddBusiness,
@@ -725,7 +727,7 @@ export function SettlementDetailView({
               <Card
                 key={residence.id}
                 className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl cursor-pointer hover:bg-white/80 dark:hover:bg-white/10 transition-all"
-                onClick={() => setExpandedResidenceId(isExpanded ? null : residence.id)}
+                onClick={() => onViewResidence ? onViewResidence(residence) : setExpandedResidenceId(isExpanded ? null : residence.id)}
               >
                 <CardHeader className="py-3">
                   <div className="flex items-center justify-between">
