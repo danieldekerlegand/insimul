@@ -233,6 +233,19 @@ namespace Insimul.Data
         public int sellValue;
     }
 
+    // ── Containers ────────────────────────────────────────────────────────
+
+    /// <summary>Mirrors GameContainer from types.ts.</summary>
+    [Serializable] public class InsimulGameContainerData
+    {
+        public string id;
+        public string name;
+        public string containerType; // chest, cupboard, barrel, crate, shelf, cabinet
+        public int capacity = 10;
+        public bool isLocked;
+        public string buildingId;
+    }
+
     // ── Truths / Grammars / Dialogue / Language ──────────────────────────
 
     [Serializable] public class InsimulTruthData

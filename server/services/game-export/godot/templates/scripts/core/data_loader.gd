@@ -97,6 +97,10 @@ func load_world_items() -> Array:
 func load_loot_tables() -> Array:
 	return _load_json_array("loot_tables.json")
 
+## Mirrors GameContainer from types.ts.
+func load_containers() -> Array:
+	return _load_json_array("containers.json")
+
 func load_truths() -> Array:
 	_ensure_world_ir()
 	var truths: Array = _world_ir.get("truths", [])

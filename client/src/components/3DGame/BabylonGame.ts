@@ -70,6 +70,7 @@ import { TERRAIN_PALETTES } from "@/components/3DGame/MinimapTerrainRenderer.ts"
 import { BabylonInventory, InventoryItem } from "@/components/3DGame/BabylonInventory.ts";
 import { TerrainRenderer } from "@/components/3DGame/TerrainRenderer.ts";
 import { BabylonShopPanel, ShopTransaction } from "@/components/3DGame/BabylonShopPanel.ts";
+import { BabylonContainerPanel, ContainerTransaction } from "@/components/3DGame/BabylonContainerPanel.ts";
 import { BabylonRulesPanel, Rule } from "@/components/3DGame/BabylonRulesPanel.ts";
 import { RuleEnforcer, RuleViolation } from "@/components/3DGame/RuleEnforcer.ts";
 import { CombatSystem, CombatStyle, DamageResult } from "@/components/3DGame/CombatSystem.ts";
@@ -433,6 +434,7 @@ export class BabylonGame {
   private fullscreenMap: FullscreenMap | null = null;
   private inventory: BabylonInventory | null = null;
   private shopPanel: BabylonShopPanel | null = null;
+  private containerPanel: BabylonContainerPanel | null = null;
   private rulesPanel: BabylonRulesPanel | null = null;
   private vocabularyPanel: BabylonVocabularyPanel | null = null;
   private conversationHistoryPanel: BabylonConversationHistoryPanel | null = null;
@@ -2094,6 +2096,13 @@ export class BabylonGame {
         this.playerGold = this.shopPanel.getPlayerGold();
       }
     });
+
+    // Initialize container panel
+    this.containerPanel = new BabylonContainerPanel(this.guiManager.advancedTexture);
+    this.containerPanel.setOnTake((transaction) => this.handleContainerTake(transaction));
+    this.containerPanel.setOnPlace((transaction) => this.handleContainerPlace(transaction));
+    this.containerPanel.setOnExamine((transaction) => this.handleContainerExamine(transaction));
+    this.containerPanel.setOnClose(() => {});
 
     // Initialize rules panel
     this.rulesPanel = new BabylonRulesPanel(scene, this.guiManager.advancedTexture);
@@ -8845,6 +8854,34 @@ export class BabylonGame {
     }).catch(() => {});
   }
 
+  // ─── Container Interaction Handlers ───────────────────────────────────────
+
+  private handleContainerTake(transaction: ContainerTransaction): void {
+    const item = transaction.item;
+    this.inventory?.addItem({
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      type: item.type,
+      quantity: transaction.quantity,
+      icon: item.icon,
+      value: item.value,
+      rarity: item.rarity,
+      category: item.category,
+      languageLearningData: item.languageLearningData,
+    });
+    this.eventBus.emit({ type: 'item_collected', itemId: item.id, itemName: item.name, quantity: transaction.quantity });
+  }
+
+  private handleContainerPlace(transaction: ContainerTransaction): void {
+    this.inventory?.removeItem(transaction.item.id, transaction.quantity);
+    this.eventBus.emit({ type: 'item_removed', itemId: transaction.item.id, itemName: transaction.item.name, quantity: transaction.quantity });
+  }
+
+  private handleContainerExamine(transaction: ContainerTransaction): void {
+    this.eventBus.emit({ type: 'object_examined', itemId: transaction.item.id, itemName: transaction.item.name });
+  }
+
   // ─── Business Interaction Handlers ────────────────────────────────────────
 
   private async handleBusinessInteraction(placedNPC: import('./InteriorNPCManager').PlacedInteriorNPC): Promise<void> {
@@ -11347,6 +11384,7 @@ export class BabylonGame {
     this.fullscreenMap?.dispose();
     this.inventory?.dispose();
     this.shopPanel?.dispose();
+    this.containerPanel?.dispose();
     this.rulesPanel?.dispose();
     this.vocabularyPanel?.dispose();
     this.conversationHistoryPanel?.dispose();

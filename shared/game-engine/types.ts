@@ -745,6 +745,20 @@ export interface TradeTransaction {
   timestamp: number;
 }
 
+// ─── Containers ─────────────────────────────────────────────────────────────
+
+export type ContainerType = 'chest' | 'cupboard' | 'barrel' | 'crate' | 'shelf' | 'cabinet';
+
+export interface GameContainer {
+  id: string;
+  name: string;
+  containerType: ContainerType;
+  items: InventoryItem[];
+  capacity: number;
+  isLocked: boolean;
+  buildingId?: string;
+}
+
 // ─── Loot Tables ────────────────────────────────────────────────────────────
 
 export interface LootTableEntry {
