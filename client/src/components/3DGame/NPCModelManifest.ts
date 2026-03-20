@@ -4,80 +4,78 @@
  * multiple body types per gender and genre-appropriate variants.
  */
 
+import { characterModelUrl } from '@shared/asset-paths';
+
 export type NPCGender = 'male' | 'female' | 'nonbinary';
 export type NPCBodyType = 'average' | 'athletic' | 'heavy' | 'slim';
 export type NPCGenreCategory = 'fantasy' | 'scifi' | 'modern' | 'generic';
 export type NPCRoleType = 'civilian' | 'guard' | 'merchant' | 'questgiver';
 
 export interface NPCModelEntry {
-  /** Relative path from public root (e.g. /assets/characters/fantasy/npc_male_average.glb) */
+  /** Absolute path from public root (e.g. /assets/characters/fantasy/npc_male_average.glb) */
   path: string;
-  /** Genre category this model belongs to */
   genre: NPCGenreCategory;
-  /** Gender this model represents */
   gender: NPCGender;
-  /** Body type variant */
   bodyType: NPCBodyType;
-  /** Optional role-specific model (null = generic for any role) */
   role: NPCRoleType | null;
+}
+
+/** Helper to build manifest entries concisely */
+function m(genre: NPCGenreCategory, filename: string, gender: NPCGender, bodyType: NPCBodyType, role: NPCRoleType | null = null): NPCModelEntry {
+  return { path: characterModelUrl(genre, filename), genre, gender, bodyType, role };
 }
 
 /** Full manifest of all available NPC models */
 const MODEL_MANIFEST: NPCModelEntry[] = [
   // === Fantasy genre ===
-  // Male variants
-  { path: '/assets/characters/fantasy/npc_male_average.glb', genre: 'fantasy', gender: 'male', bodyType: 'average', role: null },
-  { path: '/assets/characters/fantasy/npc_male_athletic.glb', genre: 'fantasy', gender: 'male', bodyType: 'athletic', role: null },
-  { path: '/assets/characters/fantasy/npc_male_heavy.glb', genre: 'fantasy', gender: 'male', bodyType: 'heavy', role: null },
-  { path: '/assets/characters/fantasy/npc_male_slim.glb', genre: 'fantasy', gender: 'male', bodyType: 'slim', role: null },
-  // Female variants
-  { path: '/assets/characters/fantasy/npc_female_average.glb', genre: 'fantasy', gender: 'female', bodyType: 'average', role: null },
-  { path: '/assets/characters/fantasy/npc_female_athletic.glb', genre: 'fantasy', gender: 'female', bodyType: 'athletic', role: null },
-  { path: '/assets/characters/fantasy/npc_female_heavy.glb', genre: 'fantasy', gender: 'female', bodyType: 'heavy', role: null },
-  { path: '/assets/characters/fantasy/npc_female_slim.glb', genre: 'fantasy', gender: 'female', bodyType: 'slim', role: null },
-  // Nonbinary variants
-  { path: '/assets/characters/fantasy/npc_nonbinary_average.glb', genre: 'fantasy', gender: 'nonbinary', bodyType: 'average', role: null },
-  { path: '/assets/characters/fantasy/npc_nonbinary_athletic.glb', genre: 'fantasy', gender: 'nonbinary', bodyType: 'athletic', role: null },
-  // Role-specific fantasy
-  { path: '/assets/characters/fantasy/npc_guard_male.glb', genre: 'fantasy', gender: 'male', bodyType: 'athletic', role: 'guard' },
-  { path: '/assets/characters/fantasy/npc_guard_female.glb', genre: 'fantasy', gender: 'female', bodyType: 'athletic', role: 'guard' },
-  { path: '/assets/characters/fantasy/npc_merchant_male.glb', genre: 'fantasy', gender: 'male', bodyType: 'average', role: 'merchant' },
-  { path: '/assets/characters/fantasy/npc_merchant_female.glb', genre: 'fantasy', gender: 'female', bodyType: 'average', role: 'merchant' },
+  m('fantasy', 'npc_male_average.glb', 'male', 'average'),
+  m('fantasy', 'npc_male_athletic.glb', 'male', 'athletic'),
+  m('fantasy', 'npc_male_heavy.glb', 'male', 'heavy'),
+  m('fantasy', 'npc_male_slim.glb', 'male', 'slim'),
+  m('fantasy', 'npc_female_average.glb', 'female', 'average'),
+  m('fantasy', 'npc_female_athletic.glb', 'female', 'athletic'),
+  m('fantasy', 'npc_female_heavy.glb', 'female', 'heavy'),
+  m('fantasy', 'npc_female_slim.glb', 'female', 'slim'),
+  m('fantasy', 'npc_nonbinary_average.glb', 'nonbinary', 'average'),
+  m('fantasy', 'npc_nonbinary_athletic.glb', 'nonbinary', 'athletic'),
+  m('fantasy', 'npc_guard_male.glb', 'male', 'athletic', 'guard'),
+  m('fantasy', 'npc_guard_female.glb', 'female', 'athletic', 'guard'),
+  m('fantasy', 'npc_merchant_male.glb', 'male', 'average', 'merchant'),
+  m('fantasy', 'npc_merchant_female.glb', 'female', 'average', 'merchant'),
 
   // === Sci-Fi genre ===
-  { path: '/assets/characters/scifi/npc_male_average.glb', genre: 'scifi', gender: 'male', bodyType: 'average', role: null },
-  { path: '/assets/characters/scifi/npc_male_athletic.glb', genre: 'scifi', gender: 'male', bodyType: 'athletic', role: null },
-  { path: '/assets/characters/scifi/npc_male_heavy.glb', genre: 'scifi', gender: 'male', bodyType: 'heavy', role: null },
-  { path: '/assets/characters/scifi/npc_male_slim.glb', genre: 'scifi', gender: 'male', bodyType: 'slim', role: null },
-  { path: '/assets/characters/scifi/npc_female_average.glb', genre: 'scifi', gender: 'female', bodyType: 'average', role: null },
-  { path: '/assets/characters/scifi/npc_female_athletic.glb', genre: 'scifi', gender: 'female', bodyType: 'athletic', role: null },
-  { path: '/assets/characters/scifi/npc_female_heavy.glb', genre: 'scifi', gender: 'female', bodyType: 'heavy', role: null },
-  { path: '/assets/characters/scifi/npc_female_slim.glb', genre: 'scifi', gender: 'female', bodyType: 'slim', role: null },
-  { path: '/assets/characters/scifi/npc_nonbinary_average.glb', genre: 'scifi', gender: 'nonbinary', bodyType: 'average', role: null },
-  { path: '/assets/characters/scifi/npc_nonbinary_athletic.glb', genre: 'scifi', gender: 'nonbinary', bodyType: 'athletic', role: null },
-  // Role-specific scifi
-  { path: '/assets/characters/scifi/npc_guard_male.glb', genre: 'scifi', gender: 'male', bodyType: 'athletic', role: 'guard' },
-  { path: '/assets/characters/scifi/npc_guard_female.glb', genre: 'scifi', gender: 'female', bodyType: 'athletic', role: 'guard' },
-  { path: '/assets/characters/scifi/npc_merchant_male.glb', genre: 'scifi', gender: 'male', bodyType: 'average', role: 'merchant' },
-  { path: '/assets/characters/scifi/npc_merchant_female.glb', genre: 'scifi', gender: 'female', bodyType: 'average', role: 'merchant' },
+  m('scifi', 'npc_male_average.glb', 'male', 'average'),
+  m('scifi', 'npc_male_athletic.glb', 'male', 'athletic'),
+  m('scifi', 'npc_male_heavy.glb', 'male', 'heavy'),
+  m('scifi', 'npc_male_slim.glb', 'male', 'slim'),
+  m('scifi', 'npc_female_average.glb', 'female', 'average'),
+  m('scifi', 'npc_female_athletic.glb', 'female', 'athletic'),
+  m('scifi', 'npc_female_heavy.glb', 'female', 'heavy'),
+  m('scifi', 'npc_female_slim.glb', 'female', 'slim'),
+  m('scifi', 'npc_nonbinary_average.glb', 'nonbinary', 'average'),
+  m('scifi', 'npc_nonbinary_athletic.glb', 'nonbinary', 'athletic'),
+  m('scifi', 'npc_guard_male.glb', 'male', 'athletic', 'guard'),
+  m('scifi', 'npc_guard_female.glb', 'female', 'athletic', 'guard'),
+  m('scifi', 'npc_merchant_male.glb', 'male', 'average', 'merchant'),
+  m('scifi', 'npc_merchant_female.glb', 'female', 'average', 'merchant'),
 
   // === Modern genre ===
-  { path: '/assets/characters/modern/npc_male_average.glb', genre: 'modern', gender: 'male', bodyType: 'average', role: null },
-  { path: '/assets/characters/modern/npc_male_athletic.glb', genre: 'modern', gender: 'male', bodyType: 'athletic', role: null },
-  { path: '/assets/characters/modern/npc_male_heavy.glb', genre: 'modern', gender: 'male', bodyType: 'heavy', role: null },
-  { path: '/assets/characters/modern/npc_male_slim.glb', genre: 'modern', gender: 'male', bodyType: 'slim', role: null },
-  { path: '/assets/characters/modern/npc_female_average.glb', genre: 'modern', gender: 'female', bodyType: 'average', role: null },
-  { path: '/assets/characters/modern/npc_female_athletic.glb', genre: 'modern', gender: 'female', bodyType: 'athletic', role: null },
-  { path: '/assets/characters/modern/npc_female_heavy.glb', genre: 'modern', gender: 'female', bodyType: 'heavy', role: null },
-  { path: '/assets/characters/modern/npc_female_slim.glb', genre: 'modern', gender: 'female', bodyType: 'slim', role: null },
-  { path: '/assets/characters/modern/npc_nonbinary_average.glb', genre: 'modern', gender: 'nonbinary', bodyType: 'average', role: null },
-  { path: '/assets/characters/modern/npc_nonbinary_athletic.glb', genre: 'modern', gender: 'nonbinary', bodyType: 'athletic', role: null },
+  m('modern', 'npc_male_average.glb', 'male', 'average'),
+  m('modern', 'npc_male_athletic.glb', 'male', 'athletic'),
+  m('modern', 'npc_male_heavy.glb', 'male', 'heavy'),
+  m('modern', 'npc_male_slim.glb', 'male', 'slim'),
+  m('modern', 'npc_female_average.glb', 'female', 'average'),
+  m('modern', 'npc_female_athletic.glb', 'female', 'athletic'),
+  m('modern', 'npc_female_heavy.glb', 'female', 'heavy'),
+  m('modern', 'npc_female_slim.glb', 'female', 'slim'),
+  m('modern', 'npc_nonbinary_average.glb', 'nonbinary', 'average'),
+  m('modern', 'npc_nonbinary_athletic.glb', 'nonbinary', 'athletic'),
 
-  // === Generic fallback (existing models, re-mapped) ===
-  { path: '/assets/characters/generic/npc_civilian_male.glb', genre: 'generic', gender: 'male', bodyType: 'average', role: null },
-  { path: '/assets/characters/generic/npc_civilian_female.glb', genre: 'generic', gender: 'female', bodyType: 'average', role: null },
-  { path: '/assets/characters/generic/npc_guard.glb', genre: 'generic', gender: 'male', bodyType: 'athletic', role: 'guard' },
-  { path: '/assets/characters/generic/npc_merchant.glb', genre: 'generic', gender: 'male', bodyType: 'average', role: 'merchant' },
+  // === Generic fallback ===
+  m('generic', 'npc_civilian_male.glb', 'male', 'average'),
+  m('generic', 'npc_civilian_female.glb', 'female', 'average'),
+  m('generic', 'npc_guard.glb', 'male', 'athletic', 'guard'),
+  m('generic', 'npc_merchant.glb', 'male', 'average', 'merchant'),
 ];
 
 /**

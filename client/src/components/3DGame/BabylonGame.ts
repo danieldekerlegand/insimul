@@ -177,11 +177,17 @@ import {
   KEY_QUICK_LOAD,
 } from "@/components/3DGame/KeyboardMap.ts";
 import type { VisualAsset } from "@shared/schema.ts";
+import {
+  PLAYER_MODEL_URL,
+  NPC_DEFAULT_MODEL_URL,
+  FOOTSTEP_SOUND_URL,
+  GROUND_DIFFUSE_URL,
+  GROUND_NORMAL_URL,
+  GROUND_HEIGHTMAP_URL,
+} from "@shared/asset-paths";
 
 // Constants
-const PLAYER_MODEL_URL = "/assets/player/Vincent-frontFacing.babylon";
-const NPC_MODEL_URL = "/assets/npc/starterAvatars.babylon";
-const FOOTSTEP_SOUND_URL = "/assets/footstep_carpet_000.ogg";
+const NPC_MODEL_URL = NPC_DEFAULT_MODEL_URL;
 const MAX_NPCS = 100;
 const MAX_VISIBLE_NPCS = 20;
 const MAX_WANDER_RAYCASTS_PER_TICK = 3;
@@ -1377,12 +1383,12 @@ export class BabylonGame {
         bumpScale = 8;
       }
 
-      const diffuseTexture = new Texture("/assets/ground/ground.jpg", scene);
+      const diffuseTexture = new Texture(GROUND_DIFFUSE_URL, scene);
       diffuseTexture.uScale = tileScale;
       diffuseTexture.vScale = tileScale;
       groundMaterial.diffuseTexture = diffuseTexture;
 
-      const bumpTexture = new Texture("/assets/ground/ground-normal.png", scene);
+      const bumpTexture = new Texture(GROUND_NORMAL_URL, scene);
       bumpTexture.uScale = bumpScale;
       bumpTexture.vScale = bumpScale;
       groundMaterial.bumpTexture = bumpTexture;
@@ -1391,7 +1397,7 @@ export class BabylonGame {
 
       const ground = MeshBuilder.CreateGroundFromHeightMap(
         "ground",
-        "/assets/ground/ground_heightMap.png",
+        GROUND_HEIGHTMAP_URL,
         {
           width: size,
           height: size,
@@ -6581,6 +6587,9 @@ export class BabylonGame {
   private async exitBuilding(): Promise<void> {
     if (!this.playerMesh || !this.isInsideBuilding || !this.activeInterior) return;
 
+    // Capture interior before async operations (activeInterior may be nulled by callbacks during await)
+    const interior = this.activeInterior;
+
     // Fade to black
     await this.performFadeTransition(true);
 
@@ -6606,9 +6615,9 @@ export class BabylonGame {
       if (this.camera) {
         this.camera.alpha = this.savedOverworldCameraAlpha;
       }
-    } else {
+    } else if (interior?.exitPosition) {
       // Fallback: use the exit position stored in the interior layout
-      this.playerMesh.position = this.activeInterior.exitPosition.clone();
+      this.playerMesh.position = interior.exitPosition.clone();
     }
     this.playerController?.resetPhysicsState();
 

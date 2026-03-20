@@ -1,0 +1,2942 @@
+{
+  "timestamp": "2026-03-20T09:30:09.472Z",
+  "dryRun": false,
+  "movesPlanned": 733,
+  "movesCompleted": 733,
+  "dbUpdated": 118,
+  "assetsRegistered": 74,
+  "moves": [
+    {
+      "from": "assets/polyhaven/models/ArmChair_01.gltf",
+      "to": "assets/models/furniture/polyhaven/ArmChair_01/ArmChair_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/ArmChair_01.bin",
+      "to": "assets/models/furniture/polyhaven/ArmChair_01/ArmChair_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Armchair_01_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/ArmChair_01/textures/Armchair_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Armchair_01_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/ArmChair_01/textures/Armchair_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Armchair_01_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/ArmChair_01/textures/Armchair_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/Barrel_01.gltf",
+      "to": "assets/models/props/polyhaven/Barrel_01/Barrel_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/Barrel_01.bin",
+      "to": "assets/models/props/polyhaven/Barrel_01/Barrel_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Barrel_01_explosive_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/Barrel_01/textures/Barrel_01_explosive_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Barrel_01_explosive_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/Barrel_01/textures/Barrel_01_explosive_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Barrel_01_explosive_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/Barrel_01/textures/Barrel_01_explosive_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/CashRegister_01.gltf",
+      "to": "assets/models/props/polyhaven/CashRegister_01/CashRegister_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/CashRegister_01.bin",
+      "to": "assets/models/props/polyhaven/CashRegister_01/CashRegister_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/CashRegister_01_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/CashRegister_01/textures/CashRegister_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/CashRegister_01_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/CashRegister_01/textures/CashRegister_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/CashRegister_01_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/CashRegister_01/textures/CashRegister_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/CashRegister_01_glass_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/CashRegister_01/textures/CashRegister_01_glass_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/CashRegister_01_glass_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/CashRegister_01/textures/CashRegister_01_glass_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/CashRegister_01_glass_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/CashRegister_01/textures/CashRegister_01_glass_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/Chandelier_01.gltf",
+      "to": "assets/models/furniture/polyhaven/Chandelier_01/Chandelier_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/Chandelier_01.bin",
+      "to": "assets/models/furniture/polyhaven/Chandelier_01/Chandelier_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Chandelier_01_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/Chandelier_01/textures/Chandelier_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Chandelier_01_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/Chandelier_01/textures/Chandelier_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Chandelier_01_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/Chandelier_01/textures/Chandelier_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/ClassicConsole_01.gltf",
+      "to": "assets/models/furniture/polyhaven/ClassicConsole_01/ClassicConsole_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/ClassicConsole_01.bin",
+      "to": "assets/models/furniture/polyhaven/ClassicConsole_01/ClassicConsole_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/ClassicConsole_01_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/ClassicConsole_01/textures/ClassicConsole_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/ClassicConsole_01_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/ClassicConsole_01/textures/ClassicConsole_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/ClassicConsole_01_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/ClassicConsole_01/textures/ClassicConsole_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/GothicBed_01.gltf",
+      "to": "assets/models/furniture/polyhaven/GothicBed_01/GothicBed_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/GothicBed_01.bin",
+      "to": "assets/models/furniture/polyhaven/GothicBed_01/GothicBed_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/GothicBed_01_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/GothicBed_01/textures/GothicBed_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/GothicBed_01_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/GothicBed_01/textures/GothicBed_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/GothicBed_01_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/GothicBed_01/textures/GothicBed_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/GothicCabinet_01.gltf",
+      "to": "assets/models/furniture/polyhaven/GothicCabinet_01/GothicCabinet_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/GothicCabinet_01.bin",
+      "to": "assets/models/furniture/polyhaven/GothicCabinet_01/GothicCabinet_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/GothicCabinet_01_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/GothicCabinet_01/textures/GothicCabinet_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/GothicCabinet_01_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/GothicCabinet_01/textures/GothicCabinet_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/GothicCabinet_01_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/GothicCabinet_01/textures/GothicCabinet_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/GreenChair_01.gltf",
+      "to": "assets/models/furniture/polyhaven/GreenChair_01/GreenChair_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/GreenChair_01.bin",
+      "to": "assets/models/furniture/polyhaven/GreenChair_01/GreenChair_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/GreenChair_01_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/GreenChair_01/textures/GreenChair_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/GreenChair_01_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/GreenChair_01/textures/GreenChair_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/GreenChair_01_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/GreenChair_01/textures/GreenChair_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/Lantern_01.gltf",
+      "to": "assets/models/furniture/polyhaven/Lantern_01/Lantern_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/Lantern_01.bin",
+      "to": "assets/models/furniture/polyhaven/Lantern_01/Lantern_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Lantern_01_brass_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/Lantern_01/textures/Lantern_01_brass_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Lantern_01_brass_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/Lantern_01/textures/Lantern_01_brass_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Lantern_01_brass_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/Lantern_01/textures/Lantern_01_brass_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Lantern_01_brass_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/Lantern_01/textures/Lantern_01_brass_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/Rockingchair_01.gltf",
+      "to": "assets/models/furniture/polyhaven/Rockingchair_01/Rockingchair_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/Rockingchair_01.bin",
+      "to": "assets/models/furniture/polyhaven/Rockingchair_01/Rockingchair_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Rockingchair_01_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/Rockingchair_01/textures/Rockingchair_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Rockingchair_01_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/Rockingchair_01/textures/Rockingchair_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Rockingchair_01_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/Rockingchair_01/textures/Rockingchair_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/Shelf_01.gltf",
+      "to": "assets/models/furniture/polyhaven/Shelf_01/Shelf_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/Shelf_01.bin",
+      "to": "assets/models/furniture/polyhaven/Shelf_01/Shelf_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Shelf_01_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/Shelf_01/textures/Shelf_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Shelf_01_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/Shelf_01/textures/Shelf_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/Shelf_01_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/Shelf_01/textures/Shelf_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/WoodenTable_01.gltf",
+      "to": "assets/models/furniture/polyhaven/WoodenTable_01/WoodenTable_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/WoodenTable_01.bin",
+      "to": "assets/models/furniture/polyhaven/WoodenTable_01/WoodenTable_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/WoodenTable_01_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/WoodenTable_01/textures/WoodenTable_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/WoodenTable_01_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/WoodenTable_01/textures/WoodenTable_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/WoodenTable_01_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/WoodenTable_01/textures/WoodenTable_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/antique_estoc.gltf",
+      "to": "assets/models/props/polyhaven/antique_estoc/antique_estoc.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/antique_estoc.bin",
+      "to": "assets/models/props/polyhaven/antique_estoc/antique_estoc.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/antique_estoc_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/antique_estoc/textures/antique_estoc_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/antique_estoc_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/antique_estoc/textures/antique_estoc_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/antique_estoc_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/antique_estoc/textures/antique_estoc_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/antique_katana_01.gltf",
+      "to": "assets/models/props/polyhaven/antique_katana_01/antique_katana_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/antique_katana_01.bin",
+      "to": "assets/models/props/polyhaven/antique_katana_01/antique_katana_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/antique_katana_01_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/antique_katana_01/textures/antique_katana_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/antique_katana_01_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/antique_katana_01/textures/antique_katana_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/antique_katana_01_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/antique_katana_01/textures/antique_katana_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/bar_chair_round_01.gltf",
+      "to": "assets/models/furniture/polyhaven/bar_chair_round_01/bar_chair_round_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/bar_chair_round_01.bin",
+      "to": "assets/models/furniture/polyhaven/bar_chair_round_01/bar_chair_round_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/bar_chair_round_01_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/bar_chair_round_01/textures/bar_chair_round_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/bar_chair_round_01_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/bar_chair_round_01/textures/bar_chair_round_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/bar_chair_round_01_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/bar_chair_round_01/textures/bar_chair_round_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/barrel_03.gltf",
+      "to": "assets/models/props/polyhaven/barrel_03/barrel_03.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/barrel_03.bin",
+      "to": "assets/models/props/polyhaven/barrel_03/barrel_03.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/barrel_03_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/barrel_03/textures/barrel_03_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/barrel_03_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/barrel_03/textures/barrel_03_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/barrel_03_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/barrel_03/textures/barrel_03_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/barrel_stove.gltf",
+      "to": "assets/models/props/polyhaven/barrel_stove/barrel_stove.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/barrel_stove.bin",
+      "to": "assets/models/props/polyhaven/barrel_stove/barrel_stove.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/barrel_stove_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/barrel_stove/textures/barrel_stove_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/barrel_stove_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/barrel_stove/textures/barrel_stove_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/barrel_stove_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/barrel_stove/textures/barrel_stove_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/book_encyclopedia_set_01.gltf",
+      "to": "assets/models/furniture/polyhaven/book_encyclopedia_set_01/book_encyclopedia_set_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/book_encyclopedia_set_01.bin",
+      "to": "assets/models/furniture/polyhaven/book_encyclopedia_set_01/book_encyclopedia_set_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/book_encyclopedia_set_01_cover_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/book_encyclopedia_set_01/textures/book_encyclopedia_set_01_cover_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/book_encyclopedia_set_01_cover_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/book_encyclopedia_set_01/textures/book_encyclopedia_set_01_cover_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/book_encyclopedia_set_01_cover_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/book_encyclopedia_set_01/textures/book_encyclopedia_set_01_cover_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/book_encyclopedia_set_01_paper_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/book_encyclopedia_set_01/textures/book_encyclopedia_set_01_paper_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/book_encyclopedia_set_01_paper_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/book_encyclopedia_set_01/textures/book_encyclopedia_set_01_paper_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/book_encyclopedia_set_01_paper_roughness_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/book_encyclopedia_set_01/textures/book_encyclopedia_set_01_paper_roughness_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/boombox.gltf",
+      "to": "assets/models/props/polyhaven/boombox/boombox.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/boombox.bin",
+      "to": "assets/models/props/polyhaven/boombox/boombox.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/boombox_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/boombox/textures/boombox_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/boombox_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/boombox/textures/boombox_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/boombox_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/boombox/textures/boombox_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/boombox_speakers_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/boombox/textures/boombox_speakers_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/boombox_speakers_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/boombox/textures/boombox_speakers_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/boulder_01.gltf",
+      "to": "assets/models/nature/polyhaven/boulder_01/boulder_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/boulder_01.bin",
+      "to": "assets/models/nature/polyhaven/boulder_01/boulder_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/boulder_01_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/boulder_01/textures/boulder_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/boulder_01_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/boulder_01/textures/boulder_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/boulder_01_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/boulder_01/textures/boulder_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/brass_candleholders.gltf",
+      "to": "assets/models/furniture/polyhaven/brass_candleholders/brass_candleholders.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/brass_candleholders.bin",
+      "to": "assets/models/furniture/polyhaven/brass_candleholders/brass_candleholders.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_candleholders_03_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_candleholders/textures/brass_candleholders_03_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_candleholders_03_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_candleholders/textures/brass_candleholders_03_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_candleholders_03_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_candleholders/textures/brass_candleholders_03_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_candleholders_flame_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_candleholders/textures/brass_candleholders_flame_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_candleholders_flame_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_candleholders/textures/brass_candleholders_flame_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_candleholders_02_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_candleholders/textures/brass_candleholders_02_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_candleholders_02_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_candleholders/textures/brass_candleholders_02_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_candleholders_02_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_candleholders/textures/brass_candleholders_02_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_candleholders_candles_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_candleholders/textures/brass_candleholders_candles_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_candleholders_candles_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_candleholders/textures/brass_candleholders_candles_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_candleholders_candles_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_candleholders/textures/brass_candleholders_candles_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_candleholders_01_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_candleholders/textures/brass_candleholders_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_candleholders_01_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_candleholders/textures/brass_candleholders_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_candleholders_01_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_candleholders/textures/brass_candleholders_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/brass_goblets.gltf",
+      "to": "assets/models/furniture/polyhaven/brass_goblets/brass_goblets.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/brass_goblets.bin",
+      "to": "assets/models/furniture/polyhaven/brass_goblets/brass_goblets.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_goblet_01_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_goblets/textures/brass_goblet_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_goblet_01_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_goblets/textures/brass_goblet_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_goblet_01_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_goblets/textures/brass_goblet_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_goblet_02_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_goblets/textures/brass_goblet_02_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_goblet_02_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_goblets/textures/brass_goblet_02_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_goblet_02_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_goblets/textures/brass_goblet_02_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_goblet_03_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_goblets/textures/brass_goblet_03_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_goblet_03_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_goblets/textures/brass_goblet_03_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/brass_goblet_03_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/brass_goblets/textures/brass_goblet_03_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/crystalline_iceplant.gltf",
+      "to": "assets/models/nature/polyhaven/crystalline_iceplant/crystalline_iceplant.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/crystalline_iceplant.bin",
+      "to": "assets/models/nature/polyhaven/crystalline_iceplant/crystalline_iceplant.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/crystalline_iceplant_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/crystalline_iceplant/textures/crystalline_iceplant_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/crystalline_iceplant_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/crystalline_iceplant/textures/crystalline_iceplant_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/crystalline_iceplant_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/crystalline_iceplant/textures/crystalline_iceplant_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/dead_tree_trunk.gltf",
+      "to": "assets/models/nature/polyhaven/dead_tree_trunk/dead_tree_trunk.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/dead_tree_trunk.bin",
+      "to": "assets/models/nature/polyhaven/dead_tree_trunk/dead_tree_trunk.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/dead_tree_trunk_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/dead_tree_trunk/textures/dead_tree_trunk_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/dead_tree_trunk_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/dead_tree_trunk/textures/dead_tree_trunk_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/dead_tree_trunk_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/dead_tree_trunk/textures/dead_tree_trunk_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/fern_02.gltf",
+      "to": "assets/models/nature/polyhaven/fern_02/fern_02.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/fern_02.bin",
+      "to": "assets/models/nature/polyhaven/fern_02/fern_02.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fern_02_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/fern_02/textures/fern_02_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fern_02_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/fern_02/textures/fern_02_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fern_02_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/fern_02/textures/fern_02_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/fir_tree_01.gltf",
+      "to": "assets/models/nature/polyhaven/fir_tree_01/fir_tree_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/fir_tree_01.bin",
+      "to": "assets/models/nature/polyhaven/fir_tree_01/fir_tree_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fir_tree_01_bark_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/fir_tree_01/textures/fir_tree_01_bark_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fir_tree_01_bark_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/fir_tree_01/textures/fir_tree_01_bark_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fir_tree_01_bark_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/fir_tree_01/textures/fir_tree_01_bark_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fir_tree_01_trunk_a_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/fir_tree_01/textures/fir_tree_01_trunk_a_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fir_tree_01_trunk_a_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/fir_tree_01/textures/fir_tree_01_trunk_a_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fir_tree_01_trunk_a_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/fir_tree_01/textures/fir_tree_01_trunk_a_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fir_tree_01_twig_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/fir_tree_01/textures/fir_tree_01_twig_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fir_tree_01_twig_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/fir_tree_01/textures/fir_tree_01_twig_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fir_tree_01_twig_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/fir_tree_01/textures/fir_tree_01_twig_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fir_tree_01_trunk_b_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/fir_tree_01/textures/fir_tree_01_trunk_b_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fir_tree_01_trunk_b_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/fir_tree_01/textures/fir_tree_01_trunk_b_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fir_tree_01_trunk_b_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/fir_tree_01/textures/fir_tree_01_trunk_b_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/fire_hydrant.gltf",
+      "to": "assets/models/props/polyhaven/fire_hydrant/fire_hydrant.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/fire_hydrant.bin",
+      "to": "assets/models/props/polyhaven/fire_hydrant/fire_hydrant.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fire_hydrant_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/fire_hydrant/textures/fire_hydrant_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fire_hydrant_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/fire_hydrant/textures/fire_hydrant_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fire_hydrant_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/fire_hydrant/textures/fire_hydrant_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fire_hydrant_aged_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/fire_hydrant/textures/fire_hydrant_aged_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fire_hydrant_aged_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/fire_hydrant/textures/fire_hydrant_aged_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/fire_hydrant_aged_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/fire_hydrant/textures/fire_hydrant_aged_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/jacaranda_tree.gltf",
+      "to": "assets/models/nature/polyhaven/jacaranda_tree/jacaranda_tree.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/jacaranda_tree.bin",
+      "to": "assets/models/nature/polyhaven/jacaranda_tree/jacaranda_tree.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/jacaranda_tree_branches_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/jacaranda_tree/textures/jacaranda_tree_branches_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/jacaranda_tree_branches_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/jacaranda_tree/textures/jacaranda_tree_branches_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/jacaranda_tree_branches_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/jacaranda_tree/textures/jacaranda_tree_branches_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/jacaranda_tree_trunk_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/jacaranda_tree/textures/jacaranda_tree_trunk_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/jacaranda_tree_trunk_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/jacaranda_tree/textures/jacaranda_tree_trunk_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/jacaranda_tree_trunk_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/jacaranda_tree/textures/jacaranda_tree_trunk_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/jacaranda_tree_leaves_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/jacaranda_tree/textures/jacaranda_tree_leaves_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/jacaranda_tree_leaves_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/jacaranda_tree/textures/jacaranda_tree_leaves_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/jacaranda_tree_leaves_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/jacaranda_tree/textures/jacaranda_tree_leaves_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/metal_tool_chest.gltf",
+      "to": "assets/models/props/polyhaven/metal_tool_chest/metal_tool_chest.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/metal_tool_chest.bin",
+      "to": "assets/models/props/polyhaven/metal_tool_chest/metal_tool_chest.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/metal_tool_chest_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/metal_tool_chest/textures/metal_tool_chest_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/metal_tool_chest_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/metal_tool_chest/textures/metal_tool_chest_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/metal_tool_chest_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/metal_tool_chest/textures/metal_tool_chest_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/metal_trash_can.gltf",
+      "to": "assets/models/props/polyhaven/metal_trash_can/metal_trash_can.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/metal_trash_can.bin",
+      "to": "assets/models/props/polyhaven/metal_trash_can/metal_trash_can.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/metal_trash_can_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/metal_trash_can/textures/metal_trash_can_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/metal_trash_can_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/metal_trash_can/textures/metal_trash_can_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/metal_trash_can_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/metal_trash_can/textures/metal_trash_can_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/metal_trash_can_rust_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/metal_trash_can/textures/metal_trash_can_rust_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/metal_trash_can_rust_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/metal_trash_can/textures/metal_trash_can_rust_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/metal_trash_can_rust_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/metal_trash_can/textures/metal_trash_can_rust_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/modular_factory_facade.gltf",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/modular_factory_facade.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/modular_factory_facade.bin",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/modular_factory_facade.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_factory_facade_trim_01_nor_gl_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/textures/modular_factory_facade_trim_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_factory_facade_trim_01_diff_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/textures/modular_factory_facade_trim_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_factory_facade_trim_01_arm_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/textures/modular_factory_facade_trim_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_factory_facade_windows_nor_gl_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/textures/modular_factory_facade_windows_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_factory_facade_windows_diff_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/textures/modular_factory_facade_windows_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_factory_facade_windows_arm_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/textures/modular_factory_facade_windows_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_factory_facade_windows_diff_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/textures/modular_factory_facade_windows_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_factory_facade_garage_nor_gl_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/textures/modular_factory_facade_garage_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_factory_facade_garage_diff_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/textures/modular_factory_facade_garage_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_factory_facade_garage_arm_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/textures/modular_factory_facade_garage_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_factory_facade_brick_nor_gl_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/textures/modular_factory_facade_brick_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_factory_facade_brick_diff_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/textures/modular_factory_facade_brick_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_factory_facade_brick_arm_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/textures/modular_factory_facade_brick_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_factory_facade_doors_nor_gl_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/textures/modular_factory_facade_doors_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_factory_facade_doors_diff_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/textures/modular_factory_facade_doors_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_factory_facade_doors_arm_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_factory_facade/textures/modular_factory_facade_doors_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/modular_urban_apartments_facade.gltf",
+      "to": "assets/models/buildings/polyhaven/modular_urban_apartments_facade/modular_urban_apartments_facade.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/modular_urban_apartments_facade.bin",
+      "to": "assets/models/buildings/polyhaven/modular_urban_apartments_facade/modular_urban_apartments_facade.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_urban_apartments_facade_objects_nor_gl_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_objects_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_urban_apartments_facade_objects_diff_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_objects_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_urban_apartments_facade_objects_arm_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_objects_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_urban_apartments_facade_trim_01_nor_gl_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_trim_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_urban_apartments_facade_trim_01_diff_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_trim_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_urban_apartments_facade_trim_01_arm_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_trim_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_urban_apartments_facade_trim_02_nor_gl_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_trim_02_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_urban_apartments_facade_trim_02_diff_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_trim_02_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_urban_apartments_facade_trim_02_arm_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_trim_02_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_urban_apartments_facade_plaster_nor_gl_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_plaster_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_urban_apartments_facade_plaster_diff_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_plaster_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/modular_urban_apartments_facade_plaster_arm_1k.jpg",
+      "to": "assets/models/buildings/polyhaven/modular_urban_apartments_facade/textures/modular_urban_apartments_facade_plaster_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/moon_rock_01.gltf",
+      "to": "assets/models/nature/polyhaven/moon_rock_01/moon_rock_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/moon_rock_01.bin",
+      "to": "assets/models/nature/polyhaven/moon_rock_01/moon_rock_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/moon_rock_01_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/moon_rock_01/textures/moon_rock_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/moon_rock_01_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/moon_rock_01/textures/moon_rock_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/moon_rock_01_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/moon_rock_01/textures/moon_rock_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/moss_01.gltf",
+      "to": "assets/models/nature/polyhaven/moss_01/moss_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/moss_01.bin",
+      "to": "assets/models/nature/polyhaven/moss_01/moss_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/moss_01_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/moss_01/textures/moss_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/moss_01_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/moss_01/textures/moss_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/moss_01_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/moss_01/textures/moss_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/painted_wooden_cabinet.gltf",
+      "to": "assets/models/furniture/polyhaven/painted_wooden_cabinet/painted_wooden_cabinet.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/painted_wooden_cabinet.bin",
+      "to": "assets/models/furniture/polyhaven/painted_wooden_cabinet/painted_wooden_cabinet.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/painted_wooden_cabinet_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/painted_wooden_cabinet/textures/painted_wooden_cabinet_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/painted_wooden_cabinet_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/painted_wooden_cabinet/textures/painted_wooden_cabinet_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/painted_wooden_cabinet_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/painted_wooden_cabinet/textures/painted_wooden_cabinet_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/pine_tree_01.gltf",
+      "to": "assets/models/nature/polyhaven/pine_tree_01/pine_tree_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/pine_tree_01.bin",
+      "to": "assets/models/nature/polyhaven/pine_tree_01/pine_tree_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/pine_tree_01_bark_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/pine_tree_01/textures/pine_tree_01_bark_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/pine_tree_01_bark_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/pine_tree_01/textures/pine_tree_01_bark_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/pine_tree_01_bark_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/pine_tree_01/textures/pine_tree_01_bark_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/pine_tree_01_trunk_a_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/pine_tree_01/textures/pine_tree_01_trunk_a_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/pine_tree_01_trunk_a_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/pine_tree_01/textures/pine_tree_01_trunk_a_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/pine_tree_01_trunk_a_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/pine_tree_01/textures/pine_tree_01_trunk_a_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/pine_tree_01_twig_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/pine_tree_01/textures/pine_tree_01_twig_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/pine_tree_01_twig_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/pine_tree_01/textures/pine_tree_01_twig_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/pine_tree_01_twig_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/pine_tree_01/textures/pine_tree_01_twig_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/pine_tree_01_trunk_b_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/pine_tree_01/textures/pine_tree_01_trunk_b_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/pine_tree_01_trunk_b_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/pine_tree_01/textures/pine_tree_01_trunk_b_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/pine_tree_01_trunk_b_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/pine_tree_01/textures/pine_tree_01_trunk_b_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/potted_plant_02.gltf",
+      "to": "assets/models/nature/polyhaven/potted_plant_02/potted_plant_02.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/potted_plant_02.bin",
+      "to": "assets/models/nature/polyhaven/potted_plant_02/potted_plant_02.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/potted_plant_02_pot_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/potted_plant_02/textures/potted_plant_02_pot_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/potted_plant_02_pot_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/potted_plant_02/textures/potted_plant_02_pot_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/potted_plant_02_pot_rough_1k.jpg",
+      "to": "assets/models/nature/polyhaven/potted_plant_02/textures/potted_plant_02_pot_rough_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/potted_plant_02_leaves_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/potted_plant_02/textures/potted_plant_02_leaves_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/potted_plant_02_leaves_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/potted_plant_02/textures/potted_plant_02_leaves_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/potted_plant_02_leaves_rough_1k.jpg",
+      "to": "assets/models/nature/polyhaven/potted_plant_02/textures/potted_plant_02_leaves_rough_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/rock_07.gltf",
+      "to": "assets/models/nature/polyhaven/rock_07/rock_07.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/rock_07.bin",
+      "to": "assets/models/nature/polyhaven/rock_07/rock_07.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/rock_07_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/rock_07/textures/rock_07_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/rock_07_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/rock_07/textures/rock_07_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/rock_07_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/rock_07/textures/rock_07_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/rock_moss_set_01.gltf",
+      "to": "assets/models/nature/polyhaven/rock_moss_set_01/rock_moss_set_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/rock_moss_set_01.bin",
+      "to": "assets/models/nature/polyhaven/rock_moss_set_01/rock_moss_set_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/rock_moss_set_01_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/rock_moss_set_01/textures/rock_moss_set_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/rock_moss_set_01_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/rock_moss_set_01/textures/rock_moss_set_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/rock_moss_set_01_rough_1k.jpg",
+      "to": "assets/models/nature/polyhaven/rock_moss_set_01/textures/rock_moss_set_01_rough_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/rock_moss_set_02.gltf",
+      "to": "assets/models/nature/polyhaven/rock_moss_set_02/rock_moss_set_02.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/rock_moss_set_02.bin",
+      "to": "assets/models/nature/polyhaven/rock_moss_set_02/rock_moss_set_02.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/rock_moss_set_02_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/rock_moss_set_02/textures/rock_moss_set_02_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/rock_moss_set_02_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/rock_moss_set_02/textures/rock_moss_set_02_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/rock_moss_set_02_rough_1k.jpg",
+      "to": "assets/models/nature/polyhaven/rock_moss_set_02/textures/rock_moss_set_02_rough_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/security_camera_01.gltf",
+      "to": "assets/models/props/polyhaven/security_camera_01/security_camera_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/security_camera_01.bin",
+      "to": "assets/models/props/polyhaven/security_camera_01/security_camera_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/security_camera_01_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/security_camera_01/textures/security_camera_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/security_camera_01_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/security_camera_01/textures/security_camera_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/security_camera_01_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/security_camera_01/textures/security_camera_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/security_camera_01_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/security_camera_01/textures/security_camera_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/shrub_01.gltf",
+      "to": "assets/models/nature/polyhaven/shrub_01/shrub_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/shrub_01.bin",
+      "to": "assets/models/nature/polyhaven/shrub_01/shrub_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/shrub_01_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/shrub_01/textures/shrub_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/shrub_01_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/shrub_01/textures/shrub_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/shrub_01_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/shrub_01/textures/shrub_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/shrub_02.gltf",
+      "to": "assets/models/nature/polyhaven/shrub_02/shrub_02.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/shrub_02.bin",
+      "to": "assets/models/nature/polyhaven/shrub_02/shrub_02.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/shrub_02_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/shrub_02/textures/shrub_02_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/shrub_02_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/shrub_02/textures/shrub_02_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/shrub_02_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/shrub_02/textures/shrub_02_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/shrub_03.gltf",
+      "to": "assets/models/nature/polyhaven/shrub_03/shrub_03.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/shrub_03.bin",
+      "to": "assets/models/nature/polyhaven/shrub_03/shrub_03.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/shrub_03_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/shrub_03/textures/shrub_03_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/shrub_03_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/shrub_03/textures/shrub_03_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/shrub_03_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/shrub_03/textures/shrub_03_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/stone_fire_pit.gltf",
+      "to": "assets/models/props/polyhaven/stone_fire_pit/stone_fire_pit.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/stone_fire_pit.bin",
+      "to": "assets/models/props/polyhaven/stone_fire_pit/stone_fire_pit.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/stone_fire_pit_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/stone_fire_pit/textures/stone_fire_pit_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/stone_fire_pit_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/stone_fire_pit/textures/stone_fire_pit_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/stone_fire_pit_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/stone_fire_pit/textures/stone_fire_pit_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/street_lamp_01.gltf",
+      "to": "assets/models/props/polyhaven/street_lamp_01/street_lamp_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/street_lamp_01.bin",
+      "to": "assets/models/props/polyhaven/street_lamp_01/street_lamp_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/street_lamp_01_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/street_lamp_01/textures/street_lamp_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/street_lamp_01_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/street_lamp_01/textures/street_lamp_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/street_lamp_01_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/street_lamp_01/textures/street_lamp_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/street_lamp_01_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/street_lamp_01/textures/street_lamp_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/street_lamp_02.gltf",
+      "to": "assets/models/props/polyhaven/street_lamp_02/street_lamp_02.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/street_lamp_02.bin",
+      "to": "assets/models/props/polyhaven/street_lamp_02/street_lamp_02.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/street_lamp_02_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/street_lamp_02/textures/street_lamp_02_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/street_lamp_02_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/street_lamp_02/textures/street_lamp_02_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/street_lamp_02_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/street_lamp_02/textures/street_lamp_02_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/street_lamp_02_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/street_lamp_02/textures/street_lamp_02_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/tea_set_01.gltf",
+      "to": "assets/models/furniture/polyhaven/tea_set_01/tea_set_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/tea_set_01.bin",
+      "to": "assets/models/furniture/polyhaven/tea_set_01/tea_set_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/tea_set_01_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/tea_set_01/textures/tea_set_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/tea_set_01_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/tea_set_01/textures/tea_set_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/tea_set_01_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/tea_set_01/textures/tea_set_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/treasure_chest.gltf",
+      "to": "assets/models/props/polyhaven/treasure_chest/treasure_chest.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/treasure_chest.bin",
+      "to": "assets/models/props/polyhaven/treasure_chest/treasure_chest.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/treasure_chest_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/treasure_chest/textures/treasure_chest_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/treasure_chest_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/treasure_chest/textures/treasure_chest_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/treasure_chest_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/treasure_chest/textures/treasure_chest_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/tree_small_02.gltf",
+      "to": "assets/models/nature/polyhaven/tree_small_02/tree_small_02.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/tree_small_02.bin",
+      "to": "assets/models/nature/polyhaven/tree_small_02/tree_small_02.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/tree_small_02_branch_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/tree_small_02/textures/tree_small_02_branch_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/tree_small_02_branch_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/tree_small_02/textures/tree_small_02_branch_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/tree_small_02_branch_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/tree_small_02/textures/tree_small_02_branch_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/tree_small_02_leaves_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/tree_small_02/textures/tree_small_02_leaves_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/tree_small_02_leaves_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/tree_small_02/textures/tree_small_02_leaves_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/tree_small_02_leaves_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/tree_small_02/textures/tree_small_02_leaves_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/tree_small_02_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/tree_small_02/textures/tree_small_02_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/tree_small_02_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/tree_small_02/textures/tree_small_02_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/tree_small_02_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/tree_small_02/textures/tree_small_02_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/tree_stump_01.gltf",
+      "to": "assets/models/nature/polyhaven/tree_stump_01/tree_stump_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/tree_stump_01.bin",
+      "to": "assets/models/nature/polyhaven/tree_stump_01/tree_stump_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/tree_stump_01_nor_gl_1k.jpg",
+      "to": "assets/models/nature/polyhaven/tree_stump_01/textures/tree_stump_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/tree_stump_01_diff_1k.jpg",
+      "to": "assets/models/nature/polyhaven/tree_stump_01/textures/tree_stump_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/tree_stump_01_arm_1k.jpg",
+      "to": "assets/models/nature/polyhaven/tree_stump_01/textures/tree_stump_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/utility_box_01.gltf",
+      "to": "assets/models/props/polyhaven/utility_box_01/utility_box_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/utility_box_01.bin",
+      "to": "assets/models/props/polyhaven/utility_box_01/utility_box_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/utility_box_01_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/utility_box_01/textures/utility_box_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/utility_box_01_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/utility_box_01/textures/utility_box_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/utility_box_01_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/utility_box_01/textures/utility_box_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/utility_box_02.gltf",
+      "to": "assets/models/props/polyhaven/utility_box_02/utility_box_02.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/utility_box_02.bin",
+      "to": "assets/models/props/polyhaven/utility_box_02/utility_box_02.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/utility_box_02_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/utility_box_02/textures/utility_box_02_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/utility_box_02_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/utility_box_02/textures/utility_box_02_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/utility_box_02_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/utility_box_02/textures/utility_box_02_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/vintage_cabinet_01.gltf",
+      "to": "assets/models/furniture/polyhaven/vintage_cabinet_01/vintage_cabinet_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/vintage_cabinet_01.bin",
+      "to": "assets/models/furniture/polyhaven/vintage_cabinet_01/vintage_cabinet_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_cabinet_01_a_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/vintage_cabinet_01/textures/vintage_cabinet_01_a_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_cabinet_01_a_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/vintage_cabinet_01/textures/vintage_cabinet_01_a_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_cabinet_01_a_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/vintage_cabinet_01/textures/vintage_cabinet_01_a_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_cabinet_01_b_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/vintage_cabinet_01/textures/vintage_cabinet_01_b_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_cabinet_01_b_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/vintage_cabinet_01/textures/vintage_cabinet_01_b_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_cabinet_01_b_rough_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/vintage_cabinet_01/textures/vintage_cabinet_01_b_rough_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_cabinet_01_a_rough_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/vintage_cabinet_01/textures/vintage_cabinet_01_a_rough_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/vintage_grandfather_clock_01.gltf",
+      "to": "assets/models/furniture/polyhaven/vintage_grandfather_clock_01/vintage_grandfather_clock_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/vintage_grandfather_clock_01.bin",
+      "to": "assets/models/furniture/polyhaven/vintage_grandfather_clock_01/vintage_grandfather_clock_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_grandfather_clock_01_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/vintage_grandfather_clock_01/textures/vintage_grandfather_clock_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_grandfather_clock_01_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/vintage_grandfather_clock_01/textures/vintage_grandfather_clock_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_grandfather_clock_01_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/vintage_grandfather_clock_01/textures/vintage_grandfather_clock_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/vintage_oil_lamp.gltf",
+      "to": "assets/models/props/polyhaven/vintage_oil_lamp/vintage_oil_lamp.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/vintage_oil_lamp.bin",
+      "to": "assets/models/props/polyhaven/vintage_oil_lamp/vintage_oil_lamp.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_oil_lamp_glass_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/vintage_oil_lamp/textures/vintage_oil_lamp_glass_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_oil_lamp_glass_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/vintage_oil_lamp/textures/vintage_oil_lamp_glass_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_oil_lamp_glass_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/vintage_oil_lamp/textures/vintage_oil_lamp_glass_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_oil_lamp_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/vintage_oil_lamp/textures/vintage_oil_lamp_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_oil_lamp_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/vintage_oil_lamp/textures/vintage_oil_lamp_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_oil_lamp_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/vintage_oil_lamp/textures/vintage_oil_lamp_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_oil_lamp_flame_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/vintage_oil_lamp/textures/vintage_oil_lamp_flame_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/vintage_oil_lamp_flame_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/vintage_oil_lamp/textures/vintage_oil_lamp_flame_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/wine_barrel_01.gltf",
+      "to": "assets/models/props/polyhaven/wine_barrel_01/wine_barrel_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/wine_barrel_01.bin",
+      "to": "assets/models/props/polyhaven/wine_barrel_01/wine_barrel_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wine_barrel_01_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/wine_barrel_01/textures/wine_barrel_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wine_barrel_01_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/wine_barrel_01/textures/wine_barrel_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wine_barrel_01_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/wine_barrel_01/textures/wine_barrel_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_axe.gltf",
+      "to": "assets/models/props/polyhaven/wooden_axe/wooden_axe.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_axe.bin",
+      "to": "assets/models/props/polyhaven/wooden_axe/wooden_axe.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_axe_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_axe/textures/wooden_axe_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_axe_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_axe/textures/wooden_axe_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_axe_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_axe/textures/wooden_axe_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_barrels_01.gltf",
+      "to": "assets/models/props/polyhaven/wooden_barrels_01/wooden_barrels_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_barrels_01.bin",
+      "to": "assets/models/props/polyhaven/wooden_barrels_01/wooden_barrels_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_barrels_01_barrel01_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_barrels_01/textures/wooden_barrels_01_barrel01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_barrels_01_barrel01_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_barrels_01/textures/wooden_barrels_01_barrel01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_barrels_01_barrel01_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_barrels_01/textures/wooden_barrels_01_barrel01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_barrels_01_barrel02_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_barrels_01/textures/wooden_barrels_01_barrel02_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_barrels_01_barrel02_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_barrels_01/textures/wooden_barrels_01_barrel02_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_barrels_01_barrel02_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_barrels_01/textures/wooden_barrels_01_barrel02_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_barrels_01_pieces_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_barrels_01/textures/wooden_barrels_01_pieces_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_barrels_01_pieces_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_barrels_01/textures/wooden_barrels_01_pieces_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_barrels_01_pieces_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_barrels_01/textures/wooden_barrels_01_pieces_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_bookshelf_worn.gltf",
+      "to": "assets/models/furniture/polyhaven/wooden_bookshelf_worn/wooden_bookshelf_worn.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_bookshelf_worn.bin",
+      "to": "assets/models/furniture/polyhaven/wooden_bookshelf_worn/wooden_bookshelf_worn.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_bookshelf_worn_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/wooden_bookshelf_worn/textures/wooden_bookshelf_worn_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_bookshelf_worn_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/wooden_bookshelf_worn/textures/wooden_bookshelf_worn_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_bookshelf_worn_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/wooden_bookshelf_worn/textures/wooden_bookshelf_worn_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_bucket_01.gltf",
+      "to": "assets/models/props/polyhaven/wooden_bucket_01/wooden_bucket_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_bucket_01.bin",
+      "to": "assets/models/props/polyhaven/wooden_bucket_01/wooden_bucket_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_bucket_01_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_bucket_01/textures/wooden_bucket_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_bucket_01_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_bucket_01/textures/wooden_bucket_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_bucket_01_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_bucket_01/textures/wooden_bucket_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_bucket_02.gltf",
+      "to": "assets/models/props/polyhaven/wooden_bucket_02/wooden_bucket_02.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_bucket_02.bin",
+      "to": "assets/models/props/polyhaven/wooden_bucket_02/wooden_bucket_02.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_bucket_02_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_bucket_02/textures/wooden_bucket_02_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_bucket_02_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_bucket_02/textures/wooden_bucket_02_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_bucket_02_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_bucket_02/textures/wooden_bucket_02_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_candlestick.gltf",
+      "to": "assets/models/props/polyhaven/wooden_candlestick/wooden_candlestick.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_candlestick.bin",
+      "to": "assets/models/props/polyhaven/wooden_candlestick/wooden_candlestick.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_candlestick_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_candlestick/textures/wooden_candlestick_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_candlestick_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_candlestick/textures/wooden_candlestick_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_candlestick_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_candlestick/textures/wooden_candlestick_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_crate_01.gltf",
+      "to": "assets/models/props/polyhaven/wooden_crate_01/wooden_crate_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_crate_01.bin",
+      "to": "assets/models/props/polyhaven/wooden_crate_01/wooden_crate_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_crate_01_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_crate_01/textures/wooden_crate_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_crate_01_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_crate_01/textures/wooden_crate_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_crate_01_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_crate_01/textures/wooden_crate_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_crate_02.gltf",
+      "to": "assets/models/props/polyhaven/wooden_crate_02/wooden_crate_02.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_crate_02.bin",
+      "to": "assets/models/props/polyhaven/wooden_crate_02/wooden_crate_02.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_crate_02_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_crate_02/textures/wooden_crate_02_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_crate_02_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_crate_02/textures/wooden_crate_02_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_crate_02_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_crate_02/textures/wooden_crate_02_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_handle_saber.gltf",
+      "to": "assets/models/props/polyhaven/wooden_handle_saber/wooden_handle_saber.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_handle_saber.bin",
+      "to": "assets/models/props/polyhaven/wooden_handle_saber/wooden_handle_saber.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_handle_saber_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_handle_saber/textures/wooden_handle_saber_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_handle_saber_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_handle_saber/textures/wooden_handle_saber_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_handle_saber_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_handle_saber/textures/wooden_handle_saber_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_lantern_01.gltf",
+      "to": "assets/models/props/polyhaven/wooden_lantern_01/wooden_lantern_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_lantern_01.bin",
+      "to": "assets/models/props/polyhaven/wooden_lantern_01/wooden_lantern_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_lantern_01_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_lantern_01/textures/wooden_lantern_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_lantern_01_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_lantern_01/textures/wooden_lantern_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_lantern_01_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_lantern_01/textures/wooden_lantern_01_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_lantern_01_glass_nor_gl_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_lantern_01/textures/wooden_lantern_01_glass_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_lantern_01_glass_diff_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_lantern_01/textures/wooden_lantern_01_glass_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_lantern_01_glass_arm_1k.jpg",
+      "to": "assets/models/props/polyhaven/wooden_lantern_01/textures/wooden_lantern_01_glass_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_stool_01.gltf",
+      "to": "assets/models/furniture/polyhaven/wooden_stool_01/wooden_stool_01.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_stool_01.bin",
+      "to": "assets/models/furniture/polyhaven/wooden_stool_01/wooden_stool_01.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_stool_01_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/wooden_stool_01/textures/wooden_stool_01_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_stool_01_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/wooden_stool_01/textures/wooden_stool_01_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_stool_01_rough_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/wooden_stool_01/textures/wooden_stool_01_rough_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_table_02.gltf",
+      "to": "assets/models/furniture/polyhaven/wooden_table_02/wooden_table_02.gltf"
+    },
+    {
+      "from": "assets/polyhaven/models/wooden_table_02.bin",
+      "to": "assets/models/furniture/polyhaven/wooden_table_02/wooden_table_02.bin"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_table_02_nor_gl_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/wooden_table_02/textures/wooden_table_02_nor_gl_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_table_02_diff_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/wooden_table_02/textures/wooden_table_02_diff_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/models/textures/wooden_table_02_arm_1k.jpg",
+      "to": "assets/models/furniture/polyhaven/wooden_table_02/textures/wooden_table_02_arm_1k.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/asphalt_01.jpg",
+      "to": "assets/textures/environment/asphalt_01.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/brick_wall_001.jpg",
+      "to": "assets/textures/environment/brick_wall_001.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/brick_wall_003.jpg",
+      "to": "assets/textures/environment/brick_wall_003.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/brown_mud.jpg",
+      "to": "assets/textures/environment/brown_mud.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/castle_brick_01.jpg",
+      "to": "assets/textures/environment/castle_brick_01.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/clay_roof_tiles.jpg",
+      "to": "assets/textures/environment/clay_roof_tiles.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/cobblestone_floor_01.jpg",
+      "to": "assets/textures/environment/cobblestone_floor_01.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/cobblestone_floor_02.jpg",
+      "to": "assets/textures/environment/cobblestone_floor_02.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/concrete_floor.jpg",
+      "to": "assets/textures/environment/concrete_floor.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/concrete_wall_001.jpg",
+      "to": "assets/textures/environment/concrete_wall_001.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/concrete_wall_003.jpg",
+      "to": "assets/textures/environment/concrete_wall_003.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/concrete_wall_004.jpg",
+      "to": "assets/textures/environment/concrete_wall_004.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/corrugated_iron.jpg",
+      "to": "assets/textures/environment/corrugated_iron.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/dirt.jpg",
+      "to": "assets/textures/environment/dirt.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/forest_floor.jpg",
+      "to": "assets/textures/environment/forest_floor.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/forrest_ground_01.jpg",
+      "to": "assets/textures/environment/forrest_ground_01.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/gravel_floor.jpg",
+      "to": "assets/textures/environment/gravel_floor.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/marble_01.jpg",
+      "to": "assets/textures/environment/marble_01.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/medieval_blocks_02.jpg",
+      "to": "assets/textures/environment/medieval_blocks_02.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/medieval_wall_01.jpg",
+      "to": "assets/textures/environment/medieval_wall_01.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/metal_grate_rusty.jpg",
+      "to": "assets/textures/environment/metal_grate_rusty.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/metal_plate.jpg",
+      "to": "assets/textures/environment/metal_plate.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/moss_01.jpg",
+      "to": "assets/textures/environment/moss_01.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/mossy_brick_floor.jpg",
+      "to": "assets/textures/environment/mossy_brick_floor.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/mossy_cobblestone.jpg",
+      "to": "assets/textures/environment/mossy_cobblestone.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/old_planks_02.jpg",
+      "to": "assets/textures/environment/old_planks_02.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/old_stone_wall.jpg",
+      "to": "assets/textures/environment/old_stone_wall.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/old_wood_floor.jpg",
+      "to": "assets/textures/environment/old_wood_floor.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/roof_tiles.jpg",
+      "to": "assets/textures/environment/roof_tiles.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/rusty_metal.jpg",
+      "to": "assets/textures/environment/rusty_metal.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/slate_floor.jpg",
+      "to": "assets/textures/environment/slate_floor.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/stone_wall.jpg",
+      "to": "assets/textures/environment/stone_wall.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/stone_wall_02.jpg",
+      "to": "assets/textures/environment/stone_wall_02.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/stone_wall_04.jpg",
+      "to": "assets/textures/environment/stone_wall_04.jpg"
+    },
+    {
+      "from": "assets/polyhaven/textures/wooden_planks.jpg",
+      "to": "assets/textures/environment/wooden_planks.jpg"
+    },
+    {
+      "from": "assets/sketchfab/models/00b563b64111430e9ebdb71ae784979c_Mine_Shaft_Kit/license.txt",
+      "to": "assets/models/buildings/sketchfab/00b563b64111430e9ebdb71ae784979c_Mine_Shaft_Kit/license.txt"
+    },
+    {
+      "from": "assets/sketchfab/models/00b563b64111430e9ebdb71ae784979c_Mine_Shaft_Kit/scene.bin",
+      "to": "assets/models/buildings/sketchfab/00b563b64111430e9ebdb71ae784979c_Mine_Shaft_Kit/scene.bin"
+    },
+    {
+      "from": "assets/sketchfab/models/00b563b64111430e9ebdb71ae784979c_Mine_Shaft_Kit/scene.gltf",
+      "to": "assets/models/buildings/sketchfab/00b563b64111430e9ebdb71ae784979c_Mine_Shaft_Kit/scene.gltf"
+    },
+    {
+      "from": "assets/sketchfab/models/00b563b64111430e9ebdb71ae784979c_Mine_Shaft_Kit/textures/TunnelAsset_Mat_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/00b563b64111430e9ebdb71ae784979c_Mine_Shaft_Kit/textures/TunnelAsset_Mat_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/00b563b64111430e9ebdb71ae784979c_Mine_Shaft_Kit/textures/TunnelAsset_Mat_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/00b563b64111430e9ebdb71ae784979c_Mine_Shaft_Kit/textures/TunnelAsset_Mat_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/00b563b64111430e9ebdb71ae784979c_Mine_Shaft_Kit/textures/TunnelAsset_Mat_normal.png",
+      "to": "assets/models/buildings/sketchfab/00b563b64111430e9ebdb71ae784979c_Mine_Shaft_Kit/textures/TunnelAsset_Mat_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/license.txt",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/license.txt"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/scene.bin",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/scene.bin"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/scene.gltf",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/scene.gltf"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/03_-_Default_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/03_-_Default_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/03_-_Default_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/03_-_Default_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/03_-_Default_normal.png",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/03_-_Default_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/04_-_Default_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/04_-_Default_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/04_-_Default_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/04_-_Default_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/04_-_Default_normal.png",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/04_-_Default_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/05_-_Default_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/05_-_Default_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/05_-_Default_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/05_-_Default_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/05_-_Default_normal.png",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/05_-_Default_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/06_-_Default_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/06_-_Default_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/06_-_Default_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/06_-_Default_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/06_-_Default_normal.png",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/06_-_Default_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/None_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/None_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/None_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/None_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/None_normal.png",
+      "to": "assets/models/buildings/sketchfab/080f516a0b6b402092c1314913341db8_Medieval_Mill/textures/None_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/0bbda345359349ea95280f597c8a4bd4_Medieval_House_1/license.txt",
+      "to": "assets/models/buildings/sketchfab/0bbda345359349ea95280f597c8a4bd4_Medieval_House_1/license.txt"
+    },
+    {
+      "from": "assets/sketchfab/models/0bbda345359349ea95280f597c8a4bd4_Medieval_House_1/scene.bin",
+      "to": "assets/models/buildings/sketchfab/0bbda345359349ea95280f597c8a4bd4_Medieval_House_1/scene.bin"
+    },
+    {
+      "from": "assets/sketchfab/models/0bbda345359349ea95280f597c8a4bd4_Medieval_House_1/scene.gltf",
+      "to": "assets/models/buildings/sketchfab/0bbda345359349ea95280f597c8a4bd4_Medieval_House_1/scene.gltf"
+    },
+    {
+      "from": "assets/sketchfab/models/0bbda345359349ea95280f597c8a4bd4_Medieval_House_1/textures/House1_M_diffuse.png",
+      "to": "assets/models/buildings/sketchfab/0bbda345359349ea95280f597c8a4bd4_Medieval_House_1/textures/House1_M_diffuse.png"
+    },
+    {
+      "from": "assets/sketchfab/models/0bbda345359349ea95280f597c8a4bd4_Medieval_House_1/textures/House1_M_normal.png",
+      "to": "assets/models/buildings/sketchfab/0bbda345359349ea95280f597c8a4bd4_Medieval_House_1/textures/House1_M_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/0bbda345359349ea95280f597c8a4bd4_Medieval_House_1/textures/House1_M_occlusion.png",
+      "to": "assets/models/buildings/sketchfab/0bbda345359349ea95280f597c8a4bd4_Medieval_House_1/textures/House1_M_occlusion.png"
+    },
+    {
+      "from": "assets/sketchfab/models/0bbda345359349ea95280f597c8a4bd4_Medieval_House_1/textures/House1_M_specularGlossiness.png",
+      "to": "assets/models/buildings/sketchfab/0bbda345359349ea95280f597c8a4bd4_Medieval_House_1/textures/House1_M_specularGlossiness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/0e5944ed90664d408548b6d19601c7a8_Watermill/license.txt",
+      "to": "assets/models/buildings/sketchfab/0e5944ed90664d408548b6d19601c7a8_Watermill/license.txt"
+    },
+    {
+      "from": "assets/sketchfab/models/0e5944ed90664d408548b6d19601c7a8_Watermill/scene.bin",
+      "to": "assets/models/buildings/sketchfab/0e5944ed90664d408548b6d19601c7a8_Watermill/scene.bin"
+    },
+    {
+      "from": "assets/sketchfab/models/0e5944ed90664d408548b6d19601c7a8_Watermill/scene.gltf",
+      "to": "assets/models/buildings/sketchfab/0e5944ed90664d408548b6d19601c7a8_Watermill/scene.gltf"
+    },
+    {
+      "from": "assets/sketchfab/models/0e5944ed90664d408548b6d19601c7a8_Watermill/textures/Scene_-_Root_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/0e5944ed90664d408548b6d19601c7a8_Watermill/textures/Scene_-_Root_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/0e5944ed90664d408548b6d19601c7a8_Watermill/textures/Scene_-_Root_emissive.png",
+      "to": "assets/models/buildings/sketchfab/0e5944ed90664d408548b6d19601c7a8_Watermill/textures/Scene_-_Root_emissive.png"
+    },
+    {
+      "from": "assets/sketchfab/models/0e5944ed90664d408548b6d19601c7a8_Watermill/textures/Scene_-_Root_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/0e5944ed90664d408548b6d19601c7a8_Watermill/textures/Scene_-_Root_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/0e5944ed90664d408548b6d19601c7a8_Watermill/textures/Scene_-_Root_normal.png",
+      "to": "assets/models/buildings/sketchfab/0e5944ed90664d408548b6d19601c7a8_Watermill/textures/Scene_-_Root_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/license.txt",
+      "to": "assets/models/buildings/sketchfab/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/license.txt"
+    },
+    {
+      "from": "assets/sketchfab/models/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/scene.bin",
+      "to": "assets/models/buildings/sketchfab/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/scene.bin"
+    },
+    {
+      "from": "assets/sketchfab/models/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/scene.gltf",
+      "to": "assets/models/buildings/sketchfab/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/scene.gltf"
+    },
+    {
+      "from": "assets/sketchfab/models/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/textures/Material.001_baseColor.jpeg",
+      "to": "assets/models/buildings/sketchfab/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/textures/Material.001_baseColor.jpeg"
+    },
+    {
+      "from": "assets/sketchfab/models/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/textures/Material.002_baseColor.jpeg",
+      "to": "assets/models/buildings/sketchfab/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/textures/Material.002_baseColor.jpeg"
+    },
+    {
+      "from": "assets/sketchfab/models/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/textures/Material.003_baseColor.jpeg",
+      "to": "assets/models/buildings/sketchfab/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/textures/Material.003_baseColor.jpeg"
+    },
+    {
+      "from": "assets/sketchfab/models/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/textures/Material.004_baseColor.jpeg",
+      "to": "assets/models/buildings/sketchfab/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/textures/Material.004_baseColor.jpeg"
+    },
+    {
+      "from": "assets/sketchfab/models/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/textures/Material.005_baseColor.jpeg",
+      "to": "assets/models/buildings/sketchfab/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/textures/Material.005_baseColor.jpeg"
+    },
+    {
+      "from": "assets/sketchfab/models/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/textures/Material.006_baseColor.jpeg",
+      "to": "assets/models/buildings/sketchfab/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/textures/Material.006_baseColor.jpeg"
+    },
+    {
+      "from": "assets/sketchfab/models/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/textures/Material.007_baseColor.jpeg",
+      "to": "assets/models/buildings/sketchfab/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/textures/Material.007_baseColor.jpeg"
+    },
+    {
+      "from": "assets/sketchfab/models/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/textures/Material_baseColor.jpeg",
+      "to": "assets/models/buildings/sketchfab/1086c3c8d5434cf89b1cab8792ba9151_Medieval_Barrack/textures/Material_baseColor.jpeg"
+    },
+    {
+      "from": "assets/sketchfab/models/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/license.txt",
+      "to": "assets/models/buildings/sketchfab/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/license.txt"
+    },
+    {
+      "from": "assets/sketchfab/models/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/scene.bin",
+      "to": "assets/models/buildings/sketchfab/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/scene.bin"
+    },
+    {
+      "from": "assets/sketchfab/models/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/scene.gltf",
+      "to": "assets/models/buildings/sketchfab/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/scene.gltf"
+    },
+    {
+      "from": "assets/sketchfab/models/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/textures/aiStandardSurface11SG_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/textures/aiStandardSurface11SG_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/textures/aiStandardSurface11SG_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/textures/aiStandardSurface11SG_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/textures/aiStandardSurface11SG_normal.png",
+      "to": "assets/models/buildings/sketchfab/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/textures/aiStandardSurface11SG_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/textures/aiStandardSurface5SG_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/textures/aiStandardSurface5SG_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/textures/aiStandardSurface5SG_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/textures/aiStandardSurface5SG_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/textures/aiStandardSurface5SG_normal.png",
+      "to": "assets/models/buildings/sketchfab/39e4cd568ce74dd3a58118d3a5b94471_Old_Sawmill/textures/aiStandardSurface5SG_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/3eb9e3b600264e2f99100fc43619497e_Medieval_House_-_Generic_Textures_-_Game_Ready/license.txt",
+      "to": "assets/models/buildings/sketchfab/3eb9e3b600264e2f99100fc43619497e_Medieval_House_-_Generic_Textures_-_Game_Ready/license.txt"
+    },
+    {
+      "from": "assets/sketchfab/models/3eb9e3b600264e2f99100fc43619497e_Medieval_House_-_Generic_Textures_-_Game_Ready/scene.bin",
+      "to": "assets/models/buildings/sketchfab/3eb9e3b600264e2f99100fc43619497e_Medieval_House_-_Generic_Textures_-_Game_Ready/scene.bin"
+    },
+    {
+      "from": "assets/sketchfab/models/3eb9e3b600264e2f99100fc43619497e_Medieval_House_-_Generic_Textures_-_Game_Ready/scene.gltf",
+      "to": "assets/models/buildings/sketchfab/3eb9e3b600264e2f99100fc43619497e_Medieval_House_-_Generic_Textures_-_Game_Ready/scene.gltf"
+    },
+    {
+      "from": "assets/sketchfab/models/3eb9e3b600264e2f99100fc43619497e_Medieval_House_-_Generic_Textures_-_Game_Ready/textures/blinn1_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/3eb9e3b600264e2f99100fc43619497e_Medieval_House_-_Generic_Textures_-_Game_Ready/textures/blinn1_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/3eb9e3b600264e2f99100fc43619497e_Medieval_House_-_Generic_Textures_-_Game_Ready/textures/blinn1_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/3eb9e3b600264e2f99100fc43619497e_Medieval_House_-_Generic_Textures_-_Game_Ready/textures/blinn1_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/3eb9e3b600264e2f99100fc43619497e_Medieval_House_-_Generic_Textures_-_Game_Ready/textures/blinn1_normal.png",
+      "to": "assets/models/buildings/sketchfab/3eb9e3b600264e2f99100fc43619497e_Medieval_House_-_Generic_Textures_-_Game_Ready/textures/blinn1_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/license.txt",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/license.txt"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/scene.bin",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/scene.bin"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/scene.gltf",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/scene.gltf"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/barrel_baseColor.jpeg",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/barrel_baseColor.jpeg"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/barrel_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/barrel_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/barrel_normal.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/barrel_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/basket_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/basket_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/basket_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/basket_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/basket_normal.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/basket_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/bread_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/bread_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/bread_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/bread_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/bread_normal.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/bread_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/cloth_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/cloth_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/cloth_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/cloth_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/cloth_normal.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/cloth_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/fish_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/fish_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/fish_normal.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/fish_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/fruits_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/fruits_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/fruits_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/fruits_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/fruits_normal.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/fruits_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/ground_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/ground_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/ground_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/ground_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/ground_normal.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/ground_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/herbs_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/herbs_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/herbs_normal.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/herbs_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/material_baseColor.jpeg",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/material_baseColor.jpeg"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/material_normal.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/material_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/material_specularf0.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/material_specularf0.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/stand_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/stand_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/stand_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/stand_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/stand_normal.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/stand_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/table_baseColor.jpeg",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/table_baseColor.jpeg"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/table_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/table_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/table_normal.png",
+      "to": "assets/models/buildings/sketchfab/7d9b2922dd0941dab820c4763078c789_Medieval_Food_Stall/textures/table_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/a06dfdc919334bfc95de720ad98f4295_Medieval_Tavern__2k_vertices_/license.txt",
+      "to": "assets/models/buildings/sketchfab/a06dfdc919334bfc95de720ad98f4295_Medieval_Tavern__2k_vertices_/license.txt"
+    },
+    {
+      "from": "assets/sketchfab/models/a06dfdc919334bfc95de720ad98f4295_Medieval_Tavern__2k_vertices_/scene.bin",
+      "to": "assets/models/buildings/sketchfab/a06dfdc919334bfc95de720ad98f4295_Medieval_Tavern__2k_vertices_/scene.bin"
+    },
+    {
+      "from": "assets/sketchfab/models/a06dfdc919334bfc95de720ad98f4295_Medieval_Tavern__2k_vertices_/scene.gltf",
+      "to": "assets/models/buildings/sketchfab/a06dfdc919334bfc95de720ad98f4295_Medieval_Tavern__2k_vertices_/scene.gltf"
+    },
+    {
+      "from": "assets/sketchfab/models/a06dfdc919334bfc95de720ad98f4295_Medieval_Tavern__2k_vertices_/textures/Tavern_28_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/a06dfdc919334bfc95de720ad98f4295_Medieval_Tavern__2k_vertices_/textures/Tavern_28_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/a06dfdc919334bfc95de720ad98f4295_Medieval_Tavern__2k_vertices_/textures/Tavern_28_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/a06dfdc919334bfc95de720ad98f4295_Medieval_Tavern__2k_vertices_/textures/Tavern_28_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/a06dfdc919334bfc95de720ad98f4295_Medieval_Tavern__2k_vertices_/textures/Tavern_28_normal.png",
+      "to": "assets/models/buildings/sketchfab/a06dfdc919334bfc95de720ad98f4295_Medieval_Tavern__2k_vertices_/textures/Tavern_28_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/b5eaf6f238b1490a80c682ed238a7230_Low_Poly_Medieval_Gothic_Church/license.txt",
+      "to": "assets/models/buildings/sketchfab/b5eaf6f238b1490a80c682ed238a7230_Low_Poly_Medieval_Gothic_Church/license.txt"
+    },
+    {
+      "from": "assets/sketchfab/models/b5eaf6f238b1490a80c682ed238a7230_Low_Poly_Medieval_Gothic_Church/scene.bin",
+      "to": "assets/models/buildings/sketchfab/b5eaf6f238b1490a80c682ed238a7230_Low_Poly_Medieval_Gothic_Church/scene.bin"
+    },
+    {
+      "from": "assets/sketchfab/models/b5eaf6f238b1490a80c682ed238a7230_Low_Poly_Medieval_Gothic_Church/scene.gltf",
+      "to": "assets/models/buildings/sketchfab/b5eaf6f238b1490a80c682ed238a7230_Low_Poly_Medieval_Gothic_Church/scene.gltf"
+    },
+    {
+      "from": "assets/sketchfab/models/b5eaf6f238b1490a80c682ed238a7230_Low_Poly_Medieval_Gothic_Church/textures/pedra_baseColor.jpeg",
+      "to": "assets/models/buildings/sketchfab/b5eaf6f238b1490a80c682ed238a7230_Low_Poly_Medieval_Gothic_Church/textures/pedra_baseColor.jpeg"
+    },
+    {
+      "from": "assets/sketchfab/models/b5eaf6f238b1490a80c682ed238a7230_Low_Poly_Medieval_Gothic_Church/textures/pedra_normal.jpeg",
+      "to": "assets/models/buildings/sketchfab/b5eaf6f238b1490a80c682ed238a7230_Low_Poly_Medieval_Gothic_Church/textures/pedra_normal.jpeg"
+    },
+    {
+      "from": "assets/sketchfab/models/b5eaf6f238b1490a80c682ed238a7230_Low_Poly_Medieval_Gothic_Church/textures/telha_baseColor.jpeg",
+      "to": "assets/models/buildings/sketchfab/b5eaf6f238b1490a80c682ed238a7230_Low_Poly_Medieval_Gothic_Church/textures/telha_baseColor.jpeg"
+    },
+    {
+      "from": "assets/sketchfab/models/b5eaf6f238b1490a80c682ed238a7230_Low_Poly_Medieval_Gothic_Church/textures/telha_normal.jpeg",
+      "to": "assets/models/buildings/sketchfab/b5eaf6f238b1490a80c682ed238a7230_Low_Poly_Medieval_Gothic_Church/textures/telha_normal.jpeg"
+    },
+    {
+      "from": "assets/sketchfab/models/cf179aa6dc0944f1974ce3f7812031a6_Medieval_House_3/license.txt",
+      "to": "assets/models/buildings/sketchfab/cf179aa6dc0944f1974ce3f7812031a6_Medieval_House_3/license.txt"
+    },
+    {
+      "from": "assets/sketchfab/models/cf179aa6dc0944f1974ce3f7812031a6_Medieval_House_3/scene.bin",
+      "to": "assets/models/buildings/sketchfab/cf179aa6dc0944f1974ce3f7812031a6_Medieval_House_3/scene.bin"
+    },
+    {
+      "from": "assets/sketchfab/models/cf179aa6dc0944f1974ce3f7812031a6_Medieval_House_3/scene.gltf",
+      "to": "assets/models/buildings/sketchfab/cf179aa6dc0944f1974ce3f7812031a6_Medieval_House_3/scene.gltf"
+    },
+    {
+      "from": "assets/sketchfab/models/cf179aa6dc0944f1974ce3f7812031a6_Medieval_House_3/textures/House3_M_diffuse.png",
+      "to": "assets/models/buildings/sketchfab/cf179aa6dc0944f1974ce3f7812031a6_Medieval_House_3/textures/House3_M_diffuse.png"
+    },
+    {
+      "from": "assets/sketchfab/models/cf179aa6dc0944f1974ce3f7812031a6_Medieval_House_3/textures/House3_M_normal.png",
+      "to": "assets/models/buildings/sketchfab/cf179aa6dc0944f1974ce3f7812031a6_Medieval_House_3/textures/House3_M_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/cf179aa6dc0944f1974ce3f7812031a6_Medieval_House_3/textures/House3_M_occlusion.png",
+      "to": "assets/models/buildings/sketchfab/cf179aa6dc0944f1974ce3f7812031a6_Medieval_House_3/textures/House3_M_occlusion.png"
+    },
+    {
+      "from": "assets/sketchfab/models/cf179aa6dc0944f1974ce3f7812031a6_Medieval_House_3/textures/House3_M_specularGlossiness.png",
+      "to": "assets/models/buildings/sketchfab/cf179aa6dc0944f1974ce3f7812031a6_Medieval_House_3/textures/House3_M_specularGlossiness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/license.txt",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/license.txt"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/scene.bin",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/scene.bin"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/scene.gltf",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/scene.gltf"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/ForgeMat_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/ForgeMat_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/ForgeMat_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/ForgeMat_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/ForgeMat_normal.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/ForgeMat_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/FurnitureMat_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/FurnitureMat_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/FurnitureMat_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/FurnitureMat_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/FurnitureMat_normal.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/FurnitureMat_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/GroundMat_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/GroundMat_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/GroundMat_normal.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/GroundMat_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/InteriorItemsMat_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/InteriorItemsMat_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/InteriorItemsMat_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/InteriorItemsMat_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/InteriorItemsMat_normal.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/InteriorItemsMat_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/WeaponsToolsMat_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/WeaponsToolsMat_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/WeaponsToolsMat_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/WeaponsToolsMat_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/WeaponsToolsMat_normal.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/WeaponsToolsMat_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/WoodExteriorMat_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/WoodExteriorMat_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/WoodExteriorMat_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/WoodExteriorMat_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/WoodExteriorMat_normal.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/WoodExteriorMat_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/blacksmithsMat_baseColor.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/blacksmithsMat_baseColor.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/blacksmithsMat_metallicRoughness.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/blacksmithsMat_metallicRoughness.png"
+    },
+    {
+      "from": "assets/sketchfab/models/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/blacksmithsMat_normal.png",
+      "to": "assets/models/buildings/sketchfab/d93444656b204ddd8270b9a9be0d99ec_The_Blacksmith_s/textures/blacksmithsMat_normal.png"
+    },
+    {
+      "from": "assets/sketchfab/models/e883e0175881444197b38d4c19d59a16_Stylised_Medieval_Buildings_-_Town_Hall/license.txt",
+      "to": "assets/models/buildings/sketchfab/e883e0175881444197b38d4c19d59a16_Stylised_Medieval_Buildings_-_Town_Hall/license.txt"
+    },
+    {
+      "from": "assets/sketchfab/models/e883e0175881444197b38d4c19d59a16_Stylised_Medieval_Buildings_-_Town_Hall/scene.bin",
+      "to": "assets/models/buildings/sketchfab/e883e0175881444197b38d4c19d59a16_Stylised_Medieval_Buildings_-_Town_Hall/scene.bin"
+    },
+    {
+      "from": "assets/sketchfab/models/e883e0175881444197b38d4c19d59a16_Stylised_Medieval_Buildings_-_Town_Hall/scene.gltf",
+      "to": "assets/models/buildings/sketchfab/e883e0175881444197b38d4c19d59a16_Stylised_Medieval_Buildings_-_Town_Hall/scene.gltf"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_barracks_blue.bin",
+      "to": "assets/models/buildings/kaykit/building_barracks_blue.bin"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_barracks_blue.gltf",
+      "to": "assets/models/buildings/kaykit/building_barracks_blue.gltf"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_blacksmith_blue.bin",
+      "to": "assets/models/buildings/kaykit/building_blacksmith_blue.bin"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_blacksmith_blue.gltf",
+      "to": "assets/models/buildings/kaykit/building_blacksmith_blue.gltf"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_castle_blue.bin",
+      "to": "assets/models/buildings/kaykit/building_castle_blue.bin"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_castle_blue.gltf",
+      "to": "assets/models/buildings/kaykit/building_castle_blue.gltf"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_church_blue.bin",
+      "to": "assets/models/buildings/kaykit/building_church_blue.bin"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_church_blue.gltf",
+      "to": "assets/models/buildings/kaykit/building_church_blue.gltf"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_home_A_blue.bin",
+      "to": "assets/models/buildings/kaykit/building_home_A_blue.bin"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_home_A_blue.gltf",
+      "to": "assets/models/buildings/kaykit/building_home_A_blue.gltf"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_home_B_blue.bin",
+      "to": "assets/models/buildings/kaykit/building_home_B_blue.bin"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_home_B_blue.gltf",
+      "to": "assets/models/buildings/kaykit/building_home_B_blue.gltf"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_lumbermill_blue.bin",
+      "to": "assets/models/buildings/kaykit/building_lumbermill_blue.bin"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_lumbermill_blue.gltf",
+      "to": "assets/models/buildings/kaykit/building_lumbermill_blue.gltf"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_market_blue.bin",
+      "to": "assets/models/buildings/kaykit/building_market_blue.bin"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_market_blue.gltf",
+      "to": "assets/models/buildings/kaykit/building_market_blue.gltf"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_mine_blue.bin",
+      "to": "assets/models/buildings/kaykit/building_mine_blue.bin"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_mine_blue.gltf",
+      "to": "assets/models/buildings/kaykit/building_mine_blue.gltf"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_tavern_blue.bin",
+      "to": "assets/models/buildings/kaykit/building_tavern_blue.bin"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_tavern_blue.gltf",
+      "to": "assets/models/buildings/kaykit/building_tavern_blue.gltf"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_watermill_blue.bin",
+      "to": "assets/models/buildings/kaykit/building_watermill_blue.bin"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_watermill_blue.gltf",
+      "to": "assets/models/buildings/kaykit/building_watermill_blue.gltf"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_well_blue.bin",
+      "to": "assets/models/buildings/kaykit/building_well_blue.bin"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_well_blue.gltf",
+      "to": "assets/models/buildings/kaykit/building_well_blue.gltf"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_windmill_blue.bin",
+      "to": "assets/models/buildings/kaykit/building_windmill_blue.bin"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/building_windmill_blue.gltf",
+      "to": "assets/models/buildings/kaykit/building_windmill_blue.gltf"
+    },
+    {
+      "from": "assets/kaykit/models/medieval-buildings/hexagons_medieval.png",
+      "to": "assets/models/buildings/kaykit/hexagons_medieval.png"
+    },
+    {
+      "from": "assets/characters/fantasy/npc_female_athletic.glb",
+      "to": "assets/models/characters/fantasy/npc_female_athletic.glb"
+    },
+    {
+      "from": "assets/characters/fantasy/npc_female_average.glb",
+      "to": "assets/models/characters/fantasy/npc_female_average.glb"
+    },
+    {
+      "from": "assets/characters/fantasy/npc_female_heavy.glb",
+      "to": "assets/models/characters/fantasy/npc_female_heavy.glb"
+    },
+    {
+      "from": "assets/characters/fantasy/npc_female_slim.glb",
+      "to": "assets/models/characters/fantasy/npc_female_slim.glb"
+    },
+    {
+      "from": "assets/characters/fantasy/npc_guard_female.glb",
+      "to": "assets/models/characters/fantasy/npc_guard_female.glb"
+    },
+    {
+      "from": "assets/characters/fantasy/npc_guard_male.glb",
+      "to": "assets/models/characters/fantasy/npc_guard_male.glb"
+    },
+    {
+      "from": "assets/characters/fantasy/npc_male_athletic.glb",
+      "to": "assets/models/characters/fantasy/npc_male_athletic.glb"
+    },
+    {
+      "from": "assets/characters/fantasy/npc_male_average.glb",
+      "to": "assets/models/characters/fantasy/npc_male_average.glb"
+    },
+    {
+      "from": "assets/characters/fantasy/npc_male_heavy.glb",
+      "to": "assets/models/characters/fantasy/npc_male_heavy.glb"
+    },
+    {
+      "from": "assets/characters/fantasy/npc_male_slim.glb",
+      "to": "assets/models/characters/fantasy/npc_male_slim.glb"
+    },
+    {
+      "from": "assets/characters/fantasy/npc_merchant_female.glb",
+      "to": "assets/models/characters/fantasy/npc_merchant_female.glb"
+    },
+    {
+      "from": "assets/characters/fantasy/npc_merchant_male.glb",
+      "to": "assets/models/characters/fantasy/npc_merchant_male.glb"
+    },
+    {
+      "from": "assets/characters/fantasy/npc_nonbinary_athletic.glb",
+      "to": "assets/models/characters/fantasy/npc_nonbinary_athletic.glb"
+    },
+    {
+      "from": "assets/characters/fantasy/npc_nonbinary_average.glb",
+      "to": "assets/models/characters/fantasy/npc_nonbinary_average.glb"
+    },
+    {
+      "from": "assets/characters/generic/brainstem.glb",
+      "to": "assets/models/characters/generic/brainstem.glb"
+    },
+    {
+      "from": "assets/characters/generic/fox.glb",
+      "to": "assets/models/characters/generic/fox.glb"
+    },
+    {
+      "from": "assets/characters/generic/npc_civilian_female.glb",
+      "to": "assets/models/characters/generic/npc_civilian_female.glb"
+    },
+    {
+      "from": "assets/characters/generic/npc_civilian_male.glb",
+      "to": "assets/models/characters/generic/npc_civilian_male.glb"
+    },
+    {
+      "from": "assets/characters/generic/npc_guard.glb",
+      "to": "assets/models/characters/generic/npc_guard.glb"
+    },
+    {
+      "from": "assets/characters/generic/npc_merchant.glb",
+      "to": "assets/models/characters/generic/npc_merchant.glb"
+    },
+    {
+      "from": "assets/characters/generic/player_default.glb",
+      "to": "assets/models/characters/generic/player_default.glb"
+    },
+    {
+      "from": "assets/characters/generic/player_female.glb",
+      "to": "assets/models/characters/generic/player_female.glb"
+    },
+    {
+      "from": "assets/characters/generic/player_male.glb",
+      "to": "assets/models/characters/generic/player_male.glb"
+    },
+    {
+      "from": "assets/characters/modern/npc_female_athletic.glb",
+      "to": "assets/models/characters/modern/npc_female_athletic.glb"
+    },
+    {
+      "from": "assets/characters/modern/npc_female_average.glb",
+      "to": "assets/models/characters/modern/npc_female_average.glb"
+    },
+    {
+      "from": "assets/characters/modern/npc_female_heavy.glb",
+      "to": "assets/models/characters/modern/npc_female_heavy.glb"
+    },
+    {
+      "from": "assets/characters/modern/npc_female_slim.glb",
+      "to": "assets/models/characters/modern/npc_female_slim.glb"
+    },
+    {
+      "from": "assets/characters/modern/npc_male_athletic.glb",
+      "to": "assets/models/characters/modern/npc_male_athletic.glb"
+    },
+    {
+      "from": "assets/characters/modern/npc_male_average.glb",
+      "to": "assets/models/characters/modern/npc_male_average.glb"
+    },
+    {
+      "from": "assets/characters/modern/npc_male_heavy.glb",
+      "to": "assets/models/characters/modern/npc_male_heavy.glb"
+    },
+    {
+      "from": "assets/characters/modern/npc_male_slim.glb",
+      "to": "assets/models/characters/modern/npc_male_slim.glb"
+    },
+    {
+      "from": "assets/characters/modern/npc_nonbinary_athletic.glb",
+      "to": "assets/models/characters/modern/npc_nonbinary_athletic.glb"
+    },
+    {
+      "from": "assets/characters/modern/npc_nonbinary_average.glb",
+      "to": "assets/models/characters/modern/npc_nonbinary_average.glb"
+    },
+    {
+      "from": "assets/characters/scifi/npc_female_athletic.glb",
+      "to": "assets/models/characters/scifi/npc_female_athletic.glb"
+    },
+    {
+      "from": "assets/characters/scifi/npc_female_average.glb",
+      "to": "assets/models/characters/scifi/npc_female_average.glb"
+    },
+    {
+      "from": "assets/characters/scifi/npc_female_heavy.glb",
+      "to": "assets/models/characters/scifi/npc_female_heavy.glb"
+    },
+    {
+      "from": "assets/characters/scifi/npc_female_slim.glb",
+      "to": "assets/models/characters/scifi/npc_female_slim.glb"
+    },
+    {
+      "from": "assets/characters/scifi/npc_guard_female.glb",
+      "to": "assets/models/characters/scifi/npc_guard_female.glb"
+    },
+    {
+      "from": "assets/characters/scifi/npc_guard_male.glb",
+      "to": "assets/models/characters/scifi/npc_guard_male.glb"
+    },
+    {
+      "from": "assets/characters/scifi/npc_male_athletic.glb",
+      "to": "assets/models/characters/scifi/npc_male_athletic.glb"
+    },
+    {
+      "from": "assets/characters/scifi/npc_male_average.glb",
+      "to": "assets/models/characters/scifi/npc_male_average.glb"
+    },
+    {
+      "from": "assets/characters/scifi/npc_male_heavy.glb",
+      "to": "assets/models/characters/scifi/npc_male_heavy.glb"
+    },
+    {
+      "from": "assets/characters/scifi/npc_male_slim.glb",
+      "to": "assets/models/characters/scifi/npc_male_slim.glb"
+    },
+    {
+      "from": "assets/characters/scifi/npc_merchant_female.glb",
+      "to": "assets/models/characters/scifi/npc_merchant_female.glb"
+    },
+    {
+      "from": "assets/characters/scifi/npc_merchant_male.glb",
+      "to": "assets/models/characters/scifi/npc_merchant_male.glb"
+    },
+    {
+      "from": "assets/characters/scifi/npc_nonbinary_athletic.glb",
+      "to": "assets/models/characters/scifi/npc_nonbinary_athletic.glb"
+    },
+    {
+      "from": "assets/characters/scifi/npc_nonbinary_average.glb",
+      "to": "assets/models/characters/scifi/npc_nonbinary_average.glb"
+    },
+    {
+      "from": "assets/player/Vincent-frontFacing.babylon",
+      "to": "assets/models/characters/legacy/Vincent-frontFacing.babylon"
+    },
+    {
+      "from": "assets/player/Vincent-frontFacing.glb",
+      "to": "assets/models/characters/legacy/Vincent-frontFacing.glb"
+    },
+    {
+      "from": "assets/player/Vincent_texture_image.jpg",
+      "to": "assets/models/characters/legacy/Vincent_texture_image.jpg"
+    },
+    {
+      "from": "assets/npc/starterAvatars.babylon",
+      "to": "assets/models/characters/legacy/starterAvatars.babylon"
+    },
+    {
+      "from": "assets/quest-objects/avocado_collectible.glb",
+      "to": "assets/models/quest-objects/avocado_collectible.glb"
+    },
+    {
+      "from": "assets/quest-objects/brass_lamp.gltf",
+      "to": "assets/models/quest-objects/brass_lamp.gltf"
+    },
+    {
+      "from": "assets/quest-objects/chest.glb",
+      "to": "assets/models/quest-objects/chest.glb"
+    },
+    {
+      "from": "assets/quest-objects/collectible_gem.glb",
+      "to": "assets/models/quest-objects/collectible_gem.glb"
+    },
+    {
+      "from": "assets/quest-objects/lantern_marker.gltf",
+      "to": "assets/models/quest-objects/lantern_marker.gltf"
+    },
+    {
+      "from": "assets/quest-objects/quest_marker.glb",
+      "to": "assets/models/quest-objects/quest_marker.glb"
+    },
+    {
+      "from": "assets/quest-objects/treasure_chest.gltf",
+      "to": "assets/models/quest-objects/treasure_chest.gltf"
+    },
+    {
+      "from": "assets/quest-objects/water_bottle.glb",
+      "to": "assets/models/quest-objects/water_bottle.glb"
+    },
+    {
+      "from": "assets/freesound/ambient/city_traffic_outdoor_wav_345313.mp3",
+      "to": "assets/audio/ambient/city_traffic_outdoor_wav_345313.mp3"
+    },
+    {
+      "from": "assets/freesound/ambient/inside_spaceship_wav_45347.mp3",
+      "to": "assets/audio/ambient/inside_spaceship_wav_45347.mp3"
+    },
+    {
+      "from": "assets/freesound/ambient/medieval_village_atmosphere_wav_578072.mp3",
+      "to": "assets/audio/ambient/medieval_village_atmosphere_wav_578072.mp3"
+    },
+    {
+      "from": "assets/freesound/ambient/soft_wind_459977.mp3",
+      "to": "assets/audio/ambient/soft_wind_459977.mp3"
+    },
+    {
+      "from": "assets/freesound/footstep/concrete_footstep_1_166509.mp3",
+      "to": "assets/audio/footstep/concrete_footstep_1_166509.mp3"
+    },
+    {
+      "from": "assets/freesound/footstep/footstep_on_stone_197778.mp3",
+      "to": "assets/audio/footstep/footstep_on_stone_197778.mp3"
+    },
+    {
+      "from": "assets/freesound/footstep/footsteps_metallic_muffled_louder_wav_50724.mp3",
+      "to": "assets/audio/footstep/footsteps_metallic_muffled_louder_wav_50724.mp3"
+    },
+    {
+      "from": "assets/freesound/interact/crashing_starship_564166.mp3",
+      "to": "assets/audio/effects/crashing_starship_564166.mp3"
+    },
+    {
+      "from": "assets/freesound/interact/door_creak_wav_219499.mp3",
+      "to": "assets/audio/effects/door_creak_wav_219499.mp3"
+    },
+    {
+      "from": "assets/freesound/interact/dorm_door_opening_wav_15419.mp3",
+      "to": "assets/audio/effects/dorm_door_opening_wav_15419.mp3"
+    },
+    {
+      "from": "assets/freesound/interact/open_button_2_264447.mp3",
+      "to": "assets/audio/effects/open_button_2_264447.mp3"
+    },
+    {
+      "from": "assets/freesound/manifest.json",
+      "to": "assets/audio/manifest.json"
+    },
+    {
+      "from": "assets/ground/ground-normal.png",
+      "to": "assets/textures/environment/ground-normal.png"
+    },
+    {
+      "from": "assets/ground/ground.jpg",
+      "to": "assets/textures/environment/ground.jpg"
+    },
+    {
+      "from": "assets/ground/ground_heightMap.png",
+      "to": "assets/textures/environment/ground_heightMap.png"
+    }
+  ]
+}

@@ -16,20 +16,22 @@ import {
   Sparkles, Image as ImageIcon, Pencil, Check
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { CharacterModelPreview } from './CharacterModelPreview';
 import { VisualAssetGeneratorDialog } from '../VisualAssetGeneratorDialog';
 import { AssetBrowserDialog } from '../AssetBrowserDialog';
 import type { Character, VisualAsset } from '@shared/schema';
+import { characterModelPath } from '@shared/asset-paths';
 
 // Bundled NPC models available for selection
 const BUNDLED_NPC_MODELS: { key: string; name: string; filePath: string }[] = [
-  { key: 'default', name: 'Default NPC (starterAvatars)', filePath: 'assets/npc/starterAvatars.babylon' },
-  { key: 'civilian_male', name: 'Male Civilian NPC', filePath: 'assets/characters/generic/npc_civilian_male.glb' },
-  { key: 'civilian_female', name: 'Female Civilian NPC', filePath: 'assets/characters/generic/npc_civilian_female.glb' },
-  { key: 'guard', name: 'Guard NPC', filePath: 'assets/characters/generic/npc_guard.glb' },
-  { key: 'merchant', name: 'Merchant NPC', filePath: 'assets/characters/generic/npc_merchant.glb' },
-  { key: 'brainstem', name: 'BrainStem Character', filePath: 'assets/characters/generic/brainstem.glb' },
-  { key: 'fox', name: 'Fox Character', filePath: 'assets/characters/generic/fox.glb' },
+  { key: 'default', name: 'Default NPC (starterAvatars)', filePath: 'assets/models/characters/legacy/starterAvatars.babylon' },
+  { key: 'civilian_male', name: 'Male Civilian NPC', filePath: characterModelPath('generic', 'npc_civilian_male.glb') },
+  { key: 'civilian_female', name: 'Female Civilian NPC', filePath: characterModelPath('generic', 'npc_civilian_female.glb') },
+  { key: 'guard', name: 'Guard NPC', filePath: characterModelPath('generic', 'npc_guard.glb') },
+  { key: 'merchant', name: 'Merchant NPC', filePath: characterModelPath('generic', 'npc_merchant.glb') },
+  { key: 'brainstem', name: 'BrainStem Character', filePath: characterModelPath('generic', 'brainstem.glb') },
+  { key: 'fox', name: 'Fox Character', filePath: characterModelPath('generic', 'fox.glb') },
 ];
 
 interface Truth {
@@ -72,7 +74,14 @@ export function CharacterDetailView({
   onViewCharacter
 }: CharacterDetailViewProps) {
   const { toast } = useToast();
+  const { token } = useAuth();
   const queryClient = useQueryClient();
+
+  const authHeaders = (): Record<string, string> => {
+    const h: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) h['Authorization'] = `Bearer ${token}`;
+    return h;
+  };
 
   // Editing state
   const [isEditing, setIsEditing] = useState(false);
@@ -159,13 +168,20 @@ export function CharacterDetailView({
   const portrait = visualAssets.find((a: any) => a.assetType === 'character_portrait');
   const textures = visualAssets.filter((a: any) => a.assetType === 'character_texture');
 
-  // NPC model: use explicit generationConfig path, or auto-select based on gender
-  const explicitModelPath = (character.generationConfig as any)?.npcModelPath || null;
+  // NPC model: local override (set immediately on dropdown change) > explicit generationConfig > gender auto-select
+  const [localModelPathOverride, setLocalModelPathOverride] = useState<string | null>(null);
+
+  // Reset the local override when the character prop changes (e.g. parent refetch or switching characters)
+  useEffect(() => {
+    setLocalModelPathOverride(null);
+  }, [character.id]);
+
+  const explicitModelPath = localModelPathOverride || (character.generationConfig as any)?.npcModelPath || null;
   const genderModelPath = (() => {
     if (explicitModelPath) return null; // explicit path takes priority
     const g = (character.gender || '').toLowerCase();
-    if (g === 'female' || g === 'f') return 'assets/characters/generic/npc_civilian_female.glb';
-    if (g === 'male' || g === 'm') return 'assets/characters/generic/npc_civilian_male.glb';
+    if (g === 'female' || g === 'f') return characterModelPath('generic', 'npc_civilian_female.glb');
+    if (g === 'male' || g === 'm') return characterModelPath('generic', 'npc_civilian_male.glb');
     return null; // fallback to default for other/unspecified
   })();
   const npcModelPath = explicitModelPath || genderModelPath || null;
@@ -199,7 +215,7 @@ export function CharacterDetailView({
     try {
       const response = await fetch(`/api/characters/${character.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({
           firstName,
           middleName: middleName || null,
@@ -248,7 +264,9 @@ export function CharacterDetailView({
 
   const handleDelete = async () => {
     try {
-      const response = await fetch(`/api/characters/${character.id}`, { method: 'DELETE' });
+      const h: Record<string, string> = {};
+      if (token) h['Authorization'] = `Bearer ${token}`;
+      const response = await fetch(`/api/characters/${character.id}`, { method: 'DELETE', headers: h });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         throw new Error(errorData.error || 'Failed to delete character');
@@ -269,6 +287,9 @@ export function CharacterDetailView({
     const selected = BUNDLED_NPC_MODELS.find(m => m.key === modelKey);
     if (!selected) return;
 
+    // Update preview immediately (don't wait for server round-trip)
+    setLocalModelPathOverride(selected.filePath);
+
     try {
       const updatedConfig = {
         ...((character.generationConfig as any) || {}),
@@ -278,11 +299,14 @@ export function CharacterDetailView({
 
       const response = await fetch(`/api/characters/${character.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ generationConfig: updatedConfig }),
       });
 
-      if (!response.ok) throw new Error('Failed to update character');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `Failed to update character (${response.status})`);
+      }
 
       toast({ title: 'NPC Model Updated', description: `Changed to ${selected.name}` });
       onCharacterUpdated?.();

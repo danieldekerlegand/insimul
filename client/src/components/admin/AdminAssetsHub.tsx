@@ -167,7 +167,11 @@ export function AdminAssetsHub() {
   const [modelBrowserContext, setModelBrowserContext] = useState<{
     group: 'texture' | 'building' | 'nature' | 'character' | 'object';
     key: string;
+    inline?: boolean; // true = save directly via PATCH, false = update form state
   } | null>(null);
+
+  // Inline 3D config editing (right panel)
+  const [expandedConfigGroups, setExpandedConfigGroups] = useState<Set<string>>(new Set());
 
   // Form state
   const [name, setName] = useState("");
@@ -472,24 +476,76 @@ export function AdminAssetsHub() {
     }
   };
 
+  // Inline PATCH for 3D config changes (right panel editing)
+  const patchCollectionConfig = async (patch: Partial<AssetCollection>) => {
+    if (!token || !selectedCollection) return;
+    try {
+      const response = await fetch(`/api/asset-collections/${selectedCollection.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(patch),
+      });
+      if (!response.ok) throw new Error('Failed to update');
+      queryClient.invalidateQueries({ queryKey: ['/api/asset-collections'] });
+      const updated = await fetch(`/api/asset-collections/${selectedCollection.id}`);
+      if (updated.ok) setSelectedCollection(await updated.json());
+    } catch {
+      toast({ title: "Update failed", variant: "destructive" });
+    }
+  };
+
+  const handleInlineModelAssign = (modelField: string, role: string, assetId: string | null) => {
+    if (!selectedCollection) return;
+    const current = (selectedCollection as any)[modelField] || {};
+    const updated = { ...current };
+    if (assetId) {
+      updated[role] = assetId;
+    } else {
+      delete updated[role];
+    }
+    patchCollectionConfig({ [modelField]: updated } as any);
+  };
+
+  const handleInlineTextureAssign = (field: string, assetId: string | null) => {
+    patchCollectionConfig({ [field]: assetId } as any);
+  };
+
   const handleModelSelect = (asset: any) => {
     if (!modelBrowserContext) return;
-    const { group, key } = modelBrowserContext;
-    if (group === 'texture') {
-      if (key === 'groundTextureId') setGroundTextureId(asset.id);
-      else if (key === 'roadTextureId') setRoadTextureId(asset.id);
-    } else if (group === 'building') {
-      setBuildingModels(prev => ({ ...prev, [key]: asset.id }));
-    } else if (group === 'nature') {
-      setNatureModels(prev => ({ ...prev, [key]: asset.id }));
-    } else if (group === 'character') {
-      if (key.startsWith('player_')) setPlayerModels(prev => ({ ...prev, [key.replace('player_', '')]: asset.id }));
-      else setCharacterModels(prev => ({ ...prev, [key]: asset.id }));
-    } else if (group === 'object') {
-      if (key.startsWith('quest_')) setQuestObjectModels(prev => ({ ...prev, [key.replace('quest_', '')]: asset.id }));
-      else setObjectModels(prev => ({ ...prev, [key]: asset.id }));
+    const { group, key, inline } = modelBrowserContext;
+
+    if (inline && selectedCollection) {
+      // Inline mode: PATCH directly
+      if (group === 'texture') {
+        handleInlineTextureAssign(key, asset.id);
+      } else {
+        const fieldMap: Record<string, string> = {
+          building: 'buildingModels', nature: 'natureModels',
+          character: key.startsWith('player_') ? 'playerModels' : 'characterModels',
+          object: key.startsWith('quest_') ? 'questObjectModels' : 'objectModels',
+        };
+        const role = key.replace(/^(player_|quest_)/, '');
+        handleInlineModelAssign(fieldMap[group], role, asset.id);
+      }
+    } else {
+      // Dialog form mode: update local state
+      if (group === 'texture') {
+        if (key === 'groundTextureId') setGroundTextureId(asset.id);
+        else if (key === 'roadTextureId') setRoadTextureId(asset.id);
+      } else if (group === 'building') {
+        setBuildingModels(prev => ({ ...prev, [key]: asset.id }));
+      } else if (group === 'nature') {
+        setNatureModels(prev => ({ ...prev, [key]: asset.id }));
+      } else if (group === 'character') {
+        if (key.startsWith('player_')) setPlayerModels(prev => ({ ...prev, [key.replace('player_', '')]: asset.id }));
+        else setCharacterModels(prev => ({ ...prev, [key]: asset.id }));
+      } else if (group === 'object') {
+        if (key.startsWith('quest_')) setQuestObjectModels(prev => ({ ...prev, [key.replace('quest_', '')]: asset.id }));
+        else setObjectModels(prev => ({ ...prev, [key]: asset.id }));
+      }
     }
-    toast({ title: 'Assigned', description: `${asset.name} -> ${key}` });
+
+    toast({ title: 'Assigned', description: `${asset.name} → ${key.replace(/^(player_|quest_)/, '')}` });
     setShowModelBrowser(false);
     setModelBrowserContext(null);
   };
@@ -1023,18 +1079,64 @@ export function AdminAssetsHub() {
                     {/* 3D Config */}
                     {section.id === 'config' && selectedCollection && (
                       <>
-                        <ConfigSummaryRow label="Ground Texture" hasValue={!!selectedCollection.groundTextureId} />
-                        <ConfigSummaryRow label="Road Texture" hasValue={!!selectedCollection.roadTextureId} />
-                        <ConfigSummaryRow label="Building Models" count={Object.keys(selectedCollection.buildingModels || {}).length} />
-                        <ConfigSummaryRow label="Nature Models" count={Object.keys(selectedCollection.natureModels || {}).length} />
-                        <ConfigSummaryRow label="Character Models" count={Object.keys(selectedCollection.characterModels || {}).length} />
-                        <ConfigSummaryRow label="Player Models" count={Object.keys(selectedCollection.playerModels || {}).length} />
-                        <ConfigSummaryRow label="Quest Objects" count={Object.keys(selectedCollection.questObjectModels || {}).length} />
-                        {!selectedCollection.isBase && (
-                          <Button variant="outline" size="sm" className="w-full mt-2 text-xs" onClick={() => { loadCollectionToForm(selectedCollection); setShowEditDialog(true); }}>
-                            <Settings2 className="w-3 h-3 mr-1.5" /> Edit 3D Config
-                          </Button>
-                        )}
+                        {/* Textures */}
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Textures</p>
+                          <InlineModelRow label="Ground Texture" assetId={selectedCollection.groundTextureId || undefined} assets={collectionAssets}
+                            onSelect={() => { setModelBrowserContext({ group: 'texture', key: 'groundTextureId', inline: true }); setShowModelBrowser(true); }}
+                            onClear={() => handleInlineTextureAssign('groundTextureId', null)} />
+                          <InlineModelRow label="Road Texture" assetId={selectedCollection.roadTextureId || undefined} assets={collectionAssets}
+                            onSelect={() => { setModelBrowserContext({ group: 'texture', key: 'roadTextureId', inline: true }); setShowModelBrowser(true); }}
+                            onClear={() => handleInlineTextureAssign('roadTextureId', null)} />
+                        </div>
+
+                        {/* Model groups */}
+                        {[
+                          { title: 'Building Models', field: 'buildingModels', group: 'building' as const, prefix: '',
+                            roles: ['default', 'smallResidence', 'largeResidence', 'mansion', 'tavern', 'shop', 'blacksmith', 'church', 'library', 'hospital', 'school', 'bank', 'theater', 'windmill', 'watermill', 'lumbermill', 'barracks', 'mine', 'municipal'] },
+                          { title: 'Player Models', field: 'playerModels', group: 'character' as const, prefix: 'player_',
+                            roles: ['default', 'male', 'female', 'knight', 'mage', 'rogue'] },
+                          { title: 'NPC Models', field: 'characterModels', group: 'character' as const, prefix: '',
+                            roles: ['civilian_male', 'civilian_female', 'guard', 'merchant', 'noble'] },
+                          { title: 'Nature Models', field: 'natureModels', group: 'nature' as const, prefix: '',
+                            roles: ['defaultTree', 'tree', 'rock', 'shrub', 'bush'] },
+                          { title: 'Quest Objects', field: 'questObjectModels', group: 'object' as const, prefix: 'quest_',
+                            roles: ['collectible', 'marker', 'container', 'key', 'scroll'] },
+                        ].map(({ title, field, group, prefix, roles }) => {
+                          const models = (selectedCollection as any)[field] || {};
+                          const count = Object.keys(models).length;
+                          const isExpanded = expandedConfigGroups.has(field);
+                          return (
+                            <div key={field} className="border rounded">
+                              <button
+                                className="flex items-center justify-between w-full text-xs px-2 py-2 hover:bg-muted/50 rounded cursor-pointer transition-colors"
+                                onClick={() => setExpandedConfigGroups(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(field)) next.delete(field); else next.add(field);
+                                  return next;
+                                })}
+                              >
+                                <div className="flex items-center gap-1.5">
+                                  <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                                  <span className="font-medium">{title}</span>
+                                </div>
+                                <Badge variant={count > 0 ? "secondary" : "outline"} className="text-[10px] h-4">{count}/{roles.length}</Badge>
+                              </button>
+                              {isExpanded && (
+                                <div className="space-y-1 px-1.5 pb-1.5 border-t pt-1.5">
+                                  {roles.map(role => (
+                                    <InlineModelRow key={role}
+                                      label={role.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()}
+                                      assetId={models[role]}
+                                      assets={collectionAssets}
+                                      onSelect={() => { setModelBrowserContext({ group, key: `${prefix}${role}`, inline: true }); setShowModelBrowser(true); }}
+                                      onClear={() => handleInlineModelAssign(field, role, null)} />
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </>
                     )}
                   </div>
@@ -1232,6 +1334,7 @@ export function AdminAssetsHub() {
                 <ModelConfigRow label="Road Texture" value={roadTextureId} assets={collectionAssets} onSelect={() => { setModelBrowserContext({ group: 'texture', key: 'roadTextureId' }); setShowModelBrowser(true); }} onClear={() => setRoadTextureId('')} />
               </div>
               {[
+                { title: 'Building Models', roles: ['default', 'smallResidence', 'largeResidence', 'mansion', 'tavern', 'shop', 'blacksmith', 'church', 'library', 'hospital', 'school', 'bank', 'theater', 'windmill', 'watermill', 'lumbermill', 'barracks', 'mine', 'municipal'], group: 'building' as const, prefix: '', models: buildingModels, setModels: setBuildingModels },
                 { title: 'Player Models', roles: ['default', 'male', 'female', 'knight', 'mage', 'rogue'], group: 'character' as const, prefix: 'player_', models: playerModels, setModels: setPlayerModels },
                 { title: 'NPC Models', roles: ['civilian_male', 'civilian_female', 'guard', 'merchant', 'noble'], group: 'character' as const, prefix: '', models: characterModels, setModels: setCharacterModels },
                 { title: 'Nature Models', roles: ['defaultTree', 'tree', 'rock', 'shrub', 'bush'], group: 'nature' as const, prefix: '', models: natureModels, setModels: setNatureModels },
@@ -1425,6 +1528,39 @@ function ConfigSummaryRow({ label, hasValue, count }: { label: string; hasValue?
       ) : (
         <span className={configured ? 'text-green-600' : 'text-muted-foreground/50'}>{configured ? 'Set' : 'None'}</span>
       )}
+    </div>
+  );
+}
+
+function InlineModelRow({ label, assetId, assets, onSelect, onClear }: {
+  label: string; assetId?: string; assets: VisualAsset[]; onSelect: () => void; onClear: () => void;
+}) {
+  const asset = assetId ? assets.find(a => a.id === assetId) : null;
+  const assetName = asset?.name || (assetId ? 'Assigned' : null);
+  const isImage = asset && isImageAsset(asset);
+  const isModel = asset && isModelAsset(asset);
+  return (
+    <div className="flex items-center gap-1.5 rounded border px-1.5 py-1">
+      {/* Thumbnail */}
+      <div className="w-7 h-7 rounded bg-muted/50 flex items-center justify-center shrink-0 overflow-hidden">
+        {isImage ? (
+          <img src={`/${asset.filePath}`} alt={assetName || ''} className="w-full h-full object-cover" />
+        ) : isModel ? (
+          <Box className="w-3.5 h-3.5 text-blue-500" />
+        ) : (
+          <Package className="w-3.5 h-3.5 text-muted-foreground/40" />
+        )}
+      </div>
+      {/* Info — overflow-hidden + truncate ensures buttons never get pushed off */}
+      <div className="overflow-hidden" style={{ flex: '1 1 0', minWidth: 0 }}>
+        <p className="text-[11px] font-medium capitalize truncate">{label}</p>
+        <p className={`text-[10px] truncate ${assetName ? 'text-muted-foreground' : 'text-muted-foreground/40 italic'}`}>{assetName || 'Not set'}</p>
+      </div>
+      {/* Actions */}
+      <div className="flex gap-0.5 shrink-0">
+        <Button variant="outline" size="sm" className="h-5 text-[10px] px-1.5" onClick={onSelect}>{assetId ? 'Change' : 'Select'}</Button>
+        {assetId && <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={onClear}><X className="w-2.5 h-2.5" /></Button>}
+      </div>
     </div>
   );
 }

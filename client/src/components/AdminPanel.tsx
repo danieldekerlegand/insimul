@@ -3,17 +3,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Globe, Layers, BookOpen, Eye, Lock, Calendar, Hash, ChevronRight, ChevronDown, Search, Info, RefreshCw } from "lucide-react";
+import { ArrowLeft, Globe, Layers, BookOpen, Sword, Package, Eye, Lock, Calendar, Hash, ChevronRight, ChevronDown, Search, Info, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AdminAssetsHub } from "@/components/admin/AdminAssetsHub";
 import { AdminRulesActionsHub } from "@/components/admin/AdminRulesActionsHub";
+import { AdminItemsHub } from "@/components/admin/AdminItemsHub";
 import { format } from "date-fns";
 
 interface AdminPanelProps {
   onBack: () => void;
 }
 
-type Section = 'worlds' | 'assets' | 'rules';
+type Section = 'worlds' | 'assets' | 'items' | 'rules' | 'actions';
 
 export function AdminPanel({ onBack }: AdminPanelProps) {
   const [activeSection, setActiveSection] = useState<Section>('assets');
@@ -21,7 +22,9 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const sections: { id: Section; label: string; icon: React.ReactNode }[] = [
     { id: 'worlds', label: 'Worlds', icon: <Globe className="w-3.5 h-3.5" /> },
     { id: 'assets', label: 'Assets', icon: <Layers className="w-3.5 h-3.5" /> },
-    { id: 'rules', label: 'Rules & Actions', icon: <BookOpen className="w-3.5 h-3.5" /> },
+    { id: 'items', label: 'Items', icon: <Package className="w-3.5 h-3.5" /> },
+    { id: 'rules', label: 'Rules', icon: <BookOpen className="w-3.5 h-3.5" /> },
+    { id: 'actions', label: 'Actions', icon: <Sword className="w-3.5 h-3.5" /> },
   ];
 
   return (
@@ -56,7 +59,9 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
         {/* Content */}
         {activeSection === 'worlds' && <AdminWorldsSection />}
         {activeSection === 'assets' && <AdminAssetsHub />}
-        {activeSection === 'rules' && <AdminRulesActionsHub />}
+        {activeSection === 'items' && <AdminItemsHub />}
+        {activeSection === 'rules' && <AdminRulesActionsHub mode="rules" />}
+        {activeSection === 'actions' && <AdminRulesActionsHub mode="actions" />}
       </div>
     </div>
   );

@@ -18,6 +18,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { KAYKIT_BUILDINGS_BASE } from '@shared/asset-paths';
 
 // ─────────────────────────────────────────────
 // Types
@@ -106,13 +107,13 @@ function getKayKitBuildings(): AssetDef[] {
   const defs: AssetDef[] = [];
   for (const b of buildings) {
     defs.push({
-      sourcePath: `kaykit/models/medieval-buildings/${b.file}.gltf`,
+      sourcePath: `${KAYKIT_BUILDINGS_BASE.replace('assets/', '')}/${b.file}.gltf`,
       exportPath: `assets/buildings/${b.file}.gltf`,
       category: 'building',
       role: b.role,
     });
     defs.push({
-      sourcePath: `kaykit/models/medieval-buildings/${b.file}.bin`,
+      sourcePath: `${KAYKIT_BUILDINGS_BASE.replace('assets/', '')}/${b.file}.bin`,
       exportPath: `assets/buildings/${b.file}.bin`,
       category: 'building',
       role: `${b.role}_bin`,
@@ -122,7 +123,7 @@ function getKayKitBuildings(): AssetDef[] {
   // All KayKit building GTLFs reference this shared texture by relative URI —
   // it must be in the same directory as the .gltf files.
   defs.push({
-    sourcePath: 'kaykit/models/medieval-buildings/hexagons_medieval.png',
+    sourcePath: `${KAYKIT_BUILDINGS_BASE.replace('assets/', '')}/hexagons_medieval.png`,
     exportPath: 'assets/buildings/hexagons_medieval.png',
     category: 'building',
     role: 'building_texture',

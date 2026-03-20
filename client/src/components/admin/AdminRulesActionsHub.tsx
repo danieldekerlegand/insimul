@@ -37,7 +37,12 @@ const SYNTAX_COLORS: Record<string, string> = {
   kismet: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
 };
 
-export function AdminRulesActionsHub() {
+interface AdminRulesActionsHubProps {
+  /** When set, locks the component to show only rules or only actions (hides the toggle) */
+  mode?: 'rules' | 'actions';
+}
+
+export function AdminRulesActionsHub({ mode }: AdminRulesActionsHubProps = {}) {
   const { toast } = useToast();
 
   // Data
@@ -45,8 +50,8 @@ export function AdminRulesActionsHub() {
   const [baseActions, setBaseActions] = useState<BaseResource[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Navigation
-  const [activeTab, setActiveTab] = useState<'rules' | 'actions'>('rules');
+  // Navigation — locked if mode is set
+  const [activeTab, setActiveTab] = useState<'rules' | 'actions'>(mode || 'rules');
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
@@ -190,27 +195,29 @@ export function AdminRulesActionsHub() {
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Base Resources</span>
       </div>
 
-      {/* Rules / Actions toggle */}
-      <div className="flex border-b">
-        <button
-          className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
-            activeTab === 'rules' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'
-          }`}
-          onClick={() => { setActiveTab('rules'); setSelectedResource(null); setSelectedIds(new Set()); }}
-        >
-          <BookOpen className="w-3 h-3" />
-          Rules ({baseRules.length})
-        </button>
-        <button
-          className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
-            activeTab === 'actions' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'
-          }`}
-          onClick={() => { setActiveTab('actions'); setSelectedResource(null); setSelectedIds(new Set()); }}
-        >
-          <Sword className="w-3 h-3" />
-          Actions ({baseActions.length})
-        </button>
-      </div>
+      {/* Rules / Actions toggle — hidden when mode is locked */}
+      {!mode && (
+        <div className="flex border-b">
+          <button
+            className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
+              activeTab === 'rules' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={() => { setActiveTab('rules'); setSelectedResource(null); setSelectedIds(new Set()); }}
+          >
+            <BookOpen className="w-3 h-3" />
+            Rules ({baseRules.length})
+          </button>
+          <button
+            className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
+              activeTab === 'actions' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={() => { setActiveTab('actions'); setSelectedResource(null); setSelectedIds(new Set()); }}
+          >
+            <Sword className="w-3 h-3" />
+            Actions ({baseActions.length})
+          </button>
+        </div>
+      )}
 
       {/* Search */}
       <div className="px-2 py-2 border-b">

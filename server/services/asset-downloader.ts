@@ -83,18 +83,26 @@ export async function preprocessPolyhavenAsset(
   // Generate filename
   const fileName = `${assetId}${extension}`;
 
-  // Determine local directory (relative to project root)
+  // Determine local directory — models go under models/{inferred-category}/polyhaven/{assetId}/
+  // textures go under textures/environment/
   const projectRoot = path.join(__dirname, '../..');
-  const localDir = path.join(projectRoot, 'client/public/assets/polyhaven', category);
+  let localDir: string;
+  let relativePath: string;
+
+  if (isTexture) {
+    localDir = path.join(projectRoot, 'client/public/assets/textures/environment');
+    relativePath = `assets/textures/environment/${fileName}`;
+  } else {
+    // Models get their own subdirectory so companion files (bin, textures) stay co-located
+    localDir = path.join(projectRoot, `client/public/assets/models/props/polyhaven/${assetId}`);
+    relativePath = `assets/models/props/polyhaven/${assetId}/${fileName}`;
+  }
 
   // Ensure directory exists
   await fs.mkdir(localDir, { recursive: true });
 
   // Full local path
   const absolutePath = path.join(localDir, fileName);
-
-  // Relative path for storing in database (served by Express static)
-  const relativePath = `assets/polyhaven/${category}/${fileName}`;
 
   // Check if file already exists
   try {
@@ -224,11 +232,11 @@ export async function preprocessSketchfabAsset(
   const projectRoot = path.join(__dirname, '../..');
   const modelDir = path.join(
     projectRoot,
-    'client/public/assets/sketchfab/models',
+    'client/public/assets/models/buildings/sketchfab',
     `${modelUid}_${safeName}`
   );
   const gltfPath = path.join(modelDir, 'scene.gltf');
-  const relativePath = `assets/sketchfab/models/${modelUid}_${safeName}/scene.gltf`;
+  const relativePath = `assets/models/buildings/sketchfab/${modelUid}_${safeName}/scene.gltf`;
 
   // If already extracted, return cached result
   try {
@@ -283,7 +291,7 @@ export async function preprocessSketchfabAsset(
       try {
         await fs.access(glbPath);
         // Return the .glb path instead
-        const glbRelative = `assets/sketchfab/models/${modelUid}_${safeName}/scene.glb`;
+        const glbRelative = `assets/models/buildings/sketchfab/${modelUid}_${safeName}/scene.glb`;
         const glbStats = await fs.stat(glbPath);
         return {
           localPath: glbRelative,
@@ -361,7 +369,9 @@ export async function preprocessFreesoundAsset(
 
   // Determine local directory (relative to project root)
   const projectRoot = path.join(__dirname, '../..');
-  const localDir = path.join(projectRoot, 'client/public/assets/freesound', category);
+  // Map audio categories to new structure
+  const audioCat = category === 'interact' ? 'effects' : category;
+  const localDir = path.join(projectRoot, 'client/public/assets/audio', audioCat);
 
   // Ensure directory exists
   await fs.mkdir(localDir, { recursive: true });
@@ -370,7 +380,7 @@ export async function preprocessFreesoundAsset(
   const absolutePath = path.join(localDir, fileName);
 
   // Relative path for storing in database (served by Express static)
-  const relativePath = `assets/freesound/${category}/${fileName}`;
+  const relativePath = `assets/audio/${audioCat}/${fileName}`;
 
   // Check if file already exists
   try {
@@ -475,24 +485,25 @@ export async function cleanupUnusedAssets(
   usedPaths: Set<string>
 ): Promise<{ deleted: number; errors: string[] }> {
   const projectRoot = path.join(__dirname, '../..');
-  const polyhavenDir = path.join(projectRoot, 'client/public/assets/polyhaven');
+  const modelsDir = path.join(projectRoot, 'client/public/assets/models');
 
   let deleted = 0;
   const errors: string[] = [];
 
   try {
-    const categories = await fs.readdir(polyhavenDir);
+    // Scan all model categories for polyhaven assets
+    const categories = ['furniture', 'nature', 'props', 'buildings'];
 
     for (const category of categories) {
-      const categoryPath = path.join(polyhavenDir, category);
-      const stats = await fs.stat(categoryPath);
+      const categoryPath = path.join(modelsDir, category, 'polyhaven');
+      try {
+        await fs.access(categoryPath);
+      } catch { continue; }
 
-      if (!stats.isDirectory()) continue;
+      const modelDirs = await fs.readdir(categoryPath);
 
-      const files = await fs.readdir(categoryPath);
-
-      for (const file of files) {
-        const relativePath = `assets/polyhaven/${category}/${file}`;
+      for (const file of modelDirs) {
+        const relativePath = `assets/models/${category}/polyhaven/${file}`;
 
         if (!usedPaths.has(relativePath)) {
           const absolutePath = path.join(categoryPath, file);

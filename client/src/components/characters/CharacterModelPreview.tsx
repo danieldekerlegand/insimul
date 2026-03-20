@@ -5,7 +5,9 @@ import { Loader2, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
-const DEFAULT_NPC_MODEL = '/assets/npc/starterAvatars.babylon';
+import { NPC_DEFAULT_MODEL_URL } from '@shared/asset-paths';
+
+const DEFAULT_NPC_MODEL = NPC_DEFAULT_MODEL_URL;
 
 interface CharacterModelPreviewProps {
   modelPath?: string | null;
