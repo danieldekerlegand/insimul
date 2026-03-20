@@ -2488,6 +2488,18 @@ app.get("/api/rules", async (req, res) => {
   });
 
   // Residences routes
+  app.get("/api/residences/:id", async (req, res) => {
+    try {
+      const residence = await storage.getResidence(req.params.id);
+      if (!residence) {
+        return res.status(404).json({ error: "Residence not found" });
+      }
+      res.json(residence);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch residence" });
+    }
+  });
+
   app.get("/api/settlements/:settlementId/residences", async (req, res) => {
     try {
       const residences = await storage.getResidencesBySettlement(req.params.settlementId);

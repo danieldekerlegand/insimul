@@ -1,14 +1,16 @@
-## Agent 12: Implement server-side persistence for vocabulary and grammar progress
+## Agent 12: Enhance character detail view to show workplace, residence, and business ownership
 
 ### Completed
-- Added vocabulary/grammar/progress storage methods to IStorage interface (server/db/storage.ts)
-- Added individual REST endpoints for vocabulary and grammar CRUD (server/routes/telemetry-routes.ts):
-  - GET /api/vocabulary/:playerId/:worldId
-  - PUT /api/vocabulary/:playerId/:worldId/:word
-  - GET /api/grammar-patterns/:playerId/:worldId
-  - PUT /api/grammar-patterns/:playerId/:worldId/:pattern
-- Added loadFromServer() method to LanguageProgressTracker (client) to restore persisted progress on initialization
-- Wired up startServerSync (60s periodic sync) and loadFromServer in BabylonChatPanel initialization
-- Added cleanup: final sync + stopServerSync on BabylonChatPanel dispose
-- Wrote 17 tests covering all endpoints including error handling (server/__tests__/language-progress-persistence.test.ts)
+- Added GET /api/residences/:id endpoint to server/routes.ts (was missing)
+- Enhanced CharacterDetailView.tsx with new data queries:
+  - Fetches residence details via currentResidenceId
+  - Fetches businesses owned by character via /api/characters/:id/businesses
+  - Fetches occupation history via /api/characters/:id/occupation-history
+  - Fetches workplace business details via /api/businesses/:id/summary
+- Added "Workplace & Living" card to Info tab showing:
+  - Workplace: business name, type, role/vocation, shift, start year
+  - Residence: address, type, co-residents
+  - Businesses Owned: list with name and type badges
+- Card only renders when data is available (progressive enhancement)
+- Wrote 16 tests covering data extraction, visibility logic, and co-resident filtering
 - All tests pass, TypeScript compiles cleanly

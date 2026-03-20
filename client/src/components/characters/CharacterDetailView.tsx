@@ -13,14 +13,14 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import {
   User, Heart, Brain, Activity, Briefcase, Users, ChevronRight,
   MessageCircle, Box, Save, X, Trash2, BookOpen, Calendar,
-  Sparkles, Image as ImageIcon, Pencil, Check
+  Sparkles, Image as ImageIcon, Pencil, Check, Home, Building2, Store
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { CharacterModelPreview } from './CharacterModelPreview';
 import { VisualAssetGeneratorDialog } from '../VisualAssetGeneratorDialog';
 import { AssetBrowserDialog } from '../AssetBrowserDialog';
-import type { Character, VisualAsset } from '@shared/schema';
+import type { Character, VisualAsset, Business, Residence } from '@shared/schema';
 import { characterModelPath } from '@shared/asset-paths';
 
 // Bundled NPC models available for selection
@@ -163,6 +163,48 @@ export function CharacterDetailView({
       }
     },
     enabled: !!character.worldId,
+  });
+
+  // Fetch residence details
+  const { data: residence } = useQuery<Residence>({
+    queryKey: ['/api/residences', character.currentResidenceId],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/residences/${character.currentResidenceId}`);
+      return response.json();
+    },
+    enabled: !!character.currentResidenceId,
+  });
+
+  // Fetch businesses owned by this character
+  const { data: ownedBusinesses = [] } = useQuery<Business[]>({
+    queryKey: ['/api/characters', character.id, 'businesses'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/characters/${character.id}/businesses`);
+      return response.json();
+    },
+    enabled: !!character.id,
+  });
+
+  // Fetch occupation history
+  const { data: occupationHistory = [] } = useQuery<any[]>({
+    queryKey: ['/api/characters', character.id, 'occupation-history'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/characters/${character.id}/occupation-history`);
+      return response.json();
+    },
+    enabled: !!character.id,
+  });
+
+  // Fetch workplace business details (from current occupation)
+  const currentOccupation = occupationHistory.find((o: any) => !o.endYear) || occupationHistory[0];
+  const workplaceBusinessId = currentOccupation?.businessId;
+  const { data: workplaceBusiness } = useQuery<Business>({
+    queryKey: ['/api/businesses', workplaceBusinessId, 'summary'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/businesses/${workplaceBusinessId}/summary`);
+      return response.json();
+    },
+    enabled: !!workplaceBusinessId,
   });
 
   const portrait = visualAssets.find((a: any) => a.assetType === 'character_portrait');
@@ -494,6 +536,112 @@ export function CharacterDetailView({
               )}
             </CardContent>
           </Card>
+
+          {/* Workplace & Living */}
+          {(residence || workplaceBusiness || currentOccupation || ownedBusinesses.length > 0) && (
+            <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Building2 className="w-4 h-4 text-primary" />
+                  Workplace & Living
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Workplace */}
+                {(workplaceBusiness || currentOccupation) && (
+                  <div className="space-y-1.5">
+                    <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
+                      <Briefcase className="w-3.5 h-3.5" />
+                      Workplace
+                    </h4>
+                    {workplaceBusiness && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Business</span>
+                        <p className="text-sm font-semibold text-right">{workplaceBusiness.name}</p>
+                      </div>
+                    )}
+                    {workplaceBusiness?.businessType && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Type</span>
+                        <Badge variant="outline" className="text-xs">{workplaceBusiness.businessType}</Badge>
+                      </div>
+                    )}
+                    {currentOccupation?.vocation && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Role</span>
+                        <p className="text-sm font-semibold text-right">{currentOccupation.vocation}</p>
+                      </div>
+                    )}
+                    {currentOccupation?.shift && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Shift</span>
+                        <p className="text-sm font-semibold text-right capitalize">{currentOccupation.shift}</p>
+                      </div>
+                    )}
+                    {currentOccupation?.startYear && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Since</span>
+                        <p className="text-sm font-semibold text-right">Year {currentOccupation.startYear}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Residence */}
+                {residence && (
+                  <div className="space-y-1.5">
+                    <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
+                      <Home className="w-3.5 h-3.5" />
+                      Residence
+                    </h4>
+                    {residence.address && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Address</span>
+                        <p className="text-sm font-semibold text-right">{residence.address}</p>
+                      </div>
+                    )}
+                    {residence.residenceType && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Type</span>
+                        <Badge variant="outline" className="text-xs capitalize">{residence.residenceType}</Badge>
+                      </div>
+                    )}
+                    {residence.residentIds && (residence.residentIds as string[]).length > 1 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Residents</span>
+                        <p className="text-sm font-semibold text-right">
+                          {(residence.residentIds as string[])
+                            .filter(id => id !== character.id)
+                            .map(id => {
+                              const resident = getCharacterById(id);
+                              return resident ? `${resident.firstName} ${resident.lastName}` : null;
+                            })
+                            .filter(Boolean)
+                            .join(', ') || `${(residence.residentIds as string[]).length - 1} other(s)`}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Businesses Owned */}
+                {ownedBusinesses.length > 0 && (
+                  <div className="space-y-1.5">
+                    <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
+                      <Store className="w-3.5 h-3.5" />
+                      Businesses Owned ({ownedBusinesses.length})
+                    </h4>
+                    {ownedBusinesses.map((biz) => (
+                      <div key={biz.id} className="flex justify-between items-center">
+                        <span className="text-sm">{biz.name}</span>
+                        <Badge variant="outline" className="text-xs">{biz.businessType}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* 3D Model Preview */}
           <Card className="bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-sm rounded-xl">
