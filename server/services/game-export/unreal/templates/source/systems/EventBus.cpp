@@ -41,6 +41,7 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("puzzle_failed"),                     EInsimulEventType::PuzzleFailed },
         { TEXT("quest_failed"),                      EInsimulEventType::QuestFailed },
         { TEXT("quest_abandoned"),                   EInsimulEventType::QuestAbandoned },
+        { TEXT("quest_declined"),                    EInsimulEventType::QuestDeclined },
         { TEXT("conversation_overheard"),            EInsimulEventType::ConversationOverheard },
         { TEXT("create_truth"),                      EInsimulEventType::CreateTruth },
         { TEXT("assessment_started"),                EInsimulEventType::AssessmentStarted },

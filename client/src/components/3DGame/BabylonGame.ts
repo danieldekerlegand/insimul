@@ -155,6 +155,8 @@ import { NPCInteractionPrompt } from "@/components/3DGame/NPCInteractionPrompt.t
 import { WorldObjectActionManager } from "@/components/3DGame/WorldObjectActionManager.ts";
 import { NPCModelInstancer } from "@/components/3DGame/NPCModelInstancer.ts";
 import { selectNPCModel, type NPCGender } from "@/components/3DGame/NPCModelVariety.ts";
+import { QuestOfferPanel } from "@/components/3DGame/QuestOfferPanel.ts";
+import type { QuestOfferData } from "@/components/3DGame/QuestOfferPanel.ts";
 import { QuestNotificationManager } from "@/components/3DGame/QuestNotificationManager.ts";
 import { ReputationManager } from "@/components/3DGame/ReputationManager.ts";
 import { QuestLanguageFeedbackPanel } from "@/components/3DGame/QuestLanguageFeedbackPanel.ts";
@@ -422,6 +424,9 @@ export class BabylonGame {
   private radialMenu: BabylonRadialMenu | null = null;
   private questObjectManager: QuestObjectManager | null = null;
   private questIndicatorManager: QuestIndicatorManager | null = null;
+  private questOfferPanel: QuestOfferPanel | null = null;
+  /** Set to true when opening chat after accepting from the QuestOfferPanel to avoid re-showing the offer */
+  private skipQuestOfferOnce = false;
   private questWorldObjectLinker: QuestWorldObjectLinker | null = null;
   private questNotificationManager: QuestNotificationManager | null = null;
   private questLanguageFeedbackPanel: QuestLanguageFeedbackPanel | null = null;
@@ -1252,6 +1257,9 @@ export class BabylonGame {
     this.npcInteractionPrompt.setConversationPartnerCallback((npcId) => {
       return this.ambientConversationManager?.getConversationPartner(npcId) ?? null;
     });
+    this.npcInteractionPrompt.setQuestIndicatorCallback((npcId) => {
+      return this.questIndicatorManager?.getIndicatorTypeForNPC(npcId) ?? null;
+    });
 
     // Initialize NPC model instancer (template caching + cloning + shared materials)
     this.npcModelInstancer = new NPCModelInstancer(scene);
@@ -2077,6 +2085,18 @@ export class BabylonGame {
 
     // Initialize quest indicator manager
     this.questIndicatorManager = new QuestIndicatorManager(scene);
+
+    // Initialize quest offer panel
+    this.questOfferPanel = new QuestOfferPanel(scene);
+    this.questOfferPanel.setOnResult(async (result, offer) => {
+      if (result === 'accepted') {
+        // Open the chat panel with quest offering context so the NPC assigns the quest
+        await this.openChatWithQuestOffer(offer);
+      } else {
+        this.eventBus.emit({ type: 'quest_declined', npcId: offer.npcId, npcName: offer.npcName, questTitle: offer.questTitle });
+        this.guiManager?.showToast({ title: 'Quest Declined', description: `You declined "${offer.questTitle}"`, duration: 2000 });
+      }
+    });
 
     // Initialize quest world object linker
     this.questWorldObjectLinker = new QuestWorldObjectLinker(scene);
@@ -8654,6 +8674,19 @@ export class BabylonGame {
     const npcInfo = this.npcInfos.find((n) => n.id === npcId);
     if (!npcInfo) return;
 
+    // If this NPC has an available quest, show the quest offer panel first
+    if (!this.skipQuestOfferOnce) {
+      const questIndicator = this.questIndicatorManager?.getIndicatorTypeForNPC(npcId);
+      if (questIndicator === 'available' && this.questOfferPanel) {
+        const offer = this.buildQuestOfferForNPC(npcId, npcInfo.name);
+        if (offer) {
+          this.questOfferPanel.show(offer);
+          return;
+        }
+      }
+    }
+    this.skipQuestOfferOnce = false;
+
     try {
       // Use cached character data — check this.characters first (primary), fallback to worldData.characters
       const worldCharacter = (this.characters || this.worldData?.characters || []).find((c: any) => c.id === npcId);
@@ -8908,6 +8941,57 @@ export class BabylonGame {
     this.ambientConversationManager?.resume();
     // Award XP for eavesdropping on NPC conversation
     this.gamificationTracker?.onEavesdropCompleted();
+  }
+
+  /**
+   * Build a QuestOfferData for an NPC that can give quests.
+   * Uses the DynamicQuestBoard's suggestion data or NPC occupation to create a contextual offer.
+   */
+  private buildQuestOfferForNPC(npcId: string, npcName: string): QuestOfferData | null {
+    const character = (this.characters || this.worldData?.characters || []).find((c: any) => c.id === npcId);
+    if (!character) return null;
+
+    const occupation = (character as any).occupation || 'townsperson';
+    const firstName = (character as any).firstName || npcName;
+    const lastName = (character as any).lastName || '';
+    const fullName = `${firstName} ${lastName}`.trim();
+
+    return {
+      npcId,
+      npcName: fullName,
+      questTitle: `A Task from ${fullName}`,
+      questDescription: `${fullName} the ${occupation} has a task for you. Accept to begin a conversation and learn more about what they need.`,
+      questType: 'conversation',
+      difficulty: 'normal',
+      objectives: 'Talk to the NPC to learn quest details',
+      category: occupation,
+    };
+  }
+
+  /**
+   * Open the chat panel with quest offering context after the player accepts from the QuestOfferPanel.
+   */
+  private async openChatWithQuestOffer(offer: QuestOfferData): Promise<void> {
+    if (!this.chatPanel || !this.worldData) return;
+
+    // Select the NPC
+    this.setSelectedNPC(offer.npcId);
+
+    // Skip the quest offer panel on the next handleOpenChat call
+    this.skipQuestOfferOnce = true;
+
+    // Set quest offering context on the chat panel so the NPC will assign the quest
+    this.chatPanel.setQuestOfferingContext({
+      questTitle: offer.questTitle,
+      questDescription: offer.questDescription,
+      questType: offer.questType,
+      difficulty: offer.difficulty,
+      objectives: offer.objectives,
+      category: offer.category,
+    });
+
+    // Open the regular chat flow
+    await this.handleOpenChat();
   }
 
   /**
@@ -11722,9 +11806,11 @@ export class BabylonGame {
     this.eventBus.dispose();
     this.questObjectManager?.dispose();
     this.questIndicatorManager?.dispose();
+    this.questOfferPanel?.dispose();
     this.questWorldObjectLinker?.dispose();
     this.questWorldObjectLinker = null;
     this.questIndicatorManager = null;
+    this.questOfferPanel = null;
     this.radialMenu?.dispose();
     this.questNotificationManager?.dispose();
     this.questNotificationManager = null;
