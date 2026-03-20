@@ -50,6 +50,29 @@ function getManager() {
   return new MainQuestProgressionManager();
 }
 
+/** Complete all ch1 objectives: 2 vocabulary + 3 conversation + 2 collect_text */
+async function completeCh1(manager: MainQuestProgressionManager) {
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'collect_text', 'A1');
+  return manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'collect_text', 'A1');
+}
+
+/** Complete all ch2 objectives: 2 vocabulary + 2 conversation + 2 grammar + 2 collect_text */
+async function completeCh2(manager: MainQuestProgressionManager) {
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'grammar', 'A1');
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'grammar', 'A1');
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'collect_text', 'A1');
+  return manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'collect_text', 'A1');
+}
+
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 describe('MainQuestProgressionManager', () => {
@@ -186,14 +209,7 @@ describe('MainQuestProgressionManager', () => {
 
     it('advances chapter when all objectives complete', async () => {
       const manager = getManager();
-      // Complete ch1: 2 vocabulary + 3 conversation
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      const result = await manager.recordQuestCompletion(
-        WORLD_ID, PLAYER_ID, 'conversation', 'A1',
-      );
+      const result = await completeCh1(manager);
 
       expect(result!.chapterAdvance).toBeDefined();
       expect(result!.chapterAdvance!.advanced).toBe(true);
@@ -207,12 +223,7 @@ describe('MainQuestProgressionManager', () => {
 
     it('awards XP on chapter completion', async () => {
       const manager = getManager();
-      // Complete ch1
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
+      await completeCh1(manager);
 
       const state = await manager.getMainQuestState(WORLD_ID, PLAYER_ID);
       expect(state.totalXPEarned).toBe(300);
@@ -227,15 +238,7 @@ describe('MainQuestProgressionManager', () => {
       state.chapters[1].status = 'active';
       await manager.saveMainQuestState(WORLD_ID, PLAYER_ID, state);
 
-      // Complete ch2: 2 vocab + 2 conversation + 2 grammar
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'grammar', 'A1');
-      const result = await manager.recordQuestCompletion(
-        WORLD_ID, PLAYER_ID, 'grammar', 'A1',
-      );
+      const result = await completeCh2(manager);
 
       expect(result!.chapterAdvance!.advanced).toBe(true);
       // Ch3 requires A2 but player is A1 — should be available, not active
@@ -304,8 +307,8 @@ describe('MainQuestProgressionManager', () => {
       await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
 
       const summary = await manager.getJournalSummary(WORLD_ID, PLAYER_ID, 'A1');
-      // ch1: 1 of 5 total = 20%
-      expect(summary.chapters[0].completionPercent).toBe(20);
+      // ch1: 1 of 7 total (2 vocab + 3 convo + 2 collect_text) = 14%
+      expect(summary.chapters[0].completionPercent).toBe(14);
     });
 
     it('shows CEFR met status for each chapter', async () => {
@@ -417,6 +420,76 @@ describe('MainQuestProgressionManager', () => {
     });
   });
 
+  describe('text collection objectives', () => {
+    it('increments collect_text objective progress', async () => {
+      const manager = getManager();
+      const result = await manager.recordQuestCompletion(
+        WORLD_ID, PLAYER_ID, 'collect_text', 'A1',
+      );
+
+      expect(result).not.toBeNull();
+      expect(result!.updated).toBe(true);
+      expect(result!.objectiveId).toBe('ch1_collect_texts');
+      expect(result!.current).toBe(1);
+      expect(result!.required).toBe(2);
+      expect(result!.objectiveCompleted).toBe(false);
+    });
+
+    it('completes collect_text objective when count reaches required', async () => {
+      const manager = getManager();
+      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'collect_text', 'A1');
+      const result = await manager.recordQuestCompletion(
+        WORLD_ID, PLAYER_ID, 'collect_text', 'A1',
+      );
+
+      expect(result!.objectiveCompleted).toBe(true);
+      expect(result!.current).toBe(2);
+    });
+
+    it('does not advance chapter with only text objectives done', async () => {
+      const manager = getManager();
+      // Only complete text collection — vocabulary and conversation still pending
+      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'collect_text', 'A1');
+      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'collect_text', 'A1');
+
+      const state = await manager.getMainQuestState(WORLD_ID, PLAYER_ID);
+      expect(state.currentChapterId).toBe('ch1_arrival');
+      expect(state.chapters[0].status).toBe('active');
+    });
+
+    it('chapter does not complete without collect_text objectives', async () => {
+      const manager = getManager();
+      // Complete vocabulary and conversation but NOT collect_text
+      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
+      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
+      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
+      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
+      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
+
+      const state = await manager.getMainQuestState(WORLD_ID, PLAYER_ID);
+      expect(state.currentChapterId).toBe('ch1_arrival');
+      expect(state.chapters[0].status).toBe('active');
+    });
+
+    it('every chapter has a collect_text objective', () => {
+      for (const chapter of MAIN_QUEST_CHAPTERS) {
+        const hasCollectText = chapter.objectives.some(obj => obj.questType === 'collect_text');
+        expect(hasCollectText).toBe(true);
+      }
+    });
+
+    it('collect_text required count increases with chapter difficulty', () => {
+      const textCounts = MAIN_QUEST_CHAPTERS.map(ch => {
+        const textObj = ch.objectives.find(obj => obj.questType === 'collect_text');
+        return textObj?.requiredCount ?? 0;
+      });
+      // Each subsequent chapter should require >= the previous
+      for (let i = 1; i < textCounts.length; i++) {
+        expect(textCounts[i]).toBeGreaterThanOrEqual(textCounts[i - 1]);
+      }
+    });
+  });
+
   describe('full chapter progression flow', () => {
     it('completes ch1 and transitions to ch2 with narrative beats', async () => {
       const manager = getManager();
@@ -430,14 +503,8 @@ describe('MainQuestProgressionManager', () => {
       // 2. Deliver the intro beat
       await manager.markNarrativeBeatDelivered(WORLD_ID, PLAYER_ID, beats[0].id);
 
-      // 3. Complete all ch1 objectives
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      const completionResult = await manager.recordQuestCompletion(
-        WORLD_ID, PLAYER_ID, 'conversation', 'A1',
-      );
+      // 3. Complete all ch1 objectives (including collect_text)
+      const completionResult = await completeCh1(manager);
 
       // 4. Chapter should advance
       expect(completionResult!.chapterAdvance!.advanced).toBe(true);
@@ -475,13 +542,8 @@ describe('MainQuestProgressionManager', () => {
       state.chapters[1].status = 'active';
       await manager.saveMainQuestState(WORLD_ID, PLAYER_ID, state);
 
-      // Complete ch2
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'grammar', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'grammar', 'A1');
+      // Complete ch2 (including collect_text)
+      await completeCh2(manager);
 
       // Ch3 should be available but not active
       const finalState = await manager.getMainQuestState(WORLD_ID, PLAYER_ID);

@@ -104,6 +104,8 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("item_purchased"),                    EInsimulEventType::ItemPurchased },
         { TEXT("food_ordered"),                      EInsimulEventType::FoodOrdered },
         { TEXT("price_haggled"),                     EInsimulEventType::PriceHaggled },
+        // Text collection events
+        { TEXT("text_collected"),                    EInsimulEventType::TextCollected },
     };
     return Map;
 }
