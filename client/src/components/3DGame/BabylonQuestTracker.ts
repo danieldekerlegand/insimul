@@ -51,6 +51,7 @@ export interface Quest {
   performanceRating?: number;
   vocabularyUsed?: string[];
   grammarAccuracy?: number;
+  tags?: string[];
 }
 
 /** Filter criteria for quest log */
@@ -82,6 +83,7 @@ export interface QuestStats {
 /** Color for quest type background tint */
 export function getQuestTypeColor(questType: string): string {
   switch (questType) {
+    case 'main_quest': return '#FFD700'; // gold
     case 'conversation': case 'social': return '#2196F3'; // blue
     case 'vocabulary': case 'collection': return '#4CAF50'; // green
     case 'navigation': case 'exploration': return '#FF9800'; // orange
@@ -94,6 +96,12 @@ export function getQuestTypeColor(questType: string): string {
     case 'escort': case 'delivery': return '#607D8B'; // blue grey
     default: return '#9E9E9E'; // grey
   }
+}
+
+/** Check if a quest is a main quest based on tags or questType */
+export function isMainQuest(quest: Quest): boolean {
+  return quest.questType === 'main_quest' ||
+    (Array.isArray(quest.tags) && quest.tags.includes('main_quest'));
 }
 
 /** Difficulty to star count (1-3) */
@@ -120,6 +128,7 @@ export function getDifficultyColor(difficulty: string): string {
 /** Quest type icon */
 export function getQuestIcon(questType: string): string {
   switch (questType) {
+    case 'main_quest': return '\u{1F451}'; // crown
     case 'conversation': return '\u{1F4AC}';
     case 'translation': case 'translation_challenge': return '\u{1F504}';
     case 'vocabulary': return '\u{1F4DA}';
@@ -635,7 +644,12 @@ export class BabylonQuestTracker {
     const filtered = filterQuests(baseQuests, this.filters);
     const sorted = sortQuests(filtered, this.sortBy);
 
-    if (sorted.length === 0) {
+    // Partition: main quests first, then side quests
+    const mainQuests = sorted.filter(q => isMainQuest(q));
+    const sideQuests = sorted.filter(q => !isMainQuest(q));
+    const ordered = [...mainQuests, ...sideQuests];
+
+    if (ordered.length === 0) {
       const emptyText = new TextBlock();
       emptyText.text = this.activeTab === 'active'
         ? "No active quests\n\nTalk to NPCs to receive quests!"
@@ -649,7 +663,7 @@ export class BabylonQuestTracker {
       return;
     }
 
-    sorted.forEach((quest) => {
+    ordered.forEach((quest) => {
       this.questListPanel?.addControl(this.createQuestCard(quest));
     });
   }
@@ -657,15 +671,16 @@ export class BabylonQuestTracker {
   private createQuestCard(quest: Quest): Rectangle {
     const typeColor = getQuestTypeColor(quest.questType);
     const isTracked = this.trackedQuestId === quest.id;
+    const isMain = isMainQuest(quest);
 
     const card = new Rectangle(`quest-${quest.id}`);
     card.width = "95%";
     card.adaptHeightToChildren = true;
-    card.background = quest.status === 'active'
-      ? `${typeColor}22`  // very transparent type color tint
-      : "rgba(80, 80, 80, 0.25)";
-    card.color = isTracked ? "#FFD700" : typeColor;
-    card.thickness = isTracked ? 2 : 1;
+    card.background = isMain
+      ? (quest.status === 'active' ? 'rgba(255, 215, 0, 0.12)' : 'rgba(255, 215, 0, 0.06)')
+      : (quest.status === 'active' ? `${typeColor}22` : "rgba(80, 80, 80, 0.25)");
+    card.color = isMain ? '#FFD700' : (isTracked ? "#FFD700" : typeColor);
+    card.thickness = isMain ? 2 : (isTracked ? 2 : 1);
     card.cornerRadius = 3;
     card.paddingTop = "4px";
     card.paddingBottom = "4px";
