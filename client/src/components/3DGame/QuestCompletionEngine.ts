@@ -18,10 +18,15 @@ export interface CompletionObjective {
   description: string;
   completed: boolean;
 
-  // collect_item
+  // collect_item / purchase
   itemName?: string;
   itemCount?: number;
   collectedCount?: number;
+
+  // order_food / haggle_price (mercantile)
+  merchantId?: string;
+  businessType?: string;
+  itemsPurchased?: string[];
 
   // talk_to_npc
   npcId?: string;
@@ -145,7 +150,9 @@ export type CompletionEvent =
   | { type: 'object_pointed_and_named'; objectName: string; questId?: string }
   | { type: 'npc_conversation_turn'; npcId: string; topicTag?: string; questId?: string }
   | { type: 'gift_given'; npcId: string; itemName: string; questId?: string }
-  | { type: 'direction_step_completed'; questId?: string };
+  | { type: 'direction_step_completed'; questId?: string }
+  | { type: 'food_ordered'; itemName: string; merchantId: string; businessType: string; questId?: string }
+  | { type: 'price_haggled'; itemName: string; merchantId: string; typedWord: string; questId?: string };
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
@@ -270,6 +277,12 @@ export class QuestCompletionEngine {
         break;
       case 'direction_step_completed':
         this.trackDirectionStep(event.questId);
+        break;
+      case 'food_ordered':
+        this.trackFoodOrdered(event.itemName, event.merchantId, event.businessType, event.questId);
+        break;
+      case 'price_haggled':
+        this.trackPriceHaggled(event.itemName, event.merchantId, event.typedWord, event.questId);
         break;
     }
   }
@@ -775,6 +788,34 @@ export class QuestCompletionEngine {
     });
   }
 
+  // ── Mercantile objective tracking ──────────────────────────────────
+
+  trackFoodOrdered(itemName: string, merchantId: string, businessType: string, questId?: string): void {
+    this.forEachObjective(questId, 'order_food', (quest, obj) => {
+      if (obj.merchantId && obj.merchantId !== merchantId) return;
+
+      obj.itemsPurchased = obj.itemsPurchased || [];
+      obj.itemsPurchased.push(itemName);
+      obj.currentCount = (obj.currentCount || 0) + 1;
+
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
+  trackPriceHaggled(itemName: string, merchantId: string, typedWord: string, questId?: string): void {
+    this.forEachObjective(questId, 'haggle_price', (quest, obj) => {
+      if (obj.merchantId && obj.merchantId !== merchantId) return;
+
+      obj.currentCount = (obj.currentCount || 0) + 1;
+
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
   // ── Serialization ──────────────────────────────────────────────────────
 
   /** Progress-relevant fields that change at runtime and need persistence. */
@@ -785,7 +826,7 @@ export class QuestCompletionEngine {
     'craftedCount', 'arrived', 'delivered', 'reputationGained',
     'questionsAnswered', 'questionsCorrect', 'translationsCompleted',
     'translationsCorrect', 'waypointsReached', 'stepsCompleted',
-    'wordsTaught', 'phrasesTaught', 'startedAt',
+    'wordsTaught', 'phrasesTaught', 'startedAt', 'itemsPurchased',
   ];
 
   /**

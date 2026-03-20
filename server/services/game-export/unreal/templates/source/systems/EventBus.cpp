@@ -87,6 +87,10 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("time_of_day_changed"),              EInsimulEventType::TimeOfDayChanged },
         // NPC relationship events
         { TEXT("npc_relationship_changed"),          EInsimulEventType::NpcRelationshipChanged },
+        // Mercantile events
+        { TEXT("item_purchased"),                    EInsimulEventType::ItemPurchased },
+        { TEXT("food_ordered"),                      EInsimulEventType::FoodOrdered },
+        { TEXT("price_haggled"),                     EInsimulEventType::PriceHaggled },
     };
     return Map;
 }

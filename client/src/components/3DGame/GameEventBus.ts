@@ -126,7 +126,11 @@ export type GameEvent =
   | { type: 'day_changed'; day: number; timestep: number }
   | { type: 'time_of_day_changed'; from: string; to: string; hour: number }
   // NPC relationship events
-  | { type: 'npc_relationship_changed'; npcId: string; npcName: string; previousStrength: number; newStrength: number; previousTier: string; newTier: string; cause: string; delta: number };
+  | { type: 'npc_relationship_changed'; npcId: string; npcName: string; previousStrength: number; newStrength: number; previousTier: string; newTier: string; cause: string; delta: number }
+  // Mercantile events
+  | { type: 'item_purchased'; itemId: string; itemName: string; quantity: number; totalPrice: number; merchantId: string; merchantName: string; businessType?: string }
+  | { type: 'food_ordered'; itemId: string; itemName: string; quantity: number; merchantId: string; merchantName: string; businessType: string }
+  | { type: 'price_haggled'; itemId: string; itemName: string; merchantId: string; merchantName: string; typedWord: string; targetWord: string };
 
 export type GameEventType = GameEvent['type'];
 

@@ -122,6 +122,14 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Quests")
     void TrackWritingSubmission(const FString& Text, int32 WordCount, const FString& QuestId = TEXT(""));
 
+    /** Track food ordering at a merchant for order_food objectives. */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    void TrackFoodOrdered(const FString& ItemName, const FString& MerchantId, const FString& BusinessType, const FString& QuestId = TEXT(""));
+
+    /** Track price haggling in target language for haggle_price objectives. */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    void TrackPriceHaggled(const FString& ItemName, const FString& MerchantId, const FString& TypedWord, const FString& QuestId = TEXT(""));
+
     /** Check if player is near a direction/navigation waypoint. Call from Tick(). */
     UFUNCTION(BlueprintCallable, Category = "Quests")
     void CheckDirectionProximity(const FVector& PlayerPos);

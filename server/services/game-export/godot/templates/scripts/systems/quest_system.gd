@@ -231,6 +231,40 @@ func track_writing_submission(text: String, word_count: int, quest_id: String = 
 			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
 
 
+## Track food ordering at a merchant for order_food objectives.
+func track_food_ordered(item_name: String, merchant_id: String, business_type: String, quest_id: String = "") -> void:
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		if not quest_id.is_empty() and obj.get("quest_id") != quest_id:
+			continue
+		if obj.get("type", "") != "order_food":
+			continue
+
+		obj["current_count"] = obj.get("current_count", 0) + 1
+
+		var required: int = obj.get("required_count", 1)
+		if obj["current_count"] >= required:
+			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
+## Track price haggling in target language for haggle_price objectives.
+func track_price_haggled(item_name: String, merchant_id: String, typed_word: String, quest_id: String = "") -> void:
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		if not quest_id.is_empty() and obj.get("quest_id") != quest_id:
+			continue
+		if obj.get("type", "") != "haggle_price":
+			continue
+
+		obj["current_count"] = obj.get("current_count", 0) + 1
+
+		var required: int = obj.get("required_count", 1)
+		if obj["current_count"] >= required:
+			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
 ## Check if player is near a direction/navigation waypoint.
 ## Call this from _physics_process with the player's position.
 func check_direction_proximity(player_pos: Vector3) -> void:
