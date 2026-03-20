@@ -527,16 +527,21 @@ export class BabylonChatPanel {
     if (!this.character) return;
 
     // Initialize language progress tracker from world languages or legacy targetLanguage
+    // Reuse persistent tracker if available so vocabulary/grammar data persists across conversations
     const learningLang = this.worldLanguageContext?.learningTargetLanguage?.name
       || this.worldLanguageContext?.targetLanguage
       || this.world?.targetLanguage;
     if (learningLang && learningLang !== 'English') {
-      this.languageTracker = new LanguageProgressTracker(
-        'player',
-        this.character.worldId,
-        learningLang,
-        this.playthroughId || undefined
-      );
+      if (this.persistentLanguageTracker) {
+        this.languageTracker = this.persistentLanguageTracker;
+      } else {
+        this.languageTracker = new LanguageProgressTracker(
+          'player',
+          this.character.worldId,
+          learningLang,
+          this.playthroughId || undefined
+        );
+      }
       // Start tracking this conversation so endConversation() produces a result
       this.languageTracker.startConversation(this.character.id, this.character.firstName || this.character.name || 'NPC');
     }
@@ -2588,6 +2593,16 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
   public getLanguageTracker(): import('./LanguageProgressTracker').LanguageProgressTracker | null {
     return this.languageTracker;
   }
+
+  /**
+   * Set a persistent language tracker to be reused across conversations.
+   * When set, initializeChat() will use this tracker instead of creating a new one,
+   * preserving vocabulary/grammar data accumulated in prior sessions.
+   */
+  public setPersistentLanguageTracker(tracker: import('./LanguageProgressTracker').LanguageProgressTracker): void {
+    this.persistentLanguageTracker = tracker;
+  }
+  private persistentLanguageTracker: import('./LanguageProgressTracker').LanguageProgressTracker | null = null;
 
   public setPlaythroughId(id: string) {
     this.playthroughId = id;

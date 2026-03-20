@@ -161,6 +161,7 @@ import { QuestNotificationManager } from "@/components/3DGame/QuestNotificationM
 import { ReputationManager } from "@/components/3DGame/ReputationManager.ts";
 import { QuestLanguageFeedbackPanel } from "@/components/3DGame/QuestLanguageFeedbackPanel.ts";
 import { QuestLanguageFeedbackTracker } from "@shared/language/quest-language-feedback";
+import { LanguageProgressTracker } from "@/components/3DGame/LanguageProgressTracker.ts";
 import { extractObjectiveMarkers } from "@/components/3DGame/QuestMinimapMarkers.ts";
 import {
   isFirstPlaythrough,
@@ -564,6 +565,7 @@ export class BabylonGame {
   // Zone system
   private currentZone: { id: string; name: string; type: string } | null = null;
   private playthroughId: string | null = null;
+  private languageProgressTracker: LanguageProgressTracker | null = null;
   private titleScreen: MainMenuScreen | null = null;
   private questOverlay: PlaythroughQuestOverlay = new PlaythroughQuestOverlay();
   private relationshipManager: RelationshipManager | null = null;
@@ -1679,8 +1681,9 @@ export class BabylonGame {
         };
       },
       // Language learning panel data callbacks
+      // Use conversation tracker (live data) if active, otherwise persistent tracker (server data)
       getVocabularyData: () => {
-        const tracker = this.chatPanel?.getLanguageTracker();
+        const tracker = this.chatPanel?.getLanguageTracker() || this.languageProgressTracker;
         if (!tracker) return null;
         const progress = tracker.getProgress();
         return {
@@ -1692,11 +1695,11 @@ export class BabylonGame {
         };
       },
       getConversationHistory: () => {
-        const tracker = this.chatPanel?.getLanguageTracker();
+        const tracker = this.chatPanel?.getLanguageTracker() || this.languageProgressTracker;
         return tracker ? tracker.getRecentConversations(20) : [];
       },
       getSkillTreeStats: () => {
-        const tracker = this.chatPanel?.getLanguageTracker();
+        const tracker = this.chatPanel?.getLanguageTracker() || this.languageProgressTracker;
         if (!tracker) return null;
         const progress = tracker.getProgress();
         const conversations = progress.conversations || [];
@@ -1718,7 +1721,7 @@ export class BabylonGame {
         };
       },
       getNoticeArticles: () => {
-        const tracker = this.chatPanel?.getLanguageTracker();
+        const tracker = this.chatPanel?.getLanguageTracker() || this.languageProgressTracker;
         return {
           articles: SAMPLE_ARTICLES,
           playerFluency: tracker ? tracker.getFluency() : 0,
@@ -3011,6 +3014,24 @@ export class BabylonGame {
         this.inventory.setLanguageLearning(true);
       }
 
+      // Initialize persistent language progress tracker and load server data
+      const targetLangName = getTargetLanguage(this.worldData) || (this.worldData as any)?.targetLanguage;
+      if (targetLangName && targetLangName !== 'English') {
+        this.languageProgressTracker = new LanguageProgressTracker(
+          'player',
+          this.config.worldId,
+          targetLangName,
+          this.config.playthroughId || undefined
+        );
+        // Share with chat panel so conversations accumulate into the persistent tracker
+        if (this.chatPanel) {
+          this.chatPanel.setPersistentLanguageTracker(this.languageProgressTracker);
+        }
+        // Non-blocking load from server
+        this.languageProgressTracker.loadFromServer().catch(err =>
+          console.warn('[BabylonGame] Failed to load language progress:', err)
+        );
+      }
 
       // Register active listening comprehension quests
       if (this.listeningComprehensionManager && quests) {
@@ -9717,7 +9738,7 @@ export class BabylonGame {
   private handleToggleConversationHistory(): void {
     if (!this.conversationHistoryPanel) return;
 
-    const tracker = this.chatPanel?.getLanguageTracker();
+    const tracker = this.chatPanel?.getLanguageTracker() || this.languageProgressTracker;
     if (tracker) {
       this.conversationHistoryPanel.updateData(tracker.getRecentConversations(20));
     }
@@ -9727,7 +9748,7 @@ export class BabylonGame {
   private handleToggleSkillTree(): void {
     if (!this.skillTreePanel) return;
 
-    const tracker = this.chatPanel?.getLanguageTracker();
+    const tracker = this.chatPanel?.getLanguageTracker() || this.languageProgressTracker;
     if (tracker) {
       const progress = tracker.getProgress();
       const conversations = progress.conversations || [];
