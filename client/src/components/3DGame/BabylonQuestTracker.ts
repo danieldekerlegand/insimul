@@ -2,6 +2,7 @@ import {
   AdvancedDynamicTexture,
   Button,
   Control,
+  Ellipse,
   Rectangle,
   ScrollViewer,
   StackPanel,
@@ -9,7 +10,8 @@ import {
   TextWrapping
 } from "@babylonjs/gui";
 import { Scene, Vector3 } from "@babylonjs/core";
-import { QuestWaypointManager } from './QuestWaypointManager';
+import { QuestWaypointManager, getWaypointColor } from './QuestWaypointManager';
+import { DynamicQuestWaypointDirector, type DirectorBuildingEntry, type DirectorNpcPosition, type ResolvedWaypoint, type CompassData } from './DynamicQuestWaypointDirector';
 import type { GamePrologEngine } from './GamePrologEngine';
 import type { DataSource } from './DataSource';
 
@@ -342,7 +344,21 @@ export class BabylonQuestTracker {
 
   // Waypoint system
   private waypointManager: QuestWaypointManager;
+  private waypointDirector: DynamicQuestWaypointDirector;
   private showWaypoints: boolean = true;
+  private resolvedWaypoints: ResolvedWaypoint[] = [];
+
+  // World data for dynamic waypoint resolution
+  private buildingData: Map<string, DirectorBuildingEntry> = new Map();
+  private npcBuildingMap: Map<string, string> = new Map();
+  private npcPositions: DirectorNpcPosition[] = [];
+  private playerForwardAngle: number = 0;
+
+  // Compass HUD
+  private compassContainer: Rectangle | null = null;
+  private compassArrow: Ellipse | null = null;
+  private compassLabel: TextBlock | null = null;
+  private compassDistance: TextBlock | null = null;
 
   // World context for quest types
   private worldId: string = '';
@@ -364,7 +380,9 @@ export class BabylonQuestTracker {
     this.advancedTexture = advancedTexture;
     this.scene = scene;
     this.waypointManager = new QuestWaypointManager(scene);
+    this.waypointDirector = new DynamicQuestWaypointDirector();
     this.createQuestUI();
+    this.createCompassHUD();
   }
 
   private createQuestUI() {
@@ -1601,76 +1619,58 @@ export class BabylonQuestTracker {
   }
 
   private updateWaypoints() {
+    if (!this.showWaypoints) {
+      this.waypointManager.clearAll();
+      this.resolvedWaypoints = [];
+      this.updateCompassHUD(null);
+      return;
+    }
+
     // If tracking a specific quest, only show its waypoints
     if (this.trackedQuestId) {
       this.updateWaypointsForTrackedQuest();
       return;
     }
 
-    if (!this.showWaypoints) {
-      this.waypointManager.clearAll();
-      return;
-    }
-
     this.waypointManager.clearAll();
+    this.resolvedWaypoints = [];
 
     const activeQuests = this.quests.filter(q => q.status === 'active');
 
-    activeQuests.forEach(quest => {
-      this.createWaypointsForQuest(quest);
-    });
+    for (const quest of activeQuests) {
+      const resolved = this.waypointDirector.resolveWaypoints(
+        quest, this.buildingData, this.npcBuildingMap, this.npcPositions, this.playerPosition
+      );
+      for (const wp of resolved) {
+        const pos = new Vector3(wp.position.x, wp.position.y || 0, wp.position.z);
+        this.waypointManager.createWaypointForObjectiveType(wp.objectiveId, pos, wp.objectiveType);
+      }
+      this.resolvedWaypoints.push(...resolved);
+    }
 
     console.log(`[BabylonQuestTracker] Updated ${this.waypointManager.getWaypointCount()} waypoints`);
   }
 
   private updateWaypointsForTrackedQuest() {
     this.waypointManager.clearAll();
+    this.resolvedWaypoints = [];
 
     if (!this.trackedQuestId) return;
 
     const quest = this.quests.find(q => q.id === this.trackedQuestId);
     if (!quest) return;
 
-    this.createWaypointsForQuest(quest);
+    const resolved = this.waypointDirector.resolveWaypoints(
+      quest, this.buildingData, this.npcBuildingMap, this.npcPositions, this.playerPosition
+    );
+
+    for (const wp of resolved) {
+      const pos = new Vector3(wp.position.x, wp.position.y || 0, wp.position.z);
+      this.waypointManager.createWaypointForObjectiveType(wp.objectiveId, pos, wp.objectiveType);
+    }
+
+    this.resolvedWaypoints = resolved;
     console.log(`[BabylonQuestTracker] Tracking "${quest.title}" with ${this.waypointManager.getWaypointCount()} waypoints`);
-  }
-
-  private createWaypointsForQuest(quest: Quest) {
-    // From objectives array
-    if (quest.objectives) {
-      quest.objectives.forEach((obj, index) => {
-        if (obj.completed) return;
-        const pos = obj.position || obj.locationPosition;
-        if (pos) {
-          const position = new Vector3(pos.x || 0, pos.y || 0, pos.z || 0);
-          this.waypointManager.createWaypointForObjectiveType(
-            `${quest.id}_obj_${index}`,
-            position,
-            obj.type || quest.questType
-          );
-        }
-      });
-    }
-
-    // From completionCriteria objectives
-    if (quest.completionCriteria?.objectives) {
-      const criteriaObjs = Array.isArray(quest.completionCriteria.objectives)
-        ? quest.completionCriteria.objectives : [];
-
-      criteriaObjs.forEach((objective: any, index: number) => {
-        if (objective.completed) return;
-        const objectiveId = `${quest.id}_cobj_${index}`;
-        const pos = objective.position || objective.locationPosition;
-        if (pos) {
-          const position = new Vector3(pos.x || 0, pos.y || 0, pos.z || 0);
-          this.waypointManager.createWaypointForObjectiveType(
-            objectiveId,
-            position,
-            objective.type || quest.questType
-          );
-        }
-      });
-    }
   }
 
   public toggleWaypoints(): boolean {
@@ -1728,12 +1728,203 @@ export class BabylonQuestTracker {
     return this.sortBy;
   }
 
+  // ── World data setters (called from BabylonGame) ───────────────────────
+
+  /** Set building data for dynamic waypoint resolution */
+  public setWorldData(
+    buildingData: Map<string, DirectorBuildingEntry>,
+    npcBuildingMap: Map<string, string>,
+    npcPositions: DirectorNpcPosition[]
+  ): void {
+    this.buildingData = buildingData;
+    this.npcBuildingMap = npcBuildingMap;
+    this.npcPositions = npcPositions;
+  }
+
+  /** Update NPC positions (call when NPCs move) */
+  public setNpcPositions(npcPositions: DirectorNpcPosition[]): void {
+    this.npcPositions = npcPositions;
+  }
+
+  /** Set player facing direction for compass calculation */
+  public setPlayerForwardAngle(angle: number): void {
+    this.playerForwardAngle = angle;
+  }
+
+  // ── Per-frame update ──────────────────────────────────────────────────
+
+  /**
+   * Called per-frame (or throttled) to update distance fading and compass.
+   * Handles smooth waypoint transitions when objectives complete.
+   */
+  public updateFrame(playerPosition: Vector3): void {
+    this.playerPosition = playerPosition.clone();
+
+    if (!this.showWaypoints) return;
+
+    // Update distance-based fading on waypoint meshes
+    this.waypointManager.updateDistanceFading(playerPosition);
+
+    // Update compass HUD
+    const compassData = this.waypointDirector.getCompassData(
+      this.resolvedWaypoints, playerPosition, this.playerForwardAngle
+    );
+    this.updateCompassHUD(compassData);
+
+    // Re-resolve conversation-only waypoints (nearest NPC may change)
+    this.updateConversationWaypoints();
+  }
+
+  /** Re-resolve waypoints for conversation-only objectives pointing to nearest NPC */
+  private updateConversationWaypoints(): void {
+    if (this.npcPositions.length === 0) return;
+
+    for (const wp of this.resolvedWaypoints) {
+      if (wp.label === 'Nearby NPC') {
+        // Find nearest NPC and update position
+        let nearestDist = Infinity;
+        let nearestPos: { x: number; y: number; z: number } | null = null;
+        for (const npc of this.npcPositions) {
+          const dx = npc.position.x - this.playerPosition.x;
+          const dz = npc.position.z - this.playerPosition.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist < nearestDist) {
+            nearestDist = dist;
+            nearestPos = npc.position;
+          }
+        }
+        if (nearestPos) {
+          wp.position = nearestPos;
+          this.waypointManager.updateWaypointPosition(
+            wp.objectiveId,
+            new Vector3(nearestPos.x, nearestPos.y || 0, nearestPos.z)
+          );
+        }
+      }
+    }
+  }
+
+  // ── Compass HUD ───────────────────────────────────────────────────────
+
+  private createCompassHUD(): void {
+    // Container at top center of screen
+    this.compassContainer = new Rectangle("compassContainer");
+    this.compassContainer.width = "160px";
+    this.compassContainer.height = "40px";
+    this.compassContainer.background = "rgba(0, 0, 0, 0.6)";
+    this.compassContainer.color = "rgba(255, 255, 255, 0.3)";
+    this.compassContainer.thickness = 1;
+    this.compassContainer.cornerRadius = 8;
+    this.compassContainer.top = "8px";
+    this.compassContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    this.compassContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    this.compassContainer.isVisible = false;
+    this.compassContainer.zIndex = 45;
+    this.advancedTexture.addControl(this.compassContainer);
+
+    const stack = new StackPanel();
+    stack.isVertical = false;
+    stack.width = "100%";
+    stack.height = "100%";
+    this.compassContainer.addControl(stack);
+
+    // Arrow indicator
+    this.compassArrow = new Ellipse("compassArrow");
+    this.compassArrow.width = "24px";
+    this.compassArrow.height = "24px";
+    this.compassArrow.color = "#FFD700";
+    this.compassArrow.thickness = 2;
+    this.compassArrow.background = "rgba(255, 215, 0, 0.3)";
+    stack.addControl(this.compassArrow);
+
+    // Arrow character inside ellipse
+    const arrowText = new TextBlock("compassArrowText");
+    arrowText.text = "^";
+    arrowText.color = "#FFD700";
+    arrowText.fontSize = 16;
+    arrowText.fontWeight = "bold";
+    this.compassArrow.addControl(arrowText);
+
+    // Info stack (label + distance)
+    const infoStack = new StackPanel();
+    infoStack.isVertical = true;
+    infoStack.width = "120px";
+    infoStack.height = "100%";
+    stack.addControl(infoStack);
+
+    this.compassLabel = new TextBlock("compassLabel");
+    this.compassLabel.text = "";
+    this.compassLabel.color = "#FFF";
+    this.compassLabel.fontSize = 9;
+    this.compassLabel.height = "18px";
+    this.compassLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.compassLabel.paddingLeft = "4px";
+    infoStack.addControl(this.compassLabel);
+
+    this.compassDistance = new TextBlock("compassDistance");
+    this.compassDistance.text = "";
+    this.compassDistance.color = "#AAA";
+    this.compassDistance.fontSize = 8;
+    this.compassDistance.height = "16px";
+    this.compassDistance.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    this.compassDistance.paddingLeft = "4px";
+    infoStack.addControl(this.compassDistance);
+  }
+
+  private updateCompassHUD(data: CompassData | null): void {
+    if (!this.compassContainer) return;
+
+    if (!data || !this.showWaypoints) {
+      this.compassContainer.isVisible = false;
+      return;
+    }
+
+    this.compassContainer.isVisible = true;
+
+    // Update arrow rotation to point toward objective
+    if (this.compassArrow) {
+      // Convert angle to degrees for rotation
+      this.compassArrow.rotation = data.angle;
+
+      // Color based on objective type
+      const color = getWaypointColor(data.objectiveType);
+      const hexColor = `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
+      this.compassArrow.color = hexColor;
+
+      const arrowText = this.compassArrow.children[0] as TextBlock;
+      if (arrowText) {
+        arrowText.color = hexColor;
+        // Change arrow symbol based on direction
+        const absAngle = Math.abs(data.angle);
+        if (absAngle < 0.4) arrowText.text = "\u2191"; // Up arrow (ahead)
+        else if (data.angle > 0.4 && data.angle < 2.7) arrowText.text = "\u2192"; // Right
+        else if (data.angle < -0.4 && data.angle > -2.7) arrowText.text = "\u2190"; // Left
+        else arrowText.text = "\u2193"; // Down arrow (behind)
+      }
+    }
+
+    // Update label
+    if (this.compassLabel) {
+      const label = data.label || data.objectiveType.replace(/_/g, ' ');
+      this.compassLabel.text = label.length > 18 ? label.substring(0, 16) + '..' : label;
+    }
+
+    // Update distance
+    if (this.compassDistance) {
+      const dist = Math.round(data.distance);
+      this.compassDistance.text = dist > 1000 ? `${(dist / 1000).toFixed(1)}km` : `${dist}m`;
+    }
+  }
+
   public dispose() {
     if (this.questPanel) {
       this.advancedTexture.removeControl(this.questPanel);
     }
     if (this.detailPanel) {
       this.advancedTexture.removeControl(this.detailPanel);
+    }
+    if (this.compassContainer) {
+      this.advancedTexture.removeControl(this.compassContainer);
     }
     this.waypointManager.dispose();
   }
