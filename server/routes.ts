@@ -11,6 +11,7 @@ import { createNarrativeArcRoutes } from './routes/narrative-arc-routes';
 import { enrichHistoricalEvents, type WorldContext } from './services/llm-event-enrichment.js';
 import { prologAutoSync } from './engines/prolog/prolog-auto-sync';
 import * as PlaythroughOverlay from './services/playthrough-overlay';
+import * as Mercantile from './services/mercantile';
 import { convertActionToProlog } from '../shared/prolog/action-converter';
 import { convertQuestToProlog } from '../shared/prolog/quest-converter';
 import { extractAllMetadata, extractActionMetadata } from '../shared/prolog/prolog-metadata-extractor';
@@ -13159,7 +13160,8 @@ Make the action names thematic and immersive.`;
           truthId: t.id,
         };
       });
-      res.json({ entityId, items, gold: 0 });
+      const gold = await Mercantile.getGold(worldId, entityId, playthroughId);
+      res.json({ entityId, items, gold });
     } catch (error) {
       console.error("Failed to get entity inventory:", error);
       res.status(500).json({ error: "Failed to get entity inventory" });
@@ -13252,6 +13254,24 @@ Make the action names thematic and immersive.`;
         }
       }
 
+      // Handle gold transfer for buy/sell transactions
+      let buyerGold: number | undefined;
+      let sellerGold: number | undefined;
+      if ((transactionType === 'buy' || transactionType === 'sell') && totalPrice > 0) {
+        const buyerId = transactionType === 'buy' ? toEntityId : fromEntityId;
+        const sellerId = transactionType === 'buy' ? fromEntityId : toEntityId;
+        if (buyerId && sellerId) {
+          const result = await Mercantile.executeGoldTransfer(
+            worldId, buyerId, sellerId, totalPrice, playthroughId, timestep,
+          );
+          if ('error' in result) {
+            return res.status(400).json({ error: result.error, transactionType });
+          }
+          buyerGold = result.buyerGold;
+          sellerGold = result.sellerGold;
+        }
+      }
+
       // Create a transaction event truth
       const eventData = {
         worldId,
@@ -13286,11 +13306,65 @@ Make the action names thematic and immersive.`;
         itemId,
         quantity: quantity || 1,
         totalPrice: totalPrice || 0,
+        buyerGold,
+        sellerGold,
         timestamp,
       });
     } catch (error) {
       console.error("Failed to transfer item:", error);
       res.status(500).json({ error: "Failed to transfer item" });
+    }
+  });
+
+  // Get entity gold balance
+  app.get("/api/worlds/:worldId/entities/:entityId/gold", async (req, res) => {
+    try {
+      const { worldId, entityId } = req.params;
+      const playthroughId = req.query.playthroughId as string | undefined;
+      const gold = await Mercantile.getGold(worldId, entityId, playthroughId);
+      res.json({ entityId, gold });
+    } catch (error: any) {
+      console.error("Failed to get gold balance:", error);
+      res.status(500).json({ error: "Failed to get gold balance" });
+    }
+  });
+
+  // Set entity gold balance
+  app.put("/api/worlds/:worldId/entities/:entityId/gold", async (req, res) => {
+    try {
+      const { worldId, entityId } = req.params;
+      const playthroughId = req.query.playthroughId as string | undefined;
+      const { amount } = req.body;
+      if (typeof amount !== 'number' || amount < 0) {
+        return res.status(400).json({ error: "amount must be a non-negative number" });
+      }
+      const timestep = req.body.timestep || 0;
+      const gold = await Mercantile.setGold(worldId, entityId, amount, playthroughId, timestep);
+      res.json({ entityId, gold });
+    } catch (error: any) {
+      console.error("Failed to set gold balance:", error);
+      res.status(500).json({ error: "Failed to set gold balance" });
+    }
+  });
+
+  // Adjust entity gold balance (add or subtract)
+  app.post("/api/worlds/:worldId/entities/:entityId/gold/adjust", async (req, res) => {
+    try {
+      const { worldId, entityId } = req.params;
+      const playthroughId = req.query.playthroughId as string | undefined;
+      const { delta } = req.body;
+      if (typeof delta !== 'number') {
+        return res.status(400).json({ error: "delta must be a number" });
+      }
+      const timestep = req.body.timestep || 0;
+      const result = await Mercantile.adjustGold(worldId, entityId, delta, playthroughId, timestep);
+      if ('error' in result) {
+        return res.status(400).json({ error: result.error, available: result.available });
+      }
+      res.json({ entityId, gold: result.newBalance });
+    } catch (error: any) {
+      console.error("Failed to adjust gold balance:", error);
+      res.status(500).json({ error: "Failed to adjust gold balance" });
     }
   });
 
