@@ -10,9 +10,11 @@ import * as GUI from '@babylonjs/gui';
 export interface MinimapMarker {
   id: string;
   position: Vector3;
-  type: 'player' | 'settlement' | 'npc' | 'quest' | 'building' | 'exclamation';
+  type: 'player' | 'settlement' | 'npc' | 'quest' | 'quest_objective' | 'building' | 'exclamation';
   label?: string;
   color?: string;
+  /** Shape hint for quest_objective markers: 'diamond' for location types, 'circle' for others. */
+  shape?: 'diamond' | 'circle';
 }
 
 export type TeleportRequestCallback = (worldX: number, worldZ: number) => void;
@@ -228,6 +230,16 @@ export class BabylonMinimap {
         });
 
         element = container;
+      } else if (marker.type === 'quest_objective' && marker.shape === 'diamond') {
+        // Diamond marker for location-based objectives
+        const diamond = new GUI.Rectangle(`minimap_marker_${marker.id}`);
+        diamond.width = '6px';
+        diamond.height = '6px';
+        diamond.background = marker.color || '#00BCD4';
+        diamond.color = '#fff';
+        diamond.thickness = 1;
+        diamond.rotation = Math.PI / 4;
+        element = diamond;
       } else {
         const markerElement = new GUI.Ellipse(`minimap_marker_${marker.id}`);
 
@@ -235,6 +247,7 @@ export class BabylonMinimap {
         const size = marker.type === 'player' ? 6 :
                      marker.type === 'settlement' ? 8 :
                      marker.type === 'quest' ? 7 :
+                     marker.type === 'quest_objective' ? 5 :
                      marker.type === 'building' ? 3 : 4;
 
         markerElement.width = `${size}px`;

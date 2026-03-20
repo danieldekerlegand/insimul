@@ -371,6 +371,48 @@ export class FullscreenMap {
       }
     }
 
+    // Quest objective markers (derived from individual objectives)
+    if (data.questObjectiveMarkers) {
+      for (const obj of data.questObjectiveMarkers) {
+        const [ox, oz] = this.worldToMap(obj.position.x, obj.position.z, worldSize);
+
+        if (obj.shape === 'diamond') {
+          const marker = new Rectangle(`fs-obj-${obj.id}`);
+          marker.width = '10px';
+          marker.height = '10px';
+          marker.background = obj.color;
+          marker.color = '#FFFFFF';
+          marker.thickness = 1;
+          marker.cornerRadius = 1;
+          marker.rotation = Math.PI / 4;
+          marker.left = `${ox}px`;
+          marker.top = `${oz}px`;
+          this.mapContainer.addControl(marker);
+          this._dynamicControls.push(marker);
+        } else {
+          const marker = new Ellipse(`fs-obj-${obj.id}`);
+          marker.width = '9px';
+          marker.height = '9px';
+          marker.background = obj.color;
+          marker.color = '#FFFFFF';
+          marker.thickness = 1;
+          marker.left = `${ox}px`;
+          marker.top = `${oz}px`;
+          this.mapContainer.addControl(marker);
+          this._dynamicControls.push(marker);
+        }
+
+        const label = new TextBlock(`fs-obj-label-${obj.id}`, obj.objectiveDescription);
+        label.fontSize = 9;
+        label.color = obj.color;
+        label.left = `${ox}px`;
+        label.top = `${oz - 12}px`;
+        label.resizeToFit = true;
+        this.mapContainer.addControl(label);
+        this._dynamicControls.push(label);
+      }
+    }
+
     // Quest item markers (gold circles for fetch quest collectibles)
     if (data.questItemMarkers) {
       for (const item of data.questItemMarkers) {

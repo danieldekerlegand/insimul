@@ -155,6 +155,7 @@ import { QuestNotificationManager } from "@/components/3DGame/QuestNotificationM
 import { ReputationManager } from "@/components/3DGame/ReputationManager.ts";
 import { QuestLanguageFeedbackPanel } from "@/components/3DGame/QuestLanguageFeedbackPanel.ts";
 import { QuestLanguageFeedbackTracker } from "@shared/language/quest-language-feedback";
+import { extractObjectiveMarkers } from "@/components/3DGame/QuestMinimapMarkers.ts";
 import {
   isFirstPlaythrough,
   isLanguageLearningWorld,
@@ -8208,7 +8209,7 @@ export class BabylonGame {
       this._minimapBuildingsCollected = true;
     }
 
-    // Collect quest markers from active quests that have a location
+    // Collect quest markers from active quests that have a location (legacy fallback)
     const questMarkers: Array<{ id: string; title: string; position: { x: number; z: number } }> = [];
     for (const quest of this.quests) {
       if (quest.status !== 'active') continue;
@@ -8220,6 +8221,17 @@ export class BabylonGame {
         });
       }
     }
+
+    // Derive markers from individual quest objectives (type-specific colors/shapes)
+    const questObjectiveMarkers = extractObjectiveMarkers(this.quests).map(m => ({
+      id: m.id,
+      questTitle: m.questTitle,
+      objectiveType: m.objectiveType,
+      objectiveDescription: m.objectiveDescription,
+      position: m.position,
+      color: m.color,
+      shape: m.shape,
+    }));
 
     // Collect quest item markers from active fetch quest collectibles
     const questItemMarkers = this.questObjectManager?.getCollectibleItemPositions()?.map(item => ({
@@ -8245,6 +8257,7 @@ export class BabylonGame {
       buildings: this._minimapBuildings,
       streets: this._minimapStreets,
       questMarkers,
+      questObjectiveMarkers,
       questItemMarkers,
       npcPositions,
       playerPosition: {
