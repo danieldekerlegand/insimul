@@ -1922,6 +1922,13 @@ export class BabylonGame {
         this.eventBus.emit({ type: 'conversation_turn', npcId: this.conversationNPCId, keywords });
       }
     });
+    this.chatPanel.setOnNpcConversationTurn((npcId: string, topicTag: string | undefined) => {
+      this.questObjectManager?.trackNpcConversationTurn(npcId, topicTag);
+      this.eventBus.emit({ type: 'npc_conversation_turn', npcId, topicTag });
+    });
+    this.chatPanel.setOnWritingSubmitted((text: string, wordCount: number) => {
+      this.questObjectManager?.trackWritingSubmission(text, wordCount);
+    });
     this.chatPanel.setOnNPCSpeechUpdate((text: string) => {
       // Update the speech bubble above the NPC with the latest response text
       if (this.conversationNPCId && this.npcTalkingIndicator) {
@@ -2393,6 +2400,9 @@ export class BabylonGame {
     this.eventBus.on('item_delivered', () => this.updateQuestIndicators());
     this.eventBus.on('location_visited', () => this.updateQuestIndicators());
     this.eventBus.on('npc_talked', () => this.updateQuestIndicators());
+    this.eventBus.on('npc_initiated_conversation', (event) => {
+      this.questObjectManager?.trackConversationInitiation(event.npcId, event.accepted);
+    });
 
     // Bridge object-interaction GameEventBus events → QuestCompletionEngine
     this.eventBus.on('object_examined', (event) => {

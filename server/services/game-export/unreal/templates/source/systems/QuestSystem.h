@@ -49,6 +49,15 @@ struct FQuestObjective
 
     /** Whether this objective is conversation-only (no physical actions needed) */
     UPROPERTY(BlueprintReadWrite) bool bConversationOnly = false;
+
+    /** NPC ID for NPC-targeted objectives */
+    UPROPERTY(BlueprintReadWrite) FString NpcId;
+
+    /** Words taught to NPC (for teach_vocabulary deduplication) */
+    UPROPERTY(BlueprintReadWrite) TArray<FString> WordsTaught;
+
+    /** Phrases taught to NPC (for teach_phrase deduplication) */
+    UPROPERTY(BlueprintReadWrite) TArray<FString> PhrasesTaught;
 };
 
 /**
@@ -137,6 +146,22 @@ public:
     /** Track escort NPC arrival for escort_npc objectives. */
     UFUNCTION(BlueprintCallable, Category = "Quests")
     void TrackEscortArrival(const FString& NpcId, bool bReached, const FString& QuestId = TEXT(""));
+
+    /** Track topic-based NPC conversation turns (directions, ordering, haggling, etc.). */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    void TrackNpcConversationTurn(const FString& NpcId, const FString& TopicTag = TEXT(""), const FString& QuestId = TEXT(""));
+
+    /** Track NPC-initiated conversation acceptance for conversation_initiation objectives. */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    void TrackConversationInitiation(const FString& NpcId, bool bAccepted, const FString& QuestId = TEXT(""));
+
+    /** Track teaching a vocabulary word to an NPC for teach_vocabulary objectives. */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    void TrackTeachWord(const FString& NpcId, const FString& Word, const FString& QuestId = TEXT(""));
+
+    /** Track teaching a phrase to an NPC for teach_phrase objectives. */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    void TrackTeachPhrase(const FString& NpcId, const FString& Phrase, const FString& QuestId = TEXT(""));
 
     /** Check if player is near a direction/navigation waypoint. Call from Tick(). */
     UFUNCTION(BlueprintCallable, Category = "Quests")

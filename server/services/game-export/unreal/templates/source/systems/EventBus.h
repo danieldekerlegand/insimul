@@ -86,6 +86,8 @@ enum class EInsimulEventType : uint8
     NpcExamCompleted    UMETA(DisplayName = "NPC Exam Completed"),
     // NPC-initiated conversation events
     NpcInitiatedConversation UMETA(DisplayName = "NPC Initiated Conversation"),
+    // Topic-tagged conversation turn events
+    NpcConversationTurn UMETA(DisplayName = "NPC Conversation Turn"),
     // Skill reward events
     SkillRewardsApplied UMETA(DisplayName = "Skill Rewards Applied"),
     // Assessment conversation events
@@ -249,6 +251,9 @@ struct FInsimulGameEvent
     // ── Puzzle / quest failure fields ───────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString PuzzleType;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Attempts = 0;
+
+    // ── NPC conversation turn fields ──────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString TopicTag;
 
     // ── Conversation overheard fields ───────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString NpcId1;

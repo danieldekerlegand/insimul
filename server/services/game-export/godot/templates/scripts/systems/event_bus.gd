@@ -84,6 +84,8 @@ const EVENT_NPC_EXAM_REQUESTED := "npc_exam_requested"
 const EVENT_NPC_EXAM_COMPLETED := "npc_exam_completed"
 # NPC-initiated conversation events
 const EVENT_NPC_INITIATED_CONVERSATION := "npc_initiated_conversation"
+# Topic-tagged conversation turn events
+const EVENT_NPC_CONVERSATION_TURN := "npc_conversation_turn"
 # Skill reward events
 const EVENT_SKILL_REWARDS_APPLIED := "skill_rewards_applied"
 # Assessment conversation events
@@ -155,6 +157,7 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_NPC_EXAM_REQUESTED,
 	EVENT_NPC_EXAM_COMPLETED,
 	EVENT_NPC_INITIATED_CONVERSATION,
+	EVENT_NPC_CONVERSATION_TURN,
 	EVENT_SKILL_REWARDS_APPLIED,
 	EVENT_ASSESSMENT_CONVERSATION_INITIATED,
 	EVENT_ASSESSMENT_GUIDED_CONVERSATION_START,
@@ -259,6 +262,7 @@ var _global_handlers: Array[Callable] = []
 ##   npc_exam_requested:  {type, npc_id, npc_name, exam_type, business_context?}
 ##   npc_exam_completed:  {type, npc_id?, exam_type, total_score, max_score, cefr_level}
 ##   npc_initiated_conversation: {type, npc_id, npc_name, accepted}
+##   npc_conversation_turn: {type, npc_id, topic_tag}
 ##   skill_rewards_applied: {type, quest_id, rewards}
 ##   assessment_conversation_initiated: {type, npc_id}
 ##   assessment_guided_conversation_start: {type, topics, min_exchanges, max_exchanges}

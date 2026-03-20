@@ -266,6 +266,106 @@ void UQuestSystem::TrackEscortArrival(const FString& NpcId, bool bReached, const
     }
 }
 
+void UQuestSystem::TrackNpcConversationTurn(const FString& NpcId, const FString& TopicTag, const FString& QuestId)
+{
+    static const TMap<FString, TArray<FString>> TagToTypes = {
+        { TEXT("directions"),    { TEXT("ask_for_directions") } },
+        { TEXT("order"),         { TEXT("order_food") } },
+        { TEXT("haggle"),        { TEXT("haggle_price") } },
+        { TEXT("introduction"),  { TEXT("introduce_self") } },
+        { TEXT("friendship"),    { TEXT("build_friendship") } },
+    };
+
+    TSet<FString> TargetTypes;
+    if (!TopicTag.IsEmpty() && TagToTypes.Contains(TopicTag))
+    {
+        for (const auto& T : TagToTypes[TopicTag]) TargetTypes.Add(T);
+    }
+    else
+    {
+        TargetTypes = { TEXT("ask_for_directions"), TEXT("order_food"), TEXT("haggle_price"), TEXT("introduce_self"), TEXT("build_friendship") };
+    }
+
+    for (auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+        if (!QuestId.IsEmpty() && Obj.QuestId != QuestId) continue;
+        if (!TargetTypes.Contains(Obj.Type)) continue;
+        if (!Obj.NpcId.IsEmpty() && Obj.NpcId != NpcId) continue;
+
+        Obj.CurrentCount++;
+        if (Obj.CurrentCount >= (Obj.RequiredCount > 0 ? Obj.RequiredCount : 1))
+        {
+            Obj.bCompleted = true;
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] NPC conversation turn objective completed: %s"), *Obj.Id);
+        }
+    }
+}
+
+void UQuestSystem::TrackConversationInitiation(const FString& NpcId, bool bAccepted, const FString& QuestId)
+{
+    if (!bAccepted) return;
+
+    for (auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+        if (!QuestId.IsEmpty() && Obj.QuestId != QuestId) continue;
+        if (Obj.Type != TEXT("conversation_initiation")) continue;
+        if (!Obj.NpcId.IsEmpty() && Obj.NpcId != NpcId) continue;
+
+        Obj.CurrentCount++;
+        if (Obj.CurrentCount >= (Obj.RequiredCount > 0 ? Obj.RequiredCount : 1))
+        {
+            Obj.bCompleted = true;
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Conversation initiation objective completed: %s"), *Obj.Id);
+        }
+    }
+}
+
+void UQuestSystem::TrackTeachWord(const FString& NpcId, const FString& Word, const FString& QuestId)
+{
+    FString LowerWord = Word.ToLower();
+    for (auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+        if (!QuestId.IsEmpty() && Obj.QuestId != QuestId) continue;
+        if (Obj.Type != TEXT("teach_vocabulary")) continue;
+        if (!Obj.NpcId.IsEmpty() && Obj.NpcId != NpcId) continue;
+
+        if (Obj.WordsTaught.Contains(LowerWord)) continue;
+
+        Obj.WordsTaught.Add(LowerWord);
+        Obj.CurrentCount++;
+        if (Obj.CurrentCount >= (Obj.RequiredCount > 0 ? Obj.RequiredCount : 3))
+        {
+            Obj.bCompleted = true;
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Teach word objective completed: %s"), *Obj.Id);
+        }
+    }
+}
+
+void UQuestSystem::TrackTeachPhrase(const FString& NpcId, const FString& Phrase, const FString& QuestId)
+{
+    FString LowerPhrase = Phrase.ToLower();
+    for (auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+        if (!QuestId.IsEmpty() && Obj.QuestId != QuestId) continue;
+        if (Obj.Type != TEXT("teach_phrase")) continue;
+        if (!Obj.NpcId.IsEmpty() && Obj.NpcId != NpcId) continue;
+
+        if (Obj.PhrasesTaught.Contains(LowerPhrase)) continue;
+
+        Obj.PhrasesTaught.Add(LowerPhrase);
+        Obj.CurrentCount++;
+        if (Obj.CurrentCount >= (Obj.RequiredCount > 0 ? Obj.RequiredCount : 1))
+        {
+            Obj.bCompleted = true;
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Teach phrase objective completed: %s"), *Obj.Id);
+        }
+    }
+}
+
 void UQuestSystem::CheckDirectionProximity(const FVector& PlayerPos)
 {
     for (auto& Obj : Objectives)

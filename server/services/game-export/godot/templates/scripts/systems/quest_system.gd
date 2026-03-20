@@ -297,6 +297,109 @@ func track_escort_arrival(npc_id: String, reached: bool, quest_id: String = "") 
 		complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
 
 
+## Track topic-based NPC conversation turns for objectives like
+## ask_for_directions, order_food, haggle_price, introduce_self, build_friendship.
+func track_npc_conversation_turn(npc_id: String, topic_tag: String = "", quest_id: String = "") -> void:
+	var TAG_TO_TYPES: Dictionary = {
+		"directions": ["ask_for_directions"],
+		"order": ["order_food"],
+		"haggle": ["haggle_price"],
+		"introduction": ["introduce_self"],
+		"friendship": ["build_friendship"],
+	}
+	var target_types: Array[String] = []
+	if not topic_tag.is_empty() and TAG_TO_TYPES.has(topic_tag):
+		target_types = TAG_TO_TYPES[topic_tag]
+	else:
+		target_types = ["ask_for_directions", "order_food", "haggle_price", "introduce_self", "build_friendship"]
+
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		if not quest_id.is_empty() and obj.get("quest_id") != quest_id:
+			continue
+		if obj.get("type", "") not in target_types:
+			continue
+		if not obj.get("npc_id", "").is_empty() and obj.get("npc_id") != npc_id:
+			continue
+
+		obj["current_count"] = obj.get("current_count", 0) + 1
+		var required: int = obj.get("required_count", 1)
+		if obj["current_count"] >= required:
+			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
+## Track NPC-initiated conversation acceptance for conversation_initiation objectives.
+func track_conversation_initiation(npc_id: String, accepted: bool, quest_id: String = "") -> void:
+	if not accepted:
+		return
+
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		if not quest_id.is_empty() and obj.get("quest_id") != quest_id:
+			continue
+		if obj.get("type", "") != "conversation_initiation":
+			continue
+		if not obj.get("npc_id", "").is_empty() and obj.get("npc_id") != npc_id:
+			continue
+
+		obj["current_count"] = obj.get("current_count", 0) + 1
+		var required: int = obj.get("required_count", 1)
+		if obj["current_count"] >= required:
+			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
+## Track teaching a vocabulary word to an NPC for teach_vocabulary objectives.
+func track_teach_word(npc_id: String, word: String, quest_id: String = "") -> void:
+	var lower_word: String = word.to_lower()
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		if not quest_id.is_empty() and obj.get("quest_id") != quest_id:
+			continue
+		if obj.get("type", "") != "teach_vocabulary":
+			continue
+		if not obj.get("npc_id", "").is_empty() and obj.get("npc_id") != npc_id:
+			continue
+
+		var words_taught: Array = obj.get("words_taught", [])
+		if lower_word in words_taught:
+			continue
+		words_taught.append(lower_word)
+		obj["words_taught"] = words_taught
+		obj["current_count"] = obj.get("current_count", 0) + 1
+
+		var required: int = obj.get("required_count", 3)
+		if obj["current_count"] >= required:
+			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
+## Track teaching a phrase to an NPC for teach_phrase objectives.
+func track_teach_phrase(npc_id: String, phrase: String, quest_id: String = "") -> void:
+	var lower_phrase: String = phrase.to_lower()
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		if not quest_id.is_empty() and obj.get("quest_id") != quest_id:
+			continue
+		if obj.get("type", "") != "teach_phrase":
+			continue
+		if not obj.get("npc_id", "").is_empty() and obj.get("npc_id") != npc_id:
+			continue
+
+		var phrases_taught: Array = obj.get("phrases_taught", [])
+		if lower_phrase in phrases_taught:
+			continue
+		phrases_taught.append(lower_phrase)
+		obj["phrases_taught"] = phrases_taught
+		obj["current_count"] = obj.get("current_count", 0) + 1
+
+		var required: int = obj.get("required_count", 1)
+		if obj["current_count"] >= required:
+			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
 ## Check if player is near a direction/navigation waypoint.
 ## Call this from _physics_process with the player's position.
 func check_direction_proximity(player_pos: Vector3) -> void:
