@@ -13,8 +13,10 @@ import { useToast } from '@/hooks/use-toast';
 import { useWorldPermissions } from '@/hooks/use-world-permissions';
 import {
   Package, Plus, ChevronRight, ChevronDown, Edit, Save, X, Trash2, Copy,
-  BookOpen, Scroll, Languages,
+  BookOpen, Scroll, Languages, Image, Box, Loader2,
 } from 'lucide-react';
+import { ModelPreview } from '@/components/ModelPreview';
+import type { VisualAsset } from '@shared/schema';
 
 interface ItemsHubProps {
   worldId: string;
@@ -75,6 +77,11 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
     disabledBaseItems: [],
   });
 
+  // Asset preview state
+  const [worldAssets, setWorldAssets] = useState<VisualAsset[]>([]);
+  const [world3DConfig, setWorld3DConfig] = useState<Record<string, any> | null>(null);
+  const [baseAssetCollections, setBaseAssetCollections] = useState<any[]>([]);
+
   // Load truths and quests for detail sections
   useEffect(() => {
     if (!worldId) return;
@@ -84,6 +91,50 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
     ]).then(([t, q]) => {
       setTruths(t);
       setQuests(q);
+    }).catch(() => {});
+  }, [worldId]);
+
+  // Load world assets and 3D config for asset preview
+  useEffect(() => {
+    if (!worldId) return;
+    Promise.all([
+      fetch(`/api/worlds/${worldId}/assets`).then(r => r.ok ? r.json() : []),
+      fetch(`/api/worlds/${worldId}/3d-config`).then(r => r.ok ? r.json() : null),
+      fetch('/api/asset-collections?isBase=true').then(r => r.ok ? r.json() : []),
+    ]).then(async ([assets, config, baseCollections]) => {
+      setWorld3DConfig(config);
+      setBaseAssetCollections(baseCollections);
+
+      // Collect all asset IDs referenced in base collection objectModels/questObjectModels
+      // that aren't already in the world assets, and fetch them in bulk
+      const worldAssetIds = new Set(assets.map((a: VisualAsset) => a.id));
+      const missingIds = new Set<string>();
+      for (const collection of baseCollections) {
+        for (const models of [collection.objectModels, collection.questObjectModels]) {
+          if (!models) continue;
+          for (const ref of Object.values(models)) {
+            if (typeof ref === 'string' && !ref.startsWith('${') && !worldAssetIds.has(ref)) {
+              missingIds.add(ref);
+            }
+          }
+        }
+      }
+
+      if (missingIds.size > 0) {
+        try {
+          const res = await fetch('/api/assets/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: Array.from(missingIds) }),
+          });
+          if (res.ok) {
+            const extraAssets = await res.json();
+            assets = [...assets, ...extraAssets];
+          }
+        } catch { /* non-fatal */ }
+      }
+
+      setWorldAssets(assets);
     }).catch(() => {});
   }, [worldId]);
 
@@ -156,6 +207,82 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
     }
     return groups;
   }, [baseItems]);
+
+  // Find an asset by ID or file path (collections may store either)
+  const findAsset = (ref: string, assets: VisualAsset[]): VisualAsset | null => {
+    // Try by ID first
+    const byId = assets.find(a => a.id === ref);
+    if (byId) return byId;
+    // Try by file path (template-populated collections store paths like "/assets/...")
+    const normalizedRef = ref.startsWith('/') ? ref.slice(1) : ref;
+    const byPath = assets.find(a => {
+      const normalizedPath = a.filePath.startsWith('/') ? a.filePath.slice(1) : a.filePath;
+      return normalizedPath === normalizedRef || a.filePath === ref;
+    });
+    return byPath || null;
+  };
+
+  // Resolve the asset reference for an item based on its objectRole.
+  // Returns either a VisualAsset record or a raw file path string.
+  const resolveItemAsset = (item: any): { asset: VisualAsset | null; filePath: string | null } => {
+    if (!item?.objectRole) return { asset: null, filePath: null };
+
+    const role = item.objectRole;
+
+    // Strategy 1: Check world 3D config objectModels (maps role -> assetId or filePath)
+    if (world3DConfig?.objectModels) {
+      const ref = world3DConfig.objectModels[role];
+      if (ref) {
+        const asset = findAsset(ref, worldAssets);
+        if (asset) return { asset, filePath: asset.filePath };
+        // ref might be a direct file path
+        if (ref.includes('/') || ref.match(/\.(glb|gltf|png|jpg|webp)$/i)) {
+          return { asset: null, filePath: ref };
+        }
+      }
+    }
+
+    // Strategy 2: Check base asset collections objectModels
+    for (const collection of baseAssetCollections) {
+      if (collection.objectModels) {
+        const ref = collection.objectModels[role];
+        if (ref && !ref.startsWith('${')) {
+          const asset = findAsset(ref, worldAssets);
+          if (asset) return { asset, filePath: asset.filePath };
+          if (ref.includes('/') || ref.match(/\.(glb|gltf|png|jpg|webp)$/i)) {
+            return { asset: null, filePath: ref };
+          }
+        }
+      }
+      // Also check questObjectModels
+      if (collection.questObjectModels) {
+        const ref = collection.questObjectModels[role];
+        if (ref && !ref.startsWith('${')) {
+          const asset = findAsset(ref, worldAssets);
+          if (asset) return { asset, filePath: asset.filePath };
+          if (ref.includes('/') || ref.match(/\.(glb|gltf|png|jpg|webp)$/i)) {
+            return { asset: null, filePath: ref };
+          }
+        }
+      }
+    }
+
+    // Strategy 3: Search world assets by semantic role metadata or tags
+    const byMetadata = worldAssets.find(a => {
+      const meta = a.metadata as Record<string, any> | null;
+      return meta?.semanticRole === role;
+    });
+    if (byMetadata) return { asset: byMetadata, filePath: byMetadata.filePath };
+
+    // Strategy 4: Search world assets by name containing the role
+    const byName = worldAssets.find(a =>
+      a.name.toLowerCase().includes(role.toLowerCase()) ||
+      (a.tags as string[] || []).includes(role)
+    );
+    if (byName) return { asset: byName, filePath: byName.filePath };
+
+    return { asset: null, filePath: null };
+  };
 
   const toggleGroup = (group: string) => {
     setExpandedGroups(prev => {
@@ -490,18 +617,106 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
     return <div className="flex items-center justify-center p-12 text-muted-foreground">Loading items...</div>;
   }
 
+  // Resolve asset for currently selected item
+  const selectedItemResolved = selectedItem ? resolveItemAsset(selectedItem) : { asset: null, filePath: null };
+
+  const renderAssetPreview = () => {
+    if (!selectedItem) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm p-4 text-center">
+          <Image className="w-8 h-8 mb-2 opacity-30" />
+          <span>Select an item to preview its asset</span>
+        </div>
+      );
+    }
+
+    const { asset, filePath } = selectedItemResolved;
+    const previewPath = filePath
+      ? (filePath.startsWith('/') ? filePath : `/${filePath}`)
+      : null;
+    const isModel = previewPath?.match(/\.(glb|gltf)$/i) || asset?.mimeType?.includes('model');
+    const isImage = previewPath?.match(/\.(png|jpg|jpeg|webp|svg)$/i) || asset?.mimeType?.startsWith('image/');
+
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex-1 flex items-center justify-center p-3">
+          {previewPath ? (
+            isModel ? (
+              <div className="w-full aspect-square rounded-lg overflow-hidden bg-muted/20">
+                <ModelPreview modelPath={previewPath} showControls={true} className="w-full h-full" />
+              </div>
+            ) : isImage ? (
+              <div className="w-full aspect-square rounded-lg overflow-hidden bg-muted/20 flex items-center justify-center">
+                <img src={previewPath} alt={asset?.name || selectedItem.name} className="max-w-full max-h-full object-contain" />
+              </div>
+            ) : (
+              <div className="text-center text-muted-foreground text-xs">
+                <Box className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p>Asset: {asset?.name || previewPath.split('/').pop()}</p>
+                <p className="text-[10px] mt-1">{previewPath}</p>
+              </div>
+            )
+          ) : (
+            <div className="text-center text-muted-foreground text-xs">
+              <Image className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              {selectedItem.objectRole ? (
+                <p>No asset mapped for role <code className="bg-muted px-1 rounded">{selectedItem.objectRole}</code></p>
+              ) : (
+                <p>No object role assigned</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Asset metadata */}
+        {(asset || previewPath) && (
+          <div className="border-t p-3 space-y-1.5 text-xs">
+            {asset && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Name</span>
+                <span className="truncate ml-2 font-medium">{asset.name}</span>
+              </div>
+            )}
+            {asset?.assetType && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Type</span>
+                <Badge variant="secondary" className="text-[10px]">{asset.assetType}</Badge>
+              </div>
+            )}
+            {selectedItem.objectRole && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Role</span>
+                <code className="bg-muted px-1 rounded text-[10px]">{selectedItem.objectRole}</code>
+              </div>
+            )}
+            {previewPath && !asset && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Path</span>
+                <span className="truncate ml-2 text-[10px] font-mono">{previewPath}</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
-    <div className="grid grid-cols-[300px_1fr] gap-4 h-[calc(100vh-200px)]">
+    <div className="flex h-[calc(100vh-10rem)] min-h-[480px] rounded-lg border overflow-hidden bg-background">
       {/* Left Panel - Tree */}
-      <div className="border rounded-lg overflow-hidden flex flex-col">
-        <div className="p-3 border-b flex items-center justify-between">
-          <h3 className="text-sm font-semibold flex items-center gap-2">
-            <Package className="h-4 w-4" /> Items
-          </h3>
+      <div className="w-56 shrink-0 min-w-0 flex flex-col overflow-hidden border-r">
+        <div className="flex items-center justify-between px-3 py-2.5 border-b bg-muted/30 shrink-0">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Items</span>
           {canEdit && (
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={startCreate}>
-              <Plus className="h-3 w-3 mr-1" /> New Item
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={startCreate}
+              title="Add item"
+            >
+              <Plus className="w-3.5 h-3.5" />
             </Button>
           )}
         </div>
@@ -540,14 +755,14 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
             {activeSection === 'world' && (
               items.length === 0 ? (
                 <div className="text-center text-muted-foreground text-xs py-8">
-                  No custom items yet. Click "New Item" to create one.
+                  No custom items yet.
                 </div>
               ) : renderTreeSection('world', groupedWorldItems)
             )}
             {activeSection === 'base' && (
               baseItems.length === 0 ? (
                 <div className="text-center text-muted-foreground text-xs py-8">
-                  No base items available. Run the seed migration first.
+                  No base items available.
                 </div>
               ) : renderTreeSection('base', groupedBaseItems)
             )}
@@ -555,13 +770,13 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
         </ScrollArea>
       </div>
 
-      {/* Right Panel - Detail/Edit */}
-      <div className="border rounded-lg overflow-hidden">
+      {/* Center Panel - Detail/Edit */}
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <ScrollArea className="h-full">
           {showCreateForm ? (
             <div>
-              <div className="p-4 border-b">
-                <h3 className="text-sm font-semibold">Create New Item</h3>
+              <div className="px-3 py-2.5 border-b bg-muted/30">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Create New Item</span>
               </div>
               {renderItemForm(true)}
             </div>
@@ -725,10 +940,21 @@ export function ItemsHub({ worldId }: ItemsHubProps) {
             </div>
           ) : (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm p-12">
-              Select an item from the tree to view details, or create a new one.
+              Select an item to view details, or create a new one.
             </div>
           )}
         </ScrollArea>
+      </div>
+
+      {/* Right Panel - Asset Preview */}
+      <div className="w-72 shrink-0 border-l flex flex-col min-h-0">
+        <div className="flex items-center gap-1.5 px-3 py-2.5 border-b bg-muted/30 shrink-0">
+          <Image className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Asset Preview</span>
+        </div>
+        <div className="flex-1 min-h-0 overflow-auto">
+          {renderAssetPreview()}
+        </div>
       </div>
     </div>
     <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>

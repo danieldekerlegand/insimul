@@ -1074,6 +1074,16 @@ export class BabylonGUIManager {
   private rebuildNotificationList(): void {
     if (!this._notifStack) return;
 
+    // Guard: the notification panel may not be attached to the GUI texture yet
+    // (e.g. during title screen before HUD is fully wired up). Babylon's
+    // addControl() will throw if the host AdvancedDynamicTexture is null.
+    try {
+      // Quick probe — if this throws, the stack isn't connected to a live texture
+      this._notifStack.getDescendants?.();
+    } catch {
+      return;
+    }
+
     // Clean up ticker handles
     disposeTickers(this._notifTickerHandles);
 
@@ -1090,7 +1100,7 @@ export class BabylonGUIManager {
       empty.color = "rgba(255,255,255,0.4)";
       empty.fontSize = 10;
       empty.height = "30px";
-      this._notifStack.addControl(empty);
+      try { this._notifStack.addControl(empty); } catch { return; }
       return;
     }
 
@@ -1142,7 +1152,12 @@ export class BabylonGUIManager {
       tickerClip.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
       row.addControl(tickerClip);
 
-      this._notifStack.addControl(row);
+      try {
+        this._notifStack.addControl(row);
+      } catch {
+        // Host texture not available — bail out
+        return;
+      }
 
       // Divider
       const div = new Rectangle();

@@ -352,7 +352,7 @@ export function PlaythroughAnalytics({ worldId }: PlaythroughAnalyticsProps) {
                       className={`w-full text-left flex items-center gap-2 px-6 py-1.5 text-xs hover:bg-muted/50 transition-colors ${
                         isActive ? 'bg-primary/15 text-primary font-medium' : ''
                       }`}
-                      onClick={() => { setActiveView(id); selectPlaythrough(null); }}
+                      onClick={() => { setActiveView(id); setSelectedPlaythrough(null); setJourneyData(null); }}
                     >
                       <Icon className="w-3.5 h-3.5 shrink-0" />
                       <span className="truncate">{meta.label}</span>

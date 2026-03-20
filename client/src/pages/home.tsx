@@ -83,6 +83,12 @@ export default function Home() {
     queryKey: ['/api/worlds'],
   });
 
+  // Fetch the individual world so we always have the name, even before the list loads
+  const { data: selectedWorldData } = useQuery<any>({
+    queryKey: ['/api/worlds', selectedWorld],
+    enabled: !!selectedWorld,
+  });
+
   // Show admin panel if open
   if (adminPanelOpen) {
     return <AdminPanel onBack={() => setAdminPanelOpen(false)} />;
@@ -108,7 +114,7 @@ export default function Home() {
     );
   }
 
-  const currentWorld = worlds.find(w => w.id === selectedWorld) || { id: selectedWorld, name: 'Selected World' };
+  const currentWorld = worlds.find(w => w.id === selectedWorld) || selectedWorldData || { id: selectedWorld, name: 'Selected World' };
 
   return (
     <div className="min-h-screen bg-background">

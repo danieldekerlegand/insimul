@@ -48,13 +48,13 @@ export function TelemetryMonitorDashboard({ worldId }: TelemetryMonitorDashboard
 
   // Fetch API keys
   const { data: apiKeys = [], isLoading: keysLoading } = useQuery<ApiKey[]>({
-    queryKey: ['/api/telemetry/external/keys'],
+    queryKey: ['/api/worlds', worldId, 'api-keys'],
     refetchInterval: 30000,
   });
 
   // Fetch telemetry status
   const { data: status } = useQuery<TelemetryStatus>({
-    queryKey: ['/api/telemetry/external/status', worldId],
+    queryKey: ['/api/external/telemetry/status'],
     refetchInterval: 10000,
   });
 
@@ -68,14 +68,14 @@ export function TelemetryMonitorDashboard({ worldId }: TelemetryMonitorDashboard
     eventCount: number;
     platform: string;
   }>>({
-    queryKey: ['/api/telemetry/engagement/sessions', { worldId }],
+    queryKey: ['/api/engagement/sessions'],
     refetchInterval: 15000,
   });
 
   // Generate new API key
   const generateKey = useMutation({
     mutationFn: async () => {
-      const response = await fetch('/api/telemetry/external/keys', {
+      const response = await fetch(`/api/worlds/${worldId}/api-keys`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newKeyName || 'New API Key', worldId }),
@@ -84,7 +84,7 @@ export function TelemetryMonitorDashboard({ worldId }: TelemetryMonitorDashboard
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/telemetry/external/keys'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/worlds', worldId, 'api-keys'] });
       setNewKeyName('');
     },
   });
@@ -92,13 +92,13 @@ export function TelemetryMonitorDashboard({ worldId }: TelemetryMonitorDashboard
   // Revoke API key
   const revokeKey = useMutation({
     mutationFn: async (keyId: string) => {
-      const response = await fetch(`/api/telemetry/external/keys/${keyId}`, {
+      const response = await fetch(`/api/worlds/${worldId}/api-keys/${keyId}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Failed to revoke key');
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/telemetry/external/keys'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/worlds', worldId, 'api-keys'] });
     },
   });
 

@@ -11260,6 +11260,23 @@ Make the action names thematic and immersive.`;
     }
   });
 
+  // Bulk fetch visual assets by IDs
+  app.post("/api/assets/bulk", async (req, res) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.json([]);
+      }
+      // Cap at 500 to prevent abuse
+      const limitedIds = ids.slice(0, 500);
+      const assets = await storage.getVisualAssetsByIds(limitedIds);
+      res.json(assets);
+    } catch (error: any) {
+      console.error("Failed to bulk fetch assets:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get visual assets for a specific entity
   app.get("/api/assets/:entityType/:entityId", async (req, res) => {
     try {

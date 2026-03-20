@@ -235,6 +235,15 @@ export class NPCModelInstancer {
         return null;
       }
 
+      // Reject placeholder/stub models (< 10 total vertices across all meshes)
+      const totalVertices = result.meshes.reduce(
+        (sum, m) => sum + (m.getTotalVertices?.() || 0), 0
+      );
+      if (totalVertices < 10) {
+        result.meshes.forEach((m) => m.dispose());
+        return null;
+      }
+
       // Reparent sibling meshes under root
       for (const m of result.meshes) {
         if (m !== root && !m.parent) {

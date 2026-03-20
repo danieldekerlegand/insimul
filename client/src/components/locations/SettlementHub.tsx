@@ -6,8 +6,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { useToast } from '@/hooks/use-toast';
 import { useWorldPermissions } from '@/hooks/use-world-permissions';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Globe, ChevronRight, ChevronDown, MapPinned, Plus, Users, Home, Briefcase, GitBranch, Trash2, RefreshCw } from 'lucide-react';
+import { Globe, ChevronRight, ChevronDown, MapPinned, Plus, Users, Home, Briefcase, GitBranch, Trash2, RefreshCw, Building2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Character } from '@shared/schema';
 import { useAuth } from '@/contexts/AuthContext';
 import { CountryDialog } from '../dialogs/CountryDialog';
@@ -20,6 +21,7 @@ import { CharacterChatDialog } from '../CharacterChatDialog';
 import { FamilyTreeFlow } from '../visualization/FamilyTreeFlow';
 import { LocationMapPreview, type ViewLevel } from './LocationMapPreview';
 import { MapLayersPanel, ALL_LAYERS, type MapLayer } from './MapLayersPanel';
+import { BuildingModelPreview } from './BuildingModelPreview';
 
 interface SettlementHubProps {
   worldId: string;
@@ -67,6 +69,105 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
   const [selectedChar, setSelectedChar] = useState<Character | null>(null);
   const [chatChar, setChatChar] = useState<Character | null>(null);
   const [showChat, setShowChat] = useState(false);
+
+  // Building preview sidebar
+  const [selectedBuilding, setSelectedBuilding] = useState<{
+    type: 'business' | 'residence' | 'lot';
+    data: any;
+    lot?: any;
+    modelPath?: string | null;
+    /** The model role resolved from building/business type (e.g. 'tavern', 'smallResidence') */
+    resolvedRole?: string;
+    /** How the model was matched: 'exact' if the role had a direct asset, 'fallback' if using 'default', 'none' if no model */
+    matchType?: 'exact' | 'fallback' | 'none';
+    /** Display name of the asset being shown */
+    assetName?: string;
+  } | null>(null);
+
+  // Cache of resolved building model info from 3D config: role → { filePath, assetName }
+  const [buildingModelInfo, setBuildingModelInfo] = useState<Record<string, { filePath: string; assetName: string }>>({});
+
+  // Fetch building model paths when world changes
+  useEffect(() => {
+    if (!worldId) return;
+    (async () => {
+      try {
+        const [configRes, assetsRes] = await Promise.all([
+          fetch(`/api/worlds/${worldId}/3d-config`),
+          fetch(`/api/worlds/${worldId}/assets`),
+        ]);
+        if (!configRes.ok || !assetsRes.ok) return;
+        const config3D = await configRes.json();
+        const assets: any[] = await assetsRes.json();
+        if (!config3D?.buildingModels) return;
+        const info: Record<string, { filePath: string; assetName: string }> = {};
+        for (const [role, assetId] of Object.entries(config3D.buildingModels)) {
+          const asset = assets.find((a: any) => a.id === assetId);
+          if (asset?.filePath) {
+            info[role as string] = {
+              filePath: asset.filePath,
+              assetName: asset.name || asset.originalName || asset.filePath.split('/').pop() || 'Unknown',
+            };
+          }
+        }
+        setBuildingModelInfo(info);
+      } catch { /* ignore */ }
+    })();
+  }, [worldId]);
+
+  // Resolve a building's model role to a file path
+  const getBuildingModelRole = (buildingType: string, businessType?: string): string => {
+    if (buildingType === 'residence') {
+      if (businessType === 'residence_large') return 'largeResidence';
+      if (businessType === 'residence_mansion') return 'mansion';
+      return 'smallResidence';
+    }
+    if (buildingType === 'business' && businessType) {
+      const bt = businessType.toLowerCase();
+      if (bt === 'tavern' || bt === 'inn') return 'tavern';
+      if (bt === 'shop' || bt === 'market') return 'shop';
+      if (bt === 'blacksmith') return 'blacksmith';
+      if (bt === 'church') return 'church';
+      if (bt === 'library') return 'library';
+      if (bt === 'hospital') return 'hospital';
+      if (bt === 'school') return 'school';
+      if (bt === 'bank') return 'bank';
+      if (bt === 'theater') return 'theater';
+      if (bt === 'windmill') return 'windmill';
+      if (bt === 'watermill') return 'watermill';
+      if (bt.includes('lumber')) return 'lumbermill';
+      if (bt.includes('barrack') || bt.includes('military')) return 'barracks';
+      if (bt.includes('mine') || bt.includes('mining')) return 'mine';
+      return 'default';
+    }
+    return 'default';
+  };
+
+  const selectBuilding = (type: 'business' | 'residence' | 'lot', data: any) => {
+    // Find the associated lot
+    const lot = type === 'lot' ? data : lots.find(l => l.id === data.lotId);
+    const biz = type === 'business' ? data : (lot ? businesses.find(b => b.lotId === lot?.id) : null);
+    const res = type === 'residence' ? data : (lot ? residences.find(r => r.lotId === lot?.id) : null);
+
+    const buildingType = biz ? 'business' : res ? 'residence' : 'vacant';
+    const businessType = biz?.businessType || (res ? 'residence_small' : undefined);
+    const role = getBuildingModelRole(buildingType, businessType);
+
+    let modelPath: string | null = null;
+    let matchType: 'exact' | 'fallback' | 'none' = 'none';
+    let assetName: string | undefined;
+    if (buildingModelInfo[role]) {
+      modelPath = buildingModelInfo[role].filePath;
+      assetName = buildingModelInfo[role].assetName;
+      matchType = 'exact';
+    } else if (buildingModelInfo['default']) {
+      modelPath = buildingModelInfo['default'].filePath;
+      assetName = buildingModelInfo['default'].assetName;
+      matchType = 'fallback';
+    }
+
+    setSelectedBuilding({ type, data, lot, modelPath, resolvedRole: role, matchType, assetName });
+  };
 
   // Family tree
   const [showFamilyTree, setShowFamilyTree] = useState(false);
@@ -667,6 +768,16 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
           worldId={worldId}
           onSettlementClick={selectSettlement}
           onCountryClick={selectCountry}
+          onBuildingClick={(lotId) => {
+            const lot = lots.find(l => l.id === lotId);
+            if (!lot) return;
+            // If it has a business, open as business; if residence, open as residence; else as lot
+            const biz = businesses.find(b => b.lotId === lotId);
+            const res = residences.find(r => r.lotId === lotId);
+            if (biz) selectBuilding('business', biz);
+            else if (res) selectBuilding('residence', res);
+            else selectBuilding('lot', lot);
+          }}
           visibleLayers={visibleLayers}
           className="w-full h-full"
         />
@@ -789,7 +900,12 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                       ))
                     ) : section.id === 'businesses' ? (
                       businesses.map(b => (
-                        <div key={b.id} className="px-2 py-1.5 rounded-md hover:bg-muted flex items-start gap-1 group">
+                        <div key={b.id} className="px-2 py-1.5 rounded-md hover:bg-muted flex items-start gap-1 group cursor-pointer"
+                          onClick={() => selectBuilding('business', b)}
+                        >
+                          <div className="w-5 h-5 rounded bg-orange-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                            <Building2 className="w-3 h-3 text-orange-500" />
+                          </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium">{b.name}</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
@@ -802,7 +918,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                           {canEdit && (
                             <button
                               className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive transition-opacity shrink-0 mt-0.5"
-                              onClick={() => setDeleteTarget({ type: 'business', id: b.id, name: b.name })}
+                              onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'business', id: b.id, name: b.name }); }}
                               title="Delete business"
                             >
                               <Trash2 className="w-3 h-3" />
@@ -812,7 +928,12 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                       ))
                     ) : section.id === 'residences' ? (
                       residences.map(r => (
-                        <div key={r.id} className="px-2 py-1.5 rounded-md hover:bg-muted flex items-start gap-1 group">
+                        <div key={r.id} className="px-2 py-1.5 rounded-md hover:bg-muted flex items-start gap-1 group cursor-pointer"
+                          onClick={() => selectBuilding('residence', r)}
+                        >
+                          <div className="w-5 h-5 rounded bg-blue-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                            <Home className="w-3 h-3 text-blue-500" />
+                          </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium">{r.address || 'Unnamed Residence'}</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
@@ -827,7 +948,7 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                           {canEdit && (
                             <button
                               className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive transition-opacity shrink-0 mt-0.5"
-                              onClick={() => setDeleteTarget({ type: 'residence', id: r.id, name: r.address || 'Unnamed Residence' })}
+                              onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'residence', id: r.id, name: r.address || 'Unnamed Residence' }); }}
                               title="Delete residence"
                             >
                               <Trash2 className="w-3 h-3" />
@@ -837,15 +958,30 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                       ))
                     ) : (
                       lots.map(l => (
-                        <div key={l.id} className="px-2 py-1.5 rounded-md hover:bg-muted">
-                          <p className="text-sm font-medium">{l.address}</p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            {l.districtName && (
-                              <span className="text-xs text-muted-foreground">{l.districtName}</span>
-                            )}
-                            {l.buildingType && (
-                              <Badge variant="outline" className="text-xs py-0 h-4">{l.buildingType}</Badge>
-                            )}
+                        <div key={l.id} className="px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer flex items-start gap-1"
+                          onClick={() => selectBuilding('lot', l)}
+                        >
+                          <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 ${
+                            l.buildingType === 'business' ? 'bg-orange-500/20' :
+                            l.buildingType === 'residence' ? 'bg-blue-500/20' :
+                            'bg-gray-500/20'
+                          }`}>
+                            <Building2 className={`w-3 h-3 ${
+                              l.buildingType === 'business' ? 'text-orange-500' :
+                              l.buildingType === 'residence' ? 'text-blue-500' :
+                              'text-gray-500'
+                            }`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{l.address}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {l.districtName && (
+                                <span className="text-xs text-muted-foreground">{l.districtName}</span>
+                              )}
+                              {l.buildingType && (
+                                <Badge variant="outline" className="text-xs py-0 h-4">{l.buildingType}</Badge>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))
@@ -969,6 +1105,229 @@ export function SettlementHub({ worldId }: SettlementHubProps) {
                 onChatWithCharacter={(c) => { setChatChar(c); setShowChat(true); }}
                 onViewCharacter={setSelectedChar}
               />
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* Building detail slide-over */}
+      <Sheet open={!!selectedBuilding} onOpenChange={open => { if (!open) setSelectedBuilding(null); }}>
+        <SheetContent side="right" className="w-[420px] sm:max-w-[420px] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>
+              {selectedBuilding?.type === 'business' ? selectedBuilding.data.name :
+               selectedBuilding?.type === 'residence' ? (selectedBuilding.data.address || 'Residence') :
+               (selectedBuilding?.data.address || 'Lot')}
+            </SheetTitle>
+          </SheetHeader>
+          {selectedBuilding && (
+            <div className="mt-4 space-y-4">
+              {/* 3D Building Preview */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">3D Preview</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <BuildingModelPreview
+                    modelPath={selectedBuilding.modelPath}
+                    tintColor={
+                      selectedBuilding.type === 'business'
+                        ? { r: 0.55, g: 0.4, b: 0.25 }
+                        : selectedBuilding.type === 'residence'
+                          ? { r: 0.4, g: 0.45, b: 0.6 }
+                          : { r: 0.35, g: 0.35, b: 0.3 }
+                    }
+                    buildingType={
+                      selectedBuilding.type === 'business'
+                        ? selectedBuilding.data.businessType
+                        : selectedBuilding.type === 'residence'
+                          ? selectedBuilding.data.residenceType
+                          : selectedBuilding.data.buildingType
+                    }
+                    className="h-52"
+                  />
+                  {/* Asset resolution explanation */}
+                  <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2.5 py-1.5 space-y-0.5">
+                    {selectedBuilding.assetName && (
+                      <p className="font-medium text-foreground">
+                        Asset: {selectedBuilding.assetName}
+                      </p>
+                    )}
+                    {selectedBuilding.matchType === 'exact' ? (
+                      <p>
+                        Matched role <Badge variant="outline" className="text-xs py-0 h-4 mx-0.5">{selectedBuilding.resolvedRole}</Badge> from
+                        {selectedBuilding.type === 'business'
+                          ? ` business type "${selectedBuilding.data.businessType}"`
+                          : selectedBuilding.type === 'residence'
+                            ? ` residence type "${selectedBuilding.data.residenceType || 'standard'}"`
+                            : ` building type "${selectedBuilding.data.buildingType || 'vacant'}"`}
+                      </p>
+                    ) : selectedBuilding.matchType === 'fallback' ? (
+                      <>
+                        <p>
+                          Resolved role <Badge variant="outline" className="text-xs py-0 h-4 mx-0.5">{selectedBuilding.resolvedRole}</Badge> from
+                          {selectedBuilding.type === 'business'
+                            ? ` business type "${selectedBuilding.data.businessType}"`
+                            : selectedBuilding.type === 'residence'
+                              ? ` residence type "${selectedBuilding.data.residenceType || 'standard'}"`
+                              : ` building type "${selectedBuilding.data.buildingType || 'vacant'}"`}
+                        </p>
+                        <p className="text-muted-foreground/70">
+                          No model assigned for "{selectedBuilding.resolvedRole}" — using <Badge variant="secondary" className="text-xs py-0 h-4 mx-0.5">default</Badge> building model.
+                        </p>
+                      </>
+                    ) : (
+                      <p>No building models configured in this world's asset collection. Showing placeholder.</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Building details */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  {selectedBuilding.type === 'business' && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Name</span>
+                        <span className="font-medium">{selectedBuilding.data.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Type</span>
+                        <Badge variant="outline">{selectedBuilding.data.businessType}</Badge>
+                      </div>
+                      {selectedBuilding.data.isOutOfBusiness && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Status</span>
+                          <Badge variant="secondary">Closed</Badge>
+                        </div>
+                      )}
+                      {selectedBuilding.data.ownerName && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Owner</span>
+                          <span className="font-medium">{selectedBuilding.data.ownerName}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {selectedBuilding.type === 'residence' && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Address</span>
+                        <span className="font-medium">{selectedBuilding.data.address || '—'}</span>
+                      </div>
+                      {selectedBuilding.data.residenceType && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Type</span>
+                          <Badge variant="outline">{selectedBuilding.data.residenceType}</Badge>
+                        </div>
+                      )}
+                      {selectedBuilding.data.occupantCount !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Occupants</span>
+                          <span className="font-medium">{selectedBuilding.data.occupantCount}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {selectedBuilding.type === 'lot' && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Address</span>
+                        <span className="font-medium">{selectedBuilding.data.address || '—'}</span>
+                      </div>
+                      {selectedBuilding.data.buildingType && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Building</span>
+                          <Badge variant="outline">{selectedBuilding.data.buildingType}</Badge>
+                        </div>
+                      )}
+                      {selectedBuilding.data.districtName && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">District</span>
+                          <span className="font-medium">{selectedBuilding.data.districtName}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {/* Lot info (shown for all types if lot is available) */}
+                  {selectedBuilding.lot && (
+                    <>
+                      {selectedBuilding.lot.streetName && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Street</span>
+                          <span className="font-medium">{selectedBuilding.lot.streetName}</span>
+                        </div>
+                      )}
+                      {selectedBuilding.lot.lotWidth && selectedBuilding.lot.lotDepth && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Lot Size</span>
+                          <span className="font-medium">{selectedBuilding.lot.lotWidth} x {selectedBuilding.lot.lotDepth}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Residents/Employees */}
+              {selectedBuilding.type === 'business' && (() => {
+                const employees = allCharacters.filter((c: any) => c.employerId === selectedBuilding.data.id);
+                return employees.length > 0 ? (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">Employees ({employees.length})</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-1">
+                      {employees.map((c: Character) => (
+                        <button
+                          key={c.id}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted text-left"
+                          onClick={() => { setSelectedBuilding(null); setSelectedChar(c); }}
+                        >
+                          <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
+                            {(c.firstName ?? '?')[0]}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm truncate">{c.firstName} {c.lastName}</p>
+                            {c.occupation && <p className="text-xs text-muted-foreground truncate">{c.occupation}</p>}
+                          </div>
+                        </button>
+                      ))}
+                    </CardContent>
+                  </Card>
+                ) : null;
+              })()}
+              {selectedBuilding.type === 'residence' && (() => {
+                const occupants = allCharacters.filter((c: any) => c.residenceId === selectedBuilding.data.id);
+                return occupants.length > 0 ? (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">Residents ({occupants.length})</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-1">
+                      {occupants.map((c: Character) => (
+                        <button
+                          key={c.id}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted text-left"
+                          onClick={() => { setSelectedBuilding(null); setSelectedChar(c); }}
+                        >
+                          <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary shrink-0">
+                            {(c.firstName ?? '?')[0]}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm truncate">{c.firstName} {c.lastName}</p>
+                            {c.occupation && <p className="text-xs text-muted-foreground truncate">{c.occupation}</p>}
+                          </div>
+                        </button>
+                      ))}
+                    </CardContent>
+                  </Card>
+                ) : null;
+              })()}
             </div>
           )}
         </SheetContent>

@@ -73,7 +73,7 @@ export const BASE_ITEM_CATALOG: AuditItem[] = [
   { name: 'Health Potion', worldType: 'medieval-fantasy', itemType: 'consumable', objectRole: 'potion', category: 'potion', rarity: 'common', possessable: true },
   { name: 'Antidote', worldType: 'medieval-fantasy', itemType: 'consumable', objectRole: null, category: 'potion', rarity: 'uncommon', possessable: true },
   { name: 'Healing Herb', worldType: 'medieval-fantasy', itemType: 'consumable', objectRole: 'herb', category: 'ingredient', rarity: 'common', possessable: true },
-  { name: 'Bread', worldType: 'medieval-fantasy', itemType: 'food', objectRole: null, category: 'food', rarity: 'common', possessable: true },
+  { name: 'Bread', worldType: 'medieval-fantasy', itemType: 'food', objectRole: 'food_loaf', category: 'food', rarity: 'common', possessable: true },
   { name: 'Meat Pie', worldType: 'medieval-fantasy', itemType: 'food', objectRole: null, category: 'food', rarity: 'common', possessable: true },
   { name: 'Water Flask', worldType: 'medieval-fantasy', itemType: 'drink', objectRole: null, category: 'drink', rarity: 'common', possessable: true },
   { name: 'Torch', worldType: 'medieval-fantasy', itemType: 'tool', objectRole: 'torch', category: 'light_source', rarity: 'common', possessable: true },
@@ -392,60 +392,134 @@ export const EXISTING_ASSETS: Record<string, { path: string; format: 'gltf' | 'g
 // ---------------------------------------------------------------------------
 
 export const OBJECT_ROLE_TO_ASSET: Record<string, string> = {
+  // ─── Weapons ────────────────────────────────────────────────────────────
   sword: 'antique_estoc',
+  dagger: 'antique_katana_01',
+  saber: 'wooden_handle_saber',
+  axe: 'wooden_axe',
+  hammer: 'wooden_axe',
+  mace: 'wooden_axe',
+  spear: 'antique_estoc',
+  staff: 'wooden_axe',
+  bow: 'wooden_axe', // placeholder
+  pickaxe: 'wooden_axe',
+  blade: 'antique_estoc',
+  pistol: 'street_lamp_01', // placeholder — no pistol model yet
+  revolver: 'street_lamp_01', // placeholder
+  rifle: 'street_lamp_01', // placeholder
+  baton: 'wooden_axe',
+  grenade: 'brass_goblets', // placeholder
+  wire_coil: 'wooden_bucket_01', // placeholder
+  dynamite: 'wooden_crate_02', // placeholder
+
+  // ─── Armor & Equipment ──────────────────────────────────────────────────
+  shield: 'wooden_crate_01', // placeholder
+  helmet: 'metal_tool_chest', // placeholder
+  armor_piece: 'metal_tool_chest', // placeholder — body armor, vests, gauntlets displayed as prop
+  chainmail: 'metal_tool_chest', // placeholder
+  boots: 'wooden_stool_01', // placeholder
+  quiver: 'wooden_bucket_02',
+  saddle: 'wooden_stool_01', // placeholder
+
+  // ─── Furniture ──────────────────────────────────────────────────────────
   bed: 'GothicBed_01',
   cabinet: 'GothicCabinet_01',
   commode: 'GothicCabinet_01',
   chair: 'GreenChair_01',
   table: 'WoodenTable_01',
   shelf: 'Shelf_01',
-  barrel: 'wine_barrel_01',
-  crate: 'wooden_crate_01',
-  lantern: 'Lantern_01',
-  chandelier: 'Chandelier_01',
-  goblet: 'brass_goblets',
-  candleholder: 'brass_candleholders',
-  books: 'book_encyclopedia_set_01',
-  book: 'book_encyclopedia_set_01',
   bookshelf: 'wooden_bookshelf_worn',
-  chest: 'treasure_chest',
-  lamp: 'street_lamp_01',
-  boombox: 'boombox',
-  barrel_fire: 'barrel_stove',
   bar_stool: 'bar_chair_round_01',
   register: 'CashRegister_01',
-  bucket: 'wooden_bucket_01',
-  vase: 'wooden_bucket_02',
-  pot: 'wooden_bucket_01',
-  pan: 'wooden_bucket_01',
-  fire_pit: 'stone_fire_pit',
-  axe: 'wooden_axe',
-  saber: 'wooden_handle_saber',
   clock: 'vintage_grandfather_clock_01',
-  oil_lamp: 'vintage_oil_lamp',
-  tea_set: 'tea_set_01',
-  blowtorch: 'brass_blowtorch',
   drawer: 'vintage_wooden_drawer_01',
-  pistol: 'street_lamp_01', // placeholder — no pistol model in Polyhaven
-  blade: 'antique_estoc',
-  console: 'ClassicConsole_01',
-  data_pad: 'ClassicConsole_01',
-  energy_core: 'Barrel_01',
-  revolver: 'street_lamp_01', // placeholder
-  wanted_poster: 'book_encyclopedia_set_01', // placeholder
+  fire_pit: 'stone_fire_pit',
+  barrel_fire: 'barrel_stove',
+
+  // ─── Containers ─────────────────────────────────────────────────────────
+  barrel: 'wine_barrel_01',
+  crate: 'wooden_crate_01',
+  chest: 'treasure_chest',
+  bucket: 'wooden_bucket_01',
+  sack: 'wooden_bucket_01',
+  vase: 'wooden_bucket_02',
+
+  // ─── Lighting ───────────────────────────────────────────────────────────
+  lantern: 'Lantern_01',
+  lamp: 'street_lamp_01',
+  chandelier: 'Chandelier_01',
+  torch: 'Lantern_01',
+  oil_lamp: 'vintage_oil_lamp',
+  candle: 'wooden_candlestick',
+
+  // ─── Food & Drink ──────────────────────────────────────────────────────
+  food_loaf: 'wooden_bucket_01',
+  food_plate: 'brass_goblets',
+  food_bowl: 'brass_goblets',
+  food_wedge: 'wooden_bucket_01',
+  food_small: 'wooden_bucket_01',
+  food_bar: 'wooden_crate_02',
+  bottle: 'brass_goblets',
+  jar: 'wooden_bucket_02',
+  goblet: 'brass_goblets',
+  drink_can: 'brass_goblets',
+  can: 'wooden_crate_02',
   potion: 'water_bottle',
   herb: 'avocado_collectible',
-  torch: 'Lantern_01',
-  pickaxe: 'wooden_axe',
-  shield: 'wooden_crate_01', // placeholder
-  chainmail: 'metal_tool_chest', // placeholder
-  boots: 'wooden_stool_01', // placeholder
-  crown: 'brass_goblets', // placeholder
+
+  // ─── Materials & Crafting ──────────────────────────────────────────────
+  ore_chunk: 'boulder_01',
+  ingot: 'wooden_bucket_01',
+  plank: 'wooden_stool_01',
+  spool: 'wooden_bucket_01',
+  rope: 'wooden_bucket_01',
+  inkwell: 'brass_goblets',
+  small_block: 'wooden_bucket_01',
+
+  // ─── Tools ──────────────────────────────────────────────────────────────
+  mortar: 'wooden_bucket_02',
+  saw: 'wooden_axe',
+  shovel: 'wooden_axe',
+  rod: 'wooden_axe',
+  toolbox: 'metal_tool_chest',
+  tank: 'Barrel_01',
+  battery: 'utility_box_01',
+
+  // ─── Books & Documents ─────────────────────────────────────────────────
+  book: 'book_encyclopedia_set_01',
+  books: 'book_encyclopedia_set_01',
+  scroll: 'book_encyclopedia_set_01',
+  wanted_poster: 'book_encyclopedia_set_01', // placeholder
+  card: 'book_encyclopedia_set_01',
+
+  // ─── Jewelry & Collectibles ────────────────────────────────────────────
   ring: 'collectible_gem',
   amulet: 'collectible_gem',
   gemstone: 'collectible_gem',
-  dagger: 'antique_katana_01',
-  bow: 'wooden_axe', // placeholder
+  crown: 'brass_goblets', // placeholder
+  bell: 'brass_candleholders',
+  candleholder: 'brass_candleholders',
+  key: 'brass_candleholders',
+  small_prop: 'brass_candleholders',
+  small_box: 'wooden_crate_02',
+  small_tool: 'brass_candleholders',
+  pouch: 'wooden_bucket_01',
+  plant: 'potted_plant_02',
+  tableware: 'brass_goblets',
+
+  // ─── Electronics & Tech ────────────────────────────────────────────────
+  boombox: 'boombox',
+  console: 'ClassicConsole_01',
+  data_pad: 'ClassicConsole_01',
+  energy_core: 'Barrel_01',
+  syringe: 'brass_candleholders',
+  med_pack: 'metal_tool_chest',
+
+  // ─── Misc Polyhaven ─────────────────────────────────────────────────────
+  pot: 'wooden_bucket_01',
+  pan: 'wooden_bucket_01',
+  tea_set: 'tea_set_01',
+  blowtorch: 'brass_blowtorch',
 };
 
 // ---------------------------------------------------------------------------

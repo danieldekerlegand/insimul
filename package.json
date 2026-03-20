@@ -28,6 +28,7 @@
   "dependencies": {
     "@babylonjs/core": "^8.54.1",
     "@babylonjs/gui": "^8.54.1",
+    "@babylonjs/inspector": "^8.56.1",
     "@babylonjs/loaders": "^8.54.1",
     "@dagrejs/dagre": "^2.0.4",
     "@google-cloud/text-to-speech": "^5.8.1",

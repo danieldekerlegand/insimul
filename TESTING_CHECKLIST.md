@@ -79,6 +79,46 @@
 - [ ] Furniture and objects populate interiors
 - [ ] NPCs appear inside buildings doing occupation-appropriate activities
 - [ ] Player can exit buildings back to exterior
+- [ ] NPCs physically enter/exit buildings based on schedules (door animation, fade in/out)
+- [ ] Building occupancy tracked: Map<buildingId, Set<npcId>>
+- [ ] Player entering a building sees all NPCs currently flagged as inside (not just owner)
+- [ ] Building occupancy caps: residence=4, small shop=6, tavern=12, church=20
+- [ ] Notification when NPC enters/exits building player is in: '[NPC Name] has entered/left [Building]'
+- [ ] InteriorNPCManager.addNPCToInterior() called when NPC enters while player is inside
+- [ ] InteriorNPCManager.removeNPCFromInterior() called when NPC leaves while player is inside
+
+### 3.4 Business Interior Behaviors
+- [ ] BusinessBehaviorSystem defines per-business-type operational behaviors
+- [ ] BAKERY: knead dough, check oven, arrange display, serve customer cycle
+- [ ] TAVERN: pour drinks, wipe counter, serve tables, chat with patrons cycle
+- [ ] SHOP: arrange goods, count inventory, assist customer cycle
+- [ ] RESTAURANT: cook food, serve plates, clean table cycle
+- [ ] Each work action has duration (15-60 game seconds) and animation state
+- [ ] Business owners cycle through actions during business hours
+- [ ] Owner transitions to 'serve customer' mode when player approaches
+- [ ] Player can press G to initiate business transaction (buy, order, request service)
+- [ ] Business inventory wired from world data — shops have actual items to sell
+
+### 3.5 Residence Interior Behaviors
+- [ ] ResidenceBehaviorSystem defines home activities based on time of day
+- [ ] Night (22:00-06:00): NPCs in bed with 'sleep' animation; 'knock to wake' prompt for player
+- [ ] Morning (06:00-08:00): NPCs at table with 'eat' animation for breakfast
+- [ ] Evening (18:00-20:00): NPCs at table for dinner, then relax in chairs
+- [ ] Multiple NPCs sharing residence: together at meals, separate beds at night
+- [ ] Hospitality dialogue when player visits during mealtime
+- [ ] Ambient sounds: snoring at night, dishes clinking during meals
+
+### 3.6 Business Transactions
+- [ ] BusinessTransactionSystem handles buying/selling/services inside businesses
+- [ ] Transaction context injected into NPC conversation (business type, items, prices)
+- [ ] Purchase intent detected via keywords in conversation
+- [ ] Transaction UI overlay: item name (target language + translation), price, gold, confirm/cancel
+- [ ] Purchase deducts gold, adds item to player inventory, updates business stock
+- [ ] Player can sell items to appropriate businesses
+- [ ] Services: healer restores health, inn provides rest, blacksmith repairs
+- [ ] All transactions conducted in target language
+- [ ] Business stock is per-playthrough (via overlay) — depletes and restocks daily
+- [ ] 'complete_purchase' and 'sell_item' wired as quest objective types
 
 ### 3.4 Building Info
 - [ ] Hovering/approaching a building shows info display
@@ -135,6 +175,12 @@
 - [ ] NPCs socialize in evenings
 - [ ] NPCs go home and sleep at night
 - [ ] NPC schedule varies by personality
+- [ ] Lunch timing varies per NPC (11:30-13:30 window, weighted by conscientiousness)
+- [ ] Work start/end times vary ±1 hour based on personality traits
+- [ ] Weekend/rest day logic: NPCs work 5-6 days on a 7-day cycle based on work ethic
+- [ ] Spontaneous activity injection: 15% chance (scaled by openness) to replace schedule phase
+- [ ] Social interrupts: NPCs with high mutual relationship stop to chat when passing within 3 units
+- [ ] Daily schedule stored in Map<npcId, DailySchedule> and regenerates each game day
 
 ### 5.3 NPC Movement & Pathfinding
 - [ ] NPCs walk along streets/paths
@@ -143,6 +189,19 @@
 - [ ] NPC animation transitions (idle→walk→idle) are smooth
 - [ ] NPCs avoid collision with buildings
 - [ ] NPC LOD system reduces updates for distant NPCs
+- [ ] NPC walk speed capped: stroll=1.5 m/s, walk=2.5 m/s, hurry=4.0 m/s
+- [ ] No teleportation artifacts — stuck NPCs slide backward and re-pathfind instead of jumping
+- [ ] Pathfinding fallback paths to nearest reachable sidewalk node (no direct-line teleport)
+- [ ] Position interpolation smoothing (Vector3.Lerp) prevents snapping between waypoints
+- [ ] Maximum-distance-per-frame guard clamps movement >0.5 units
+- [ ] Animation playback rate matches actual movement speed
+- [ ] NPCs fade out over 0.5s when transitioning to interior (not instant hide)
+- [ ] Sidewalk graph has intermediate nodes every 5 units along long segments
+- [ ] Off-sidewalk pathfinding for short distances (<10 units) with line-of-sight check
+- [ ] Path smoothing removes unnecessary intermediate waypoints
+- [ ] Building avoidance via raycasting and corner waypoints
+- [ ] Crosswalk connections at every intersection connecting both sides
+- [ ] Path caching for common origin-destination pairs (home→work, work→tavern)
 
 ### 5.4 NPC Conversations (Player-Initiated)
 - [ ] Player can approach and talk to NPC
@@ -168,6 +227,12 @@
 - [ ] Player can eavesdrop on nearby NPC conversations
 - [ ] Eavesdropped content contributes to knowledge acquisition (vocabulary in language-learning, lore in RPG, etc.)
 - [ ] Conversation topic is contextually appropriate
+- [ ] Proximity trigger: two NPCs within 4 units, both idle/walking, evaluate interaction probability
+- [ ] Interaction types: GREETING (2-5s), CHAT (15-45s), ARGUMENT (if relationship < -0.3), TRADE (at marketplace)
+- [ ] Floating speech bubbles with target-language snippets from phrase bank
+- [ ] Player can join NPC-to-NPC chat by approaching within 3 units and pressing G
+- [ ] Maximum 3 concurrent social interactions within player view radius
+- [ ] Social interactions logged to PlayTrace as 'npc_social_event'
 
 ### 5.7 NPC Occupation Activities
 - [ ] NPCs perform work-specific activities (baking, forging, etc.)
@@ -180,6 +245,43 @@
 - [ ] Salience (who NPCs pay attention to) updates
 - [ ] NPCs form opinions about each other
 - [ ] Social summary accessible per NPC
+
+### 5.9 NPC Volition System
+- [ ] VolitionSystem.evaluateGoals(npc) returns scored goal set in NPC behavior loop
+- [ ] Top volition goal scoring above 0.7 overrides schedule-based goal
+- [ ] Three-level goal resolution: start → non-terminal strategy → terminal action
+- [ ] Volition actions involving the player trigger NPCConversationInitiator
+- [ ] Evaluation frequency: once per game hour per NPC (cached)
+- [ ] Personality influence: extroversion→social, conscientiousness→suppress schedule-breaking, openness→exploration, agreeableness→helping, neuroticism→conflict-avoidance
+- [ ] NPC returns to schedule after volition action with 2 game-hour cooldown
+
+### 5.10 NPC Greetings & Ambient Dialogue
+- [ ] NPCs greet player within 5 units (40% chance, scaled by extroversion/reputation)
+- [ ] Greetings in target language vary by time of day, relationship, personality
+- [ ] First-time greetings include NPC name and occupation
+- [ ] 5-minute cooldown per NPC on greetings
+- [ ] Player can press G to respond or walk past
+- [ ] Floating speech bubbles (Babylon.js GUI) fade after 3 seconds
+- [ ] Subtitle/translation toggle available
+
+### 5.11 NPC Model Diversity & Appearance
+- [ ] Gender-based model selection: getRoleForCharacter() selects male/female GLB based on character gender
+- [ ] Guard and merchant roles have male/female model variants
+- [ ] NPC model variety system assigns visually distinct models via deterministic hash of character ID
+- [ ] Per-settlement diversity tracker prevents >2 NPCs with same model variant
+- [ ] Procedural skin tone variation (8-12 presets) applied deterministically
+- [ ] Procedural hair color variation (8 presets) applied to hair material
+- [ ] Height/scale variation (0.92-1.08x Y-scale) from character ID hash
+- [ ] Clothing color variation based on personality/occupation seed
+- [ ] Age-based material adjustments (desaturated skin, gray/white hair for older characters)
+- [ ] All procedural variations deterministic from characterId (consistent across sessions)
+- [ ] Occupation-specific accessories attached to skeleton bone transforms (chef hat, hammer, etc.)
+- [ ] Floating name+title label above NPCs within 8 units: '[Name] — [Occupation]'
+- [ ] NPC model LOD: NEAR (<15 units) full model+accessories+animations, MEDIUM (15-40) model+animations only, FAR (>40) billboard/thin instance
+- [ ] Thin instancing for distant NPCs sharing same base model
+- [ ] Billboard sprite pre-generation for FAR LOD
+- [ ] Model pooling: pre-load one instance per variant, clone on spawn
+- [ ] Performance quality setting (Low/Medium/High) controls LOD distances and animation budgets
 
 ---
 
@@ -975,13 +1077,19 @@
 
 ## 29. PLAYTHROUGH & SAVE SYSTEM
 
-### 29.1 Playthrough Overlay Layer
-- [ ] PlaythroughOverlayLayer intercepts world-mutating writes
+### 29.1 Playthrough Data Isolation (Critical)
+- [ ] PlaythroughOverlayStorage intercepts ALL world-mutating writes when playthroughId is present
 - [ ] Overlay maintains in-memory map of entity overrides (entityType+entityId)
 - [ ] Reading world data merges base world data with playthrough-local changes
 - [ ] Writing (quest completion, inventory transfer, truth creation) captured in overlay
 - [ ] Overlay serialized into GameSaveState on save and deserialized on load
 - [ ] Both ApiDataSource and FileDataSource route writes through overlay
+- [ ] Middleware detects playthroughId header/query param and routes writes through overlay
+- [ ] World mutation guard logs warnings if storage.update*() called without overlay in playthrough context
+- [ ] Integration test: modify truth via gameplay → base world truth unchanged → second playthrough sees original
+- [ ] Truth mutations from Prolog rule execution routed through overlay
+- [ ] Character stat changes from quest rewards routed through overlay
+- [ ] Item transfers, reputation changes, NPC relationship changes all routed through overlay
 
 ### 29.2 Quest State Isolation
 - [ ] Quest completion goes through overlay, not PUT /api/quests/:questId directly
@@ -1002,26 +1110,160 @@
 - [ ] New playthrough re-assesses proficiency level
 - [ ] OnboardingLauncher first-play detection checks per-playthrough
 
-### 29.5 Playthrough Selection & Management UI
-- [ ] PlaythroughSelectScreen shows list of existing playthroughs for current world
-- [ ] Each playthrough displays: name, last played date, play time, proficiency level, completion %
-- [ ] 'New Game' creates fresh playthrough
-- [ ] 'Continue' loads most recent auto-save
-- [ ] 'Delete' removes playthrough with confirmation
+### 29.5 In-Game Playthrough Selection (Babylon.js Main Menu)
+- [ ] MainMenuSystem.ts renders full-screen Babylon.js GUI overlay on game load
+- [ ] 'New Game' option: character creation/selection, optional name, calls POST /playthroughs/start, fades into world
+- [ ] 'Continue' option: auto-detects most recent active playthrough, loads latest save, restores state
+- [ ] 'Load Game' option: shows all playthroughs grouped by status with name, last played, playtime, chapter, save previews
+- [ ] Quick-resume: if one active playthrough with save data, shows 'Press Enter to continue your adventure'
+- [ ] Menu backdrop: blurred/stylized settlement view or splash image
+- [ ] No editor-side PlaythroughSelector — all creation/selection happens in-game
+- [ ] PlaythroughSelector.tsx removed from home.tsx and play.tsx
+- [ ] PlaythroughsList.tsx deleted (was unused)
+- [ ] ModernNavbar 'Play' button launches directly into Babylon.js game
+- [ ] WorldManagementTab 'Explore World' launches directly into game
 - [ ] Maximum 5 playthroughs per world per user enforced
-- [ ] Screen appears after world loads but before game starts
 
-### 29.6 Save/Load Game Menu
+### 29.6 In-Game Playthrough Management (Pause Menu)
+- [ ] Pause menu 'Playthrough' section: Rename, Pause, Abandon, Delete options
+- [ ] 'Rename Playthrough' — editable text field, PATCH /api/playthroughs/:id
+- [ ] 'Pause Playthrough' — auto-saves, sets status to 'paused', returns to main menu
+- [ ] 'Abandon Playthrough' — confirmation dialog, sets status to 'abandoned'
+- [ ] 'Delete Playthrough' — double confirmation (type DELETE), CASCADE deletes all data
+- [ ] 'Return to Main Menu' — auto-saves, pauses, shows MainMenuSystem overlay
+- [ ] 'Quit to Browser' — auto-saves, closes game tab or returns to world selection
+
+### 29.7 Save/Load Game Menu
 - [ ] 'Save Game' and 'Load Game' options in pause menu (GameMenuSystem)
-- [ ] 3 save slots displayed with slot name, date, time played, location
-- [ ] Empty slots show 'Empty Slot — Save Here'
-- [ ] Occupied slots overwritable with confirmation
-- [ ] Load screen shows 3 slots plus latest auto-save
-- [ ] Quick-save (F5) saves to slot 0, quick-load (F9) loads from slot 0
-- [ ] Save/load operations show brief overlay indicator
-- [ ] Warning shown if loading will lose unsaved progress
+- [ ] 3 manual save slots + 3 auto-save slots (read-only) displayed
+- [ ] Each slot shows: screenshot thumbnail, save date/time, playtime, current quest, player level, game day
+- [ ] Empty slots show 'Empty Slot'
+- [ ] Occupied slots overwritable with confirmation: 'Overwrite save from [date]?'
+- [ ] Load screen shows detailed preview: player stats, active quests, current location
+- [ ] Quick-save (F5) saves to most recently used slot (or slot 0), quick-load (F9) loads most recent
+- [ ] Save animation: freeze-frame + flash + 'Game Saved' notification
+- [ ] Last save time in HUD corner: 'Last saved: 2 min ago'
+- [ ] Save slot migration: compatibility warning for older save schema versions
 
-### 29.7 FileDataSource Completeness (Exported Games)
+### 29.8 Comprehensive Save Data Schema
+- [ ] Save state captures NPC schedule state: phase, destination, isInsideBuilding, building, position per NPC
+- [ ] Save state captures interior scene state: current building (if any), interior layout seed
+- [ ] Save state captures time system state: game hour/minute, time scale, day number
+- [ ] Save state captures quest active state: partial objective progress, conversation turn counts, current branch
+- [ ] Save state captures language progress: vocabulary mastery, grammar accuracy, conversation count, CEFR
+- [ ] Save state captures reputation state: per-settlement standing, violation history, active bans
+- [ ] Save state captures NPC relationship deltas from this playthrough
+- [ ] Save state captures main quest chapter state: current chapter, per-objective progress
+- [ ] Save schema versioned (v3) with migration logic from v2→v3
+- [ ] All subsystems implement getSerializableState() and restoreFromState()
+
+### 29.9 Quest Objective Progress Persistence
+- [ ] QuestCompletionEngine.getProgressSnapshot() captures full objective state
+- [ ] WorldStateManager save flow includes quest progress snapshot
+- [ ] WorldStateManager load flow calls restoreFromSnapshot() to rebuild objective states
+- [ ] Conversation-based objectives: turn count and detected keywords saved
+- [ ] Location-based objectives: visited locations saved (no re-trigger on reload)
+- [ ] Collection objectives: collected item IDs saved (no duplicate counting)
+- [ ] Test: start quest, partial progress (3/5 items), save, reload → shows 3/5
+- [ ] Version mismatch handling: changed objective IDs gracefully reset
+
+### 29.10 Playthrough-Scoped Truths
+- [ ] Truth schema has optional 'playthroughId' field
+- [ ] Loading truths merges base (playthroughId=null) with playthrough-specific truths
+- [ ] Creating a truth during gameplay always sets playthroughId
+- [ ] Deleting a truth during gameplay marks as deleted in overlay, not removed from base
+- [ ] NPC dialogue reads from merged truths (base + gameplay events)
+
+### 29.11 World Snapshot Versioning
+- [ ] World schema has auto-incrementing 'version' counter
+- [ ] Playthrough captures world version at creation in worldSnapshotVersion
+- [ ] Loading a save compares playthrough snapshot version against current world version
+- [ ] Version mismatch shows detailed compatibility report listing changed entity types
+- [ ] Options on mismatch: 'Continue with save' or 'Start fresh'
+- [ ] Incompatible saves (>50 versions behind): offer export + new playthrough
+- [ ] PATCH /api/worlds/:worldId/playthroughs/:id/rebase merges deltas with new world state
+- [ ] World editor shows warning banner when active playthroughs exist
+- [ ] Version change log stores what changed per version bump
+- [ ] Graceful handling of deleted quest/character IDs in stale saves
+
+### 29.12 Auto-Save System
+- [ ] Auto-save triggers on GameEventBus events: quest_completed, quest_failed, chapter_completed, assessment_completed, main_quest_objective_completed, settlement_entered, significant_purchase
+- [ ] Periodic auto-save every 5 real minutes during active gameplay (not paused)
+- [ ] Auto-save indicator in HUD: spinning icon + 'Saving...' text, fades after 2s, red on failure
+- [ ] Save deduplication: two triggers within 10 seconds merge into one save
+- [ ] State completeness validation before save (warn if subsystem data missing)
+- [ ] On failure: queue to SaveQueue, show persistent yellow 'Unsaved changes' indicator
+- [ ] On browser close: navigator.sendBeacon with lightweight save (position, quest progress, timestamp)
+- [ ] Auto-save history: last 3 auto-saves in rotating slots (auto_0, auto_1, auto_2)
+- [ ] Save state captures: language progress, assessment results, gamification state, NPC schedules, time/date
+
+### 29.13 NPC Relationship Isolation
+- [ ] NPC-to-player relationships playthrough-scoped (stored in overlay)
+- [ ] NPC-to-NPC relationships start from world-defined baseline each playthrough
+- [ ] NPC conversation history is playthrough-scoped
+- [ ] BabylonChatPanel conversation history included in saves
+- [ ] Relationship changes from conversations, quests, gifts, rude dialogue tracked
+- [ ] Relationship tiers: Stranger (0-20), Acquaintance (20-40), Friend (40-60), Close Friend (60-80), Best Friend (80-100), Disliked (-20 to -50), Enemy (-50 to -100)
+- [ ] Relationship level affects: NPC greeting warmth, quest willingness, business prices, conversation initiation
+- [ ] Relationship change notifications: '+10 Relationship with [NPC Name]' with icon
+- [ ] 'Relationships' panel accessible from pause menu with all known NPCs and status
+- [ ] Relationship context injected into NPC conversation system prompts
+
+### 29.14 Playthrough-Scoped Reputation System
+- [ ] ReputationManager tracks player reputation per settlement and faction
+- [ ] Reputation events: quest completion (+rep), quest failure (-rep), stealing (large -rep), polite conversation (+small), rude (-small)
+- [ ] Reputation levels: HOSTILE (<-50), UNFRIENDLY (-50 to -10), NEUTRAL (-10 to 10), FRIENDLY (10 to 50), REVERED (>50)
+- [ ] Gameplay effects: hostile NPCs refuse to talk, unfriendly = higher prices, friendly = discounts, revered = unique quests
+- [ ] Floating text on change: '+5 Reputation with [Settlement]'
+- [ ] Reputation display in player stats panel
+- [ ] All reputation changes stored as PlaythroughDeltas (never modify base world)
+- [ ] Reputation injected into NPC conversation prompts
+
+### 29.15 Playthrough Metrics Accumulation
+- [ ] Playtime accumulated and flushed to server every 60 seconds
+- [ ] actionsCount incremented on: conversation start, objective completion, item pickup, building entry, menu interaction, vocabulary examination
+- [ ] decisionsCount incremented on: quest acceptance/abandonment, dialogue choice, branching quest choice, reputation-affecting action
+- [ ] Additional counters: questsCompleted, questsFailed, npcConversationsCount, uniqueNPCsMetCount, buildingsVisitedCount, vocabularyLearnedCount
+- [ ] Metrics batched locally and flushed every 2 minutes
+- [ ] On game exit: all pending metrics flushed immediately
+
+### 29.16 Playthrough Completion Flow
+- [ ] Completion conditions: main quest chapter 6+ completed OR 'End Playthrough' from pause menu
+- [ ] Confirmation dialog: 'Are you sure you want to finish your journey?'
+- [ ] Departure assessment triggered (if wired)
+- [ ] Journey Summary screen: playtime, quests, NPCs met, vocabulary, CEFR change, achievements
+- [ ] Learning Report Card: arrival vs departure scores per dimension with improvement %
+- [ ] Status updated to 'completed', completedAt set
+- [ ] Options: 'Continue Exploring', 'Save & Exit', 'Start New Playthrough'
+- [ ] PlayTrace event 'playthrough_completed' fired with all summary metrics
+
+### 29.17 Playthrough Data Export/Import
+- [ ] 'Export Save' generates .insimul-save file (JSON + compressed state + deltas)
+- [ ] 'Import Save' validates against current world and creates new playthrough
+- [ ] World compatibility validated on import (worldId match, version mismatch warning)
+- [ ] Server-specific fields stripped from exports
+
+### 29.18 Offline-First Save Queue & Conflict Resolution
+- [ ] Failed saves queued in IndexedDB
+- [ ] After 3 retries: persistent yellow banner 'Playing offline — data will sync when connection is restored'
+- [ ] On reconnect: compare local vs server save timestamps before flushing
+- [ ] Merge dialog if server save is newer: 'Keep server / Keep local / Cancel'
+- [ ] Never silently drop save data — persist to IndexedDB permanently after max retries
+- [ ] Unsynced saves surfaced in save/load UI: 'Unsynced save from [date] — tap to retry'
+- [ ] Connection status indicator in HUD: green=connected, yellow=degraded, red=offline
+- [ ] Test: play offline 30 min, 6 queued saves → go online → compact and sync as one
+
+### 29.19 Playthrough Delta Performance
+- [ ] Delta compaction when >500 deltas: merge sequential updates to same entity into net delta
+- [ ] Compaction endpoint: POST /api/playthroughs/:id/compact-deltas
+- [ ] Auto-trigger compaction after every 100 new deltas
+- [ ] LRU eviction in memory: keep most recent 1000 entries, lazy-load older from DB
+- [ ] CASCADE delete removes all deltas, traces, reputations on playthrough deletion
+- [ ] Delta count metric on playthrough record for analytics
+- [ ] Composite index on (playthroughId, entityType, entityId)
+- [ ] Load time acceptable for 100, 500, 1000, 5000 deltas
+
+### 29.20 FileDataSource Completeness (Exported Games)
 - [ ] FileDataSource.transferItem() updates overlay and persists to save state
 - [ ] FileDataSource.getEntityInventory() reads from overlay merged with base JSON data
 - [ ] FileDataSource.getMerchantInventory() generates from base item data + overlay
@@ -1029,46 +1271,12 @@
 - [ ] IndexedDB support for save states exceeding localStorage 5MB limit
 - [ ] Save keys scoped by world ID: insimul_save_{worldId}_{slotIndex}
 
-### 29.8 Playthrough-Scoped Truths
-- [ ] Truth schema has optional 'playthroughId' field
-- [ ] Loading truths merges base (playthroughId=null) with playthrough-specific truths
-- [ ] Creating a truth during gameplay always sets playthroughId
-- [ ] Deleting a truth during gameplay marks as deleted in overlay, not removed from base
-- [ ] NPC dialogue reads from merged truths (base + gameplay events)
-
-### 29.9 World Snapshot Versioning
-- [ ] World schema has auto-incrementing 'version' counter
-- [ ] Playthrough captures world version at creation in worldSnapshotVersion
-- [ ] Loading a save compares playthrough snapshot version against current world version
-- [ ] Version mismatch shows warning dialog
-- [ ] Graceful handling of deleted quest/character IDs in stale saves
-
-### 29.10 Auto-Save System
-- [ ] Auto-save triggers on: quest completion, assessment completion, entering/exiting buildings, significant inventory changes
-- [ ] Auto-save triggers on beforeunload event (navigator.sendBeacon)
-- [ ] Save state captures: language progress, assessment results, gamification state, content gating unlocks, NPC schedule states, world time/date, weather state
-- [ ] Save state compressed for large data
-- [ ] Save state integrity checks (version, checksum, corrupt save handling)
-- [ ] 'Last auto-save' indicator in HUD
-
-### 29.11 NPC Relationship Isolation
-- [ ] NPC-to-player relationships playthrough-scoped (stored in overlay)
-- [ ] NPC-to-NPC relationships start from world-defined baseline each playthrough
-- [ ] NPC conversation history is playthrough-scoped
-- [ ] BabylonChatPanel conversation history included in saves
-
-### 29.12 Playthrough Data Export/Import
-- [ ] 'Export Save' generates .insimul-save file (JSON + compressed state + deltas)
-- [ ] 'Import Save' validates against current world and creates new playthrough
-- [ ] World compatibility validated on import (worldId match, version mismatch warning)
-- [ ] Server-specific fields stripped from exports
-
-### 29.13 Offline-First Save Queue
-- [ ] Failed saves queued in IndexedDB
-- [ ] 'Offline — saves queued locally' indicator in HUD
-- [ ] Queue flushed to server when connectivity returns
-- [ ] Conflict resolution dialog when server has newer save
-- [ ] Language progress and assessment submissions queue offline
+### 29.21 Editor-Created Playthrough Migration
+- [ ] Existing playthroughs audited: save data vs. empty (zero playtime, zero actions)
+- [ ] Empty editor-created playthroughs flagged 'needs_initialization'
+- [ ] Migration endpoint: POST /api/admin/migrate-playthroughs
+- [ ] In-game load of 'needs_initialization' playthrough: runs new-game flow, preserves record
+- [ ] Editor-created playthroughs with game data load normally
 
 ---
 
@@ -1486,6 +1694,153 @@
 
 ---
 
+## 37. GAME TIME MANAGEMENT
+
+### 37.1 Unified GameTimeManager
+
+- [ ] GameTimeManager.ts is single source of truth for game time (replaces ScheduleExecutor/BabylonGame time tracking)
+- [ ] Time model: 1 Insimul timestep = 1 game day, 24 game hours per day
+- [ ] Default real-time ratio: 1 real minute = 1 game hour (configurable via world settings)
+- [ ] Exposes: getCurrentGameHour(), getCurrentGameMinute(), getCurrentDay(), getCurrentTimestep(), getTimeOfDay()
+- [ ] Time-of-day lighting: dawn (5-7) warm orange, morning (7-10) bright, midday (10-14) full sun, afternoon (14-17) warm, evening (17-20) golden hour, night (20-5) dark blue
+- [ ] Day/night cycle skybox transition
+- [ ] HUD clock display showing current game time and day number
+- [ ] Time pause for menus, conversations, assessments
+- [ ] Time acceleration (2x, 4x for waiting)
+- [ ] GameEventBus events: 'hour_changed', 'day_changed', 'timestep_advanced', 'time_of_day_changed'
+- [ ] Timestep advance triggers server-side simulation tick if configured
+
+---
+
+## 38. PLAYTHROUGH ANALYTICS DASHBOARD
+
+### 38.1 PlaythroughAnalytics Read-Only Research Dashboard
+
+- [ ] PlaythroughAnalytics is strictly read-only — no create/edit/delete playthrough buttons
+- [ ] Header: 'Player Research Analytics — [World Name]' with research description
+- [ ] AssessmentDashboard is read-only — no ability to create/modify assessments from editor
+- [ ] No 'Play as this player' or 'Start playthrough for player' links
+- [ ] GET /api/worlds/:worldId/analytics/playthroughs is read-only, requires world owner permissions
+
+### 38.2 Player Journey Timeline
+
+- [ ] Chronological event feed for selected playthrough (quest starts, completions, conversations, location visits, assessments)
+- [ ] Each event: timestamp, type icon, description, outcome
+- [ ] Paginated with infinite scroll
+- [ ] Session analysis: break playtime into sessions (>30 min gaps), per-session stats
+
+### 38.3 Quest Analytics
+
+- [ ] Quest Funnel: per quest — players started, progressed each objective, completed, failed, abandoned
+- [ ] Quest Effectiveness Matrix: completion rate, avg time, avg attempts, CEFR improvement correlation
+- [ ] Error Hot Spots: most-failed objectives, most-abandoned quests, longest completion times
+- [ ] Quest completability validation: POST /api/worlds/:worldId/quests/validate-all
+
+### 38.4 Location & NPC Analytics
+
+- [ ] Location Heatmap: time spent in each settlement/building with heat coloring
+- [ ] NPC Interaction Report: conversation counts, turn counts, relationship progression per NPC
+- [ ] Inventory & Economy: items acquired, used, gold earned/spent over time
+
+### 38.5 Assessment Analytics (Pre/Post)
+
+- [ ] Pre/Post Comparison: side-by-side per-dimension scores with delta arrows and Cohen's d
+- [ ] Learning Gains chart: scatter plot of pre vs post scores with y=x reference line
+- [ ] Dimension Radar Chart: radar per player comparing pre vs post across all dimensions
+- [ ] Periodic Assessment Trends: line chart of scores over time for multiple assessments
+- [ ] CEFR Level Transitions: Sankey/alluvial chart of A1→A2, A2→B1, etc.
+- [ ] Subscale Deep Dive: SUS, SSQ, IPQ, ACTFL OPI subscale breakdown with norms
+- [ ] Statistical summary: mean, median, SD, min, max per dimension with confidence intervals
+
+### 38.6 Learning Progress Visualization
+
+- [ ] Learning Trajectories: CEFR-equivalent score over time per player with cohort average
+- [ ] Vocabulary Mastery Curve: cumulative vocabulary acquired + retention curve
+- [ ] Skill Dimension Radar: per-player radar across vocabulary/grammar/pronunciation/listening/reading/writing/pragmatic/cultural
+- [ ] Quest-Learning Correlation: scatter of quest completion rate vs CEFR improvement
+- [ ] Conversation Analysis: word cloud of target-language words, common errors, code-switching
+- [ ] Retention Analysis: delayed-test retention curves by skill dimension
+
+### 38.7 Cross-Playthrough Aggregated Insights
+
+- [ ] Overview tab: total unique players, total play hours, avg session length, completion rate, avg CEFR improvement
+- [ ] Engagement Over Time chart: daily/weekly active players and play sessions
+- [ ] Dropout Analysis: survival curve of playthrough duration (Kaplan-Meier style)
+- [ ] Player Segmentation: cluster by behavior patterns (explorer/quest-focused/social/solo)
+- [ ] Language Usage Statistics: most used vocabulary, highest error-rate words, common grammar mistakes
+
+### 38.8 Playthrough Comparison
+
+- [ ] Multi-select 2-5 playthroughs for side-by-side comparison
+- [ ] Comparison metrics table: playtime, actions, quests, CEFR change, vocabulary, NPCs
+- [ ] Timeline overlay: milestone completion across selected playthroughs
+- [ ] Quest completion Venn diagram
+- [ ] Cohort feature: tag playthroughs into groups, compare aggregate metrics between cohorts
+
+### 38.9 Conversation Data Tracking
+
+- [ ] Per-conversation trace: start/end timestamp, NPC, turns, language(s), vocabulary detected, grammar accuracy
+- [ ] Conversation summary stored in PlayTrace, full transcript stored separately
+- [ ] GET /api/playthroughs/:id/conversations (paginated summaries)
+- [ ] GET /api/playthroughs/:id/conversations/:conversationId/transcript
+- [ ] Conversations tab in analytics: sortable by NPC, duration, turn count, expandable transcripts
+- [ ] Conversation quality metrics: avg turns, vocabulary density, grammar accuracy rate, code-switching frequency
+
+### 38.10 Player Action Tracking
+
+- [ ] PlayTrace events for ALL significant actions: conversation, building entry/exit, item pickup, menu interaction, vocabulary lookup, help/hints
+- [ ] Engagement metrics per trace: time_since_last_action, actions_per_minute, repeated_action_count
+- [ ] Frustration indicators: repeated failures, long idle, quest abandonment after multiple attempts
+- [ ] Exploration metrics: unique locations, area coverage, backtracking frequency
+- [ ] Social metrics: NPC diversity, conversation depth, relationship changes
+- [ ] Batch traces flushed every 30 seconds via POST /api/playthroughs/:id/traces/batch
+- [ ] Composite index on (playthroughId, timestamp) and (playthroughId, actionType)
+
+### 38.11 Research Data Export
+
+- [ ] POST /api/worlds/:worldId/research-export generates downloadable research dataset
+- [ ] Export includes: playthroughs.csv, traces.csv, assessments.csv, quests.csv, conversations.csv
+- [ ] Anonymization: userId replaced with consistent hash, PII stripped
+- [ ] Codebook.md explaining columns, data types, valid values
+- [ ] Format options: CSV (default), JSON, Parquet
+- [ ] Date range and playthrough status filters
+- [ ] Aggregate statistics summary: descriptive stats, correlation matrix
+- [ ] World owner only — authentication and ownership check required
+
+### 38.12 Adaptive Quest Difficulty
+
+- [ ] adaptive-quest-tuner.ts tracks: quest completion rate, avg attempts, time vs estimated, accuracy rates
+- [ ] Struggling (<50% completion or >2.5 avg attempts): lower difficulty, more hints, more scaffolding
+- [ ] Excelling (>90% completion and <1.5 avg attempts): increase difficulty, bonus challenges, reduce hints
+- [ ] Subtle player notification: 'The townsfolk notice your improving skills...'
+- [ ] All adjustments logged as PlayTrace events
+- [ ] Difficulty Mode setting: Adaptive (default), Fixed-Easy, Fixed-Medium, Fixed-Hard
+- [ ] Adaptive difficulty level stored per-playthrough (not per-world)
+
+---
+
+## 39. NPC ASSET MANAGEMENT
+
+### 39.1 Asset Manifest & Genre Organization
+
+- [ ] Asset manifest JSON: client/public/assets/characters/manifest.json with genre, role, gender, polyCount, license
+- [ ] Assets organized by genre: client/public/assets/characters/{genre}/{role}\_{gender}\_{variant}.glb
+- [ ] Target: ~16 models per genre across 4 genres (medieval, fantasy, modern, historical)
+- [ ] Compatible Mixamo humanoid rig across all models for animation retargeting
+- [ ] NPC models 100-500KB, 2,000-8,000 triangles each
+- [ ] MVP: at least 3 male + 3 female civilian variants for medieval/language-learning genre
+
+### 39.2 World Editor Appearance Config
+
+- [ ] 'Character Style' dropdown in world settings: Medieval, Fantasy, Modern, Historical, Custom
+- [ ] 'Character Diversity' slider: Low (1 per role/gender), Medium (2-3), High (all available)
+- [ ] Per-character 'Model Override' dropdown in character editor for key NPCs
+- [ ] Preview button: small Babylon.js viewport showing selected model with idle animation
+- [ ] modelAssetKey on character schema overrides hash-based random assignment
+- [ ] World-level characterModels config stores genre selection and diversity level
+
+---
+
 ## TESTING PRIORITY ORDER
 
 ### P0 — Core Gameplay Loop
@@ -1498,38 +1853,49 @@
 7. Knowledge acquisition and collection (Section 7.2)
 
 ### P1 — Extended Gameplay
-8. Building interiors (Section 3.3)
+8. Building interiors and business/residence behaviors (Section 3.3-3.6)
 9. Assessment & NPC exam modules (Section 8)
 10. Performance scoring & voice modules (Section 7.5, 7.6)
-11. Proficiency & adaptive difficulty modules (Section 7.3, 7.9)
-12. Shopping/economy (Section 11.3, 13)
+11. Proficiency & adaptive difficulty modules (Section 7.3, 7.9, 38.12)
+12. Shopping/economy and business transactions (Section 11.3, 13, 3.6)
 13. Combat (Section 9)
 14. Crafting/resources (Section 10)
-15. Playthrough overlay and save/load system (Section 29)
+15. Playthrough overlay, save/load, and data isolation (Section 29)
 16. Base items default inclusion and world placement (Section 30)
 17. Main quest system and progression (Section 31)
+18. Game time management and day/night cycle (Section 37)
 
 ### P2 — Social Simulation
-18. NPC schedules and routines (Section 5.2)
-19. Social dynamics (Section 5.8, 12)
-20. Business system (Section 14)
-21. Events and lifecycle (Section 15)
-22. Simulation engine (Section 16)
-23. NPC contextual awareness — events, weather, time, quests (Section 34)
-24. Enhanced settlement procgen — character richness (Section 35)
+19. NPC schedules, variety, and volition (Section 5.2, 5.9)
+20. NPC-to-NPC social interactions and greetings (Section 5.6, 5.10)
+21. NPC relationship tracking and reputation (Section 29.13, 29.14)
+22. Social dynamics (Section 5.8, 12)
+23. Business system (Section 14)
+24. Events and lifecycle (Section 15)
+25. Simulation engine (Section 16)
+26. NPC contextual awareness — events, weather, time, quests (Section 34)
+27. Enhanced settlement procgen — character richness (Section 35)
 
 ### P3 — Advanced Features
-25. Prolog integration (Section 17)
-26. Gamification, skill tree, pattern recognition modules (Section 7.7, 7.8, 7.4)
-27. Expanded quest types — fetch, customer service, conversation-only, etc. (Section 32)
-28. Quest enhancements — branching, dependencies, analytics, journal (Section 33)
-29. Puzzles (Section 23)
-30. VR (Section 27)
-31. Export (Section 28)
-32. Asset generation (Section 21)
+28. Prolog integration (Section 17)
+29. Gamification, skill tree, pattern recognition modules (Section 7.7, 7.8, 7.4)
+30. Expanded quest types — fetch, customer service, conversation-only, etc. (Section 32)
+31. Quest enhancements — branching, dependencies, analytics, journal (Section 33)
+32. NPC model diversity, procedural appearance, and accessories (Section 5.11, 39)
+33. Puzzles (Section 23)
+34. VR (Section 27)
+35. Export (Section 28)
+36. Asset generation (Section 21)
 
-### P4 — Admin & Polish
-33. Module picker UI in world creation (Phase 9 from LL_AUDIT — not yet implemented)
-34. All admin UI (Section 37)
-35. Telemetry (Section 38)
-36. Performance (Section 39)
+### P4 — Analytics & Research
+37. Playthrough analytics dashboard — all tabs (Section 38)
+38. Assessment analytics — pre/post, learning gains (Section 38.5)
+39. Player action tracking and conversation data (Section 38.9, 38.10)
+40. Research data export (Section 38.11)
+41. Playthrough comparison and cohort analysis (Section 38.8)
+
+### P5 — Admin & Polish
+42. Module picker UI in world creation (Phase 9 from LL_AUDIT — not yet implemented)
+43. All admin UI (Section 30 Admin)
+44. Telemetry (Section 31 Telemetry)
+45. Performance (Section 32 Performance)

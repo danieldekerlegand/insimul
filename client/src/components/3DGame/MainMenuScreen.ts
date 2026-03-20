@@ -1,9 +1,9 @@
 /**
- * MainMenuScreen - In-game main menu overlay using Babylon.js GUI
+ * MainMenuScreen - Title/intro screen with animated background
  *
- * Displays New Game, Continue, and Load Game options before the world loads.
- * Appears after the Babylon.js engine/scene are initialized but before world
- * data is loaded and the game starts.
+ * Displays the game title with an animated particle effect background and
+ * menu options: Continue, New Game, Load Game, Controls, Exit.
+ * Continue and Load Game are disabled when no saves exist.
  */
 
 import {
@@ -15,17 +15,19 @@ import {
   TextBlock,
   TextWrapping,
   ScrollViewer,
+  Image,
 } from "@babylonjs/gui";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface PlaythroughInfo {
   id: string;
-  name?: string;
+  name: string;
   status: string;
   lastPlayedAt?: string;
   createdAt: string;
-  playtime?: number;
+  playtime: number;
+  actionsCount: number;
 }
 
 export interface MainMenuCallbacks {
@@ -33,29 +35,65 @@ export interface MainMenuCallbacks {
   getPlaythroughs: () => Promise<PlaythroughInfo[]>;
   /** Create a new playthrough and return its ID */
   onNewGame: () => Promise<string | null>;
-  /** Continue the most recently played playthrough */
+  /** Continue / load a specific playthrough */
   onContinue: (playthroughId: string) => void;
-  /** Load a specific playthrough */
-  onLoadGame: (playthroughId: string) => void;
-  /** Go back to the editor/world list */
+  /** Go back to the editor / world list */
   onBack: () => void;
 }
 
 // ─── Colors ─────────────────────────────────────────────────────────────────
 
 const COLORS = {
-  bg: "rgba(8, 8, 14, 0.98)",
-  cardBg: "rgba(255, 255, 255, 0.05)",
-  cardBorder: "rgba(255, 255, 255, 0.08)",
-  cardHover: "rgba(255, 255, 255, 0.10)",
+  bg: "rgba(6, 6, 12, 1)",
+  overlayGradientTop: "rgba(8, 12, 28, 0.95)",
+  overlayGradientBot: "rgba(6, 6, 12, 0.98)",
+  cardBg: "rgba(255, 255, 255, 0.04)",
+  cardBorder: "rgba(255, 255, 255, 0.06)",
+  cardHover: "rgba(255, 255, 255, 0.09)",
   textPrimary: "#E8EAED",
   textSecondary: "#9AA0A6",
   textMuted: "#5F6368",
+  textDisabled: "#3C4043",
   accent: "#4285F4",
   accentGreen: "#34A853",
   accentYellow: "#FBBC04",
+  accentRed: "#EA4335",
   divider: "rgba(255, 255, 255, 0.08)",
+  disabled: "rgba(255, 255, 255, 0.02)",
+  disabledBorder: "rgba(255, 255, 255, 0.03)",
 };
+
+// ─── Animated star field (canvas-based) ─────────────────────────────────────
+
+interface Star {
+  x: number;
+  y: number;
+  size: number;
+  opacity: number;
+  speed: number;
+  phase: number;
+}
+
+// ─── Control reference ──────────────────────────────────────────────────────
+
+const CONTROLS_DATA = [
+  { key: "W A S D / Arrows", action: "Move / Turn" },
+  { key: "Space", action: "Jump" },
+  { key: "Shift", action: "Sprint" },
+  { key: "G", action: "Talk to NPC" },
+  { key: "Enter", action: "Enter / Exit Building" },
+  { key: "F", action: "Attack" },
+  { key: "T", action: "Target Enemy" },
+  { key: "X", action: "Examine Object" },
+  { key: "Y", action: "Eavesdrop" },
+  { key: "R (hold)", action: "Push-to-Talk" },
+  { key: "J", action: "Journal" },
+  { key: "Tab", action: "Map" },
+  { key: "M", action: "Game Menu" },
+  { key: "F5", action: "Quick Save" },
+  { key: "F9", action: "Quick Load" },
+  { key: "1 / 2 / 3", action: "Camera Mode" },
+];
 
 // ─── Main class ─────────────────────────────────────────────────────────────
 
@@ -65,10 +103,16 @@ export class MainMenuScreen {
   private worldName: string;
 
   private overlay: Rectangle | null = null;
-  private contentPanel: StackPanel | null = null;
   private playthroughs: PlaythroughInfo[] = [];
   private _isOpen = false;
-  private _view: "main" | "load" = "main";
+  private _view: "main" | "load" | "controls" = "main";
+
+  // Animated star background
+  private stars: Star[] = [];
+  private starCanvas: HTMLCanvasElement | null = null;
+  private starCtx: CanvasRenderingContext2D | null = null;
+  private starAnimId: number = 0;
+  private starImage: Image | null = null;
 
   constructor(
     advancedTexture: AdvancedDynamicTexture,
@@ -100,15 +144,118 @@ export class MainMenuScreen {
 
   hide(): void {
     this._isOpen = false;
+    this.stopStarAnimation();
     if (this.overlay) {
       this.advancedTexture.removeControl(this.overlay);
       this.overlay = null;
     }
-    this.contentPanel = null;
   }
 
   dispose(): void {
     this.hide();
+  }
+
+  // ─── Star-field animation ───────────────────────────────────────────────
+
+  private initStarField(): void {
+    this.stopStarAnimation();
+
+    const width = 800;
+    const height = 600;
+
+    this.starCanvas = document.createElement("canvas");
+    this.starCanvas.width = width;
+    this.starCanvas.height = height;
+    this.starCtx = this.starCanvas.getContext("2d");
+
+    // Generate stars
+    this.stars = [];
+    for (let i = 0; i < 200; i++) {
+      this.stars.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        size: Math.random() * 2 + 0.5,
+        opacity: Math.random() * 0.6 + 0.2,
+        speed: Math.random() * 0.3 + 0.05,
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+
+    // Create Babylon GUI Image control from canvas
+    this.starImage = new Image("starFieldBg", "");
+    this.starImage.width = 1;
+    this.starImage.height = 1;
+    this.starImage.stretch = Image.STRETCH_FILL;
+    this.starImage.zIndex = -1;
+
+    if (this.overlay) {
+      this.overlay.addControl(this.starImage);
+    }
+
+    let time = 0;
+    const animate = () => {
+      if (!this.starCtx || !this.starCanvas) return;
+      time += 0.016;
+
+      const ctx = this.starCtx;
+      // Dark gradient background
+      const grad = ctx.createLinearGradient(0, 0, 0, height);
+      grad.addColorStop(0, "rgb(8, 12, 28)");
+      grad.addColorStop(0.5, "rgb(6, 8, 18)");
+      grad.addColorStop(1, "rgb(4, 4, 10)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Draw stars with twinkling
+      for (const star of this.stars) {
+        const twinkle = Math.sin(time * star.speed * 4 + star.phase) * 0.3 + 0.7;
+        const alpha = star.opacity * twinkle;
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(220, 230, 255, ${alpha})`;
+        ctx.fill();
+
+        // Occasional bright glow
+        if (star.size > 1.5) {
+          ctx.beginPath();
+          ctx.arc(star.x, star.y, star.size * 3, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(180, 200, 255, ${alpha * 0.08})`;
+          ctx.fill();
+        }
+      }
+
+      // Subtle nebula-like glow patches
+      const drawGlow = (gx: number, gy: number, r: number, color: string, a: number) => {
+        const pulse = Math.sin(time * 0.3 + gx * 0.01) * 0.15 + 0.85;
+        const grd = ctx.createRadialGradient(gx, gy, 0, gx, gy, r);
+        grd.addColorStop(0, color.replace("A)", `${a * pulse})`));
+        grd.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = grd;
+        ctx.fillRect(gx - r, gy - r, r * 2, r * 2);
+      };
+      drawGlow(200, 150, 180, "rgba(60, 80, 180, A)", 0.06);
+      drawGlow(600, 400, 200, "rgba(100, 50, 140, A)", 0.04);
+      drawGlow(400, 300, 150, "rgba(40, 120, 160, A)", 0.03);
+
+      // Update the Babylon Image from canvas
+      if (this.starImage) {
+        this.starImage.source = this.starCanvas.toDataURL("image/png");
+      }
+
+      this.starAnimId = requestAnimationFrame(animate);
+    };
+
+    this.starAnimId = requestAnimationFrame(animate);
+  }
+
+  private stopStarAnimation(): void {
+    if (this.starAnimId) {
+      cancelAnimationFrame(this.starAnimId);
+      this.starAnimId = 0;
+    }
+    this.starCanvas = null;
+    this.starCtx = null;
+    this.starImage = null;
   }
 
   // ─── UI Building ────────────────────────────────────────────────────────
@@ -116,6 +263,7 @@ export class MainMenuScreen {
   private buildUI(): void {
     // Remove previous overlay
     if (this.overlay) {
+      this.stopStarAnimation();
       this.advancedTexture.removeControl(this.overlay);
     }
 
@@ -128,12 +276,19 @@ export class MainMenuScreen {
     this.overlay.zIndex = 9000;
     this.advancedTexture.addControl(this.overlay);
 
+    // Start animated background
+    this.initStarField();
+
     if (this._view === "main") {
       this.renderMainView();
-    } else {
+    } else if (this._view === "load") {
       this.renderLoadView();
+    } else if (this._view === "controls") {
+      this.renderControlsView();
     }
   }
+
+  // ─── Main title view ───────────────────────────────────────────────────
 
   private renderMainView(): void {
     if (!this.overlay) return;
@@ -144,76 +299,133 @@ export class MainMenuScreen {
     container.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     this.overlay.addControl(container);
 
-    // Title
-    const title = new TextBlock("menuTitle", this.worldName);
-    title.color = COLORS.textPrimary;
-    title.fontSize = 36;
-    title.fontWeight = "bold";
-    title.height = "60px";
-    title.textWrapping = TextWrapping.Ellipsis;
-    container.addControl(title);
+    // ── Game title ──
+    const titleContainer = new Rectangle("titleContainer");
+    titleContainer.height = "120px";
+    titleContainer.thickness = 0;
+    titleContainer.background = "transparent";
+    container.addControl(titleContainer);
 
-    // Subtitle
-    const subtitle = new TextBlock("menuSubtitle", "Main Menu");
-    subtitle.color = COLORS.textSecondary;
-    subtitle.fontSize = 14;
-    subtitle.height = "30px";
-    container.addControl(subtitle);
+    const title = new TextBlock("gameTitle", this.worldName);
+    title.color = COLORS.textPrimary;
+    title.fontSize = 48;
+    title.fontWeight = "bold";
+    title.fontFamily = "Georgia, 'Times New Roman', serif";
+    title.textWrapping = TextWrapping.Ellipsis;
+    title.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+    titleContainer.addControl(title);
+
+    // Subtle glow/shadow effect via a duplicate text behind
+    const titleGlow = new TextBlock("gameTitleGlow", this.worldName);
+    titleGlow.color = "rgba(66, 133, 244, 0.3)";
+    titleGlow.fontSize = 48;
+    titleGlow.fontWeight = "bold";
+    titleGlow.fontFamily = "Georgia, 'Times New Roman', serif";
+    titleGlow.textWrapping = TextWrapping.Ellipsis;
+    titleGlow.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+    titleGlow.top = "2px";
+    titleGlow.left = "2px";
+    titleGlow.zIndex = -1;
+    titleContainer.addControl(titleGlow);
+
+    // Decorative line under title
+    const divider = new Rectangle("titleDivider");
+    divider.width = "200px";
+    divider.height = "2px";
+    divider.thickness = 0;
+    divider.background = "rgba(66, 133, 244, 0.4)";
+    divider.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    container.addControl(divider);
 
     // Spacer
-    const spacer = new Rectangle("spacer1");
-    spacer.height = "30px";
-    spacer.thickness = 0;
-    spacer.background = "transparent";
-    container.addControl(spacer);
+    this.addSpacer(container, "40px");
 
-    // Find most recent playthrough for Continue
+    // ── Menu buttons ──
     const mostRecent = this.getMostRecentPlaythrough();
+    const hasPlaythroughs = this.playthroughs.length > 0;
 
-    // New Game button
-    this.addMenuButton(container, "New Game", "Start a new adventure", COLORS.accent, async () => {
-      this.showLoadingState("Creating new game...");
-      const playthroughId = await this.callbacks.onNewGame();
-      if (playthroughId) {
-        this.hide();
-        this.callbacks.onContinue(playthroughId);
-      } else {
-        // Failed - rebuild UI
-        this.buildUI();
-      }
-    });
+    // Continue
+    this.addTitleMenuButton(
+      container,
+      "Continue",
+      COLORS.accentGreen,
+      !!mostRecent,
+      () => {
+        if (mostRecent) {
+          this.hide();
+          this.callbacks.onContinue(mostRecent.id);
+        }
+      },
+    );
 
-    // Continue button (only if there's a recent playthrough)
-    if (mostRecent) {
-      const label = mostRecent.name || "Continue";
-      const desc = this.formatLastPlayed(mostRecent.lastPlayedAt || mostRecent.createdAt);
-      this.addMenuButton(container, "Continue", desc, COLORS.accentGreen, () => {
-        this.hide();
-        this.callbacks.onContinue(mostRecent.id);
-      });
-    }
+    // New Game
+    this.addTitleMenuButton(
+      container,
+      "New Game",
+      COLORS.accent,
+      true,
+      async () => {
+        this.showLoadingState("Creating new game...");
+        const playthroughId = await this.callbacks.onNewGame();
+        if (playthroughId) {
+          this.hide();
+          this.callbacks.onContinue(playthroughId);
+        } else {
+          this.buildUI();
+        }
+      },
+    );
 
-    // Load Game button (only if there are playthroughs)
-    if (this.playthroughs.length > 0) {
-      this.addMenuButton(container, "Load Game", `${this.playthroughs.length} playthrough${this.playthroughs.length === 1 ? "" : "s"} available`, COLORS.accentYellow, () => {
+    // Load Game
+    this.addTitleMenuButton(
+      container,
+      "Load Game",
+      COLORS.accentYellow,
+      hasPlaythroughs,
+      () => {
         this._view = "load";
         this.buildUI();
-      });
-    }
+      },
+    );
 
-    // Spacer
-    const spacer2 = new Rectangle("spacer2");
-    spacer2.height = "20px";
-    spacer2.thickness = 0;
-    spacer2.background = "transparent";
-    container.addControl(spacer2);
+    // Controls
+    this.addTitleMenuButton(
+      container,
+      "Controls",
+      COLORS.textSecondary,
+      true,
+      () => {
+        this._view = "controls";
+        this.buildUI();
+      },
+    );
 
-    // Back button
-    this.addMenuButton(container, "Back", "Return to world list", COLORS.textMuted, () => {
-      this.hide();
-      this.callbacks.onBack();
-    });
+    // Spacer before exit
+    this.addSpacer(container, "16px");
+
+    // Exit
+    this.addTitleMenuButton(
+      container,
+      "Exit",
+      COLORS.textMuted,
+      true,
+      () => {
+        this.hide();
+        this.callbacks.onBack();
+      },
+    );
+
+    // Version / footer
+    this.addSpacer(container, "40px");
+    const footer = new TextBlock("footer", "Press any button to begin");
+    footer.color = COLORS.textMuted;
+    footer.fontSize = 12;
+    footer.height = "20px";
+    footer.alpha = 0.6;
+    container.addControl(footer);
   }
+
+  // ─── Load game view ────────────────────────────────────────────────────
 
   private renderLoadView(): void {
     if (!this.overlay) return;
@@ -224,48 +436,10 @@ export class MainMenuScreen {
     container.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     this.overlay.addControl(container);
 
-    // Header
-    const header = new StackPanel("loadHeader");
-    header.isVertical = false;
-    header.height = "50px";
-    header.width = 1;
-    container.addControl(header);
+    // Header with back button
+    this.addSubViewHeader(container, "Load Game");
 
-    // Back arrow button
-    const backBtn = Button.CreateSimpleButton("loadBackBtn", "\u2190 Back");
-    backBtn.width = "100px";
-    backBtn.height = "40px";
-    backBtn.color = COLORS.textSecondary;
-    backBtn.background = "transparent";
-    backBtn.thickness = 0;
-    backBtn.fontSize = 14;
-    backBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    backBtn.onPointerClickObservable.add(() => {
-      this._view = "main";
-      this.buildUI();
-    });
-    header.addControl(backBtn);
-
-    const titleBlock = new TextBlock("loadTitle", "Load Game");
-    titleBlock.color = COLORS.textPrimary;
-    titleBlock.fontSize = 24;
-    titleBlock.fontWeight = "bold";
-    titleBlock.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    header.addControl(titleBlock);
-
-    // Spacer for symmetry
-    const spacerRight = new Rectangle("spacerRight");
-    spacerRight.width = "100px";
-    spacerRight.thickness = 0;
-    spacerRight.background = "transparent";
-    header.addControl(spacerRight);
-
-    // Spacer
-    const spacer = new Rectangle("loadSpacer");
-    spacer.height = "20px";
-    spacer.thickness = 0;
-    spacer.background = "transparent";
-    container.addControl(spacer);
+    this.addSpacer(container, "20px");
 
     // Scrollable list of playthroughs
     const scrollViewer = new ScrollViewer("loadScroll");
@@ -292,7 +466,10 @@ export class MainMenuScreen {
     }
 
     if (sorted.length === 0) {
-      const empty = new TextBlock("emptyMsg", "No playthroughs found.\nStart a New Game from the main menu.");
+      const empty = new TextBlock(
+        "emptyMsg",
+        "No playthroughs found.\nStart a New Game from the main menu.",
+      );
       empty.color = COLORS.textSecondary;
       empty.fontSize = 14;
       empty.height = "60px";
@@ -300,6 +477,130 @@ export class MainMenuScreen {
       list.addControl(empty);
     }
   }
+
+  // ─── Controls view ─────────────────────────────────────────────────────
+
+  private renderControlsView(): void {
+    if (!this.overlay) return;
+
+    const container = new StackPanel("controlsContainer");
+    container.width = "500px";
+    container.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    container.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    this.overlay.addControl(container);
+
+    // Header with back button
+    this.addSubViewHeader(container, "Controls");
+
+    this.addSpacer(container, "20px");
+
+    // Scrollable controls list
+    const scrollViewer = new ScrollViewer("controlsScroll");
+    scrollViewer.width = 1;
+    scrollViewer.height = "420px";
+    scrollViewer.thickness = 0;
+    scrollViewer.barColor = COLORS.textMuted;
+    scrollViewer.barBackground = COLORS.divider;
+    container.addControl(scrollViewer);
+
+    const list = new StackPanel("controlsList");
+    list.width = 1;
+    scrollViewer.addControl(list);
+
+    for (let i = 0; i < CONTROLS_DATA.length; i++) {
+      const ctrl = CONTROLS_DATA[i];
+      this.addControlRow(list, ctrl.key, ctrl.action, i % 2 === 0);
+    }
+  }
+
+  private addControlRow(
+    parent: StackPanel,
+    key: string,
+    action: string,
+    alternate: boolean,
+  ): void {
+    const row = new Rectangle(`ctrlRow_${key}`);
+    row.width = 1;
+    row.height = "38px";
+    row.thickness = 0;
+    row.background = alternate ? "rgba(255, 255, 255, 0.03)" : "transparent";
+    parent.addControl(row);
+
+    // Key badge
+    const keyBadge = new Rectangle(`ctrlKey_${key}`);
+    keyBadge.width = "160px";
+    keyBadge.height = "28px";
+    keyBadge.thickness = 1;
+    keyBadge.color = "rgba(66, 133, 244, 0.4)";
+    keyBadge.background = "rgba(66, 133, 244, 0.1)";
+    keyBadge.cornerRadius = 4;
+    keyBadge.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    keyBadge.left = "20px";
+    row.addControl(keyBadge);
+
+    const keyText = new TextBlock(`ctrlKeyTxt_${key}`, key);
+    keyText.color = COLORS.accent;
+    keyText.fontSize = 13;
+    keyText.fontWeight = "bold";
+    keyText.fontFamily = "'Courier New', monospace";
+    keyBadge.addControl(keyText);
+
+    // Action label
+    const actionText = new TextBlock(`ctrlAction_${key}`, action);
+    actionText.color = COLORS.textPrimary;
+    actionText.fontSize = 14;
+    actionText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    actionText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    actionText.left = "200px";
+    row.addControl(actionText);
+  }
+
+  // ─── Shared sub-view header ─────────────────────────────────────────────
+
+  private addSubViewHeader(parent: StackPanel, title: string): void {
+    const header = new StackPanel(`${title}Header`);
+    header.isVertical = false;
+    header.height = "50px";
+    header.width = 1;
+    parent.addControl(header);
+
+    // Back arrow button
+    const backBtn = Button.CreateSimpleButton("subViewBackBtn", "\u2190 Back");
+    backBtn.width = "100px";
+    backBtn.height = "40px";
+    backBtn.color = COLORS.textSecondary;
+    backBtn.background = "transparent";
+    backBtn.thickness = 0;
+    backBtn.fontSize = 14;
+    backBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    backBtn.onPointerEnterObservable.add(() => {
+      backBtn.color = COLORS.textPrimary;
+    });
+    backBtn.onPointerOutObservable.add(() => {
+      backBtn.color = COLORS.textSecondary;
+    });
+    backBtn.onPointerClickObservable.add(() => {
+      this._view = "main";
+      this.buildUI();
+    });
+    header.addControl(backBtn);
+
+    const titleBlock = new TextBlock("subViewTitle", title);
+    titleBlock.color = COLORS.textPrimary;
+    titleBlock.fontSize = 24;
+    titleBlock.fontWeight = "bold";
+    titleBlock.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    header.addControl(titleBlock);
+
+    // Spacer for symmetry
+    const spacerRight = new Rectangle("spacerRight");
+    spacerRight.width = "100px";
+    spacerRight.thickness = 0;
+    spacerRight.background = "transparent";
+    header.addControl(spacerRight);
+  }
+
+  // ─── UI Components ──────────────────────────────────────────────────────
 
   private addPlaythroughCard(parent: StackPanel, pt: PlaythroughInfo): void {
     const card = new Rectangle(`ptCard_${pt.id}`);
@@ -320,7 +621,10 @@ export class MainMenuScreen {
     card.addControl(inner);
 
     // Name
-    const name = new TextBlock(`ptName_${pt.id}`, pt.name || `Playthrough`);
+    const name = new TextBlock(
+      `ptName_${pt.id}`,
+      pt.name || "Playthrough",
+    );
     name.color = COLORS.textPrimary;
     name.fontSize = 16;
     name.fontWeight = "bold";
@@ -335,7 +639,10 @@ export class MainMenuScreen {
     details.push(this.formatLastPlayed(pt.lastPlayedAt || pt.createdAt));
     if (pt.playtime) details.push(this.formatPlaytime(pt.playtime));
 
-    const detailText = new TextBlock(`ptDetail_${pt.id}`, details.join("  \u2022  "));
+    const detailText = new TextBlock(
+      `ptDetail_${pt.id}`,
+      details.join("  \u2022  "),
+    );
     detailText.color = COLORS.textSecondary;
     detailText.fontSize = 12;
     detailText.height = "20px";
@@ -354,79 +661,97 @@ export class MainMenuScreen {
     // Click to load
     card.onPointerClickObservable.add(() => {
       this.hide();
-      this.callbacks.onLoadGame(pt.id);
+      this.callbacks.onContinue(pt.id);
     });
   }
 
-  private addMenuButton(
+  private addTitleMenuButton(
     parent: StackPanel,
     label: string,
-    description: string,
     accentColor: string,
+    enabled: boolean,
     onClick: () => void,
   ): void {
     const card = new Rectangle(`menuBtn_${label}`);
     card.width = 1;
-    card.height = "70px";
+    card.height = "54px";
     card.thickness = 1;
-    card.color = COLORS.cardBorder;
-    card.background = COLORS.cardBg;
-    card.cornerRadius = 8;
-    card.paddingBottom = "8px";
+    card.color = enabled ? COLORS.cardBorder : COLORS.disabledBorder;
+    card.background = enabled ? COLORS.cardBg : COLORS.disabled;
+    card.cornerRadius = 6;
+    card.paddingBottom = "6px";
     parent.addControl(card);
 
     // Accent bar on the left
     const accentBar = new Rectangle(`accent_${label}`);
-    accentBar.width = "4px";
+    accentBar.width = "3px";
     accentBar.height = 1;
     accentBar.thickness = 0;
-    accentBar.background = accentColor;
+    accentBar.background = enabled ? accentColor : COLORS.textDisabled;
     accentBar.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     card.addControl(accentBar);
 
-    const inner = new StackPanel(`btnInner_${label}`);
-    inner.width = 1;
-    inner.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-    card.addControl(inner);
-
     const labelText = new TextBlock(`btnLabel_${label}`, label);
-    labelText.color = COLORS.textPrimary;
+    labelText.color = enabled ? COLORS.textPrimary : COLORS.textDisabled;
     labelText.fontSize = 18;
-    labelText.fontWeight = "bold";
-    labelText.height = "28px";
+    labelText.fontWeight = "600";
     labelText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    labelText.left = "20px";
-    inner.addControl(labelText);
+    labelText.left = "24px";
+    card.addControl(labelText);
 
-    const descText = new TextBlock(`btnDesc_${label}`, description);
-    descText.color = COLORS.textSecondary;
-    descText.fontSize = 12;
-    descText.height = "18px";
-    descText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    descText.left = "20px";
-    inner.addControl(descText);
+    if (!enabled) {
+      // Show "No saves" hint for disabled items
+      const hint = new TextBlock(`btnHint_${label}`, "No saves");
+      hint.color = COLORS.textDisabled;
+      hint.fontSize = 11;
+      hint.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      hint.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      hint.left = "-24px";
+      card.addControl(hint);
+    }
 
-    // Hover effects
-    card.onPointerEnterObservable.add(() => {
-      card.background = COLORS.cardHover;
-    });
-    card.onPointerOutObservable.add(() => {
-      card.background = COLORS.cardBg;
-    });
+    if (enabled) {
+      // Hover effects
+      card.onPointerEnterObservable.add(() => {
+        card.background = COLORS.cardHover;
+        card.color = accentColor;
+        accentBar.background = accentColor;
+        labelText.color = "#FFFFFF";
+      });
+      card.onPointerOutObservable.add(() => {
+        card.background = COLORS.cardBg;
+        card.color = COLORS.cardBorder;
+        accentBar.background = accentColor;
+        labelText.color = COLORS.textPrimary;
+      });
 
-    card.onPointerClickObservable.add(() => onClick());
+      card.onPointerClickObservable.add(() => onClick());
+    }
   }
 
   private showLoadingState(message: string): void {
     if (!this.overlay) return;
 
-    // Clear existing content
-    this.overlay.clearControls();
+    // Clear existing content (keep star background running)
+    const controls = this.overlay.children.slice();
+    for (const c of controls) {
+      if (c !== this.starImage) {
+        this.overlay.removeControl(c);
+      }
+    }
 
     const loadingText = new TextBlock("loadingMsg", message);
     loadingText.color = COLORS.textSecondary;
     loadingText.fontSize = 18;
     this.overlay.addControl(loadingText);
+  }
+
+  private addSpacer(parent: StackPanel, height: string): void {
+    const spacer = new Rectangle(`spacer_${Math.random().toString(36).slice(2, 7)}`);
+    spacer.height = height;
+    spacer.thickness = 0;
+    spacer.background = "transparent";
+    parent.addControl(spacer);
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────────

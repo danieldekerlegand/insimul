@@ -10,7 +10,12 @@
       "worldType": "medieval-fantasy",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "medieval", "fantasy", "polyhaven"],
+      "tags": [
+        "base",
+        "medieval",
+        "fantasy",
+        "polyhaven"
+      ],
       "purpose": "Base collection for medieval fantasy worlds",
       "assets": {
         "nature": [
@@ -209,7 +214,62 @@
           "furniture_cabinet": "${polyhavenId:GothicCabinet_01}",
           "furniture_table": "${polyhavenId:WoodenTable_01}",
           "furniture_chair": "${polyhavenId:GreenChair_01}",
-          "furniture_shelf": "${polyhavenId:Shelf_01}"
+          "furniture_shelf": "${polyhavenId:Shelf_01}",
+          "sword": "${polyhavenId:antique_estoc}",
+          "dagger": "${polyhavenId:antique_katana_01}",
+          "saber": "${polyhavenId:wooden_handle_saber}",
+          "axe": "${polyhavenId:wooden_axe}",
+          "hammer": "${polyhavenId:wooden_axe}",
+          "spear": "${polyhavenId:antique_estoc}",
+          "staff": "${polyhavenId:wooden_axe}",
+          "bow": "${polyhavenId:wooden_axe}",
+          "mace": "${polyhavenId:wooden_axe}",
+          "shield": "${polyhavenId:wooden_crate_01}",
+          "helmet": "${polyhavenId:metal_tool_chest}",
+          "armor_piece": "${polyhavenId:metal_tool_chest}",
+          "potion": "${polyhavenId:brass_goblets}",
+          "goblet": "${polyhavenId:brass_goblets}",
+          "bottle": "${polyhavenId:brass_goblets}",
+          "jar": "${polyhavenId:wooden_bucket_02}",
+          "lantern": "${polyhavenId:Lantern_01}",
+          "torch": "${polyhavenId:Lantern_01}",
+          "candle": "${polyhavenId:wooden_candlestick}",
+          "food_loaf": "${polyhavenId:wooden_bucket_01}",
+          "food_plate": "${polyhavenId:brass_goblets}",
+          "food_bowl": "${polyhavenId:brass_goblets}",
+          "food_wedge": "${polyhavenId:wooden_bucket_01}",
+          "food_small": "${polyhavenId:wooden_bucket_01}",
+          "barrel": "${polyhavenId:wine_barrel_01}",
+          "crate": "${polyhavenId:wooden_crate_01}",
+          "sack": "${polyhavenId:wooden_bucket_01}",
+          "bucket": "${polyhavenId:wooden_bucket_01}",
+          "bookshelf": "${polyhavenId:wooden_bookshelf_worn}",
+          "book": "${polyhavenId:book_encyclopedia_set_01}",
+          "scroll": "${polyhavenId:book_encyclopedia_set_01}",
+          "ore_chunk": "${polyhavenId:boulder_01}",
+          "ingot": "${polyhavenId:wooden_bucket_01}",
+          "plank": "${polyhavenId:wooden_stool_01}",
+          "spool": "${polyhavenId:wooden_bucket_01}",
+          "rope": "${polyhavenId:wooden_bucket_01}",
+          "inkwell": "${polyhavenId:brass_goblets}",
+          "key": "${polyhavenId:brass_candleholders}",
+          "ring": "${polyhavenId:brass_candleholders}",
+          "amulet": "${polyhavenId:brass_candleholders}",
+          "gemstone": "${polyhavenId:brass_goblets}",
+          "crown": "${polyhavenId:brass_goblets}",
+          "quiver": "${polyhavenId:wooden_bucket_02}",
+          "plant": "${polyhavenId:potted_plant_02}",
+          "bell": "${polyhavenId:brass_candleholders}",
+          "pouch": "${polyhavenId:wooden_bucket_01}",
+          "small_prop": "${polyhavenId:brass_candleholders}",
+          "small_box": "${polyhavenId:wooden_crate_02}",
+          "small_block": "${polyhavenId:wooden_bucket_01}",
+          "small_tool": "${polyhavenId:brass_candleholders}",
+          "mortar": "${polyhavenId:wooden_bucket_02}",
+          "saw": "${polyhavenId:wooden_axe}",
+          "shovel": "${polyhavenId:wooden_axe}",
+          "rod": "${polyhavenId:wooden_axe}",
+          "pickaxe": "${polyhavenId:wooden_axe}"
         },
         "questObjectModels": {
           "collectible": "${polyhavenId:treasure_chest}",
@@ -228,7 +288,13 @@
       "worldType": "cyberpunk",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "cyberpunk", "sci-fi", "futuristic", "polyhaven"],
+      "tags": [
+        "base",
+        "cyberpunk",
+        "sci-fi",
+        "futuristic",
+        "polyhaven"
+      ],
       "purpose": "Base collection for cyberpunk worlds",
       "assets": {
         "nature": [
@@ -341,7 +407,30 @@
           "prop": "${polyhavenId:utility_box_01}",
           "decoration": "${polyhavenId:utility_box_02}",
           "barrel_fire": "${polyhavenId:barrel_stove}",
-          "electronics": "${polyhavenId:boombox}"
+          "electronics": "${polyhavenId:boombox}",
+          "boombox": "${polyhavenId:boombox}",
+          "console": "${polyhavenId:ClassicConsole_01}",
+          "data_pad": "${polyhavenId:ClassicConsole_01}",
+          "blade": "${polyhavenId:antique_estoc}",
+          "pistol": "${polyhavenId:street_lamp_01}",
+          "energy_core": "${polyhavenId:Barrel_01}",
+          "crate": "${polyhavenId:wooden_crate_01}",
+          "barrel": "${polyhavenId:Barrel_01}",
+          "syringe": "${polyhavenId:brass_candleholders}",
+          "med_pack": "${polyhavenId:metal_tool_chest}",
+          "grenade": "${polyhavenId:brass_goblets}",
+          "baton": "${polyhavenId:wooden_axe}",
+          "rifle": "${polyhavenId:street_lamp_01}",
+          "armor_piece": "${polyhavenId:metal_tool_chest}",
+          "helmet": "${polyhavenId:metal_tool_chest}",
+          "wire_coil": "${polyhavenId:wooden_bucket_01}",
+          "food_bar": "${polyhavenId:wooden_crate_02}",
+          "drink_can": "${polyhavenId:brass_goblets}",
+          "card": "${polyhavenId:book_encyclopedia_set_01}",
+          "ore_chunk": "${polyhavenId:boulder_01}",
+          "small_prop": "${polyhavenId:brass_candleholders}",
+          "bottle": "${polyhavenId:brass_goblets}",
+          "battery": "${polyhavenId:utility_box_01}"
         },
         "questObjectModels": {
           "collectible": "${polyhavenId:utility_box_02}"
@@ -359,7 +448,13 @@
       "worldType": "sci-fi-space",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "sci-fi", "space", "futuristic", "polyhaven"],
+      "tags": [
+        "base",
+        "sci-fi",
+        "space",
+        "futuristic",
+        "polyhaven"
+      ],
       "purpose": "Base collection for sci-fi space worlds",
       "assets": {
         "nature": [
@@ -448,7 +543,30 @@
           "storage": "${polyhavenId:Barrel_01}",
           "lamp": "${polyhavenId:street_lamp_01}",
           "prop": "${polyhavenId:utility_box_01}",
-          "decoration": "${polyhavenId:utility_box_02}"
+          "decoration": "${polyhavenId:utility_box_02}",
+          "pistol": "${polyhavenId:street_lamp_01}",
+          "rifle": "${polyhavenId:street_lamp_01}",
+          "baton": "${polyhavenId:wooden_axe}",
+          "syringe": "${polyhavenId:brass_candleholders}",
+          "med_pack": "${polyhavenId:metal_tool_chest}",
+          "food_bar": "${polyhavenId:wooden_crate_02}",
+          "bottle": "${polyhavenId:brass_goblets}",
+          "tank": "${polyhavenId:Barrel_01}",
+          "toolbox": "${polyhavenId:metal_tool_chest}",
+          "scroll": "${polyhavenId:book_encyclopedia_set_01}",
+          "gemstone": "${polyhavenId:brass_goblets}",
+          "card": "${polyhavenId:book_encyclopedia_set_01}",
+          "ingot": "${polyhavenId:wooden_bucket_01}",
+          "small_prop": "${polyhavenId:brass_candleholders}",
+          "small_tool": "${polyhavenId:brass_candleholders}",
+          "battery": "${polyhavenId:utility_box_01}",
+          "barrel": "${polyhavenId:Barrel_01}",
+          "crate": "${polyhavenId:wooden_crate_01}",
+          "ore_chunk": "${polyhavenId:boulder_01}",
+          "armor_piece": "${polyhavenId:metal_tool_chest}",
+          "helmet": "${polyhavenId:metal_tool_chest}",
+          "shield": "${polyhavenId:wooden_crate_01}",
+          "sword": "${polyhavenId:antique_estoc}"
         },
         "questObjectModels": {
           "collectible": "${polyhavenId:utility_box_02}"
@@ -466,7 +584,13 @@
       "worldType": "post-apocalyptic",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "post-apocalyptic", "wasteland", "survival", "polyhaven"],
+      "tags": [
+        "base",
+        "post-apocalyptic",
+        "wasteland",
+        "survival",
+        "polyhaven"
+      ],
       "purpose": "Base collection for post-apocalyptic worlds",
       "assets": {
         "nature": [
@@ -587,7 +711,26 @@
           "lamp": "${polyhavenId:street_lamp_02}",
           "tool": "${polyhavenId:wooden_axe}",
           "barrel_fire": "${polyhavenId:barrel_stove}",
-          "prop": "${polyhavenId:utility_box_02}"
+          "prop": "${polyhavenId:utility_box_02}",
+          "hammer": "${polyhavenId:wooden_axe}",
+          "axe": "${polyhavenId:wooden_axe}",
+          "baton": "${polyhavenId:wooden_axe}",
+          "rifle": "${polyhavenId:street_lamp_02}",
+          "barrel": "${polyhavenId:Barrel_01}",
+          "crate": "${polyhavenId:wooden_crate_02}",
+          "can": "${polyhavenId:wooden_crate_02}",
+          "bottle": "${polyhavenId:brass_goblets}",
+          "med_pack": "${polyhavenId:metal_tool_chest}",
+          "spool": "${polyhavenId:wooden_bucket_01}",
+          "ore_chunk": "${polyhavenId:boulder_01}",
+          "small_tool": "${polyhavenId:brass_candleholders}",
+          "small_prop": "${polyhavenId:brass_candleholders}",
+          "food_bar": "${polyhavenId:wooden_crate_02}",
+          "food_small": "${polyhavenId:wooden_bucket_01}",
+          "armor_piece": "${polyhavenId:metal_tool_chest}",
+          "helmet": "${polyhavenId:metal_tool_chest}",
+          "shield": "${polyhavenId:wooden_crate_01}",
+          "sword": "${polyhavenId:antique_estoc}"
         },
         "questObjectModels": {
           "collectible": "${polyhavenId:wooden_crate_02}"
@@ -605,7 +748,13 @@
       "worldType": "steampunk",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "steampunk", "victorian", "brass", "polyhaven"],
+      "tags": [
+        "base",
+        "steampunk",
+        "victorian",
+        "brass",
+        "polyhaven"
+      ],
       "purpose": "Base collection for steampunk worlds",
       "assets": {
         "nature": [
@@ -726,7 +875,11 @@
           "furniture_table": "${polyhavenId:ClassicConsole_01}",
           "furniture_chair": "${polyhavenId:ArmChair_01}",
           "tableware": "${polyhavenId:tea_set_01}",
-          "books": "${polyhavenId:book_encyclopedia_set_01}"
+          "books": "${polyhavenId:book_encyclopedia_set_01}",
+          "armor_piece": "${polyhavenId:metal_tool_chest}",
+          "helmet": "${polyhavenId:metal_tool_chest}",
+          "shield": "${polyhavenId:wooden_crate_01}",
+          "sword": "${polyhavenId:antique_estoc}"
         },
         "questObjectModels": {
           "collectible": "${polyhavenId:tea_set_01}"
@@ -744,7 +897,13 @@
       "worldType": "wild-west",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "western", "frontier", "cowboy", "polyhaven"],
+      "tags": [
+        "base",
+        "western",
+        "frontier",
+        "cowboy",
+        "polyhaven"
+      ],
       "purpose": "Base collection for western frontier worlds",
       "assets": {
         "nature": [
@@ -873,7 +1032,31 @@
           "furniture_stool": "${polyhavenId:bar_chair_round_01}",
           "furniture_chair": "${polyhavenId:Rockingchair_01}",
           "furniture_table": "${polyhavenId:wooden_table_02}",
-          "tool": "${polyhavenId:wooden_axe}"
+          "tool": "${polyhavenId:wooden_axe}",
+          "axe": "${polyhavenId:wooden_axe}",
+          "dagger": "${polyhavenId:antique_katana_01}",
+          "revolver": "${polyhavenId:street_lamp_01}",
+          "rifle": "${polyhavenId:street_lamp_01}",
+          "lantern": "${polyhavenId:Lantern_01}",
+          "bottle": "${polyhavenId:brass_goblets}",
+          "goblet": "${polyhavenId:brass_goblets}",
+          "rope": "${polyhavenId:wooden_bucket_01}",
+          "barrel": "${polyhavenId:wine_barrel_01}",
+          "crate": "${polyhavenId:wooden_crate_01}",
+          "can": "${polyhavenId:wooden_crate_02}",
+          "food_small": "${polyhavenId:wooden_bucket_01}",
+          "ore_chunk": "${polyhavenId:boulder_01}",
+          "pouch": "${polyhavenId:wooden_bucket_01}",
+          "small_prop": "${polyhavenId:brass_candleholders}",
+          "register": "${polyhavenId:CashRegister_01}",
+          "bar_stool": "${polyhavenId:bar_chair_round_01}",
+          "chair": "${polyhavenId:Rockingchair_01}",
+          "med_pack": "${polyhavenId:metal_tool_chest}",
+          "sack": "${polyhavenId:wooden_bucket_01}",
+          "armor_piece": "${polyhavenId:metal_tool_chest}",
+          "helmet": "${polyhavenId:metal_tool_chest}",
+          "shield": "${polyhavenId:wooden_crate_01}",
+          "sword": "${polyhavenId:antique_estoc}"
         },
         "questObjectModels": {
           "collectible": "${polyhavenId:wooden_crate_01}"
@@ -891,7 +1074,13 @@
       "worldType": "tropical-pirate",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "tropical", "pirate", "caribbean", "polyhaven"],
+      "tags": [
+        "base",
+        "tropical",
+        "pirate",
+        "caribbean",
+        "polyhaven"
+      ],
       "purpose": "Base collection for tropical pirate worlds",
       "assets": {
         "nature": [
@@ -1003,7 +1192,11 @@
           "lamp": "${polyhavenId:wooden_lantern_01}",
           "prop": "${polyhavenId:wooden_bucket_01}",
           "weapon": "${polyhavenId:wooden_handle_saber}",
-          "tableware": "${polyhavenId:brass_goblets}"
+          "tableware": "${polyhavenId:brass_goblets}",
+          "armor_piece": "${polyhavenId:metal_tool_chest}",
+          "helmet": "${polyhavenId:metal_tool_chest}",
+          "shield": "${polyhavenId:wooden_crate_01}",
+          "sword": "${polyhavenId:antique_estoc}"
         },
         "questObjectModels": {
           "collectible": "${polyhavenId:treasure_chest}",
@@ -1022,7 +1215,12 @@
       "worldType": "generic",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "generic", "default", "polyhaven"],
+      "tags": [
+        "base",
+        "generic",
+        "default",
+        "polyhaven"
+      ],
       "purpose": "Fallback collection for generic worlds",
       "assets": {
         "nature": [
@@ -1193,7 +1391,13 @@
       "worldType": "historical-ancient",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "historical", "ancient", "classical", "polyhaven"],
+      "tags": [
+        "base",
+        "historical",
+        "ancient",
+        "classical",
+        "polyhaven"
+      ],
       "purpose": "Base collection for ancient historical worlds",
       "assets": {
         "nature": [
@@ -1290,7 +1494,11 @@
           "lamp": "${polyhavenId:vintage_oil_lamp}",
           "decoration": "${polyhavenId:stone_fire_pit}",
           "prop": "${polyhavenId:wooden_bucket_01}",
-          "tableware": "${polyhavenId:brass_goblets}"
+          "tableware": "${polyhavenId:brass_goblets}",
+          "armor_piece": "${polyhavenId:metal_tool_chest}",
+          "helmet": "${polyhavenId:metal_tool_chest}",
+          "shield": "${polyhavenId:wooden_crate_01}",
+          "sword": "${polyhavenId:antique_estoc}"
         },
         "questObjectModels": {
           "collectible": "${polyhavenId:brass_goblets}"
@@ -1308,7 +1516,13 @@
       "worldType": "high-fantasy",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "high-fantasy", "epic", "magic", "polyhaven"],
+      "tags": [
+        "base",
+        "high-fantasy",
+        "epic",
+        "magic",
+        "polyhaven"
+      ],
       "purpose": "Base collection for high fantasy worlds",
       "assets": {
         "nature": [
@@ -1421,7 +1635,13 @@
       "worldType": "dark-fantasy",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "dark-fantasy", "gothic", "grim", "polyhaven"],
+      "tags": [
+        "base",
+        "dark-fantasy",
+        "gothic",
+        "grim",
+        "polyhaven"
+      ],
       "purpose": "Base collection for dark fantasy worlds",
       "assets": {
         "nature": [
@@ -1543,7 +1763,13 @@
       "worldType": "low-fantasy",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "low-fantasy", "realistic", "medieval", "polyhaven"],
+      "tags": [
+        "base",
+        "low-fantasy",
+        "realistic",
+        "medieval",
+        "polyhaven"
+      ],
       "purpose": "Base collection for low fantasy worlds",
       "assets": {
         "nature": [
@@ -1650,7 +1876,14 @@
       "worldType": "historical-medieval",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "historical", "medieval", "european", "realistic", "polyhaven"],
+      "tags": [
+        "base",
+        "historical",
+        "medieval",
+        "european",
+        "realistic",
+        "polyhaven"
+      ],
       "purpose": "Base collection for historically accurate medieval worlds",
       "assets": {
         "nature": [
@@ -1765,7 +1998,14 @@
       "worldType": "mythological",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "mythological", "ancient", "greek", "norse", "polyhaven"],
+      "tags": [
+        "base",
+        "mythological",
+        "ancient",
+        "greek",
+        "norse",
+        "polyhaven"
+      ],
       "purpose": "Base collection for mythological worlds with gods and heroes",
       "assets": {
         "nature": [
@@ -1879,7 +2119,13 @@
       "worldType": "urban-fantasy",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "urban-fantasy", "modern", "magic", "polyhaven"],
+      "tags": [
+        "base",
+        "urban-fantasy",
+        "modern",
+        "magic",
+        "polyhaven"
+      ],
       "purpose": "Base collection for urban fantasy worlds",
       "assets": {
         "nature": [
@@ -2010,7 +2256,13 @@
       "worldType": "historical-renaissance",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "historical", "renaissance", "scholarly", "polyhaven"],
+      "tags": [
+        "base",
+        "historical",
+        "renaissance",
+        "scholarly",
+        "polyhaven"
+      ],
       "purpose": "Base collection for Renaissance historical worlds",
       "assets": {
         "nature": [
@@ -2149,7 +2401,13 @@
       "worldType": "historical-victorian",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "historical", "victorian", "industrial", "polyhaven"],
+      "tags": [
+        "base",
+        "historical",
+        "victorian",
+        "industrial",
+        "polyhaven"
+      ],
       "purpose": "Base collection for Victorian era worlds",
       "assets": {
         "nature": [
@@ -2280,7 +2538,13 @@
       "worldType": "modern-realistic",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "modern", "realistic", "contemporary", "polyhaven"],
+      "tags": [
+        "base",
+        "modern",
+        "realistic",
+        "contemporary",
+        "polyhaven"
+      ],
       "purpose": "Base collection for modern realistic worlds",
       "assets": {
         "nature": [
@@ -2403,7 +2667,13 @@
       "worldType": "superhero",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "superhero", "urban", "modern", "polyhaven"],
+      "tags": [
+        "base",
+        "superhero",
+        "urban",
+        "modern",
+        "polyhaven"
+      ],
       "purpose": "Base collection for superhero worlds",
       "assets": {
         "nature": [
@@ -2526,7 +2796,13 @@
       "worldType": "horror",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "horror", "gothic", "eerie", "polyhaven"],
+      "tags": [
+        "base",
+        "horror",
+        "gothic",
+        "eerie",
+        "polyhaven"
+      ],
       "purpose": "Base collection for horror worlds",
       "assets": {
         "nature": [
@@ -2656,7 +2932,13 @@
       "worldType": "solarpunk",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "solarpunk", "green", "sustainable", "polyhaven"],
+      "tags": [
+        "base",
+        "solarpunk",
+        "green",
+        "sustainable",
+        "polyhaven"
+      ],
       "purpose": "Base collection for solarpunk worlds",
       "assets": {
         "nature": [
@@ -2787,7 +3069,13 @@
       "worldType": "dieselpunk",
       "isBase": true,
       "isPublic": true,
-      "tags": ["base", "dieselpunk", "industrial", "1940s", "polyhaven"],
+      "tags": [
+        "base",
+        "dieselpunk",
+        "industrial",
+        "1940s",
+        "polyhaven"
+      ],
       "purpose": "Base collection for dieselpunk worlds",
       "assets": {
         "nature": [
@@ -2909,16 +3197,53 @@
     "version": "2.0.0",
     "note": "All model asset IDs verified against Polyhaven API (models category). Building models removed — procedural buildings are used instead. Texture IDs use Polyhaven texture category.",
     "verifiedModelIds": [
-      "tree_small_02", "jacaranda_tree", "dead_tree_trunk", "tree_stump_01", "boulder_01",
-      "wine_barrel_01", "wooden_crate_01", "wooden_crate_02", "wooden_bucket_01", "wooden_barrels_01",
-      "Lantern_01", "Chandelier_01", "brass_goblets", "brass_candleholders", "book_encyclopedia_set_01",
-      "GothicBed_01", "GothicCabinet_01", "GothicCommode_01", "GreenChair_01", "WoodenTable_01",
-      "wooden_table_02", "Shelf_01", "treasure_chest", "antique_estoc", "antique_katana_01",
-      "street_lamp_01", "street_lamp_02", "utility_box_01", "utility_box_02", "Barrel_01",
-      "barrel_03", "barrel_stove", "boombox", "wooden_axe", "wooden_lantern_01",
-      "wooden_handle_saber", "CashRegister_01", "Rockingchair_01", "bar_chair_round_01",
-      "vintage_grandfather_clock_01", "vintage_oil_lamp", "ClassicConsole_01", "ArmChair_01",
-      "tea_set_01", "wooden_stool_01", "stone_fire_pit", "wooden_bookshelf_worn"
+      "tree_small_02",
+      "jacaranda_tree",
+      "dead_tree_trunk",
+      "tree_stump_01",
+      "boulder_01",
+      "wine_barrel_01",
+      "wooden_crate_01",
+      "wooden_crate_02",
+      "wooden_bucket_01",
+      "wooden_barrels_01",
+      "Lantern_01",
+      "Chandelier_01",
+      "brass_goblets",
+      "brass_candleholders",
+      "book_encyclopedia_set_01",
+      "GothicBed_01",
+      "GothicCabinet_01",
+      "GothicCommode_01",
+      "GreenChair_01",
+      "WoodenTable_01",
+      "wooden_table_02",
+      "Shelf_01",
+      "treasure_chest",
+      "antique_estoc",
+      "antique_katana_01",
+      "street_lamp_01",
+      "street_lamp_02",
+      "utility_box_01",
+      "utility_box_02",
+      "Barrel_01",
+      "barrel_03",
+      "barrel_stove",
+      "boombox",
+      "wooden_axe",
+      "wooden_lantern_01",
+      "wooden_handle_saber",
+      "CashRegister_01",
+      "Rockingchair_01",
+      "bar_chair_round_01",
+      "vintage_grandfather_clock_01",
+      "vintage_oil_lamp",
+      "ClassicConsole_01",
+      "ArmChair_01",
+      "tea_set_01",
+      "wooden_stool_01",
+      "stone_fire_pit",
+      "wooden_bookshelf_worn"
     ],
     "workflow": [
       "1. Migration script creates base collections from this JSON",

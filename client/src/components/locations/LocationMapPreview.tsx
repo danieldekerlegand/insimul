@@ -33,6 +33,7 @@ interface LocationMapPreviewProps {
   worldName?: string;
   onSettlementClick?: (settlement: any) => void;
   onCountryClick?: (country: any) => void;
+  onBuildingClick?: (lotId: string) => void;
   className?: string;
   visibleLayers?: Set<MapLayer>;
 }
@@ -154,6 +155,7 @@ export function LocationMapPreview({
   worldName = 'World',
   onSettlementClick,
   onCountryClick,
+  onBuildingClick,
   className = '',
   visibleLayers,
 }: LocationMapPreviewProps) {
@@ -161,6 +163,8 @@ export function LocationMapPreview({
   const engineRef = useRef<BABYLON.Engine | null>(null);
   const sceneRef = useRef<BABYLON.Scene | null>(null);
   const guiRef = useRef<GUI.AdvancedDynamicTexture | null>(null);
+  const onBuildingClickRef = useRef(onBuildingClick);
+  onBuildingClickRef.current = onBuildingClick;
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState<string | null>(null);
 
@@ -246,6 +250,16 @@ export function LocationMapPreview({
           onSettlementClick(entry.data);
         } else if (entry?.type === 'country' && onCountryClick) {
           onCountryClick(entry.data);
+        } else {
+          // Check for building/lot click by walking up parent chain
+          let mesh: BABYLON.AbstractMesh | null = pickResult.pickedMesh;
+          while (mesh) {
+            if (mesh.metadata?.lotMeta?.id && onBuildingClickRef.current) {
+              onBuildingClickRef.current(mesh.metadata.lotMeta.id);
+              break;
+            }
+            mesh = mesh.parent as BABYLON.AbstractMesh | null;
+          }
         }
       }
     };
@@ -1371,9 +1385,17 @@ function renderAreaWaterPreview(
 
 function setupLotHover(scene: BABYLON.Scene, gui: GUI.AdvancedDynamicTexture) {
   let lastHighlightedMesh: BABYLON.AbstractMesh | null = null;
-  let lastOriginalEmissive: BABYLON.Color3 | null = null;
   // Track all related meshes for a lot so we can highlight building + ground plane together
   let lastHighlightedGroup: BABYLON.AbstractMesh[] = [];
+  // Track lot-plane alpha/emissive changes separately (these use per-lot materials, safe to modify)
+  let lastLotPlanes: BABYLON.AbstractMesh[] = [];
+
+  // Use a HighlightLayer for model instances — avoids mutating shared materials
+  const hl = new BABYLON.HighlightLayer('lotHighlight', scene);
+  hl.outerGlow = true;
+  hl.innerGlow = false;
+  hl.blurHorizontalSize = 0.5;
+  hl.blurVerticalSize = 0.5;
 
   // Tooltip panel (hidden initially)
   const tooltip = new GUI.Rectangle('lotTooltip');
@@ -1404,21 +1426,22 @@ function setupLotHover(scene: BABYLON.Scene, gui: GUI.AdvancedDynamicTexture) {
   tooltip.addControl(tooltipText);
 
   const clearHighlight = () => {
+    // Remove highlight glow from all meshes
     for (const m of lastHighlightedGroup) {
+      if (!m.isDisposed()) hl.removeMesh(m as BABYLON.Mesh);
+    }
+    // Restore lot ground planes (these have per-lot materials, safe to modify directly)
+    for (const m of lastLotPlanes) {
       if (m.isDisposed()) continue;
       const mat = m.material as BABYLON.StandardMaterial | null;
-      if (!mat) continue;
-      if (m.metadata?.isLotPlane) {
-        // Restore lot ground plane to near-invisible
+      if (mat) {
         mat.emissiveColor = BABYLON.Color3.Black();
         mat.alpha = 0.12;
-      } else {
-        mat.emissiveColor = lastOriginalEmissive ?? BABYLON.Color3.Black();
       }
     }
     lastHighlightedMesh = null;
-    lastOriginalEmissive = null;
     lastHighlightedGroup = [];
+    lastLotPlanes = [];
     tooltip.isVisible = false;
   };
 
@@ -1463,33 +1486,36 @@ function setupLotHover(scene: BABYLON.Scene, gui: GUI.AdvancedDynamicTexture) {
 
     // Find ALL meshes belonging to this lot (ground plane, building, plate, roof, children)
     const lotId = lotMeta.id;
-    const group: BABYLON.AbstractMesh[] = [];
+    const group: BABYLON.Mesh[] = [];
+    const lotPlanes: BABYLON.AbstractMesh[] = [];
     for (const m of scene.meshes) {
       if (m.metadata?.lotMeta?.id === lotId) {
-        group.push(m);
+        group.push(m as BABYLON.Mesh);
         // Also grab child meshes (e.g., model instances parented to lot_parent)
         m.getChildMeshes(false).forEach(child => {
-          if (child.material) group.push(child);
+          group.push(child as BABYLON.Mesh);
         });
       }
     }
 
+    const highlightColor = new BABYLON.Color3(1, 0.95, 0.4);
     for (const m of group) {
-      const mat = m.material as BABYLON.StandardMaterial | null;
-      if (!mat) continue;
       if (m.metadata?.isLotPlane) {
-        // Make the lot ground plane clearly visible
-        mat.emissiveColor = new BABYLON.Color3(0.3, 0.3, 0.1);
-        mat.alpha = 0.45;
-      } else {
-        if (!lastOriginalEmissive) {
-          lastOriginalEmissive = mat.emissiveColor.clone();
+        // Lot ground planes have per-lot materials, safe to modify directly
+        lotPlanes.push(m);
+        const mat = m.material as BABYLON.StandardMaterial | null;
+        if (mat) {
+          mat.emissiveColor = new BABYLON.Color3(0.3, 0.3, 0.1);
+          mat.alpha = 0.45;
         }
-        mat.emissiveColor = new BABYLON.Color3(0.5, 0.5, 0.2);
+      } else {
+        // Use HighlightLayer glow — does NOT mutate shared materials
+        try { hl.addMesh(m as BABYLON.Mesh, highlightColor); } catch { /* some meshes can't be highlighted */ }
       }
     }
     lastHighlightedMesh = mesh;
     lastHighlightedGroup = group;
+    lastLotPlanes = lotPlanes;
 
     // Build tooltip content
     const lines: string[] = [];

@@ -159,8 +159,16 @@ export function CharacterDetailView({
   const portrait = visualAssets.find((a: any) => a.assetType === 'character_portrait');
   const textures = visualAssets.filter((a: any) => a.assetType === 'character_texture');
 
-  // NPC model is stored on the character's generationConfig
-  const npcModelPath = (character.generationConfig as any)?.npcModelPath || null;
+  // NPC model: use explicit generationConfig path, or auto-select based on gender
+  const explicitModelPath = (character.generationConfig as any)?.npcModelPath || null;
+  const genderModelPath = (() => {
+    if (explicitModelPath) return null; // explicit path takes priority
+    const g = (character.gender || '').toLowerCase();
+    if (g === 'female' || g === 'f') return 'assets/characters/generic/npc_civilian_female.glb';
+    if (g === 'male' || g === 'm') return 'assets/characters/generic/npc_civilian_male.glb';
+    return null; // fallback to default for other/unspecified
+  })();
+  const npcModelPath = explicitModelPath || genderModelPath || null;
   const currentNpcModel = BUNDLED_NPC_MODELS.find(m => npcModelPath && npcModelPath === m.filePath);
   const currentModelName = currentNpcModel?.name || (npcModelPath ? 'Custom model' : 'Default NPC (starterAvatars)');
 
@@ -169,10 +177,17 @@ export function CharacterDetailView({
   };
 
   const getAge = (char: Character) => {
+    // Use the stored age field if available (MongoDB stores it directly)
+    if ((char as any).age != null && (char as any).age > 0) return (char as any).age;
     if (!char.birthYear) return null;
-    const currentYear = worldData?.currentYear || worldData?.foundedYear
-      ? (worldData.currentYear || worldData.foundedYear + 100)
-      : new Date().getFullYear();
+    // Try world-level year fields, then fall back to current real year
+    const currentYear =
+      worldData?.currentGameYear ||
+      worldData?.historyEndYear ||
+      worldData?.currentYear ||
+      worldData?.foundedYear
+        ? (worldData.currentGameYear || worldData.historyEndYear || worldData.currentYear || (worldData.foundedYear + 100))
+        : new Date().getFullYear();
     const age = currentYear - char.birthYear;
     return age >= 0 ? age : null;
   };
@@ -355,7 +370,12 @@ export function CharacterDetailView({
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Occupation</span>
-                    <p className="text-sm font-semibold text-right">{character.occupation || 'Not specified'}</p>
+                    <p className="text-sm font-semibold text-right">{
+                      character.occupation
+                      || ((character as any).customData?.currentOccupation?.vocation)
+                      || ((character.socialAttributes as any)?.currentOccupation)
+                      || (character.retired ? 'Retired' : 'Not specified')
+                    }</p>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Location</span>

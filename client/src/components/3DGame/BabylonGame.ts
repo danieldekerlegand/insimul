@@ -36,6 +36,7 @@ import {
   Observer
 } from "@babylonjs/core";
 import "@babylonjs/loaders/glTF";
+import "@babylonjs/inspector";
 
 import { CharacterController } from "@/components/3DGame/CharacterController.ts";
 import { Action, ActionContext, ActionResult } from "@/components/3DGame/types/actions.ts";
@@ -134,7 +135,6 @@ import { WorldStateManager, type GameStateSource, type GameStateTarget } from "@
 import { SaveIndicator } from "@/components/3DGame/SaveIndicator.ts";
 import { DataSource, createDataSource } from "@/components/3DGame/DataSource.ts";
 import { PlaythroughQuestOverlay } from "@/components/3DGame/PlaythroughQuestOverlay.ts";
-import { PlaythroughMainMenu, type PlaythroughMenuEntry } from "@/components/3DGame/PlaythroughMainMenu.ts";
 import { RelationshipManager } from "@/components/3DGame/RelationshipManager.ts";
 import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/SettlementSceneManager.ts";
 import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
@@ -544,7 +544,7 @@ export class BabylonGame {
   // Zone system
   private currentZone: { id: string; name: string; type: string } | null = null;
   private playthroughId: string | null = null;
-  private playthroughMainMenu: PlaythroughMainMenu | null = null;
+  private titleScreen: MainMenuScreen | null = null;
   private questOverlay: PlaythroughQuestOverlay = new PlaythroughQuestOverlay();
   private relationshipManager: RelationshipManager | null = null;
   private currentReputation: any | null = null;
@@ -816,27 +816,47 @@ export class BabylonGame {
   private async showPlaythroughSelectionMenu(): Promise<string | null> {
     if (!this.guiManager) return null;
 
-    // Fetch existing playthroughs
-    let playthroughs: PlaythroughMenuEntry[] = [];
-    try {
-      playthroughs = await this.dataSource.listPlaythroughs(
-        this.config.worldId,
-        this.config.authToken || '',
-      );
-    } catch (err) {
-      console.error('[BabylonGame] Failed to list playthroughs:', err);
+    // Ensure we have the real world name (it may not be available yet from the parent component)
+    let worldName = this.config.worldName;
+    if (!worldName || worldName === 'Selected World' || worldName === 'Unknown World') {
+      try {
+        const worldData = await this.dataSource.loadWorld(this.config.worldId);
+        if (worldData?.name) {
+          worldName = worldData.name;
+          this.config.worldName = worldName;
+        }
+      } catch {
+        // Fall through with existing name
+      }
     }
 
     return new Promise<string | null>((resolve) => {
-      this.playthroughMainMenu = new PlaythroughMainMenu(
+      this.titleScreen = new MainMenuScreen(
         this.guiManager!.advancedTexture,
+        worldName || 'Untitled World',
         {
-          onSelect: (playthroughId: string) => {
-            this.playthroughMainMenu = null;
-            resolve(playthroughId);
+          getPlaythroughs: async (): Promise<PlaythroughInfo[]> => {
+            try {
+              const list = await this.dataSource.listPlaythroughs(
+                this.config.worldId,
+                this.config.authToken || '',
+              );
+              return list.map((p: any) => ({
+                id: p.id,
+                name: p.name || 'Playthrough',
+                status: p.status,
+                lastPlayedAt: p.lastPlayedAt,
+                createdAt: p.createdAt,
+                playtime: p.playtime || 0,
+                actionsCount: p.actionsCount || 0,
+              }));
+            } catch (err) {
+              console.error('[BabylonGame] Failed to list playthroughs:', err);
+              return [];
+            }
           },
-          onCreateNew: async (name: string) => {
-            const playthroughName = name || `${this.config.worldName} Playthrough`;
+          onNewGame: async (): Promise<string | null> => {
+            const playthroughName = `${this.config.worldName || 'World'} Playthrough`;
             try {
               const playthrough = await this.dataSource.startPlaythrough(
                 this.config.worldId,
@@ -844,7 +864,7 @@ export class BabylonGame {
                 playthroughName,
               );
               if (playthrough?.id) {
-                this.playthroughMainMenu = null;
+                this.titleScreen = null;
                 resolve(playthrough.id);
                 return playthrough.id;
               }
@@ -853,15 +873,19 @@ export class BabylonGame {
             }
             return null;
           },
+          onContinue: (playthroughId: string) => {
+            this.titleScreen = null;
+            resolve(playthroughId);
+          },
           onBack: () => {
-            this.playthroughMainMenu?.dispose();
-            this.playthroughMainMenu = null;
+            this.titleScreen?.dispose();
+            this.titleScreen = null;
             this.config.onBack?.();
             resolve(null);
           },
         },
       );
-      this.playthroughMainMenu.show(playthroughs);
+      this.titleScreen.show();
     });
   }
 
@@ -1123,8 +1147,8 @@ export class BabylonGame {
    * Dispose of all game resources
    */
   public dispose(): void {
-    this.playthroughMainMenu?.dispose();
-    this.playthroughMainMenu = null;
+    this.titleScreen?.dispose();
+    this.titleScreen = null;
     this.disposeKeyboardHandlers();
     this.disposePointerHandlers();
     this.disposeUpdateLoop();
@@ -5904,10 +5928,11 @@ export class BabylonGame {
       // Try diverse NPC model based on gender, body type, and world genre
       if (!root) {
         const diverseModel = resolveNPCModelFromCharacter(character, role, this.config.worldType);
-        const diverseResult = await this.getOrLoadNPCModel(diverseModel.cacheKey, diverseModel.rootUrl, diverseModel.file);
+        const diverseResult = await this.getOrLoadNPCModel(diverseModel.cacheKey, diverseModel.rootUrl, diverseModel.file, character.id, role);
         if (diverseResult) {
           root = diverseResult.root;
           animationGroups = diverseResult.animationGroups;
+          instancedBillboard = diverseResult.billboard;
         }
       }
 

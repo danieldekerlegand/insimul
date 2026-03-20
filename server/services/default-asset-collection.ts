@@ -167,24 +167,31 @@ export async function getGlobalDefaultCollection(): Promise<AssetCollection> {
   defaultCollection = allCollections.find(
     (c: AssetCollection) =>
       c.isPublic === true &&
-      (c.name === 'Generic Default' || c.name === 'Default')
+      (c.name === 'Generic Default' || c.name === 'Default' || c.name === 'Generic Default Collection')
   );
 
   if (defaultCollection) {
+    // If we found a non-base "Generic Default", upgrade it to base so it's properly
+    // recognized as the canonical fallback collection
+    if (!defaultCollection.isBase) {
+      console.log(`Upgrading "${defaultCollection.name}" to isBase=true`);
+      await storage.updateAssetCollection(defaultCollection.id, { isBase: true } as any);
+      (defaultCollection as any).isBase = true;
+    }
     return defaultCollection;
   }
 
-  // If no default exists, create one (empty, will be populated manually)
+  // If no default exists, create one as a base collection
   console.log('Creating global default asset collection');
 
   defaultCollection = await storage.createAssetCollection({
-    name: 'Generic Default',
-    description: 'Global default asset collection for all worlds',
+    name: 'Generic Default Collection',
+    description: 'Global default asset collection for all worlds — populate with assets via admin panel',
     collectionType: 'complete_theme',
     worldType: 'generic',
     isPublic: true,
-    isBase: false,
-    tags: ['default', 'generic'],
+    isBase: true,
+    tags: ['default', 'generic', 'base'],
     buildingModels: {},
     natureModels: {},
     characterModels: {},
