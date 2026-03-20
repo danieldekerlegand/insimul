@@ -7236,6 +7236,18 @@ export class BabylonGame {
           this.questObjectManager.checkLocationProximity(this.playerMesh.position);
           this.questObjectManager.checkDirectionProximity(this.playerMesh.position);
         }
+
+        // Update quest waypoint fading and compass
+        if (this.questTracker && this.playerMesh) {
+          // Pass player forward angle from camera
+          if (this.cameraManager) {
+            const cam = this.scene.activeCamera;
+            if (cam && 'rotation' in cam) {
+              this.questTracker.setPlayerForwardAngle((cam as any).rotation.y || 0);
+            }
+          }
+          this.questTracker.updateFrame(this.playerMesh.position);
+        }
       }
 
       // Ground-snap NPCs at most every 500ms
@@ -10793,6 +10805,35 @@ export class BabylonGame {
           }
         });
         this.questWorldObjectLinker.updateLinks(quests, this.buildingData, npcBuildingMap);
+
+        // Pass world data to quest tracker for dynamic waypoint resolution
+        if (this.questTracker) {
+          // Collect NPC positions from spawned NPC meshes
+          const npcPositions: Array<{ id: string; position: { x: number; y: number; z: number }; role?: string; name?: string }> = [];
+          this.npcMeshes.forEach((instance) => {
+            if (!instance?.mesh) return;
+            const charId = instance.characterId || instance.mesh.metadata?.characterId;
+            if (charId) {
+              npcPositions.push({
+                id: charId,
+                position: { x: instance.mesh.position.x, y: instance.mesh.position.y, z: instance.mesh.position.z },
+                role: instance.mesh.metadata?.occupation,
+                name: instance.mesh.metadata?.name,
+              });
+            }
+          });
+
+          // Convert buildingData to the director's format (positions are already Vector3-compatible)
+          const directorBuildingData = new Map<string, { position: { x: number; y: number; z: number }; metadata: any }>();
+          this.buildingData.forEach((data, id) => {
+            directorBuildingData.set(id, {
+              position: { x: data.position.x, y: data.position.y, z: data.position.z },
+              metadata: data.metadata,
+            });
+          });
+
+          this.questTracker.setWorldData(directorBuildingData, npcBuildingMap, npcPositions);
+        }
       }
     } catch (error) {
       console.error('[BabylonGame] Failed to update quest indicators:', error);
