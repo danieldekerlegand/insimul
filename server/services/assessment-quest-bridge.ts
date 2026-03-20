@@ -28,6 +28,7 @@ import type {
 } from '../../shared/assessment/assessment-types.js';
 import { DEPARTURE_ENCOUNTER } from '../../shared/assessment/departure-encounter.js';
 import { mapScoreToCEFR } from '../../shared/assessment/cefr-mapping.js';
+import { generateAssessmentPrologContent } from '../../shared/prolog/assessment-prolog-generator.js';
 
 /**
  * Server-typed version that returns InsertQuest.
@@ -144,7 +145,14 @@ export function createDepartureAssessmentQuest(params: {
       description: 'Language Learning Report Card comparing your arrival and departure scores',
     },
     tags: ['assessment', 'departure', 'non-skippable'],
-    content: `% Departure assessment quest\nquest_type(departure_assessment).\nassessment_id('${DEPARTURE_ENCOUNTER.id}').`,
+    content: generateAssessmentPrologContent({
+      encounter: DEPARTURE_ENCOUNTER,
+      difficulty: 'intermediate',
+      targetLanguage: params.targetLanguage,
+      tags: ['assessment', 'departure', 'non-skippable'],
+      experienceReward: 500,
+      departureThreshold: DEPARTURE_QUEST_THRESHOLD,
+    }),
   };
 }
 

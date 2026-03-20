@@ -7,6 +7,7 @@
 
 import { ARRIVAL_ENCOUNTER, resolveTemplate } from '../assessment/arrival-encounter.js';
 import type { AssessmentPhase } from '../assessment/assessment-types.js';
+import { generateAssessmentPrologContent } from '../prolog/assessment-prolog-generator.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -75,6 +76,13 @@ export function buildArrivalAssessmentQuest(config: AssessmentQuestConfig): Reco
     experienceReward: 50,
     rewards: { xp: 50, fluency: 5, cefrAssessment: true },
     tags: ['assessment', 'arrival', 'onboarding', 'non-skippable', 'non-abandonable'],
+    content: generateAssessmentPrologContent({
+      encounter: ARRIVAL_ENCOUNTER,
+      difficulty: 'beginner',
+      targetLanguage: config.targetLanguage,
+      tags: ['assessment', 'arrival', 'onboarding', 'non-skippable', 'non-abandonable'],
+      experienceReward: 50,
+    }),
   };
 }
 
