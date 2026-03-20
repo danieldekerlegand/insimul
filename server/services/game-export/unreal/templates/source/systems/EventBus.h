@@ -104,7 +104,9 @@ enum class EInsimulEventType : uint8
     DayChanged UMETA(DisplayName = "Day Changed"),
     TimeOfDayChanged UMETA(DisplayName = "Time Of Day Changed"),
     // NPC relationship events
-    NpcRelationshipChanged UMETA(DisplayName = "NPC Relationship Changed")
+    NpcRelationshipChanged UMETA(DisplayName = "NPC Relationship Changed"),
+    // Container events
+    ContainerOpened UMETA(DisplayName = "Container Opened")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────

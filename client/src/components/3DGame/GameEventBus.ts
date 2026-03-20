@@ -126,7 +126,9 @@ export type GameEvent =
   | { type: 'day_changed'; day: number; timestep: number }
   | { type: 'time_of_day_changed'; from: string; to: string; hour: number }
   // NPC relationship events
-  | { type: 'npc_relationship_changed'; npcId: string; npcName: string; previousStrength: number; newStrength: number; previousTier: string; newTier: string; cause: string; delta: number };
+  | { type: 'npc_relationship_changed'; npcId: string; npcName: string; previousStrength: number; newStrength: number; previousTier: string; newTier: string; cause: string; delta: number }
+  // Container events
+  | { type: 'container_opened'; containerId: string; containerType: string; buildingId?: string; location: 'interior' | 'outdoor'; itemCount: number };
 
 export type GameEventType = GameEvent['type'];
 

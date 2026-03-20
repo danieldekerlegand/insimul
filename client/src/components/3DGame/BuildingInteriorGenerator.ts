@@ -30,7 +30,7 @@ export interface InteriorLayout {
   exitPosition: Vector3;
 }
 
-interface FurnitureSpec {
+export interface FurnitureSpec {
   type: string;
   offsetX: number;
   offsetZ: number;
@@ -40,6 +40,9 @@ interface FurnitureSpec {
   color: Color3;
   rotationY?: number;
 }
+
+/** Furniture types that are interactive containers */
+const CONTAINER_TYPES = new Set(['chest', 'barrel', 'crate']);
 
 export class BuildingInteriorGenerator {
   private scene: Scene;
@@ -424,6 +427,12 @@ export class BuildingInteriorGenerator {
       if (spec.rotationY) {
         mesh.rotation.y = spec.rotationY;
       }
+      // Enrich container metadata with building context
+      if (mesh.metadata?.isContainer) {
+        mesh.metadata.buildingId = buildingId;
+        mesh.metadata.businessType = businessType;
+        mesh.metadata.containerId = `${prefix}_container_${i}`;
+      }
       furniture.push(mesh);
     }
 
@@ -443,8 +452,19 @@ export class BuildingInteriorGenerator {
     mat.diffuseColor = spec.color;
     mat.specularColor = new Color3(0.05, 0.05, 0.05);
     mesh.material = mat;
-    mesh.isPickable = false;
     mesh.checkCollisions = true;
+
+    // Tag container-type furniture as interactive
+    if (CONTAINER_TYPES.has(spec.type)) {
+      mesh.isPickable = true;
+      mesh.metadata = {
+        isContainer: true,
+        containerType: spec.type,
+      };
+    } else {
+      mesh.isPickable = false;
+    }
+
     return mesh;
   }
 
