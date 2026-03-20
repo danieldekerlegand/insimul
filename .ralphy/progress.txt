@@ -1,0 +1,14 @@
+## Agent 12: Implement server-side persistence for vocabulary and grammar progress
+
+### Completed
+- Added vocabulary/grammar/progress storage methods to IStorage interface (server/db/storage.ts)
+- Added individual REST endpoints for vocabulary and grammar CRUD (server/routes/telemetry-routes.ts):
+  - GET /api/vocabulary/:playerId/:worldId
+  - PUT /api/vocabulary/:playerId/:worldId/:word
+  - GET /api/grammar-patterns/:playerId/:worldId
+  - PUT /api/grammar-patterns/:playerId/:worldId/:pattern
+- Added loadFromServer() method to LanguageProgressTracker (client) to restore persisted progress on initialization
+- Wired up startServerSync (60s periodic sync) and loadFromServer in BabylonChatPanel initialization
+- Added cleanup: final sync + stopServerSync on BabylonChatPanel dispose
+- Wrote 17 tests covering all endpoints including error handling (server/__tests__/language-progress-persistence.test.ts)
+- All tests pass, TypeScript compiles cleanly

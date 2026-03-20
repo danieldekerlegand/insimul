@@ -378,6 +378,22 @@ export interface IStorage {
   dismissVersionAlertsByPlaythrough(playthroughId: string): Promise<number>;
   deleteVersionAlert(id: string): Promise<boolean>;
   deleteVersionAlertsByPlaythrough(playthroughId: string): Promise<number>;
+
+  // Language Progress
+  getLanguageProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any | null>;
+  upsertLanguageProgress(playerId: string, worldId: string, data: any, playthroughId?: string): Promise<any>;
+
+  // Vocabulary
+  getVocabularyEntries(playerId: string, worldId: string, playthroughId?: string): Promise<any[]>;
+  upsertVocabularyEntry(playerId: string, worldId: string, word: string, data: any, playthroughId?: string): Promise<any>;
+
+  // Grammar Patterns
+  getGrammarPatterns(playerId: string, worldId: string, playthroughId?: string): Promise<any[]>;
+  upsertGrammarPattern(playerId: string, worldId: string, pattern: string, data: any, playthroughId?: string): Promise<any>;
+
+  // Conversation Records
+  getConversationRecords(playerId: string, worldId: string, playthroughId?: string): Promise<any[]>;
+  createConversationRecord(data: any): Promise<any>;
 }
 
 // Export MongoStorage as the default storage implementation

@@ -537,6 +537,99 @@ export class LanguageProgressTracker {
   }
 
   /**
+   * Load progress from the server, merging with any local state.
+   * Call this on initialization to restore previously persisted progress.
+   */
+  public async loadFromServer(): Promise<boolean> {
+    try {
+      const params = new URLSearchParams();
+      if (this.progress.playthroughId) params.set('playthroughId', this.progress.playthroughId);
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const url = `/api/language-progress/${encodeURIComponent(this.progress.playerId)}/${encodeURIComponent(this.progress.worldId)}${qs}`;
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.warn('[LanguageProgressTracker] Load from server returned', response.status);
+        return false;
+      }
+
+      const data = await response.json();
+
+      // Merge server progress into local state
+      if (data.progress) {
+        this.progress.overallFluency = data.progress.overallFluency ?? this.progress.overallFluency;
+        this.progress.totalConversations = data.progress.totalConversations ?? this.progress.totalConversations;
+        this.progress.totalWordsLearned = data.progress.totalWordsLearned ?? this.progress.totalWordsLearned;
+        this.progress.streakDays = data.progress.streakDays ?? this.progress.streakDays;
+      }
+
+      // Merge vocabulary — server entries keyed by word
+      if (data.vocabulary && Array.isArray(data.vocabulary)) {
+        for (const sv of data.vocabulary) {
+          const existing = this.progress.vocabulary.find(v => v.word === sv.word);
+          if (existing) {
+            // Keep the higher counts (server may have data from other sessions)
+            existing.timesEncountered = Math.max(existing.timesEncountered, sv.timesEncountered ?? 0);
+            existing.timesUsedCorrectly = Math.max(existing.timesUsedCorrectly, sv.timesUsedCorrectly ?? 0);
+            existing.masteryLevel = sv.masteryLevel ?? existing.masteryLevel;
+            existing.lastEncountered = Math.max(existing.lastEncountered, sv.lastEncountered ?? 0);
+          } else {
+            this.progress.vocabulary.push({
+              word: sv.word,
+              language: sv.language || this.progress.language,
+              meaning: sv.meaning || '',
+              category: sv.category,
+              timesEncountered: sv.timesEncountered ?? 0,
+              timesUsedCorrectly: sv.timesUsedCorrectly ?? 0,
+              timesUsedIncorrectly: sv.timesUsedIncorrectly ?? 0,
+              lastEncountered: sv.lastEncountered ?? Date.now(),
+              masteryLevel: sv.masteryLevel ?? 'new',
+              context: sv.context,
+            });
+          }
+        }
+      }
+
+      // Merge grammar patterns
+      if (data.grammarPatterns && Array.isArray(data.grammarPatterns)) {
+        for (const sg of data.grammarPatterns) {
+          const existing = this.progress.grammarPatterns.find(g => g.pattern === sg.pattern);
+          if (existing) {
+            existing.timesUsedCorrectly = Math.max(existing.timesUsedCorrectly, sg.correctUsages ?? 0);
+            existing.timesUsedIncorrectly = Math.max(existing.timesUsedIncorrectly, sg.incorrectUsages ?? 0);
+            existing.mastered = sg.masteryLevel === 'mastered' || existing.mastered;
+            if (sg.examples?.length) {
+              const existingSet = new Set(existing.examples);
+              for (const ex of sg.examples) {
+                if (!existingSet.has(ex)) existing.examples.push(ex);
+              }
+            }
+          } else {
+            this.progress.grammarPatterns.push({
+              id: sg.id || `gp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              pattern: sg.pattern,
+              language: sg.language || this.progress.language,
+              timesUsedCorrectly: sg.correctUsages ?? 0,
+              timesUsedIncorrectly: sg.incorrectUsages ?? 0,
+              mastered: sg.masteryLevel === 'mastered',
+              examples: sg.examples || [],
+              explanations: sg.explanations || [],
+            });
+          }
+        }
+      }
+
+      // Update the sync timestamp so we don't immediately re-sync
+      this.lastSyncTimestamp = Date.now();
+      console.log(`[LanguageProgressTracker] Loaded from server: ${data.vocabulary?.length ?? 0} vocab, ${data.grammarPatterns?.length ?? 0} grammar patterns`);
+      return true;
+    } catch (err) {
+      console.warn('[LanguageProgressTracker] Failed to load from server:', err);
+      return false;
+    }
+  }
+
+  /**
    * Directly add a vocabulary word (e.g., from reading a notice or document).
    * If the word already exists, increments its encounter count and marks it as correctly used.
    */
