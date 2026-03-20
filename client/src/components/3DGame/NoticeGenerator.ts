@@ -1,14 +1,14 @@
 /**
  * Notice Generator
  *
- * Generates diverse notice board articles authored by NPCs from a settlement.
- * Notices span all difficulty levels, cover various notice types, and include
+ * Generates notice board articles authored by NPCs from a settlement.
+ * Templates are driven by each NPC's occupation so content is contextual
+ * rather than generic filler. Notices span difficulty levels and include
  * vocabulary words and comprehension questions for language learning.
- *
- * Also generates longer literary documents (stories, poems) for world placement.
  */
 
 import type { NoticeArticle } from './BabylonNoticeBoardPanel';
+import { type GameText, noticeArticleToGameText } from './GameTextTypes';
 
 export interface NPCAuthorInfo {
   characterId: string;
@@ -16,9 +16,11 @@ export interface NPCAuthorInfo {
   occupation?: string;
 }
 
-// ── Notice templates by occupation and difficulty ────────────────────────────
+// ── Occupation-driven notice templates ──────────────────────────────────────
 
 interface NoticeTemplate {
+  /** Occupations this template applies to (empty = universal fallback) */
+  occupations: string[];
   titleFn: (npc: NPCAuthorInfo, settlement: string) => string;
   titleTransFn: (npc: NPCAuthorInfo, settlement: string) => string;
   bodyFn: (npc: NPCAuthorInfo, settlement: string) => string;
@@ -39,286 +41,309 @@ interface NoticeTemplate {
   };
 }
 
-const NOTICE_TEMPLATES: NoticeTemplate[] = [
-  // ── BEGINNER notices ──
+/** Normalize occupation string for matching */
+function normalizeOccupation(occ: string): string {
+  return occ.toLowerCase().trim();
+}
+
+const OCCUPATION_TEMPLATES: NoticeTemplate[] = [
+  // ── Merchant / Shopkeeper (beginner) ──
   {
-    titleFn: () => 'Le Marché du Village',
-    titleTransFn: () => 'The Village Market',
-    bodyFn: (_npc, s) => `Le marché de ${s} est ouvert tous les jours. Venez acheter du pain, du fromage, et des fruits frais. Les prix sont bons!`,
-    bodyTransFn: (_npc, s) => `The ${s} market is open every day. Come buy bread, cheese, and fresh fruits. The prices are good!`,
+    occupations: ['merchant', 'shopkeeper', 'vendor', 'trader'],
+    titleFn: (npc) => `Boutique de ${npc.name}`,
+    titleTransFn: (npc) => `${npc.name}'s Shop`,
+    bodyFn: (npc, s) => `${npc.name} vend des marchandises à ${s}. Nous avons des vêtements, des outils, et des provisions. Venez voir!`,
+    bodyTransFn: (npc, s) => `${npc.name} sells goods in ${s}. We have clothing, tools, and provisions. Come see!`,
     difficulty: 'beginner',
-    noticeType: 'flyer',
+    noticeType: 'advertisement',
     vocabularyWords: [
-      { word: 'marché', meaning: 'market' },
+      { word: 'marchandises', meaning: 'goods' },
+      { word: 'vêtements', meaning: 'clothing' },
+      { word: 'outils', meaning: 'tools' },
+      { word: 'provisions', meaning: 'provisions' },
+    ],
+    comprehensionQuestion: {
+      question: 'Que vend cette boutique?',
+      questionTranslation: 'What does this shop sell?',
+      options: ['Des animaux', 'Des vêtements et des outils', 'Des livres'],
+      correctIndex: 1,
+    },
+  },
+  // ── Baker (beginner) ──
+  {
+    occupations: ['baker', 'boulanger'],
+    titleFn: (npc) => `Pain frais chez ${npc.name}`,
+    titleTransFn: (npc) => `Fresh Bread at ${npc.name}'s`,
+    bodyFn: (npc) => `${npc.name} prépare du pain chaque matin. Du pain blanc, du pain complet, et des croissants. Ouvert de six heures à midi.`,
+    bodyTransFn: (npc) => `${npc.name} bakes bread every morning. White bread, whole wheat bread, and croissants. Open from six o'clock to noon.`,
+    difficulty: 'beginner',
+    noticeType: 'advertisement',
+    vocabularyWords: [
       { word: 'pain', meaning: 'bread' },
-      { word: 'fromage', meaning: 'cheese' },
-      { word: 'fruits', meaning: 'fruits' },
+      { word: 'matin', meaning: 'morning' },
+      { word: 'blanc', meaning: 'white' },
+      { word: 'midi', meaning: 'noon' },
     ],
     comprehensionQuestion: {
-      question: 'Quand est-ce que le marché est ouvert?',
-      questionTranslation: 'When is the market open?',
-      options: ['Le lundi', 'Tous les jours', 'Le weekend'],
+      question: 'À quelle heure ouvre la boulangerie?',
+      questionTranslation: 'What time does the bakery open?',
+      options: ['À huit heures', 'À six heures', 'À dix heures'],
       correctIndex: 1,
     },
   },
+  // ── Farmer (beginner) ──
   {
-    titleFn: () => 'Chien Perdu!',
-    titleTransFn: () => 'Lost Dog!',
-    bodyFn: (npc) => `Mon chien est perdu! Il est petit et brun. Il s'appelle Max. Si vous le trouvez, venez chez ${npc.name}. Merci beaucoup!`,
-    bodyTransFn: (npc) => `My dog is lost! He is small and brown. His name is Max. If you find him, come to ${npc.name}'s house. Thank you very much!`,
+    occupations: ['farmer', 'fermier', 'agricultor'],
+    titleFn: () => 'Fruits et Légumes Frais',
+    titleTransFn: () => 'Fresh Fruits and Vegetables',
+    bodyFn: (npc) => `${npc.name} vend des fruits et des légumes de sa ferme. Tout est frais et naturel. Venez au marché le matin!`,
+    bodyTransFn: (npc) => `${npc.name} sells fruits and vegetables from the farm. Everything is fresh and natural. Come to the market in the morning!`,
     difficulty: 'beginner',
     noticeType: 'flyer',
     vocabularyWords: [
-      { word: 'chien', meaning: 'dog' },
-      { word: 'perdu', meaning: 'lost' },
-      { word: 'petit', meaning: 'small' },
-      { word: 'brun', meaning: 'brown' },
-      { word: 'merci', meaning: 'thank you' },
+      { word: 'légumes', meaning: 'vegetables' },
+      { word: 'ferme', meaning: 'farm' },
+      { word: 'frais', meaning: 'fresh' },
+      { word: 'naturel', meaning: 'natural' },
     ],
     comprehensionQuestion: {
-      question: 'Comment s\'appelle le chien?',
-      questionTranslation: 'What is the dog\'s name?',
-      options: ['Rex', 'Max', 'Buddy'],
-      correctIndex: 1,
-    },
-    questHook: {
-      questId: 'quest_find_dog',
-      questTitle: 'Trouver le chien perdu',
-      questTitleTranslation: 'Find the lost dog',
-    },
-  },
-  {
-    titleFn: () => 'Leçons de Musique',
-    titleTransFn: () => 'Music Lessons',
-    bodyFn: (npc) => `${npc.name} donne des leçons de musique. Le piano et la guitare. Les leçons sont le mardi et le jeudi. Venez apprendre!`,
-    bodyTransFn: (npc) => `${npc.name} gives music lessons. Piano and guitar. Lessons are on Tuesday and Thursday. Come learn!`,
-    difficulty: 'beginner',
-    noticeType: 'advertisement',
-    vocabularyWords: [
-      { word: 'musique', meaning: 'music' },
-      { word: 'leçons', meaning: 'lessons' },
-      { word: 'piano', meaning: 'piano' },
-      { word: 'guitare', meaning: 'guitar' },
-      { word: 'apprendre', meaning: 'to learn' },
-    ],
-    comprehensionQuestion: {
-      question: 'Quels jours sont les leçons?',
-      questionTranslation: 'What days are the lessons?',
-      options: ['Lundi et mercredi', 'Mardi et jeudi', 'Samedi et dimanche'],
+      question: "D'où viennent les légumes?",
+      questionTranslation: 'Where do the vegetables come from?',
+      options: ['Du magasin', 'De la ferme', "D'un autre pays"],
       correctIndex: 1,
     },
   },
+  // ── Guard / Soldier (intermediate) ──
   {
-    titleFn: () => 'La Boulangerie Est Ouverte',
-    titleTransFn: () => 'The Bakery Is Open',
-    bodyFn: (npc) => `La boulangerie de ${npc.name} est ouverte du lundi au samedi, de sept heures à dix-huit heures. Nous avons du pain frais, des croissants, et des gâteaux.`,
-    bodyTransFn: (npc) => `${npc.name}'s bakery is open Monday through Saturday, from seven o'clock to six o'clock. We have fresh bread, croissants, and cakes.`,
-    difficulty: 'beginner',
-    noticeType: 'advertisement',
-    vocabularyWords: [
-      { word: 'boulangerie', meaning: 'bakery' },
-      { word: 'ouverte', meaning: 'open' },
-      { word: 'croissants', meaning: 'croissants' },
-      { word: 'gâteaux', meaning: 'cakes' },
-    ],
-    comprehensionQuestion: {
-      question: 'La boulangerie est ouverte quel jour?',
-      questionTranslation: 'The bakery is open which day?',
-      options: ['Le dimanche', 'Du lundi au samedi', 'Seulement le mardi'],
-      correctIndex: 1,
-    },
-  },
-  // ── INTERMEDIATE notices ──
-  {
-    titleFn: () => 'Bienvenue aux Nouveaux Arrivants',
-    titleTransFn: () => 'Welcome to Newcomers',
-    bodyFn: (_npc, s) => `Le conseil de ${s} souhaite la bienvenue à tous les nouveaux habitants. Une réunion d'accueil aura lieu demain soir à la mairie. Tous les citoyens sont invités à participer.`,
-    bodyTransFn: (_npc, s) => `The ${s} council welcomes all new inhabitants. A welcome meeting will take place tomorrow evening at the town hall. All citizens are invited to participate.`,
+    occupations: ['guard', 'soldier', 'sheriff', 'constable', 'watchman'],
+    titleFn: (_npc, s) => `Sécurité de ${s}`,
+    titleTransFn: (_npc, s) => `${s} Security`,
+    bodyFn: (npc, s) => `${npc.name}, garde de ${s}, rappelle aux habitants de verrouiller leurs portes la nuit. Des voyageurs inconnus ont été aperçus dans la région. Signalez toute activité suspecte.`,
+    bodyTransFn: (npc, s) => `${npc.name}, guard of ${s}, reminds inhabitants to lock their doors at night. Unknown travelers have been seen in the area. Report any suspicious activity.`,
     difficulty: 'intermediate',
     noticeType: 'official',
     vocabularyWords: [
-      { word: 'bienvenue', meaning: 'welcome' },
+      { word: 'sécurité', meaning: 'security' },
+      { word: 'verrouiller', meaning: 'to lock' },
+      { word: 'portes', meaning: 'doors' },
+      { word: 'voyageurs', meaning: 'travelers' },
+      { word: 'suspecte', meaning: 'suspicious' },
+    ],
+    comprehensionQuestion: {
+      question: 'Que doivent faire les habitants?',
+      questionTranslation: 'What should inhabitants do?',
+      options: ['Partir du village', 'Verrouiller leurs portes', 'Acheter des armes'],
+      correctIndex: 1,
+    },
+  },
+  // ── Mayor / Official (intermediate) ──
+  {
+    occupations: ['mayor', 'official', 'magistrate', 'councillor', 'administrator'],
+    titleFn: (_npc, s) => `Annonce du Conseil de ${s}`,
+    titleTransFn: (_npc, s) => `${s} Council Announcement`,
+    bodyFn: (_npc, s) => `Le conseil de ${s} organise une assemblée publique pour discuter des projets du village. Tous les habitants sont invités à donner leur avis. La réunion aura lieu à la mairie.`,
+    bodyTransFn: (_npc, s) => `The ${s} council is organizing a public assembly to discuss village projects. All inhabitants are invited to give their opinion. The meeting will be held at the town hall.`,
+    difficulty: 'intermediate',
+    noticeType: 'official',
+    vocabularyWords: [
+      { word: 'assemblée', meaning: 'assembly' },
+      { word: 'projets', meaning: 'projects' },
       { word: 'habitants', meaning: 'inhabitants' },
-      { word: 'réunion', meaning: 'meeting' },
+      { word: 'avis', meaning: 'opinion' },
       { word: 'mairie', meaning: 'town hall' },
-      { word: 'citoyens', meaning: 'citizens' },
     ],
     comprehensionQuestion: {
       question: 'Où aura lieu la réunion?',
-      questionTranslation: 'Where will the meeting take place?',
-      options: ['Au marché', 'À la mairie', 'À l\'église'],
+      questionTranslation: 'Where will the meeting be held?',
+      options: ['Au marché', 'À la mairie', "À l'église"],
       correctIndex: 1,
     },
     questHook: {
-      questId: 'quest_town_meeting',
-      questTitle: 'Assister à la réunion',
-      questTitleTranslation: 'Attend the meeting',
+      questId: 'quest_town_assembly',
+      questTitle: "Assister à l'assemblée",
+      questTitleTranslation: 'Attend the assembly',
     },
   },
+  // ── Blacksmith (intermediate) ──
   {
-    titleFn: () => 'Offre d\'Emploi: Apprenti Forgeron',
-    titleTransFn: () => 'Job Offer: Blacksmith Apprentice',
-    bodyFn: (npc) => `${npc.name} cherche un apprenti pour travailler à la forge. Le candidat doit être fort et motivé. L'apprentissage dure deux ans. Le salaire est négociable. Présentez-vous à la forge.`,
-    bodyTransFn: (npc) => `${npc.name} is looking for an apprentice to work at the forge. The candidate must be strong and motivated. The apprenticeship lasts two years. Salary is negotiable. Present yourself at the forge.`,
+    occupations: ['blacksmith', 'forgeron', 'smith', 'metalworker'],
+    titleFn: (npc) => `La Forge de ${npc.name}`,
+    titleTransFn: (npc) => `${npc.name}'s Forge`,
+    bodyFn: (npc) => `${npc.name} répare les outils et fabrique des objets en métal. Apportez vos outils cassés. Les réparations prennent un à trois jours selon le travail nécessaire.`,
+    bodyTransFn: (npc) => `${npc.name} repairs tools and crafts metal objects. Bring your broken tools. Repairs take one to three days depending on the work needed.`,
     difficulty: 'intermediate',
     noticeType: 'advertisement',
     vocabularyWords: [
-      { word: 'apprenti', meaning: 'apprentice' },
-      { word: 'forgeron', meaning: 'blacksmith' },
-      { word: 'travailler', meaning: 'to work' },
-      { word: 'salaire', meaning: 'salary' },
-      { word: 'candidat', meaning: 'candidate' },
+      { word: 'répare', meaning: 'repairs' },
+      { word: 'outils', meaning: 'tools' },
+      { word: 'métal', meaning: 'metal' },
+      { word: 'cassés', meaning: 'broken' },
+      { word: 'travail', meaning: 'work' },
     ],
     comprehensionQuestion: {
-      question: 'Combien de temps dure l\'apprentissage?',
-      questionTranslation: 'How long does the apprenticeship last?',
-      options: ['Un an', 'Deux ans', 'Trois ans'],
+      question: 'Combien de temps prennent les réparations?',
+      questionTranslation: 'How long do repairs take?',
+      options: ['Une heure', 'Un à trois jours', 'Une semaine'],
       correctIndex: 1,
     },
-    questHook: {
-      questId: 'quest_blacksmith_apprentice',
-      questTitle: 'Rencontrer le forgeron',
-      questTitleTranslation: 'Meet the blacksmith',
-    },
   },
+  // ── Doctor / Healer (intermediate) ──
   {
-    titleFn: () => 'Festival de la Moisson',
-    titleTransFn: () => 'Harvest Festival',
-    bodyFn: (_npc, s) => `Le festival annuel de la moisson de ${s} commence la semaine prochaine. Il y aura de la musique, de la danse, et un grand banquet. Chaque famille est priée d'apporter un plat traditionnel.`,
-    bodyTransFn: (_npc, s) => `The annual harvest festival of ${s} begins next week. There will be music, dancing, and a grand banquet. Each family is asked to bring a traditional dish.`,
+    occupations: ['doctor', 'healer', 'physician', 'apothecary', 'herbalist', 'médecin'],
+    titleFn: (npc) => `Cabinet de ${npc.name}`,
+    titleTransFn: (npc) => `${npc.name}'s Practice`,
+    bodyFn: (npc, s) => `${npc.name} soigne les malades de ${s}. Consultations tous les jours sauf le dimanche. En cas d'urgence, venez directement. Apportez vos remèdes si vous en avez.`,
+    bodyTransFn: (npc, s) => `${npc.name} treats the sick of ${s}. Consultations every day except Sunday. In case of emergency, come directly. Bring your remedies if you have any.`,
     difficulty: 'intermediate',
     noticeType: 'flyer',
     vocabularyWords: [
-      { word: 'festival', meaning: 'festival' },
-      { word: 'moisson', meaning: 'harvest' },
-      { word: 'musique', meaning: 'music' },
-      { word: 'danse', meaning: 'dance' },
-      { word: 'banquet', meaning: 'banquet' },
-      { word: 'famille', meaning: 'family' },
+      { word: 'soigne', meaning: 'treats/heals' },
+      { word: 'malades', meaning: 'sick people' },
+      { word: 'urgence', meaning: 'emergency' },
+      { word: 'remèdes', meaning: 'remedies' },
     ],
     comprehensionQuestion: {
-      question: 'Que doit apporter chaque famille?',
-      questionTranslation: 'What must each family bring?',
-      options: ['De l\'argent', 'Un plat traditionnel', 'Des fleurs'],
-      correctIndex: 1,
+      question: 'Quel jour le cabinet est-il fermé?',
+      questionTranslation: 'Which day is the practice closed?',
+      options: ['Le lundi', 'Le samedi', 'Le dimanche'],
+      correctIndex: 2,
     },
   },
+  // ── Teacher / Scholar (advanced) ──
   {
-    titleFn: () => 'Avis de Recherche',
-    titleTransFn: () => 'Wanted Notice',
-    bodyFn: (_npc, s) => `Attention! Un voleur a été signalé dans les environs de ${s}. Il porte un manteau noir et un chapeau. Si vous avez des informations, contactez immédiatement la garde du village.`,
-    bodyTransFn: (_npc, s) => `Attention! A thief has been reported in the vicinity of ${s}. He wears a black coat and a hat. If you have any information, contact the village guard immediately.`,
-    difficulty: 'intermediate',
-    noticeType: 'wanted',
+    occupations: ['teacher', 'scholar', 'professor', 'librarian', 'tutor'],
+    titleFn: (npc) => `Cours dispensés par ${npc.name}`,
+    titleTransFn: (npc) => `Lessons by ${npc.name}`,
+    bodyFn: (npc, s) => `${npc.name} propose des cours de lecture et d'écriture aux habitants de ${s}. Les leçons sont adaptées à tous les niveaux, des débutants aux plus avancés. L'éducation est la clé de notre prospérité commune.`,
+    bodyTransFn: (npc, s) => `${npc.name} offers reading and writing lessons to the inhabitants of ${s}. Lessons are adapted to all levels, from beginners to advanced. Education is the key to our shared prosperity.`,
+    difficulty: 'advanced',
+    noticeType: 'advertisement',
     vocabularyWords: [
-      { word: 'voleur', meaning: 'thief' },
-      { word: 'manteau', meaning: 'coat' },
-      { word: 'chapeau', meaning: 'hat' },
-      { word: 'garde', meaning: 'guard' },
-      { word: 'informations', meaning: 'information' },
+      { word: 'cours', meaning: 'lessons/classes' },
+      { word: 'écriture', meaning: 'writing' },
+      { word: 'niveaux', meaning: 'levels' },
+      { word: 'éducation', meaning: 'education' },
+      { word: 'prospérité', meaning: 'prosperity' },
     ],
     comprehensionQuestion: {
-      question: 'Que porte le voleur?',
-      questionTranslation: 'What is the thief wearing?',
-      options: ['Un manteau rouge', 'Un manteau noir et un chapeau', 'Une cape bleue'],
+      question: 'À qui sont destinés les cours?',
+      questionTranslation: 'Who are the lessons for?',
+      options: ['Seulement les enfants', 'Tous les niveaux', 'Les experts uniquement'],
       correctIndex: 1,
     },
-    questHook: {
-      questId: 'quest_catch_thief',
-      questTitle: 'Attraper le voleur',
-      questTitleTranslation: 'Catch the thief',
-    },
   },
-  // ── ADVANCED notices ──
+  // ── Priest / Religious (advanced) ──
   {
-    titleFn: () => 'Avis Important: Travaux de Réparation',
-    titleTransFn: () => 'Important Notice: Repair Work',
-    bodyFn: () => 'En raison de travaux de réparation sur le pont principal, la circulation sera déviée par le chemin forestier pendant les deux prochaines semaines. Les commerçants devront ajuster leurs livraisons. Nous nous excusons pour la gêne occasionnée et remercions la population pour sa patience.',
-    bodyTransFn: () => 'Due to repair work on the main bridge, traffic will be diverted through the forest path for the next two weeks. Merchants will need to adjust their deliveries. We apologize for the inconvenience and thank the population for its patience.',
+    occupations: ['priest', 'cleric', 'monk', 'nun', 'chaplain', 'prêtre'],
+    titleFn: () => 'Appel à la Communauté',
+    titleTransFn: () => 'Call to the Community',
+    bodyFn: (npc, s) => `${npc.name} invite les habitants de ${s} à se rassembler pour une cérémonie de bénédiction des récoltes. Cette tradition ancienne renforce les liens de notre communauté et honore le travail de nos agriculteurs. Chacun est le bienvenu.`,
+    bodyTransFn: (npc, s) => `${npc.name} invites the inhabitants of ${s} to gather for a harvest blessing ceremony. This ancient tradition strengthens the bonds of our community and honors the work of our farmers. Everyone is welcome.`,
     difficulty: 'advanced',
     noticeType: 'official',
     vocabularyWords: [
-      { word: 'travaux', meaning: 'work/construction' },
-      { word: 'pont', meaning: 'bridge' },
-      { word: 'circulation', meaning: 'traffic' },
-      { word: 'commerçants', meaning: 'merchants' },
-      { word: 'livraisons', meaning: 'deliveries' },
-      { word: 'patience', meaning: 'patience' },
+      { word: 'cérémonie', meaning: 'ceremony' },
+      { word: 'bénédiction', meaning: 'blessing' },
+      { word: 'récoltes', meaning: 'harvests' },
+      { word: 'tradition', meaning: 'tradition' },
+      { word: 'communauté', meaning: 'community' },
+    ],
+    comprehensionQuestion: {
+      question: 'Quel est le but de la cérémonie?',
+      questionTranslation: 'What is the purpose of the ceremony?',
+      options: ['Élire un nouveau maire', 'Bénir les récoltes', 'Célébrer un mariage'],
+      correctIndex: 1,
+    },
+  },
+  // ── Innkeeper / Tavern (beginner) ──
+  {
+    occupations: ['innkeeper', 'bartender', 'tavern keeper', 'aubergiste'],
+    titleFn: (npc) => `Auberge de ${npc.name}`,
+    titleTransFn: (npc) => `${npc.name}'s Inn`,
+    bodyFn: (npc) => `L'auberge de ${npc.name} a des chambres et des repas chauds. Le prix est de deux pièces par nuit. Le dîner est servi à sept heures.`,
+    bodyTransFn: (npc) => `${npc.name}'s inn has rooms and hot meals. The price is two coins per night. Dinner is served at seven o'clock.`,
+    difficulty: 'beginner',
+    noticeType: 'advertisement',
+    vocabularyWords: [
+      { word: 'auberge', meaning: 'inn' },
+      { word: 'chambres', meaning: 'rooms' },
+      { word: 'repas', meaning: 'meals' },
+      { word: 'nuit', meaning: 'night' },
+    ],
+    comprehensionQuestion: {
+      question: "Combien coûte une nuit à l'auberge?",
+      questionTranslation: 'How much is one night at the inn?',
+      options: ['Une pièce', 'Deux pièces', 'Cinq pièces'],
+      correctIndex: 1,
+    },
+  },
+  // ── Carpenter / Builder (advanced) ──
+  {
+    occupations: ['carpenter', 'builder', 'mason', 'architect', 'charpentier'],
+    titleFn: () => 'Travaux de Construction',
+    titleTransFn: () => 'Construction Work',
+    bodyFn: (npc, s) => `${npc.name} entreprend des travaux de construction dans le quartier est de ${s}. Les résidents concernés sont priés de déplacer temporairement leurs affaires. Les travaux devraient durer environ trois semaines. Nous remercions chacun pour sa compréhension.`,
+    bodyTransFn: (npc, s) => `${npc.name} is undertaking construction work in the eastern quarter of ${s}. Affected residents are asked to temporarily move their belongings. The work should last approximately three weeks. We thank everyone for their understanding.`,
+    difficulty: 'advanced',
+    noticeType: 'official',
+    vocabularyWords: [
+      { word: 'construction', meaning: 'construction' },
+      { word: 'résidents', meaning: 'residents' },
+      { word: 'temporairement', meaning: 'temporarily' },
+      { word: 'affaires', meaning: 'belongings' },
+      { word: 'compréhension', meaning: 'understanding' },
     ],
     comprehensionQuestion: {
       question: 'Combien de temps dureront les travaux?',
       questionTranslation: 'How long will the work last?',
-      options: ['Un jour', 'Une semaine', 'Deux semaines'],
-      correctIndex: 2,
+      options: ['Une semaine', 'Environ trois semaines', 'Deux mois'],
+      correctIndex: 1,
     },
   },
+];
+
+/** Universal fallback templates for NPCs without a matching occupation */
+const FALLBACK_TEMPLATES: NoticeTemplate[] = [
   {
-    titleFn: () => 'Débat Public sur l\'Avenir du Village',
-    titleTransFn: () => 'Public Debate on the Future of the Village',
-    bodyFn: (_npc, s) => `Le conseil municipal de ${s} organise un débat ouvert à tous les habitants concernant les projets d'expansion du village. Les sujets abordés incluront la construction d'une nouvelle école, l'amélioration des routes commerciales, et la protection des terres agricoles. Votre voix compte!`,
-    bodyTransFn: (_npc, s) => `The municipal council of ${s} is organizing a debate open to all inhabitants regarding village expansion projects. Topics addressed will include the construction of a new school, improvement of trade routes, and protection of agricultural lands. Your voice matters!`,
-    difficulty: 'advanced',
-    noticeType: 'official',
+    occupations: [],
+    titleFn: (npc) => `Message de ${npc.name}`,
+    titleTransFn: (npc) => `Message from ${npc.name}`,
+    bodyFn: (npc, s) => `${npc.name} cherche de l'aide à ${s}. Si vous êtes disponible, venez parler à ${npc.name} en personne.`,
+    bodyTransFn: (npc, s) => `${npc.name} is looking for help in ${s}. If you are available, come speak with ${npc.name} in person.`,
+    difficulty: 'beginner',
+    noticeType: 'flyer',
     vocabularyWords: [
-      { word: 'débat', meaning: 'debate' },
-      { word: 'conseil', meaning: 'council' },
-      { word: 'expansion', meaning: 'expansion' },
-      { word: 'école', meaning: 'school' },
-      { word: 'agricoles', meaning: 'agricultural' },
+      { word: 'aide', meaning: 'help' },
+      { word: 'disponible', meaning: 'available' },
+      { word: 'parler', meaning: 'to speak' },
+      { word: 'personne', meaning: 'person/in person' },
     ],
     comprehensionQuestion: {
-      question: 'Quel sujet n\'est PAS mentionné dans le débat?',
-      questionTranslation: 'Which topic is NOT mentioned in the debate?',
-      options: ['Une nouvelle école', 'Un nouveau temple', 'Les routes commerciales'],
+      question: 'Que cherche cette personne?',
+      questionTranslation: 'What is this person looking for?',
+      options: ['Un animal', "De l'aide", 'Un livre'],
       correctIndex: 1,
     },
   },
   {
-    titleFn: () => 'Appel aux Volontaires: Reconstruction',
-    titleTransFn: () => 'Call for Volunteers: Reconstruction',
-    bodyFn: (npc, s) => `Suite à la tempête de la semaine dernière, plusieurs bâtiments de ${s} ont subi des dommages importants. ${npc.name} coordonne les efforts de reconstruction et fait appel à tous les volontaires disponibles. Les matériaux sont fournis par la communauté. Rendez-vous chaque matin à l'aube sur la place principale.`,
-    bodyTransFn: (npc, s) => `Following last week's storm, several buildings in ${s} suffered significant damage. ${npc.name} is coordinating reconstruction efforts and calling for all available volunteers. Materials are provided by the community. Meet every morning at dawn in the main square.`,
-    difficulty: 'advanced',
-    noticeType: 'official',
+    occupations: [],
+    titleFn: (_npc, s) => `Nouvelles de ${s}`,
+    titleTransFn: (_npc, s) => `News from ${s}`,
+    bodyFn: (_npc, s) => `Le temps est beau à ${s} cette semaine. Les récoltes se portent bien. Les habitants profitent du soleil pour travailler dans les champs et les jardins.`,
+    bodyTransFn: (_npc, s) => `The weather is nice in ${s} this week. The crops are doing well. The inhabitants are taking advantage of the sun to work in the fields and gardens.`,
+    difficulty: 'intermediate',
+    noticeType: 'flyer',
     vocabularyWords: [
-      { word: 'tempête', meaning: 'storm' },
-      { word: 'bâtiments', meaning: 'buildings' },
-      { word: 'dommages', meaning: 'damage' },
-      { word: 'volontaires', meaning: 'volunteers' },
-      { word: 'reconstruction', meaning: 'reconstruction' },
-      { word: 'communauté', meaning: 'community' },
+      { word: 'temps', meaning: 'weather' },
+      { word: 'récoltes', meaning: 'crops/harvests' },
+      { word: 'soleil', meaning: 'sun' },
+      { word: 'champs', meaning: 'fields' },
+      { word: 'jardins', meaning: 'gardens' },
     ],
     comprehensionQuestion: {
-      question: 'Quand doivent se retrouver les volontaires?',
-      questionTranslation: 'When should volunteers meet?',
-      options: ['Le soir à la mairie', 'Chaque matin à l\'aube', 'Le dimanche après-midi'],
-      correctIndex: 1,
-    },
-    questHook: {
-      questId: 'quest_rebuild',
-      questTitle: 'Aider à la reconstruction',
-      questTitleTranslation: 'Help with the reconstruction',
-    },
-  },
-  {
-    titleFn: () => 'Lettre Ouverte: Protection de la Forêt',
-    titleTransFn: () => 'Open Letter: Protecting the Forest',
-    bodyFn: (npc) => `Chers concitoyens, je m'adresse à vous aujourd'hui avec une profonde inquiétude. La forêt ancienne qui borde notre village est menacée par l'exploitation excessive du bois. Cette forêt abrite des espèces rares et fournit l'eau pure de notre rivière. Je propose la création d'une zone protégée. — ${npc.name}`,
-    bodyTransFn: (npc) => `Dear fellow citizens, I address you today with deep concern. The ancient forest bordering our village is threatened by excessive logging. This forest shelters rare species and provides the pure water of our river. I propose the creation of a protected zone. — ${npc.name}`,
-    difficulty: 'advanced',
-    noticeType: 'letter',
-    vocabularyWords: [
-      { word: 'forêt', meaning: 'forest' },
-      { word: 'menacée', meaning: 'threatened' },
-      { word: 'espèces', meaning: 'species' },
-      { word: 'rivière', meaning: 'river' },
-      { word: 'protégée', meaning: 'protected' },
-      { word: 'inquiétude', meaning: 'concern' },
-    ],
-    comprehensionQuestion: {
-      question: 'Que propose l\'auteur de la lettre?',
-      questionTranslation: 'What does the letter\'s author propose?',
-      options: ['Couper plus d\'arbres', 'Créer une zone protégée', 'Construire un barrage'],
+      question: 'Comment est le temps?',
+      questionTranslation: 'How is the weather?',
+      options: ['Il pleut', 'Il fait beau', 'Il neige'],
       correctIndex: 1,
     },
   },
@@ -327,47 +352,39 @@ const NOTICE_TEMPLATES: NoticeTemplate[] = [
 // ── Generator functions ─────────────────────────────────────────────────────
 
 /**
+ * Find the best matching template for an NPC based on their occupation.
+ * Falls back to a universal template if no occupation match is found.
+ */
+function findTemplatesForNPC(npc: NPCAuthorInfo): NoticeTemplate[] {
+  if (!npc.occupation) return FALLBACK_TEMPLATES;
+
+  const norm = normalizeOccupation(npc.occupation);
+  const matches = OCCUPATION_TEMPLATES.filter(t =>
+    t.occupations.some(o => norm.includes(o) || o.includes(norm)),
+  );
+
+  return matches.length > 0 ? matches : FALLBACK_TEMPLATES;
+}
+
+/**
  * Generate notice board articles for a settlement using its NPC data.
- * Returns 4-8 notices at varying difficulty levels.
+ * Each NPC produces one notice based on their occupation, ensuring
+ * contextual content rather than generic filler.
  */
 export function generateSettlementNotices(
   settlementId: string,
   settlementName: string,
   npcs: NPCAuthorInfo[],
 ): NoticeArticle[] {
-  if (npcs.length === 0) {
-    // Fallback: create generic NPCs
-    npcs = [
-      { characterId: `${settlementId}_mayor`, name: 'Le Maire', occupation: 'Mayor' },
-      { characterId: `${settlementId}_merchant`, name: 'Le Marchand', occupation: 'Merchant' },
-      { characterId: `${settlementId}_guard`, name: 'Le Garde', occupation: 'Guard' },
-    ];
-  }
+  if (npcs.length === 0) return [];
 
   const articles: NoticeArticle[] = [];
-  const usedTemplateIndices = new Set<number>();
+  const xpByDifficulty = { beginner: 10, intermediate: 15, advanced: 25 };
 
-  // Pick templates ensuring difficulty spread: 2 beginner, 2-3 intermediate, 1-2 advanced
-  const beginnerTemplates = NOTICE_TEMPLATES.filter(t => t.difficulty === 'beginner');
-  const intermediateTemplates = NOTICE_TEMPLATES.filter(t => t.difficulty === 'intermediate');
-  const advancedTemplates = NOTICE_TEMPLATES.filter(t => t.difficulty === 'advanced');
-
-  const pick = (pool: NoticeTemplate[], count: number): NoticeTemplate[] => {
-    const shuffled = [...pool].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, count);
-  };
-
-  const selectedTemplates = [
-    ...pick(beginnerTemplates, 2),
-    ...pick(intermediateTemplates, 3),
-    ...pick(advancedTemplates, 2),
-  ];
-
-  for (let i = 0; i < selectedTemplates.length; i++) {
-    const template = selectedTemplates[i];
-    const npc = npcs[i % npcs.length];
-
-    const xpByDifficulty = { beginner: 10, intermediate: 15, advanced: 25 };
+  for (let i = 0; i < npcs.length; i++) {
+    const npc = npcs[i];
+    const templates = findTemplatesForNPC(npc);
+    const template = templates[i % templates.length];
 
     const article: NoticeArticle = {
       id: `notice_${settlementId}_${i}`,
@@ -402,3 +419,10 @@ export function generateSettlementNotices(
   return articles;
 }
 
+/**
+ * Convert settlement-generated NoticeArticles to GameText objects
+ * for integration with the Texts system Library.
+ */
+export function noticesToGameTexts(articles: NoticeArticle[]): GameText[] {
+  return articles.map(noticeArticleToGameText);
+}

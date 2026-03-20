@@ -31,6 +31,7 @@ import type { MinimapData } from './BabylonGUIManager';
 import { NotificationStore } from './NotificationStore';
 import type { SkillTreeStats } from './BabylonSkillTreePanel';
 import type { NoticeArticle } from './BabylonNoticeBoardPanel';
+import { type GameText, type TextCategory, TEXT_CATEGORY_INFO, noticeArticleToGameText } from './GameTextTypes';
 import type { PlayerAssessmentData } from '@shared/assessment-types';
 import type { GameSaveState } from '@shared/game-engine/types';
 import type { MainQuestChapter, ChapterProgress } from '@shared/quest/main-quest-chapters';
@@ -332,6 +333,7 @@ export class GameMenuSystem {
   private skillTreeState: SkillTreeState = createDefaultSkillTreeState();
   private answeredNoticeQuestions: Set<string> = new Set();
   private noticeShowTranslations: boolean = true;
+  private libraryActiveCategory: TextCategory | 'all' = 'all';
 
   // Save/Load state
   private systemSubView: 'main' | 'save' | 'load' | 'playthrough' = 'main';
@@ -4021,7 +4023,7 @@ export class GameMenuSystem {
     return `${r}, ${g}, ${b}`;
   }
 
-  // ── NOTICE BOARD TAB ────────────────────────────────────────────────────
+  // ── LIBRARY TAB ─────────────────────────────────────────────────────────
 
   private renderNoticesTab(): void {
     const { stack } = this.makeScrollableContent("notices");
@@ -4041,17 +4043,50 @@ export class GameMenuSystem {
       return;
     }
 
-    // Stats header
-    const statsText = new TextBlock();
-    const totalArticles = noticeData.articles.length;
-    const stories = noticeData.articles.filter((a: any) => a.documentType === 'story' || a.documentType === 'poem').length;
-    const notices = totalArticles - stories;
-    statsText.text = `${totalArticles} collected: ${notices} notices, ${stories} stories/poems`;
-    statsText.color = COLORS.textMuted;
-    statsText.fontSize = 11;
-    statsText.height = "20px";
-    statsText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    stack.addControl(statsText);
+    // Convert articles to GameText for categorization
+    const gameTexts: GameText[] = noticeData.articles.map(noticeArticleToGameText);
+
+    // Count by category
+    const categoryCounts = new Map<TextCategory | 'all', number>();
+    categoryCounts.set('all', gameTexts.length);
+    for (const t of gameTexts) {
+      categoryCounts.set(t.textCategory, (categoryCounts.get(t.textCategory) || 0) + 1);
+    }
+
+    // Category filter row
+    const filterRow = new Rectangle();
+    filterRow.width = 1;
+    filterRow.height = "30px";
+    filterRow.thickness = 0;
+    filterRow.paddingBottom = "6px";
+    stack.addControl(filterRow);
+
+    const categories: (TextCategory | 'all')[] = ['all', 'notice', 'book', 'journal', 'letter', 'flyer', 'recipe'];
+    let xOff = 0;
+    for (const cat of categories) {
+      const count = categoryCounts.get(cat) || 0;
+      if (cat !== 'all' && count === 0) continue;
+
+      const label = cat === 'all' ? `All (${count})` : `${TEXT_CATEGORY_INFO[cat].icon} ${TEXT_CATEGORY_INFO[cat].label} (${count})`;
+      const isActive = this.libraryActiveCategory === cat;
+      const catBtn = Button.CreateSimpleButton(`libCat_${cat}`, label);
+      const btnWidth = Math.max(60, label.length * 7 + 16);
+      catBtn.width = `${btnWidth}px`;
+      catBtn.height = "24px";
+      catBtn.fontSize = 10;
+      catBtn.color = isActive ? COLORS.textPrimary : COLORS.textMuted;
+      catBtn.background = isActive ? COLORS.accent : COLORS.cardBg;
+      catBtn.cornerRadius = 12;
+      catBtn.thickness = 1;
+      catBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      catBtn.left = `${xOff}px`;
+      catBtn.onPointerClickObservable.add(() => {
+        this.libraryActiveCategory = cat;
+        this.refreshActiveTab();
+      });
+      filterRow.addControl(catBtn);
+      xOff += btnWidth + 4;
+    }
 
     // Toggle translations button
     const toggleBtn = Button.CreateSimpleButton("noticeToggleTrans", this.noticeShowTranslations ? "Hide Translations" : "Show Translations");
@@ -4071,136 +4106,165 @@ export class GameMenuSystem {
     });
     stack.addControl(toggleBtn);
 
-    // Filter articles by fluency
-    const articles = noticeData.articles.filter(a => {
-      if (a.difficulty === 'beginner') return true;
-      if (a.difficulty === 'intermediate') return noticeData.playerFluency >= 25;
-      if (a.difficulty === 'advanced') return noticeData.playerFluency >= 55;
+    // Filter by category and fluency
+    const filtered = gameTexts.filter(t => {
+      if (this.libraryActiveCategory !== 'all' && t.textCategory !== this.libraryActiveCategory) return false;
+      if (t.difficulty === 'beginner') return true;
+      if (t.difficulty === 'intermediate') return noticeData.playerFluency >= 25;
+      if (t.difficulty === 'advanced') return noticeData.playerFluency >= 55;
       return true;
     });
 
-    for (const article of articles) {
-      const diffColor = article.difficulty === 'beginner' ? COLORS.accentGreen
-        : (article.difficulty === 'intermediate' ? COLORS.accentYellow : COLORS.accentRed);
+    if (filtered.length === 0) {
+      const noMatch = new TextBlock();
+      noMatch.text = "No texts in this category yet.";
+      noMatch.color = COLORS.textMuted;
+      noMatch.fontSize = 12;
+      noMatch.height = "30px";
+      stack.addControl(noMatch);
+      return;
+    }
 
-      const card = this.makeCard(stack);
+    for (const article of filtered) {
+      this.renderLibraryArticleCard(stack, article);
+    }
+  }
 
-      // Title row
-      const titleRow = new Rectangle();
-      titleRow.width = 1;
-      titleRow.height = "20px";
-      titleRow.thickness = 0;
-      card.addControl(titleRow);
+  private renderLibraryArticleCard(stack: StackPanel, article: GameText): void {
+    const diffColor = article.difficulty === 'beginner' ? COLORS.accentGreen
+      : (article.difficulty === 'intermediate' ? COLORS.accentYellow : COLORS.accentRed);
 
-      const titleText = new TextBlock();
-      titleText.text = article.title;
-      titleText.color = COLORS.textPrimary;
-      titleText.fontSize = 12;
-      titleText.fontWeight = "bold";
-      titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      titleRow.addControl(titleText);
+    const card = this.makeCard(stack);
 
-      const diffText = new TextBlock();
-      diffText.text = article.difficulty;
-      diffText.color = diffColor;
-      diffText.fontSize = 12;
-      diffText.fontWeight = "bold";
-      diffText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      titleRow.addControl(diffText);
+    // Title row with category icon
+    const titleRow = new Rectangle();
+    titleRow.width = 1;
+    titleRow.height = "20px";
+    titleRow.thickness = 0;
+    card.addControl(titleRow);
 
-      // Title translation
-      if (this.noticeShowTranslations) {
-        const titleTrans = new TextBlock();
-        titleTrans.text = `(${article.titleTranslation})`;
-        titleTrans.color = COLORS.textMuted;
-        titleTrans.fontSize = 12;
-        titleTrans.fontStyle = "italic";
-        titleTrans.height = "15px";
-        titleTrans.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        card.addControl(titleTrans);
-      }
+    const catInfo = TEXT_CATEGORY_INFO[article.textCategory];
+    const titleText = new TextBlock();
+    titleText.text = catInfo ? `${catInfo.icon} ${article.title}` : article.title;
+    titleText.color = COLORS.textPrimary;
+    titleText.fontSize = 12;
+    titleText.fontWeight = "bold";
+    titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    titleRow.addControl(titleText);
 
-      // Body
-      const bodyText = new TextBlock();
-      bodyText.text = article.body;
-      bodyText.color = COLORS.textSecondary;
-      bodyText.fontSize = 12;
-      bodyText.textWrapping = true;
-      bodyText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      bodyText.resizeToFit = true;
-      bodyText.paddingTop = "5px";
-      bodyText.paddingBottom = "5px";
-      card.addControl(bodyText);
+    const diffText = new TextBlock();
+    diffText.text = article.difficulty;
+    diffText.color = diffColor;
+    diffText.fontSize = 12;
+    diffText.fontWeight = "bold";
+    diffText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    titleRow.addControl(diffText);
 
-      // Body translation
-      if (this.noticeShowTranslations) {
-        const bodyTrans = new TextBlock();
-        bodyTrans.text = article.bodyTranslation;
-        bodyTrans.color = COLORS.textMuted;
-        bodyTrans.fontSize = 12;
-        bodyTrans.fontStyle = "italic";
-        bodyTrans.textWrapping = true;
-        bodyTrans.resizeToFit = true;
-        bodyTrans.paddingBottom = "5px";
-        bodyTrans.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        card.addControl(bodyTrans);
-      }
+    // Author line
+    if (article.author) {
+      const authorText = new TextBlock();
+      const occ = article.author.occupation ? ` (${article.author.occupation})` : '';
+      authorText.text = `\u2014 ${article.author.name}${occ}`;
+      authorText.color = COLORS.textMuted;
+      authorText.fontSize = 10;
+      authorText.fontStyle = "italic";
+      authorText.height = "14px";
+      authorText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      card.addControl(authorText);
+    }
 
-      // Vocabulary words
-      if (article.vocabularyWords.length > 0) {
-        const vocabText = new TextBlock();
-        vocabText.text = "Vocab: " + article.vocabularyWords.map(w => `${w.word} (${w.meaning})`).join(", ");
-        vocabText.color = COLORS.accent;
-        vocabText.fontSize = 12;
-        vocabText.textWrapping = true;
-        vocabText.resizeToFit = true;
-        vocabText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        card.addControl(vocabText);
-      }
+    // Title translation
+    if (this.noticeShowTranslations) {
+      const titleTrans = new TextBlock();
+      titleTrans.text = `(${article.titleTranslation})`;
+      titleTrans.color = COLORS.textMuted;
+      titleTrans.fontSize = 12;
+      titleTrans.fontStyle = "italic";
+      titleTrans.height = "15px";
+      titleTrans.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      card.addControl(titleTrans);
+    }
 
-      // Comprehension question
-      const hasQuestion = article.comprehensionQuestion && !this.answeredNoticeQuestions.has(article.id);
-      if (hasQuestion && article.comprehensionQuestion) {
-        const q = article.comprehensionQuestion;
+    // Body
+    const bodyText = new TextBlock();
+    bodyText.text = article.body;
+    bodyText.color = COLORS.textSecondary;
+    bodyText.fontSize = 12;
+    bodyText.textWrapping = true;
+    bodyText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    bodyText.resizeToFit = true;
+    bodyText.paddingTop = "5px";
+    bodyText.paddingBottom = "5px";
+    card.addControl(bodyText);
 
-        const spacer = new Rectangle();
-        spacer.width = 1;
-        spacer.height = "6px";
-        spacer.thickness = 0;
-        spacer.background = "transparent";
-        card.addControl(spacer);
+    // Body translation
+    if (this.noticeShowTranslations) {
+      const bodyTrans = new TextBlock();
+      bodyTrans.text = article.bodyTranslation;
+      bodyTrans.color = COLORS.textMuted;
+      bodyTrans.fontSize = 12;
+      bodyTrans.fontStyle = "italic";
+      bodyTrans.textWrapping = true;
+      bodyTrans.resizeToFit = true;
+      bodyTrans.paddingBottom = "5px";
+      bodyTrans.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      card.addControl(bodyTrans);
+    }
 
-        const qText = new TextBlock();
-        qText.text = this.noticeShowTranslations ? `${q.question} (${q.questionTranslation})` : q.question;
-        qText.color = COLORS.textPrimary;
-        qText.fontSize = 12;
-        qText.fontWeight = "bold";
-        qText.textWrapping = true;
-        qText.resizeToFit = true;
-        qText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        card.addControl(qText);
+    // Vocabulary words
+    if (article.vocabularyWords.length > 0) {
+      const vocabText = new TextBlock();
+      vocabText.text = "Vocab: " + article.vocabularyWords.map(w => `${w.word} (${w.meaning})`).join(", ");
+      vocabText.color = COLORS.accent;
+      vocabText.fontSize = 12;
+      vocabText.textWrapping = true;
+      vocabText.resizeToFit = true;
+      vocabText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      card.addControl(vocabText);
+    }
 
-        for (let i = 0; i < q.options.length; i++) {
-          const opt = q.options[i];
-          const isCorrect = i === q.correctIndex;
-          const optBtn = Button.CreateSimpleButton(`noticeOpt_${article.id}_${i}`, opt);
-          optBtn.width = "100%";
-          optBtn.height = "24px";
-          optBtn.color = COLORS.textPrimary;
-          optBtn.background = COLORS.cardBg;
-          optBtn.cornerRadius = 3;
-          optBtn.fontSize = 12;
-          optBtn.thickness = 1;
-          (optBtn as any).borderColor = COLORS.cardBorder;
-          optBtn.paddingTop = "3px";
-          optBtn.paddingBottom = "3px";
-          optBtn.onPointerClickObservable.add(() => {
-            this.answeredNoticeQuestions.add(article.id);
-            this.callbacks.onNoticeQuestionAnswered?.(isCorrect, article.id);
-            this.refreshActiveTab();
-          });
-          card.addControl(optBtn);
-        }
+    // Comprehension question
+    const hasQuestion = article.comprehensionQuestion && !this.answeredNoticeQuestions.has(article.id);
+    if (hasQuestion && article.comprehensionQuestion) {
+      const q = article.comprehensionQuestion;
+
+      const spacer = new Rectangle();
+      spacer.width = 1;
+      spacer.height = "6px";
+      spacer.thickness = 0;
+      spacer.background = "transparent";
+      card.addControl(spacer);
+
+      const qText = new TextBlock();
+      qText.text = this.noticeShowTranslations ? `${q.question} (${q.questionTranslation})` : q.question;
+      qText.color = COLORS.textPrimary;
+      qText.fontSize = 12;
+      qText.fontWeight = "bold";
+      qText.textWrapping = true;
+      qText.resizeToFit = true;
+      qText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      card.addControl(qText);
+
+      for (let i = 0; i < q.options.length; i++) {
+        const opt = q.options[i];
+        const isCorrect = i === q.correctIndex;
+        const optBtn = Button.CreateSimpleButton(`noticeOpt_${article.id}_${i}`, opt);
+        optBtn.width = "100%";
+        optBtn.height = "24px";
+        optBtn.color = COLORS.textPrimary;
+        optBtn.background = COLORS.cardBg;
+        optBtn.cornerRadius = 3;
+        optBtn.fontSize = 12;
+        optBtn.thickness = 1;
+        (optBtn as any).borderColor = COLORS.cardBorder;
+        optBtn.paddingTop = "3px";
+        optBtn.paddingBottom = "3px";
+        optBtn.onPointerClickObservable.add(() => {
+          this.answeredNoticeQuestions.add(article.id);
+          this.callbacks.onNoticeQuestionAnswered?.(isCorrect, article.id);
+          this.refreshActiveTab();
+        });
+        card.addControl(optBtn);
       }
     }
   }

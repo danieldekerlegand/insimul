@@ -50,84 +50,6 @@ export interface NoticeArticle {
   };
 }
 
-// Sample articles by difficulty (would be AI-generated in production)
-export const SAMPLE_ARTICLES: NoticeArticle[] = [
-  {
-    id: 'notice_1',
-    title: 'Le Marché du Village',
-    titleTranslation: 'The Village Market',
-    body: 'Le marché est ouvert tous les jours. Venez acheter du pain, du fromage, et des fruits frais.',
-    bodyTranslation: 'The market is open every day. Come buy bread, cheese, and fresh fruits.',
-    difficulty: 'beginner',
-    vocabularyWords: [
-      { word: 'marché', meaning: 'market' },
-      { word: 'pain', meaning: 'bread' },
-      { word: 'fromage', meaning: 'cheese' },
-      { word: 'fruits', meaning: 'fruits' },
-    ],
-    comprehensionQuestion: {
-      question: 'Quand est-ce que le marché est ouvert?',
-      questionTranslation: 'When is the market open?',
-      options: ['Le lundi', 'Tous les jours', 'Le weekend'],
-      correctIndex: 1,
-    },
-    author: { characterId: 'npc_merchant_1', name: 'Pierre Dupont', occupation: 'Merchant' },
-    noticeType: 'flyer',
-    readingXp: 10,
-  },
-  {
-    id: 'notice_2',
-    title: 'Bienvenue aux Nouveaux Arrivants',
-    titleTranslation: 'Welcome to Newcomers',
-    body: 'Le conseil du village souhaite la bienvenue à tous les nouveaux habitants. Une réunion aura lieu demain soir à la mairie.',
-    bodyTranslation: 'The village council welcomes all new inhabitants. A meeting will take place tomorrow evening at the town hall.',
-    difficulty: 'intermediate',
-    vocabularyWords: [
-      { word: 'bienvenue', meaning: 'welcome' },
-      { word: 'habitants', meaning: 'inhabitants' },
-      { word: 'réunion', meaning: 'meeting' },
-      { word: 'mairie', meaning: 'town hall' },
-    ],
-    comprehensionQuestion: {
-      question: 'Où aura lieu la réunion?',
-      questionTranslation: 'Where will the meeting take place?',
-      options: ['Au marché', 'À la mairie', 'À l\'église'],
-      correctIndex: 1,
-    },
-    author: { characterId: 'npc_mayor_1', name: 'Marie Laurent', occupation: 'Mayor' },
-    noticeType: 'official',
-    readingXp: 15,
-    questHook: {
-      questId: 'quest_town_meeting',
-      questTitle: 'Assister à la réunion',
-      questTitleTranslation: 'Attend the meeting',
-    },
-  },
-  {
-    id: 'notice_3',
-    title: 'Avis Important: Travaux de Réparation',
-    titleTranslation: 'Important Notice: Repair Work',
-    body: 'En raison de travaux de réparation sur le pont principal, la circulation sera déviée par le chemin forestier pendant les deux prochaines semaines. Nous nous excusons pour la gêne occasionnée.',
-    bodyTranslation: 'Due to repair work on the main bridge, traffic will be diverted through the forest path for the next two weeks. We apologize for the inconvenience.',
-    difficulty: 'advanced',
-    vocabularyWords: [
-      { word: 'travaux', meaning: 'work/construction' },
-      { word: 'pont', meaning: 'bridge' },
-      { word: 'circulation', meaning: 'traffic' },
-      { word: 'chemin', meaning: 'path' },
-      { word: 'semaines', meaning: 'weeks' },
-    ],
-    comprehensionQuestion: {
-      question: 'Combien de temps dureront les travaux?',
-      questionTranslation: 'How long will the work last?',
-      options: ['Un jour', 'Une semaine', 'Deux semaines'],
-      correctIndex: 2,
-    },
-    author: { characterId: 'npc_builder_1', name: 'Jacques Martin', occupation: 'Builder' },
-    noticeType: 'official',
-    readingXp: 20,
-  },
-];
 
 export class BabylonNoticeBoardPanel {
   private advancedTexture: GUI.AdvancedDynamicTexture;
@@ -152,7 +74,7 @@ export class BabylonNoticeBoardPanel {
 
   constructor(advancedTexture: GUI.AdvancedDynamicTexture) {
     this.advancedTexture = advancedTexture;
-    this.articles = [...SAMPLE_ARTICLES];
+    this.articles = [];
     this.createPanel();
   }
 
@@ -578,6 +500,10 @@ export class BabylonNoticeBoardPanel {
 
   public setPlayerFluency(fluency: number): void {
     this.playerFluency = fluency;
+  }
+
+  public getArticles(): NoticeArticle[] {
+    return [...this.articles];
   }
 
   public setArticles(articles: NoticeArticle[]): void {
