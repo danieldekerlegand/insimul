@@ -22,7 +22,8 @@ echo ""
 mkdir -p "$ASSETS_DIR/characters/generic"
 mkdir -p "$ASSETS_DIR/characters/medieval"
 mkdir -p "$ASSETS_DIR/characters/scifi"
-mkdir -p "$ASSETS_DIR/quest-objects"
+mkdir -p "$ASSETS_DIR/containers"
+mkdir -p "$ASSETS_DIR/markers"
 mkdir -p "$TEMP_DIR"
 
 # Function to download and extract zip
@@ -114,7 +115,7 @@ if download_and_extract "https://quaternius.com/packs/ultimatemodularcharacters/
 fi
 
 echo ""
-echo "📥 Downloading Quaternius Low Poly Ultimate Pack (for quest objects)..."
+echo "📥 Downloading Quaternius Low Poly Ultimate Pack (for containers and props)..."
 echo ""
 
 # Download Low Poly Ultimate Pack for quest objects
@@ -126,26 +127,26 @@ if download_and_extract "https://quaternius.com/packs/lowpolyultimatepack/LowPol
     
     if [ -n "$LOWPOLY_DIR" ] && [ -d "$LOWPOLY_DIR" ]; then
         echo ""
-        echo "📂 Copying quest object models..."
-        
+        echo "📂 Copying container, marker, and prop models..."
+
         for glb in "$LOWPOLY_DIR"/*.glb; do
             if [ -f "$glb" ]; then
                 filename=$(basename "$glb" | tr '[:upper:]' '[:lower:]')
                 case "$filename" in
                     *chest*.glb)
-                        copy_model "$glb" "$ASSETS_DIR/quest-objects/chest.glb"
+                        copy_model "$glb" "$ASSETS_DIR/containers/chest.glb"
                         ;;
                     *key*.glb)
-                        copy_model "$glb" "$ASSETS_DIR/quest-objects/key.glb"
+                        copy_model "$glb" "$ASSETS_DIR/containers/key.glb"
                         ;;
                     *scroll*.glb|*book*.glb)
-                        copy_model "$glb" "$ASSETS_DIR/quest-objects/scroll.glb"
+                        copy_model "$glb" "$ASSETS_DIR/props/scroll.glb"
                         ;;
                     *gem*.glb|*crystal*.glb|*diamond*.glb)
-                        copy_model "$glb" "$ASSETS_DIR/quest-objects/collectible_gem.glb"
+                        copy_model "$glb" "$ASSETS_DIR/props/collectible_gem.glb"
                         ;;
                     *pillar*.glb|*obelisk*.glb|*marker*.glb)
-                        copy_model "$glb" "$ASSETS_DIR/quest-objects/quest_marker.glb"
+                        copy_model "$glb" "$ASSETS_DIR/markers/quest_marker.glb"
                         ;;
                 esac
             fi
@@ -201,7 +202,7 @@ echo "Downloaded models are in: $ASSETS_DIR"
 echo ""
 echo "Directory contents:"
 echo ""
-find "$ASSETS_DIR/characters" "$ASSETS_DIR/quest-objects" -name "*.glb" 2>/dev/null | while read f; do
+find "$ASSETS_DIR/characters" "$ASSETS_DIR/containers" "$ASSETS_DIR/markers" "$ASSETS_DIR/props" -name "*.glb" 2>/dev/null | while read f; do
     size=$(du -h "$f" | cut -f1)
     echo "  $size  ${f#$ASSETS_DIR/}"
 done

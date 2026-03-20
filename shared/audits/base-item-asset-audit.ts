@@ -448,14 +448,17 @@ export const EXISTING_ASSETS: Record<string, { path: string; format: 'gltf' | 'g
   'vintage_wooden_drawer_01': { path: 'polyhaven/models/vintage_wooden_drawer_01.gltf', format: 'gltf' },
   'painted_wooden_cabinet': { path: 'polyhaven/models/painted_wooden_cabinet.gltf', format: 'gltf' },
   'vintage_cabinet_01': { path: 'polyhaven/models/vintage_cabinet_01.gltf', format: 'gltf' },
-  // Quest objects
-  'chest_glb': { path: 'quest-objects/chest.glb', format: 'glb' },
-  'collectible_gem': { path: 'quest-objects/collectible_gem.glb', format: 'glb' },
-  'water_bottle': { path: 'quest-objects/water_bottle.glb', format: 'glb' },
-  'quest_marker': { path: 'quest-objects/quest_marker.glb', format: 'glb' },
-  'avocado_collectible': { path: 'quest-objects/avocado_collectible.glb', format: 'glb' },
-  'brass_lamp': { path: 'quest-objects/brass_lamp.gltf', format: 'gltf' },
-  'lantern_marker': { path: 'quest-objects/lantern_marker.gltf', format: 'gltf' },
+  // Containers
+  'chest_glb': { path: 'containers/chest.glb', format: 'glb' },
+  'treasure_chest': { path: 'containers/treasure_chest.gltf', format: 'gltf' },
+  // Markers
+  'quest_marker': { path: 'markers/quest_marker.glb', format: 'glb' },
+  'lantern_marker': { path: 'markers/lantern_marker.gltf', format: 'gltf' },
+  // Props (collectibles/items)
+  'collectible_gem': { path: 'props/collectible_gem.glb', format: 'glb' },
+  'water_bottle': { path: 'props/water_bottle.glb', format: 'glb' },
+  'avocado_collectible': { path: 'props/avocado_collectible.glb', format: 'glb' },
+  'brass_lamp': { path: 'props/brass_lamp.gltf', format: 'gltf' },
 };
 
 // ---------------------------------------------------------------------------
@@ -631,8 +634,8 @@ export const ASSET_RECOMMENDATIONS: Record<string, AssetRecommendation> = {
   'Pizza Slice': { assetId: 'food_pizza_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Pizza slice' },
 
   // Drinks
-  'Water Flask': { assetId: 'water_bottle', source: 'custom', format: 'glb', license: 'CC0', notes: 'Existing quest-objects/water_bottle.glb' },
-  'Water Bottle': { assetId: 'water_bottle', source: 'custom', format: 'glb', license: 'CC0', notes: 'Existing quest-objects/water_bottle.glb' },
+  'Water Flask': { assetId: 'water_bottle', source: 'custom', format: 'glb', license: 'CC0', notes: 'Existing props/water_bottle.glb' },
+  'Water Bottle': { assetId: 'water_bottle', source: 'custom', format: 'glb', license: 'CC0', notes: 'Existing props/water_bottle.glb' },
   'Milk': { assetId: 'drink_bottle_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Bottle model' },
   'Whiskey': { assetId: 'drink_bottle_02', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Liquor bottle' },
   'Moonshine': { assetId: 'drink_jug_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Jug model' },

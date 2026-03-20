@@ -50,7 +50,7 @@ const MODEL_SOURCES = {
       models: []
     }
   },
-  questObjects: {
+  containers: {
     // Quaternius props that work well as quest objects
     quaternius_props: {
       zipUrl: 'https://quaternius.com/packs/lowpolyultimatepack/LowPolyUltimatePack.zip',
@@ -230,11 +230,11 @@ async function createPlaceholders(): Promise<void> {
     'characters/medieval/player_knight.glb',
     'characters/medieval/player_mage.glb',
     'characters/scifi/player_soldier.glb',
-    'quest-objects/collectible_gem.glb',
-    'quest-objects/chest.glb',
-    'quest-objects/quest_marker.glb',
-    'quest-objects/key.glb',
-    'quest-objects/scroll.glb',
+    'containers/chest.glb',
+    'containers/key.glb',
+    'markers/quest_marker.glb',
+    'props/collectible_gem.glb',
+    'props/scroll.glb',
   ];
   
   const placeholderContent = JSON.stringify({
@@ -289,7 +289,7 @@ function printManualDownloadInstructions(): void {
 ║     https://kenney.nl/assets/animated-characters                  ║
 ║     → Low-poly animated characters with multiple skins            ║
 ║                                                                   ║
-║  QUEST OBJECT MODELS:                                             ║
+║  CONTAINER / PROP MODELS:                                             ║
 ║  ────────────────────                                             ║
 ║  1. Quaternius Low Poly Ultimate Pack                             ║
 ║     https://quaternius.com/packs/lowpolyultimatepack.html         ║
@@ -310,11 +310,13 @@ function printManualDownloadInstructions(): void {
 ║  │   │   └── npc_*.glb                                            ║
 ║  │   ├── medieval/                                                ║
 ║  │   └── scifi/                                                   ║
-║  └── quest-objects/                                               ║
+║  ├── containers/                                                  ║
+║  │   ├── chest.glb                                                ║
+║  │   └── key.glb                                                  ║
+║  ├── markers/                                                     ║
+║  │   └── quest_marker.glb                                         ║
+║  └── props/                                                       ║
 ║      ├── collectible_gem.glb                                      ║
-║      ├── chest.glb                                                ║
-║      ├── quest_marker.glb                                         ║
-║      ├── key.glb                                                  ║
 ║      └── scroll.glb                                               ║
 ║                                                                   ║
 ╚══════════════════════════════════════════════════════════════════╝
@@ -333,7 +335,8 @@ async function main(): Promise<void> {
   await fs.mkdir(path.join(ASSETS_DIR, 'characters/generic'), { recursive: true });
   await fs.mkdir(path.join(ASSETS_DIR, 'characters/medieval'), { recursive: true });
   await fs.mkdir(path.join(ASSETS_DIR, 'characters/scifi'), { recursive: true });
-  await fs.mkdir(path.join(ASSETS_DIR, 'quest-objects'), { recursive: true });
+  await fs.mkdir(path.join(ASSETS_DIR, 'containers'), { recursive: true });
+  await fs.mkdir(path.join(ASSETS_DIR, 'markers'), { recursive: true });
   
   // Download standalone models
   await downloadStandaloneModels();

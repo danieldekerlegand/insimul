@@ -172,7 +172,9 @@ function buildMoveList(): PathMove[] {
     }
   }
 
-  // 7. Quest objects → models/quest-objects/
+  // 7. Quest objects → models/containers/, models/markers/, models/props/
+  // NOTE: Originally moved to models/quest-objects/. Migration 024 renames
+  // quest-objects/ to containers/ and splits into containers/, markers/, props/.
   const questDir = path.join(ASSETS_DIR, 'quest-objects');
   if (fs.existsSync(questDir)) {
     for (const f of fs.readdirSync(questDir)) {
