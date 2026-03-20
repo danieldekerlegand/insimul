@@ -332,6 +332,9 @@ export class GameMenuSystem {
   private skillTreeState: SkillTreeState = createDefaultSkillTreeState();
   private answeredNoticeQuestions: Set<string> = new Set();
   private noticeShowTranslations: boolean = true;
+  private libraryActiveCategory: string = 'all';
+  private libraryReadingArticle: NoticeArticle | null = null;
+  private libraryReadArticleIds: Set<string> = new Set();
 
   // Save/Load state
   private systemSubView: 'main' | 'save' | 'load' | 'playthrough' = 'main';
@@ -4021,14 +4024,34 @@ export class GameMenuSystem {
     return `${r}, ${g}, ${b}`;
   }
 
-  // ── NOTICE BOARD TAB ────────────────────────────────────────────────────
+  // ── LIBRARY TAB ─────────────────────────────────────────────────────────
+
+  private static readonly LIBRARY_CATEGORIES: { id: string; label: string; icon: string }[] = [
+    { id: 'all', label: 'All', icon: '📚' },
+    { id: 'notice', label: 'Notices', icon: '📋' },
+    { id: 'book', label: 'Books', icon: '📖' },
+    { id: 'story', label: 'Stories', icon: '📝' },
+    { id: 'poem', label: 'Poems', icon: '🎭' },
+    { id: 'journal', label: 'Journals', icon: '📓' },
+    { id: 'letter', label: 'Letters', icon: '✉️' },
+    { id: 'recipe', label: 'Recipes', icon: '🍳' },
+    { id: 'document', label: 'Documents', icon: '📄' },
+  ];
 
   private renderNoticesTab(): void {
+    if (this.libraryReadingArticle) {
+      this.renderLibraryReadingView();
+      return;
+    }
+    this.renderLibraryListView();
+  }
+
+  private renderLibraryListView(): void {
     const { stack } = this.makeScrollableContent("notices");
     const noticeData = this.callbacks.getNoticeArticles?.();
 
     this.addSectionHeader(stack, "Library");
-    this.addSubHeader(stack, "Collected readings from notice boards and documents found in the world");
+    this.addSubHeader(stack, "Your collection of texts found throughout the world");
 
     if (!noticeData || noticeData.articles.length === 0) {
       const noData = new TextBlock();
@@ -4041,20 +4064,252 @@ export class GameMenuSystem {
       return;
     }
 
-    // Stats header
+    // Category filter tabs
+    const tabRow = new StackPanel("libCatRow");
+    tabRow.isVertical = false;
+    tabRow.width = 1;
+    tabRow.height = "32px";
+    tabRow.paddingBottom = "8px";
+    stack.addControl(tabRow);
+
+    // Count articles per category for badges
+    const categoryCounts = new Map<string, number>();
+    for (const a of noticeData.articles) {
+      const cat = a.documentType || 'notice';
+      categoryCounts.set(cat, (categoryCounts.get(cat) || 0) + 1);
+    }
+
+    for (const cat of GameMenuSystem.LIBRARY_CATEGORIES) {
+      const count = cat.id === 'all' ? noticeData.articles.length : (categoryCounts.get(cat.id) || 0);
+      if (cat.id !== 'all' && count === 0) continue;
+
+      const isActive = this.libraryActiveCategory === cat.id;
+      const catBtn = Button.CreateSimpleButton(`libCat_${cat.id}`, `${cat.icon} ${cat.label} (${count})`);
+      catBtn.width = "auto";
+      catBtn.height = "28px";
+      catBtn.paddingLeft = "2px";
+      catBtn.paddingRight = "2px";
+      catBtn.color = isActive ? COLORS.textPrimary : COLORS.textSecondary;
+      catBtn.background = isActive ? COLORS.tabActive : COLORS.tabIdle;
+      catBtn.cornerRadius = 14;
+      catBtn.fontSize = 11;
+      catBtn.thickness = isActive ? 1 : 0;
+      (catBtn as any).borderColor = isActive ? COLORS.tabActiveBorder : "transparent";
+      catBtn.onPointerClickObservable.add(() => {
+        this.libraryActiveCategory = cat.id;
+        this.refreshActiveTab();
+      });
+      tabRow.addControl(catBtn);
+    }
+
+    // Stats row
+    const readCount = noticeData.articles.filter(a => this.libraryReadArticleIds.has(a.id)).length;
     const statsText = new TextBlock();
-    const totalArticles = noticeData.articles.length;
-    const stories = noticeData.articles.filter((a: any) => a.documentType === 'story' || a.documentType === 'poem').length;
-    const notices = totalArticles - stories;
-    statsText.text = `${totalArticles} collected: ${notices} notices, ${stories} stories/poems`;
+    statsText.text = `${noticeData.articles.length} collected · ${readCount} read`;
     statsText.color = COLORS.textMuted;
     statsText.fontSize = 11;
     statsText.height = "20px";
     statsText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     stack.addControl(statsText);
 
+    // Filter by category + fluency
+    const articles = noticeData.articles.filter(a => {
+      if (this.libraryActiveCategory !== 'all') {
+        const cat = a.documentType || 'notice';
+        if (cat !== this.libraryActiveCategory) return false;
+      }
+      if (a.difficulty === 'intermediate' && noticeData.playerFluency < 25) return false;
+      if (a.difficulty === 'advanced' && noticeData.playerFluency < 55) return false;
+      return true;
+    });
+
+    if (articles.length === 0) {
+      const empty = new TextBlock();
+      empty.text = "No texts in this category yet.";
+      empty.color = COLORS.textMuted;
+      empty.fontSize = 12;
+      empty.height = "30px";
+      stack.addControl(empty);
+      return;
+    }
+
+    // Article cards (compact list — click to read)
+    for (const article of articles) {
+      const isRead = this.libraryReadArticleIds.has(article.id);
+      const diffColor = article.difficulty === 'beginner' ? COLORS.accentGreen
+        : (article.difficulty === 'intermediate' ? COLORS.accentYellow : COLORS.accentRed);
+      const typeLabel = this.getDocumentTypeLabel(article);
+
+      const card = this.makeCard(stack);
+
+      // Title row with type badge and difficulty
+      const titleRow = new Rectangle();
+      titleRow.width = 1;
+      titleRow.height = "20px";
+      titleRow.thickness = 0;
+      card.addControl(titleRow);
+
+      const titleText = new TextBlock();
+      titleText.text = `${isRead ? '✓ ' : ''}${article.title}`;
+      titleText.color = isRead ? COLORS.textSecondary : COLORS.textPrimary;
+      titleText.fontSize = 13;
+      titleText.fontWeight = "bold";
+      titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      titleRow.addControl(titleText);
+
+      const badgeText = new TextBlock();
+      badgeText.text = `${typeLabel} · ${article.difficulty}`;
+      badgeText.color = diffColor;
+      badgeText.fontSize = 11;
+      badgeText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      titleRow.addControl(badgeText);
+
+      // Author + XP row
+      if (article.author || article.readingXp) {
+        const metaText = new TextBlock();
+        const parts: string[] = [];
+        if (article.author) parts.push(`by ${article.author.name}`);
+        if (article.readingXp) parts.push(`${article.readingXp} XP`);
+        metaText.text = parts.join(' · ');
+        metaText.color = COLORS.textMuted;
+        metaText.fontSize = 11;
+        metaText.height = "16px";
+        metaText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        card.addControl(metaText);
+      }
+
+      // Preview (first 80 chars of body)
+      const preview = new TextBlock();
+      preview.text = article.body.length > 80 ? article.body.substring(0, 80) + '…' : article.body;
+      preview.color = COLORS.textSecondary;
+      preview.fontSize = 11;
+      preview.height = "16px";
+      preview.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      preview.paddingTop = "3px";
+      card.addControl(preview);
+
+      // "Read" button
+      const readBtn = Button.CreateSimpleButton(`libRead_${article.id}`, "Read →");
+      readBtn.width = "70px";
+      readBtn.height = "24px";
+      readBtn.color = COLORS.textPrimary;
+      readBtn.background = COLORS.accent;
+      readBtn.cornerRadius = 4;
+      readBtn.fontSize = 11;
+      readBtn.thickness = 0;
+      readBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      readBtn.paddingTop = "4px";
+      readBtn.onPointerClickObservable.add(() => {
+        this.libraryReadingArticle = article;
+        this.libraryReadArticleIds.add(article.id);
+        this.refreshActiveTab();
+      });
+      card.addControl(readBtn);
+    }
+  }
+
+  private renderLibraryReadingView(): void {
+    const article = this.libraryReadingArticle!;
+    const { stack } = this.makeScrollableContent("noticesReading");
+
+    const diffColor = article.difficulty === 'beginner' ? COLORS.accentGreen
+      : (article.difficulty === 'intermediate' ? COLORS.accentYellow : COLORS.accentRed);
+
+    // Back button
+    const backBtn = Button.CreateSimpleButton("libBack", "← Back to Library");
+    backBtn.width = "150px";
+    backBtn.height = "28px";
+    backBtn.color = COLORS.textSecondary;
+    backBtn.background = COLORS.cardBg;
+    backBtn.cornerRadius = 4;
+    backBtn.fontSize = 11;
+    backBtn.thickness = 1;
+    (backBtn as any).borderColor = COLORS.cardBorder;
+    backBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    backBtn.paddingBottom = "8px";
+    backBtn.onPointerClickObservable.add(() => {
+      this.libraryReadingArticle = null;
+      this.refreshActiveTab();
+    });
+    stack.addControl(backBtn);
+
+    // Document type + difficulty header
+    const typeLabel = this.getDocumentTypeLabel(article);
+    const headerMeta = new TextBlock();
+    headerMeta.text = `${typeLabel} · ${article.difficulty}`;
+    headerMeta.color = diffColor;
+    headerMeta.fontSize = 11;
+    headerMeta.fontWeight = "bold";
+    headerMeta.height = "18px";
+    headerMeta.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    stack.addControl(headerMeta);
+
+    // Title
+    const titleText = new TextBlock();
+    titleText.text = article.title;
+    titleText.color = COLORS.textPrimary;
+    titleText.fontSize = 18;
+    titleText.fontWeight = "bold";
+    titleText.textWrapping = true;
+    titleText.resizeToFit = true;
+    titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    stack.addControl(titleText);
+
+    // Title translation (toggle)
+    if (this.noticeShowTranslations) {
+      const titleTrans = new TextBlock();
+      titleTrans.text = article.titleTranslation;
+      titleTrans.color = COLORS.textMuted;
+      titleTrans.fontSize = 13;
+      titleTrans.fontStyle = "italic";
+      titleTrans.textWrapping = true;
+      titleTrans.resizeToFit = true;
+      titleTrans.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      stack.addControl(titleTrans);
+    }
+
+    // Author
+    if (article.author) {
+      const authorText = new TextBlock();
+      authorText.text = `by ${article.author.name}${article.author.occupation ? ` (${article.author.occupation})` : ''}`;
+      authorText.color = COLORS.textSecondary;
+      authorText.fontSize = 12;
+      authorText.height = "20px";
+      authorText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      authorText.paddingTop = "2px";
+      stack.addControl(authorText);
+    }
+
+    this.addDivider(stack);
+
+    // Body text
+    const bodyText = new TextBlock();
+    bodyText.text = article.body;
+    bodyText.color = COLORS.textPrimary;
+    bodyText.fontSize = 14;
+    bodyText.lineSpacing = "4px";
+    bodyText.textWrapping = true;
+    bodyText.resizeToFit = true;
+    bodyText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    bodyText.paddingBottom = "8px";
+    stack.addControl(bodyText);
+
+    // Body translation
+    if (this.noticeShowTranslations) {
+      const bodyTrans = new TextBlock();
+      bodyTrans.text = article.bodyTranslation;
+      bodyTrans.color = COLORS.textMuted;
+      bodyTrans.fontSize = 13;
+      bodyTrans.fontStyle = "italic";
+      bodyTrans.textWrapping = true;
+      bodyTrans.resizeToFit = true;
+      bodyTrans.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      bodyTrans.paddingBottom = "8px";
+      stack.addControl(bodyTrans);
+    }
+
     // Toggle translations button
-    const toggleBtn = Button.CreateSimpleButton("noticeToggleTrans", this.noticeShowTranslations ? "Hide Translations" : "Show Translations");
+    const toggleBtn = Button.CreateSimpleButton("libToggleTrans", this.noticeShowTranslations ? "Hide Translations" : "Show Translations");
     toggleBtn.width = "149px";
     toggleBtn.height = "27px";
     toggleBtn.color = COLORS.textPrimary;
@@ -4064,145 +4319,199 @@ export class GameMenuSystem {
     toggleBtn.thickness = 1;
     (toggleBtn as any).borderColor = COLORS.cardBorder;
     toggleBtn.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-    toggleBtn.paddingBottom = "6px";
+    toggleBtn.paddingBottom = "8px";
     toggleBtn.onPointerClickObservable.add(() => {
       this.noticeShowTranslations = !this.noticeShowTranslations;
       this.refreshActiveTab();
     });
     stack.addControl(toggleBtn);
 
-    // Filter articles by fluency
-    const articles = noticeData.articles.filter(a => {
-      if (a.difficulty === 'beginner') return true;
-      if (a.difficulty === 'intermediate') return noticeData.playerFluency >= 25;
-      if (a.difficulty === 'advanced') return noticeData.playerFluency >= 55;
-      return true;
-    });
+    this.addDivider(stack);
 
-    for (const article of articles) {
-      const diffColor = article.difficulty === 'beginner' ? COLORS.accentGreen
-        : (article.difficulty === 'intermediate' ? COLORS.accentYellow : COLORS.accentRed);
+    // Vocabulary section
+    if (article.vocabularyWords.length > 0) {
+      const vocabHeader = new TextBlock();
+      vocabHeader.text = "Vocabulary";
+      vocabHeader.color = COLORS.accent;
+      vocabHeader.fontSize = 14;
+      vocabHeader.fontWeight = "bold";
+      vocabHeader.height = "22px";
+      vocabHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      stack.addControl(vocabHeader);
 
-      const card = this.makeCard(stack);
+      for (const word of article.vocabularyWords) {
+        const wordRow = new Rectangle();
+        wordRow.width = 1;
+        wordRow.height = "20px";
+        wordRow.thickness = 0;
+        wordRow.paddingTop = "2px";
+        stack.addControl(wordRow);
 
-      // Title row
-      const titleRow = new Rectangle();
-      titleRow.width = 1;
-      titleRow.height = "20px";
-      titleRow.thickness = 0;
-      card.addControl(titleRow);
+        const wordText = new TextBlock();
+        wordText.text = word.word;
+        wordText.color = COLORS.textPrimary;
+        wordText.fontSize = 13;
+        wordText.fontWeight = "bold";
+        wordText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        wordRow.addControl(wordText);
 
-      const titleText = new TextBlock();
-      titleText.text = article.title;
-      titleText.color = COLORS.textPrimary;
-      titleText.fontSize = 12;
-      titleText.fontWeight = "bold";
-      titleText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      titleRow.addControl(titleText);
-
-      const diffText = new TextBlock();
-      diffText.text = article.difficulty;
-      diffText.color = diffColor;
-      diffText.fontSize = 12;
-      diffText.fontWeight = "bold";
-      diffText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
-      titleRow.addControl(diffText);
-
-      // Title translation
-      if (this.noticeShowTranslations) {
-        const titleTrans = new TextBlock();
-        titleTrans.text = `(${article.titleTranslation})`;
-        titleTrans.color = COLORS.textMuted;
-        titleTrans.fontSize = 12;
-        titleTrans.fontStyle = "italic";
-        titleTrans.height = "15px";
-        titleTrans.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        card.addControl(titleTrans);
+        const meaningText = new TextBlock();
+        meaningText.text = word.meaning;
+        meaningText.color = COLORS.textSecondary;
+        meaningText.fontSize = 13;
+        meaningText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+        wordRow.addControl(meaningText);
       }
 
-      // Body
-      const bodyText = new TextBlock();
-      bodyText.text = article.body;
-      bodyText.color = COLORS.textSecondary;
-      bodyText.fontSize = 12;
-      bodyText.textWrapping = true;
-      bodyText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-      bodyText.resizeToFit = true;
-      bodyText.paddingTop = "5px";
-      bodyText.paddingBottom = "5px";
-      card.addControl(bodyText);
+      const vocabSpacer = new Rectangle();
+      vocabSpacer.width = 1;
+      vocabSpacer.height = "8px";
+      vocabSpacer.thickness = 0;
+      vocabSpacer.background = "transparent";
+      stack.addControl(vocabSpacer);
+    }
 
-      // Body translation
-      if (this.noticeShowTranslations) {
-        const bodyTrans = new TextBlock();
-        bodyTrans.text = article.bodyTranslation;
-        bodyTrans.color = COLORS.textMuted;
-        bodyTrans.fontSize = 12;
-        bodyTrans.fontStyle = "italic";
-        bodyTrans.textWrapping = true;
-        bodyTrans.resizeToFit = true;
-        bodyTrans.paddingBottom = "5px";
-        bodyTrans.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        card.addControl(bodyTrans);
+    // Comprehension question
+    const hasQuestion = article.comprehensionQuestion && !this.answeredNoticeQuestions.has(article.id);
+    if (hasQuestion && article.comprehensionQuestion) {
+      this.addDivider(stack);
+      const q = article.comprehensionQuestion;
+
+      const qHeader = new TextBlock();
+      qHeader.text = "Comprehension Check";
+      qHeader.color = COLORS.accentYellow;
+      qHeader.fontSize = 14;
+      qHeader.fontWeight = "bold";
+      qHeader.height = "22px";
+      qHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      stack.addControl(qHeader);
+
+      const qText = new TextBlock();
+      qText.text = this.noticeShowTranslations ? `${q.question}\n(${q.questionTranslation})` : q.question;
+      qText.color = COLORS.textPrimary;
+      qText.fontSize = 13;
+      qText.textWrapping = true;
+      qText.resizeToFit = true;
+      qText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      qText.paddingBottom = "6px";
+      stack.addControl(qText);
+
+      for (let i = 0; i < q.options.length; i++) {
+        const opt = q.options[i];
+        const isCorrect = i === q.correctIndex;
+        const optBtn = Button.CreateSimpleButton(`libOpt_${article.id}_${i}`, opt);
+        optBtn.width = "100%";
+        optBtn.height = "30px";
+        optBtn.color = COLORS.textPrimary;
+        optBtn.background = COLORS.cardBg;
+        optBtn.cornerRadius = 4;
+        optBtn.fontSize = 13;
+        optBtn.thickness = 1;
+        (optBtn as any).borderColor = COLORS.cardBorder;
+        optBtn.paddingTop = "3px";
+        optBtn.paddingBottom = "3px";
+        optBtn.onPointerClickObservable.add(() => {
+          this.answeredNoticeQuestions.add(article.id);
+          this.callbacks.onNoticeQuestionAnswered?.(isCorrect, article.id);
+          this.refreshActiveTab();
+        });
+        stack.addControl(optBtn);
       }
+    } else if (article.comprehensionQuestion && this.answeredNoticeQuestions.has(article.id)) {
+      const completedText = new TextBlock();
+      completedText.text = "✓ Comprehension check completed";
+      completedText.color = COLORS.accentGreen;
+      completedText.fontSize = 12;
+      completedText.height = "20px";
+      completedText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      stack.addControl(completedText);
+    }
 
-      // Vocabulary words
-      if (article.vocabularyWords.length > 0) {
-        const vocabText = new TextBlock();
-        vocabText.text = "Vocab: " + article.vocabularyWords.map(w => `${w.word} (${w.meaning})`).join(", ");
-        vocabText.color = COLORS.accent;
-        vocabText.fontSize = 12;
-        vocabText.textWrapping = true;
-        vocabText.resizeToFit = true;
-        vocabText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        card.addControl(vocabText);
-      }
+    // XP reward display
+    if (article.readingXp) {
+      const xpText = new TextBlock();
+      xpText.text = `📖 +${article.readingXp} Reading XP`;
+      xpText.color = COLORS.gold;
+      xpText.fontSize = 12;
+      xpText.height = "22px";
+      xpText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      xpText.paddingTop = "4px";
+      stack.addControl(xpText);
+    }
 
-      // Comprehension question
-      const hasQuestion = article.comprehensionQuestion && !this.answeredNoticeQuestions.has(article.id);
-      if (hasQuestion && article.comprehensionQuestion) {
-        const q = article.comprehensionQuestion;
+    // Navigation — prev/next within current category
+    const noticeData = this.callbacks.getNoticeArticles?.();
+    if (noticeData) {
+      const filtered = noticeData.articles.filter(a => {
+        if (this.libraryActiveCategory !== 'all') {
+          return (a.documentType || 'notice') === this.libraryActiveCategory;
+        }
+        return true;
+      });
+      const currentIdx = filtered.findIndex(a => a.id === article.id);
+      if (filtered.length > 1) {
+        this.addDivider(stack);
+        const navRow = new StackPanel("libNav");
+        navRow.isVertical = false;
+        navRow.width = 1;
+        navRow.height = "32px";
+        stack.addControl(navRow);
 
-        const spacer = new Rectangle();
-        spacer.width = 1;
-        spacer.height = "6px";
-        spacer.thickness = 0;
-        spacer.background = "transparent";
-        card.addControl(spacer);
-
-        const qText = new TextBlock();
-        qText.text = this.noticeShowTranslations ? `${q.question} (${q.questionTranslation})` : q.question;
-        qText.color = COLORS.textPrimary;
-        qText.fontSize = 12;
-        qText.fontWeight = "bold";
-        qText.textWrapping = true;
-        qText.resizeToFit = true;
-        qText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        card.addControl(qText);
-
-        for (let i = 0; i < q.options.length; i++) {
-          const opt = q.options[i];
-          const isCorrect = i === q.correctIndex;
-          const optBtn = Button.CreateSimpleButton(`noticeOpt_${article.id}_${i}`, opt);
-          optBtn.width = "100%";
-          optBtn.height = "24px";
-          optBtn.color = COLORS.textPrimary;
-          optBtn.background = COLORS.cardBg;
-          optBtn.cornerRadius = 3;
-          optBtn.fontSize = 12;
-          optBtn.thickness = 1;
-          (optBtn as any).borderColor = COLORS.cardBorder;
-          optBtn.paddingTop = "3px";
-          optBtn.paddingBottom = "3px";
-          optBtn.onPointerClickObservable.add(() => {
-            this.answeredNoticeQuestions.add(article.id);
-            this.callbacks.onNoticeQuestionAnswered?.(isCorrect, article.id);
+        if (currentIdx > 0) {
+          const prevBtn = Button.CreateSimpleButton("libPrev", "← Previous");
+          prevBtn.width = "100px";
+          prevBtn.height = "28px";
+          prevBtn.color = COLORS.textSecondary;
+          prevBtn.background = COLORS.cardBg;
+          prevBtn.cornerRadius = 4;
+          prevBtn.fontSize = 11;
+          prevBtn.thickness = 1;
+          (prevBtn as any).borderColor = COLORS.cardBorder;
+          prevBtn.onPointerClickObservable.add(() => {
+            this.libraryReadingArticle = filtered[currentIdx - 1];
+            this.libraryReadArticleIds.add(filtered[currentIdx - 1].id);
             this.refreshActiveTab();
           });
-          card.addControl(optBtn);
+          navRow.addControl(prevBtn);
+        }
+
+        const posText = new TextBlock();
+        posText.text = `${currentIdx + 1} / ${filtered.length}`;
+        posText.color = COLORS.textMuted;
+        posText.fontSize = 11;
+        posText.width = "80px";
+        posText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+        navRow.addControl(posText);
+
+        if (currentIdx < filtered.length - 1) {
+          const nextBtn = Button.CreateSimpleButton("libNext", "Next →");
+          nextBtn.width = "100px";
+          nextBtn.height = "28px";
+          nextBtn.color = COLORS.textSecondary;
+          nextBtn.background = COLORS.cardBg;
+          nextBtn.cornerRadius = 4;
+          nextBtn.fontSize = 11;
+          nextBtn.thickness = 1;
+          (nextBtn as any).borderColor = COLORS.cardBorder;
+          nextBtn.onPointerClickObservable.add(() => {
+            this.libraryReadingArticle = filtered[currentIdx + 1];
+            this.libraryReadArticleIds.add(filtered[currentIdx + 1].id);
+            this.refreshActiveTab();
+          });
+          navRow.addControl(nextBtn);
         }
       }
     }
+  }
+
+  private getDocumentTypeLabel(article: NoticeArticle): string {
+    const docType = article.documentType || 'notice';
+    const cat = GameMenuSystem.LIBRARY_CATEGORIES.find(c => c.id === docType);
+    if (!cat) return `📋 ${docType}`;
+    const singular = cat.label.endsWith('ies')
+      ? cat.label.slice(0, -3) + 'y'
+      : cat.label.replace(/s$/, '');
+    return `${cat.icon} ${singular}`;
   }
 
 }

@@ -40,8 +40,8 @@ export interface NoticeArticle {
   noticeType?: 'letter' | 'flyer' | 'official' | 'wanted' | 'advertisement';
   /** Reading skill XP awarded when first read */
   readingXp?: number;
-  /** Whether this is a short notice or a longer document */
-  documentType?: 'notice' | 'story' | 'poem' | 'document';
+  /** Category of text content */
+  documentType?: 'notice' | 'story' | 'poem' | 'document' | 'book' | 'journal' | 'letter' | 'recipe';
   /** Assessment hook — clicking this notice launches an assessment */
   assessmentHook?: {
     assessmentType: 'arrival' | 'departure';
