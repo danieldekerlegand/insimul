@@ -553,6 +553,65 @@ export function registerConversationRoutes(app: Express): void {
   });
 
   /**
+   * POST /api/conversation/translate-word
+   * On-demand single-word translation for hover-to-translate.
+   * Body: { word, targetLanguage }
+   * Response: { word, translation, context? }
+   */
+  app.post('/api/conversation/translate-word', async (req: Request, res: Response) => {
+    const { word, targetLanguage } = req.body;
+
+    if (!word || !targetLanguage) {
+      res.status(400).json({ error: 'Missing required fields: word, targetLanguage' });
+      return;
+    }
+
+    try {
+      const prompt = `Translate the following ${targetLanguage} word to English. Return ONLY valid JSON with no markdown.\n\nWord: "${word}"\n\n{"translation": "English meaning", "context": "brief usage note or empty string"}`;
+
+      let llmProvider: IStreamingLLMProvider;
+      try {
+        llmProvider = getProvider();
+      } catch {
+        const { GoogleGenerativeAI } = await import('@google/generative-ai');
+        const { getGeminiApiKey, GEMINI_MODELS } = await import('../../config/gemini.js');
+        const genAI = new GoogleGenerativeAI(getGeminiApiKey()!);
+        const model = genAI.getGenerativeModel({
+          model: GEMINI_MODELS.FLASH,
+          generationConfig: { temperature: 0.1, maxOutputTokens: 100 },
+        });
+        const result = await model.generateContent(prompt);
+        const text = result.response.text();
+        try {
+          const parsed = JSON.parse(text.replace(/```json\n?|\n?```/g, '').trim());
+          return res.json({ word, translation: parsed.translation, context: parsed.context });
+        } catch {
+          return res.json({ word, translation: text.trim() });
+        }
+      }
+
+      let fullText = '';
+      const tokens = llmProvider.streamCompletion(prompt, {
+        systemPrompt: 'You are a translation engine. Return only valid JSON.',
+        characterName: 'system',
+      }, { languageCode: 'en' });
+      for await (const token of tokens) {
+        fullText += token;
+      }
+
+      try {
+        const parsed = JSON.parse(fullText.replace(/```json\n?|\n?```/g, '').trim());
+        res.json({ word, translation: parsed.translation, context: parsed.context });
+      } catch {
+        res.json({ word, translation: fullText.trim() });
+      }
+    } catch (err: any) {
+      console.error('[ConversationBridge] Word translation error:', err.message);
+      res.status(500).json({ error: 'Translation failed' });
+    }
+  });
+
+  /**
    * GET /api/metrics/conversation
    * Returns latency percentiles (p50/p95/p99) for each pipeline stage
    * over a rolling window of the last 100 conversations.
