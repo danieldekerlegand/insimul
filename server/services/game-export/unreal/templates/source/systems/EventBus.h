@@ -122,7 +122,8 @@ enum class EInsimulEventType : uint8
     // Mercantile events
     ItemPurchased UMETA(DisplayName = "Item Purchased"),
     FoodOrdered UMETA(DisplayName = "Food Ordered"),
-    PriceHaggled UMETA(DisplayName = "Price Haggled")
+    PriceHaggled UMETA(DisplayName = "Price Haggled"),
+    TextCollected UMETA(DisplayName = "Text Collected")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────

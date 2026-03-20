@@ -94,6 +94,11 @@ const ITEM_SIZE_MAP: Record<string, ItemSizeCategory> = {
   wanted_poster: ItemSizeCategory.SMALL,
   mortar: ItemSizeCategory.SMALL,
   blowtorch: ItemSizeCategory.SMALL,
+  text_book: ItemSizeCategory.MEDIUM,
+  text_journal: ItemSizeCategory.SMALL,
+  text_letter: ItemSizeCategory.SMALL,
+  text_flyer: ItemSizeCategory.SMALL,
+  text_recipe: ItemSizeCategory.SMALL,
 
   // Medium
   bread: ItemSizeCategory.MEDIUM,
@@ -585,6 +590,26 @@ const OBJECT_REGISTRY: Record<string, QuestObjectSpec> = {
   stone: spec('sphere', new Color3(0.5, 0.5, 0.48), sizeOf('stone'), { diameter: 1, segments: 8 }),
   shell: spec('sphere', new Color3(0.95, 0.85, 0.75), sizeOf('shell'), { diameter: 0.8, segments: 10 }),
   ball: spec('sphere', new Color3(0.9, 0.2, 0.2), sizeOf('ball'), { diameter: 1, segments: 16 }),
+
+  // ── Text Collectibles ──────────────────────────────────────────────────
+  text_book: spec('composite', new Color3(0.4, 0.25, 0.12), sizeOf('text_book'), {}, [
+    { shape: 'box', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.7, y: 0.9, z: 0.2 } },
+    { shape: 'box', position: { x: 0, y: 0, z: -0.02 }, scaling: { x: 0.06, y: 0.92, z: 0.24 }, color: new Color3(0.9, 0.85, 0.7) },
+  ]),
+  text_journal: spec('composite', new Color3(0.3, 0.2, 0.1), sizeOf('text_journal'), {}, [
+    { shape: 'box', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.5, y: 0.7, z: 0.12 } },
+    { shape: 'box', position: { x: -0.22, y: 0, z: 0 }, scaling: { x: 0.04, y: 0.72, z: 0.14 }, color: new Color3(0.15, 0.1, 0.05) },
+  ]),
+  text_letter: spec('composite', new Color3(0.92, 0.88, 0.78), sizeOf('text_letter'), {}, [
+    { shape: 'box', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.6, y: 0.4, z: 0.03 } },
+    { shape: 'box', position: { x: 0, y: 0.05, z: 0.01 }, scaling: { x: 0.15, y: 0.08, z: 0.04 }, color: new Color3(0.7, 0.15, 0.1) },
+  ]),
+  text_flyer: spec('box', new Color3(0.95, 0.92, 0.8), sizeOf('text_flyer'), { width: 0.6, height: 0.8, depth: 0.02 }),
+  text_recipe: spec('composite', new Color3(0.85, 0.8, 0.65), sizeOf('text_recipe'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.25, y: 0.9, z: 0.25 } },
+    { shape: 'cylinder', position: { x: 0, y: 0.45, z: 0 }, scaling: { x: 0.3, y: 0.06, z: 0.3 }, color: new Color3(0.55, 0.35, 0.18) },
+    { shape: 'cylinder', position: { x: 0, y: -0.45, z: 0 }, scaling: { x: 0.3, y: 0.06, z: 0.3 }, color: new Color3(0.55, 0.35, 0.18) },
+  ]),
 
   // Default fallback
   _default: spec('sphere', new Color3(0.7, 0.7, 0.7), ItemSizeCategory.MEDIUM, { diameter: 1, segments: 16 }),

@@ -121,6 +121,8 @@ const EVENT_ESCORT_COMPLETED := "escort_completed"
 const EVENT_ITEM_PURCHASED := "item_purchased"
 const EVENT_FOOD_ORDERED := "food_ordered"
 const EVENT_PRICE_HAGGLED := "price_haggled"
+# Text collection events
+const EVENT_TEXT_COLLECTED := "text_collected"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -192,6 +194,8 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_ITEM_PURCHASED,
 	EVENT_FOOD_ORDERED,
 	EVENT_PRICE_HAGGLED,
+	# Text collection events
+	EVENT_TEXT_COLLECTED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
