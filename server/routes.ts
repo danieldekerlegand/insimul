@@ -40,6 +40,7 @@ import {
   insertActionSchema,
   insertTruthSchema,
   insertItemSchema,
+  insertTextSchema,
   insertContainerSchema,
   insertVisualAssetSchema,
   type InsertRule,
@@ -13718,6 +13719,104 @@ Make the action names thematic and immersive.`;
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete water feature" });
+    }
+  });
+
+  // ─── Texts CRUD ──────────────────────────────────────────────────────
+
+  app.get("/api/worlds/:worldId/texts", async (req, res) => {
+    try {
+      const texts = await storage.getTextsByWorld(req.params.worldId);
+      res.json(texts);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch texts" });
+    }
+  });
+
+  app.get("/api/texts/:id", async (req, res) => {
+    try {
+      const text = await storage.getText(req.params.id);
+      if (!text) {
+        return res.status(404).json({ error: "Text not found" });
+      }
+      res.json(text);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch text" });
+    }
+  });
+
+  app.post("/api/worlds/:worldId/texts", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+
+      const token = req.headers.authorization?.split(' ')[1];
+      const payload = token ? AuthService.verifyToken(token) : null;
+
+      if (!(await canEditWorld(payload?.userId, worldId))) {
+        return res.status(403).json({ error: "You don't have permission to edit this world" });
+      }
+
+      const textData = { ...req.body, worldId };
+      const validatedData = insertTextSchema.parse(textData);
+      const text = await storage.createText(validatedData);
+      res.status(201).json(text);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid text data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create text" });
+    }
+  });
+
+  app.put("/api/texts/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const existingText = await storage.getText(id);
+      if (!existingText) {
+        return res.status(404).json({ error: "Text not found" });
+      }
+
+      const token = req.headers.authorization?.split(' ')[1];
+      const payload = token ? AuthService.verifyToken(token) : null;
+      if (!(await canEditWorld(payload?.userId, existingText.worldId))) {
+        return res.status(403).json({ error: "You don't have permission to edit this world" });
+      }
+
+      const validatedData = insertTextSchema.partial().parse(req.body);
+      const text = await storage.updateText(id, validatedData);
+      if (!text) {
+        return res.status(404).json({ error: "Text not found" });
+      }
+      res.json(text);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid text data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update text" });
+    }
+  });
+
+  app.delete("/api/texts/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const existingText = await storage.getText(id);
+      if (!existingText) {
+        return res.status(404).json({ error: "Text not found" });
+      }
+
+      const token = req.headers.authorization?.split(' ')[1];
+      const payload = token ? AuthService.verifyToken(token) : null;
+      if (!(await canEditWorld(payload?.userId, existingText.worldId))) {
+        return res.status(403).json({ error: "You don't have permission to edit this world" });
+      }
+
+      const deleted = await storage.deleteText(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Text not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete text" });
     }
   });
 

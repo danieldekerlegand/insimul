@@ -1358,6 +1358,34 @@ export const achievements = pgTable("achievements", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// ============= TEXTS (procedurally generated reading content) =============
+
+export const texts = pgTable("texts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worldId: varchar("world_id").notNull(),
+
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  textType: text("text_type").notNull(), // sign, book, letter, notice, scroll, newspaper, journal
+  language: text("language"), // target language code, null = world default
+  difficulty: text("difficulty").default("beginner"), // beginner, intermediate, advanced
+
+  // Where in the world the text appears
+  locationId: text("location_id"), // settlement, building, etc.
+  characterId: text("character_id"), // author or owner NPC
+
+  // Language-learning metadata
+  vocabularyWords: jsonb("vocabulary_words").$type<string[]>().default([]),
+  grammarNotes: text("grammar_notes"),
+  translation: text("translation"), // translation in player's native language
+
+  tags: jsonb("tags").$type<string[]>().default([]),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // ============= PLAYTHROUGHS AND PLAYER ISOLATION =============
 
 // Playthroughs - player-specific instances of a world
@@ -1988,6 +2016,12 @@ export const insertAchievementSchema = createInsertSchema(achievements).omit({
   updatedAt: true,
 });
 
+export const insertTextSchema = createInsertSchema(texts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Playthrough insert schemas
 export const insertPlaythroughSchema = createInsertSchema(playthroughs).omit({
   id: true,
@@ -2028,6 +2062,9 @@ export type InsertPlayerSession = z.infer<typeof insertPlayerSessionSchema>;
 
 export type Achievement = typeof achievements.$inferSelect;
 export type InsertAchievement = z.infer<typeof insertAchievementSchema>;
+
+export type Text = typeof texts.$inferSelect;
+export type InsertText = z.infer<typeof insertTextSchema>;
 
 // Playthrough types
 export type Playthrough = typeof playthroughs.$inferSelect;
