@@ -12,9 +12,9 @@ The following placeholder models have been downloaded from the Khronos glTF Samp
 | `client/public/assets/characters/generic/player_default.glb` | 479K | CesiumMan (animated humanoid) |
 | `client/public/assets/characters/generic/npc_civilian_male.glb` | 49K | RiggedFigure |
 | `client/public/assets/characters/generic/npc_guard.glb` | 15K | RiggedSimple |
-| `client/public/assets/quest-objects/chest.glb` | 1.6K | Box (simple cube) |
-| `client/public/assets/quest-objects/collectible_gem.glb` | 5.6M | ToyCar (placeholder) |
-| `client/public/assets/quest-objects/quest_marker.glb` | 9.4M | Lantern |
+| `client/public/assets/models/containers/chest.glb` | 1.6K | Box (simple cube) |
+| `client/public/assets/models/props/collectible_gem.glb` | 5.6M | ToyCar (placeholder) |
+| `client/public/assets/models/markers/quest_marker.glb` | 9.4M | Lantern |
 
 These are functional placeholders - replace them with better CC0 models as needed.
 
@@ -66,12 +66,17 @@ client/public/assets/
 │   │   └── npc_barbarian.glb
 │   └── scifi/             # Sci-fi themed characters
 │       └── player_soldier.glb
-├── quest-objects/         # Quest-related 3D objects
-│   ├── collectible_gem.glb
+├── containers/            # Storage containers (chests, crates, barrels)
 │   ├── chest.glb
+│   └── treasure_chest.gltf
+├── markers/               # Visual quest indicators
 │   ├── quest_marker.glb
-│   ├── key.glb
-│   └── scroll.glb
+│   └── lantern_marker.gltf
+├── props/                 # Collectible items and props
+│   ├── collectible_gem.glb
+│   ├── water_bottle.glb
+│   ├── avocado_collectible.glb
+│   └── brass_lamp.gltf
 ├── freesound/             # Downloaded audio from Freesound (auto-created)
 │   ├── footstep/
 │   ├── ambient/

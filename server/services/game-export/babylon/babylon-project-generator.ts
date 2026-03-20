@@ -351,7 +351,9 @@ public/
     characters/        GLB character models (player + NPC roles)
     buildings/         KayKit medieval building GLTF models
     ground/            Terrain textures (diffuse, normal, heightmap)
-    quest-objects/     Quest item GLB models
+    containers/        Container models (chests, crates)
+    markers/           Quest marker models
+    props/             Collectible item models
     audio/             Ambient, footstep, and interaction sounds
 ${isElectron ? `electron/
   main.ts             Electron main process

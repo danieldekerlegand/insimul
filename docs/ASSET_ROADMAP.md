@@ -57,7 +57,9 @@ client/public/assets/
 │   ├── generic/         ✅ 5 models (player_default, npc_civilian_male, npc_guard, brainstem, fox)
 │   ├── medieval/        ❌ Empty - needs population
 │   └── scifi/           ❌ Empty - needs population
-├── quest-objects/       ✅ 8 models (treasure_chest, lantern_marker, brass_lamp, water_bottle, avocado + old placeholders)
+├── containers/          ✅ 2 models (chest, treasure_chest)
+├── markers/             ✅ 2 models (quest_marker, lantern_marker)
+├── props/               ✅ 4 models (collectible_gem, water_bottle, avocado_collectible, brass_lamp)
 ├── polyhaven/
 │   ├── models/          ✅ 15+ models (fir_tree, pine_tree, barrels, etc. from base collections)
 │   └── textures/        ✅ 8+ textures (forest_floor, cobblestone, asphalt, metal_plate, etc.)
@@ -132,10 +134,19 @@ client/public/assets/
 #### Sci-Fi Characters (`client/public/assets/characters/scifi/`)
 - [ ] `player_soldier.glb` - Directory empty
 
-#### Quest Objects (`client/public/assets/quest-objects/`)
+#### Containers (`client/public/assets/models/containers/`)
 - [x] `chest.glb` (1.6KB) - Box placeholder ⚠️ Should replace
-- [x] `collectible_gem.glb` (5.6MB) - ToyCar placeholder ⚠️ Should replace
+- [x] `treasure_chest.gltf` (8.4KB) - Treasure chest model
+
+#### Markers (`client/public/assets/models/markers/`)
 - [x] `quest_marker.glb` (9.4MB) - Lantern ⚠️ Oversized for marker
+- [x] `lantern_marker.gltf` (4.8KB) - Lantern marker
+
+#### Props (`client/public/assets/models/props/`)
+- [x] `collectible_gem.glb` (5.6MB) - ToyCar placeholder ⚠️ Should replace
+- [x] `water_bottle.glb` (8.6MB) - Water bottle
+- [x] `avocado_collectible.glb` (7.7MB) - Avocado collectible
+- [x] `brass_lamp.gltf` (10KB) - Brass lamp
 
 #### Polyhaven Models (`client/public/assets/polyhaven/models/`)
 - [x] `potted_plant_02.gltf` (6.6KB) ✅ Functional

@@ -19,8 +19,11 @@ export const AUDIO_BASE = 'assets/audio';
 /** Base path for environment textures (relative, no leading slash) */
 export const TEXTURES_ENV_BASE = 'assets/textures/environment';
 
-/** Base path for quest object models (relative, no leading slash) */
-export const QUEST_OBJECTS_BASE = 'assets/models/quest-objects';
+/** Base path for container models — chests, crates, barrels (relative, no leading slash) */
+export const CONTAINERS_BASE = 'assets/models/containers';
+
+/** Base path for quest marker models — visual indicators (relative, no leading slash) */
+export const MARKERS_BASE = 'assets/models/markers';
 
 /** Base path for Polyhaven models — now organized by category */
 export const POLYHAVEN_FURNITURE_BASE = 'assets/models/furniture/polyhaven';
@@ -79,10 +82,17 @@ export function audioAssetPath(category: string, filename: string): string {
 }
 
 /**
- * Build a quest object path (relative, for DB storage).
+ * Build a container model path (relative, for DB storage).
  */
-export function questObjectPath(filename: string): string {
-  return `${QUEST_OBJECTS_BASE}/${filename}`;
+export function containerModelPath(filename: string): string {
+  return `${CONTAINERS_BASE}/${filename}`;
+}
+
+/**
+ * Build a marker model path (relative, for DB storage).
+ */
+export function markerModelPath(filename: string): string {
+  return `${MARKERS_BASE}/${filename}`;
 }
 
 /**
@@ -136,11 +146,21 @@ export const CORE_GROUND: AssetDef[] = [
   { sourcePath: 'textures/environment/ground_heightMap.png', exportPath: 'assets/ground/ground_heightMap.png', role: 'ground_heightmap' },
 ];
 
-export const CORE_QUEST_OBJECTS: AssetDef[] = [
-  { sourcePath: 'models/quest-objects/chest.glb', exportPath: 'assets/quest-objects/chest.glb', role: 'quest_chest' },
-  { sourcePath: 'models/quest-objects/quest_marker.glb', exportPath: 'assets/quest-objects/quest_marker.glb', role: 'quest_marker' },
-  { sourcePath: 'models/quest-objects/collectible_gem.glb', exportPath: 'assets/quest-objects/collectible_gem.glb', role: 'quest_collectible' },
-  { sourcePath: 'models/quest-objects/water_bottle.glb', exportPath: 'assets/quest-objects/water_bottle.glb', role: 'quest_water_bottle' },
+export const CORE_CONTAINERS: AssetDef[] = [
+  { sourcePath: 'models/containers/chest.glb', exportPath: 'assets/containers/chest.glb', role: 'quest_chest' },
+  { sourcePath: 'models/containers/treasure_chest.gltf', exportPath: 'assets/containers/treasure_chest.gltf', role: 'treasure_chest' },
+];
+
+export const CORE_MARKERS: AssetDef[] = [
+  { sourcePath: 'models/markers/quest_marker.glb', exportPath: 'assets/markers/quest_marker.glb', role: 'quest_marker' },
+  { sourcePath: 'models/markers/lantern_marker.gltf', exportPath: 'assets/markers/lantern_marker.gltf', role: 'lantern_marker' },
+];
+
+export const CORE_PROPS: AssetDef[] = [
+  { sourcePath: 'models/props/collectible_gem.glb', exportPath: 'assets/props/collectible_gem.glb', role: 'quest_collectible' },
+  { sourcePath: 'models/props/water_bottle.glb', exportPath: 'assets/props/water_bottle.glb', role: 'quest_water_bottle' },
+  { sourcePath: 'models/props/avocado_collectible.glb', exportPath: 'assets/props/avocado_collectible.glb', role: 'avocado_collectible' },
+  { sourcePath: 'models/props/brass_lamp.gltf', exportPath: 'assets/props/brass_lamp.gltf', role: 'brass_lamp' },
 ];
 
 export const CORE_AUDIO: AssetDef[] = [

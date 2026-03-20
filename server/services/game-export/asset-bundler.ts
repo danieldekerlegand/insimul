@@ -9,7 +9,7 @@
  *   - Character GLB models (player + NPC roles)
  *   - KayKit medieval buildings (GLTF + BIN)
  *   - Ground textures (diffuse, normal, heightmap)
- *   - Quest objects (GLB)
+ *   - Containers, markers, and props (GLB/GLTF)
  *   - Audio files (ambient, footstep, interact)
  *
  * In the future, this can be extended to pull world-specific assets
@@ -30,7 +30,7 @@ export interface BundledAsset {
   /** Binary content */
   buffer: Buffer;
   /** Semantic category */
-  category: 'character' | 'building' | 'ground' | 'nature' | 'quest_object' | 'audio' | 'prop';
+  category: 'character' | 'building' | 'ground' | 'nature' | 'container' | 'marker' | 'audio' | 'prop';
   /** Semantic role (e.g. "player_default", "npc_guard", "ground_diffuse") */
   role: string;
 }
@@ -76,11 +76,21 @@ const CORE_GROUND: AssetDef[] = [
   { sourcePath: 'ground/ground_heightMap.png', exportPath: 'assets/ground/ground_heightMap.png', category: 'ground', role: 'ground_heightmap' },
 ];
 
-const CORE_QUEST_OBJECTS: AssetDef[] = [
-  { sourcePath: 'quest-objects/chest.glb', exportPath: 'assets/quest-objects/chest.glb', category: 'quest_object', role: 'chest' },
-  { sourcePath: 'quest-objects/quest_marker.glb', exportPath: 'assets/quest-objects/quest_marker.glb', category: 'quest_object', role: 'quest_marker' },
-  { sourcePath: 'quest-objects/collectible_gem.glb', exportPath: 'assets/quest-objects/collectible_gem.glb', category: 'quest_object', role: 'collectible_gem' },
-  { sourcePath: 'quest-objects/water_bottle.glb', exportPath: 'assets/quest-objects/water_bottle.glb', category: 'quest_object', role: 'water_bottle' },
+const CORE_CONTAINERS: AssetDef[] = [
+  { sourcePath: 'models/containers/chest.glb', exportPath: 'assets/containers/chest.glb', category: 'container', role: 'chest' },
+  { sourcePath: 'models/containers/treasure_chest.gltf', exportPath: 'assets/containers/treasure_chest.gltf', category: 'container', role: 'treasure_chest' },
+];
+
+const CORE_MARKERS: AssetDef[] = [
+  { sourcePath: 'models/markers/quest_marker.glb', exportPath: 'assets/markers/quest_marker.glb', category: 'marker', role: 'quest_marker' },
+  { sourcePath: 'models/markers/lantern_marker.gltf', exportPath: 'assets/markers/lantern_marker.gltf', category: 'marker', role: 'lantern_marker' },
+];
+
+const CORE_QUEST_PROPS: AssetDef[] = [
+  { sourcePath: 'models/props/collectible_gem.glb', exportPath: 'assets/props/collectible_gem.glb', category: 'prop', role: 'collectible_gem' },
+  { sourcePath: 'models/props/water_bottle.glb', exportPath: 'assets/props/water_bottle.glb', category: 'prop', role: 'water_bottle' },
+  { sourcePath: 'models/props/avocado_collectible.glb', exportPath: 'assets/props/avocado_collectible.glb', category: 'prop', role: 'avocado_collectible' },
+  { sourcePath: 'models/props/brass_lamp.gltf', exportPath: 'assets/props/brass_lamp.gltf', category: 'prop', role: 'brass_lamp' },
 ];
 
 const CORE_AUDIO: AssetDef[] = [
@@ -203,7 +213,7 @@ export async function bundleAssetsFromCollection(collectionId: string): Promise<
   addFromMap((collection as any).objectModels as Record<string, string>, 'prop');
   addFromMap(collection.characterModels as Record<string, string>, 'character');
   addFromMap((collection as any).playerModels as Record<string, string>, 'character');
-  addFromMap((collection as any).questObjectModels as Record<string, string>, 'quest_object');
+  addFromMap((collection as any).questObjectModels as Record<string, string>, 'container');
   addFromMap((collection as any).audioAssets as Record<string, string>, 'audio');
 
   // Named texture IDs get bundled under the 'ground' category with well-known roles
@@ -329,13 +339,17 @@ export async function bundleAssetsFromCollection(collectionId: string): Promise<
   // CORE_GROUND must always be included: createGround() hardcodes /assets/ground/ground_heightMap.png
   // for terrain generation regardless of the collection's ground texture override.
   const hasCharacters = bundledAssets.some(a => a.category === 'character');
-  const hasQuestObjects = bundledAssets.some(a => a.category === 'quest_object');
+  const hasContainers = bundledAssets.some(a => a.category === 'container');
+  const hasMarkers = bundledAssets.some(a => a.category === 'marker');
+  const hasProps = bundledAssets.some(a => a.category === 'prop');
   const hasAudio = bundledAssets.some(a => a.category === 'audio');
 
   const coreSupplements: AssetDef[] = [
     ...CORE_GROUND,
     ...(!hasCharacters ? CORE_CHARACTERS : []),
-    ...(!hasQuestObjects ? CORE_QUEST_OBJECTS : []),
+    ...(!hasContainers ? CORE_CONTAINERS : []),
+    ...(!hasMarkers ? CORE_MARKERS : []),
+    ...(!hasProps ? CORE_QUEST_PROPS : []),
     ...(!hasAudio ? CORE_AUDIO : []),
   ];
   for (const def of coreSupplements) {
@@ -348,7 +362,7 @@ export async function bundleAssetsFromCollection(collectionId: string): Promise<
     totalSizeBytes += buffer.length;
     bundledSourcePaths.add(def.sourcePath);
   }
-  console.log(`[AssetBundler] Supplemented with core ground + (chars=${!hasCharacters}, quests=${!hasQuestObjects}, audio=${!hasAudio})`);
+  console.log(`[AssetBundler] Supplemented with core ground + (chars=${!hasCharacters}, containers=${!hasContainers}, markers=${!hasMarkers}, props=${!hasProps}, audio=${!hasAudio})`);
 
   return { assets: bundledAssets, manifest, totalSizeBytes, fileCount: bundledAssets.length };
 }
@@ -379,7 +393,9 @@ export async function bundleCoreAssets(engine: TargetEngine = 'babylon'): Promis
   const allDefs: AssetDef[] = [
     ...(includeCharacters ? CORE_CHARACTERS : []),
     ...CORE_GROUND,
-    ...CORE_QUEST_OBJECTS,
+    ...CORE_CONTAINERS,
+    ...CORE_MARKERS,
+    ...CORE_QUEST_PROPS,
     ...CORE_AUDIO,
     ...getKayKitBuildings(),
   ];

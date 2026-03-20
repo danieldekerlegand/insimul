@@ -926,7 +926,8 @@ export class FileDataSource implements DataSource {
     const categoryToAssetType: Record<string, string> = {
       character: 'character',
       ground: 'texture_ground',
-      quest_object: 'quest_object',
+      container: 'container',
+      marker: 'marker',
       audio: 'audio',
       building: 'building',
       nature: 'nature',
@@ -984,7 +985,7 @@ export class FileDataSource implements DataSource {
     }
 
     const questObjectModels: Record<string, string> = {};
-    for (const a of (manifest.categories?.quest_object || [])) {
+    for (const a of [...(manifest.categories?.container || []), ...(manifest.categories?.marker || []), ...(manifest.categories?.prop || [])]) {
       if (!a.role.endsWith('_bin') && !a.role.includes('_tex_')) {
         questObjectModels[a.role] = a.role;
       }
