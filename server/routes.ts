@@ -42,6 +42,7 @@ import {
   insertItemSchema,
   insertContainerSchema,
   insertVisualAssetSchema,
+  insertTextSchema,
   type InsertRule,
   type Rule
 } from "@shared/schema";
@@ -9493,6 +9494,80 @@ Respond with this JSON structure:
     } catch (error) {
       console.error('[ItemTranslation] Error:', error);
       res.status(500).json({ error: "Failed to translate items" });
+    }
+  });
+
+  // ============= TEXT ENDPOINTS =============
+
+  // Get all texts for a world (with optional category/cefrLevel filters)
+  app.get("/api/worlds/:worldId/texts", async (req, res) => {
+    try {
+      const { textCategory, cefrLevel } = req.query;
+      const texts = await storage.getGameTextsByWorld(req.params.worldId, {
+        textCategory: textCategory as string | undefined,
+        cefrLevel: cefrLevel as string | undefined,
+      });
+      res.json(texts);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch texts" });
+    }
+  });
+
+  // Get single text
+  app.get("/api/texts/:id", async (req, res) => {
+    try {
+      const text = await storage.getGameText(req.params.id);
+      if (!text) {
+        return res.status(404).json({ error: "Text not found" });
+      }
+      res.json(text);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch text" });
+    }
+  });
+
+  // Create text
+  app.post("/api/worlds/:worldId/texts", async (req, res) => {
+    try {
+      const textData = { ...req.body, worldId: req.params.worldId };
+      const validatedData = insertTextSchema.parse(textData);
+      const text = await storage.createGameText(validatedData);
+      res.status(201).json(text);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid text data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create text" });
+    }
+  });
+
+  // Update text
+  app.put("/api/texts/:id", async (req, res) => {
+    try {
+      const validatedData = insertTextSchema.partial().parse(req.body);
+      const text = await storage.updateGameText(req.params.id, validatedData);
+      if (!text) {
+        return res.status(404).json({ error: "Text not found" });
+      }
+      res.json(text);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid text data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update text" });
+    }
+  });
+
+  // Delete text
+  app.delete("/api/texts/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteGameText(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Text not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete text" });
     }
   });
 

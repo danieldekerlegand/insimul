@@ -42,7 +42,9 @@ import {
   type Container,
   type InsertContainer,
   type TerrainFeature,
-  type InsertTerrainFeature
+  type InsertTerrainFeature,
+  type GameText,
+  type InsertGameText
 } from "@shared/schema";
 import type {
   WorldLanguage,
@@ -181,6 +183,13 @@ export interface IStorage {
   createTruth(entry: InsertTruth): Promise<Truth>;
   updateTruth(id: string, entry: Partial<InsertTruth>): Promise<Truth | undefined>;
   deleteTruth(id: string): Promise<boolean>;
+
+  // Texts (reading content)
+  getGameText(id: string): Promise<GameText | undefined>;
+  getGameTextsByWorld(worldId: string, filters?: { textCategory?: string; cefrLevel?: string }): Promise<GameText[]>;
+  createGameText(text: InsertGameText): Promise<GameText>;
+  updateGameText(id: string, text: Partial<InsertGameText>): Promise<GameText | undefined>;
+  deleteGameText(id: string): Promise<boolean>;
 
   // Items
   getItem(id: string): Promise<Item | undefined>;

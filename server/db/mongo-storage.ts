@@ -126,7 +126,9 @@ interface ItemDoc extends Omit<Item, 'id'>, Document {
   _id: string;
 }
 
-interface GameTextDoc extends Omit<GameText, 'id'>, Document {}
+interface GameTextDoc extends Omit<GameText, 'id'>, Document {
+  _id: string;
+}
 
 interface ContainerDoc extends Omit<ContainerSchema, 'id'>, Document {
   _id: string;
@@ -587,25 +589,24 @@ ItemSchema.index({ isBase: 1, worldType: 1 });
 const GameTextSchema = new Schema({
   worldId: { type: String, required: true },
   title: { type: String, required: true },
-  titleTranslation: { type: String, required: true },
+  titleTranslation: { type: String, default: null },
   textCategory: { type: String, required: true }, // book, journal, letter, flyer, recipe
-  pages: { type: Schema.Types.Mixed, default: [] }, // TextPage[]
-  vocabularyHighlights: { type: Schema.Types.Mixed, default: [] }, // VocabularyHighlight[]
-  comprehensionQuestions: { type: Schema.Types.Mixed, default: [] }, // ComprehensionQuestion[]
+  pages: { type: [Schema.Types.Mixed], default: [] },
+  vocabularyHighlights: { type: [Schema.Types.Mixed], default: [] },
+  comprehensionQuestions: { type: [Schema.Types.Mixed], default: [] },
   cefrLevel: { type: String, required: true }, // A1, A2, B1, B2
   targetLanguage: { type: String, required: true },
+  difficulty: { type: String, default: 'beginner' }, // beginner, intermediate, advanced
   authorName: { type: String, default: null },
   clueText: { type: String, default: null },
-  difficulty: { type: String, required: true }, // beginner, intermediate, advanced
-  tags: { type: [String], default: [] },
-  isGenerated: { type: Boolean, default: true },
+  spawnLocationHint: { type: String, default: null }, // library, bookshop, cafe, residence, etc.
+  isGenerated: { type: Boolean, default: false },
   generationPrompt: { type: String, default: null },
-  spawnLocationHint: { type: String, required: true }, // library, bookshop, cafe, residence, etc.
-  status: { type: String, default: 'published' },
+  status: { type: String, default: 'draft' },
+  tags: { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
-
 GameTextSchema.index({ worldId: 1 });
 GameTextSchema.index({ worldId: 1, textCategory: 1 });
 GameTextSchema.index({ worldId: 1, cefrLevel: 1 });
@@ -1287,6 +1288,7 @@ TruthSchema.index({ worldId: 1, playthroughId: 1 });
 const TruthModel = mongoose.model<TruthDoc>('Truth', TruthSchema);
 const QuestModel = mongoose.model<QuestDoc>('Quest', QuestSchema);
 const ItemModel = mongoose.model<ItemDoc>('Item', ItemSchema);
+const GameTextModel = mongoose.model<GameTextDoc>('GameText', GameTextSchema);
 const ContainerModel = mongoose.model<ContainerDoc>('Container', ContainerSchema);
 const VisualAssetModel = mongoose.model<VisualAssetDoc>('VisualAsset', VisualAssetSchema);
 const AssetCollectionModel = mongoose.model<AssetCollectionDoc>('AssetCollection', AssetCollectionSchema);
@@ -2627,6 +2629,41 @@ export class MongoStorage implements IStorage {
   async deleteItem(id: string): Promise<boolean> {
     await this.connect();
     const result = await ItemModel.findByIdAndDelete(id);
+    return !!result;
+  }
+
+  // ============= TEXTS =============
+
+  async getGameText(id: string): Promise<GameText | undefined> {
+    await this.connect();
+    const doc = await GameTextModel.findById(id);
+    return doc ? docToGameText(doc) : undefined;
+  }
+
+  async getGameTextsByWorld(worldId: string, filters?: { textCategory?: string; cefrLevel?: string }): Promise<GameText[]> {
+    await this.connect();
+    const query: any = { worldId };
+    if (filters?.textCategory) query.textCategory = filters.textCategory;
+    if (filters?.cefrLevel) query.cefrLevel = filters.cefrLevel;
+    const docs = await GameTextModel.find(query).sort({ createdAt: -1 });
+    return docs.map(docToGameText);
+  }
+
+  async createGameText(text: InsertGameText): Promise<GameText> {
+    await this.connect();
+    const doc = await GameTextModel.create(text);
+    return docToGameText(doc);
+  }
+
+  async updateGameText(id: string, text: Partial<InsertGameText>): Promise<GameText | undefined> {
+    await this.connect();
+    const doc = await GameTextModel.findByIdAndUpdate(id, { ...text, updatedAt: new Date() }, { new: true });
+    return doc ? docToGameText(doc) : undefined;
+  }
+
+  async deleteGameText(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await GameTextModel.findByIdAndDelete(id);
     return !!result;
   }
 

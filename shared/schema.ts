@@ -2076,6 +2076,83 @@ export interface InsertPlaythroughRelationship {
   metadata?: Record<string, any>;
 }
 
+// ============= TEXTS (Reading Content) =============
+
+export const texts = pgTable("texts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worldId: varchar("world_id").notNull(),
+
+  // Text identity
+  title: text("title").notNull(), // title in target language
+  titleTranslation: text("title_translation"), // English translation
+  textCategory: text("text_category").notNull(), // book, journal, letter, flyer, recipe
+
+  // Content pages
+  pages: jsonb("pages").$type<Array<{ content: string; contentTranslation: string }>>().default([]),
+
+  // Language learning data
+  vocabularyHighlights: jsonb("vocabulary_highlights").$type<Array<{
+    word: string;
+    translation: string;
+    partOfSpeech: string;
+  }>>().default([]),
+  comprehensionQuestions: jsonb("comprehension_questions").$type<Array<{
+    question: string;
+    questionTranslation: string;
+    options: string[];
+    correctIndex: number;
+  }>>().default([]),
+
+  // Difficulty / language level
+  cefrLevel: text("cefr_level").notNull(), // A1, A2, B1, B2
+  targetLanguage: text("target_language").notNull(),
+  difficulty: text("difficulty").default("beginner"), // beginner, intermediate, advanced
+
+  // In-world metadata
+  authorName: text("author_name"), // in-world author
+  clueText: text("clue_text"), // what this text reveals for main quest
+  spawnLocationHint: text("spawn_location_hint"), // library, bookshop, cafe, residence, office, hidden, market
+
+  // Generation
+  isGenerated: boolean("is_generated").default(false),
+  generationPrompt: text("generation_prompt"),
+
+  // Status and metadata
+  status: text("status").default("draft"), // draft, published
+  tags: jsonb("tags").$type<string[]>().default([]),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertTextSchema = createInsertSchema(texts, {
+  title: (schema) => schema.min(1),
+  textCategory: (schema) => schema.refine(v => ['book', 'journal', 'letter', 'flyer', 'recipe'].includes(v), { message: 'Invalid text category' }),
+  cefrLevel: (schema) => schema.refine(v => ['A1', 'A2', 'B1', 'B2'].includes(v), { message: 'Invalid CEFR level' }),
+  targetLanguage: (schema) => schema.min(1),
+}).pick({
+  worldId: true,
+  title: true,
+  titleTranslation: true,
+  textCategory: true,
+  pages: true,
+  vocabularyHighlights: true,
+  comprehensionQuestions: true,
+  cefrLevel: true,
+  targetLanguage: true,
+  difficulty: true,
+  authorName: true,
+  clueText: true,
+  spawnLocationHint: true,
+  isGenerated: true,
+  generationPrompt: true,
+  status: true,
+  tags: true,
+});
+
+export type GameText = typeof texts.$inferSelect;
+export type InsertGameText = z.infer<typeof insertTextSchema>;
+
 // Version Alerts — notifies playthrough owners when the world version changes
 export interface VersionAlert {
   id: string;
