@@ -81,6 +81,10 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("playthrough_completed"),             EInsimulEventType::PlaythroughCompleted },
         { TEXT("playthrough_completion_requested"),  EInsimulEventType::PlaythroughCompletionRequested },
         { TEXT("departure_assessment_triggered"),    EInsimulEventType::DepartureAssessmentTriggered },
+        // Object identification events
+        { TEXT("object_identified"),                EInsimulEventType::ObjectIdentified },
+        // Sign reading events
+        { TEXT("sign_read"),                        EInsimulEventType::SignRead },
         // Time events
         { TEXT("hour_changed"),                     EInsimulEventType::HourChanged },
         { TEXT("day_changed"),                      EInsimulEventType::DayChanged },

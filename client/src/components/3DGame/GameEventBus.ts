@@ -92,6 +92,10 @@ export type GameEvent =
   | { type: 'direction_step_completed'; questId: string; objectiveId: string; stepIndex: number; stepsCompleted: number; stepsRequired: number }
   // Point-and-name vocabulary events
   | { type: 'object_named'; objectId: string; targetWord: string; category: string; correct: boolean; attempts: number }
+  // Object identification events
+  | { type: 'object_identified'; objectId: string; objectName: string; targetWord?: string; category?: string; questId?: string }
+  // Sign reading events
+  | { type: 'sign_read'; signId: string; objectId: string; targetText: string; nativeText?: string; category?: string; questId?: string }
   // Achievement events
   | { type: 'achievement_unlocked'; achievementId: string; achievementName: string; description: string; icon: string }
   // Quest notification & reminder events

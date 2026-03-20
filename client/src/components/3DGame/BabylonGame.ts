@@ -149,6 +149,7 @@ import { NPCSimulationLOD } from "@/components/3DGame/NPCSimulationLOD.ts";
 import { generateNPCAppearance, generateBillboardColor, blendWithRoleTint, type NPCAppearance } from "@/components/3DGame/NPCAppearanceGenerator.ts";
 import { NPCAccessorySystem } from "@/components/3DGame/NPCAccessorySystem.ts";
 import { NPCInteractionPrompt } from "@/components/3DGame/NPCInteractionPrompt.ts";
+import { WorldObjectActionManager } from "@/components/3DGame/WorldObjectActionManager.ts";
 import { NPCModelInstancer } from "@/components/3DGame/NPCModelInstancer.ts";
 import { selectNPCModel, type NPCGender } from "@/components/3DGame/NPCModelVariety.ts";
 import { QuestNotificationManager } from "@/components/3DGame/QuestNotificationManager.ts";
@@ -631,6 +632,9 @@ export class BabylonGame {
 
   // NPC Interaction Prompt — shows contextual prompts when looking at NPCs
   private npcInteractionPrompt: NPCInteractionPrompt | null = null;
+
+  // World Object Action Manager — wires identify/examine/point-and-name/read-sign to world objects
+  private worldObjectActionManager: WorldObjectActionManager | null = null;
 
   // NPC Schedule System — sidewalk pathfinding and goal-directed behavior
   private npcScheduleSystem: NPCScheduleSystem = new NPCScheduleSystem();
@@ -1245,6 +1249,12 @@ export class BabylonGame {
 
     // Initialize NPC model instancer (template caching + cloning + shared materials)
     this.npcModelInstancer = new NPCModelInstancer(scene);
+
+    // Initialize world object action manager (examine, identify, point-and-name, read sign)
+    this.worldObjectActionManager = new WorldObjectActionManager(this.eventBus);
+    this.worldObjectActionManager.setOnToast((title, description, duration) => {
+      this.guiManager?.showToast({ title, description, duration: duration ?? 2500 });
+    });
 
     // Performance: skip unnecessary per-frame clears when sky dome covers background
     scene.autoClear = false;
@@ -2338,6 +2348,30 @@ export class BabylonGame {
     this.eventBus.on('location_visited', () => this.updateQuestIndicators());
     this.eventBus.on('npc_talked', () => this.updateQuestIndicators());
 
+    // Bridge object-interaction GameEventBus events → QuestCompletionEngine
+    this.eventBus.on('object_examined', (event) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'object_examined', objectName: event.objectName });
+      this.updateQuestIndicators();
+    });
+    this.eventBus.on('object_identified', (event) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'object_identified', objectName: event.objectName, questId: event.questId });
+      this.updateQuestIndicators();
+    });
+    this.eventBus.on('sign_read', (event) => {
+      const engine = this.questObjectManager?.getCompletionEngine();
+      engine?.trackEvent({ type: 'sign_read', signId: event.signId, questId: event.questId });
+      this.updateQuestIndicators();
+    });
+    this.eventBus.on('object_named', (event) => {
+      if (event.correct) {
+        const engine = this.questObjectManager?.getCompletionEngine();
+        engine?.trackEvent({ type: 'object_pointed_and_named', objectName: event.targetWord });
+        this.updateQuestIndicators();
+      }
+    });
+
     // Wire learning activity events to gamification tracker for XP awards
     this.eventBus.on('assessment_phase_completed', () => {
       this.gamificationTracker?.onAssessmentPhaseCompleted();
@@ -2869,6 +2903,19 @@ export class BabylonGame {
       this.assets = assets;
       this.config3D = config3D;
       this.worldItems = worldItems || [];
+
+      // Register world items with the action manager for examine/identify/read-sign/point-and-name
+      if (this.worldObjectActionManager && this.worldItems.length > 0) {
+        const meshPositions = new Map<string, { x: number; y: number; z: number }>();
+        for (const mesh of this.worldPropMeshes) {
+          if (!mesh || mesh.isDisposed()) continue;
+          const role = (mesh.metadata?.objectRole || '').toLowerCase();
+          if (role && !meshPositions.has(role)) {
+            meshPositions.set(role, { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z });
+          }
+        }
+        this.worldObjectActionManager.registerObjects(this.worldItems, meshPositions);
+      }
 
       // Enable language-learning display mode for inventory
       if (this.inventory && isLanguageLearningWorld(this.worldData)) {
@@ -6906,14 +6953,12 @@ export class BabylonGame {
   }
 
   /**
-   * Handle X key: examine the nearest world-prop object within range.
-   * Shows its target-language name (if in a language-learning world) and
-   * emits an object_examined event for quest/vocabulary tracking.
+   * Find the nearest world-prop mesh within a given range.
+   * Returns the mesh and its objectRole, or null if nothing is nearby.
    */
-  private handleExamineObject(): void {
-    if (!this.playerMesh) return;
+  private findNearestWorldProp(maxDistance: number): { mesh: Mesh; objectRole: string } | null {
+    if (!this.playerMesh) return null;
 
-    const maxExamineDistance = 5;
     const playerPos = this.playerMesh.position;
     let nearestMesh: Mesh | null = null;
     let nearestDistance = Number.POSITIVE_INFINITY;
@@ -6923,13 +6968,40 @@ export class BabylonGame {
       const dx = playerPos.x - propMesh.position.x;
       const dz = playerPos.z - propMesh.position.z;
       const distance = Math.sqrt(dx * dx + dz * dz);
-      if (distance <= maxExamineDistance && distance < nearestDistance) {
+      if (distance <= maxDistance && distance < nearestDistance) {
         nearestMesh = propMesh;
         nearestDistance = distance;
       }
     }
 
-    if (!nearestMesh) {
+    if (!nearestMesh) return null;
+
+    const objectRole = (nearestMesh.metadata?.objectRole || nearestMesh.name || "").toLowerCase();
+    return { mesh: nearestMesh, objectRole };
+  }
+
+  /**
+   * Resolve a DB item from an objectRole string.
+   */
+  private resolveWorldItem(objectRole: string): any {
+    return this.worldItems.find(
+      (item: any) => item.objectRole && item.objectRole.toLowerCase() === objectRole
+    ) ?? null;
+  }
+
+  /**
+   * Handle X key: examine the nearest world-prop object within range.
+   * Delegates to WorldObjectActionManager for action dispatch:
+   *  - Signs trigger read_sign
+   *  - Regular objects trigger examine_object
+   * Emits events for quest/vocabulary tracking.
+   */
+  private handleExamineObject(): void {
+    if (!this.playerMesh) return;
+
+    const nearest = this.findNearestWorldProp(5);
+
+    if (!nearest) {
       this.guiManager?.showToast({
         title: "Nothing to examine",
         description: "Move closer to an object and try again (X)",
@@ -6938,48 +7010,67 @@ export class BabylonGame {
       return;
     }
 
-    // Resolve the object role from mesh metadata
-    const objectRole = (nearestMesh.metadata?.objectRole || nearestMesh.name || "").toLowerCase();
-    const dbItem = this.worldItems.find(
-      (item: any) => item.objectRole && item.objectRole.toLowerCase() === objectRole
-    );
-
-    const itemName = dbItem?.name || objectRole.split(/[_\s]+/).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
-    const langData = dbItem?.languageLearningData;
+    const dbItem = this.resolveWorldItem(nearest.objectRole);
     const isLangWorld = isLanguageLearningWorld(this.worldData);
 
-    if (isLangWorld && langData?.targetWord) {
-      // Show target-language label with pronunciation
-      const pronunciation = langData.pronunciation ? ` [${langData.pronunciation}]` : '';
+    if (this.worldObjectActionManager) {
+      // Build a WorldObjectRef from the mesh + DB item
+      const objRef = {
+        id: dbItem?.id || nearest.objectRole,
+        objectRole: nearest.objectRole,
+        name: dbItem?.name || nearest.objectRole.split(/[_\s]+/).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(" "),
+        position: { x: nearest.mesh.position.x, y: nearest.mesh.position.y, z: nearest.mesh.position.z },
+        languageLearningData: dbItem?.languageLearningData,
+        signData: dbItem?.signData,
+        isSign: this.worldObjectActionManager.isSignObject(nearest.objectRole),
+        description: dbItem?.description,
+      };
+
+      const result = objRef.isSign
+        ? this.worldObjectActionManager.readSign(objRef, isLangWorld, 0)
+        : this.worldObjectActionManager.examineObject(objRef, isLangWorld);
+
       this.guiManager?.showToast({
-        title: langData.targetWord,
-        description: `${itemName}${pronunciation}`,
-        duration: 3000,
+        title: result.displayTitle,
+        description: result.displayDescription,
+        duration: result.action === 'read_sign' ? 4000 : 3000,
       });
 
-      // Track vocabulary exposure via language tracker
-      const tracker = this.chatPanel?.getLanguageTracker();
-      if (tracker) {
-        tracker.analyzeNPCResponse(langData.targetWord);
+      // Track vocabulary exposure for language learning worlds
+      if (isLangWorld && dbItem?.languageLearningData?.targetWord) {
+        const tracker = this.chatPanel?.getLanguageTracker();
+        if (tracker) {
+          tracker.analyzeNPCResponse(dbItem.languageLearningData.targetWord);
+        }
       }
-
-      // Emit event for quest tracking and Prolog assertion
-      this.eventBus.emit({
-        type: 'object_examined',
-        objectId: dbItem?.id || objectRole,
-        objectName: itemName,
-        targetWord: langData.targetWord,
-        targetLanguage: langData.targetLanguage,
-        pronunciation: langData.pronunciation,
-        category: langData.category,
-      });
     } else {
-      // Non-language-learning world: just show the object name
-      this.guiManager?.showToast({
-        title: itemName,
-        description: dbItem?.description || 'You examine the object closely.',
-        duration: 2500,
-      });
+      // Fallback: direct event emission (no manager available)
+      const itemName = dbItem?.name || nearest.objectRole.split(/[_\s]+/).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+      const langData = dbItem?.languageLearningData;
+
+      if (isLangWorld && langData?.targetWord) {
+        const pronunciation = langData.pronunciation ? ` [${langData.pronunciation}]` : '';
+        this.guiManager?.showToast({
+          title: langData.targetWord,
+          description: `${itemName}${pronunciation}`,
+          duration: 3000,
+        });
+        this.eventBus.emit({
+          type: 'object_examined',
+          objectId: dbItem?.id || nearest.objectRole,
+          objectName: itemName,
+          targetWord: langData.targetWord,
+          targetLanguage: langData.targetLanguage,
+          pronunciation: langData.pronunciation,
+          category: langData.category,
+        });
+      } else {
+        this.guiManager?.showToast({
+          title: itemName,
+          description: dbItem?.description || 'You examine the object closely.',
+          duration: 2500,
+        });
+      }
     }
   }
 
@@ -11118,6 +11209,11 @@ export class BabylonGame {
     if (this.npcInteractionPrompt) {
       this.npcInteractionPrompt.dispose();
       this.npcInteractionPrompt = null;
+    }
+    // Clean up world object action manager
+    if (this.worldObjectActionManager) {
+      this.worldObjectActionManager.dispose();
+      this.worldObjectActionManager = null;
     }
   }
 

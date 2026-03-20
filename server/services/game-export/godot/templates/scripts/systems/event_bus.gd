@@ -101,6 +101,10 @@ const EVENT_DEPARTURE_ASSESSMENT_TRIGGERED := "departure_assessment_triggered"
 const EVENT_HOUR_CHANGED := "hour_changed"
 const EVENT_DAY_CHANGED := "day_changed"
 const EVENT_TIME_OF_DAY_CHANGED := "time_of_day_changed"
+# Object identification events
+const EVENT_OBJECT_IDENTIFIED := "object_identified"
+# Sign reading events
+const EVENT_SIGN_READ := "sign_read"
 # NPC relationship events
 const EVENT_NPC_RELATIONSHIP_CHANGED := "npc_relationship_changed"
 
@@ -152,6 +156,8 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_IDENTIFICATION_PROMPTED,
 	EVENT_IDENTIFICATION_CORRECT,
 	EVENT_IDENTIFICATION_INCORRECT,
+	EVENT_OBJECT_IDENTIFIED,
+	EVENT_SIGN_READ,
 	EVENT_PLAYTHROUGH_COMPLETED,
 	EVENT_PLAYTHROUGH_COMPLETION_REQUESTED,
 	EVENT_DEPARTURE_ASSESSMENT_TRIGGERED,

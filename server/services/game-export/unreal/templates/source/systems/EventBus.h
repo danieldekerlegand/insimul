@@ -90,6 +90,10 @@ enum class EInsimulEventType : uint8
     // Assessment conversation events
     AssessmentConversationInitiated UMETA(DisplayName = "Assessment Conversation Initiated"),
     AssessmentGuidedConversationStart UMETA(DisplayName = "Assessment Guided Conversation Start"),
+    // Object identification events
+    ObjectIdentified UMETA(DisplayName = "Object Identified"),
+    // Sign reading events
+    SignRead UMETA(DisplayName = "Sign Read"),
     // Generic feature-module events
     KnowledgeApplied UMETA(DisplayName = "Knowledge Applied"),
     IdentificationPrompted UMETA(DisplayName = "Identification Prompted"),
