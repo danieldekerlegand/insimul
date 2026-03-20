@@ -255,12 +255,12 @@ export class WorldGenerator {
       });
     }
 
-    // Item Placement: populate businesses and residences with contextual items
+    // Item Placement: populate businesses, residences, and exterior locations with contextual items
     if (businessCount > 0 || (config.generateGeography && population > 0)) {
       console.log('\n📦 Placing items in world locations...');
       const itemResult = await placeItemsInWorld(world.id, config.worldType || world.worldType || undefined);
       itemsPlaced = itemResult.totalPlaced;
-      console.log(`   Placed ${itemResult.totalPlaced} items (${itemResult.businessItems} in businesses, ${itemResult.residenceItems} in residences)`);
+      console.log(`   Placed ${itemResult.totalPlaced} items (${itemResult.businessItems} in businesses, ${itemResult.residenceItems} in residences, ${itemResult.exteriorItems} in exterior locations)`);
     }
 
     // TotT Integration: Routine Generation
