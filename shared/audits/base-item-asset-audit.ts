@@ -5,7 +5,7 @@
  * their objectRole mappings, and sourced 3D asset recommendations.
  *
  * This module:
- * 1. Catalogs every base item from migrations 011 + 018
+ * 1. Catalogs all 270 base items from migrations 011, 016, and 018
  * 2. Tracks which items have objectRole → 3D asset mappings
  * 3. Recommends free/CC0 3D assets for items without mappings
  * 4. Provides gap analysis statistics
@@ -120,6 +120,77 @@ export const BASE_ITEM_CATALOG: AuditItem[] = [
 
   // Universal (migration 011)
   { name: 'Bookshelf', worldType: null, itemType: 'collectible', objectRole: 'bookshelf', category: 'furniture', rarity: 'common', possessable: false },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MIGRATION 016: New universal & medieval-fantasy items
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Universal raw materials
+  { name: 'Wood', worldType: null, itemType: 'material', objectRole: 'wood', category: 'raw_material', rarity: 'common', possessable: true },
+  { name: 'Stone', worldType: null, itemType: 'material', objectRole: 'stone', category: 'raw_material', rarity: 'common', possessable: true },
+  { name: 'Fiber', worldType: null, itemType: 'material', objectRole: null, category: 'raw_material', rarity: 'common', possessable: true },
+  { name: 'Leather', worldType: null, itemType: 'material', objectRole: null, category: 'raw_material', rarity: 'common', possessable: true },
+  { name: 'Cloth', worldType: null, itemType: 'material', objectRole: null, category: 'raw_material', rarity: 'common', possessable: true },
+  { name: 'Clay', worldType: null, itemType: 'material', objectRole: null, category: 'raw_material', rarity: 'common', possessable: true },
+  { name: 'Glass', worldType: null, itemType: 'material', objectRole: null, category: 'refined_material', rarity: 'common', possessable: true },
+
+  // Universal refined materials & ores
+  { name: 'Iron Ingot', worldType: null, itemType: 'material', objectRole: null, category: 'refined_material', rarity: 'common', possessable: true },
+  { name: 'Steel Ingot', worldType: null, itemType: 'material', objectRole: null, category: 'refined_material', rarity: 'uncommon', possessable: true },
+  { name: 'Silver Ingot', worldType: null, itemType: 'material', objectRole: null, category: 'refined_material', rarity: 'uncommon', possessable: true },
+  { name: 'Gold Ingot', worldType: null, itemType: 'material', objectRole: null, category: 'refined_material', rarity: 'rare', possessable: true },
+  { name: 'Copper Ore', worldType: null, itemType: 'material', objectRole: null, category: 'ore', rarity: 'common', possessable: true },
+  { name: 'Coal', worldType: null, itemType: 'material', objectRole: null, category: 'fuel', rarity: 'common', possessable: true },
+
+  // Universal tools
+  { name: 'Knife', worldType: null, itemType: 'tool', objectRole: 'knife', category: 'tool', rarity: 'common', possessable: true },
+  { name: 'Hammer', worldType: null, itemType: 'tool', objectRole: 'hammer', category: 'tool', rarity: 'common', possessable: true },
+  { name: 'Shovel', worldType: null, itemType: 'tool', objectRole: null, category: 'tool', rarity: 'common', possessable: true },
+  { name: 'Fishing Rod', worldType: null, itemType: 'tool', objectRole: null, category: 'tool', rarity: 'common', possessable: true },
+  { name: 'Sack', worldType: null, itemType: 'tool', objectRole: null, category: 'container', rarity: 'common', possessable: true },
+  { name: 'Candle', worldType: null, itemType: 'tool', objectRole: null, category: 'light_source', rarity: 'common', possessable: true },
+
+  // Universal containers
+  { name: 'Barrel', worldType: null, itemType: 'collectible', objectRole: 'barrel', category: 'container', rarity: 'common', possessable: false },
+  { name: 'Crate', worldType: null, itemType: 'collectible', objectRole: 'crate', category: 'container', rarity: 'common', possessable: false },
+
+  // Universal everyday items
+  { name: 'Key', worldType: null, itemType: 'key', objectRole: 'key', category: 'key', rarity: 'uncommon', possessable: true },
+  { name: 'Map', worldType: null, itemType: 'key', objectRole: null, category: 'document', rarity: 'uncommon', possessable: true },
+  { name: 'Book', worldType: null, itemType: 'collectible', objectRole: 'book', category: 'document', rarity: 'common', possessable: true },
+  { name: 'Letter', worldType: null, itemType: 'quest', objectRole: null, category: 'document', rarity: 'common', possessable: true },
+  { name: 'Coin Purse', worldType: null, itemType: 'collectible', objectRole: null, category: 'currency', rarity: 'common', possessable: true },
+
+  // Universal food & ingredients
+  { name: 'Apple', worldType: null, itemType: 'food', objectRole: null, category: 'food', rarity: 'common', possessable: true },
+  { name: 'Raw Meat', worldType: null, itemType: 'food', objectRole: null, category: 'ingredient', rarity: 'common', possessable: true },
+  { name: 'Fish', worldType: null, itemType: 'food', objectRole: null, category: 'ingredient', rarity: 'common', possessable: true },
+  { name: 'Mushroom', worldType: null, itemType: 'food', objectRole: null, category: 'ingredient', rarity: 'common', possessable: true },
+  { name: 'Salt', worldType: null, itemType: 'material', objectRole: null, category: 'ingredient', rarity: 'common', possessable: true },
+
+  // Universal environmental
+  { name: 'Rock', worldType: null, itemType: 'material', objectRole: 'rock', category: 'raw_material', rarity: 'common', possessable: true },
+  { name: 'Stick', worldType: null, itemType: 'material', objectRole: null, category: 'raw_material', rarity: 'common', possessable: true },
+  { name: 'Bone', worldType: null, itemType: 'material', objectRole: null, category: 'raw_material', rarity: 'common', possessable: true },
+  { name: 'Feather', worldType: null, itemType: 'material', objectRole: null, category: 'raw_material', rarity: 'common', possessable: true },
+  { name: 'Shell', worldType: null, itemType: 'collectible', objectRole: null, category: 'collectible', rarity: 'common', possessable: true },
+
+  // Medieval-Fantasy (migration 016)
+  { name: 'Steel Sword', worldType: 'medieval-fantasy', itemType: 'weapon', objectRole: 'sword', category: 'melee_weapon', rarity: 'uncommon', possessable: true },
+  { name: 'Longbow', worldType: 'medieval-fantasy', itemType: 'weapon', objectRole: 'bow', category: 'ranged_weapon', rarity: 'uncommon', possessable: true },
+  { name: 'Crossbow', worldType: 'medieval-fantasy', itemType: 'weapon', objectRole: null, category: 'ranged_weapon', rarity: 'uncommon', possessable: true },
+  { name: 'War Hammer', worldType: 'medieval-fantasy', itemType: 'weapon', objectRole: null, category: 'melee_weapon', rarity: 'uncommon', possessable: true },
+  { name: 'Spear', worldType: 'medieval-fantasy', itemType: 'weapon', objectRole: null, category: 'melee_weapon', rarity: 'common', possessable: true },
+  { name: 'Staff', worldType: 'medieval-fantasy', itemType: 'weapon', objectRole: null, category: 'melee_weapon', rarity: 'common', possessable: true },
+  { name: 'Iron Shield', worldType: 'medieval-fantasy', itemType: 'armor', objectRole: 'shield', category: 'shield', rarity: 'uncommon', possessable: true },
+  { name: 'Leather Armor', worldType: 'medieval-fantasy', itemType: 'armor', objectRole: null, category: 'light_armor', rarity: 'common', possessable: true },
+  { name: 'Plate Armor', worldType: 'medieval-fantasy', itemType: 'armor', objectRole: null, category: 'heavy_armor', rarity: 'rare', possessable: true },
+  { name: 'Helmet', worldType: 'medieval-fantasy', itemType: 'armor', objectRole: null, category: 'head_armor', rarity: 'common', possessable: true },
+  { name: 'Arrow', worldType: 'medieval-fantasy', itemType: 'material', objectRole: null, category: 'ammunition', rarity: 'common', possessable: true },
+  { name: 'Mana Potion', worldType: 'medieval-fantasy', itemType: 'consumable', objectRole: 'potion', category: 'potion', rarity: 'uncommon', possessable: true },
+  { name: 'Ale', worldType: 'medieval-fantasy', itemType: 'drink', objectRole: null, category: 'drink', rarity: 'common', possessable: true },
+  { name: 'Wine', worldType: 'medieval-fantasy', itemType: 'drink', objectRole: null, category: 'drink', rarity: 'uncommon', possessable: true },
+  { name: 'Scroll', worldType: 'medieval-fantasy', itemType: 'collectible', objectRole: null, category: 'document', rarity: 'uncommon', possessable: true },
 
   // ═══════════════════════════════════════════════════════════════════════════
   // MIGRATION 018: Expanded items
@@ -467,6 +538,12 @@ export const OBJECT_ROLE_TO_ASSET: Record<string, string> = {
   potion: 'water_bottle',
   herb: 'avocado_collectible',
 
+  // ─── Natural Resources ─────────────────────────────────────────────────
+  wood: 'wooden_crate_01', // placeholder — log/wood bundle
+  stone: 'wooden_crate_02', // placeholder — stone chunk
+  rock: 'wooden_crate_02', // placeholder — rock chunk
+  knife: 'antique_katana_01', // placeholder — small blade
+
   // ─── Materials & Crafting ──────────────────────────────────────────────
   ore_chunk: 'boulder_01',
   ingot: 'wooden_bucket_01',
@@ -566,6 +643,46 @@ export const ASSET_RECOMMENDATIONS: Record<string, AssetRecommendation> = {
   'Purified Water': { assetId: 'water_bottle', source: 'custom', format: 'glb', license: 'CC0', notes: 'Water bottle' },
   'Energy Drink': { assetId: 'drink_can_02', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Energy drink can' },
   'Coffee': { assetId: 'drink_cup_02', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Coffee cup' },
+
+  // Migration 016 universal items
+  'Fiber': { assetId: 'material_fiber_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Plant fiber bundle' },
+  'Leather': { assetId: 'material_leather_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Leather hide' },
+  'Cloth': { assetId: 'material_cloth_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Cloth bolt' },
+  'Clay': { assetId: 'material_clay_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Clay lump' },
+  'Glass': { assetId: 'material_glass_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Glass sheet' },
+  'Iron Ingot': { assetId: 'material_ingot_iron_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Iron ingot bar' },
+  'Steel Ingot': { assetId: 'material_ingot_steel_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Steel ingot bar' },
+  'Silver Ingot': { assetId: 'material_ingot_silver_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Silver ingot bar' },
+  'Gold Ingot': { assetId: 'material_ingot_gold_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Gold ingot bar' },
+  'Copper Ore': { assetId: 'material_ore_copper_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Copper ore chunk' },
+  'Coal': { assetId: 'material_coal_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Coal lump' },
+  'Shovel': { assetId: 'tool_shovel_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Metal shovel' },
+  'Fishing Rod': { assetId: 'tool_fishing_rod_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Fishing pole' },
+  'Sack': { assetId: 'prop_sack_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Cloth sack' },
+  'Candle': { assetId: 'wooden_candlestick', source: 'polyhaven', format: 'gltf', license: 'CC0', notes: 'Reuse existing candle model' },
+  'Map': { assetId: 'prop_map_03', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Folded map' },
+  'Letter': { assetId: 'prop_letter_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Sealed letter' },
+  'Coin Purse': { assetId: 'prop_purse_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Leather coin purse' },
+  'Apple': { assetId: 'food_apple_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Red apple' },
+  'Raw Meat': { assetId: 'food_meat_raw_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Raw meat cut' },
+  'Fish': { assetId: 'food_fish_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Fresh fish' },
+  'Mushroom': { assetId: 'food_mushroom_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Wild mushroom' },
+  'Salt': { assetId: 'material_salt_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Salt pouch' },
+  'Stick': { assetId: 'material_stick_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Wooden stick' },
+  'Bone': { assetId: 'material_bone_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Animal bone' },
+  'Feather': { assetId: 'material_feather_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Bird feather' },
+  'Shell': { assetId: 'prop_shell_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Sea shell' },
+  'Crossbow': { assetId: 'weapon_crossbow_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Crossbow model' },
+  'War Hammer': { assetId: 'weapon_hammer_war_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'War hammer' },
+  'Spear': { assetId: 'weapon_spear_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Iron-tipped spear' },
+  'Staff': { assetId: 'weapon_staff_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Wooden staff' },
+  'Leather Armor': { assetId: 'armor_leather_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Character attachment' },
+  'Plate Armor': { assetId: 'armor_plate_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Character attachment' },
+  'Helmet': { assetId: 'armor_helmet_iron_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Character attachment' },
+  'Arrow': { assetId: 'material_arrow_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Arrow bundle' },
+  'Ale': { assetId: 'drink_mug_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Ale mug' },
+  'Wine': { assetId: 'drink_wine_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Wine bottle' },
+  'Scroll': { assetId: 'prop_scroll_02', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Rolled scroll' },
 
   // Weapons (no existing 3D model)
   'Battle Axe': { assetId: 'weapon_axe_01', source: 'quaternius', format: 'glb', license: 'CC0', notes: 'Quaternius weapon pack — battle axe' },

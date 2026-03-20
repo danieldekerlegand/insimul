@@ -13,8 +13,8 @@ import {
 
 describe('Base Item Asset Audit', () => {
   describe('BASE_ITEM_CATALOG', () => {
-    it('contains at least 190 base items', () => {
-      expect(BASE_ITEM_CATALOG.length).toBeGreaterThanOrEqual(190);
+    it('contains all 270 base items', () => {
+      expect(BASE_ITEM_CATALOG.length).toBe(270);
     });
 
     it('has no duplicate items (name + worldType)', () => {
