@@ -572,6 +572,12 @@ export class BabylonGame {
   private currentReputation: any | null = null;
   private reputationManager: ReputationManager | null = null;
 
+  // Reading progress persistence
+  private readingProgressAnsweredIds: Set<string> = new Set();
+  private readingProgressQuizAnswers: Array<{ articleId: string; selectedIndex: number; correctIndex: number; correct: boolean; answeredAt: number }> = [];
+  private readingProgressDirty = false;
+  private readingProgressSyncTimer: ReturnType<typeof setTimeout> | null = null;
+
   // VR
   private vrUIPanels: Map<string, VRUIPanel> = new Map();
   private vrInteraction: VRInteractionManager | null = null;
@@ -1743,13 +1749,15 @@ export class BabylonGame {
           duration: 3000,
         });
       },
-      onNoticeQuestionAnswered: (correct: boolean, _articleId: string) => {
+      onNoticeQuestionAnswered: (correct: boolean, articleId: string, selectedIndex: number, correctIndex: number) => {
+        this.recordQuizAnswer(correct, articleId, selectedIndex, correctIndex);
         this.guiManager?.showToast({
           title: correct ? "Correct!" : "Not quite...",
           description: correct ? "Great job!" : "Try again next time",
           duration: 2000,
         });
       },
+      getAnsweredArticleIds: () => this.readingProgressAnsweredIds,
       onVocabWordSpeak: (word: string) => {
         this.chatPanel?.speakWord(word);
       },
@@ -5615,12 +5623,15 @@ export class BabylonGame {
         this.gamificationTracker?.setPlaythroughId(playthrough.id);
         this.initReputationManager();
         this.fetchPlaythroughMeta();
+        this.loadReadingProgress();
       } else {
         // Continue without playthrough for development/testing
+        this.loadReadingProgress();
       }
     } catch (error) {
       console.error('Error starting playthrough:', error);
       // Continue without playthrough for development/testing
+      this.loadReadingProgress();
     }
   }
 
@@ -12028,5 +12039,73 @@ export class BabylonGame {
 
     this.engine?.dispose();
     this.engine = null;
+  }
+
+  // ── Reading Progress Persistence ─────────────────────────────────────────
+
+  private async loadReadingProgress(): Promise<void> {
+    const playerId = this.config.userId || 'player';
+    const worldId = this.config.worldId;
+    const ptId = this.playthroughId || undefined;
+    const url = `/api/reading-progress/${encodeURIComponent(playerId)}/${encodeURIComponent(worldId)}${ptId ? `?playthroughId=${encodeURIComponent(ptId)}` : ''}`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.quizAnswers && Array.isArray(data.quizAnswers)) {
+        this.readingProgressQuizAnswers = data.quizAnswers;
+        this.readingProgressAnsweredIds = new Set(data.quizAnswers.map((a: any) => a.articleId));
+      }
+    } catch (err) {
+      console.warn('[BabylonGame] Failed to load reading progress:', err);
+    }
+  }
+
+  private scheduleReadingProgressSync(): void {
+    if (this.readingProgressSyncTimer) return;
+    this.readingProgressSyncTimer = setTimeout(() => {
+      this.readingProgressSyncTimer = null;
+      this.syncReadingProgress();
+    }, 2000);
+  }
+
+  private async syncReadingProgress(): Promise<void> {
+    if (!this.readingProgressDirty) return;
+    this.readingProgressDirty = false;
+
+    const playerId = this.config.userId || 'player';
+    const worldId = this.config.worldId;
+    const ptId = this.playthroughId || undefined;
+
+    try {
+      await fetch('/api/reading-progress/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId,
+          worldId,
+          ...(ptId ? { playthroughId: ptId } : {}),
+          quizAnswers: this.readingProgressQuizAnswers,
+          totalCorrect: this.readingProgressQuizAnswers.filter(a => a.correct).length,
+          totalAttempted: this.readingProgressQuizAnswers.length,
+        }),
+      });
+    } catch (err) {
+      console.warn('[BabylonGame] Failed to sync reading progress:', err);
+      this.readingProgressDirty = true; // retry next time
+    }
+  }
+
+  private recordQuizAnswer(correct: boolean, articleId: string, selectedIndex: number, correctIndex: number): void {
+    this.readingProgressAnsweredIds.add(articleId);
+    this.readingProgressQuizAnswers.push({
+      articleId,
+      selectedIndex,
+      correctIndex,
+      correct,
+      answeredAt: Date.now(),
+    });
+    this.readingProgressDirty = true;
+    this.scheduleReadingProgressSync();
   }
 }

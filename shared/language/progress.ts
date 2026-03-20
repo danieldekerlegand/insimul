@@ -87,6 +87,25 @@ export interface LanguageProgress {
   lastActivityTimestamp: number;
 }
 
+export interface QuizAnswer {
+  articleId: string;
+  selectedIndex: number;
+  correctIndex: number;
+  correct: boolean;
+  answeredAt: number;       // timestamp
+}
+
+export interface ReadingProgress {
+  playerId: string;
+  worldId: string;
+  playthroughId?: string;
+  articlesRead: string[];         // article IDs the player has opened/viewed
+  quizAnswers: QuizAnswer[];      // all quiz attempts
+  totalCorrect: number;
+  totalAttempted: number;
+  xpFromReading: number;
+}
+
 export interface VocabularyUsage {
   word: string;
   meaning: string;

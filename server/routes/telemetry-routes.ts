@@ -53,11 +53,12 @@ export function createTelemetryRoutes(storage: any): Router {
       const { playerId, worldId } = req.params;
       const playthroughId = req.query.playthroughId as string | undefined;
 
-      const [progress, vocabulary, grammarPatterns, conversations] = await Promise.all([
+      const [progress, vocabulary, grammarPatterns, conversations, readingProgress] = await Promise.all([
         storage.getLanguageProgress(playerId, worldId, playthroughId),
         storage.getVocabularyEntries(playerId, worldId, playthroughId),
         storage.getGrammarPatterns(playerId, worldId, playthroughId),
         storage.getConversationRecords(playerId, worldId, playthroughId),
+        storage.getReadingProgress(playerId, worldId, playthroughId),
       ]);
 
       res.json({
@@ -65,6 +66,7 @@ export function createTelemetryRoutes(storage: any): Router {
         vocabulary,
         grammarPatterns,
         conversations,
+        readingProgress,
       });
     } catch (error) {
       console.error('Get language progress error:', error);
@@ -186,6 +188,45 @@ export function createTelemetryRoutes(storage: any): Router {
     } catch (error) {
       console.error('Upsert grammar pattern error:', error);
       res.status(500).json({ message: 'Failed to upsert grammar pattern' });
+    }
+  });
+
+  // ============= READING PROGRESS =============
+
+  // GET /api/reading-progress/:playerId/:worldId — get reading progress
+  router.get('/reading-progress/:playerId/:worldId', async (req: Request, res: Response) => {
+    try {
+      const { playerId, worldId } = req.params;
+      const playthroughId = req.query.playthroughId as string | undefined;
+      const progress = await storage.getReadingProgress(playerId, worldId, playthroughId);
+      res.json(progress || { articlesRead: [], quizAnswers: [], totalCorrect: 0, totalAttempted: 0, xpFromReading: 0 });
+    } catch (error) {
+      console.error('Get reading progress error:', error);
+      res.status(500).json({ message: 'Failed to get reading progress' });
+    }
+  });
+
+  // POST /api/reading-progress/sync — upsert reading progress
+  router.post('/reading-progress/sync', async (req: Request, res: Response) => {
+    try {
+      const { playerId, worldId, playthroughId, articlesRead, quizAnswers, totalCorrect, totalAttempted, xpFromReading } = req.body;
+
+      if (!playerId || !worldId) {
+        return res.status(400).json({ message: 'Missing required fields: playerId, worldId' });
+      }
+
+      const data: Record<string, unknown> = {};
+      if (articlesRead !== undefined) data.articlesRead = articlesRead;
+      if (quizAnswers !== undefined) data.quizAnswers = quizAnswers;
+      if (totalCorrect !== undefined) data.totalCorrect = totalCorrect;
+      if (totalAttempted !== undefined) data.totalAttempted = totalAttempted;
+      if (xpFromReading !== undefined) data.xpFromReading = xpFromReading;
+
+      const result = await storage.upsertReadingProgress(playerId, worldId, data, playthroughId);
+      res.json(result);
+    } catch (error) {
+      console.error('Sync reading progress error:', error);
+      res.status(500).json({ message: 'Failed to sync reading progress' });
     }
   });
 
