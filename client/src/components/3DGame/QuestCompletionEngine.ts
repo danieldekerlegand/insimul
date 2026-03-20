@@ -102,6 +102,17 @@ export interface CompletionObjective {
   wordsTaught?: string[];
   phrasesTaught?: string[];
 
+  // find_text / read_text
+  textId?: string;
+  textsFound?: string[];
+  textsRead?: string[];
+
+  // comprehension_quiz
+  quizQuestions?: { question: string; correctAnswer: string; options?: string[] }[];
+  quizAnswered?: number;
+  quizCorrect?: number;
+  quizPassThreshold?: number;
+
   // timed objectives
   timeLimitSeconds?: number;
   startedAt?: number;
@@ -152,7 +163,10 @@ export type CompletionEvent =
   | { type: 'gift_given'; npcId: string; itemName: string; questId?: string }
   | { type: 'direction_step_completed'; questId?: string }
   | { type: 'food_ordered'; itemName: string; merchantId: string; businessType: string; questId?: string }
-  | { type: 'price_haggled'; itemName: string; merchantId: string; typedWord: string; questId?: string };
+  | { type: 'price_haggled'; itemName: string; merchantId: string; typedWord: string; questId?: string }
+  | { type: 'text_found'; textId: string; textName: string; questId?: string }
+  | { type: 'text_read'; textId: string; questId?: string }
+  | { type: 'comprehension_answer'; isCorrect: boolean; questId?: string };
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
@@ -283,6 +297,15 @@ export class QuestCompletionEngine {
         break;
       case 'price_haggled':
         this.trackPriceHaggled(event.itemName, event.merchantId, event.typedWord, event.questId);
+        break;
+      case 'text_found':
+        this.trackTextFound(event.textId, event.textName, event.questId);
+        break;
+      case 'text_read':
+        this.trackTextRead(event.textId, event.questId);
+        break;
+      case 'comprehension_answer':
+        this.trackComprehensionAnswer(event.isCorrect, event.questId);
         break;
     }
   }
@@ -829,6 +852,59 @@ export class QuestCompletionEngine {
     });
   }
 
+  // ── Text / reading / comprehension tracking ──────────────────────────
+
+  trackTextFound(textId: string, textName: string, questId?: string): void {
+    const lowerName = textName.toLowerCase();
+
+    this.forEachObjective(questId, 'find_text', (quest, obj) => {
+      const targetName = (obj.itemName || '').toLowerCase();
+      if (targetName && targetName !== lowerName && targetName !== textId) return;
+
+      obj.textsFound = obj.textsFound || [];
+      if (obj.textsFound.includes(textId)) return;
+
+      obj.textsFound.push(textId);
+      obj.currentCount = (obj.currentCount || 0) + 1;
+
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
+  trackTextRead(textId: string, questId?: string): void {
+    this.forEachObjective(questId, 'read_text', (quest, obj) => {
+      if (obj.textId && obj.textId !== textId) return;
+
+      obj.textsRead = obj.textsRead || [];
+      if (obj.textsRead.includes(textId)) return;
+
+      obj.textsRead.push(textId);
+      obj.currentCount = (obj.currentCount || 0) + 1;
+
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
+  trackComprehensionAnswer(isCorrect: boolean, questId?: string): void {
+    this.forEachObjective(questId, 'comprehension_quiz', (quest, obj) => {
+      obj.quizAnswered = (obj.quizAnswered || 0) + 1;
+      if (isCorrect) {
+        obj.quizCorrect = (obj.quizCorrect || 0) + 1;
+      }
+      obj.currentCount = obj.quizCorrect || 0;
+
+      const required = obj.requiredCount || obj.quizQuestions?.length || 3;
+      const threshold = obj.quizPassThreshold ?? required;
+      if (obj.quizCorrect! >= threshold) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
   // ── Serialization ──────────────────────────────────────────────────────
 
   /** Progress-relevant fields that change at runtime and need persistence. */
@@ -840,6 +916,7 @@ export class QuestCompletionEngine {
     'questionsAnswered', 'questionsCorrect', 'translationsCompleted',
     'translationsCorrect', 'waypointsReached', 'stepsCompleted',
     'wordsTaught', 'phrasesTaught', 'startedAt', 'itemsPurchased',
+    'textsFound', 'textsRead', 'quizAnswered', 'quizCorrect',
   ];
 
   /**

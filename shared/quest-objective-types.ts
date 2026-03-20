@@ -272,6 +272,29 @@ export const ACHIEVABLE_OBJECTIVE_TYPES: ObjectiveTypeInfo[] = [
     countable: true,
   },
 
+  // ── Text / Reading / Comprehension ─────────────────────────────────────
+  {
+    type: 'find_text',
+    description: 'Find a book, document, or text item in the world',
+    playerAction: 'Explore the world to locate a specific book or document',
+    requiresTarget: 'item',
+    countable: true,
+  },
+  {
+    type: 'read_text',
+    description: 'Read the contents of a book, document, or text written in the target language',
+    playerAction: 'Open a collected book or document and read through its contents',
+    requiresTarget: 'item',
+    countable: true,
+  },
+  {
+    type: 'comprehension_quiz',
+    description: 'Answer comprehension questions about a text that was read',
+    playerAction: 'Answer multiple-choice or short-answer questions about a previously read text',
+    requiresTarget: 'none',
+    countable: true,
+  },
+
   // ── Teaching (player teaches NPC) ────────────────────────────────────────
   {
     type: 'teach_vocabulary',
@@ -559,6 +582,29 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'teach_expression': 'teach_phrase',
   'model_phrase': 'teach_phrase',
   'tutor_phrase': 'teach_phrase',
+
+  // Text / reading / comprehension aliases
+  'find_book': 'find_text',
+  'find_document': 'find_text',
+  'locate_text': 'find_text',
+  'locate_book': 'find_text',
+  'locate_document': 'find_text',
+  'find_scroll': 'find_text',
+  'search_text': 'find_text',
+
+  'read_book': 'read_text',
+  'read_document': 'read_text',
+  'read_scroll': 'read_text',
+  'read_letter': 'read_text',
+  'read_page': 'read_text',
+  'study_text': 'read_text',
+
+  'text_quiz': 'comprehension_quiz',
+  'reading_quiz': 'comprehension_quiz',
+  'reading_comprehension': 'comprehension_quiz',
+  'text_comprehension': 'comprehension_quiz',
+  'book_quiz': 'comprehension_quiz',
+  'answer_about_text': 'comprehension_quiz',
 
   // Grammar-focused objective aliases (map to canonical types)
   'grammar_pattern': 'use_vocabulary',
