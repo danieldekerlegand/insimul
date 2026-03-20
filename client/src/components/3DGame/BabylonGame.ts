@@ -1830,21 +1830,24 @@ export class BabylonGame {
       }
     });
     this.chatPanel.setOnQuestTurnedIn(async (questId, rewards) => {
-      // Use QuestCompletionManager for the full ceremony
+      // QuestCompletionManager handles server call, celebration, and rewards
       if (this.questCompletionManager) {
         const questData = this.quests.find(q => q.id === questId);
         if (questData) {
-          // Mark completed in overlay
+          // Mark completed in overlay (local state for immediate UI update)
           await this.dataSource.updateQuest(questId, {
             status: 'completed',
             completedAt: new Date().toISOString(),
           });
+          const goldReward = rewards?.goldReward ?? questData.rewards?.gold ?? questData.rewards?.goldReward ?? 0;
           await this.questCompletionManager.completeQuest({
             id: questData.id,
             worldId: questData.worldId || this.config.worldId,
             title: questData.title,
             questType: questData.questType,
+            difficulty: questData.difficulty,
             experienceReward: questData.experienceReward || 0,
+            goldReward,
             itemRewards: questData.itemRewards,
             skillRewards: questData.skillRewards,
             unlocks: questData.unlocks,
@@ -1856,7 +1859,6 @@ export class BabylonGame {
       }
       this.questTracker?.updateQuests(this.config.worldId);
       this.updateQuestIndicators();
-      this.eventBus.emit({ type: 'quest_completed', questId });
       // Record against main quest progression (non-blocking)
       const questForType = this.quests?.find((q: any) => q.id === questId);
       if (questForType?.questType) {
@@ -2273,6 +2275,10 @@ export class BabylonGame {
     this.questCompletionManager.setEventBus(this.eventBus);
     this.questCompletionManager.setGamificationTracker(this.gamificationTracker);
     this.questCompletionManager.setDataSource(this.dataSource);
+    this.questCompletionManager.setOnGoldAwarded((amount) => {
+      this.playerGold += amount;
+      this.inventory?.setGold(this.playerGold);
+    });
     if (this.questTracker) {
       this.questCompletionManager.setQuestTracker(this.questTracker);
     }
@@ -2302,17 +2308,19 @@ export class BabylonGame {
       if (this.questCompletionManager) {
         const questData = this.quests.find(q => q.id === questId);
         if (questData) {
-          // Mark completed in overlay
           await this.dataSource.updateQuest(questId, {
             status: 'completed',
             completedAt: new Date().toISOString(),
           });
+          const goldReward = questData.rewards?.gold ?? questData.rewards?.goldReward ?? 0;
           await this.questCompletionManager.completeQuest({
             id: questData.id,
             worldId: questData.worldId || this.config.worldId,
             title: questData.title,
             questType: questData.questType,
+            difficulty: questData.difficulty,
             experienceReward: questData.experienceReward || 0,
+            goldReward,
             itemRewards: questData.itemRewards,
             skillRewards: questData.skillRewards,
             unlocks: questData.unlocks,
@@ -10656,20 +10664,23 @@ export class BabylonGame {
       const questData = this.quests.find(q => q.id === quest.id);
       if (!questData) return;
 
-      // Mark as completed in overlay (not world)
+      // Mark as completed in overlay (local state for immediate UI update)
       await this.dataSource.updateQuest(quest.id, {
         status: 'completed',
         completedAt: new Date().toISOString(),
       });
 
-      // Trigger full celebration ceremony
+      // QuestCompletionManager handles server call, celebration, and rewards
       if (this.questCompletionManager) {
+        const goldReward = questData.rewards?.gold ?? questData.rewards?.goldReward ?? 0;
         await this.questCompletionManager.completeQuest({
           id: questData.id,
           worldId: questData.worldId || this.config.worldId,
           title: questData.title,
           questType: questData.questType,
+          difficulty: questData.difficulty,
           experienceReward: questData.experienceReward || 0,
+          goldReward,
           itemRewards: questData.itemRewards,
           skillRewards: questData.skillRewards,
           unlocks: questData.unlocks,

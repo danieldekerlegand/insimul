@@ -37,6 +37,7 @@ export interface CompletedQuestData {
   questType: string;
   difficulty?: string;
   experienceReward: number;
+  goldReward?: number;
   itemRewards?: QuestRewards['itemRewards'];
   skillRewards?: QuestRewards['skillRewards'];
   unlocks?: QuestRewards['unlocks'];
@@ -45,10 +46,34 @@ export interface CompletedQuestData {
   assignedBy?: string | null;
 }
 
+export interface ServerCompletionResult {
+  bonus: {
+    baseXP: number;
+    totalXP: number;
+    bonusXP: number;
+    grandTotalXP: number;
+    streak: number;
+    difficultyMultiplier: number;
+    streakMultiplier: number;
+    hintPenalty: number;
+    milestone: string | null;
+    milestoneXP: number;
+  };
+  chainCompletion: {
+    chainName: string;
+    bonusXP: number;
+    achievement: string | null;
+    totalQuests: number;
+  } | null;
+  skillRewards: Array<{ skillId: string; name: string; level: number }>;
+  vocabCategoryUnlocks?: string[];
+}
+
 export interface PlayerProgress {
   inventory: Array<{ itemId: string; quantity: number; name: string }>;
   questsCompleted: string[];
   skills: Record<string, number>;
+  gold: number;
 }
 
 // ── Manager ──────────────────────────────────────────────────────────────────
@@ -60,10 +85,11 @@ export class QuestCompletionManager {
   private gamificationTracker: LanguageGamificationTracker | null = null;
   private questTracker: BabylonQuestTracker | null = null;
   private dataSource: DataSource | null = null;
-  private playerProgress: PlayerProgress = { inventory: [], questsCompleted: [], skills: {} };
+  private playerProgress: PlayerProgress = { inventory: [], questsCompleted: [], skills: {}, gold: 0 };
   private audioContext: AudioContext | null = null;
   private completionOverlay: Rectangle | null = null;
   private confettiSystem: ParticleSystem | null = null;
+  private onGoldAwarded: ((amount: number) => void) | null = null;
 
   constructor(scene: Scene, advancedTexture: AdvancedDynamicTexture) {
     this.scene = scene;
@@ -96,46 +122,88 @@ export class QuestCompletionManager {
     return this.playerProgress;
   }
 
+  public setOnGoldAwarded(callback: (amount: number) => void): void {
+    this.onGoldAwarded = callback;
+  }
+
+  // ── Server Completion ─────────────────────────────────────────────────────
+
+  /**
+   * Call the server /complete endpoint to persist completion, calculate bonus XP,
+   * update streak, apply server-side skill rewards, and handle quest depletion.
+   * Returns null on failure (rewards are still distributed locally as fallback).
+   */
+  public async completeQuestOnServer(
+    worldId: string,
+    questId: string,
+  ): Promise<ServerCompletionResult | null> {
+    try {
+      const response = await fetch(`/api/worlds/${worldId}/quests/${questId}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!response?.ok) return null;
+      return await response.json();
+    } catch {
+      return null;
+    }
+  }
+
   // ── Main Completion Flow ─────────────────────────────────────────────────
 
   /**
-   * Process quest completion: play sound, show overlay, distribute rewards,
-   * update trackers, handle quest chains, and emit events.
+   * Process quest completion: call server for bonus XP/streak, play sound,
+   * show overlay, distribute rewards, update trackers, handle quest chains,
+   * and emit events.
    */
   public async completeQuest(quest: CompletedQuestData): Promise<void> {
     console.log(`[QuestCompletionManager] Completing quest: "${quest.title}"`);
 
-    // 1. Play completion sound + confetti
+    // 1. Call server to persist completion and get bonus info
+    const serverResult = await this.completeQuestOnServer(quest.worldId, quest.id);
+
+    // 2. Play completion sound + confetti
     this.playCompletionSound();
     this.playConfettiCelebration();
 
-    // 2. Distribute rewards
+    // 3. Distribute rewards (items, skills, gold)
     const rewardSummary = this.distributeRewards(quest);
 
-    // 3. Update gamification tracker (XP + achievements)
-    this.gamificationTracker?.onQuestCompleted(quest.questType, quest.experienceReward);
+    // 4. Determine effective XP (use server bonus if available)
+    const effectiveXP = serverResult?.bonus?.grandTotalXP ?? quest.experienceReward;
 
-    // 4. Track completed quest
+    // 5. Update gamification tracker (XP + achievements)
+    this.gamificationTracker?.onQuestCompleted(quest.questType, effectiveXP);
+
+    // 6. Track completed quest
     if (!this.playerProgress.questsCompleted.includes(quest.id)) {
       this.playerProgress.questsCompleted.push(quest.id);
     }
 
-    // 5. Show completion overlay
-    this.showCompletionOverlay(quest, rewardSummary);
+    // 7. Show completion overlay with bonus info
+    this.showCompletionOverlay(quest, rewardSummary, serverResult);
 
-    // 6. Refresh quest tracker UI
+    // 8. Refresh quest tracker UI
     if (this.questTracker && quest.worldId) {
       this.questTracker.updateQuests(quest.worldId);
     }
 
-    // 7. Fire event bus events
+    // 9. Fire event bus events
     this.eventBus?.emit({ type: 'quest_completed', questId: quest.id });
 
-    // 8. Handle quest chain progression
-    if (quest.questChainId) {
+    // 10. Handle quest chain progression (use server chain result if available)
+    if (serverResult?.chainCompletion) {
+      setTimeout(() => {
+        this.showChainCompletionOverlay({
+          chainName: serverResult.chainCompletion!.chainName,
+          bonusXP: serverResult.chainCompletion!.bonusXP,
+          achievement: serverResult.chainCompletion!.achievement,
+        });
+      }, 3500);
+    } else if (quest.questChainId) {
       const chainResult = await this.handleChainProgression(quest);
       if (chainResult?.chainComplete) {
-        // Delay chain overlay so it shows after the quest overlay
         setTimeout(() => {
           this.showChainCompletionOverlay(chainResult);
         }, 3500);
@@ -252,6 +320,14 @@ export class QuestCompletionManager {
       summary.push(`+${quest.experienceReward} XP`);
     }
 
+    // Gold reward
+    const goldAmount = quest.goldReward ?? 0;
+    if (goldAmount > 0) {
+      this.playerProgress.gold = (this.playerProgress.gold || 0) + goldAmount;
+      summary.push(`+${goldAmount} Gold`);
+      this.onGoldAwarded?.(goldAmount);
+    }
+
     // Item rewards → inventory
     if (quest.itemRewards && quest.itemRewards.length > 0) {
       for (const reward of quest.itemRewards) {
@@ -305,7 +381,8 @@ export class QuestCompletionManager {
    */
   public showCompletionOverlay(
     quest: CompletedQuestData,
-    rewardSummary: string[]
+    rewardSummary: string[],
+    serverResult?: ServerCompletionResult | null,
   ): void {
     // Remove any existing overlay
     this.removeCompletionOverlay();
@@ -393,9 +470,10 @@ export class QuestCompletionManager {
     rewardsHeader.height = '25px';
     stack.addControl(rewardsHeader);
 
-    // XP with animated counter effect (displayed as final value)
+    // XP — use server grand total if available
+    const displayXP = serverResult?.bonus?.grandTotalXP ?? quest.experienceReward;
     const xpText = new TextBlock();
-    xpText.text = `\u2B50 ${quest.experienceReward} XP`;
+    xpText.text = `\u2B50 ${displayXP} XP`;
     xpText.color = '#FFD700';
     xpText.fontSize = 22;
     xpText.fontWeight = 'bold';
@@ -403,15 +481,47 @@ export class QuestCompletionManager {
     stack.addControl(xpText);
 
     // Animate XP counter from 0 to final value
-    this.animateXPCounter(xpText, quest.experienceReward);
+    this.animateXPCounter(xpText, displayXP);
 
-    // Additional rewards
-    const nonXPRewards = rewardSummary.filter(r => !r.startsWith('+'));
+    // Bonus XP breakdown (from server)
+    if (serverResult?.bonus && serverResult.bonus.bonusXP > 0) {
+      const bonusLine = new TextBlock();
+      bonusLine.text = `(+${serverResult.bonus.bonusXP} bonus XP)`;
+      bonusLine.color = '#FFA500';
+      bonusLine.fontSize = 12;
+      bonusLine.height = '20px';
+      stack.addControl(bonusLine);
+    }
+
+    // Streak info
+    if (serverResult?.bonus && serverResult.bonus.streak > 1) {
+      const streakLine = new TextBlock();
+      streakLine.text = `\u{1F525} ${serverResult.bonus.streak} quest streak!`;
+      streakLine.color = '#FF6347';
+      streakLine.fontSize = 14;
+      streakLine.height = '22px';
+      stack.addControl(streakLine);
+    }
+
+    // Milestone achievement
+    if (serverResult?.bonus?.milestone) {
+      const milestoneLine = new TextBlock();
+      milestoneLine.text = `\u{1F3C5} ${serverResult.bonus.milestone} (+${serverResult.bonus.milestoneXP} XP)`;
+      milestoneLine.color = '#9B59B6';
+      milestoneLine.fontSize = 14;
+      milestoneLine.fontWeight = 'bold';
+      milestoneLine.height = '22px';
+      stack.addControl(milestoneLine);
+    }
+
+    // Additional rewards (gold, items, skills, unlocks)
+    const nonXPRewards = rewardSummary.filter(r => !r.startsWith('+') || r.includes('Gold'));
     if (nonXPRewards.length > 0) {
       for (const reward of nonXPRewards) {
         const rewardLine = new TextBlock();
-        rewardLine.text = `\u{1F381} ${reward}`;
-        rewardLine.color = '#90EE90';
+        const emoji = reward.includes('Gold') ? '\u{1FA99}' : '\u{1F381}';
+        rewardLine.text = `${emoji} ${reward}`;
+        rewardLine.color = reward.includes('Gold') ? '#FFD700' : '#90EE90';
         rewardLine.fontSize = 14;
         rewardLine.height = '22px';
         stack.addControl(rewardLine);
@@ -420,10 +530,10 @@ export class QuestCompletionManager {
 
     this.advancedTexture.addControl(overlay);
 
-    // Auto-remove after 3 seconds
+    // Auto-remove after 4 seconds (longer to read bonus/streak info)
     setTimeout(() => {
       this.removeCompletionOverlay();
-    }, 3000);
+    }, 4000);
   }
 
   private animateXPCounter(textBlock: TextBlock, targetXP: number): void {
