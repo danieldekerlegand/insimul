@@ -1,14 +1,16 @@
-## Agent 12: Implement server-side persistence for vocabulary and grammar progress
+## Agent 1: Scrape Polyhaven and Sketchfab for downloadable prop/furniture/container 3D assets
 
 ### Completed
-- Added vocabulary/grammar/progress storage methods to IStorage interface (server/db/storage.ts)
-- Added individual REST endpoints for vocabulary and grammar CRUD (server/routes/telemetry-routes.ts):
-  - GET /api/vocabulary/:playerId/:worldId
-  - PUT /api/vocabulary/:playerId/:worldId/:word
-  - GET /api/grammar-patterns/:playerId/:worldId
-  - PUT /api/grammar-patterns/:playerId/:worldId/:pattern
-- Added loadFromServer() method to LanguageProgressTracker (client) to restore persisted progress on initialization
-- Wired up startServerSync (60s periodic sync) and loadFromServer in BabylonChatPanel initialization
-- Added cleanup: final sync + stopServerSync on BabylonChatPanel dispose
-- Wrote 17 tests covering all endpoints including error handling (server/__tests__/language-progress-persistence.test.ts)
+- Created asset scraper service (server/services/asset-scraper.ts):
+  - scrapePolyhaven() — queries all Polyhaven models, filters to prop/furniture/container by category+tag mapping
+  - scrapeSketchfab() — searches Sketchfab with 9 targeted queries (3 per category), deduplicates results
+  - scrapeAllSources() — unified catalog from both sources, optional category filter, sorted by popularity
+  - getAssetDownloadInfo() — returns download URLs for Polyhaven or auth instructions for Sketchfab
+  - Classifies assets into prop/furniture/container categories via tag and category mapping
+- Added 4 API routes (server/routes.ts):
+  - GET /api/asset-scraper/scrape — scrape both sources with optional category filter
+  - GET /api/asset-scraper/polyhaven — scrape Polyhaven only
+  - GET /api/asset-scraper/sketchfab — scrape Sketchfab only
+  - GET /api/asset-scraper/download-info/:source/:sourceId — get download info for a specific asset
+- Wrote 17 tests covering classification, deduplication, error handling, filtering, and download info (server/__tests__/asset-scraper.test.ts)
 - All tests pass, TypeScript compiles cleanly
