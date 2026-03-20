@@ -13810,6 +13810,81 @@ Make the action names thematic and immersive.`;
     }
   });
 
+  // ─── Game Texts (reading content) ──────────────────────────────────────────
+
+  app.get("/api/worlds/:worldId/texts", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { category, cefrLevel } = req.query;
+      let texts;
+      if (category) {
+        texts = await storage.getGameTextsByCategory(worldId, category as string);
+      } else if (cefrLevel) {
+        texts = await storage.getGameTextsByCefrLevel(worldId, cefrLevel as string);
+      } else {
+        texts = await storage.getGameTextsByWorld(worldId);
+      }
+      res.json(texts);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/texts/:id", async (req, res) => {
+    try {
+      const text = await storage.getGameText(req.params.id);
+      if (!text) return res.status(404).json({ error: "Text not found" });
+      res.json(text);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/worlds/:worldId/texts", async (req, res) => {
+    try {
+      const text = await storage.createGameText({ ...req.body, worldId: req.params.worldId });
+      res.status(201).json(text);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/texts/:id", async (req, res) => {
+    try {
+      const text = await storage.updateGameText(req.params.id, req.body);
+      if (!text) return res.status(404).json({ error: "Text not found" });
+      res.json(text);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/texts/:id", async (req, res) => {
+    try {
+      const ok = await storage.deleteGameText(req.params.id);
+      if (!ok) return res.status(404).json({ error: "Text not found" });
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/worlds/:worldId/texts/seed", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { targetLanguage = "French", writerName } = req.body;
+      const { seedTextsForWorld } = await import("./services/text-seed-generator.js");
+      const result = await seedTextsForWorld(storage, { worldId, targetLanguage, writerName });
+      if (result.skipped) {
+        res.json({ message: "Texts already exist for this world", created: 0 });
+      } else {
+        res.status(201).json({ message: `Seeded ${result.created} texts`, created: result.created });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

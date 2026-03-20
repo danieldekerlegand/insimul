@@ -343,6 +343,15 @@ export interface IStorage {
     scoreDistribution: { bucket: string; count: number }[];
   }>;
 
+  // Game Texts
+  getGameText(id: string): Promise<import("@shared/schema").GameText | undefined>;
+  getGameTextsByWorld(worldId: string): Promise<import("@shared/schema").GameText[]>;
+  getGameTextsByCategory(worldId: string, textCategory: string): Promise<import("@shared/schema").GameText[]>;
+  getGameTextsByCefrLevel(worldId: string, cefrLevel: string): Promise<import("@shared/schema").GameText[]>;
+  createGameText(text: import("@shared/schema").InsertGameText): Promise<import("@shared/schema").GameText>;
+  updateGameText(id: string, text: Partial<import("@shared/schema").InsertGameText>): Promise<import("@shared/schema").GameText | undefined>;
+  deleteGameText(id: string): Promise<boolean>;
+
   // Terrain Features
   getTerrainFeature(id: string): Promise<TerrainFeature | undefined>;
   getTerrainFeaturesByWorld(worldId: string): Promise<TerrainFeature[]>;
