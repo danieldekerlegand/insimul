@@ -392,7 +392,7 @@
     {
       "path": "client/src/components/3DGame/QuestObjectManager.ts",
       "description": "Quest object lifecycle: 15 objective types, collectible tracking, completion logic. New objective types need handling in exported quest systems.",
-      "hash": "22ba522fdc215c4866119f879a5946ace966f312a8fe28ca67668e272d0d2ca6",
+      "hash": "e97cd3ab2fda568d20b8efff9e5876e75a4691d4f6d49ffbd4360f7383711abe",
       "engineMappings": [
         {
           "engine": "unreal",

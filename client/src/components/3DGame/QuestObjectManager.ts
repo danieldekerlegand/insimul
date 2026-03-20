@@ -1412,6 +1412,13 @@ export class QuestObjectManager {
   }
 
   /**
+   * Track gift given to an NPC
+   */
+  public trackGiftGiven(npcId: string, itemName: string): void {
+    this.completionEngine.trackGiftGiven(npcId, itemName);
+  }
+
+  /**
    * Check ownership-based objectives against current inventory
    */
   public checkInventoryObjectives(playerItemNames: string[]): void {
