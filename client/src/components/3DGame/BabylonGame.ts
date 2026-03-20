@@ -9856,6 +9856,8 @@ export class BabylonGame {
         totalXPEarned: data.state?.totalXPEarned ?? 0,
         chapters: data.chapters ?? [],
         playerCefrLevel: this.playerCefrLevel,
+        investigationBoard: data.investigationBoard ?? null,
+        caseNotes: data.state?.caseNotes ?? [],
       };
     } catch {
       // Non-critical — journal will show empty state

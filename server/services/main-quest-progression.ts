@@ -27,6 +27,7 @@ import {
   getChapterCompletionPercent,
   getChapterById,
   narrativeBeatId,
+  addCaseNote,
 } from '../../shared/quest/main-quest-chapters.js';
 
 export interface ChapterAdvanceResult {
@@ -151,10 +152,28 @@ export class MainQuestProgressionManager {
     chapterProgress.objectiveProgress[matchingObjective.id] = newCount;
     const objectiveCompleted = newCount >= matchingObjective.requiredCount;
 
+    // Generate a case note for the objective progress
+    const dayNumber = this.calculateGameDay(state);
+    const noteCategory = this.questTypeToCaseNoteCategory(questType);
+    addCaseNote(state, {
+      day: dayNumber,
+      text: objectiveCompleted
+        ? `Completed: ${matchingObjective.title}. Another piece of the investigation falls into place.`
+        : `Progress on "${matchingObjective.title}" (${newCount}/${matchingObjective.requiredCount}).`,
+      category: noteCategory,
+      chapterId: chapter.id,
+    });
+
     // Check if chapter is now complete
     let chapterAdvance: ChapterAdvanceResult | undefined;
     if (isChapterComplete(chapter, chapterProgress)) {
       chapterAdvance = await this.advanceChapter(state, chapter, chapterProgress, playerCefrLevel, worldId, playerId);
+      addCaseNote(state, {
+        day: dayNumber,
+        text: `Chapter complete: "${chapter.title}". ${chapter.outroNarrative}`,
+        category: 'chapter_event',
+        chapterId: chapter.id,
+      });
     }
 
     await this.saveMainQuestState(worldId, playerId, state, playthroughId);
@@ -447,6 +466,26 @@ export class MainQuestProgressionManager {
     state.narrativeBeatsDelivered.push(beat);
     await this.saveMainQuestState(worldId, playerId, state);
     return true;
+  }
+
+  /** Calculate the in-game day number based on quest state timestamps */
+  private calculateGameDay(state: MainQuestState): number {
+    const startedChapter = state.chapters.find(cp => cp.startedAt);
+    if (!startedChapter?.startedAt) return 1;
+    const startDate = new Date(startedChapter.startedAt).getTime();
+    const now = Date.now();
+    return Math.max(1, Math.ceil((now - startDate) / (1000 * 60 * 60 * 24)));
+  }
+
+  /** Map a quest type to a case note category */
+  private questTypeToCaseNoteCategory(questType: string): 'clue' | 'npc_interview' | 'text_found' | 'location_visited' | 'chapter_event' {
+    switch (questType) {
+      case 'conversation': return 'npc_interview';
+      case 'vocabulary': return 'text_found';
+      case 'fetch': return 'clue';
+      case 'grammar': return 'text_found';
+      default: return 'clue';
+    }
   }
 }
 

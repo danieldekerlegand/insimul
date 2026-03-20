@@ -48,6 +48,21 @@ export interface ChapterProgress {
   completedAt?: string;
 }
 
+/** A case note entry for the investigation journal */
+export interface CaseNote {
+  id: string;
+  /** In-game day number when this note was created */
+  day: number;
+  /** The note text, written in a reporter's voice */
+  text: string;
+  /** Category of the discovery */
+  category: 'clue' | 'npc_interview' | 'text_found' | 'location_visited' | 'chapter_event';
+  /** Related chapter ID */
+  chapterId: string;
+  /** Timestamp when the note was created */
+  createdAt: string;
+}
+
 export type NarrativeBeatType = 'chapter_intro' | 'chapter_outro';
 
 export interface NarrativeBeat {
@@ -72,6 +87,8 @@ export interface MainQuestState {
   totalXPEarned: number;
   /** Narrative beats that have been delivered to the player */
   narrativeBeatsDelivered: NarrativeBeat[];
+  /** Investigation case notes logged as the player progresses */
+  caseNotes?: CaseNote[];
 }
 
 // ── Writer name generation ──────────────────────────────────────────────────
@@ -578,4 +595,39 @@ export function getResolvedChapter(
     introNarrative: resolveNarrativeText(chapter.introNarrative, writerName),
     outroNarrative: resolveNarrativeText(chapter.outroNarrative, writerName),
   };
+}
+
+/** Add a case note to the main quest state */
+export function addCaseNote(
+  state: MainQuestState,
+  note: Omit<CaseNote, 'id' | 'createdAt'>,
+): CaseNote {
+  if (!state.caseNotes) state.caseNotes = [];
+  const caseNote: CaseNote = {
+    ...note,
+    id: `note_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    createdAt: new Date().toISOString(),
+  };
+  state.caseNotes.unshift(caseNote); // newest first
+  return caseNote;
+}
+
+/** Data for the investigation board display */
+export interface InvestigationBoardData {
+  /** The writer being investigated (procedurally named) */
+  writerName: string;
+  /** Timeline events for the investigation */
+  timeline: InvestigationTimelineEvent[];
+  /** Count of texts/evidence collected */
+  evidenceCollected: number;
+  /** Key NPCs the player has interviewed */
+  keyNPCsMet: Array<{ name: string; note: string }>;
+  /** Total clue count discovered */
+  cluesFound: number;
+}
+
+export interface InvestigationTimelineEvent {
+  label: string;
+  detail: string;
+  completed: boolean;
 }

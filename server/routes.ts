@@ -10618,13 +10618,15 @@ Make the action names thematic and immersive.`;
       const { mainQuestProgressionManager } = await import('./services/main-quest-progression.js');
       // Lazily ensure the active chapter has a proper quest record
       await mainQuestProgressionManager.ensureActiveChapterHasQuestRecord(worldId, playerId, playthroughId);
+      const { buildInvestigationBoard } = await import('./services/investigation-board-builder.js');
       const summary = await mainQuestProgressionManager.getJournalSummary(
         worldId,
         playerId,
         cefrLevel as any,
         playthroughId,
       );
-      res.json(summary);
+      const investigationBoard = buildInvestigationBoard(summary.state, summary.chapters);
+      res.json({ ...summary, investigationBoard });
     } catch (error) {
       console.error('[MainQuest] Error fetching journal:', error);
       res.status(500).json({ error: "Failed to fetch main quest state" });
