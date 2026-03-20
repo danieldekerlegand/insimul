@@ -17,7 +17,7 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   Plus, Edit, Trash2, Package, Image as ImageIcon, Sparkles, Save, X,
   Search, ChevronRight, ChevronDown, Info, Settings2, Copy,
-  Layers, Download, Tag, Volume2, Box, Maximize2, ArrowUp, Wand2, TrendingUp, Upload, Play, Pause,
+  Layers, Download, Tag, Volume2, Box, Maximize2, ArrowUp, Wand2, TrendingUp, Upload, Play, Pause, Move,
 } from "lucide-react";
 import { VisualAssetGeneratorDialog } from "../VisualAssetGeneratorDialog";
 import { PolyhavenBrowserDialog } from "../PolyhavenBrowserDialog";
@@ -192,6 +192,7 @@ export function AdminAssetsHub() {
   const [objectModels, setObjectModels] = useState<Record<string, string>>({});
   const [playerModels, setPlayerModels] = useState<Record<string, string>>({});
   const [questObjectModels, setQuestObjectModels] = useState<Record<string, string>>({});
+  const [modelScaling, setModelScaling] = useState<Record<string, { x: number; y: number; z: number }>>({});
 
   // ─── Data fetching ─────────────────────────────────────────────────────────
 
@@ -354,6 +355,7 @@ export function AdminAssetsHub() {
     setGroundTextureId(''); setRoadTextureId('');
     setBuildingModels({}); setNatureModels({}); setCharacterModels({});
     setObjectModels({}); setPlayerModels({}); setQuestObjectModels({});
+    setModelScaling({});
   };
 
   const loadCollectionToForm = (collection: AssetCollection) => {
@@ -372,6 +374,7 @@ export function AdminAssetsHub() {
     setObjectModels(collection.objectModels || {});
     setPlayerModels(collection.playerModels || {});
     setQuestObjectModels(collection.questObjectModels || {});
+    setModelScaling((collection as any).modelScaling || {});
   };
 
   const handleCopyCollection = (collection: AssetCollection) => {
@@ -417,7 +420,7 @@ export function AdminAssetsHub() {
           name, description: description || null, collectionType,
           worldType: (worldType && worldType !== '__none__') ? worldType : null, purpose: purpose || null,
           tags: tags.split(',').map(t => t.trim()).filter(Boolean),
-          isPublic, isBase: false, assetIds: initialAssets, ...initial3DConfig,
+          isPublic, isBase: false, assetIds: initialAssets, modelScaling, ...initial3DConfig,
         }),
       });
       if (!response.ok) {
@@ -444,7 +447,7 @@ export function AdminAssetsHub() {
           worldType: (worldType && worldType !== '__none__') ? worldType : null,
           purpose: purpose || null, tags: tags.split(',').map(t => t.trim()).filter(Boolean),
           isPublic, groundTextureId: groundTextureId || null, roadTextureId: roadTextureId || null,
-          buildingModels, natureModels, characterModels, objectModels, playerModels, questObjectModels,
+          buildingModels, natureModels, characterModels, objectModels, playerModels, questObjectModels, modelScaling,
         }),
       });
       if (!response.ok) throw new Error('Failed to update');
@@ -508,6 +511,21 @@ export function AdminAssetsHub() {
 
   const handleInlineTextureAssign = (field: string, assetId: string | null) => {
     patchCollectionConfig({ [field]: assetId } as any);
+  };
+
+  const handleInlineScaleUpdate = (scalingKey: string, axis: 'x' | 'y' | 'z', value: number) => {
+    if (!selectedCollection) return;
+    const current = (selectedCollection as any).modelScaling || {};
+    const entry = current[scalingKey] || { x: 1, y: 1, z: 1 };
+    const updated = { ...current, [scalingKey]: { ...entry, [axis]: value } };
+    patchCollectionConfig({ modelScaling: updated } as any);
+  };
+
+  const handleInlineScaleReset = (scalingKey: string) => {
+    if (!selectedCollection) return;
+    const current = { ...((selectedCollection as any).modelScaling || {}) };
+    delete current[scalingKey];
+    patchCollectionConfig({ modelScaling: current } as any);
   };
 
   const handleModelSelect = (asset: any) => {
@@ -1124,14 +1142,21 @@ export function AdminAssetsHub() {
                               </button>
                               {isExpanded && (
                                 <div className="space-y-1 px-1.5 pb-1.5 border-t pt-1.5">
-                                  {roles.map(role => (
-                                    <InlineModelRow key={role}
-                                      label={role.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()}
-                                      assetId={models[role]}
-                                      assets={collectionAssets}
-                                      onSelect={() => { setModelBrowserContext({ group, key: `${prefix}${role}`, inline: true }); setShowModelBrowser(true); }}
-                                      onClear={() => handleInlineModelAssign(field, role, null)} />
-                                  ))}
+                                  {roles.map(role => {
+                                    const scalingKey = `${field}.${role}`;
+                                    const scaling = ((selectedCollection as any).modelScaling || {})[scalingKey];
+                                    return (
+                                      <InlineModelRow key={role}
+                                        label={role.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()}
+                                        assetId={models[role]}
+                                        assets={collectionAssets}
+                                        scaling={scaling}
+                                        onScaleChange={(axis, value) => handleInlineScaleUpdate(scalingKey, axis, value)}
+                                        onScaleReset={() => handleInlineScaleReset(scalingKey)}
+                                        onSelect={() => { setModelBrowserContext({ group, key: `${prefix}${role}`, inline: true }); setShowModelBrowser(true); }}
+                                        onClear={() => handleInlineModelAssign(field, role, null)} />
+                                    );
+                                  })}
                                 </div>
                               )}
                             </div>
@@ -1334,20 +1359,33 @@ export function AdminAssetsHub() {
                 <ModelConfigRow label="Road Texture" value={roadTextureId} assets={collectionAssets} onSelect={() => { setModelBrowserContext({ group: 'texture', key: 'roadTextureId' }); setShowModelBrowser(true); }} onClear={() => setRoadTextureId('')} />
               </div>
               {[
-                { title: 'Building Models', roles: ['default', 'smallResidence', 'largeResidence', 'mansion', 'tavern', 'shop', 'blacksmith', 'church', 'library', 'hospital', 'school', 'bank', 'theater', 'windmill', 'watermill', 'lumbermill', 'barracks', 'mine', 'municipal'], group: 'building' as const, prefix: '', models: buildingModels, setModels: setBuildingModels },
-                { title: 'Player Models', roles: ['default', 'male', 'female', 'knight', 'mage', 'rogue'], group: 'character' as const, prefix: 'player_', models: playerModels, setModels: setPlayerModels },
-                { title: 'NPC Models', roles: ['civilian_male', 'civilian_female', 'guard', 'merchant', 'noble'], group: 'character' as const, prefix: '', models: characterModels, setModels: setCharacterModels },
-                { title: 'Nature Models', roles: ['defaultTree', 'tree', 'rock', 'shrub', 'bush'], group: 'nature' as const, prefix: '', models: natureModels, setModels: setNatureModels },
-                { title: 'Quest Objects', roles: ['collectible', 'marker', 'container', 'key', 'scroll'], group: 'object' as const, prefix: 'quest_', models: questObjectModels, setModels: setQuestObjectModels },
-              ].map(({ title, roles, group, prefix, models, setModels }) => (
+                { title: 'Building Models', field: 'buildingModels', roles: ['default', 'smallResidence', 'largeResidence', 'mansion', 'tavern', 'shop', 'blacksmith', 'church', 'library', 'hospital', 'school', 'bank', 'theater', 'windmill', 'watermill', 'lumbermill', 'barracks', 'mine', 'municipal'], group: 'building' as const, prefix: '', models: buildingModels, setModels: setBuildingModels },
+                { title: 'Player Models', field: 'playerModels', roles: ['default', 'male', 'female', 'knight', 'mage', 'rogue'], group: 'character' as const, prefix: 'player_', models: playerModels, setModels: setPlayerModels },
+                { title: 'NPC Models', field: 'characterModels', roles: ['civilian_male', 'civilian_female', 'guard', 'merchant', 'noble'], group: 'character' as const, prefix: '', models: characterModels, setModels: setCharacterModels },
+                { title: 'Nature Models', field: 'natureModels', roles: ['defaultTree', 'tree', 'rock', 'shrub', 'bush'], group: 'nature' as const, prefix: '', models: natureModels, setModels: setNatureModels },
+                { title: 'Quest Objects', field: 'questObjectModels', roles: ['collectible', 'marker', 'container', 'key', 'scroll'], group: 'object' as const, prefix: 'quest_', models: questObjectModels, setModels: setQuestObjectModels },
+              ].map(({ title, field, roles, group, prefix, models, setModels }) => (
                 <div key={title}>
                   <h4 className="text-xs font-medium mt-3 mb-2 text-muted-foreground">{title}</h4>
                   <div className="space-y-1.5">
-                    {roles.map(role => (
-                      <ModelConfigRow key={role} label={role.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()} value={models[role]} assets={collectionAssets}
-                        onSelect={() => { setModelBrowserContext({ group, key: `${prefix}${role}` }); setShowModelBrowser(true); }}
-                        onClear={() => setModels((prev: Record<string, string>) => { const n = { ...prev }; delete n[role]; return n; })} />
-                    ))}
+                    {roles.map(role => {
+                      const scalingKey = `${field}.${role}`;
+                      return (
+                        <ModelConfigRow key={role} label={role.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()} value={models[role]} assets={collectionAssets}
+                          scaling={modelScaling[scalingKey]}
+                          onScaleChange={(axis, value) => setModelScaling(prev => {
+                            const entry = prev[scalingKey] || { x: 1, y: 1, z: 1 };
+                            return { ...prev, [scalingKey]: { ...entry, [axis]: value } };
+                          })}
+                          onScaleReset={() => setModelScaling(prev => {
+                            const next = { ...prev };
+                            delete next[scalingKey];
+                            return next;
+                          })}
+                          onSelect={() => { setModelBrowserContext({ group, key: `${prefix}${role}` }); setShowModelBrowser(true); }}
+                          onClear={() => setModels((prev: Record<string, string>) => { const n = { ...prev }; delete n[role]; return n; })} />
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -1532,53 +1570,153 @@ function ConfigSummaryRow({ label, hasValue, count }: { label: string; hasValue?
   );
 }
 
-function InlineModelRow({ label, assetId, assets, onSelect, onClear }: {
+function InlineModelRow({ label, assetId, assets, onSelect, onClear, scaling, onScaleChange, onScaleReset }: {
   label: string; assetId?: string; assets: VisualAsset[]; onSelect: () => void; onClear: () => void;
+  scaling?: { x: number; y: number; z: number };
+  onScaleChange?: (axis: 'x' | 'y' | 'z', value: number) => void;
+  onScaleReset?: () => void;
 }) {
+  const [showScale, setShowScale] = useState(false);
   const asset = assetId ? assets.find(a => a.id === assetId) : null;
   const assetName = asset?.name || (assetId ? 'Assigned' : null);
   const isImage = asset && isImageAsset(asset);
   const isModel = asset && isModelAsset(asset);
+  const hasCustomScale = scaling && (scaling.x !== 1 || scaling.y !== 1 || scaling.z !== 1);
   return (
-    <div className="flex items-center gap-1.5 rounded border px-1.5 py-1">
-      {/* Thumbnail */}
-      <div className="w-7 h-7 rounded bg-muted/50 flex items-center justify-center shrink-0 overflow-hidden">
-        {isImage ? (
-          <img src={`/${asset.filePath}`} alt={assetName || ''} className="w-full h-full object-cover" />
-        ) : isModel ? (
-          <Box className="w-3.5 h-3.5 text-blue-500" />
-        ) : (
-          <Package className="w-3.5 h-3.5 text-muted-foreground/40" />
-        )}
+    <div className="rounded border">
+      <div className="flex items-center gap-1.5 px-1.5 py-1">
+        {/* Thumbnail */}
+        <div className="w-7 h-7 rounded bg-muted/50 flex items-center justify-center shrink-0 overflow-hidden">
+          {isImage ? (
+            <img src={`/${asset.filePath}`} alt={assetName || ''} className="w-full h-full object-cover" />
+          ) : isModel ? (
+            <Box className="w-3.5 h-3.5 text-blue-500" />
+          ) : (
+            <Package className="w-3.5 h-3.5 text-muted-foreground/40" />
+          )}
+        </div>
+        {/* Info */}
+        <div className="overflow-hidden" style={{ flex: '1 1 0', minWidth: 0 }}>
+          <p className="text-[11px] font-medium capitalize truncate">{label}</p>
+          <p className={`text-[10px] truncate ${assetName ? 'text-muted-foreground' : 'text-muted-foreground/40 italic'}`}>{assetName || 'Not set'}</p>
+        </div>
+        {/* Actions */}
+        <div className="flex gap-0.5 shrink-0">
+          {assetId && onScaleChange && (
+            <Button variant={hasCustomScale ? "secondary" : "ghost"} size="sm" className="h-5 w-5 p-0" onClick={() => setShowScale(!showScale)} title="Scale">
+              <Move className="w-2.5 h-2.5" />
+            </Button>
+          )}
+          <Button variant="outline" size="sm" className="h-5 text-[10px] px-1.5" onClick={onSelect}>{assetId ? 'Change' : 'Select'}</Button>
+          {assetId && <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={onClear}><X className="w-2.5 h-2.5" /></Button>}
+        </div>
       </div>
-      {/* Info — overflow-hidden + truncate ensures buttons never get pushed off */}
-      <div className="overflow-hidden" style={{ flex: '1 1 0', minWidth: 0 }}>
-        <p className="text-[11px] font-medium capitalize truncate">{label}</p>
-        <p className={`text-[10px] truncate ${assetName ? 'text-muted-foreground' : 'text-muted-foreground/40 italic'}`}>{assetName || 'Not set'}</p>
-      </div>
-      {/* Actions */}
-      <div className="flex gap-0.5 shrink-0">
-        <Button variant="outline" size="sm" className="h-5 text-[10px] px-1.5" onClick={onSelect}>{assetId ? 'Change' : 'Select'}</Button>
-        {assetId && <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={onClear}><X className="w-2.5 h-2.5" /></Button>}
-      </div>
+      {/* Scale controls */}
+      {showScale && assetId && onScaleChange && (
+        <ScaleEditor
+          scaling={scaling || { x: 1, y: 1, z: 1 }}
+          onChange={onScaleChange}
+          onReset={onScaleReset}
+        />
+      )}
     </div>
   );
 }
 
-function ModelConfigRow({ label, value, assets, onSelect, onClear }: {
-  label: string; value?: string; assets: VisualAsset[]; onSelect: () => void; onClear: () => void;
+function ScaleEditor({ scaling, onChange, onReset }: {
+  scaling: { x: number; y: number; z: number };
+  onChange: (axis: 'x' | 'y' | 'z', value: number) => void;
+  onReset?: () => void;
 }) {
-  const assetName = value ? assets.find(a => a.id === value)?.name || 'Selected' : null;
+  const [lockUniform, setLockUniform] = useState(true);
+
+  const handleChange = (axis: 'x' | 'y' | 'z', value: number) => {
+    if (lockUniform) {
+      onChange('x', value);
+      onChange('y', value);
+      onChange('z', value);
+    } else {
+      onChange(axis, value);
+    }
+  };
+
   return (
-    <div className="flex items-center justify-between rounded border px-2 py-1.5">
-      <div className="mr-2 min-w-0">
-        <p className="text-xs font-medium capitalize">{label}</p>
-        <p className="text-[10px] text-muted-foreground truncate">{assetName || 'Not set'}</p>
+    <div className="px-2 pb-1.5 pt-0.5 border-t bg-muted/20 space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-medium text-muted-foreground">Scale</span>
+        <div className="flex items-center gap-1">
+          <button
+            className={`text-[9px] px-1 rounded ${lockUniform ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setLockUniform(!lockUniform)}
+            title={lockUniform ? 'Uniform scaling (click to unlock)' : 'Per-axis scaling (click to lock)'}
+          >
+            {lockUniform ? 'Uniform' : 'Per-axis'}
+          </button>
+          {onReset && (
+            <button className="text-[9px] text-muted-foreground hover:text-foreground" onClick={onReset}>Reset</button>
+          )}
+        </div>
       </div>
-      <div className="flex gap-1 shrink-0">
-        <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={onSelect}>Select</Button>
-        {value && <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onClear}><X className="w-3 h-3" /></Button>}
+      {lockUniform ? (
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground w-6">XYZ</span>
+          <input type="range" min="0.1" max="5" step="0.1" value={scaling.x}
+            onChange={(e) => handleChange('x', parseFloat(e.target.value))}
+            className="flex-1 h-1 accent-primary" />
+          <input type="number" min="0.01" max="50" step="0.1" value={scaling.x}
+            onChange={(e) => handleChange('x', parseFloat(e.target.value) || 1)}
+            className="w-12 h-5 text-[10px] text-center border rounded bg-background" />
+        </div>
+      ) : (
+        (['x', 'y', 'z'] as const).map(axis => (
+          <div key={axis} className="flex items-center gap-1.5">
+            <span className="text-[10px] text-muted-foreground w-6 uppercase">{axis}</span>
+            <input type="range" min="0.1" max="5" step="0.1" value={scaling[axis]}
+              onChange={(e) => handleChange(axis, parseFloat(e.target.value))}
+              className="flex-1 h-1 accent-primary" />
+            <input type="number" min="0.01" max="50" step="0.1" value={scaling[axis]}
+              onChange={(e) => handleChange(axis, parseFloat(e.target.value) || 1)}
+              className="w-12 h-5 text-[10px] text-center border rounded bg-background" />
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+function ModelConfigRow({ label, value, assets, onSelect, onClear, scaling, onScaleChange, onScaleReset }: {
+  label: string; value?: string; assets: VisualAsset[]; onSelect: () => void; onClear: () => void;
+  scaling?: { x: number; y: number; z: number };
+  onScaleChange?: (axis: 'x' | 'y' | 'z', value: number) => void;
+  onScaleReset?: () => void;
+}) {
+  const [showScale, setShowScale] = useState(false);
+  const assetName = value ? assets.find(a => a.id === value)?.name || 'Selected' : null;
+  const hasCustomScale = scaling && (scaling.x !== 1 || scaling.y !== 1 || scaling.z !== 1);
+  return (
+    <div className="rounded border">
+      <div className="flex items-center justify-between px-2 py-1.5">
+        <div className="mr-2 min-w-0">
+          <p className="text-xs font-medium capitalize">{label}</p>
+          <p className="text-[10px] text-muted-foreground truncate">{assetName || 'Not set'}</p>
+        </div>
+        <div className="flex gap-1 shrink-0">
+          {value && onScaleChange && (
+            <Button variant={hasCustomScale ? "secondary" : "ghost"} size="sm" className="h-6 w-6 p-0" onClick={() => setShowScale(!showScale)} title="Scale">
+              <Move className="w-3 h-3" />
+            </Button>
+          )}
+          <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={onSelect}>Select</Button>
+          {value && <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onClear}><X className="w-3 h-3" /></Button>}
+        </div>
       </div>
+      {showScale && value && onScaleChange && (
+        <ScaleEditor
+          scaling={scaling || { x: 1, y: 1, z: 1 }}
+          onChange={onScaleChange}
+          onReset={onScaleReset}
+        />
+      )}
     </div>
   );
 }

@@ -17,6 +17,7 @@ export type World3DConfig = {
   playerModels?: Record<string, string>;
   questObjectModels?: Record<string, string>;
   audioAssets?: Record<string, string>;
+  modelScaling?: Record<string, { x: number; y: number; z: number }>;
 };
 
 /**
@@ -73,6 +74,7 @@ export async function getWorld3DConfigForWorld(worldId: string): Promise<World3D
     playerModels: (collection as any).playerModels as Record<string, string> || {},
     questObjectModels: (collection as any).questObjectModels as Record<string, string> || {},
     audioAssets: (collection as any).audioAssets as Record<string, string> || {},
+    modelScaling: (collection as any).modelScaling as Record<string, { x: number; y: number; z: number }> || {},
   };
 }
 
@@ -176,6 +178,9 @@ export async function updateWorld3DConfig(
   }
   if (config.audioAssets !== undefined) {
     updates.audioAssets = config.audioAssets;
+  }
+  if (config.modelScaling !== undefined) {
+    updates.modelScaling = config.modelScaling;
   }
 
   await storage.updateAssetCollection(selectedCollectionId, updates);

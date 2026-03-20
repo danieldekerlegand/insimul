@@ -600,6 +600,7 @@ export class BabylonGame {
     playerModels?: Record<string, string>;
     questObjectModels?: Record<string, string>;
     audioAssets?: Record<string, string>;
+    modelScaling?: Record<string, { x: number; y: number; z: number }>;
   } | null = null;
   private worldAssets: VisualAsset[] = [];
 
@@ -3176,6 +3177,7 @@ export class BabylonGame {
       playerModels?: Record<string, string>;
       questObjectModels?: Record<string, string>;
       audioAssets?: Record<string, string>;
+      modelScaling?: Record<string, { x: number; y: number; z: number }>;
     } | null
   ): Promise<void> {
     if (!this.scene || !config3D) {
@@ -3248,6 +3250,18 @@ export class BabylonGame {
       }
     };
 
+    // Helper: apply model scaling from collection config
+    const scaling = config3D.modelScaling || {};
+    const applyModelScaling = (mesh: Mesh, group: string, role: string) => {
+      const key = `${group}.${role}`;
+      const s = scaling[key];
+      if (s) {
+        mesh.scaling.x *= s.x;
+        mesh.scaling.y *= s.y;
+        mesh.scaling.z *= s.z;
+      }
+    };
+
     // Building models: register ALL role-keyed models from the collection
     if (this.buildingGenerator && config3D.buildingModels) {
       for (const [role, id] of Object.entries(config3D.buildingModels)) {
@@ -3260,6 +3274,7 @@ export class BabylonGame {
           if (scaleHint != null) {
             mesh.metadata = { ...(mesh.metadata || {}), scaleHint };
           }
+          applyModelScaling(mesh, 'buildingModels', role);
           this.buildingGenerator.registerRoleModel(role, mesh);
         }
       }
@@ -3307,6 +3322,7 @@ export class BabylonGame {
         const asset = findAssetById(assetId);
         const mesh = await loadModelTemplate(asset);
         if (!mesh) continue;
+        applyModelScaling(mesh, 'natureModels', key);
 
         if (key === 'defaultTree') {
           this.natureGenerator.registerTreeOverride(mesh);
@@ -3340,6 +3356,7 @@ export class BabylonGame {
         const asset = findAssetById(id);
         const template = await loadModelTemplate(asset);
         if (template) {
+          applyModelScaling(template, 'objectModels', role);
           template.computeWorldMatrix(true);
           const kids = template.getChildMeshes(false);
           let oMin = new Vector3(Infinity, Infinity, Infinity);
@@ -5792,7 +5809,11 @@ export class BabylonGame {
       const skeleton = result.skeletons[0];
       const playerMesh = this.preparePlayerMesh(playerMeshRaw, skeleton);
 
-      playerMesh.scaling = new Vector3(1, 1, 1);
+      // Apply model scaling from collection config if available
+      const playerScale = this.world3DConfig?.modelScaling?.['playerModels.default'];
+      playerMesh.scaling = playerScale
+        ? new Vector3(playerScale.x, playerScale.y, playerScale.z)
+        : new Vector3(1, 1, 1);
       playerMesh.checkCollisions = true;
 
       // Collision ellipsoid for the player
