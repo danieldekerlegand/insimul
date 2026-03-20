@@ -82,6 +82,13 @@ export const ACHIEVABLE_OBJECTIVE_TYPES: ObjectiveTypeInfo[] = [
     countable: true,
   },
   {
+    type: 'collect_text',
+    description: 'Collect a text artifact (book, letter, journal, scroll) from the world',
+    playerAction: 'Walk to a text object and press E to pick it up and add it to your library',
+    requiresTarget: 'none',
+    countable: true,
+  },
+  {
     type: 'identify_object',
     description: 'Identify an object by typing its name in the target language',
     playerAction: 'Click an object and type its target-language name',
@@ -487,6 +494,17 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'learn_vocabulary': 'collect_vocabulary',
   'collect_words': 'collect_vocabulary',
   'find_words': 'collect_vocabulary',
+
+  'collect_book': 'collect_text',
+  'collect_letter': 'collect_text',
+  'collect_journal': 'collect_text',
+  'collect_scroll': 'collect_text',
+  'find_text': 'collect_text',
+  'find_book': 'collect_text',
+  'pick_up_text': 'collect_text',
+  'read_book': 'collect_text',
+  'gather_text': 'collect_text',
+  'text_collected': 'collect_text',
 
   // Business scavenger hunt aliases
   'visit_business': 'visit_location',

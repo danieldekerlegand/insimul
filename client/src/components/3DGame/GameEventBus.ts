@@ -145,7 +145,7 @@ export type GameEvent =
   | { type: 'food_ordered'; itemId: string; itemName: string; quantity: number; merchantId: string; merchantName: string; businessType: string }
   | { type: 'price_haggled'; itemId: string; itemName: string; merchantId: string; merchantName: string; typedWord: string; targetWord: string }
   // Text collection events
-  | { type: 'text_collected'; textId: string; category: string; cefrLevel: string; title: string };
+  | { type: 'text_collected'; textId: string; title: string; textType: string; difficulty: string; vocabularyWordCount: number };
 
 export type GameEventType = GameEvent['type'];
 

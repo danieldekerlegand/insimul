@@ -40,6 +40,7 @@ export const OBJECTIVE_COMPLETION_EVENT_MAP: Record<string, string[]> = {
   conversation_initiation: ['conversation_initiation'],
   use_vocabulary: ['vocabulary_usage'],
   collect_vocabulary: ['vocabulary_usage'],
+  collect_text: ['text_collected'],
   identify_object: ['object_identified'],
   collect_item: ['collect_item_by_name', 'inventory_check'],
   deliver_item: ['item_delivery', 'arrival'],

@@ -159,14 +159,13 @@ describe('createInitialMainQuestState', () => {
 });
 
 describe('getChapterCompletionPercent', () => {
-  // ch1: greetings(2) + ask_around(3) + visit_newspaper(1) + collect_vocabulary(2) = 8 total
-  const chapter = MAIN_QUEST_CHAPTERS[0];
+  const chapter = MAIN_QUEST_CHAPTERS[0]; // ch1: 2 vocab + 3 conversation + 2 collect_text = 7 total
 
   it('returns 0 for no progress', () => {
     const progress: ChapterProgress = {
       chapterId: chapter.id,
       status: 'active',
-      objectiveProgress: Object.fromEntries(chapter.objectives.map(o => [o.id, 0])),
+      objectiveProgress: { ch1_greetings: 0, ch1_ask_around: 0, ch1_collect_texts: 0 },
     };
     expect(getChapterCompletionPercent(chapter, progress)).toBe(0);
   });
@@ -175,27 +174,17 @@ describe('getChapterCompletionPercent', () => {
     const progress: ChapterProgress = {
       chapterId: chapter.id,
       status: 'active',
-      objectiveProgress: {
-        ch1_greetings: 1,
-        ch1_ask_around: 1,
-        ch1_visit_newspaper: 0,
-        ch1_collect_vocabulary: 0,
-      },
+      objectiveProgress: { ch1_greetings: 1, ch1_ask_around: 1, ch1_collect_texts: 0 },
     };
-    // 2 out of 8 = 25%
-    expect(getChapterCompletionPercent(chapter, progress)).toBe(25);
+    // 2 out of 7 = 29%
+    expect(getChapterCompletionPercent(chapter, progress)).toBe(29);
   });
 
   it('returns 100 for full completion', () => {
     const progress: ChapterProgress = {
       chapterId: chapter.id,
       status: 'active',
-      objectiveProgress: {
-        ch1_greetings: 2,
-        ch1_ask_around: 3,
-        ch1_visit_newspaper: 1,
-        ch1_collect_vocabulary: 2,
-      },
+      objectiveProgress: { ch1_greetings: 2, ch1_ask_around: 3, ch1_collect_texts: 2 },
     };
     expect(getChapterCompletionPercent(chapter, progress)).toBe(100);
   });
@@ -204,12 +193,7 @@ describe('getChapterCompletionPercent', () => {
     const progress: ChapterProgress = {
       chapterId: chapter.id,
       status: 'active',
-      objectiveProgress: {
-        ch1_greetings: 10,
-        ch1_ask_around: 10,
-        ch1_visit_newspaper: 10,
-        ch1_collect_vocabulary: 10,
-      },
+      objectiveProgress: { ch1_greetings: 10, ch1_ask_around: 10, ch1_collect_texts: 10 },
     };
     expect(getChapterCompletionPercent(chapter, progress)).toBe(100);
   });
@@ -222,12 +206,16 @@ describe('isChapterComplete', () => {
     const progress: ChapterProgress = {
       chapterId: chapter.id,
       status: 'active',
-      objectiveProgress: {
-        ch1_greetings: 1,
-        ch1_ask_around: 3,
-        ch1_visit_newspaper: 1,
-        ch1_collect_vocabulary: 2,
-      },
+      objectiveProgress: { ch1_greetings: 1, ch1_ask_around: 3, ch1_collect_texts: 2 },
+    };
+    expect(isChapterComplete(chapter, progress)).toBe(false);
+  });
+
+  it('returns false when collect_text objective not met', () => {
+    const progress: ChapterProgress = {
+      chapterId: chapter.id,
+      status: 'active',
+      objectiveProgress: { ch1_greetings: 2, ch1_ask_around: 3, ch1_collect_texts: 0 },
     };
     expect(isChapterComplete(chapter, progress)).toBe(false);
   });
@@ -236,12 +224,7 @@ describe('isChapterComplete', () => {
     const progress: ChapterProgress = {
       chapterId: chapter.id,
       status: 'active',
-      objectiveProgress: {
-        ch1_greetings: 2,
-        ch1_ask_around: 3,
-        ch1_visit_newspaper: 1,
-        ch1_collect_vocabulary: 2,
-      },
+      objectiveProgress: { ch1_greetings: 2, ch1_ask_around: 3, ch1_collect_texts: 2 },
     };
     expect(isChapterComplete(chapter, progress)).toBe(true);
   });
@@ -250,12 +233,7 @@ describe('isChapterComplete', () => {
     const progress: ChapterProgress = {
       chapterId: chapter.id,
       status: 'active',
-      objectiveProgress: {
-        ch1_greetings: 5,
-        ch1_ask_around: 10,
-        ch1_visit_newspaper: 5,
-        ch1_collect_vocabulary: 10,
-      },
+      objectiveProgress: { ch1_greetings: 5, ch1_ask_around: 10, ch1_collect_texts: 10 },
     };
     expect(isChapterComplete(chapter, progress)).toBe(true);
   });

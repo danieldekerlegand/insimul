@@ -102,6 +102,11 @@ const OBJECTIVE_ACTION_MAP: Record<string, ActionRequirement> = {
     categories: ['vocabulary', 'language', 'collection'],
     tags: ['vocabulary', 'collect', 'language'],
   },
+  collect_text: {
+    actionTypes: ['physical', 'mental', 'language'],
+    categories: ['reading', 'language', 'collection'],
+    tags: ['text', 'book', 'collect', 'reading', 'library'],
+  },
   identify_object: {
     actionTypes: ['mental', 'language'],
     categories: ['vocabulary', 'language', 'identification'],

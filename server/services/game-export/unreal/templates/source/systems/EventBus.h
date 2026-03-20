@@ -123,6 +123,7 @@ enum class EInsimulEventType : uint8
     ItemPurchased UMETA(DisplayName = "Item Purchased"),
     FoodOrdered UMETA(DisplayName = "Food Ordered"),
     PriceHaggled UMETA(DisplayName = "Price Haggled"),
+    // Text collection events
     TextCollected UMETA(DisplayName = "Text Collected")
 };
 
