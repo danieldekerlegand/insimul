@@ -36,6 +36,14 @@ const BUSINESS_ACCEPTED_TYPES: Record<string, Set<string>> = {
   Church: new Set(['tool', 'consumable', 'material', 'weapon', 'armor']),
   School: new Set(['tool', 'consumable', 'material', 'weapon', 'armor']),
   Generic: new Set(['tool', 'consumable', 'material', 'weapon', 'armor']),
+  Blacksmith: new Set(['weapon', 'armor', 'tool', 'material']),
+  Tailor: new Set(['armor', 'material']),
+  Butcher: new Set(['food', 'material']),
+  BookStore: new Set(['consumable', 'tool']),
+  HerbShop: new Set(['consumable', 'material', 'food']),
+  PawnShop: new Set(['tool', 'consumable', 'material', 'weapon', 'armor']),
+  Carpenter: new Set(['tool', 'material']),
+  Clinic: new Set(['consumable', 'material', 'tool']),
 };
 
 const RARITY_COLORS: Record<string, string> = {

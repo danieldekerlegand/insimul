@@ -332,7 +332,7 @@ describe('NPCBusinessInteractionSystem', () => {
     });
 
     it('returns services for all defined business types', () => {
-      const expectedTypes = ['Hospital', 'Bank', 'Hotel', 'Church', 'School', 'Restaurant', 'Bar', 'LawFirm'];
+      const expectedTypes = ['Hospital', 'Bank', 'Hotel', 'Church', 'School', 'Restaurant', 'Bar', 'LawFirm', 'Barbershop', 'Bathhouse', 'Carpenter', 'Stables', 'Clinic', 'Blacksmith'];
       for (const type of expectedTypes) {
         const services = system.getServicesForBusinessType(type);
         expect(services.length).toBeGreaterThan(0);
