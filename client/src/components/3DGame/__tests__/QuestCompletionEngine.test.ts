@@ -645,4 +645,90 @@ describe('QuestCompletionEngine', () => {
       expect(o2.completed).toBe(false);
     });
   });
+
+  // ── trackGiftGiven ──────────────────────────────────────────────────────
+
+  describe('trackGiftGiven', () => {
+    it('completes give_gift objective when NPC matches', () => {
+      const obj = makeObjective({
+        id: 'o1', questId: 'q1', type: 'give_gift',
+        npcId: 'npc-1',
+      });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackGiftGiven('npc-1', 'flower');
+      expect(obj.completed).toBe(true);
+    });
+
+    it('completes give_gift when npcId is unset (any NPC)', () => {
+      const obj = makeObjective({
+        id: 'o1', questId: 'q1', type: 'give_gift',
+      });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackGiftGiven('any-npc', 'sword');
+      expect(obj.completed).toBe(true);
+    });
+
+    it('does not complete when NPC does not match', () => {
+      const obj = makeObjective({
+        id: 'o1', questId: 'q1', type: 'give_gift',
+        npcId: 'npc-1',
+      });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackGiftGiven('npc-2', 'flower');
+      expect(obj.completed).toBe(false);
+    });
+
+    it('fires objective and quest completion callbacks', () => {
+      const obj = makeObjective({
+        id: 'o1', questId: 'q1', type: 'give_gift',
+        npcId: 'npc-1',
+      });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackGiftGiven('npc-1', 'flower');
+      expect(objectiveCompletedSpy).toHaveBeenCalledWith('q1', 'o1');
+      expect(questCompletedSpy).toHaveBeenCalledWith('q1');
+    });
+  });
+
+  // ── trackEvent dispatch for inventory objectives ──────────────────────
+
+  describe('trackEvent dispatch', () => {
+    it('dispatches gift_given event to trackGiftGiven', () => {
+      const obj = makeObjective({
+        id: 'o1', questId: 'q1', type: 'give_gift',
+        npcId: 'npc-1',
+      });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackEvent({ type: 'gift_given', npcId: 'npc-1', itemName: 'flower' });
+      expect(obj.completed).toBe(true);
+    });
+
+    it('dispatches item_delivery event to trackItemDelivery', () => {
+      const obj = makeObjective({
+        id: 'o1', questId: 'q1', type: 'deliver_item',
+        npcId: 'npc-1', itemName: 'Package',
+      });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackEvent({ type: 'item_delivery', npcId: 'npc-1', playerItemNames: ['Package'] });
+      expect(obj.completed).toBe(true);
+      expect(obj.delivered).toBe(true);
+    });
+
+    it('dispatches collect_item_by_name event to trackCollectedItemByName', () => {
+      const obj = makeObjective({
+        id: 'o1', questId: 'q1', type: 'collect_item',
+        itemName: 'gem',
+      });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackEvent({ type: 'collect_item_by_name', itemName: 'gem' });
+      expect(obj.completed).toBe(true);
+    });
+  });
 });

@@ -222,6 +222,41 @@ namespace Insimul.Systems
             }
         }
 
+        /// <summary>Track item delivery to an NPC for deliver_item objectives.</summary>
+        public void TrackItemDelivery(string npcId, string[] playerItemNames, string questId = null)
+        {
+            var normalizedItems = new HashSet<string>(
+                playerItemNames.Select(n => n.ToLowerInvariant()));
+
+            foreach (var obj in _objectives)
+            {
+                if (obj.completed) continue;
+                if (!string.IsNullOrEmpty(questId) && obj.questId != questId) continue;
+                if (obj.type != "deliver_item") continue;
+                if (!string.IsNullOrEmpty(obj.npcId) && obj.npcId != npcId) continue;
+
+                string itemLower = (obj.itemName ?? "").ToLowerInvariant();
+                if (!string.IsNullOrEmpty(itemLower) && normalizedItems.Contains(itemLower))
+                {
+                    CompleteObjective(obj.questId, obj.id);
+                }
+            }
+        }
+
+        /// <summary>Track a gift given to an NPC for give_gift objectives.</summary>
+        public void TrackGiftGiven(string npcId, string itemName, string questId = null)
+        {
+            foreach (var obj in _objectives)
+            {
+                if (obj.completed) continue;
+                if (!string.IsNullOrEmpty(questId) && obj.questId != questId) continue;
+                if (obj.type != "give_gift") continue;
+                if (!string.IsNullOrEmpty(obj.npcId) && obj.npcId != npcId) continue;
+
+                CompleteObjective(obj.questId, obj.id);
+            }
+        }
+
         /// <summary>
         /// Register a building-check callback so spawned items avoid building interiors.
         /// The callback receives world-space (x, z) and returns true if inside a building.

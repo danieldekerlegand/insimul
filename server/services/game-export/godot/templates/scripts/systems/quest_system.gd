@@ -231,6 +231,42 @@ func track_writing_submission(text: String, word_count: int, quest_id: String = 
 			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
 
 
+## Track item delivery to an NPC for deliver_item objectives.
+func track_item_delivery(npc_id: String, player_item_names: Array, quest_id: String = "") -> void:
+	var normalized_items: Array = []
+	for item_name in player_item_names:
+		normalized_items.append(item_name.to_lower())
+
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		if not quest_id.is_empty() and obj.get("quest_id") != quest_id:
+			continue
+		if obj.get("type", "") != "deliver_item":
+			continue
+		var obj_npc: String = obj.get("npc_id", "")
+		if not obj_npc.is_empty() and obj_npc != npc_id:
+			continue
+		var obj_item: String = obj.get("item_name", "").to_lower()
+		if not obj_item.is_empty() and normalized_items.has(obj_item):
+			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
+## Track a gift given to an NPC for give_gift objectives.
+func track_gift_given(npc_id: String, item_name: String, quest_id: String = "") -> void:
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		if not quest_id.is_empty() and obj.get("quest_id") != quest_id:
+			continue
+		if obj.get("type", "") != "give_gift":
+			continue
+		var obj_npc: String = obj.get("npc_id", "")
+		if not obj_npc.is_empty() and obj_npc != npc_id:
+			continue
+		complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
 ## Check if player is near a direction/navigation waypoint.
 ## Call this from _physics_process with the player's position.
 func check_direction_proximity(player_pos: Vector3) -> void:

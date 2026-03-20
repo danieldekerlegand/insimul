@@ -195,6 +195,44 @@ void UQuestSystem::TrackWritingSubmission(const FString& Text, int32 WordCount, 
     }
 }
 
+void UQuestSystem::TrackItemDelivery(const FString& NpcId, const TArray<FString>& PlayerItemNames, const FString& QuestId)
+{
+    TArray<FString> NormalizedItems;
+    for (const auto& Name : PlayerItemNames)
+    {
+        NormalizedItems.Add(Name.ToLower());
+    }
+
+    for (auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+        if (!QuestId.IsEmpty() && Obj.QuestId != QuestId) continue;
+        if (Obj.Type != TEXT("deliver_item")) continue;
+        if (!Obj.NpcId.IsEmpty() && Obj.NpcId != NpcId) continue;
+
+        FString ObjItemLower = Obj.ItemName.ToLower();
+        if (!ObjItemLower.IsEmpty() && NormalizedItems.Contains(ObjItemLower))
+        {
+            Obj.bCompleted = true;
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Deliver objective completed: %s"), *Obj.Id);
+        }
+    }
+}
+
+void UQuestSystem::TrackGiftGiven(const FString& NpcId, const FString& ItemName, const FString& QuestId)
+{
+    for (auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+        if (!QuestId.IsEmpty() && Obj.QuestId != QuestId) continue;
+        if (Obj.Type != TEXT("give_gift")) continue;
+        if (!Obj.NpcId.IsEmpty() && Obj.NpcId != NpcId) continue;
+
+        Obj.bCompleted = true;
+        UE_LOG(LogTemp, Log, TEXT("[Insimul] Gift objective completed: %s"), *Obj.Id);
+    }
+}
+
 void UQuestSystem::CheckDirectionProximity(const FVector& PlayerPos)
 {
     for (auto& Obj : Objectives)

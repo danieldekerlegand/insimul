@@ -1870,6 +1870,9 @@ export class BabylonGame {
       // Track NPC conversation for quest objectives (talk_to_npc)
       this.questObjectManager?.trackNPCConversation(npcId);
       this.eventBus.emit({ type: 'npc_talked', npcId, npcName: npcId, turnCount: 1 });
+
+      // Check deliver_item objectives: does the player hold the required item?
+      this.checkDeliverItemObjectives(npcId);
     });
     this.chatPanel.setOnVocabularyUsed((word: string) => {
       this.questObjectManager?.trackVocabularyUsage(word);
@@ -10157,6 +10160,28 @@ export class BabylonGame {
           }
         }
       }
+
+      // Wire give_gift actions to quest objective tracking and inventory
+      if (result.success && actionId === 'give_gift' && this.questObjectManager && this.inventory) {
+        const giftItem = this.findGiftItemForNpc(npcId);
+        if (giftItem) {
+          this.questObjectManager.trackGiftGiven(npcId, giftItem.name);
+          this.inventory.removeItem(giftItem.id, 1);
+          this.dataSource.transferItem(this.config.worldId, {
+            fromEntityId: 'player',
+            toEntityId: npcId,
+            itemId: giftItem.id,
+            itemName: giftItem.name,
+            itemType: giftItem.type,
+            quantity: 1,
+            transactionType: 'give',
+            totalPrice: 0,
+          }).catch(() => {});
+        } else {
+          // No specific item — still track for quest objectives with empty item name
+          this.questObjectManager.trackGiftGiven(npcId, '');
+        }
+      }
     } catch (error) {
       console.error("Failed to perform action", error);
       this.guiManager?.showToast({
@@ -10167,6 +10192,94 @@ export class BabylonGame {
     } finally {
       this.actionInProgress = false;
     }
+  }
+
+  /**
+   * Check deliver_item quest objectives when talking to an NPC.
+   * If the player holds a required item, complete the objective and remove the item.
+   */
+  private checkDeliverItemObjectives(npcId: string): void {
+    if (!this.questObjectManager || !this.inventory) return;
+
+    const playerItems = this.inventory.getAllItems();
+    if (playerItems.length === 0) return;
+
+    const playerItemNames = playerItems.map(i => i.name);
+
+    // Find deliver_item objectives that will match before tracking
+    const quests = this.questObjectManager.getCompletionEngine().getQuests();
+    const deliverableItems: string[] = [];
+    for (const quest of quests) {
+      for (const obj of quest.objectives || []) {
+        if (obj.type !== 'deliver_item' || obj.completed) continue;
+        const matchesNpc = obj.npcId === npcId || !obj.npcId;
+        if (matchesNpc && obj.itemName) {
+          const normalizedObjItem = obj.itemName.toLowerCase();
+          const matchingPlayerItem = playerItems.find(
+            i => i.name.toLowerCase() === normalizedObjItem
+          );
+          if (matchingPlayerItem) {
+            deliverableItems.push(matchingPlayerItem.id);
+          }
+        }
+      }
+    }
+
+    if (deliverableItems.length === 0) return;
+
+    // Track the delivery (marks objectives complete)
+    this.questObjectManager.trackItemDelivery(npcId, playerItemNames);
+
+    // Remove delivered items from inventory and sync via API
+    for (const itemId of deliverableItems) {
+      const item = playerItems.find(i => i.id === itemId);
+      this.inventory.removeItem(itemId, 1);
+      this.dataSource.transferItem(this.config.worldId, {
+        fromEntityId: 'player',
+        toEntityId: npcId,
+        itemId,
+        itemName: item?.name || itemId,
+        itemType: item?.type || 'quest',
+        quantity: 1,
+        transactionType: 'give',
+        totalPrice: 0,
+      }).catch(() => {});
+    }
+
+    this.guiManager?.showToast({
+      title: 'Item Delivered',
+      description: 'Quest item delivered successfully',
+      duration: 2500,
+    });
+  }
+
+  /**
+   * Find the best item to give as a gift to an NPC.
+   * Prefers items matching give_gift quest objectives, then any non-quest/key item.
+   */
+  private findGiftItemForNpc(npcId: string): InventoryItem | null {
+    if (!this.inventory || !this.questObjectManager) return null;
+
+    const playerItems = this.inventory.getAllItems();
+    if (playerItems.length === 0) return null;
+
+    // Check give_gift objectives for a specific item match
+    const quests = this.questObjectManager.getCompletionEngine().getQuests();
+    for (const quest of quests) {
+      for (const obj of quest.objectives || []) {
+        if (obj.type !== 'give_gift' || obj.completed) continue;
+        if (obj.npcId && obj.npcId !== npcId) continue;
+        if (obj.itemName) {
+          const match = playerItems.find(
+            i => i.name.toLowerCase() === obj.itemName!.toLowerCase()
+          );
+          if (match) return match;
+        }
+      }
+    }
+
+    // Fall back to first giftable item (not quest/key items)
+    return playerItems.find(i => i.type !== 'quest' && i.type !== 'key') || null;
   }
 
   private findActionDefinition(actionId: string): Action | undefined {

@@ -122,6 +122,14 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Quests")
     void TrackWritingSubmission(const FString& Text, int32 WordCount, const FString& QuestId = TEXT(""));
 
+    /** Track item delivery to an NPC for deliver_item objectives. */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    void TrackItemDelivery(const FString& NpcId, const TArray<FString>& PlayerItemNames, const FString& QuestId = TEXT(""));
+
+    /** Track a gift given to an NPC for give_gift objectives. */
+    UFUNCTION(BlueprintCallable, Category = "Quests")
+    void TrackGiftGiven(const FString& NpcId, const FString& ItemName, const FString& QuestId = TEXT(""));
+
     /** Check if player is near a direction/navigation waypoint. Call from Tick(). */
     UFUNCTION(BlueprintCallable, Category = "Quests")
     void CheckDirectionProximity(const FVector& PlayerPos);
