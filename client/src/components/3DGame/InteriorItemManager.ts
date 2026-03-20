@@ -129,15 +129,18 @@ export class InteriorItemManager {
   private spawnedMeshes: Mesh[] = [];
   private objectModelTemplates: Map<string, Mesh>;
   private objectModelOriginalHeights: Map<string, number>;
+  private objectModelScaleHints: Map<string, number>;
 
   constructor(
     scene: Scene,
     objectModelTemplates: Map<string, Mesh>,
     objectModelOriginalHeights: Map<string, number>,
+    objectModelScaleHints?: Map<string, number>,
   ) {
     this.scene = scene;
     this.objectModelTemplates = objectModelTemplates;
     this.objectModelOriginalHeights = objectModelOriginalHeights;
+    this.objectModelScaleHints = objectModelScaleHints || new Map();
   }
 
   /**
@@ -290,10 +293,16 @@ export class InteriorItemManager {
 
     if (cloned) {
       cloned.setEnabled(true);
-      // Scale to a reasonable interior item size (0.4 units)
-      const targetSize = 0.4;
-      const origH = this.objectModelOriginalHeights.get(item.objectRole!) || 1;
-      const scale = targetSize / origH;
+      // Use stored scaleHint if available; fall back to target/originalH
+      const scaleHint = this.objectModelScaleHints.get(item.objectRole!);
+      let scale: number;
+      if (scaleHint != null && scaleHint > 0) {
+        scale = scaleHint;
+      } else {
+        const targetSize = 0.4;
+        const origH = this.objectModelOriginalHeights.get(item.objectRole!) || 1;
+        scale = targetSize / origH;
+      }
       cloned.scaling = new Vector3(scale, scale, scale);
     }
 

@@ -84,9 +84,11 @@ public:
                           const FFoundationData& Foundation = FFoundationData());
 
     /** Register a prefab model mesh for a building role. When GenerateBuilding is called
-     *  with a matching role, this mesh is instanced instead of procedural geometry. */
+     *  with a matching role, this mesh is instanced instead of procedural geometry.
+     *  ScaleHint is a pre-computed factor that converts the model's native units to
+     *  real-world meters at its intended size. Pass 0 to use floor-based estimation. */
     UFUNCTION(BlueprintCallable, Category = "Building")
-    void RegisterRoleModel(const FString& Role, UStaticMesh* Mesh);
+    void RegisterRoleModel(const FString& Role, UStaticMesh* Mesh, float ScaleHint = 0.0f);
 
     /** Override wall texture for procedural buildings. */
     UFUNCTION(BlueprintCallable, Category = "Building")
@@ -125,6 +127,9 @@ private:
     /** Role-based model prototypes registered via RegisterRoleModel. */
     UPROPERTY()
     TMap<FString, UStaticMesh*> RoleModelPrototypes;
+
+    /** Pre-computed scale hints per role (converts native model units to meters). */
+    TMap<FString, float> RoleScaleHints;
 
     /** Optional texture overrides for procedural wall/roof materials. */
     UPROPERTY()

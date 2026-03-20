@@ -556,27 +556,28 @@ export class ProceduralBuildingGenerator {
   }
 
   private adjustModelToSpec(instance: Mesh, spec: BuildingSpec, role?: string): void {
-    // Player is ~1.77 units ≈ 1.77 meters.
-    // Medieval buildings are taller than modern ones (peaked roofs, thick walls).
-    const floorHeight = 5;
-    const effectiveFloors = spec.floors || 1;
-    let targetHeight = effectiveFloors * floorHeight;
+    // Prefer stored scaleHint (pre-computed correct scale factor from asset
+    // metadata) over runtime bounding-box calculations.  scaleHint converts
+    // the model's native units to real-world meters at its intended size.
+    const scaleHint = role ? this.roleScaleHints.get(role) : undefined;
 
-    // Some models are inherently oversized or undersized in their
-    // native units. Apply role-specific multipliers to adjust them.
-    const heightMultipliers: Record<string, number> = {
-      'shop': 0.6,        // Food stall should be ~3m, not 5m
-      'smallResidence': 2.0,  // Medieval House 3 needs major boost to match other houses
-    };
-    const multiplier = (role ? heightMultipliers[role] : undefined) || 1.0;
-    const baseTarget = targetHeight;
-    targetHeight *= multiplier;
+    let absScale: number;
 
-    // Look up the original (import-time) height of the prototype.
-    // Compute absolute scale so the clone reaches targetHeight meters.
-    const originalH = (role ? this.roleOriginalHeights.get(role) : undefined) || 1;
-    const absScale = targetHeight / originalH;
-    console.log(`[BuildingGen] role="${role}" origH=${originalH.toFixed(2)} baseTarget=${baseTarget.toFixed(1)} mult=${multiplier.toFixed(2)} finalTarget=${targetHeight.toFixed(1)} absScale=${absScale.toFixed(6)}`);
+    if (scaleHint != null && scaleHint > 0) {
+      // scaleHint already produces the model's correct real-world size.
+      // Use it directly — no floor-based estimation or manual multipliers needed.
+      absScale = scaleHint;
+      console.log(`[BuildingGen] role="${role}" using scaleHint=${scaleHint} absScale=${absScale.toFixed(6)}`);
+    } else {
+      // Fallback: estimate scale from floor count and measured bounding box.
+      const floorHeight = 5;
+      const effectiveFloors = spec.floors || 1;
+      const targetHeight = effectiveFloors * floorHeight;
+      const originalH = (role ? this.roleOriginalHeights.get(role) : undefined) || 1;
+      absScale = targetHeight / originalH;
+      console.log(`[BuildingGen] role="${role}" origH=${originalH.toFixed(2)} targetH=${targetHeight.toFixed(1)} absScale=${absScale.toFixed(6)} (no scaleHint)`);
+    }
+
     instance.scaling.set(absScale, absScale, absScale);
 
     // Align bottom of model to ground plane
