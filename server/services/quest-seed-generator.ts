@@ -41,12 +41,37 @@ function getLocationNames(settlements: Settlement[]): string[] {
   return names.length > 0 ? names : ['Town Square', 'Market', 'Village Center'];
 }
 
+/** Compute center position from a settlement's boundary polygon, or return null. */
+function getSettlementCenter(settlement: Settlement): { x: number; y: number; z: number } | null {
+  const poly = (settlement as any).boundaryPolygon as Array<{ x: number; z: number }> | undefined;
+  if (!poly || poly.length === 0) return null;
+  const sumX = poly.reduce((s, p) => s + p.x, 0);
+  const sumZ = poly.reduce((s, p) => s + p.z, 0);
+  return {
+    x: sumX / poly.length,
+    y: (settlement as any).elevation ?? 0,
+    z: sumZ / poly.length,
+  };
+}
+
+/** Build a map from settlement name → world-space position. */
+function buildLocationPositionMap(settlements: Settlement[]): Map<string, { x: number; y: number; z: number }> {
+  const map = new Map<string, { x: number; y: number; z: number }>();
+  for (const s of settlements) {
+    if (!s.name) continue;
+    const pos = getSettlementCenter(s);
+    if (pos) map.set(s.name, pos);
+  }
+  return map;
+}
+
 // ── Seed quest definitions per type ──────────────────────────────────────────
 
 interface SeedQuestContext {
   world: World;
   npcs: Character[];
   locations: string[];
+  locationPositions: Map<string, { x: number; y: number; z: number }>;
   targetLanguage: string;
 }
 
@@ -869,9 +894,10 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
 
   const npcs = getNPCs(characters);
   const locations = getLocationNames(settlements);
+  const locationPositions = buildLocationPositionMap(settlements);
   const targetLanguage = world.targetLanguage || 'English';
 
-  const ctx: SeedQuestContext = { world, npcs, locations, targetLanguage };
+  const ctx: SeedQuestContext = { world, npcs, locations, locationPositions, targetLanguage };
 
   const seedDefs = buildSeedQuests();
   const filtered = onlyTypes
@@ -882,6 +908,41 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
 
   for (const def of filtered) {
     const objectives = def.buildObjectives(ctx);
+
+    // Enrich objectives that reference locations with position data
+    let questLocationName: string | null = null;
+    let questLocationPosition: { x: number; y: number; z: number } | null = null;
+
+    for (const objective of objectives) {
+      // Objectives reference locations via target (visit_location) or locationName
+      const locName: string | undefined = objective.locationName || objective.target;
+      if (locName && locationPositions.has(locName)) {
+        const pos = locationPositions.get(locName)!;
+        objective.locationPosition = pos;
+        if (!objective.locationName) objective.locationName = locName;
+        // Use the first location-referencing objective for the quest-level binding
+        if (!questLocationName) {
+          questLocationName = locName;
+          questLocationPosition = pos;
+        }
+      }
+
+      // Enrich navigation waypoints with positions
+      if (objective.navigationWaypoints) {
+        for (const wp of objective.navigationWaypoints) {
+          if (wp.locationName && locationPositions.has(wp.locationName)) {
+            wp.locationPosition = locationPositions.get(wp.locationName)!;
+          }
+        }
+      }
+      if (objective.directionSteps) {
+        for (const step of objective.directionSteps) {
+          if (step.locationName && locationPositions.has(step.locationName)) {
+            step.locationPosition = locationPositions.get(step.locationName)!;
+          }
+        }
+      }
+    }
 
     // Pick a random NPC as quest giver
     const giver = npcs.length > 0 ? pick(npcs) : null;
@@ -901,6 +962,8 @@ export function generateSeedQuests(options: SeedQuestOptions): InsertQuest[] {
       experienceReward: def.xp,
       rewards: { xp: def.xp, fluency: Math.round(def.xp / 5) },
       tags: ['seed', `objective-type:${def.objectiveType}`, `category:${def.questType}`, ...(def.extraTags || [])],
+      ...(questLocationName ? { locationName: questLocationName } : {}),
+      ...(questLocationPosition ? { locationPosition: questLocationPosition } : {}),
     };
 
     // Generate Prolog content
