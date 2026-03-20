@@ -280,6 +280,9 @@ describe('InteriorNPCManager', () => {
     });
 
     it('should clear previous interior before populating new one', () => {
+      // Mock Math.random to prevent random visitors from being added
+      const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.99);
+
       const interior1 = createMockInterior();
       const meta1: BuildingMetadata = { buildingType: 'business', ownerId: 'npc1', employees: [] };
       const npcs = createNPCMap([{ id: 'npc1' }, { id: 'npc2' }]);
@@ -294,6 +297,8 @@ describe('InteriorNPCManager', () => {
       expect(manager.getPlacedCount()).toBe(1);
       expect(manager.isNPCInside('npc2')).toBe(true);
       expect(manager.isNPCInside('npc1')).toBe(false);
+
+      randomSpy.mockRestore();
     });
   });
 
@@ -527,6 +532,218 @@ describe('InteriorNPCManager', () => {
       expect(callbacks.onNPCGreeting).toHaveBeenCalled();
       const greeting = (callbacks.onNPCGreeting as any).mock.calls[0][1];
       expect(['Make yourself at home.', 'Welcome to my home.']).toContain(greeting);
+    });
+  });
+
+  describe('persistent assignments', () => {
+    it('should persist furniture assignments across visits', () => {
+      const interior = createMockInterior({ businessType: 'Bakery' });
+      const metadata: BuildingMetadata = {
+        buildingType: 'business',
+        businessType: 'Bakery',
+        ownerId: 'owner1',
+        employees: ['emp1'],
+      };
+      const npcs = createNPCMap([{ id: 'owner1' }, { id: 'emp1' }]);
+
+      // First visit
+      const placed1 = manager.populateInterior('biz1', interior, metadata, npcs);
+      const owner1Pos = placed1.find(p => p.npcId === 'owner1')!.interiorPosition;
+      const emp1Pos = placed1.find(p => p.npcId === 'emp1')!.interiorPosition;
+
+      // Check assignments were saved
+      const assignments = manager.getAssignments('biz1');
+      expect(assignments.length).toBe(2);
+
+      // Second visit — positions should be identical
+      const placed2 = manager.populateInterior('biz1', interior, metadata, npcs);
+      const owner2Pos = placed2.find(p => p.npcId === 'owner1')!.interiorPosition;
+      const emp2Pos = placed2.find(p => p.npcId === 'emp1')!.interiorPosition;
+
+      expect(owner2Pos.x).toBe(owner1Pos.x);
+      expect(owner2Pos.z).toBe(owner1Pos.z);
+      expect(emp2Pos.x).toBe(emp1Pos.x);
+      expect(emp2Pos.z).toBe(emp1Pos.z);
+    });
+
+    it('should preserve same furniture name across visits', () => {
+      const interior = createMockInterior({ businessType: 'Bakery' });
+      const metadata: BuildingMetadata = {
+        buildingType: 'business',
+        businessType: 'Bakery',
+        ownerId: 'owner1',
+        employees: [],
+      };
+      const npcs = createNPCMap([{ id: 'owner1' }]);
+
+      manager.populateInterior('biz1', interior, metadata, npcs);
+      const assignment = manager.getAssignment('biz1', 'owner1');
+      expect(assignment).toBeDefined();
+      expect(assignment!.furnitureName).toBe('counter');
+      expect(assignment!.role).toBe('owner');
+
+      // Second visit
+      manager.populateInterior('biz1', interior, metadata, npcs);
+      const assignment2 = manager.getAssignment('biz1', 'owner1');
+      expect(assignment2!.furnitureName).toBe('counter');
+      expect(assignment2!.furnitureIndex).toBe(assignment!.furnitureIndex);
+    });
+
+    it('should keep assignments after clearInterior', () => {
+      const interior = createMockInterior({ businessType: 'Bakery' });
+      const metadata: BuildingMetadata = {
+        buildingType: 'business',
+        businessType: 'Bakery',
+        ownerId: 'owner1',
+        employees: [],
+      };
+      const npcs = createNPCMap([{ id: 'owner1' }]);
+
+      manager.populateInterior('biz1', interior, metadata, npcs);
+      manager.clearInterior();
+
+      // Assignments should still exist even after clearing
+      const assignments = manager.getAssignments('biz1');
+      expect(assignments.length).toBe(1);
+      expect(assignments[0].npcId).toBe('owner1');
+    });
+
+    it('should clear assignments for a specific building', () => {
+      const interior = createMockInterior();
+      const metadata: BuildingMetadata = {
+        buildingType: 'business',
+        ownerId: 'owner1',
+        employees: [],
+      };
+      const npcs = createNPCMap([{ id: 'owner1' }]);
+
+      manager.populateInterior('biz1', interior, metadata, npcs);
+      manager.clearInterior();
+      manager.clearAssignments('biz1');
+
+      expect(manager.getAssignments('biz1')).toEqual([]);
+    });
+
+    it('should clear all assignments', () => {
+      const interior1 = createMockInterior();
+      const meta1: BuildingMetadata = { buildingType: 'business', ownerId: 'npc1', employees: [] };
+      const npcs = createNPCMap([{ id: 'npc1' }, { id: 'npc2' }]);
+
+      manager.populateInterior('biz1', interior1, meta1, npcs);
+      manager.clearInterior();
+
+      const interior2 = createMockInterior({ buildingId: 'biz2' });
+      const meta2: BuildingMetadata = { buildingType: 'business', ownerId: 'npc2', employees: [] };
+      manager.populateInterior('biz2', interior2, meta2, npcs);
+      manager.clearInterior();
+
+      manager.clearAllAssignments();
+      expect(manager.getAssignments('biz1')).toEqual([]);
+      expect(manager.getAssignments('biz2')).toEqual([]);
+    });
+
+    it('should maintain separate assignments per building', () => {
+      const npcs = createNPCMap([{ id: 'npc1' }]);
+
+      const interior1 = createMockInterior({ businessType: 'Bakery' });
+      const meta1: BuildingMetadata = {
+        buildingType: 'business',
+        businessType: 'Bakery',
+        ownerId: 'npc1',
+        employees: [],
+      };
+      manager.populateInterior('bakery1', interior1, meta1, npcs);
+      manager.clearInterior();
+
+      const interior2 = createMockInterior({ businessType: 'Bar' });
+      const meta2: BuildingMetadata = {
+        buildingType: 'business',
+        businessType: 'Bar',
+        ownerId: 'npc1',
+        employees: [],
+      };
+      manager.populateInterior('bar1', interior2, meta2, npcs);
+      manager.clearInterior();
+
+      const bakeryAssignment = manager.getAssignment('bakery1', 'npc1');
+      const barAssignment = manager.getAssignment('bar1', 'npc1');
+
+      expect(bakeryAssignment!.furnitureName).toBe('counter'); // Bakery counter
+      expect(barAssignment!.furnitureName).toBe('bar'); // Bar bar
+    });
+
+    it('should handle new NPCs added to existing building', () => {
+      const interior = createMockInterior({ businessType: 'Bakery' });
+      const npcs = createNPCMap([{ id: 'owner1' }, { id: 'emp1' }]);
+
+      // First visit — owner only
+      const meta1: BuildingMetadata = {
+        buildingType: 'business',
+        businessType: 'Bakery',
+        ownerId: 'owner1',
+        employees: [],
+      };
+      manager.populateInterior('biz1', interior, meta1, npcs);
+      const ownerAssignment = manager.getAssignment('biz1', 'owner1');
+      manager.clearInterior();
+
+      // Second visit — owner + employee
+      const meta2: BuildingMetadata = {
+        buildingType: 'business',
+        businessType: 'Bakery',
+        ownerId: 'owner1',
+        employees: ['emp1'],
+      };
+      manager.populateInterior('biz1', interior, meta2, npcs);
+
+      // Owner should keep same assignment
+      const ownerAssignment2 = manager.getAssignment('biz1', 'owner1');
+      expect(ownerAssignment2!.furnitureIndex).toBe(ownerAssignment!.furnitureIndex);
+
+      // Employee should get a different furniture slot
+      const empAssignment = manager.getAssignment('biz1', 'emp1');
+      expect(empAssignment).toBeDefined();
+      expect(empAssignment!.furnitureIndex).not.toBe(ownerAssignment!.furnitureIndex);
+    });
+
+    it('should clear persistent assignments on dispose', () => {
+      const interior = createMockInterior();
+      const metadata: BuildingMetadata = {
+        buildingType: 'business',
+        ownerId: 'owner1',
+        employees: [],
+      };
+      const npcs = createNPCMap([{ id: 'owner1' }]);
+
+      manager.populateInterior('biz1', interior, metadata, npcs);
+      manager.dispose();
+
+      expect(manager.getAssignments('biz1')).toEqual([]);
+    });
+
+    it('should return undefined for unassigned NPC', () => {
+      expect(manager.getAssignment('biz1', 'nonexistent')).toBeUndefined();
+    });
+
+    it('should persist animation state across visits', () => {
+      const interior = createMockInterior({ businessType: 'Bakery' });
+      const metadata: BuildingMetadata = {
+        buildingType: 'business',
+        businessType: 'Bakery',
+        ownerId: 'owner1',
+        employees: [],
+      };
+      const npcs = createNPCMap([{ id: 'owner1' }]);
+
+      // First visit
+      const placed1 = manager.populateInterior('biz1', interior, metadata, npcs);
+      const anim1 = placed1[0].animationState;
+
+      // Second visit
+      const placed2 = manager.populateInterior('biz1', interior, metadata, npcs);
+      const anim2 = placed2[0].animationState;
+
+      expect(anim2).toBe(anim1);
     });
   });
 

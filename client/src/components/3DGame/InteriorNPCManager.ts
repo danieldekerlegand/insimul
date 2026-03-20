@@ -84,6 +84,14 @@ export interface InteriorNPCCallbacks {
   onNPCExitInterior?: (npcId: string) => void;
 }
 
+/** Persistent furniture assignment for an NPC in a building */
+export interface PersistentNPCAssignment {
+  npcId: string;
+  role: 'employee' | 'owner' | 'visitor';
+  furnitureName: string;
+  furnitureIndex: number;
+}
+
 /** Max NPCs to place in an interior for performance */
 const MAX_INTERIOR_NPCS = 6;
 
@@ -177,6 +185,9 @@ export class InteriorNPCManager {
   private scheduleSource: InteriorScheduleSource | null = null;
   private playerCharacterId: string | undefined = undefined;
 
+  // Persistent NPC-to-furniture assignments per building (survives clearInterior)
+  private persistentAssignments: Map<string, Map<string, PersistentNPCAssignment>> = new Map();
+
   constructor(callbacks: InteriorNPCCallbacks) {
     this.callbacks = callbacks;
   }
@@ -229,16 +240,49 @@ export class InteriorNPCManager {
     // Get furniture roles for this building type
     const furnitureRoles = this.getFurnitureRoles(interior.buildingType, metadata.businessType);
 
+    // Get or create persistent assignments for this building
+    if (!this.persistentAssignments.has(buildingId)) {
+      this.persistentAssignments.set(buildingId, new Map());
+    }
+    const buildingAssignments = this.persistentAssignments.get(buildingId)!;
+
     // Place each NPC at an appropriate position
     const placed: PlacedInteriorNPC[] = [];
     const usedFurniture = new Set<number>();
 
+    // First pass: reserve furniture indices for NPCs with valid cached assignments
     for (const npc of npcsToPlace) {
-      // Find best furniture role for this NPC
-      const furnitureIdx = this.findFurnitureForRole(furnitureRoles, npc.role, usedFurniture);
-      const furniture = furnitureIdx >= 0 ? furnitureRoles[furnitureIdx] : null;
+      const cached = buildingAssignments.get(npc.id);
+      if (cached && cached.furnitureIndex >= 0 && cached.furnitureIndex < furnitureRoles.length) {
+        usedFurniture.add(cached.furnitureIndex);
+      }
+    }
 
+    for (const npc of npcsToPlace) {
+      let furnitureIdx: number;
+      const cached = buildingAssignments.get(npc.id);
+
+      if (cached && cached.furnitureIndex >= 0 && cached.furnitureIndex < furnitureRoles.length
+          && !this.isFurnitureConflicted(cached.furnitureIndex, npc.id, npcsToPlace, buildingAssignments)) {
+        // Reuse persistent assignment
+        furnitureIdx = cached.furnitureIndex;
+      } else {
+        // Find best furniture role for this NPC
+        furnitureIdx = this.findFurnitureForRole(furnitureRoles, npc.role, usedFurniture);
+      }
+
+      const furniture = furnitureIdx >= 0 ? furnitureRoles[furnitureIdx] : null;
       if (furnitureIdx >= 0) usedFurniture.add(furnitureIdx);
+
+      // Save the persistent assignment
+      if (furniture) {
+        buildingAssignments.set(npc.id, {
+          npcId: npc.id,
+          role: npc.role,
+          furnitureName: furniture.name,
+          furnitureIndex: furnitureIdx,
+        });
+      }
 
       // Calculate position within interior
       const offset = furniture?.offset ?? new Vector3(
@@ -531,10 +575,11 @@ export class InteriorNPCManager {
 
   /**
    * Add a single NPC to the active interior, placing them at available furniture.
+   * Uses persistent assignments when available.
    * Returns the placed NPC or null if the NPC couldn't be added.
    */
   addNPCToInterior(npcId: string): PlacedInteriorNPC | null {
-    if (!this.activeInterior || !this.activeMetadata) return null;
+    if (!this.activeInterior || !this.activeMetadata || !this.activeBuildingId) return null;
     if (this.placedNPCs.has(npcId)) return this.placedNPCs.get(npcId)!;
     if (this.placedNPCs.size >= MAX_INTERIOR_NPCS) return null;
 
@@ -545,12 +590,34 @@ export class InteriorNPCManager {
 
     const role = this.resolveNPCRole(npcId, this.activeMetadata);
     const interior = this.activeInterior;
+    const buildingId = this.activeBuildingId;
 
-    // Find available furniture
+    // Find available furniture, checking persistent assignment first
     const furnitureRoles = this.getFurnitureRoles(interior.buildingType, this.activeMetadata.businessType);
     const usedIndices = this.getUsedFurnitureIndices(furnitureRoles);
-    const furnitureIdx = this.findFurnitureForRole(furnitureRoles, role, usedIndices);
+
+    let furnitureIdx: number;
+    const buildingAssignments = this.persistentAssignments.get(buildingId);
+    const cached = buildingAssignments?.get(npcId);
+
+    if (cached && cached.furnitureIndex >= 0 && cached.furnitureIndex < furnitureRoles.length
+        && !usedIndices.has(cached.furnitureIndex)) {
+      furnitureIdx = cached.furnitureIndex;
+    } else {
+      furnitureIdx = this.findFurnitureForRole(furnitureRoles, role, usedIndices);
+    }
+
     const furniture = furnitureIdx >= 0 ? furnitureRoles[furnitureIdx] : null;
+
+    // Save the persistent assignment
+    if (furniture && buildingAssignments) {
+      buildingAssignments.set(npcId, {
+        npcId,
+        role,
+        furnitureName: furniture.name,
+        furnitureIndex: furnitureIdx,
+      });
+    }
 
     const offset = furniture?.offset ?? new Vector3(
       (Math.random() - 0.5) * (interior.width * 0.6),
@@ -649,10 +716,60 @@ export class InteriorNPCManager {
   }
 
   /**
+   * Check if a cached furniture index conflicts with another NPC's cached assignment
+   * among the current NPCs being placed.
+   */
+  private isFurnitureConflicted(
+    furnitureIndex: number,
+    npcId: string,
+    npcsToPlace: InteriorNPCData[],
+    buildingAssignments: Map<string, PersistentNPCAssignment>
+  ): boolean {
+    for (const npc of npcsToPlace) {
+      if (npc.id === npcId) continue;
+      const otherCached = buildingAssignments.get(npc.id);
+      if (otherCached && otherCached.furnitureIndex === furnitureIndex) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Get persistent assignments for a building.
+   */
+  getAssignments(buildingId: string): PersistentNPCAssignment[] {
+    const assignments = this.persistentAssignments.get(buildingId);
+    return assignments ? Array.from(assignments.values()) : [];
+  }
+
+  /**
+   * Get the persistent assignment for a specific NPC in a building.
+   */
+  getAssignment(buildingId: string, npcId: string): PersistentNPCAssignment | undefined {
+    return this.persistentAssignments.get(buildingId)?.get(npcId);
+  }
+
+  /**
+   * Clear persistent assignments for a specific building.
+   */
+  clearAssignments(buildingId: string): void {
+    this.persistentAssignments.delete(buildingId);
+  }
+
+  /**
+   * Clear all persistent assignments.
+   */
+  clearAllAssignments(): void {
+    this.persistentAssignments.clear();
+  }
+
+  /**
    * Clean up all resources.
    */
   dispose(): void {
     this.clearInterior();
+    this.persistentAssignments.clear();
     this.scheduleSource = null;
     this.npcSource = null;
   }
