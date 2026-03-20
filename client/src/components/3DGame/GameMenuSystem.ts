@@ -33,7 +33,7 @@ import type { SkillTreeStats } from './BabylonSkillTreePanel';
 import type { NoticeArticle } from './BabylonNoticeBoardPanel';
 import type { PlayerAssessmentData } from '@shared/assessment-types';
 import type { GameSaveState } from '@shared/game-engine/types';
-import type { MainQuestChapter, ChapterProgress } from '@shared/quest/main-quest-chapters';
+import type { MainQuestChapter, ChapterProgress, CaseNote, InvestigationBoardData } from '@shared/quest/main-quest-chapters';
 import type { PortfolioData } from '@shared/quest/portfolio-types';
 import {
   SKILL_TIERS,
@@ -209,6 +209,10 @@ export interface MenuJournalData {
   totalXPEarned: number;
   chapters: MenuJournalChapter[];
   playerCefrLevel: string | null;
+  /** Investigation board summary data */
+  investigationBoard?: InvestigationBoardData | null;
+  /** Case notes from the investigation (newest first) */
+  caseNotes?: CaseNote[];
 }
 
 export interface GameMenuCallbacks {
@@ -885,12 +889,12 @@ export class GameMenuSystem {
     const { stack } = this.makeScrollableContent("journal");
     const data = this.callbacks.getJournalData?.();
 
-    this.addSectionHeader(stack, "Journal — Main Quest");
-    this.addSubHeader(stack, "Your journey through the language, chapter by chapter");
+    this.addSectionHeader(stack, "Investigation Journal");
+    this.addSubHeader(stack, "Your reporter's case file — clues, progress, and notes");
 
     if (!data || data.chapters.length === 0) {
       const noData = new TextBlock();
-      noData.text = "No journal data available. Complete the onboarding to begin your journey.";
+      noData.text = "No journal data available. Complete the onboarding to begin your investigation.";
       noData.color = COLORS.textMuted;
       noData.fontSize = 13;
       noData.height = "40px";
@@ -899,26 +903,293 @@ export class GameMenuSystem {
       return;
     }
 
-    // Overall progress summary
-    const summaryCard = this.makeCard(stack);
-    const completedCount = data.chapters.filter(c => c.progress.status === 'completed').length;
-    this.addStatRow(summaryCard, "Chapters Completed", `${completedCount} / ${data.chapters.length}`, COLORS.accentGreen);
-    this.addStatRow(summaryCard, "Current CEFR Level", data.playerCefrLevel || "A1", COLORS.accent);
-    this.addStatRow(summaryCard, "Total XP Earned", `${data.totalXPEarned}`, COLORS.accentYellow);
-    this.addProgressBar(summaryCard, completedCount, data.chapters.length, COLORS.accentGreen, `${Math.round((completedCount / data.chapters.length) * 100)}%`);
+    // ─── SECTION 1: Investigation Board ────────────────────────────
+    this.renderInvestigationBoard(stack, data);
 
     this.addDivider(stack);
 
-    // Render each chapter
-    for (const entry of data.chapters) {
-      this.renderJournalChapter(stack, entry, data.currentChapterId);
-    }
+    // ─── SECTION 2: Chapter Progress ───────────────────────────────
+    this.renderChapterProgressSection(stack, data);
+
+    this.addDivider(stack);
+
+    // ─── SECTION 3: Case Notes ─────────────────────────────────────
+    this.renderCaseNotesSection(stack, data.caseNotes ?? []);
 
     // Portfolio & Learning Journal sections
     const portfolio = this.callbacks.getPortfolioData?.();
     if (portfolio) {
       this.renderPortfolioSection(stack, portfolio);
       this.renderLearningJournalSection(stack, portfolio);
+    }
+  }
+
+  // ─── INVESTIGATION BOARD ──────────────────────────────────────────────────
+
+  private renderInvestigationBoard(parent: StackPanel, data: MenuJournalData): void {
+    const board = data.investigationBoard;
+    const boardCard = this.makeCard(parent);
+
+    // Board header with investigation theme
+    const boardHeader = new TextBlock();
+    boardHeader.text = "INVESTIGATION BOARD";
+    boardHeader.color = COLORS.accentYellow;
+    boardHeader.fontSize = 14;
+    boardHeader.fontWeight = "bold";
+    boardHeader.height = "26px";
+    boardHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    boardHeader.paddingLeft = "4px";
+    boardCard.addControl(boardHeader);
+
+    // Writer name
+    const writerName = board?.writerName ?? 'The Missing Writer';
+    const writerRow = new TextBlock();
+    writerRow.text = `Subject: ${writerName}`;
+    writerRow.color = COLORS.textPrimary;
+    writerRow.fontSize = 13;
+    writerRow.fontWeight = "bold";
+    writerRow.height = "22px";
+    writerRow.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    writerRow.paddingLeft = "4px";
+    boardCard.addControl(writerRow);
+
+    // Evidence stats row
+    const cluesFound = board?.cluesFound ?? 0;
+    const evidenceCollected = board?.evidenceCollected ?? 0;
+    const completedCount = data.chapters.filter(c => c.progress.status === 'completed').length;
+
+    this.addStatRow(boardCard, "Clues Found", `${cluesFound}`, COLORS.accentGreen);
+    this.addStatRow(boardCard, "Evidence Collected", `${evidenceCollected}`, COLORS.accent);
+    this.addStatRow(boardCard, "Chapters Closed", `${completedCount} / ${data.chapters.length}`, COLORS.accentGreen);
+    this.addStatRow(boardCard, "CEFR Level", data.playerCefrLevel || "A1", COLORS.accent);
+    this.addStatRow(boardCard, "Total XP", `${data.totalXPEarned}`, COLORS.accentYellow);
+
+    // Timeline
+    if (board?.timeline && board.timeline.length > 0) {
+      const timelineHeader = new TextBlock();
+      timelineHeader.text = "Timeline";
+      timelineHeader.color = COLORS.textPrimary;
+      timelineHeader.fontSize = 12;
+      timelineHeader.fontWeight = "bold";
+      timelineHeader.height = "24px";
+      timelineHeader.paddingTop = "6px";
+      timelineHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      timelineHeader.paddingLeft = "4px";
+      boardCard.addControl(timelineHeader);
+
+      for (const event of board.timeline) {
+        const eventRow = new Rectangle();
+        eventRow.width = 1;
+        eventRow.height = "20px";
+        eventRow.thickness = 0;
+        eventRow.background = "transparent";
+        boardCard.addControl(eventRow);
+
+        const eventText = new TextBlock();
+        eventText.text = `${event.completed ? "●" : "○"}  ${event.label}`;
+        eventText.color = event.completed ? COLORS.accentGreen : COLORS.textSecondary;
+        eventText.fontSize = 11;
+        eventText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        eventText.paddingLeft = "10px";
+        eventRow.addControl(eventText);
+
+        const detailText = new TextBlock();
+        detailText.text = event.detail;
+        detailText.color = COLORS.textMuted;
+        detailText.fontSize = 10;
+        detailText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+        detailText.paddingRight = "4px";
+        eventRow.addControl(detailText);
+      }
+    }
+
+    // Key NPCs met
+    const npcsMet = board?.keyNPCsMet ?? [];
+    if (npcsMet.length > 0) {
+      const npcHeader = new TextBlock();
+      npcHeader.text = `Key Contacts (${npcsMet.length})`;
+      npcHeader.color = COLORS.textPrimary;
+      npcHeader.fontSize = 12;
+      npcHeader.fontWeight = "bold";
+      npcHeader.height = "24px";
+      npcHeader.paddingTop = "6px";
+      npcHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      npcHeader.paddingLeft = "4px";
+      boardCard.addControl(npcHeader);
+
+      for (const npc of npcsMet.slice(0, 5)) {
+        const npcRow = new TextBlock();
+        npcRow.text = `  • ${npc.name}`;
+        npcRow.color = COLORS.accent;
+        npcRow.fontSize = 11;
+        npcRow.height = "18px";
+        npcRow.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        npcRow.paddingLeft = "10px";
+        boardCard.addControl(npcRow);
+      }
+    }
+  }
+
+  // ─── CHAPTER PROGRESS SECTION ─────────────────────────────────────────────
+
+  private renderChapterProgressSection(parent: StackPanel, data: MenuJournalData): void {
+    const sectionHeader = new TextBlock();
+    sectionHeader.text = "CHAPTER PROGRESS";
+    sectionHeader.color = COLORS.accentYellow;
+    sectionHeader.fontSize = 14;
+    sectionHeader.fontWeight = "bold";
+    sectionHeader.height = "26px";
+    sectionHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    sectionHeader.paddingLeft = "4px";
+    parent.addControl(sectionHeader);
+
+    // Render current chapter first (prominently), then others
+    const currentChapter = data.chapters.find(c => c.chapter.id === data.currentChapterId);
+    if (currentChapter) {
+      this.renderJournalChapter(parent, currentChapter, data.currentChapterId);
+    }
+
+    // Completed chapters (collapsed)
+    const completed = data.chapters.filter(c => c.progress.status === 'completed');
+    if (completed.length > 0) {
+      const completedHeader = new TextBlock();
+      completedHeader.text = `Completed Chapters (${completed.length})`;
+      completedHeader.color = COLORS.textSecondary;
+      completedHeader.fontSize = 12;
+      completedHeader.fontWeight = "bold";
+      completedHeader.height = "24px";
+      completedHeader.paddingTop = "4px";
+      completedHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      completedHeader.paddingLeft = "4px";
+      parent.addControl(completedHeader);
+
+      for (const entry of completed) {
+        this.renderCollapsedChapter(parent, entry);
+      }
+    }
+
+    // Locked chapters
+    const locked = data.chapters.filter(
+      c => c.progress.status === 'locked' || c.progress.status === 'available',
+    );
+    if (locked.length > 0) {
+      for (const entry of locked) {
+        this.renderCollapsedChapter(parent, entry);
+      }
+    }
+  }
+
+  /** Render a collapsed chapter card (completed or locked) */
+  private renderCollapsedChapter(parent: StackPanel, entry: MenuJournalChapter): void {
+    const { chapter, progress, completionPercent, cefrMet } = entry;
+    const isCompleted = progress.status === 'completed';
+    const isLocked = progress.status === 'locked';
+
+    const row = new Rectangle();
+    row.width = 1;
+    row.height = "28px";
+    row.thickness = 0;
+    row.background = COLORS.cardBg;
+    row.cornerRadius = 4;
+    row.paddingBottom = "2px";
+    parent.addControl(row);
+
+    const icon = isCompleted ? "✅" : isLocked ? "🔒" : "⏳";
+    const label = new TextBlock();
+    label.text = `${icon}  Ch. ${chapter.number}: ${chapter.title}`;
+    label.color = isLocked ? COLORS.textMuted : COLORS.textSecondary;
+    label.fontSize = 12;
+    label.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    label.paddingLeft = "8px";
+    row.addControl(label);
+
+    const badge = new TextBlock();
+    badge.text = isCompleted
+      ? `${completionPercent}%`
+      : isLocked && !cefrMet
+        ? `Requires ${chapter.requiredCefrLevel}`
+        : '';
+    badge.color = isCompleted ? COLORS.accentGreen : COLORS.accentRed;
+    badge.fontSize = 11;
+    badge.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+    badge.paddingRight = "8px";
+    row.addControl(badge);
+  }
+
+  // ─── CASE NOTES SECTION ───────────────────────────────────────────────────
+
+  private renderCaseNotesSection(parent: StackPanel, caseNotes: CaseNote[]): void {
+    const sectionHeader = new TextBlock();
+    sectionHeader.text = "CASE NOTES";
+    sectionHeader.color = COLORS.accentYellow;
+    sectionHeader.fontSize = 14;
+    sectionHeader.fontWeight = "bold";
+    sectionHeader.height = "26px";
+    sectionHeader.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+    sectionHeader.paddingLeft = "4px";
+    parent.addControl(sectionHeader);
+
+    if (caseNotes.length === 0) {
+      const emptyNote = new TextBlock();
+      emptyNote.text = "No case notes yet. Complete objectives to build your investigation file.";
+      emptyNote.color = COLORS.textMuted;
+      emptyNote.fontSize = 12;
+      emptyNote.height = "30px";
+      emptyNote.textWrapping = TextWrapping.WordWrap;
+      emptyNote.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      emptyNote.paddingLeft = "4px";
+      parent.addControl(emptyNote);
+      return;
+    }
+
+    const categoryIcons: Record<string, string> = {
+      clue: '🔍',
+      npc_interview: '🗣️',
+      text_found: '📄',
+      location_visited: '📍',
+      chapter_event: '⭐',
+    };
+
+    // Show up to 20 most recent notes (already newest-first)
+    for (const note of caseNotes.slice(0, 20)) {
+      const card = this.makeCard(parent);
+
+      // Day header
+      const dayRow = new Rectangle();
+      dayRow.width = 1;
+      dayRow.height = "20px";
+      dayRow.thickness = 0;
+      dayRow.background = "transparent";
+      card.addControl(dayRow);
+
+      const dayLabel = new TextBlock();
+      dayLabel.text = `Day ${note.day}`;
+      dayLabel.color = COLORS.accent;
+      dayLabel.fontSize = 12;
+      dayLabel.fontWeight = "bold";
+      dayLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      dayLabel.paddingLeft = "4px";
+      dayRow.addControl(dayLabel);
+
+      const categoryIcon = categoryIcons[note.category] ?? '📌';
+      const catLabel = new TextBlock();
+      catLabel.text = categoryIcon;
+      catLabel.fontSize = 12;
+      catLabel.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
+      catLabel.paddingRight = "4px";
+      dayRow.addControl(catLabel);
+
+      // Note text
+      const noteText = new TextBlock();
+      noteText.text = note.text;
+      noteText.color = COLORS.textSecondary;
+      noteText.fontSize = 12;
+      noteText.textWrapping = TextWrapping.WordWrap;
+      noteText.resizeToFit = true;
+      noteText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      noteText.paddingLeft = "4px";
+      noteText.paddingBottom = "4px";
+      card.addControl(noteText);
     }
   }
 
