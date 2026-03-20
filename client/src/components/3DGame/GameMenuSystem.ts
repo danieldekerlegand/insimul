@@ -230,7 +230,8 @@ export interface GameMenuCallbacks {
   getNoticeArticles?: () => { articles: NoticeArticle[]; playerFluency: number };
   getAssessmentData?: () => { data: PlayerAssessmentData | null; playerLevel: number };
   onNoticeWordClicked?: (word: string, meaning: string) => void;
-  onNoticeQuestionAnswered?: (correct: boolean, articleId: string) => void;
+  onNoticeQuestionAnswered?: (correct: boolean, articleId: string, selectedIndex: number, correctIndex: number) => void;
+  getAnsweredArticleIds?: () => Set<string>;
   onVocabWordSpeak?: (word: string) => void;
   getContacts?: () => MenuContactData[];
   onNPCSelected?: (npcId: string) => void;
@@ -4159,7 +4160,8 @@ export class GameMenuSystem {
       }
 
       // Comprehension question
-      const hasQuestion = article.comprehensionQuestion && !this.answeredNoticeQuestions.has(article.id);
+      const answeredIds = this.callbacks.getAnsweredArticleIds?.() ?? this.answeredNoticeQuestions;
+      const hasQuestion = article.comprehensionQuestion && !answeredIds.has(article.id);
       if (hasQuestion && article.comprehensionQuestion) {
         const q = article.comprehensionQuestion;
 
@@ -4196,7 +4198,7 @@ export class GameMenuSystem {
           optBtn.paddingBottom = "3px";
           optBtn.onPointerClickObservable.add(() => {
             this.answeredNoticeQuestions.add(article.id);
-            this.callbacks.onNoticeQuestionAnswered?.(isCorrect, article.id);
+            this.callbacks.onNoticeQuestionAnswered?.(isCorrect, article.id, i, q.correctIndex);
             this.refreshActiveTab();
           });
           card.addControl(optBtn);

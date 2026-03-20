@@ -1098,6 +1098,26 @@ const ConversationRecordSchema = new Schema({
 });
 ConversationRecordSchema.index({ playerId: 1, worldId: 1, playthroughId: 1 });
 
+const ReadingProgressSchema = new Schema({
+  playerId: { type: String, required: true },
+  worldId: { type: String, required: true },
+  playthroughId: { type: String, default: null },
+  articlesRead: { type: [String], default: [] },
+  quizAnswers: { type: [{
+    articleId: { type: String, required: true },
+    selectedIndex: { type: Number, required: true },
+    correctIndex: { type: Number, required: true },
+    correct: { type: Boolean, required: true },
+    answeredAt: { type: Number, required: true },
+  }], default: [] },
+  totalCorrect: { type: Number, default: 0 },
+  totalAttempted: { type: Number, default: 0 },
+  xpFromReading: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+ReadingProgressSchema.index({ playerId: 1, worldId: 1, playthroughId: 1 }, { unique: true });
+
 const LanguageAssessmentSchema = new Schema({
   playerId: { type: String, required: true },
   worldId: { type: String, required: true },
@@ -1264,6 +1284,7 @@ const LanguageProgressModel = mongoose.model('LanguageProgress', LanguageProgres
 const VocabularyEntryModel = mongoose.model('VocabularyEntry', VocabularyEntrySchema, 'knowledgeentries');
 const GrammarPatternModel = mongoose.model('GrammarPattern', GrammarPatternSchema, 'grammarpatterns');
 const ConversationRecordModel = mongoose.model('ConversationRecord', ConversationRecordSchema, 'conversationrecords');
+const ReadingProgressModel = mongoose.model('ReadingProgress', ReadingProgressSchema, 'readingprogress');
 const LanguageAssessmentModel = mongoose.model('LanguageAssessment', LanguageAssessmentSchema, 'assessments');
 const AssessmentSessionModel = mongoose.model('AssessmentSession', AssessmentSessionSchema, 'assessmentsessions');
 const EvaluationResponseModel = mongoose.model('EvaluationResponse', EvaluationResponseSchema, 'evaluationresponses');
@@ -3287,6 +3308,26 @@ export class MongoStorage implements IStorage {
 
   async createConversationRecord(data: any): Promise<any> {
     const doc = await ConversationRecordModel.create(data);
+    return { id: doc._id.toString(), ...doc.toObject() };
+  }
+
+  // ============= READING PROGRESS =============
+
+  async getReadingProgress(playerId: string, worldId: string, playthroughId?: string): Promise<any | null> {
+    const query: any = { playerId, worldId };
+    if (playthroughId) query.playthroughId = playthroughId;
+    const doc = await ReadingProgressModel.findOne(query);
+    return doc ? { id: doc._id.toString(), ...doc.toObject() } : null;
+  }
+
+  async upsertReadingProgress(playerId: string, worldId: string, data: any, playthroughId?: string): Promise<any> {
+    const query: any = { playerId, worldId };
+    if (playthroughId) query.playthroughId = playthroughId;
+    const doc = await ReadingProgressModel.findOneAndUpdate(
+      query,
+      { $set: { ...data, ...(playthroughId ? { playthroughId } : {}), updatedAt: new Date() } },
+      { upsert: true, new: true }
+    );
     return { id: doc._id.toString(), ...doc.toObject() };
   }
 
