@@ -234,6 +234,30 @@ export class QuestIndicatorManager {
     ]);
 
     indicator.animations.push(floatAnim);
+
+    // Add pulse (scale) animation for 'available' and 'turn_in' to draw attention
+    if (type === 'available' || type === 'turn_in') {
+      const pulseAnim = new Animation(
+        `quest_indicator_pulse_${npcId}`,
+        'scaling',
+        30,
+        Animation.ANIMATIONTYPE_VECTOR3,
+        Animation.ANIMATIONLOOPMODE_CYCLE
+      );
+
+      const baseScale = new Vector3(1, 1, 1);
+      const peakScale = new Vector3(1.25, 1.25, 1.25);
+
+      pulseAnim.setKeys([
+        { frame: 0, value: baseScale },
+        { frame: 20, value: peakScale },
+        { frame: 40, value: baseScale },
+        { frame: 60, value: baseScale }, // pause at base before next cycle
+      ]);
+
+      indicator.animations.push(pulseAnim);
+    }
+
     this.scene.beginAnimation(indicator, 0, 60, true);
 
     // Store indicator

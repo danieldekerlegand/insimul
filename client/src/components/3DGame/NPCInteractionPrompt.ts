@@ -19,6 +19,7 @@ import {
   TextBlock,
   Rectangle,
 } from '@babylonjs/gui';
+import type { QuestIndicatorType } from './QuestIndicatorManager';
 
 export interface InteractionPromptNPC {
   id: string;
@@ -33,13 +34,17 @@ export interface ConversationPartnerInfo {
 
 export type GetConversationPartnerFn = (npcId: string) => ConversationPartnerInfo | null;
 
+export type GetQuestIndicatorFn = (npcId: string) => QuestIndicatorType;
+
 export class NPCInteractionPrompt {
   private scene: Scene;
   private gui: AdvancedDynamicTexture;
   private container: Rectangle;
   private textBlock: TextBlock;
+  private questHintBlock: TextBlock;
   private npcs = new Map<string, InteractionPromptNPC>();
   private getConversationPartner: GetConversationPartnerFn | null = null;
+  private getQuestIndicator: GetQuestIndicatorFn | null = null;
 
   /** Currently targeted NPC id (to avoid re-rendering text every frame) */
   private currentTargetId: string | null = null;
@@ -83,10 +88,26 @@ export class NPCInteractionPrompt {
     this.textBlock.resizeToFit = true;
     this.textBlock.textHorizontalAlignment = 2; // center
     this.container.addControl(this.textBlock);
+
+    // Quest hint text below the main prompt
+    this.questHintBlock = new TextBlock('interaction_quest_hint');
+    this.questHintBlock.color = '#FFD700';
+    this.questHintBlock.fontSize = 13;
+    this.questHintBlock.fontFamily = 'Arial';
+    this.questHintBlock.fontWeight = 'bold';
+    this.questHintBlock.textWrapping = true;
+    this.questHintBlock.resizeToFit = true;
+    this.questHintBlock.textHorizontalAlignment = 2; // center
+    this.questHintBlock.isVisible = false;
+    this.container.addControl(this.questHintBlock);
   }
 
   setConversationPartnerCallback(fn: GetConversationPartnerFn): void {
     this.getConversationPartner = fn;
+  }
+
+  setQuestIndicatorCallback(fn: GetQuestIndicatorFn): void {
+    this.getQuestIndicator = fn;
   }
 
   registerNPC(npc: InteractionPromptNPC): void {
@@ -147,7 +168,9 @@ export class NPCInteractionPrompt {
       promptText = `[G]: Talk to ${targetNpc.name}`;
     }
 
-    this.showPrompt(targetNpc.id, promptText);
+    // Determine quest hint for this NPC
+    const questIndicator = this.getQuestIndicator?.(targetNpc.id) ?? null;
+    this.showPrompt(targetNpc.id, promptText, questIndicator);
   }
 
   private findNPCFromMesh(mesh: AbstractMesh): InteractionPromptNPC | null {
@@ -161,7 +184,7 @@ export class NPCInteractionPrompt {
     return null;
   }
 
-  private showPrompt(npcId: string, text: string): void {
+  private showPrompt(npcId: string, text: string, questIndicator: QuestIndicatorType): void {
     if (this.currentTargetId === npcId && this.currentPromptText === text) {
       return;
     }
@@ -169,6 +192,29 @@ export class NPCInteractionPrompt {
     this.currentPromptText = text;
     this.textBlock.text = text;
     this.container.isVisible = true;
+
+    // Show quest hint below the interaction prompt
+    if (questIndicator) {
+      const hint = this.getQuestHintText(questIndicator);
+      this.questHintBlock.text = hint.text;
+      this.questHintBlock.color = hint.color;
+      this.questHintBlock.isVisible = true;
+    } else {
+      this.questHintBlock.isVisible = false;
+    }
+  }
+
+  private getQuestHintText(type: QuestIndicatorType): { text: string; color: string } {
+    switch (type) {
+      case 'available':
+        return { text: 'Quest Available', color: '#FFD700' };
+      case 'in_progress':
+        return { text: 'Quest In Progress', color: '#C0C0C0' };
+      case 'turn_in':
+        return { text: 'Quest Ready to Turn In!', color: '#32CD32' };
+      default:
+        return { text: '', color: '#FFFFFF' };
+    }
   }
 
   private hidePrompt(): void {
@@ -176,6 +222,7 @@ export class NPCInteractionPrompt {
     this.currentTargetId = null;
     this.currentPromptText = '';
     this.container.isVisible = false;
+    this.questHintBlock.isVisible = false;
   }
 
   dispose(): void {

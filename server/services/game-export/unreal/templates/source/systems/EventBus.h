@@ -44,6 +44,7 @@ enum class EInsimulEventType : uint8
     PuzzleFailed            UMETA(DisplayName = "Puzzle Failed"),
     QuestFailed             UMETA(DisplayName = "Quest Failed"),
     QuestAbandoned          UMETA(DisplayName = "Quest Abandoned"),
+    QuestDeclined           UMETA(DisplayName = "Quest Declined"),
     ConversationOverheard   UMETA(DisplayName = "Conversation Overheard"),
     CreateTruth             UMETA(DisplayName = "Create Truth"),
     // Assessment / onboarding events

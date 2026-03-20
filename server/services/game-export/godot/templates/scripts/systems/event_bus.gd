@@ -42,6 +42,7 @@ const EVENT_NPC_VOLITION_ACTION := "npc_volition_action"
 const EVENT_PUZZLE_FAILED := "puzzle_failed"
 const EVENT_QUEST_FAILED := "quest_failed"
 const EVENT_QUEST_ABANDONED := "quest_abandoned"
+const EVENT_QUEST_DECLINED := "quest_declined"
 const EVENT_CONVERSATION_OVERHEARD := "conversation_overheard"
 const EVENT_CREATE_TRUTH := "create_truth"
 # Assessment / onboarding events
@@ -119,7 +120,7 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_STATE_CREATED_TRUTH, EVENT_STATE_EXPIRED_TRUTH,
 	EVENT_ROMANCE_ACTION, EVENT_ROMANCE_STAGE_CHANGED,
 	EVENT_NPC_VOLITION_ACTION, EVENT_PUZZLE_FAILED,
-	EVENT_QUEST_FAILED, EVENT_QUEST_ABANDONED,
+	EVENT_QUEST_FAILED, EVENT_QUEST_ABANDONED, EVENT_QUEST_DECLINED,
 	EVENT_CONVERSATION_OVERHEARD, EVENT_CREATE_TRUTH,
 	EVENT_ASSESSMENT_STARTED, EVENT_ASSESSMENT_PHASE_STARTED,
 	EVENT_ASSESSMENT_PHASE_COMPLETED, EVENT_ASSESSMENT_TIER_CHANGE,
@@ -211,6 +212,7 @@ var _global_handlers: Array[Callable] = []
 ##   puzzle_failed:       {type, puzzle_id, puzzle_type, attempts}
 ##   quest_failed:        {type, quest_id, assigned_by_npc_id?}
 ##   quest_abandoned:     {type, quest_id, assigned_by_npc_id?}
+##   quest_declined:      {type, npc_id, npc_name, quest_title?}
 ##   conversation_overheard: {type, npc_id_1, npc_id_2, topic, language_used}
 ##   create_truth:        {type, character_id, title, content, entry_type, category?}
 ##   assessment_started:  {type, session_id, instrument_id, phase, participant_id, assessment_type?, player_id?}

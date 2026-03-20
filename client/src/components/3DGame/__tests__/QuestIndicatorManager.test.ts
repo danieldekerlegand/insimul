@@ -60,6 +60,7 @@ vi.mock('@babylonjs/core', () => {
   class MockAnimation {
     setKeys = vi.fn();
     static ANIMATIONTYPE_FLOAT = 0;
+    static ANIMATIONTYPE_VECTOR3 = 1;
     static ANIMATIONLOOPMODE_CYCLE = 1;
   }
   class MockScene {
@@ -80,7 +81,9 @@ vi.mock('@babylonjs/core', () => {
 });
 
 import { QuestIndicatorManager, type QuestIndicatorType } from '../QuestIndicatorManager';
-import { Scene, Mesh } from '@babylonjs/core';
+import { Scene, Mesh, MeshBuilder } from '@babylonjs/core';
+
+const mockedMeshBuilder = vi.mocked(MeshBuilder);
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -123,7 +126,7 @@ describe('QuestIndicatorManager', () => {
 
     it('shows null for NPCs that cannot give quests', () => {
       const npcs = makeNpcMap([
-        { id: 'npc1', character: { id: 'npc1', occupation: 'farmer' } },
+        { id: 'npc1', character: { id: 'npc1', occupation: 'unemployed' } },
       ]);
       manager.updateIndicators(npcs, []);
       expect(manager.getIndicatorTypeForNPC('npc1')).toBeNull();
@@ -243,7 +246,7 @@ describe('QuestIndicatorManager', () => {
       const npcs = makeNpcMap([
         { id: 'npc1', character: { id: 'npc1', occupation: 'teacher' } },
         { id: 'npc2', character: { id: 'npc2', occupation: 'merchant' } },
-        { id: 'npc3', character: { id: 'npc3', occupation: 'farmer' } },
+        { id: 'npc3', character: { id: 'npc3', occupation: 'unemployed' } },
       ]);
       const quests = [{
         id: 'q1',
@@ -358,12 +361,66 @@ describe('QuestIndicatorManager', () => {
       expect(manager.getIndicatorTypeForNPC('npc1')).toBe('available');
     });
 
-    it('does not match non-quest-giver occupations', () => {
+    it('does not match non-quest-giver occupations without explicit flag', () => {
       const npcs = makeNpcMap([
-        { id: 'npc1', character: { id: 'npc1', occupation: 'baker' } },
+        { id: 'npc1', character: { id: 'npc1', occupation: 'unemployed' } },
       ]);
       manager.updateIndicators(npcs, []);
       expect(manager.getIndicatorTypeForNPC('npc1')).toBeNull();
+    });
+  });
+
+  describe('pulse animation', () => {
+    it('adds pulse animation for "available" indicators', () => {
+      mockedMeshBuilder.CreatePlane.mockClear();
+      const npcs = makeNpcMap([
+        { id: 'npc1', character: { id: 'npc1', occupation: 'teacher' } },
+      ]);
+      manager.updateIndicators(npcs, []);
+
+      // The mesh created by MeshBuilder.CreatePlane should have 2 animations
+      // (float + pulse) for available indicators
+      const createdMesh = mockedMeshBuilder.CreatePlane.mock.results[0]?.value as any;
+      expect(createdMesh).toBeDefined();
+      expect(createdMesh.animations.length).toBe(2); // float + pulse
+    });
+
+    it('adds pulse animation for "turn_in" indicators', () => {
+      mockedMeshBuilder.CreatePlane.mockClear();
+
+      const npcs = makeNpcMap([
+        { id: 'npc1', character: { id: 'npc1', occupation: 'teacher' } },
+      ]);
+      const quests = [{
+        id: 'q1',
+        assignedByCharacterId: 'npc1',
+        status: 'active',
+        objectives: [{ isCompleted: true }],
+      }];
+      manager.updateIndicators(npcs, quests);
+
+      const createdMesh = mockedMeshBuilder.CreatePlane.mock.results[0]?.value as any;
+      expect(createdMesh).toBeDefined();
+      expect(createdMesh.animations.length).toBe(2); // float + pulse
+    });
+
+    it('does NOT add pulse animation for "in_progress" indicators', () => {
+      mockedMeshBuilder.CreatePlane.mockClear();
+
+      const npcs = makeNpcMap([
+        { id: 'npc1', character: { id: 'npc1', occupation: 'teacher' } },
+      ]);
+      const quests = [{
+        id: 'q1',
+        assignedByCharacterId: 'npc1',
+        status: 'active',
+        objectives: [{ isCompleted: false }],
+      }];
+      manager.updateIndicators(npcs, quests);
+
+      const createdMesh = mockedMeshBuilder.CreatePlane.mock.results[0]?.value as any;
+      expect(createdMesh).toBeDefined();
+      expect(createdMesh.animations.length).toBe(1); // float only
     });
   });
 });

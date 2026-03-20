@@ -61,6 +61,7 @@ export type GameEvent =
   // Quest events
   | { type: 'quest_failed'; questId: string; assignedByNpcId?: string }
   | { type: 'quest_abandoned'; questId: string; assignedByNpcId?: string }
+  | { type: 'quest_declined'; npcId: string; npcName: string; questTitle?: string }
   // Conversation eavesdrop
   | { type: 'conversation_overheard'; npcId1: string; npcId2: string; topic: string; languageUsed: string }
   // Truth creation (emitted when game events should be recorded as world truths)
