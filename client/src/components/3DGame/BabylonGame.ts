@@ -184,6 +184,9 @@ import {
   KEY_EAVESDROP,
   KEY_QUICK_SAVE,
   KEY_QUICK_LOAD,
+  KEY_TIME_PAUSE,
+  KEY_TIME_SLOW,
+  KEY_TIME_FAST,
 } from "@/components/3DGame/KeyboardMap.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 import {
@@ -1526,6 +1529,8 @@ export class BabylonGame {
     this.guiManager.setOnNPCSelected((npcId) => this.setSelectedNPC(npcId));
     this.guiManager.setOnActionSelected((actionId) => this.handlePerformAction(actionId));
     this.guiManager.setOnPayFines(() => this.handlePayFines());
+    this.guiManager.setOnTimeSpeedChange((delta) => this.handleTimeSpeedChange(delta));
+    this.guiManager.setOnTimePauseToggle(() => this.handleTimePauseToggle());
     this.guiManager.setMinimapNavigateCallback((worldX, worldZ) => {
       if (this.playerMesh) {
         this.playerMesh.position.x = worldX;
@@ -8629,6 +8634,15 @@ export class BabylonGame {
       // Advance game time
       this.gameTimeManager.update(this.engine!.getDeltaTime());
 
+      // Update time HUD
+      this.guiManager?.updateTime(
+        this.gameTimeManager.timeString,
+        this.gameTimeManager.day,
+        this.gameTimeManager.timeOfDay,
+        this.gameTimeManager.timeScale,
+        this.gameTimeManager.paused,
+      );
+
       this.scene.render();
 
       // Update perf overlay every 500ms
@@ -8685,6 +8699,23 @@ export class BabylonGame {
     if (event.code === KEY_QUICK_LOAD && !event.repeat) {
       event.preventDefault();
       this.gameMenuSystem?.quickLoad();
+      return;
+    }
+
+    // Time controls — , . / (slow, pause, fast)
+    if (event.code === KEY_TIME_PAUSE && !event.repeat) {
+      event.preventDefault();
+      this.handleTimePauseToggle();
+      return;
+    }
+    if (event.code === KEY_TIME_SLOW && !event.repeat) {
+      event.preventDefault();
+      this.handleTimeSpeedChange(-1);
+      return;
+    }
+    if (event.code === KEY_TIME_FAST && !event.repeat) {
+      event.preventDefault();
+      this.handleTimeSpeedChange(1);
       return;
     }
 
@@ -10338,6 +10369,25 @@ export class BabylonGame {
       this.enableDebugHover();
     } else {
       this.disableDebugHover();
+    }
+  }
+
+  private static readonly TIME_SPEED_STEPS = [0.25, 0.5, 1, 2, 4, 8, 16];
+
+  private handleTimeSpeedChange(delta: number): void {
+    const steps = BabylonGame.TIME_SPEED_STEPS;
+    const cur = this.gameTimeManager.timeScale;
+    let idx = steps.findIndex(s => s >= cur);
+    if (idx === -1) idx = steps.length - 1;
+    idx = Math.max(0, Math.min(steps.length - 1, idx + delta));
+    this.gameTimeManager.setTimeScale(steps[idx]);
+  }
+
+  private handleTimePauseToggle(): void {
+    if (this.gameTimeManager.paused) {
+      this.gameTimeManager.resume();
+    } else {
+      this.gameTimeManager.pause();
     }
   }
 

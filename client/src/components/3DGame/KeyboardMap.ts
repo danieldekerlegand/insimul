@@ -75,6 +75,17 @@ export const KEY_QUICK_SAVE = 'F5';
 /** Quick load (slot 0) */
 export const KEY_QUICK_LOAD = 'F9';
 
+// ─── Time Controls (BabylonGame.handleKeyDown) ─────────────────────────────
+
+/** Pause / resume game time */
+export const KEY_TIME_PAUSE = 'Period';
+
+/** Decrease time speed */
+export const KEY_TIME_SLOW = 'Comma';
+
+/** Increase time speed */
+export const KEY_TIME_FAST = 'Slash';
+
 // ─── Camera (CameraManager.handleKeyboardShortcut) ────────────────────────
 // These use KeyboardEvent.key (lowercase). Listed here for reference.
 //

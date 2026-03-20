@@ -1,3 +1,16 @@
+## Agent 9: Implement time-of-day HUD indicator and time controls
+
+### Completed
+- Added time HUD panel to BabylonGUIManager (top-center): shows current time, day number, time-of-day icon, and speed controls
+- Added keyboard shortcuts: , (slow down) . (pause/resume) / (speed up) via KeyboardMap constants
+- Added clickable speed control buttons (◀ ⏸ ▶) in the HUD panel
+- Wired time HUD update in BabylonGame render loop (updates every frame from GameTimeManager)
+- Added handleTimeSpeedChange (stepping through 0.25x-16x) and handleTimePauseToggle methods
+- Wrote 42 tests covering time-of-day detection, formatting, pause/resume, time scale, day rollover, events, serialization, speed stepping, keyboard map, and isDaytime
+- All tests pass, no new TypeScript errors
+
+---
+
 ## Agent 12: Implement server-side persistence for vocabulary and grammar progress
 
 ### Completed
