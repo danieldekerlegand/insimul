@@ -1,16 +1,18 @@
 /**
  * Item Placement Generator
  *
- * Places base items into contextually appropriate world locations (businesses
- * and residences) during procedural generation. Each business type gets items
- * that make sense for its trade, and residences get common household goods.
+ * Places base items into contextually appropriate world locations (businesses,
+ * residences, and exterior locations) during procedural generation. Each
+ * business type gets items that make sense for its trade, residences get
+ * common household goods, and exterior locations (vacant lots, streets) get
+ * collectible and natural items for collection quests.
  *
  * Items are instantiated as world-specific records with placement stored in
- * the item's `metadata` field ({ businessId, residenceId, lotId }).
+ * the item's `metadata` field ({ businessId, residenceId, lotId, position }).
  */
 
 import { storage } from '../db/storage';
-import type { Item, Business, Residence, InsertItem, Settlement } from '../../shared/schema';
+import type { Item, Business, Residence, InsertItem, Settlement, Lot } from '../../shared/schema';
 
 // ── Business-type → item tag/type mapping ────────────────────────────────────
 
@@ -53,6 +55,14 @@ export const RESIDENCE_ITEM_RULES = {
   itemTypes: ['food', 'drink', 'tool', 'collectible'],
   min: 2,
   max: 6,
+};
+
+/** Exterior item rules — items found outdoors on vacant lots and streets. */
+export const EXTERIOR_ITEM_RULES = {
+  tags: ['collectible', 'material', 'tool', 'food', 'ingredient'],
+  itemTypes: ['collectible', 'material', 'tool', 'food'],
+  min: 1,
+  max: 3,
 };
 
 // ── Filtering helpers ────────────────────────────────────────────────────────
@@ -99,6 +109,7 @@ export interface ItemPlacementResult {
   totalPlaced: number;
   businessItems: number;
   residenceItems: number;
+  exteriorItems: number;
 }
 
 /**
@@ -117,7 +128,7 @@ export function selectItemsForLocation(
 }
 
 /**
- * Place base items into all businesses and residences for a world.
+ * Place base items into businesses, residences, and exterior locations for a world.
  * Creates world-specific item instances in the database with location metadata.
  */
 export async function placeItemsInWorld(
@@ -129,13 +140,17 @@ export async function placeItemsInWorld(
   const businesses = await storage.getBusinessesByWorld(worldId);
   const settlements = await storage.getSettlementsByWorld(worldId);
   const residences: Residence[] = [];
+  const allLots: Lot[] = [];
   for (const s of settlements) {
     const settResidences = await storage.getResidencesBySettlement(s.id);
     residences.push(...settResidences);
+    const settLots = await storage.getLotsBySettlement(s.id);
+    allLots.push(...settLots);
   }
 
   let businessItems = 0;
   let residenceItems = 0;
+  let exteriorItems = 0;
 
   // Place items in businesses
   const activeBusinesses = businesses.filter((b: Business) => !b.isOutOfBusiness);
@@ -159,18 +174,60 @@ export async function placeItemsInWorld(
     }
   }
 
+  // Place items in exterior locations (vacant lots and streets)
+  const exteriorLots = getExteriorLots(allLots);
+  for (const lot of exteriorLots) {
+    const selected = selectItemsForLocation(baseItems, EXTERIOR_ITEM_RULES, worldType);
+
+    for (const baseItem of selected) {
+      const position = generateExteriorPosition(lot);
+      await storage.createItem(makeWorldItem(baseItem, worldId, { lotId: lot.id, position }));
+      exteriorItems++;
+    }
+  }
+
   return {
-    totalPlaced: businessItems + residenceItems,
+    totalPlaced: businessItems + residenceItems + exteriorItems,
     businessItems,
     residenceItems,
+    exteriorItems,
   };
 }
+
+// ── Exterior placement helpers ───────────────────────────────────────────────
+
+/**
+ * Filter lots to those that are exterior (vacant — no building).
+ * These are suitable locations for outdoor collectible items.
+ */
+export function getExteriorLots(lots: Lot[]): Lot[] {
+  return lots.filter(lot =>
+    lot.buildingType === 'vacant' || !lot.buildingType
+  );
+}
+
+/**
+ * Generate a world-space position near a lot for an exterior item spawn.
+ * Adds small random jitter within the lot bounds so items don't stack.
+ */
+export function generateExteriorPosition(lot: Lot): { x: number; z: number } {
+  const baseX = lot.positionX ?? 0;
+  const baseZ = lot.positionZ ?? 0;
+  const halfWidth = (lot.lotWidth ?? 12) / 2;
+  const halfDepth = (lot.lotDepth ?? 16) / 2;
+  // Random position within the lot bounds
+  const x = baseX + (Math.random() * 2 - 1) * halfWidth;
+  const z = baseZ + (Math.random() * 2 - 1) * halfDepth;
+  return { x: Math.round(x * 100) / 100, z: Math.round(z * 100) / 100 };
+}
+
+// ── Item building ───────────────────────────────────────────────────────────
 
 /** Build an InsertItem from a base template, bound to a world and location. */
 function makeWorldItem(
   base: Item,
   worldId: string,
-  location: { businessId?: string; residenceId?: string; lotId?: string },
+  location: { businessId?: string; residenceId?: string; lotId?: string; position?: { x: number; z: number } },
 ): InsertItem {
   return {
     worldId,
