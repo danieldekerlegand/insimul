@@ -17,6 +17,7 @@ import { convertQuestToProlog } from '../shared/prolog/quest-converter';
 import { extractAllMetadata, extractActionMetadata } from '../shared/prolog/prolog-metadata-extractor';
 import { nameGenerator } from './generators/name-generator.js';
 import { isGeminiConfigured, getModel, GEMINI_MODELS } from './config/gemini.js';
+import { generateText, generateTextBatch, generatedTextToInsertText, buildStarterSetParams, type TextGenerationParams, type TextCategory, type CefrLevel } from './services/text-generator.js';
 import { conversationContextCache, ConversationContextCache } from './services/conversation-context-cache.js';
 import {
   generateLanguage,
@@ -13960,6 +13961,63 @@ Make the action names thematic and immersive.`;
       }
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Text Generation ────────────────────────────────────────────────
+
+  app.post("/api/worlds/:worldId/texts/generate", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const token = req.headers.authorization?.split(' ')[1];
+      const payload = token ? AuthService.verifyToken(token) : null;
+
+      if (!(await canEditWorld(payload?.userId, worldId))) {
+        return res.status(403).json({ error: "You don't have permission to edit this world" });
+      }
+
+      if (!isGeminiConfigured()) {
+        return res.status(503).json({ error: "Gemini API is not configured" });
+      }
+
+      const { count, category, cefrLevel, targetLanguage, theme } = req.body;
+
+      if (!targetLanguage) {
+        return res.status(400).json({ error: "targetLanguage is required" });
+      }
+
+      // Build generation params
+      let paramsList: TextGenerationParams[];
+
+      if (count && count > 0) {
+        // Generate specific count of texts with given parameters
+        paramsList = Array.from({ length: Math.min(count, 10) }, () => ({
+          worldId,
+          targetLanguage,
+          category: (category || 'book') as TextCategory,
+          cefrLevel: (cefrLevel || 'A1') as CefrLevel,
+          theme,
+          pageCount: cefrLevel === 'B1' || cefrLevel === 'B2' ? 3 : 2,
+        }));
+      } else {
+        // Generate full starter set (28 texts)
+        paramsList = buildStarterSetParams(worldId, targetLanguage);
+      }
+
+      const results = await generateTextBatch(paramsList);
+
+      // Store all generated texts
+      const savedTexts = [];
+      for (let i = 0; i < results.length; i++) {
+        const insertData = generatedTextToInsertText(results[i], paramsList[i]);
+        const saved = await storage.createText(insertData);
+        savedTexts.push(saved);
+      }
+
+      res.status(201).json({ generated: savedTexts.length, texts: savedTexts });
+    } catch (error: any) {
+      console.error('[TextGenerate] Error:', error?.message || error);
+      res.status(500).json({ error: "Text generation failed", details: error?.message });
     }
   });
 
