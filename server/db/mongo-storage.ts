@@ -58,7 +58,9 @@ import {
   type PlaythroughConversation,
   type InsertPlaythroughConversation,
   type GameText,
-  type InsertGameText
+  type InsertGameText,
+  type Text,
+  type InsertText
 } from "@shared/schema";
 import type {
   WorldLanguage,
@@ -159,6 +161,10 @@ interface PlayerSessionDoc extends Omit<PlayerSession, 'id'>, Document {
 }
 
 interface AchievementDoc extends Omit<Achievement, 'id'>, Document {
+  _id: string;
+}
+
+interface TextDoc extends Omit<Text, 'id'>, Document {
   _id: string;
 }
 
@@ -768,6 +774,26 @@ const AchievementSchema = new Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
+const TextSchema = new Schema({
+  worldId: { type: String, required: true },
+  title: { type: String, required: true },
+  body: { type: String, required: true },
+  textType: { type: String, required: true },
+  language: { type: String, default: null },
+  difficulty: { type: String, default: 'beginner' },
+  locationId: { type: String, default: null },
+  characterId: { type: String, default: null },
+  vocabularyWords: { type: [String], default: [] },
+  grammarNotes: { type: String, default: null },
+  translation: { type: String, default: null },
+  tags: { type: [String], default: [] },
+  metadata: { type: Schema.Types.Mixed, default: {} },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+TextSchema.index({ worldId: 1 });
+
 const GenerationJobSchema = new Schema({
   worldId: { type: String, default: null },
   jobType: { type: String, required: true },
@@ -1297,6 +1323,7 @@ const UserModel = mongoose.model<UserDoc>('User', UserSchema);
 const PlayerProgressModel = mongoose.model<PlayerProgressDoc>('PlayerProgress', PlayerProgressSchema);
 const PlayerSessionModel = mongoose.model<PlayerSessionDoc>('PlayerSession', PlayerSessionSchema);
 const AchievementModel = mongoose.model<AchievementDoc>('Achievement', AchievementSchema);
+const TextModel = mongoose.model<TextDoc>('Text', TextSchema);
 const PlaythroughModel = mongoose.model<PlaythroughDoc>('Playthrough', PlaythroughSchema);
 const PlaythroughDeltaModel = mongoose.model<PlaythroughDeltaDoc>('PlaythroughDelta', PlaythroughDeltaSchema);
 const PlayTraceModel = mongoose.model<PlayTraceDoc>('PlayTrace', PlayTraceSchema);
@@ -1326,7 +1353,6 @@ const EngagementEventModel = mongoose.model('EngagementEvent', EngagementEventSc
 const ApiKeyModel = mongoose.model('ApiKey', ApiKeySchema, 'apikeys');
 const TerrainFeatureModel = mongoose.model('TerrainFeature', TerrainFeatureSchema);
 const WaterFeatureModel = mongoose.model('WaterFeature', WaterFeatureSchema);
-const GameTextModel = mongoose.model<GameTextDoc>('GameText', GameTextSchema);
 
 function docToAssessmentSession(doc: any): AssessmentSession {
   const obj = doc.toObject ? doc.toObject() : doc;
@@ -1458,6 +1484,10 @@ function docToPlayerSession(doc: PlayerSessionDoc): PlayerSession {
 }
 
 function docToAchievement(doc: AchievementDoc): Achievement {
+  return { ...doc.toObject(), id: doc._id.toString() };
+}
+
+function docToText(doc: TextDoc): Text {
   return { ...doc.toObject(), id: doc._id.toString() };
 }
 
@@ -3072,6 +3102,37 @@ export class MongoStorage implements IStorage {
   async deleteAchievement(id: string): Promise<boolean> {
     await this.connect();
     const result = await AchievementModel.findByIdAndDelete(id);
+    return !!result;
+  }
+
+  // ===== Texts =====
+  async getText(id: string): Promise<Text | undefined> {
+    await this.connect();
+    const doc = await TextModel.findById(id);
+    return doc ? docToText(doc) : undefined;
+  }
+
+  async getTextsByWorld(worldId: string): Promise<Text[]> {
+    await this.connect();
+    const docs = await TextModel.find({ worldId });
+    return docs.map(docToText);
+  }
+
+  async createText(text: InsertText): Promise<Text> {
+    await this.connect();
+    const doc = await TextModel.create(text);
+    return docToText(doc);
+  }
+
+  async updateText(id: string, text: Partial<InsertText>): Promise<Text | undefined> {
+    await this.connect();
+    const doc = await TextModel.findByIdAndUpdate(id, { ...text, updatedAt: new Date() }, { new: true });
+    return doc ? docToText(doc) : undefined;
+  }
+
+  async deleteText(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await TextModel.findByIdAndDelete(id);
     return !!result;
   }
 

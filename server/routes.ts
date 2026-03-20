@@ -40,6 +40,7 @@ import {
   insertActionSchema,
   insertTruthSchema,
   insertItemSchema,
+  insertTextSchema,
   insertContainerSchema,
   insertVisualAssetSchema,
   insertTextSchema,

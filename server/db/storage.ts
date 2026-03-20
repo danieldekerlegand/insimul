@@ -299,6 +299,13 @@ export interface IStorage {
   updateAchievement(id: string, achievement: Partial<import("@shared/schema").InsertAchievement>): Promise<import("@shared/schema").Achievement | undefined>;
   deleteAchievement(id: string): Promise<boolean>;
 
+  // Texts
+  getText(id: string): Promise<import("@shared/schema").Text | undefined>;
+  getTextsByWorld(worldId: string): Promise<import("@shared/schema").Text[]>;
+  createText(text: import("@shared/schema").InsertText): Promise<import("@shared/schema").Text>;
+  updateText(id: string, text: Partial<import("@shared/schema").InsertText>): Promise<import("@shared/schema").Text | undefined>;
+  deleteText(id: string): Promise<boolean>;
+
   // Playthroughs
   getPlaythrough(id: string): Promise<import("@shared/schema").Playthrough | undefined>;
   getPlaythroughsByUser(userId: string): Promise<import("@shared/schema").Playthrough[]>;
