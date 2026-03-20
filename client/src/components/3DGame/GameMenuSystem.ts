@@ -888,12 +888,12 @@ export class GameMenuSystem {
     const { stack } = this.makeScrollableContent("journal");
     const data = this.callbacks.getJournalData?.();
 
-    this.addSectionHeader(stack, "Journal — Main Quest");
-    this.addSubHeader(stack, "Your journey through the language, chapter by chapter");
+    this.addSectionHeader(stack, "Investigation Journal — The Missing Writer");
+    this.addSubHeader(stack, "Case notes on your investigation into the writer's disappearance");
 
     if (!data || data.chapters.length === 0) {
       const noData = new TextBlock();
-      noData.text = "No journal data available. Complete the onboarding to begin your journey.";
+      noData.text = "No case file opened yet. Complete the onboarding to begin your investigation.";
       noData.color = COLORS.textMuted;
       noData.fontSize = 13;
       noData.height = "40px";
@@ -905,9 +905,9 @@ export class GameMenuSystem {
     // Overall progress summary
     const summaryCard = this.makeCard(stack);
     const completedCount = data.chapters.filter(c => c.progress.status === 'completed').length;
-    this.addStatRow(summaryCard, "Chapters Completed", `${completedCount} / ${data.chapters.length}`, COLORS.accentGreen);
-    this.addStatRow(summaryCard, "Current CEFR Level", data.playerCefrLevel || "A1", COLORS.accent);
-    this.addStatRow(summaryCard, "Total XP Earned", `${data.totalXPEarned}`, COLORS.accentYellow);
+    this.addStatRow(summaryCard, "Case Progress", `${completedCount} / ${data.chapters.length} chapters closed`, COLORS.accentGreen);
+    this.addStatRow(summaryCard, "Language Proficiency", data.playerCefrLevel || "A1", COLORS.accent);
+    this.addStatRow(summaryCard, "Investigation XP", `${data.totalXPEarned}`, COLORS.accentYellow);
     this.addProgressBar(summaryCard, completedCount, data.chapters.length, COLORS.accentGreen, `${Math.round((completedCount / data.chapters.length) * 100)}%`);
 
     this.addDivider(stack);
@@ -945,9 +945,10 @@ export class GameMenuSystem {
     headerRow.background = "transparent";
     card.addControl(headerRow);
 
-    const statusIcon = isCompleted ? "✅" : isCurrent ? "▶️" : isLocked ? "🔒" : "⏳";
+    const statusIcon = isCompleted ? "✅" : isCurrent ? "🔍" : isLocked ? "🔒" : "⏳";
+    const statusLabel = isCompleted ? "CLOSED" : isCurrent ? "ACTIVE" : isLocked ? "SEALED" : "PENDING";
     const titleText = new TextBlock();
-    titleText.text = `${statusIcon}  Ch. ${chapter.number}: ${chapter.title}`;
+    titleText.text = `${statusIcon}  Ch. ${chapter.number}: ${chapter.title}  [${statusLabel}]`;
     titleText.color = isLocked ? COLORS.textMuted : COLORS.textPrimary;
     titleText.fontSize = 15;
     titleText.fontWeight = "bold";
@@ -977,10 +978,10 @@ export class GameMenuSystem {
     desc.paddingLeft = "4px";
     card.addControl(desc);
 
-    // Show narrative for current chapter
+    // Show narrative as case notes for current chapter
     if (isCurrent && chapter.introNarrative) {
       const narrative = new TextBlock();
-      narrative.text = `"${chapter.introNarrative}"`;
+      narrative.text = `Case notes: "${chapter.introNarrative}"`;
       narrative.color = COLORS.accentYellow;
       narrative.fontSize = 11;
       narrative.fontStyle = "italic";
@@ -1016,7 +1017,8 @@ export class GameMenuSystem {
         card.addControl(objRow);
 
         const objText = new TextBlock();
-        objText.text = `  ${done ? "✓" : "○"}  ${obj.title}  (${Math.min(current, obj.requiredCount)}/${obj.requiredCount})`;
+        const marker = done ? "✓" : "▸";
+        objText.text = `  ${marker}  ${obj.title}  (${Math.min(current, obj.requiredCount)}/${obj.requiredCount})`;
         objText.color = done ? COLORS.accentGreen : COLORS.textSecondary;
         objText.fontSize = 12;
         objText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;

@@ -50,6 +50,44 @@ function getManager() {
   return new MainQuestProgressionManager();
 }
 
+/**
+ * Complete all objectives for chapter 1 (Assignment Abroad).
+ * Ch1 has: vocabulary(2) + conversation(3) + conversation(1) + vocabulary(2)
+ * The manager fills objectives in order, so:
+ *   - 4 vocabulary completions fill ch1_greetings(2) + ch1_collect_vocabulary(2)
+ *   - 4 conversation completions fill ch1_ask_around(3) + ch1_visit_newspaper(1)
+ */
+async function completeCh1(manager: MainQuestProgressionManager) {
+  // vocabulary objectives: ch1_greetings(2), ch1_collect_vocabulary(2)
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
+  // conversation objectives: ch1_ask_around(3), ch1_visit_newspaper(1)
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
+  return await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
+}
+
+/**
+ * Complete all objectives for chapter 2 (Following the Trail).
+ * Ch2 has: vocabulary(2) + conversation(3) + conversation(1) + vocabulary(2) + grammar(2)
+ */
+async function completeCh2(manager: MainQuestProgressionManager) {
+  // vocabulary: ch2_explore_town(2) + ch2_read_signs(2) = 4
+  for (let i = 0; i < 4; i++) {
+    await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
+  }
+  // conversation: ch2_interview_locals(3) + ch2_find_first_book(1) = 4
+  for (let i = 0; i < 4; i++) {
+    await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
+  }
+  // grammar: ch2_grammar_basics(2)
+  await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'grammar', 'A1');
+  return await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'grammar', 'A1');
+}
+
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 describe('MainQuestProgressionManager', () => {
@@ -64,7 +102,7 @@ describe('MainQuestProgressionManager', () => {
       const manager = getManager();
       const state = await manager.getMainQuestState(WORLD_ID, PLAYER_ID);
 
-      expect(state.currentChapterId).toBe('ch1_arrival');
+      expect(state.currentChapterId).toBe('ch1_assignment_abroad');
       expect(state.totalXPEarned).toBe(0);
       expect(state.chapters).toHaveLength(6);
       expect(state.chapters[0].status).toBe('active');
@@ -96,7 +134,7 @@ describe('MainQuestProgressionManager', () => {
 
       const manager = getManager();
       const state = await manager.getMainQuestState(WORLD_ID, PLAYER_ID);
-      expect(state.currentChapterId).toBe('ch1_arrival');
+      expect(state.currentChapterId).toBe('ch1_assignment_abroad');
     });
   });
 
@@ -128,7 +166,7 @@ describe('MainQuestProgressionManager', () => {
   describe('recordQuestCompletion', () => {
     it('increments matching objective progress', async () => {
       const manager = getManager();
-      // Ch1 has vocabulary (req 2) and conversation (req 3)
+      // Ch1 first vocabulary objective: ch1_greetings (req 2)
       const result = await manager.recordQuestCompletion(
         WORLD_ID, PLAYER_ID, 'vocabulary', 'A1',
       );
@@ -172,47 +210,35 @@ describe('MainQuestProgressionManager', () => {
       expect(result).toBeNull();
     });
 
-    it('does not increment beyond required count', async () => {
+    it('moves to next vocabulary objective after first is complete', async () => {
       const manager = getManager();
-      // Complete vocabulary objective (requires 2)
+      // Complete ch1_greetings (2 vocab)
       await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
       await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      // Third vocabulary should return null (objective already done)
+      // Next vocab should go to ch1_collect_vocabulary
       const result = await manager.recordQuestCompletion(
         WORLD_ID, PLAYER_ID, 'vocabulary', 'A1',
       );
-      expect(result).toBeNull();
+      expect(result!.objectiveId).toBe('ch1_collect_vocabulary');
     });
 
     it('advances chapter when all objectives complete', async () => {
       const manager = getManager();
-      // Complete ch1: 2 vocabulary + 3 conversation
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      const result = await manager.recordQuestCompletion(
-        WORLD_ID, PLAYER_ID, 'conversation', 'A1',
-      );
+      const result = await completeCh1(manager);
 
       expect(result!.chapterAdvance).toBeDefined();
       expect(result!.chapterAdvance!.advanced).toBe(true);
-      expect(result!.chapterAdvance!.completedChapterId).toBe('ch1_arrival');
+      expect(result!.chapterAdvance!.completedChapterId).toBe('ch1_assignment_abroad');
       expect(result!.chapterAdvance!.bonusXP).toBe(300);
       expect(result!.chapterAdvance!.outroNarrative).toBeTruthy();
       // Ch2 also requires A1, so it should auto-activate
-      expect(result!.chapterAdvance!.nextChapterId).toBe('ch2_settling_in');
+      expect(result!.chapterAdvance!.nextChapterId).toBe('ch2_following_the_trail');
       expect(result!.chapterAdvance!.introNarrative).toBeTruthy();
     });
 
     it('awards XP on chapter completion', async () => {
       const manager = getManager();
-      // Complete ch1
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
+      await completeCh1(manager);
 
       const state = await manager.getMainQuestState(WORLD_ID, PLAYER_ID);
       expect(state.totalXPEarned).toBe(300);
@@ -220,22 +246,15 @@ describe('MainQuestProgressionManager', () => {
 
     it('sets next chapter to available when CEFR not met', async () => {
       const manager = getManager();
-      // Skip to ch2 and complete it so ch3 (requires A2) is next
+      // Set up ch2 as active (ch1 already completed)
       const state = createInitialMainQuestState();
-      state.currentChapterId = 'ch2_settling_in';
+      state.currentChapterId = 'ch2_following_the_trail';
       state.chapters[0].status = 'completed';
       state.chapters[1].status = 'active';
       await manager.saveMainQuestState(WORLD_ID, PLAYER_ID, state);
 
-      // Complete ch2: 2 vocab + 2 conversation + 2 grammar
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'grammar', 'A1');
-      const result = await manager.recordQuestCompletion(
-        WORLD_ID, PLAYER_ID, 'grammar', 'A1',
-      );
+      // Complete ch2
+      const result = await completeCh2(manager);
 
       expect(result!.chapterAdvance!.advanced).toBe(true);
       // Ch3 requires A2 but player is A1 — should be available, not active
@@ -260,10 +279,10 @@ describe('MainQuestProgressionManager', () => {
 
       const chapter = await manager.tryUnlockNextChapter(WORLD_ID, PLAYER_ID, 'A2');
       expect(chapter).not.toBeNull();
-      expect(chapter!.id).toBe('ch3_making_friends');
+      expect(chapter!.id).toBe('ch3_the_inner_circle');
 
       const updated = await manager.getMainQuestState(WORLD_ID, PLAYER_ID);
-      expect(updated.currentChapterId).toBe('ch3_making_friends');
+      expect(updated.currentChapterId).toBe('ch3_the_inner_circle');
       expect(updated.chapters[2].status).toBe('active');
     });
 
@@ -293,7 +312,7 @@ describe('MainQuestProgressionManager', () => {
       const summary = await manager.getJournalSummary(WORLD_ID, PLAYER_ID, 'A1');
 
       expect(summary.chapters).toHaveLength(6);
-      expect(summary.chapters[0].chapter.id).toBe('ch1_arrival');
+      expect(summary.chapters[0].chapter.id).toBe('ch1_assignment_abroad');
       expect(summary.chapters[0].progress.status).toBe('active');
       expect(summary.chapters[0].completionPercent).toBe(0);
       expect(summary.chapters[0].cefrMet).toBe(true);
@@ -304,8 +323,8 @@ describe('MainQuestProgressionManager', () => {
       await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
 
       const summary = await manager.getJournalSummary(WORLD_ID, PLAYER_ID, 'A1');
-      // ch1: 1 of 5 total = 20%
-      expect(summary.chapters[0].completionPercent).toBe(20);
+      // ch1 total required: 2+3+1+2 = 8, done: 1, so 1/8 = 13% (rounded)
+      expect(summary.chapters[0].completionPercent).toBe(13);
     });
 
     it('shows CEFR met status for each chapter', async () => {
@@ -327,7 +346,7 @@ describe('MainQuestProgressionManager', () => {
 
       expect(beats).toHaveLength(1);
       expect(beats[0].type).toBe('chapter_intro');
-      expect(beats[0].chapterId).toBe('ch1_arrival');
+      expect(beats[0].chapterId).toBe('ch1_assignment_abroad');
       expect(beats[0].text).toBe(MAIN_QUEST_CHAPTERS[0].introNarrative);
     });
 
@@ -335,7 +354,7 @@ describe('MainQuestProgressionManager', () => {
       const manager = getManager();
       const state = createInitialMainQuestState();
       state.chapters[0].status = 'completed';
-      state.currentChapterId = 'ch2_settling_in';
+      state.currentChapterId = 'ch2_following_the_trail';
       state.chapters[1].status = 'active';
       await manager.saveMainQuestState(WORLD_ID, PLAYER_ID, state);
 
@@ -347,7 +366,7 @@ describe('MainQuestProgressionManager', () => {
 
     it('does not return already-delivered beats', async () => {
       const manager = getManager();
-      const introId = narrativeBeatId('chapter_intro', 'ch1_arrival');
+      const introId = narrativeBeatId('chapter_intro', 'ch1_assignment_abroad');
 
       // Mark the intro as delivered
       await manager.markNarrativeBeatDelivered(WORLD_ID, PLAYER_ID, introId);
@@ -360,9 +379,9 @@ describe('MainQuestProgressionManager', () => {
       const manager = getManager();
       const state = createInitialMainQuestState();
       state.narrativeBeatsDelivered = [{
-        id: narrativeBeatId('chapter_intro', 'ch1_arrival'),
+        id: narrativeBeatId('chapter_intro', 'ch1_assignment_abroad'),
         type: 'chapter_intro',
-        chapterId: 'ch1_arrival',
+        chapterId: 'ch1_assignment_abroad',
         text: MAIN_QUEST_CHAPTERS[0].introNarrative,
         deliveredAt: new Date().toISOString(),
       }];
@@ -376,7 +395,7 @@ describe('MainQuestProgressionManager', () => {
   describe('markNarrativeBeatDelivered', () => {
     it('records a narrative beat delivery', async () => {
       const manager = getManager();
-      const beatId = narrativeBeatId('chapter_intro', 'ch1_arrival');
+      const beatId = narrativeBeatId('chapter_intro', 'ch1_assignment_abroad');
 
       const result = await manager.markNarrativeBeatDelivered(WORLD_ID, PLAYER_ID, beatId);
       expect(result).toBe(true);
@@ -385,13 +404,13 @@ describe('MainQuestProgressionManager', () => {
       expect(state.narrativeBeatsDelivered).toHaveLength(1);
       expect(state.narrativeBeatsDelivered[0].id).toBe(beatId);
       expect(state.narrativeBeatsDelivered[0].type).toBe('chapter_intro');
-      expect(state.narrativeBeatsDelivered[0].chapterId).toBe('ch1_arrival');
+      expect(state.narrativeBeatsDelivered[0].chapterId).toBe('ch1_assignment_abroad');
       expect(state.narrativeBeatsDelivered[0].deliveredAt).toBeTruthy();
     });
 
     it('returns false for duplicate delivery', async () => {
       const manager = getManager();
-      const beatId = narrativeBeatId('chapter_intro', 'ch1_arrival');
+      const beatId = narrativeBeatId('chapter_intro', 'ch1_assignment_abroad');
 
       await manager.markNarrativeBeatDelivered(WORLD_ID, PLAYER_ID, beatId);
       const result = await manager.markNarrativeBeatDelivered(WORLD_ID, PLAYER_ID, beatId);
@@ -407,7 +426,7 @@ describe('MainQuestProgressionManager', () => {
 
     it('handles outro beats correctly', async () => {
       const manager = getManager();
-      const beatId = narrativeBeatId('chapter_outro', 'ch1_arrival');
+      const beatId = narrativeBeatId('chapter_outro', 'ch1_assignment_abroad');
       const result = await manager.markNarrativeBeatDelivered(WORLD_ID, PLAYER_ID, beatId);
       expect(result).toBe(true);
 
@@ -425,29 +444,23 @@ describe('MainQuestProgressionManager', () => {
       let beats = await manager.getPendingNarrativeBeats(WORLD_ID, PLAYER_ID);
       expect(beats).toHaveLength(1);
       expect(beats[0].type).toBe('chapter_intro');
-      expect(beats[0].chapterId).toBe('ch1_arrival');
+      expect(beats[0].chapterId).toBe('ch1_assignment_abroad');
 
       // 2. Deliver the intro beat
       await manager.markNarrativeBeatDelivered(WORLD_ID, PLAYER_ID, beats[0].id);
 
       // 3. Complete all ch1 objectives
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      const completionResult = await manager.recordQuestCompletion(
-        WORLD_ID, PLAYER_ID, 'conversation', 'A1',
-      );
+      const completionResult = await completeCh1(manager);
 
       // 4. Chapter should advance
       expect(completionResult!.chapterAdvance!.advanced).toBe(true);
-      expect(completionResult!.chapterAdvance!.nextChapterId).toBe('ch2_settling_in');
+      expect(completionResult!.chapterAdvance!.nextChapterId).toBe('ch2_following_the_trail');
 
       // 5. Now pending beats should include ch1 outro + ch2 intro
       beats = await manager.getPendingNarrativeBeats(WORLD_ID, PLAYER_ID);
       const beatTypes = beats.map(b => `${b.type}:${b.chapterId}`);
-      expect(beatTypes).toContain('chapter_outro:ch1_arrival');
-      expect(beatTypes).toContain('chapter_intro:ch2_settling_in');
+      expect(beatTypes).toContain('chapter_outro:ch1_assignment_abroad');
+      expect(beatTypes).toContain('chapter_intro:ch2_following_the_trail');
 
       // 6. Deliver both and verify no more pending
       for (const beat of beats) {
@@ -458,7 +471,7 @@ describe('MainQuestProgressionManager', () => {
 
       // 7. Verify final state
       const state = await manager.getMainQuestState(WORLD_ID, PLAYER_ID);
-      expect(state.currentChapterId).toBe('ch2_settling_in');
+      expect(state.currentChapterId).toBe('ch2_following_the_trail');
       expect(state.totalXPEarned).toBe(300);
       expect(state.chapters[0].status).toBe('completed');
       expect(state.chapters[1].status).toBe('active');
@@ -470,18 +483,13 @@ describe('MainQuestProgressionManager', () => {
 
       // Complete ch1 and ch2 at A1, then ch3 requires A2
       const state = createInitialMainQuestState();
-      state.currentChapterId = 'ch2_settling_in';
+      state.currentChapterId = 'ch2_following_the_trail';
       state.chapters[0].status = 'completed';
       state.chapters[1].status = 'active';
       await manager.saveMainQuestState(WORLD_ID, PLAYER_ID, state);
 
       // Complete ch2
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'vocabulary', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'conversation', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'grammar', 'A1');
-      await manager.recordQuestCompletion(WORLD_ID, PLAYER_ID, 'grammar', 'A1');
+      await completeCh2(manager);
 
       // Ch3 should be available but not active
       const finalState = await manager.getMainQuestState(WORLD_ID, PLAYER_ID);
@@ -491,15 +499,15 @@ describe('MainQuestProgressionManager', () => {
       // Now level up to A2 and try unlock
       const unlocked = await manager.tryUnlockNextChapter(WORLD_ID, PLAYER_ID, 'A2');
       expect(unlocked).not.toBeNull();
-      expect(unlocked!.id).toBe('ch3_making_friends');
+      expect(unlocked!.id).toBe('ch3_the_inner_circle');
 
       const afterUnlock = await manager.getMainQuestState(WORLD_ID, PLAYER_ID);
-      expect(afterUnlock.currentChapterId).toBe('ch3_making_friends');
+      expect(afterUnlock.currentChapterId).toBe('ch3_the_inner_circle');
       expect(afterUnlock.chapters[2].status).toBe('active');
 
       // Ch3 intro should now be pending
       const beats = await manager.getPendingNarrativeBeats(WORLD_ID, PLAYER_ID);
-      expect(beats.some(b => b.type === 'chapter_intro' && b.chapterId === 'ch3_making_friends')).toBe(true);
+      expect(beats.some(b => b.type === 'chapter_intro' && b.chapterId === 'ch3_the_inner_circle')).toBe(true);
     });
   });
 });
