@@ -1,9 +1,12 @@
 /**
- * Main Quest Chapters
+ * Main Quest Chapters — "The Missing Writer"
  *
- * Defines the main storyline as CEFR-gated chapters. Each chapter contains
- * a sequence of quest objectives that advance the story. Players must reach
- * the required CEFR level before a chapter unlocks.
+ * The player is a reporter from abroad investigating the mysterious disappearance
+ * of a famous writer from the target-language-speaking country. Each chapter
+ * advances the investigation while gating on CEFR proficiency.
+ *
+ * Chapters are CEFR-gated: the player must reach the required level before
+ * a chapter unlocks.
  */
 
 import type { CEFRLevel } from '../assessment/cefr-mapping';
@@ -71,196 +74,409 @@ export interface MainQuestState {
   narrativeBeatsDelivered: NarrativeBeat[];
 }
 
+// ── Writer name generation ──────────────────────────────────────────────────
+
+export interface WriterNameEntry {
+  firstName: string;
+  lastName: string;
+  fullName: string;
+}
+
+/**
+ * Procedurally generated writer names by target language.
+ * Each language has a pool of realistic-sounding names; the game picks one
+ * per world during initialization (seeded by worldId for consistency).
+ */
+const WRITER_NAMES_BY_LANGUAGE: Record<string, WriterNameEntry[]> = {
+  french: [
+    { firstName: 'Émile', lastName: 'Beaumont', fullName: 'Émile Beaumont' },
+    { firstName: 'Marguerite', lastName: 'Delacroix', fullName: 'Marguerite Delacroix' },
+    { firstName: 'Lucien', lastName: 'Moreau', fullName: 'Lucien Moreau' },
+    { firstName: 'Colette', lastName: 'Fontaine', fullName: 'Colette Fontaine' },
+  ],
+  spanish: [
+    { firstName: 'Alejandro', lastName: 'Mendoza', fullName: 'Alejandro Mendoza' },
+    { firstName: 'Isabel', lastName: 'Castillo', fullName: 'Isabel Castillo' },
+    { firstName: 'Rafael', lastName: 'Solís', fullName: 'Rafael Solís' },
+    { firstName: 'Carmen', lastName: 'Valverde', fullName: 'Carmen Valverde' },
+  ],
+  german: [
+    { firstName: 'Heinrich', lastName: 'Bergmann', fullName: 'Heinrich Bergmann' },
+    { firstName: 'Marlene', lastName: 'Schreiber', fullName: 'Marlene Schreiber' },
+    { firstName: 'Friedrich', lastName: 'Weiss', fullName: 'Friedrich Weiss' },
+    { firstName: 'Elsa', lastName: 'Hartmann', fullName: 'Elsa Hartmann' },
+  ],
+  italian: [
+    { firstName: 'Giovanni', lastName: 'Moretti', fullName: 'Giovanni Moretti' },
+    { firstName: 'Lucia', lastName: 'Ferraro', fullName: 'Lucia Ferraro' },
+    { firstName: 'Marco', lastName: 'Bellini', fullName: 'Marco Bellini' },
+    { firstName: 'Chiara', lastName: 'Conti', fullName: 'Chiara Conti' },
+  ],
+  portuguese: [
+    { firstName: 'Joaquim', lastName: 'Ferreira', fullName: 'Joaquim Ferreira' },
+    { firstName: 'Helena', lastName: 'Soares', fullName: 'Helena Soares' },
+    { firstName: 'Tomás', lastName: 'Oliveira', fullName: 'Tomás Oliveira' },
+    { firstName: 'Beatriz', lastName: 'Cardoso', fullName: 'Beatriz Cardoso' },
+  ],
+  japanese: [
+    { firstName: 'Haruki', lastName: 'Tanaka', fullName: 'Tanaka Haruki' },
+    { firstName: 'Yuki', lastName: 'Murakami', fullName: 'Murakami Yuki' },
+    { firstName: 'Kenji', lastName: 'Hayashi', fullName: 'Hayashi Kenji' },
+    { firstName: 'Akiko', lastName: 'Nakamura', fullName: 'Nakamura Akiko' },
+  ],
+  korean: [
+    { firstName: 'Minjun', lastName: 'Park', fullName: 'Park Minjun' },
+    { firstName: 'Soyeon', lastName: 'Kim', fullName: 'Kim Soyeon' },
+    { firstName: 'Jiho', lastName: 'Lee', fullName: 'Lee Jiho' },
+    { firstName: 'Yuna', lastName: 'Choi', fullName: 'Choi Yuna' },
+  ],
+  chinese: [
+    { firstName: 'Wei', lastName: 'Chen', fullName: 'Chen Wei' },
+    { firstName: 'Mei', lastName: 'Lin', fullName: 'Lin Mei' },
+    { firstName: 'Hao', lastName: 'Zhang', fullName: 'Zhang Hao' },
+    { firstName: 'Xiu', lastName: 'Wang', fullName: 'Wang Xiu' },
+  ],
+  arabic: [
+    { firstName: 'Khalil', lastName: 'Al-Rashid', fullName: 'Khalil Al-Rashid' },
+    { firstName: 'Layla', lastName: 'Nasser', fullName: 'Layla Nasser' },
+    { firstName: 'Omar', lastName: 'Saeed', fullName: 'Omar Saeed' },
+    { firstName: 'Fatima', lastName: 'Hariri', fullName: 'Fatima Hariri' },
+  ],
+  russian: [
+    { firstName: 'Dmitri', lastName: 'Volkov', fullName: 'Dmitri Volkov' },
+    { firstName: 'Natasha', lastName: 'Sorokina', fullName: 'Natasha Sorokina' },
+    { firstName: 'Alexei', lastName: 'Petrov', fullName: 'Alexei Petrov' },
+    { firstName: 'Irina', lastName: 'Kuznetsova', fullName: 'Irina Kuznetsova' },
+  ],
+};
+
+/** Fallback writer names for languages without a specific pool */
+const FALLBACK_WRITER_NAMES: WriterNameEntry[] = [
+  { firstName: 'Alex', lastName: 'Verne', fullName: 'Alex Verne' },
+  { firstName: 'Morgan', lastName: 'Quill', fullName: 'Morgan Quill' },
+  { firstName: 'Sage', lastName: 'Inkwell', fullName: 'Sage Inkwell' },
+  { firstName: 'Robin', lastName: 'Paige', fullName: 'Robin Paige' },
+];
+
+/**
+ * Simple hash of a string to a positive integer.
+ * Used for deterministic writer name selection per world.
+ */
+function simpleHash(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + ch;
+    hash |= 0; // Convert to 32-bit integer
+  }
+  return Math.abs(hash);
+}
+
+/**
+ * Get the writer's name for a given world, deterministically derived from
+ * the worldId and the world's target language.
+ */
+export function getWriterName(
+  targetLanguage: string,
+  worldId: string,
+): WriterNameEntry {
+  const lang = targetLanguage.toLowerCase().trim();
+  const pool = WRITER_NAMES_BY_LANGUAGE[lang] ?? FALLBACK_WRITER_NAMES;
+  const index = simpleHash(worldId) % pool.length;
+  return pool[index];
+}
+
+/**
+ * Get the full pool of writer names for a language (for display/admin).
+ */
+export function getWriterNamesForLanguage(targetLanguage: string): WriterNameEntry[] {
+  const lang = targetLanguage.toLowerCase().trim();
+  return WRITER_NAMES_BY_LANGUAGE[lang] ?? FALLBACK_WRITER_NAMES;
+}
+
+// ── Chapter definitions ─────────────────────────────────────────────────────
+
+/**
+ * The placeholder {WRITER} in narrative text should be replaced at runtime
+ * with the writer's full name (from getWriterName).
+ */
+export const WRITER_PLACEHOLDER = '{WRITER}';
+
 /** All main quest chapters, ordered by progression */
 export const MAIN_QUEST_CHAPTERS: MainQuestChapter[] = [
   {
-    id: 'ch1_arrival',
+    id: 'ch1_assignment_abroad',
     number: 1,
-    title: 'Arrival',
-    description: 'You arrive in a new land where few speak your tongue. Learn the basics to survive.',
+    title: 'Assignment Abroad',
+    description: 'You arrive in a foreign land on assignment: investigate the disappearance of the celebrated writer {WRITER}. Learn the basics, find the local newspaper office, and secure your first lead.',
     requiredCefrLevel: 'A1',
     objectives: [
       {
         id: 'ch1_greetings',
-        title: 'Learn to Greet',
-        description: 'Complete greeting quests to introduce yourself to the locals.',
+        title: 'First Words',
+        description: 'Learn basic greetings to introduce yourself to the locals.',
         questType: 'vocabulary',
         requiredCount: 2,
         chainTemplateId: 'first-words',
       },
       {
-        id: 'ch1_conversations',
-        title: 'First Conversations',
-        description: 'Have your first real conversations with townspeople.',
+        id: 'ch1_ask_around',
+        title: 'Ask Around',
+        description: 'Talk to townspeople to learn about the missing writer.',
         questType: 'conversation',
         requiredCount: 3,
       },
+      {
+        id: 'ch1_visit_newspaper',
+        title: 'Find the Newspaper Office',
+        description: 'Visit the local newspaper office to meet the editor and get your assignment details.',
+        questType: 'conversation',
+        requiredCount: 1,
+      },
+      {
+        id: 'ch1_collect_vocabulary',
+        title: 'Learn the Language of the Town',
+        description: 'Collect vocabulary from signs and objects as you explore.',
+        questType: 'vocabulary',
+        requiredCount: 2,
+      },
     ],
     completionBonusXP: 300,
-    introNarrative: 'You step off the boat into an unfamiliar port. The sounds of a new language fill the air. Your journey begins here.',
-    outroNarrative: 'The townspeople nod as you greet them. You have taken your first steps in this new world.',
+    introNarrative: 'The ferry docks in an unfamiliar harbor. Your editor back home wired ahead — the celebrated writer {WRITER} vanished three weeks ago, and the local press has gone quiet. You clutch the thin dossier in your coat pocket. It is not much to go on, but it is a start.',
+    outroNarrative: 'The editor at the local paper regards you with cautious respect. "You are the foreign reporter, yes? {WRITER} was last seen near the old quarter. Ask the people there — they remember everything." Your investigation has begun.',
   },
   {
-    id: 'ch2_settling_in',
+    id: 'ch2_following_the_trail',
     number: 2,
-    title: 'Settling In',
-    description: 'Make yourself at home. Learn to navigate the town and handle daily errands.',
+    title: 'Following the Trail',
+    description: 'Explore the town where {WRITER} was last seen. Talk to locals who knew the writer, visit the bookshop to find their first published work, and piece together the writer\'s final days.',
     requiredCefrLevel: 'A1',
     objectives: [
       {
-        id: 'ch2_navigation',
-        title: 'Learn Your Way',
-        description: 'Complete navigation-related quests to learn the layout of town.',
+        id: 'ch2_explore_town',
+        title: 'Walk the Writer\'s Steps',
+        description: 'Explore key locations in town — the café, the bookshop, the park where the writer used to sit.',
         questType: 'vocabulary',
         requiredCount: 2,
         chainTemplateId: 'town-explorer',
       },
       {
-        id: 'ch2_shopping',
-        title: 'Market Trips',
-        description: 'Successfully complete purchases at the market.',
+        id: 'ch2_interview_locals',
+        title: 'Interview the Locals',
+        description: 'Speak with townspeople who remember the writer. Listen for useful details.',
         questType: 'conversation',
-        requiredCount: 2,
-        chainTemplateId: 'market-day',
+        requiredCount: 3,
       },
       {
-        id: 'ch2_grammar',
-        title: 'Getting the Grammar',
-        description: 'Complete grammar-focused quests to improve your sentence structure.',
+        id: 'ch2_find_first_book',
+        title: 'The Writer\'s First Book',
+        description: 'Find a copy of the writer\'s first book at the local bookshop or library.',
+        questType: 'conversation',
+        requiredCount: 1,
+      },
+      {
+        id: 'ch2_read_signs',
+        title: 'Read the Town',
+        description: 'Read signs and notices around town to build your vocabulary.',
+        questType: 'vocabulary',
+        requiredCount: 2,
+      },
+      {
+        id: 'ch2_grammar_basics',
+        title: 'Getting the Basics Right',
+        description: 'Complete grammar exercises to communicate more clearly.',
         questType: 'grammar',
         requiredCount: 2,
       },
     ],
     completionBonusXP: 500,
-    introNarrative: 'The port town is starting to feel familiar. Time to explore further and make this place your own.',
-    outroNarrative: 'You can navigate the market, ask for directions, and hold basic conversations. This town is starting to feel like home.',
+    introNarrative: 'The editor hands you a faded photograph of {WRITER} — sharp eyes, ink-stained fingers, a half-smile. "This was taken at the Café du Pont, two days before the disappearance. Start there." You fold the photo carefully and step into the rain-washed streets.',
+    outroNarrative: 'A bookseller slid a worn first edition across the counter. "Everybody loved this one," she said. "But the last book — that one made people nervous." You leaf through it under a streetlamp. Something is written in pencil on the inside cover: a date and the words "the garden remembers."',
   },
   {
-    id: 'ch3_making_friends',
+    id: 'ch3_the_inner_circle',
     number: 3,
-    title: 'Making Friends',
-    description: 'Deepen your connections. Engage in more complex conversations and earn trust.',
+    title: 'The Inner Circle',
+    description: 'Gain the trust of {WRITER}\'s associates — the editor, a wealthy patron, a reclusive neighbor. Each knows a piece of the puzzle. The writer was researching something controversial before vanishing.',
     requiredCefrLevel: 'A2',
     objectives: [
       {
-        id: 'ch3_deep_conversations',
-        title: 'Deeper Connections',
-        description: 'Have extended conversations with NPCs about their lives.',
+        id: 'ch3_befriend_editor',
+        title: 'The Editor\'s Confidence',
+        description: 'Build rapport with the writer\'s editor to learn about unpublished manuscripts.',
         questType: 'conversation',
-        requiredCount: 5,
+        requiredCount: 3,
       },
       {
-        id: 'ch3_vocabulary',
-        title: 'Expanding Vocabulary',
-        description: 'Learn and use new vocabulary across multiple categories.',
+        id: 'ch3_meet_patron',
+        title: 'The Patron\'s Parlor',
+        description: 'Meet the wealthy patron who funded the writer\'s work. They seem evasive.',
+        questType: 'conversation',
+        requiredCount: 2,
+      },
+      {
+        id: 'ch3_neighbor_gossip',
+        title: 'Whispers Next Door',
+        description: 'Talk to the writer\'s neighbor, who noticed strange visitors before the disappearance.',
+        questType: 'conversation',
+        requiredCount: 2,
+      },
+      {
+        id: 'ch3_collect_documents',
+        title: 'Gather Documents',
+        description: 'Collect letters and journal pages the writer left behind.',
         questType: 'vocabulary',
-        requiredCount: 4,
+        requiredCount: 3,
       },
       {
-        id: 'ch3_quests_for_npcs',
-        title: 'Helping Hands',
-        description: 'Complete quests given by NPCs to build rapport.',
-        questType: 'fetch',
+        id: 'ch3_deepen_vocabulary',
+        title: 'Expand Your Vocabulary',
+        description: 'Learn new words to understand the more complex conversations you are having.',
+        questType: 'vocabulary',
         requiredCount: 3,
       },
     ],
     completionBonusXP: 750,
-    introNarrative: 'The locals are warming up to you, but deeper friendships require deeper conversations. Time to truly connect.',
-    outroNarrative: 'The townspeople consider you one of their own. Your words carry weight here now.',
+    introNarrative: 'Your notebook is filling up. The writer\'s editor reluctantly agreed to a meeting. The neighbor peers through curtains whenever you pass. And the patron — rumored to be the writer\'s biggest supporter — has declined two invitations. But you are patient. You are a reporter, and the truth is always there for those who ask the right questions in the right language.',
+    outroNarrative: 'The patron finally let something slip over tea: "{WRITER} was writing about the old families — their secrets, their debts. Not everyone wanted those stories told." The neighbor confirmed it: late-night visitors, hushed arguments. The writer was not just writing fiction. They were documenting the truth.',
   },
   {
-    id: 'ch4_the_wider_world',
+    id: 'ch4_hidden_messages',
     number: 4,
-    title: 'The Wider World',
-    description: 'Your reputation opens new doors. Travel beyond the town and face new challenges.',
+    title: 'Hidden Messages',
+    description: 'The writer left coded messages in their books — allusions, anagrams, hidden references. Follow the clues beyond the main settlement to places the writer visited in secret.',
     requiredCefrLevel: 'A2',
     objectives: [
       {
-        id: 'ch4_travel',
-        title: 'Beyond the Town',
-        description: 'Visit new settlements and navigate unfamiliar territory.',
-        questType: 'conversation',
-        requiredCount: 4,
-      },
-      {
-        id: 'ch4_cultural',
-        title: 'Cultural Exchange',
-        description: 'Participate in cultural events and learn traditions.',
+        id: 'ch4_decode_clues',
+        title: 'Decode the Clues',
+        description: 'Read the writer\'s books carefully and identify the hidden references.',
         questType: 'vocabulary',
         requiredCount: 3,
       },
       {
-        id: 'ch4_translation',
-        title: 'Bridge Between Worlds',
-        description: 'Help translate for others who need assistance.',
+        id: 'ch4_travel_beyond',
+        title: 'Beyond the Town Walls',
+        description: 'Follow the clues to locations outside the main settlement.',
+        questType: 'conversation',
+        requiredCount: 3,
+      },
+      {
+        id: 'ch4_interview_outsiders',
+        title: 'New Witnesses',
+        description: 'Talk to people in neighboring areas who may have seen the writer.',
+        questType: 'conversation',
+        requiredCount: 3,
+      },
+      {
+        id: 'ch4_translation_work',
+        title: 'Translate the Evidence',
+        description: 'Translate difficult passages from the writer\'s coded notes.',
         questType: 'grammar',
         requiredCount: 3,
+      },
+      {
+        id: 'ch4_photograph_locations',
+        title: 'Document Your Findings',
+        description: 'Use your vocabulary to describe and document the locations you visit.',
+        questType: 'vocabulary',
+        requiredCount: 2,
       },
     ],
     completionBonusXP: 1000,
-    introNarrative: 'Word of your skills has spread. Travelers and merchants seek you out. The world beyond the town walls awaits.',
-    outroNarrative: 'You move between towns with ease, a bridge between cultures. Your journey is far from over.',
+    introNarrative: 'You sit at the writer\'s favorite café table, books spread before you. A passage leaps off the page: "The lighthouse keeper knows what the tide brought in." But there is no lighthouse in this town. You check the map — there is one, twenty kilometers east, on a rocky stretch of coast. The trail leads outward.',
+    outroNarrative: 'At a remote farmhouse you found a loose floorboard, and under it, a bundle of letters. {WRITER} had been meeting someone here, trading pages of a manuscript for information. The final letter reads: "They are watching the house. I must go somewhere they cannot follow. Burn this." You did not burn it.',
   },
   {
-    id: 'ch5_the_scholar',
+    id: 'ch5_the_truth_emerges',
     number: 5,
-    title: 'The Scholar',
-    description: 'Master the language. Engage with scholars, debate ideas, and become a teacher yourself.',
+    title: 'The Truth Emerges',
+    description: 'With advanced language skills, piece together the full story. Debate scholars who analyzed the writer\'s work, confront the patron, and discover that {WRITER} went into hiding voluntarily — to protect something.',
     requiredCefrLevel: 'B1',
     objectives: [
       {
-        id: 'ch5_debates',
+        id: 'ch5_scholar_debates',
         title: 'Scholarly Debates',
-        description: 'Engage in debates and discussions with educated NPCs.',
+        description: 'Engage with scholars who analyzed the writer\'s controversial work.',
         questType: 'conversation',
-        requiredCount: 5,
+        requiredCount: 4,
+      },
+      {
+        id: 'ch5_confront_patron',
+        title: 'Confront the Patron',
+        description: 'Present your evidence to the patron and demand the truth.',
+        questType: 'conversation',
+        requiredCount: 2,
       },
       {
         id: 'ch5_advanced_grammar',
-        title: 'Mastering Grammar',
-        description: 'Complete advanced grammar challenges.',
+        title: 'Master Complex Language',
+        description: 'Demonstrate mastery of advanced grammar to navigate difficult conversations.',
         questType: 'grammar',
         requiredCount: 4,
       },
       {
-        id: 'ch5_teaching',
-        title: 'Passing It On',
-        description: 'Help newcomers learn the basics of the language by teaching them vocabulary and phrases.',
-        questType: 'teaching',
+        id: 'ch5_piece_together',
+        title: 'Assemble the Evidence',
+        description: 'Review and connect all collected documents and testimony.',
+        questType: 'vocabulary',
         requiredCount: 3,
+      },
+      {
+        id: 'ch5_confidant_meeting',
+        title: 'The Writer\'s Confidant',
+        description: 'Find and speak with the writer\'s closest friend, who holds the last piece of the puzzle.',
+        questType: 'conversation',
+        requiredCount: 2,
       },
     ],
     completionBonusXP: 1500,
-    introNarrative: 'The scholars have taken notice of your progress. They invite you to the university district for greater challenges.',
-    outroNarrative: 'You speak with confidence and nuance. The scholars call you one of their own.',
+    introNarrative: 'Your desk at the boarding house is covered in notes, photographs, and pages torn from books. Red thread connects the pins on your map. The patron, the scholars, the secret meetings — it all points to one conclusion: {WRITER} was not taken. They chose to disappear. But why? And where did they go? The confidant — the writer\'s oldest friend — may be the only one who knows.',
+    outroNarrative: 'The confidant looked at you for a long time. Then she spoke: "{WRITER} found proof — real proof — of what the old families did. They wanted it destroyed. So the writer hid — and hid the manuscript with them. If you truly want to find {WRITER}, go to the place where the first story was written." You know exactly where that is.',
   },
   {
-    id: 'ch6_fluent_citizen',
+    id: 'ch6_the_final_chapter',
     number: 6,
-    title: 'Fluent Citizen',
-    description: 'You are now a respected member of this world. Use your mastery for the greater good.',
+    title: 'The Final Chapter',
+    description: 'You know where {WRITER} is hiding. Travel there, have the culminating conversation in the target language, and decide together how this story ends. Then write and file your report.',
     requiredCefrLevel: 'B2',
     objectives: [
       {
-        id: 'ch6_leadership',
-        title: 'Community Leader',
-        description: 'Take on leadership roles that require advanced communication.',
+        id: 'ch6_find_the_writer',
+        title: 'Find the Writer',
+        description: 'Travel to the place where it all began and locate the missing writer.',
         questType: 'conversation',
-        requiredCount: 5,
+        requiredCount: 2,
       },
       {
-        id: 'ch6_mastery',
-        title: 'Language Mastery',
-        description: 'Demonstrate mastery across all skill areas.',
+        id: 'ch6_final_conversation',
+        title: 'The Full Story',
+        description: 'Have the culminating conversation with the writer — entirely in the target language.',
+        questType: 'conversation',
+        requiredCount: 3,
+      },
+      {
+        id: 'ch6_write_report',
+        title: 'File Your Report',
+        description: 'Write your story, summarizing everything you learned, in the target language.',
         questType: 'vocabulary',
-        requiredCount: 5,
+        requiredCount: 3,
+      },
+      {
+        id: 'ch6_language_mastery',
+        title: 'Demonstrate Mastery',
+        description: 'Show your command of the language across all skill areas.',
+        questType: 'vocabulary',
+        requiredCount: 3,
       },
     ],
     completionBonusXP: 2000,
-    introNarrative: 'You have come so far. The people look to you as a leader and a bridge between worlds. One final chapter awaits.',
-    outroNarrative: 'You have achieved true fluency. This world is yours, and your story will be told for generations.',
+    introNarrative: 'The road winds uphill past olive groves and crumbling stone walls. A cottage sits at the edge of a cliff overlooking the sea — smoke curling from the chimney. A typewriter clacks inside. You take a breath and knock. The door opens, and there stands {WRITER}, alive and well, with ink on their fingers and a story they have been waiting to tell.',
+    outroNarrative: 'Your article runs on the front page of both papers — the one back home and the one here. {WRITER}\'s manuscript is published at last, to great acclaim and some controversy. The patron sends a stiff letter of congratulations. The editor smiles. The neighbor waves. You walk the cobblestone streets one more time, fluent in the language and known to everyone. This place is no longer foreign. It is home.',
   },
 ];
+
+// ── Utility functions ───────────────────────────────────────────────────────
 
 const CEFR_ORDER: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2'];
 
@@ -290,7 +506,7 @@ export function narrativeBeatId(type: NarrativeBeatType, chapterId: string): str
 /** Create initial main quest state — chapter 1 is available */
 export function createInitialMainQuestState(): MainQuestState {
   return {
-    currentChapterId: 'ch1_arrival',
+    currentChapterId: 'ch1_assignment_abroad',
     chapters: MAIN_QUEST_CHAPTERS.map((ch, index) => ({
       chapterId: ch.id,
       status: index === 0 ? 'active' : 'locked',
@@ -323,4 +539,29 @@ export function isChapterComplete(
   return chapter.objectives.every(
     obj => (progress.objectiveProgress[obj.id] ?? 0) >= obj.requiredCount,
   );
+}
+
+/**
+ * Replace {WRITER} placeholders in narrative text with the actual writer name.
+ */
+export function resolveNarrativeText(
+  text: string,
+  writerName: WriterNameEntry,
+): string {
+  return text.replace(/\{WRITER\}/g, writerName.fullName);
+}
+
+/**
+ * Get a chapter with all narrative text resolved for a specific world.
+ */
+export function getResolvedChapter(
+  chapter: MainQuestChapter,
+  writerName: WriterNameEntry,
+): MainQuestChapter {
+  return {
+    ...chapter,
+    description: resolveNarrativeText(chapter.description, writerName),
+    introNarrative: resolveNarrativeText(chapter.introNarrative, writerName),
+    outroNarrative: resolveNarrativeText(chapter.outroNarrative, writerName),
+  };
 }

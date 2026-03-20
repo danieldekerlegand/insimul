@@ -6,6 +6,11 @@ import {
   getChapterCompletionPercent,
   isChapterComplete,
   getChapterById,
+  getWriterName,
+  getWriterNamesForLanguage,
+  resolveNarrativeText,
+  getResolvedChapter,
+  WRITER_PLACEHOLDER,
   type ChapterProgress,
 } from '../quest/main-quest-chapters';
 
@@ -33,6 +38,13 @@ describe('MAIN_QUEST_CHAPTERS', () => {
     }
   });
 
+  it('each chapter has 4-6 objectives', () => {
+    for (const ch of MAIN_QUEST_CHAPTERS) {
+      expect(ch.objectives.length).toBeGreaterThanOrEqual(4);
+      expect(ch.objectives.length).toBeLessThanOrEqual(6);
+    }
+  });
+
   it('CEFR requirements increase monotonically', () => {
     const cefrOrder = ['A1', 'A2', 'B1', 'B2'];
     let prevIndex = 0;
@@ -52,6 +64,35 @@ describe('MAIN_QUEST_CHAPTERS', () => {
         expect(obj.requiredCount).toBeGreaterThan(0);
       }
     }
+  });
+
+  it('uses the Missing Writer narrative theme', () => {
+    expect(MAIN_QUEST_CHAPTERS[0].id).toBe('ch1_assignment_abroad');
+    expect(MAIN_QUEST_CHAPTERS[0].title).toBe('Assignment Abroad');
+    expect(MAIN_QUEST_CHAPTERS[5].id).toBe('ch6_the_final_chapter');
+    expect(MAIN_QUEST_CHAPTERS[5].title).toBe('The Final Chapter');
+  });
+
+  it('narrative text contains writer placeholder', () => {
+    // At least some chapters should reference {WRITER}
+    const chaptersWithWriter = MAIN_QUEST_CHAPTERS.filter(
+      ch => ch.introNarrative.includes(WRITER_PLACEHOLDER) ||
+            ch.outroNarrative.includes(WRITER_PLACEHOLDER) ||
+            ch.description.includes(WRITER_PLACEHOLDER),
+    );
+    expect(chaptersWithWriter.length).toBeGreaterThan(0);
+  });
+
+  it('mixes quest types across chapters', () => {
+    const allTypes = new Set<string>();
+    for (const ch of MAIN_QUEST_CHAPTERS) {
+      for (const obj of ch.objectives) {
+        allTypes.add(obj.questType);
+      }
+    }
+    expect(allTypes.has('vocabulary')).toBe(true);
+    expect(allTypes.has('conversation')).toBe(true);
+    expect(allTypes.has('grammar')).toBe(true);
   });
 });
 
@@ -92,7 +133,7 @@ describe('meetsChapterCefrRequirement', () => {
 describe('createInitialMainQuestState', () => {
   it('starts with chapter 1 active', () => {
     const state = createInitialMainQuestState();
-    expect(state.currentChapterId).toBe('ch1_arrival');
+    expect(state.currentChapterId).toBe('ch1_assignment_abroad');
     expect(state.totalXPEarned).toBe(0);
   });
 
@@ -118,13 +159,14 @@ describe('createInitialMainQuestState', () => {
 });
 
 describe('getChapterCompletionPercent', () => {
-  const chapter = MAIN_QUEST_CHAPTERS[0]; // ch1: 2 vocab + 3 conversation = 5 total
+  // ch1: greetings(2) + ask_around(3) + visit_newspaper(1) + collect_vocabulary(2) = 8 total
+  const chapter = MAIN_QUEST_CHAPTERS[0];
 
   it('returns 0 for no progress', () => {
     const progress: ChapterProgress = {
       chapterId: chapter.id,
       status: 'active',
-      objectiveProgress: { ch1_greetings: 0, ch1_conversations: 0 },
+      objectiveProgress: Object.fromEntries(chapter.objectives.map(o => [o.id, 0])),
     };
     expect(getChapterCompletionPercent(chapter, progress)).toBe(0);
   });
@@ -133,17 +175,27 @@ describe('getChapterCompletionPercent', () => {
     const progress: ChapterProgress = {
       chapterId: chapter.id,
       status: 'active',
-      objectiveProgress: { ch1_greetings: 1, ch1_conversations: 1 },
+      objectiveProgress: {
+        ch1_greetings: 1,
+        ch1_ask_around: 1,
+        ch1_visit_newspaper: 0,
+        ch1_collect_vocabulary: 0,
+      },
     };
-    // 2 out of 5 = 40%
-    expect(getChapterCompletionPercent(chapter, progress)).toBe(40);
+    // 2 out of 8 = 25%
+    expect(getChapterCompletionPercent(chapter, progress)).toBe(25);
   });
 
   it('returns 100 for full completion', () => {
     const progress: ChapterProgress = {
       chapterId: chapter.id,
       status: 'active',
-      objectiveProgress: { ch1_greetings: 2, ch1_conversations: 3 },
+      objectiveProgress: {
+        ch1_greetings: 2,
+        ch1_ask_around: 3,
+        ch1_visit_newspaper: 1,
+        ch1_collect_vocabulary: 2,
+      },
     };
     expect(getChapterCompletionPercent(chapter, progress)).toBe(100);
   });
@@ -152,7 +204,12 @@ describe('getChapterCompletionPercent', () => {
     const progress: ChapterProgress = {
       chapterId: chapter.id,
       status: 'active',
-      objectiveProgress: { ch1_greetings: 10, ch1_conversations: 10 },
+      objectiveProgress: {
+        ch1_greetings: 10,
+        ch1_ask_around: 10,
+        ch1_visit_newspaper: 10,
+        ch1_collect_vocabulary: 10,
+      },
     };
     expect(getChapterCompletionPercent(chapter, progress)).toBe(100);
   });
@@ -165,7 +222,12 @@ describe('isChapterComplete', () => {
     const progress: ChapterProgress = {
       chapterId: chapter.id,
       status: 'active',
-      objectiveProgress: { ch1_greetings: 1, ch1_conversations: 3 },
+      objectiveProgress: {
+        ch1_greetings: 1,
+        ch1_ask_around: 3,
+        ch1_visit_newspaper: 1,
+        ch1_collect_vocabulary: 2,
+      },
     };
     expect(isChapterComplete(chapter, progress)).toBe(false);
   });
@@ -174,7 +236,12 @@ describe('isChapterComplete', () => {
     const progress: ChapterProgress = {
       chapterId: chapter.id,
       status: 'active',
-      objectiveProgress: { ch1_greetings: 2, ch1_conversations: 3 },
+      objectiveProgress: {
+        ch1_greetings: 2,
+        ch1_ask_around: 3,
+        ch1_visit_newspaper: 1,
+        ch1_collect_vocabulary: 2,
+      },
     };
     expect(isChapterComplete(chapter, progress)).toBe(true);
   });
@@ -183,7 +250,12 @@ describe('isChapterComplete', () => {
     const progress: ChapterProgress = {
       chapterId: chapter.id,
       status: 'active',
-      objectiveProgress: { ch1_greetings: 5, ch1_conversations: 10 },
+      objectiveProgress: {
+        ch1_greetings: 5,
+        ch1_ask_around: 10,
+        ch1_visit_newspaper: 5,
+        ch1_collect_vocabulary: 10,
+      },
     };
     expect(isChapterComplete(chapter, progress)).toBe(true);
   });
@@ -191,12 +263,99 @@ describe('isChapterComplete', () => {
 
 describe('getChapterById', () => {
   it('finds existing chapter', () => {
-    const ch = getChapterById('ch1_arrival');
+    const ch = getChapterById('ch1_assignment_abroad');
     expect(ch).toBeDefined();
-    expect(ch!.title).toBe('Arrival');
+    expect(ch!.title).toBe('Assignment Abroad');
   });
 
   it('returns undefined for nonexistent chapter', () => {
     expect(getChapterById('nonexistent')).toBeUndefined();
+  });
+});
+
+describe('getWriterName', () => {
+  it('returns a French name for French language', () => {
+    const name = getWriterName('french', 'test-world-123');
+    expect(name.firstName).toBeTruthy();
+    expect(name.lastName).toBeTruthy();
+    expect(name.fullName).toBeTruthy();
+    expect(name.fullName).toContain(name.firstName);
+  });
+
+  it('returns deterministic result for same worldId', () => {
+    const name1 = getWriterName('french', 'world-abc');
+    const name2 = getWriterName('french', 'world-abc');
+    expect(name1.fullName).toBe(name2.fullName);
+  });
+
+  it('may return different results for different worldIds', () => {
+    // With enough different IDs, we should get at least 2 distinct names
+    const names = new Set<string>();
+    for (let i = 0; i < 20; i++) {
+      names.add(getWriterName('french', `world-${i}`).fullName);
+    }
+    expect(names.size).toBeGreaterThan(1);
+  });
+
+  it('returns a Spanish name for Spanish language', () => {
+    const name = getWriterName('spanish', 'test-world');
+    expect(name.fullName).toBeTruthy();
+  });
+
+  it('returns fallback name for unknown language', () => {
+    const name = getWriterName('klingon', 'test-world');
+    expect(name.fullName).toBeTruthy();
+  });
+
+  it('is case insensitive', () => {
+    const name1 = getWriterName('French', 'test-world');
+    const name2 = getWriterName('french', 'test-world');
+    expect(name1.fullName).toBe(name2.fullName);
+  });
+});
+
+describe('getWriterNamesForLanguage', () => {
+  it('returns pool of names for known language', () => {
+    const names = getWriterNamesForLanguage('french');
+    expect(names.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('returns fallback pool for unknown language', () => {
+    const names = getWriterNamesForLanguage('esperanto');
+    expect(names.length).toBeGreaterThan(0);
+  });
+});
+
+describe('resolveNarrativeText', () => {
+  it('replaces {WRITER} with full name', () => {
+    const name = { firstName: 'Émile', lastName: 'Beaumont', fullName: 'Émile Beaumont' };
+    const text = 'The writer {WRITER} vanished.';
+    expect(resolveNarrativeText(text, name)).toBe('The writer Émile Beaumont vanished.');
+  });
+
+  it('replaces multiple occurrences', () => {
+    const name = { firstName: 'Émile', lastName: 'Beaumont', fullName: 'Émile Beaumont' };
+    const text = '{WRITER} said "{WRITER} will return."';
+    expect(resolveNarrativeText(text, name)).toBe('Émile Beaumont said "Émile Beaumont will return."');
+  });
+
+  it('returns text unchanged when no placeholder', () => {
+    const name = { firstName: 'Émile', lastName: 'Beaumont', fullName: 'Émile Beaumont' };
+    const text = 'No placeholder here.';
+    expect(resolveNarrativeText(text, name)).toBe('No placeholder here.');
+  });
+});
+
+describe('getResolvedChapter', () => {
+  it('resolves all narrative fields', () => {
+    const name = { firstName: 'Émile', lastName: 'Beaumont', fullName: 'Émile Beaumont' };
+    const chapter = MAIN_QUEST_CHAPTERS[0];
+    const resolved = getResolvedChapter(chapter, name);
+
+    expect(resolved.description).not.toContain('{WRITER}');
+    expect(resolved.introNarrative).not.toContain('{WRITER}');
+    expect(resolved.outroNarrative).not.toContain('{WRITER}');
+    // Original should be unchanged
+    expect(chapter.introNarrative).toContain('{WRITER}');
   });
 });
