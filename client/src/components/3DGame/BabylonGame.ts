@@ -95,6 +95,7 @@ import { VRHUDManager } from "@/components/3DGame/VRHUDManager.ts";
 import { VRCombatAdapter } from "@/components/3DGame/VRCombatAdapter.ts";
 import { BabylonVocabularyPanel } from "@/components/3DGame/BabylonVocabularyPanel.ts";
 import { BuildingSignManager, BuildingSignData } from "@/components/3DGame/BuildingSignManager.ts";
+import { getResidenceSign, getBusinessSign } from "@shared/language/world-sign-provider";
 import { LanguageGamificationTracker } from "@/components/3DGame/LanguageGamificationTracker.ts";
 import { QuestCompletionManager } from "@/components/3DGame/QuestCompletionManager.ts";
 import { QuestAutoCompletionDetector } from "@/components/3DGame/QuestAutoCompletionDetector.ts";
@@ -3562,18 +3563,24 @@ export class BabylonGame {
           this.buildingInfoDisplay?.registerBuilding(building);
 
           // Create bilingual building sign (language-learning worlds)
-          if (this.buildingSignManager && business.name) {
+          if (this.buildingSignManager) {
             const tracker = this.chatPanel?.getLanguageTracker();
             if (tracker) {
               this.buildingSignManager.setPlayerFluency(tracker.getFluency());
             }
-            this.buildingSignManager.createBuildingSign(building, {
-              buildingId: business.id,
-              nativeName: business.businessType || 'Business',
-              targetName: business.name,
-              buildingType: 'business',
-              businessType: business.businessType,
-            });
+            const lang = (this.worldData as any)?.targetLanguage || '';
+            const signEntry = lang ? getBusinessSign(lang, business.id, business.businessType || '', business.name) : null;
+            const targetName = signEntry?.targetText || business.name;
+            if (targetName) {
+              this.buildingSignManager.createBuildingSign(building, {
+                buildingId: business.id,
+                nativeName: business.businessType || 'Business',
+                targetName,
+                targetDetail: signEntry?.detailText,
+                buildingType: 'business',
+                businessType: business.businessType,
+              });
+            }
           }
 
         }
@@ -3682,6 +3689,25 @@ export class BabylonGame {
 
           // Register building for hover info display
           this.buildingInfoDisplay?.registerBuilding(building);
+
+          // Create bilingual residence sign (language-learning worlds)
+          if (this.buildingSignManager) {
+            const tracker = this.chatPanel?.getLanguageTracker();
+            if (tracker) {
+              this.buildingSignManager.setPlayerFluency(tracker.getFluency());
+            }
+            const lang = (this.worldData as any)?.targetLanguage || '';
+            const resType = (residence as any).residenceType || residenceType;
+            const signEntry = lang ? getResidenceSign(lang, residence.id, resType) : null;
+            if (signEntry) {
+              this.buildingSignManager.createBuildingSign(building, {
+                buildingId: residence.id,
+                nativeName: signEntry.nativeText,
+                targetName: signEntry.targetText,
+                buildingType: 'residence',
+              });
+            }
+          }
         }
 
         // Collect DB lots not yet claimed by a business or residence for auto-fill
