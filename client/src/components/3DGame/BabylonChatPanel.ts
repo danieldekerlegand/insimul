@@ -549,7 +549,13 @@ export class BabylonChatPanel {
         learningLang,
         this.playthroughId || undefined
       );
-      // Start tracking this conversation so endConversation() produces a result
+      // Load persisted progress from server, then start tracking conversation
+      this.languageTracker.loadFromServer().then(() => {
+        this.languageTracker?.startServerSync(60_000);
+      }).catch(() => {
+        // Still start sync even if load fails
+        this.languageTracker?.startServerSync(60_000);
+      });
       this.languageTracker.startConversation(this.character.id, this.character.firstName || this.character.name || 'NPC');
     }
 
@@ -3911,6 +3917,11 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
   }
 
   public dispose() {
+    // Final sync + stop periodic sync
+    if (this.languageTracker) {
+      this.languageTracker.syncToServer().catch(() => {});
+      this.languageTracker.stopServerSync();
+    }
     this.disableHandsFreeMode();
     this.stopAllAudio();
     // Clean up gRPC streaming resources

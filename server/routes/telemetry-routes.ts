@@ -125,6 +125,70 @@ export function createTelemetryRoutes(storage: any): Router {
     }
   });
 
+  // ============= VOCABULARY CRUD =============
+
+  // GET /api/vocabulary/:playerId/:worldId — get all vocabulary entries
+  router.get('/vocabulary/:playerId/:worldId', async (req: Request, res: Response) => {
+    try {
+      const { playerId, worldId } = req.params;
+      const playthroughId = req.query.playthroughId as string | undefined;
+      const entries = await storage.getVocabularyEntries(playerId, worldId, playthroughId);
+      res.json(entries);
+    } catch (error) {
+      console.error('Get vocabulary error:', error);
+      res.status(500).json({ message: 'Failed to get vocabulary entries' });
+    }
+  });
+
+  // PUT /api/vocabulary/:playerId/:worldId/:word — upsert a single vocabulary entry
+  router.put('/vocabulary/:playerId/:worldId/:word', async (req: Request, res: Response) => {
+    try {
+      const { playerId, worldId, word } = req.params;
+      const playthroughId = req.query.playthroughId as string | undefined;
+      const data = req.body;
+      if (!data || typeof data !== 'object') {
+        return res.status(400).json({ message: 'Request body must be an object' });
+      }
+      const entry = await storage.upsertVocabularyEntry(playerId, worldId, decodeURIComponent(word), data, playthroughId);
+      res.json(entry);
+    } catch (error) {
+      console.error('Upsert vocabulary error:', error);
+      res.status(500).json({ message: 'Failed to upsert vocabulary entry' });
+    }
+  });
+
+  // ============= GRAMMAR PATTERNS CRUD =============
+
+  // GET /api/grammar-patterns/:playerId/:worldId — get all grammar patterns
+  router.get('/grammar-patterns/:playerId/:worldId', async (req: Request, res: Response) => {
+    try {
+      const { playerId, worldId } = req.params;
+      const playthroughId = req.query.playthroughId as string | undefined;
+      const patterns = await storage.getGrammarPatterns(playerId, worldId, playthroughId);
+      res.json(patterns);
+    } catch (error) {
+      console.error('Get grammar patterns error:', error);
+      res.status(500).json({ message: 'Failed to get grammar patterns' });
+    }
+  });
+
+  // PUT /api/grammar-patterns/:playerId/:worldId/:pattern — upsert a single grammar pattern
+  router.put('/grammar-patterns/:playerId/:worldId/:pattern', async (req: Request, res: Response) => {
+    try {
+      const { playerId, worldId, pattern } = req.params;
+      const playthroughId = req.query.playthroughId as string | undefined;
+      const data = req.body;
+      if (!data || typeof data !== 'object') {
+        return res.status(400).json({ message: 'Request body must be an object' });
+      }
+      const entry = await storage.upsertGrammarPattern(playerId, worldId, decodeURIComponent(pattern), data, playthroughId);
+      res.json(entry);
+    } catch (error) {
+      console.error('Upsert grammar pattern error:', error);
+      res.status(500).json({ message: 'Failed to upsert grammar pattern' });
+    }
+  });
+
   // ============= EVALUATION (US-5.02) =============
 
   // POST /api/evaluation/:studyId/response — submit instrument response
