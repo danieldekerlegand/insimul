@@ -9,6 +9,11 @@ import { storage } from '../db/storage.js';
 import * as PlaythroughOverlay from './playthrough-overlay.js';
 import type { CEFRLevel } from '../../shared/assessment/cefr-mapping.js';
 import {
+  createMainQuestRecord,
+  completeMainQuestRecord,
+  updateMainQuestObjectiveProgress,
+} from './main-quest-records.js';
+import {
   MAIN_QUEST_CHAPTERS,
   type MainQuestState,
   type ChapterProgress,
@@ -149,10 +154,19 @@ export class MainQuestProgressionManager {
     // Check if chapter is now complete
     let chapterAdvance: ChapterAdvanceResult | undefined;
     if (isChapterComplete(chapter, chapterProgress)) {
-      chapterAdvance = this.advanceChapter(state, chapter, chapterProgress, playerCefrLevel);
+      chapterAdvance = await this.advanceChapter(state, chapter, chapterProgress, playerCefrLevel, worldId, playerId);
     }
 
     await this.saveMainQuestState(worldId, playerId, state, playthroughId);
+
+    // Sync quest record objective progress
+    try {
+      await updateMainQuestObjectiveProgress(
+        worldId, playerId, chapter.id, chapterProgress.objectiveProgress, chapter,
+      );
+    } catch (err) {
+      console.error('[MainQuest] Failed to update quest record progress:', err);
+    }
 
     return {
       updated: true,
@@ -166,13 +180,16 @@ export class MainQuestProgressionManager {
 
   /**
    * Advance to the next chapter after completing the current one.
+   * Creates/completes Quest records to keep the quest system in sync.
    */
-  private advanceChapter(
+  private async advanceChapter(
     state: MainQuestState,
     completedChapter: MainQuestChapter,
     completedProgress: ChapterProgress,
     playerCefrLevel: CEFRLevel | null,
-  ): ChapterAdvanceResult {
+    worldId?: string,
+    playerId?: string,
+  ): Promise<ChapterAdvanceResult> {
     completedProgress.status = 'completed';
     completedProgress.completedAt = new Date().toISOString();
     state.totalXPEarned += completedChapter.completionBonusXP;
@@ -209,7 +226,36 @@ export class MainQuestProgressionManager {
       state.currentChapterId = null; // All chapters complete
     }
 
+    // Sync quest records: complete old chapter, create next
+    if (worldId && playerId) {
+      try {
+        await completeMainQuestRecord(worldId, playerId, completedChapter.id);
+
+        if (result.nextChapterId) {
+          const nextChapter = MAIN_QUEST_CHAPTERS.find(ch => ch.id === result.nextChapterId);
+          if (nextChapter) {
+            const targetLanguage = await this.getWorldTargetLanguage(worldId);
+            await createMainQuestRecord(worldId, playerId, nextChapter, targetLanguage);
+          }
+        }
+      } catch (err) {
+        console.error('[MainQuest] Failed to sync quest records on chapter advance:', err);
+      }
+    }
+
     return result;
+  }
+
+  /**
+   * Get the target language for a world.
+   */
+  private async getWorldTargetLanguage(worldId: string): Promise<string> {
+    try {
+      const world = await storage.getWorld(worldId);
+      return world?.targetLanguage || 'French';
+    } catch {
+      return 'French';
+    }
   }
 
   /**
@@ -235,11 +281,43 @@ export class MainQuestProgressionManager {
         cp.startedAt = new Date().toISOString();
         state.currentChapterId = chapter.id;
         await this.saveMainQuestState(worldId, playerId, state, playthroughId);
+
+        // Create quest record for the newly activated chapter
+        try {
+          const targetLanguage = await this.getWorldTargetLanguage(worldId);
+          await createMainQuestRecord(worldId, playerId, chapter, targetLanguage);
+        } catch (err) {
+          console.error('[MainQuest] Failed to create quest record on unlock:', err);
+        }
+
         return chapter;
       }
     }
 
     return null;
+  }
+
+  /**
+   * Ensure the currently active chapter has a Quest record.
+   * Called lazily on first access to bridge existing states.
+   */
+  async ensureActiveChapterHasQuestRecord(
+    worldId: string,
+    playerId: string,
+    playthroughId?: string,
+  ): Promise<void> {
+    const state = await this.getMainQuestState(worldId, playerId, playthroughId);
+    if (!state.currentChapterId) return;
+
+    const chapter = getChapterById(state.currentChapterId);
+    if (!chapter) return;
+
+    try {
+      const targetLanguage = await this.getWorldTargetLanguage(worldId);
+      await createMainQuestRecord(worldId, playerId, chapter, targetLanguage);
+    } catch (err) {
+      console.error('[MainQuest] Failed to ensure quest record:', err);
+    }
   }
 
   /**

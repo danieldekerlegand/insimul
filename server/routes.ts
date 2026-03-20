@@ -10488,6 +10488,8 @@ Make the action names thematic and immersive.`;
       const cefrLevel = (req.query.cefrLevel as string) || null;
       const playthroughId = req.query.playthroughId as string | undefined;
       const { mainQuestProgressionManager } = await import('./services/main-quest-progression.js');
+      // Lazily ensure the active chapter has a proper quest record
+      await mainQuestProgressionManager.ensureActiveChapterHasQuestRecord(worldId, playerId, playthroughId);
       const summary = await mainQuestProgressionManager.getJournalSummary(
         worldId,
         playerId,

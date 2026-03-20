@@ -4,6 +4,7 @@ import {
   getDifficultyStars,
   getDifficultyColor,
   getQuestIcon,
+  isMainQuest,
   calculateObjectivesProgress,
   calculateCriteriaProgress,
   formatDistance,
@@ -490,6 +491,48 @@ describe('BabylonQuestTracker pure functions', () => {
         makeQuest({ questType: 'vocabulary' }),
       ];
       expect(getUniqueQuestTypes(quests)).toEqual(['grammar', 'vocabulary']);
+    });
+  });
+
+  describe('main quest support', () => {
+    describe('getQuestTypeColor', () => {
+      it('returns gold for main_quest type', () => {
+        expect(getQuestTypeColor('main_quest')).toBe('#FFD700');
+      });
+    });
+
+    describe('getQuestIcon', () => {
+      it('returns crown emoji for main_quest type', () => {
+        expect(getQuestIcon('main_quest')).toBe('\u{1F451}');
+      });
+    });
+
+    describe('isMainQuest', () => {
+      it('identifies quest by questType', () => {
+        const quest = makeQuest({ questType: 'main_quest' });
+        expect(isMainQuest(quest)).toBe(true);
+      });
+
+      it('identifies quest by tags', () => {
+        const quest = makeQuest({ questType: 'vocabulary', tags: ['main_quest', 'chapter:1'] });
+        expect(isMainQuest(quest)).toBe(true);
+      });
+
+      it('returns false for regular quests', () => {
+        const quest = makeQuest({ questType: 'vocabulary' });
+        expect(isMainQuest(quest)).toBe(false);
+      });
+
+      it('returns false for quests with empty tags', () => {
+        const quest = makeQuest({ questType: 'vocabulary', tags: [] });
+        expect(isMainQuest(quest)).toBe(false);
+      });
+
+      it('returns false when tags is undefined', () => {
+        const quest = makeQuest({ questType: 'vocabulary' });
+        delete (quest as any).tags;
+        expect(isMainQuest(quest)).toBe(false);
+      });
     });
   });
 });
