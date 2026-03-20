@@ -2300,6 +2300,22 @@ export class BabylonGame {
         duration: 2500,
       });
     });
+    this.buildingSignManager.setOnVocabularyLookup((event) => {
+      // Track as a passive vocabulary encounter
+      const tracker = this.chatPanel?.getLanguageTracker();
+      if (tracker) {
+        tracker.addVocabularyWord(event.word, event.meaning, event.category);
+      }
+      this.eventBus.emit({
+        type: 'vocabulary_lookup',
+        word: event.word,
+        meaning: event.meaning,
+        category: event.category,
+        source: event.source,
+        objectId: event.objectId,
+        dwellMs: event.dwellMs,
+      });
+    });
 
     // Initialize gamification tracker (XP, achievements, daily challenges)
     this.gamificationTracker = new LanguageGamificationTracker();

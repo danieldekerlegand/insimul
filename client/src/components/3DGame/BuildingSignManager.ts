@@ -47,15 +47,31 @@ const SIGN_COLORS: Record<string, { bg: string; border: string; text: string }> 
   municipal: { bg: 'rgba(50, 30, 50, 0.85)', border: '#a868a8', text: '#e0c0e0' },
 };
 
+export interface VocabularyLookupEvent {
+  word: string;
+  meaning: string;
+  category?: string;
+  source: 'hover_object' | 'hover_sign';
+  objectId: string;
+  dwellMs: number;
+}
+
+/** Minimum hover duration (ms) before a lookup is tracked. */
+const HOVER_DWELL_THRESHOLD_MS = 500;
+
 export class BuildingSignManager {
   private scene: Scene;
   private signMeshes: Map<string, Mesh> = new Map();
   private objectLabels: Map<string, { mesh: Mesh; visible: boolean }> = new Map();
   private playerFluency: number = 0;
 
+  // Hover tracking: objectId → timestamp when hover started
+  private hoverStartTimes: Map<string, number> = new Map();
+
   // Callbacks
   private onSignClicked: ((data: BuildingSignData) => void) | null = null;
   private onObjectInteracted: ((data: InteractiveObjectData) => void) | null = null;
+  private onVocabularyLookup: ((event: VocabularyLookupEvent) => void) | null = null;
 
   constructor(scene: Scene) {
     this.scene = scene;
@@ -265,18 +281,20 @@ export class BuildingSignManager {
     // Start hidden — show on hover
     plane.isVisible = false;
 
-    // Hover to show label
+    // Hover to show label and track vocabulary lookup
     if (!objectMesh.actionManager) {
       objectMesh.actionManager = new ActionManager(this.scene);
     }
     objectMesh.actionManager.registerAction(
       new ExecuteCodeAction(ActionManager.OnPointerOverTrigger, () => {
         plane.isVisible = true;
+        this.hoverStartTimes.set(data.objectId, Date.now());
       })
     );
     objectMesh.actionManager.registerAction(
       new ExecuteCodeAction(ActionManager.OnPointerOutTrigger, () => {
         plane.isVisible = false;
+        this.emitLookupIfDwelled(data, 'hover_object');
       })
     );
 
@@ -317,7 +335,32 @@ export class BuildingSignManager {
     this.onObjectInteracted = cb;
   }
 
+  public setOnVocabularyLookup(cb: (event: VocabularyLookupEvent) => void): void {
+    this.onVocabularyLookup = cb;
+  }
+
   // --- Helpers ---
+
+  /**
+   * Emit a vocabulary_lookup event if the player hovered long enough to read the translation.
+   */
+  private emitLookupIfDwelled(data: InteractiveObjectData, source: 'hover_object' | 'hover_sign'): void {
+    const startTime = this.hoverStartTimes.get(data.objectId);
+    this.hoverStartTimes.delete(data.objectId);
+    if (!startTime) return;
+
+    const dwellMs = Date.now() - startTime;
+    if (dwellMs < HOVER_DWELL_THRESHOLD_MS) return;
+
+    this.onVocabularyLookup?.({
+      word: data.targetWord,
+      meaning: data.nativeWord,
+      category: data.category,
+      source,
+      objectId: data.objectId,
+      dwellMs,
+    });
+  }
 
   private roundRect(
     ctx: CanvasRenderingContext2D,
@@ -341,5 +384,6 @@ export class BuildingSignManager {
     this.signMeshes.clear();
     this.objectLabels.forEach(({ mesh }) => mesh.dispose());
     this.objectLabels.clear();
+    this.hoverStartTimes.clear();
   }
 }

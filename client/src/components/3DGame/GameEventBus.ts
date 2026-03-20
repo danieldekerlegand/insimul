@@ -145,7 +145,9 @@ export type GameEvent =
   | { type: 'food_ordered'; itemId: string; itemName: string; quantity: number; merchantId: string; merchantName: string; businessType: string }
   | { type: 'price_haggled'; itemId: string; itemName: string; merchantId: string; merchantName: string; typedWord: string; targetWord: string }
   // Text collection events
-  | { type: 'text_collected'; textId: string; title: string; textType: string; difficulty: string; vocabularyWordCount: number };
+  | { type: 'text_collected'; textId: string; title: string; textType: string; difficulty: string; vocabularyWordCount: number }
+  // Vocabulary hover-lookup events
+  | { type: 'vocabulary_lookup'; word: string; meaning: string; category?: string; source: 'hover_object' | 'hover_sign'; objectId: string; dwellMs: number };
 
 export type GameEventType = GameEvent['type'];
 
