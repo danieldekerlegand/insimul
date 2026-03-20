@@ -77,6 +77,15 @@ export interface MinimapData {
     title: string;
     position: { x: number; z: number };
   }>;
+  questObjectiveMarkers?: Array<{
+    id: string;
+    questTitle: string;
+    objectiveType: string;
+    objectiveDescription: string;
+    position: { x: number; z: number };
+    color: string;
+    shape: 'diamond' | 'circle';
+  }>;
   questItemMarkers?: Array<{
     id: string;
     itemName: string;
@@ -2028,6 +2037,35 @@ export class BabylonGUIManager {
         questMarker.top = `${qz}px`;
         mapContainer.addControl(questMarker);
         this._minimapDynamicControls.push(questMarker);
+      }
+    }
+
+    // Draw quest objective markers (type-specific colors and shapes)
+    if (data.questObjectiveMarkers) {
+      for (const obj of data.questObjectiveMarkers) {
+        const [ox, oz] = toMap(obj.position.x, obj.position.z);
+        if (Math.abs(ox) > mapHalf || Math.abs(oz) > mapHalf) continue;
+
+        const objDotSize = Math.max(4, Math.round(8 * zoomDotScale));
+        let objMarker: Rectangle | Ellipse;
+
+        if (obj.shape === 'diamond') {
+          objMarker = new Rectangle(`obj-${obj.id}`);
+          objMarker.cornerRadius = 1;
+          objMarker.rotation = Math.PI / 4;
+        } else {
+          objMarker = new Ellipse(`obj-${obj.id}`);
+        }
+
+        objMarker.width = `${objDotSize}px`;
+        objMarker.height = `${objDotSize}px`;
+        objMarker.background = obj.color;
+        objMarker.color = '#FFFFFF';
+        objMarker.thickness = 1;
+        objMarker.left = `${ox}px`;
+        objMarker.top = `${oz}px`;
+        mapContainer.addControl(objMarker);
+        this._minimapDynamicControls.push(objMarker);
       }
     }
 
