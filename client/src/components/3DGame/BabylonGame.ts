@@ -131,6 +131,7 @@ import { NPCInitiatedConversationController } from "@/components/3DGame/NPCIniti
 import { NPCSocializationController } from "@/components/3DGame/NPCSocializationController.ts";
 import type { SocializableNPC, ConversationResult } from "@/components/3DGame/NPCSocializationController.ts";
 import { BuildingInteriorGenerator, InteriorLayout } from "@/components/3DGame/BuildingInteriorGenerator.ts";
+import { FurnitureModelLoader } from "@/components/3DGame/FurnitureModelLoader.ts";
 import { InteriorItemManager } from "@/components/3DGame/InteriorItemManager.ts";
 import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo, type MenuJournalData } from "@/components/3DGame/GameMenuSystem.ts";
 import { MainMenuScreen, type PlaythroughInfo } from "@/components/3DGame/MainMenuScreen.ts";
@@ -634,6 +635,7 @@ export class BabylonGame {
 
   // Phase 4: Building interiors
   private interiorGenerator: BuildingInteriorGenerator | null = null;
+  private furnitureModelLoader: FurnitureModelLoader | null = null;
   private activeInterior: InteriorLayout | null = null;
   private savedOverworldPosition: Vector3 | null = null;
   private savedOverworldRotationY: number = 0;
@@ -3439,6 +3441,13 @@ export class BabylonGame {
           this.questObjectManager.registerQuestModelTemplate(role, template);
         }
       }
+    }
+
+    // Furniture models: preload glTF templates for building interior furniture
+    if (this.interiorGenerator && scene) {
+      this.furnitureModelLoader = new FurnitureModelLoader(scene);
+      await this.furnitureModelLoader.loadAll();
+      this.interiorGenerator.setFurnitureLoader(this.furnitureModelLoader);
     }
   }
 
@@ -11884,6 +11893,8 @@ export class BabylonGame {
     this.interiorItemManager?.dispose();
     this.interiorItemManager = null;
     this.interiorGenerator?.dispose();
+    this.furnitureModelLoader?.dispose();
+    this.furnitureModelLoader = null;
     this.activeInterior = null;
     this.savedOverworldPosition = null;
     this.isInsideBuilding = false;
