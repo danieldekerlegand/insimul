@@ -103,6 +103,8 @@ const EVENT_DAY_CHANGED := "day_changed"
 const EVENT_TIME_OF_DAY_CHANGED := "time_of_day_changed"
 # NPC relationship events
 const EVENT_NPC_RELATIONSHIP_CHANGED := "npc_relationship_changed"
+# Container events
+const EVENT_CONTAINER_OPENED := "container_opened"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -161,6 +163,8 @@ const VALID_EVENT_TYPES: Array[String] = [
 	EVENT_TIME_OF_DAY_CHANGED,
 	# NPC relationship events
 	EVENT_NPC_RELATIONSHIP_CHANGED,
+	# Container events
+	EVENT_CONTAINER_OPENED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.
