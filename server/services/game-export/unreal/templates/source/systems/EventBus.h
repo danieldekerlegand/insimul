@@ -116,7 +116,11 @@ enum class EInsimulEventType : uint8
     ContainerOpened UMETA(DisplayName = "Container Opened"),
     // Escort quest events
     EscortStarted UMETA(DisplayName = "Escort Started"),
-    EscortCompleted UMETA(DisplayName = "Escort Completed")
+    EscortCompleted UMETA(DisplayName = "Escort Completed"),
+    // Mercantile events
+    ItemPurchased UMETA(DisplayName = "Item Purchased"),
+    FoodOrdered UMETA(DisplayName = "Food Ordered"),
+    PriceHaggled UMETA(DisplayName = "Price Haggled")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────

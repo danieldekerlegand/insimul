@@ -115,6 +115,10 @@ const EVENT_CONTAINER_OPENED := "container_opened"
 # Escort quest events
 const EVENT_ESCORT_STARTED := "escort_started"
 const EVENT_ESCORT_COMPLETED := "escort_completed"
+# Mercantile events
+const EVENT_ITEM_PURCHASED := "item_purchased"
+const EVENT_FOOD_ORDERED := "food_ordered"
+const EVENT_PRICE_HAGGLED := "price_haggled"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -181,6 +185,10 @@ const VALID_EVENT_TYPES: Array[String] = [
 	# Escort quest events
 	EVENT_ESCORT_STARTED,
 	EVENT_ESCORT_COMPLETED,
+	# Mercantile events
+	EVENT_ITEM_PURCHASED,
+	EVENT_FOOD_ORDERED,
+	EVENT_PRICE_HAGGLED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.

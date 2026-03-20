@@ -1554,6 +1554,15 @@ export class QuestObjectManager {
     this.completionEngine.trackCollectedItemByName(itemName, questId);
   }
 
+  public trackFoodOrdered(itemName: string, merchantId: string, businessType: string, questId?: string) {
+    this.completionEngine.trackFoodOrdered(itemName, merchantId, businessType, questId);
+  }
+
+  public trackPriceHaggled(itemName: string, merchantId: string, typedWord: string, questId?: string) {
+    this.completionEngine.trackPriceHaggled(itemName, merchantId, typedWord, questId);
+  }
+
+
   /**
    * Track item delivery - when talking to an NPC while holding the quest item
    */

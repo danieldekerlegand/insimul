@@ -9153,6 +9153,40 @@ export class BabylonGame {
 
     // Check quest objectives for item collection
     this.questObjectManager?.trackCollectedItemByName(item.name);
+
+    // Emit mercantile events for quest tracking
+    const merchantId = transaction.merchantId || '';
+    const merchantName = transaction.merchantName || '';
+    const businessType = transaction.businessType;
+
+    if (merchantId) {
+      this.eventBus.emit({
+        type: 'item_purchased', itemId: item.id, itemName: item.name,
+        quantity: transaction.quantity, totalPrice: transaction.totalPrice,
+        merchantId, merchantName, businessType,
+      });
+
+      // Food ordering at food-serving businesses
+      const foodBusinessTypes = new Set(['Restaurant', 'Bar', 'Bakery', 'GroceryStore', 'Farm', 'Brewery']);
+      const isFoodItem = item.type === 'food' || item.type === 'drink';
+      if (isFoodItem && businessType && foodBusinessTypes.has(businessType)) {
+        this.eventBus.emit({
+          type: 'food_ordered', itemId: item.id, itemName: item.name,
+          quantity: transaction.quantity, merchantId, merchantName, businessType,
+        });
+        this.questObjectManager?.trackFoodOrdered(item.name, merchantId, businessType);
+      }
+
+      // Price haggling: typed the item name in target language
+      if (transaction.typedInTargetLanguage && transaction.typedWord && transaction.targetWord) {
+        this.eventBus.emit({
+          type: 'price_haggled', itemId: item.id, itemName: item.name,
+          merchantId, merchantName,
+          typedWord: transaction.typedWord, targetWord: transaction.targetWord,
+        });
+        this.questObjectManager?.trackPriceHaggled(item.name, merchantId, transaction.typedWord);
+      }
+    }
   }
 
   private handleShopSell(transaction: ShopTransaction): void {

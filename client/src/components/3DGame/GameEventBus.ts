@@ -137,7 +137,11 @@ export type GameEvent =
   | { type: 'container_opened'; containerId: string; containerType: string; buildingId?: string; location: 'interior' | 'outdoor'; itemCount: number }
   // Escort quest events
   | { type: 'escort_started'; questId: string; objectiveId: string; npcId: string; npcName?: string; destinationX: number; destinationZ: number }
-  | { type: 'escort_completed'; questId: string; objectiveId: string; npcId: string };
+  | { type: 'escort_completed'; questId: string; objectiveId: string; npcId: string }
+  // Mercantile events
+  | { type: 'item_purchased'; itemId: string; itemName: string; quantity: number; totalPrice: number; merchantId: string; merchantName: string; businessType?: string }
+  | { type: 'food_ordered'; itemId: string; itemName: string; quantity: number; merchantId: string; merchantName: string; businessType: string }
+  | { type: 'price_haggled'; itemId: string; itemName: string; merchantId: string; merchantName: string; typedWord: string; targetWord: string };
 
 export type GameEventType = GameEvent['type'];
 

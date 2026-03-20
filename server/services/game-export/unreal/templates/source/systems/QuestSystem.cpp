@@ -366,6 +366,42 @@ void UQuestSystem::TrackTeachPhrase(const FString& NpcId, const FString& Phrase,
     }
 }
 
+void UQuestSystem::TrackFoodOrdered(const FString& ItemName, const FString& MerchantId, const FString& BusinessType, const FString& QuestId)
+{
+    for (auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+        if (!QuestId.IsEmpty() && Obj.QuestId != QuestId) continue;
+        if (Obj.Type != TEXT("order_food")) continue;
+
+        Obj.CurrentCount++;
+
+        if (Obj.CurrentCount >= (Obj.RequiredCount > 0 ? Obj.RequiredCount : 1))
+        {
+            Obj.bCompleted = true;
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Food order objective completed: %s"), *Obj.Id);
+        }
+    }
+}
+
+void UQuestSystem::TrackPriceHaggled(const FString& ItemName, const FString& MerchantId, const FString& TypedWord, const FString& QuestId)
+{
+    for (auto& Obj : Objectives)
+    {
+        if (Obj.bCompleted) continue;
+        if (!QuestId.IsEmpty() && Obj.QuestId != QuestId) continue;
+        if (Obj.Type != TEXT("haggle_price")) continue;
+
+        Obj.CurrentCount++;
+
+        if (Obj.CurrentCount >= (Obj.RequiredCount > 0 ? Obj.RequiredCount : 1))
+        {
+            Obj.bCompleted = true;
+            UE_LOG(LogTemp, Log, TEXT("[Insimul] Price haggle objective completed: %s"), *Obj.Id);
+        }
+    }
+}
+
 void UQuestSystem::CheckDirectionProximity(const FVector& PlayerPos)
 {
     for (auto& Obj : Objectives)

@@ -80,6 +80,15 @@ export interface ShopTransaction {
   item: ShopItem | InventoryItem;
   quantity: number;
   totalPrice: number;
+  merchantId?: string;
+  merchantName?: string;
+  businessType?: string;
+  /** True when player typed the item name in target language to buy */
+  typedInTargetLanguage?: boolean;
+  /** The word the player typed (in target language) */
+  typedWord?: string;
+  /** The expected target-language word */
+  targetWord?: string;
 }
 
 /** Language-learning configuration for the shop */
@@ -751,7 +760,8 @@ export class BabylonShopPanel {
           if (this.fuzzyMatch(typed, capturedTranslatedName)) {
             // Correct! Execute purchase
             const qty = this.selectedQuantities.get(capturedQtyKey) || 1;
-            this.executeTransaction('buy', capturedItem, qty, capturedItem.buyPrice * qty);
+            this.executeTransaction('buy', capturedItem, qty, capturedItem.buyPrice * qty,
+              { typedWord: typed, targetWord: capturedTranslatedName });
             inputField.text = '';
           } else {
             this.showStatus(`Not quite! Try again... (hint: ${capturedTranslatedName})`, '#f39c12');
@@ -773,7 +783,8 @@ export class BabylonShopPanel {
         const typed = inputField.text;
         if (this.fuzzyMatch(typed, capturedTranslatedName)) {
           const qty = this.selectedQuantities.get(capturedQtyKey) || 1;
-          this.executeTransaction('buy', capturedItem, qty, capturedItem.buyPrice * qty);
+          this.executeTransaction('buy', capturedItem, qty, capturedItem.buyPrice * qty,
+            { typedWord: typed, targetWord: capturedTranslatedName });
           inputField.text = '';
         } else {
           this.showStatus(`Not quite! Try again... (hint: ${capturedTranslatedName})`, '#f39c12');
@@ -866,9 +877,18 @@ export class BabylonShopPanel {
     type: 'buy' | 'sell',
     item: ShopItem,
     quantity: number,
-    totalPrice: number
+    totalPrice: number,
+    typedPurchase?: { typedWord: string; targetWord: string }
   ): void {
-    const transaction: ShopTransaction = { type, item, quantity, totalPrice };
+    const transaction: ShopTransaction = {
+      type, item, quantity, totalPrice,
+      merchantId: this.merchantConfig?.merchantId,
+      merchantName: this.merchantConfig?.merchantName,
+      businessType: this.merchantConfig?.businessType,
+      typedInTargetLanguage: !!typedPurchase,
+      typedWord: typedPurchase?.typedWord,
+      targetWord: typedPurchase?.targetWord,
+    };
 
     if (type === 'buy') {
       if (this.playerGold < totalPrice) {

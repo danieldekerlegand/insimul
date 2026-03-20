@@ -98,6 +98,10 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         // Escort quest events
         { TEXT("escort_started"),                    EInsimulEventType::EscortStarted },
         { TEXT("escort_completed"),                  EInsimulEventType::EscortCompleted },
+        // Mercantile events
+        { TEXT("item_purchased"),                    EInsimulEventType::ItemPurchased },
+        { TEXT("food_ordered"),                      EInsimulEventType::FoodOrdered },
+        { TEXT("price_haggled"),                     EInsimulEventType::PriceHaggled },
     };
     return Map;
 }
