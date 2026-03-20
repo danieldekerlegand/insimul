@@ -104,7 +104,7 @@ import { BabylonConversationHistoryPanel } from "@/components/3DGame/BabylonConv
 import { BabylonSkillTreePanel } from "@/components/3DGame/BabylonSkillTreePanel.ts";
 import { EnvironmentalAudioManager } from "@/components/3DGame/EnvironmentalAudioManager.ts";
 import { CulturalEventManager } from "@/components/3DGame/CulturalEventManager.ts";
-import { BabylonNoticeBoardPanel, SAMPLE_ARTICLES, type NoticeArticle } from "@/components/3DGame/BabylonNoticeBoardPanel.ts";
+import { BabylonNoticeBoardPanel, type NoticeArticle } from "@/components/3DGame/BabylonNoticeBoardPanel.ts";
 import { SettlementNoticeBoard } from "@/components/3DGame/SettlementNoticeBoard.ts";
 import { generateSettlementNotices, type NPCAuthorInfo } from "@/components/3DGame/NoticeGenerator.ts";
 import { ContentGatingManager } from "@/components/3DGame/ContentGatingManager.ts";
@@ -1724,7 +1724,7 @@ export class BabylonGame {
       getNoticeArticles: () => {
         const tracker = this.chatPanel?.getLanguageTracker() || this.languageProgressTracker;
         return {
-          articles: SAMPLE_ARTICLES,
+          articles: this.noticeBoardPanel?.getArticles() || [],
           playerFluency: tracker ? tracker.getFluency() : 0,
         };
       },
