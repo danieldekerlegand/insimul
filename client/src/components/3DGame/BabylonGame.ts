@@ -6393,6 +6393,30 @@ export class BabylonGame {
           } : undefined
         );
 
+        // Assign NPC to settlement zone for boundary confinement
+        {
+          // Determine settlement from work or home building metadata
+          let npcSettlementId: string | undefined;
+          if (workBuildingId) {
+            npcSettlementId = this.buildingData.get(workBuildingId)?.metadata?.settlementId;
+          }
+          if (!npcSettlementId && homeBuildingId) {
+            npcSettlementId = this.buildingData.get(homeBuildingId)?.metadata?.settlementId;
+          }
+          if (npcSettlementId) {
+            const zoneData = this.zoneBoundaryMeshes.get(npcSettlementId);
+            const settlementMesh = this.settlementMeshes.get(npcSettlementId);
+            if (zoneData?.zoneRadius && settlementMesh) {
+              this.npcScheduleSystem.setNPCSettlement(
+                character.id,
+                npcSettlementId,
+                settlementMesh.position,
+                zoneData.zoneRadius
+              );
+            }
+          }
+        }
+
         // Register with Volition System for spontaneous goal formation
         const volitionPersonality = {
           openness: personality?.openness ?? personality?.Openness ?? 0.5,
@@ -8020,6 +8044,16 @@ export class BabylonGame {
     if (this.npcScheduleSystem.hasStreetData()) {
       const entry = this.npcScheduleSystem.getEntry(characterId);
 
+      // Boundary confinement: if NPC has drifted outside their settlement, redirect them back
+      if (!this.npcScheduleSystem.isWithinNPCBounds(characterId, currentPos)) {
+        const clamped = this.npcScheduleSystem.clampToSettlementBounds(characterId, currentPos);
+        const path = this.npcScheduleSystem.findSidewalkPath(currentPos, clamped);
+        instance.schedulePathWaypoints = path.length > 0 ? path : [clamped];
+        instance.schedulePathIndex = 0;
+        instance.scheduleGoalExpiry = now + 30000; // Give 30s to return
+        if (entry) entry.currentGoal = { type: 'wander_sidewalk', expiresAt: now + 30000 };
+      }
+
       // Pick a new goal if none or expired
       if (!entry?.currentGoal || now >= (instance.scheduleGoalExpiry || 0)) {
         const goal = this.npcScheduleSystem.pickNextGoal(characterId, now);
@@ -8035,8 +8069,8 @@ export class BabylonGame {
           instance.schedulePathWaypoints = path;
           instance.schedulePathIndex = 0;
         } else if (goal.type === 'wander_sidewalk' || goal.type === 'idle_at_building') {
-          // Pick a random sidewalk destination (idle_at_building also wanders if no building)
-          const target = this.npcScheduleSystem.getRandomSidewalkTarget();
+          // Pick a random sidewalk destination within the NPC's settlement bounds
+          const target = this.npcScheduleSystem.getRandomSidewalkTarget(characterId);
           if (target) {
             const path = this.npcScheduleSystem.findSidewalkPath(currentPos, target);
             instance.schedulePathWaypoints = path;
@@ -8174,9 +8208,9 @@ export class BabylonGame {
       }
     }
 
-    // Fallback: random sidewalk destination for explore/wander/other
+    // Fallback: random sidewalk destination within NPC's settlement bounds
     if (!destination) {
-      destination = this.npcScheduleSystem.getRandomSidewalkTarget();
+      destination = this.npcScheduleSystem.getRandomSidewalkTarget(characterId);
     }
 
     if (destination && this.npcScheduleSystem.hasStreetData()) {

@@ -39,6 +39,13 @@ export interface NPCPersonality {
   neuroticism?: number;
 }
 
+/** Settlement zone boundary for NPC confinement */
+export interface NPCSettlementZone {
+  center: Vector3;
+  radius: number;
+  settlementId: string;
+}
+
 export interface NPCScheduleEntry {
   npcId: string;
   currentGoal: NPCGoal | null;
@@ -55,6 +62,8 @@ export interface NPCScheduleEntry {
   friendBuildingIds?: string[];
   /** Big Five personality traits that influence schedule choices */
   personality?: NPCPersonality;
+  /** Settlement zone this NPC is confined to */
+  settlementZone?: NPCSettlementZone;
 }
 
 interface BuildingInfo {
@@ -612,10 +621,78 @@ export class NPCScheduleSystem {
   }
 
   /**
-   * Pick a random sidewalk destination for wandering.
+   * Assign a settlement zone to an NPC for boundary confinement.
    */
-  public getRandomSidewalkTarget(): Vector3 | null {
+  public setNPCSettlement(npcId: string, settlementId: string, center: Vector3, radius: number): void {
+    const entry = this.schedules.get(npcId);
+    if (entry) {
+      entry.settlementZone = { center: center.clone(), radius, settlementId };
+    }
+  }
+
+  /**
+   * Check if a position is within an NPC's settlement boundary.
+   */
+  public isWithinNPCBounds(npcId: string, position: Vector3): boolean {
+    const entry = this.schedules.get(npcId);
+    if (!entry?.settlementZone) return true; // No zone = no constraint
+    const zone = entry.settlementZone;
+    const dx = position.x - zone.center.x;
+    const dz = position.z - zone.center.z;
+    return (dx * dx + dz * dz) <= zone.radius * zone.radius;
+  }
+
+  /**
+   * Clamp a position to the NPC's settlement boundary.
+   * Returns the position if inside, or the nearest point on the boundary if outside.
+   */
+  public clampToSettlementBounds(npcId: string, position: Vector3): Vector3 {
+    const entry = this.schedules.get(npcId);
+    if (!entry?.settlementZone) return position.clone();
+    const zone = entry.settlementZone;
+    const dx = position.x - zone.center.x;
+    const dz = position.z - zone.center.z;
+    const distSq = dx * dx + dz * dz;
+    if (distSq <= zone.radius * zone.radius) return position.clone();
+    // Clamp to boundary edge with small inward margin
+    const dist = Math.sqrt(distSq);
+    const margin = Math.min(2.0, zone.radius * 0.05);
+    const scale = (zone.radius - margin) / dist;
+    return new Vector3(
+      zone.center.x + dx * scale,
+      position.y,
+      zone.center.z + dz * scale
+    );
+  }
+
+  /**
+   * Pick a random sidewalk destination for wandering.
+   * If npcId is provided, constrains to the NPC's settlement zone.
+   */
+  public getRandomSidewalkTarget(npcId?: string): Vector3 | null {
     if (this.sidewalkNodes.length === 0) return null;
+
+    // If NPC has a settlement zone, filter to nodes within bounds
+    const entry = npcId ? this.schedules.get(npcId) : undefined;
+    const zone = entry?.settlementZone;
+
+    if (zone) {
+      const candidates: Vector3[] = [];
+      const rSq = zone.radius * zone.radius;
+      for (const node of this.sidewalkNodes) {
+        const dx = node.x - zone.center.x;
+        const dz = node.z - zone.center.z;
+        if (dx * dx + dz * dz <= rSq) {
+          candidates.push(node);
+        }
+      }
+      if (candidates.length > 0) {
+        return candidates[Math.floor(Math.random() * candidates.length)].clone();
+      }
+      // Fallback: no sidewalk nodes in zone, return zone center
+      return zone.center.clone();
+    }
+
     const idx = Math.floor(Math.random() * this.sidewalkNodes.length);
     return this.sidewalkNodes[idx].clone();
   }
