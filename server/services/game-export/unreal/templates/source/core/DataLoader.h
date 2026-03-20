@@ -101,6 +101,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadWorldItems();
 
+    /** Load containers.json (container definitions). */
+    UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
+    FString LoadContainers();
+
     /** Load base resources configuration. */
     UFUNCTION(BlueprintCallable, Category = "Insimul|DataLoader")
     FString LoadBaseResources();

@@ -58,6 +58,10 @@ export interface DataSource {
   getMerchantInventory(worldId: string, merchantId: string): Promise<any>;
   loadPrologContent(worldId: string): Promise<string | null>;
   loadWorldItems(worldId: string): Promise<any[]>;
+  loadContainers(worldId: string): Promise<any[]>;
+  loadContainersByLocation(worldId: string, location: { businessId?: string; residenceId?: string; lotId?: string }): Promise<any[]>;
+  updateContainer(containerId: string, data: any): Promise<any>;
+  transferContainerItem(containerId: string, transfer: { itemId: string; itemName?: string; quantity?: number; direction: 'deposit' | 'withdraw' }): Promise<any>;
   saveGameState(worldId: string, playthroughId: string, slotIndex: number, state: any): Promise<void>;
   loadGameState(worldId: string, playthroughId: string, slotIndex: number): Promise<any | null>;
   deleteGameState(worldId: string, playthroughId: string, slotIndex: number): Promise<void>;
@@ -419,6 +423,38 @@ export class ApiDataSource implements DataSource {
   async loadWorldItems(worldId: string): Promise<any[]> {
     const res = await fetch(`/api/worlds/${worldId}/items`, { headers: this.getHeaders() });
     return res.ok ? await res.json() : [];
+  }
+
+  async loadContainers(worldId: string): Promise<any[]> {
+    const res = await fetch(`/api/worlds/${worldId}/containers`, { headers: this.getHeaders() });
+    return res.ok ? await res.json() : [];
+  }
+
+  async loadContainersByLocation(worldId: string, location: { businessId?: string; residenceId?: string; lotId?: string }): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (location.businessId) params.set('businessId', location.businessId);
+    if (location.residenceId) params.set('residenceId', location.residenceId);
+    if (location.lotId) params.set('lotId', location.lotId);
+    const res = await fetch(`/api/worlds/${worldId}/containers/by-location?${params}`, { headers: this.getHeaders() });
+    return res.ok ? await res.json() : [];
+  }
+
+  async updateContainer(containerId: string, data: any): Promise<any> {
+    const res = await fetch(`/api/containers/${containerId}`, {
+      method: 'PUT',
+      headers: { ...this.getHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return res.ok ? await res.json() : null;
+  }
+
+  async transferContainerItem(containerId: string, transfer: { itemId: string; itemName?: string; quantity?: number; direction: 'deposit' | 'withdraw' }): Promise<any> {
+    const res = await fetch(`/api/containers/${containerId}/transfer`, {
+      method: 'POST',
+      headers: { ...this.getHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(transfer),
+    });
+    return res.ok ? await res.json() : null;
   }
 
   async loadPrologContent(worldId: string): Promise<string | null> {
@@ -1166,6 +1202,22 @@ export class FileDataSource implements DataSource {
     } catch {
       return [];
     }
+  }
+
+  async loadContainers(_worldId: string): Promise<any[]> {
+    return [];
+  }
+
+  async loadContainersByLocation(_worldId: string, _location: { businessId?: string; residenceId?: string; lotId?: string }): Promise<any[]> {
+    return [];
+  }
+
+  async updateContainer(_containerId: string, _data: any): Promise<any> {
+    return null;
+  }
+
+  async transferContainerItem(_containerId: string, _transfer: { itemId: string; itemName?: string; quantity?: number; direction: 'deposit' | 'withdraw' }): Promise<any> {
+    return null;
   }
 
   async saveGameState(_worldId: string, _playthroughId: string, slotIndex: number, state: any): Promise<void> {

@@ -745,6 +745,43 @@ export interface TradeTransaction {
   timestamp: number;
 }
 
+// ─── Containers ─────────────────────────────────────────────────────────────
+
+export type ContainerType = 'chest' | 'cupboard' | 'barrel' | 'crate' | 'wardrobe' | 'shelf' | 'safe' | 'sack';
+
+export interface ContainerItem {
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  metadata?: Record<string, any>;
+}
+
+export interface Container {
+  id: string;
+  worldId: string;
+  name: string;
+  containerType: ContainerType;
+  capacity: number; // max number of item slots
+  items: ContainerItem[];
+  locked: boolean;
+  lockDifficulty?: number; // 0-100, for lockpicking
+  keyItemId?: string; // item ID that unlocks this container
+  // Location
+  businessId?: string;
+  residenceId?: string;
+  lotId?: string;
+  positionX?: number;
+  positionY?: number;
+  positionZ?: number;
+  rotationY?: number;
+  // Visual
+  objectRole?: string; // maps to asset collection model key
+  // Loot respawn
+  respawns: boolean;
+  respawnTimeMinutes?: number;
+  lastOpenedAt?: string;
+}
+
 // ─── Loot Tables ────────────────────────────────────────────────────────────
 
 export interface LootTableEntry {

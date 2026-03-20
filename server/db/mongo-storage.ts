@@ -47,6 +47,8 @@ import {
   type InsertPlayTrace,
   type Item,
   type InsertItem,
+  type Container as ContainerSchema,
+  type InsertContainer,
   type Reputation,
   type InsertReputation,
   type PlaythroughRelationship,
@@ -119,6 +121,10 @@ interface QuestDoc extends Omit<Quest, 'id'>, Document {
 }
 
 interface ItemDoc extends Omit<Item, 'id'>, Document {
+  _id: string;
+}
+
+interface ContainerDoc extends Omit<ContainerSchema, 'id'>, Document {
   _id: string;
 }
 
@@ -573,6 +579,35 @@ const ItemSchema = new Schema({
 
 ItemSchema.index({ worldId: 1 });
 ItemSchema.index({ isBase: 1, worldType: 1 });
+
+const ContainerSchema = new Schema({
+  worldId: { type: String, required: true },
+  name: { type: String, required: true },
+  containerType: { type: String, required: true },
+  capacity: { type: Number, default: 10 },
+  items: { type: Schema.Types.Mixed, default: [] },
+  locked: { type: Boolean, default: false },
+  lockDifficulty: { type: Number, default: null },
+  keyItemId: { type: String, default: null },
+  businessId: { type: String, default: null },
+  residenceId: { type: String, default: null },
+  lotId: { type: String, default: null },
+  positionX: { type: Number, default: null },
+  positionY: { type: Number, default: null },
+  positionZ: { type: Number, default: null },
+  rotationY: { type: Number, default: null },
+  objectRole: { type: String, default: null },
+  respawns: { type: Boolean, default: false },
+  respawnTimeMinutes: { type: Number, default: null },
+  lastOpenedAt: { type: Date, default: null },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+ContainerSchema.index({ worldId: 1 });
+ContainerSchema.index({ worldId: 1, businessId: 1 });
+ContainerSchema.index({ worldId: 1, residenceId: 1 });
+ContainerSchema.index({ worldId: 1, lotId: 1 });
 
 const VisualAssetSchema = new Schema({
   worldId: { type: String, default: null },
@@ -1201,6 +1236,7 @@ TruthSchema.index({ worldId: 1, playthroughId: 1 });
 const TruthModel = mongoose.model<TruthDoc>('Truth', TruthSchema);
 const QuestModel = mongoose.model<QuestDoc>('Quest', QuestSchema);
 const ItemModel = mongoose.model<ItemDoc>('Item', ItemSchema);
+const ContainerModel = mongoose.model<ContainerDoc>('Container', ContainerSchema);
 const VisualAssetModel = mongoose.model<VisualAssetDoc>('VisualAsset', VisualAssetSchema);
 const AssetCollectionModel = mongoose.model<AssetCollectionDoc>('AssetCollection', AssetCollectionSchema);
 const GenerationJobModel = mongoose.model<GenerationJobDoc>('GenerationJob', GenerationJobSchema);
@@ -1331,6 +1367,10 @@ function docToQuest(doc: QuestDoc): Quest {
 }
 
 function docToItem(doc: ItemDoc): Item {
+  return { ...doc.toObject(), id: doc._id.toString() };
+}
+
+function docToContainer(doc: ContainerDoc): ContainerSchema {
   return { ...doc.toObject(), id: doc._id.toString() };
 }
 
@@ -1610,6 +1650,12 @@ export class MongoStorage implements IStorage {
     const items = await ItemModel.deleteMany({ worldId: id });
     if (items.deletedCount && items.deletedCount > 0) {
       console.log(`   ✓ Deleted ${items.deletedCount} items`);
+    }
+
+    // 11b. Delete containers
+    const containerResult = await ContainerModel.deleteMany({ worldId: id });
+    if (containerResult.deletedCount && containerResult.deletedCount > 0) {
+      console.log(`   ✓ Deleted ${containerResult.deletedCount} containers`);
     }
 
     // 12. Delete visual assets
@@ -2524,6 +2570,48 @@ export class MongoStorage implements IStorage {
   async deleteItem(id: string): Promise<boolean> {
     await this.connect();
     const result = await ItemModel.findByIdAndDelete(id);
+    return !!result;
+  }
+
+  // ============= CONTAINERS =============
+
+  async getContainer(id: string): Promise<ContainerSchema | undefined> {
+    await this.connect();
+    const doc = await ContainerModel.findById(id);
+    return doc ? docToContainer(doc) : undefined;
+  }
+
+  async getContainersByWorld(worldId: string): Promise<ContainerSchema[]> {
+    await this.connect();
+    const docs = await ContainerModel.find({ worldId });
+    return docs.map(docToContainer);
+  }
+
+  async getContainersByLocation(worldId: string, location: { businessId?: string; residenceId?: string; lotId?: string }): Promise<ContainerSchema[]> {
+    await this.connect();
+    const query: any = { worldId };
+    if (location.businessId) query.businessId = location.businessId;
+    if (location.residenceId) query.residenceId = location.residenceId;
+    if (location.lotId) query.lotId = location.lotId;
+    const docs = await ContainerModel.find(query);
+    return docs.map(docToContainer);
+  }
+
+  async createContainer(container: InsertContainer): Promise<ContainerSchema> {
+    await this.connect();
+    const doc = await ContainerModel.create(container);
+    return docToContainer(doc);
+  }
+
+  async updateContainer(id: string, container: Partial<InsertContainer>): Promise<ContainerSchema | undefined> {
+    await this.connect();
+    const doc = await ContainerModel.findByIdAndUpdate(id, { ...container, updatedAt: new Date() }, { new: true });
+    return doc ? docToContainer(doc) : undefined;
+  }
+
+  async deleteContainer(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await ContainerModel.findByIdAndDelete(id);
     return !!result;
   }
 

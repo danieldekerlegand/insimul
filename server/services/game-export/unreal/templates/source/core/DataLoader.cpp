@@ -133,6 +133,11 @@ FString UDataLoader::LoadWorldItems()
     return LoadDataFile(TEXT("items.json"));
 }
 
+FString UDataLoader::LoadContainers()
+{
+    return LoadDataFile(TEXT("containers.json"));
+}
+
 FString UDataLoader::LoadBaseResources()
 {
     return LoadDataFile(TEXT("base-resources.json"));

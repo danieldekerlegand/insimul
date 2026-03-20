@@ -1188,6 +1188,59 @@ export const insertItemSchema = createInsertSchema(items).pick({
 export type InsertItem = z.infer<typeof insertItemSchema>;
 export type Item = typeof items.$inferSelect;
 
+// Containers - chests, cupboards, barrels, and other storage objects
+export const containers = pgTable("containers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worldId: varchar("world_id").notNull(),
+
+  // Container identity
+  name: text("name").notNull(),
+  containerType: text("container_type").notNull(), // chest, cupboard, barrel, crate, wardrobe, shelf, safe, sack
+  capacity: integer("capacity").default(10), // max item slots
+
+  // Contents
+  items: jsonb("items").$type<Array<{
+    itemId: string;
+    itemName: string;
+    quantity: number;
+    metadata?: Record<string, any>;
+  }>>().default([]),
+
+  // Lock
+  locked: boolean("locked").default(false),
+  lockDifficulty: integer("lock_difficulty"), // 0-100
+  keyItemId: varchar("key_item_id"), // item that unlocks this container
+
+  // Location
+  businessId: varchar("business_id"),
+  residenceId: varchar("residence_id"),
+  lotId: varchar("lot_id"),
+  positionX: real("position_x"),
+  positionY: real("position_y"),
+  positionZ: real("position_z"),
+  rotationY: real("rotation_y"),
+
+  // Visual
+  objectRole: text("object_role"), // maps to asset collection model key
+
+  // Loot respawn
+  respawns: boolean("respawns").default(false),
+  respawnTimeMinutes: integer("respawn_time_minutes"),
+  lastOpenedAt: timestamp("last_opened_at"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertContainerSchema = createInsertSchema(containers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertContainer = z.infer<typeof insertContainerSchema>;
+export type Container = typeof containers.$inferSelect;
+
 export const insertWaterFeatureSchema = createInsertSchema(waterFeatures).omit({
   id: true,
   createdAt: true,
