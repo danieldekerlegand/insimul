@@ -444,6 +444,34 @@ describe('QuestCompletionEngine', () => {
       engine.trackReputationGain('dwarves', 100);
       expect(obj.completed).toBe(false);
     });
+
+    it('dispatches via trackEvent with reputation_gain event type', () => {
+      const obj = makeObjective({
+        id: 'o1', questId: 'q1', type: 'gain_reputation',
+        factionId: 'Coteau-Bas', reputationRequired: 10,
+      });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackEvent({ type: 'reputation_gain', factionId: 'Coteau-Bas', amount: 5 });
+      expect(obj.reputationGained).toBe(5);
+      expect(obj.completed).toBe(false);
+
+      engine.trackEvent({ type: 'reputation_gain', factionId: 'Coteau-Bas', amount: 7 });
+      expect(obj.reputationGained).toBe(12);
+      expect(obj.completed).toBe(true);
+    });
+
+    it('fires quest completed callback when reputation objective completes a single-objective quest', () => {
+      const obj = makeObjective({
+        id: 'o1', questId: 'q1', type: 'gain_reputation',
+        factionId: 'village', reputationRequired: 10,
+      });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackReputationGain('village', 10);
+      expect(obj.completed).toBe(true);
+      expect(questCompletedSpy).toHaveBeenCalledWith('q1');
+    });
   });
 
   // ── trackListeningAnswer ──────────────────────────────────────────────

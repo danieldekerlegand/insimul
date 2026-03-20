@@ -282,10 +282,17 @@ export class ReputationManager {
       }),
     );
 
-    // Item stolen (transactionType steal emitted as item_collected with steal context)
+    // Merchant purchase → small positive reputation
     this.unsubscribers.push(
-      this.eventBus.on('item_removed', (_e) => {
-        // Item removal doesn't necessarily mean theft — handled by RuleEnforcer
+      this.eventBus.on('item_purchased', (_e) => {
+        this.handleMerchantPurchase();
+      }),
+    );
+
+    // Gift given → positive reputation
+    this.unsubscribers.push(
+      this.eventBus.on('gift_given', (e) => {
+        this.handleGiftGiven(e.npcName);
       }),
     );
   }
@@ -393,6 +400,28 @@ export class ReputationManager {
       settlementName,
       -3,
       'Rude conversation',
+    );
+  }
+
+  private async handleMerchantPurchase(): Promise<void> {
+    if (!this.currentSettlement) return;
+    await this.adjustReputation(
+      'settlement',
+      this.currentSettlement.id,
+      this.currentSettlement.name,
+      2,
+      'Purchased from a local merchant',
+    );
+  }
+
+  private async handleGiftGiven(npcName: string): Promise<void> {
+    if (!this.currentSettlement) return;
+    await this.adjustReputation(
+      'settlement',
+      this.currentSettlement.id,
+      this.currentSettlement.name,
+      3,
+      `Gave a gift to ${npcName}`,
     );
   }
 

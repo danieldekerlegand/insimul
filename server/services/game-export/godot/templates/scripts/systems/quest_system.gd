@@ -208,6 +208,25 @@ func track_pronunciation_attempt(passed: bool, score: float = 0.0, quest_id: Str
 			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
 
 
+## Track reputation gain for gain_reputation objectives.
+func track_reputation_gain(faction_id: String, amount: int, quest_id: String = "") -> void:
+	for obj in objectives:
+		if obj.get("completed", false):
+			continue
+		if not quest_id.is_empty() and obj.get("quest_id") != quest_id:
+			continue
+		if obj.get("type", "") != "gain_reputation":
+			continue
+		if obj.get("faction_id", "") != faction_id:
+			continue
+
+		obj["reputation_gained"] = obj.get("reputation_gained", 0) + amount
+
+		var required: int = obj.get("reputation_required", 100)
+		if obj["reputation_gained"] >= required:
+			complete_objective(obj.get("quest_id", ""), obj.get("id", ""))
+
+
 ## Track a writing submission for write_response / describe_scene objectives.
 func track_writing_submission(text: String, word_count: int, quest_id: String = "") -> void:
 	for obj in objectives:

@@ -695,6 +695,18 @@ export class QuestObjectManager {
             locationPosition: this.generateLocationPosition(),
             locationRadius: 5,
           });
+        } else if (obj.type === 'gain_reputation') {
+          // Reputation gain objective (from seed quests)
+          objectives.push({
+            id: obj.id || `${quest.id}_obj_${index}`,
+            questId: quest.id,
+            type: 'gain_reputation',
+            description: obj.description,
+            completed: obj.isCompleted || obj.completed || false,
+            factionId: obj.factionId,
+            reputationGained: obj.reputationGained || 0,
+            reputationRequired: obj.reputationRequired || 10,
+          });
         }
       });
     }

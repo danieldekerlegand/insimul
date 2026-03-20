@@ -18,6 +18,8 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("quest_completed"),                   EInsimulEventType::QuestCompleted },
         { TEXT("combat_action"),                     EInsimulEventType::CombatAction },
         { TEXT("reputation_changed"),                EInsimulEventType::ReputationChanged },
+        { TEXT("item_purchased"),                    EInsimulEventType::ItemPurchased },
+        { TEXT("gift_given"),                        EInsimulEventType::GiftGiven },
         { TEXT("item_crafted"),                      EInsimulEventType::ItemCrafted },
         { TEXT("location_discovered"),               EInsimulEventType::LocationDiscovered },
         { TEXT("settlement_entered"),                EInsimulEventType::SettlementEntered },

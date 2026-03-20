@@ -232,7 +232,14 @@ function buildSeedQuests(): SeedQuestDef[] {
       questType: 'social',
       difficulty: 'intermediate',
       xp: 30,
-      buildObjectives: () => [obj('obj_0', 'gain_reputation', 'Gain reputation through helpful actions')],
+      buildObjectives: (ctx) => {
+        const settlementName = ctx.locations[0] || 'the settlement';
+        return [obj('obj_0', 'gain_reputation', `Gain reputation with ${settlementName}`, {
+          factionId: settlementName,
+          reputationGained: 0,
+          reputationRequired: 10,
+        })];
+      },
     },
 
     // ═══════════════════════════════════════════════════════════════════════

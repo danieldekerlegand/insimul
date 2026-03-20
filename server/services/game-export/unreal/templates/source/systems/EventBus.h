@@ -21,6 +21,8 @@ enum class EInsimulEventType : uint8
     QuestCompleted      UMETA(DisplayName = "Quest Completed"),
     CombatAction        UMETA(DisplayName = "Combat Action"),
     ReputationChanged   UMETA(DisplayName = "Reputation Changed"),
+    ItemPurchased       UMETA(DisplayName = "Item Purchased"),
+    GiftGiven           UMETA(DisplayName = "Gift Given"),
     ItemCrafted         UMETA(DisplayName = "Item Crafted"),
     LocationDiscovered  UMETA(DisplayName = "Location Discovered"),
     SettlementEntered   UMETA(DisplayName = "Settlement Entered"),

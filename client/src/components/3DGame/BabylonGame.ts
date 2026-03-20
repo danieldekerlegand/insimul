@@ -8808,6 +8808,9 @@ export class BabylonGame {
       type: 'item_collected', itemId: item.id, itemName: item.name, quantity: transaction.quantity,
       taxonomy: { category: item.category, material: item.material, baseType: item.baseType, rarity: item.rarity, itemType: item.type },
     });
+    this.eventBus.emit({
+      type: 'item_purchased', itemId: item.id, itemName: item.name, quantity: transaction.quantity, totalPrice: transaction.totalPrice,
+    });
 
     // Record transfer via API
     this.dataSource.transferItem(this.config.worldId, {
@@ -10224,6 +10227,14 @@ export class BabylonGame {
             violationCount: rep.violationCount,
             outstandingFines: rep.outstandingFines,
           });
+        }
+      }
+      // Bridge positive reputation changes to quest objective tracking
+      if (change.delta > 0) {
+        // Try both entityId and entityName since quest objectives may use either as factionId
+        this.questObjectManager?.trackReputationGain(change.entityId, change.delta);
+        if (change.entityName !== change.entityId) {
+          this.questObjectManager?.trackReputationGain(change.entityName, change.delta);
         }
       }
     });
