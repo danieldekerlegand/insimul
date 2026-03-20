@@ -3033,8 +3033,13 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
       questTitle.paddingTop = '8px';
       questStack.addControl(questTitle);
 
+      const rewardParts: string[] = [];
+      if (quest.experienceReward) rewardParts.push(`${quest.experienceReward} XP`);
+      const gold = quest.rewards?.gold ?? quest.rewards?.goldReward ?? 0;
+      if (gold > 0) rewardParts.push(`${gold} Gold`);
+      if (quest.itemRewards?.length) rewardParts.push(`${quest.itemRewards.length} item(s)`);
       const rewardText = new TextBlock();
-      rewardText.text = `🎁 Reward: ${quest.experienceReward || 0} XP`;
+      rewardText.text = `\u{1F381} ${rewardParts.join(' + ') || 'Completion'}`;
       rewardText.color = '#ffd700';
       rewardText.fontSize = 14;
       rewardText.height = '20px';
@@ -3071,71 +3076,23 @@ When the player accepts (or you've naturally presented it), use the QUEST_ASSIGN
   }
 
   /**
-   * Complete quest turn-in via API
+   * Complete quest turn-in — delegates celebration to QuestCompletionManager
+   * via the onQuestTurnedIn callback.
    */
   private async turnInQuest(quest: any, dialog: Rectangle) {
-    // Quest completion is handled by the playthrough overlay via the callback.
-    // No direct API write needed — state lives in the overlay.
-    this.showQuestCompletionCelebration(quest);
     this._advancedTexture.removeControl(dialog);
 
     if (this.onQuestTurnedIn) {
       this.onQuestTurnedIn(quest.id, {
         experienceReward: quest.experienceReward,
         itemRewards: quest.itemRewards,
+        skillRewards: quest.skillRewards,
+        unlocks: quest.unlocks,
+        goldReward: quest.rewards?.gold ?? quest.rewards?.goldReward ?? 0,
       });
     }
 
     this.pendingTurnInQuests = this.pendingTurnInQuests.filter(q => q.id !== quest.id);
-  }
-
-  /**
-   * Show celebration animation when quest is turned in
-   */
-  private showQuestCompletionCelebration(quest: any) {
-    const celebration = new Rectangle('questCelebration');
-    celebration.width = '350px';
-    celebration.height = '120px';
-    celebration.background = 'rgba(50, 200, 100, 0.95)';
-    celebration.color = '#2ecc71';
-    celebration.thickness = 3;
-    celebration.cornerRadius = 15;
-    celebration.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-    celebration.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-    celebration.zIndex = 200;
-
-    const stack = new StackPanel();
-    stack.width = '100%';
-    stack.paddingTop = '15px';
-    celebration.addControl(stack);
-
-    const emoji = new TextBlock();
-    emoji.text = '🎉';
-    emoji.fontSize = 40;
-    emoji.height = '50px';
-    stack.addControl(emoji);
-
-    const titleText = new TextBlock();
-    titleText.text = 'Quest Completed!';
-    titleText.color = 'white';
-    titleText.fontSize = 20;
-    titleText.fontWeight = 'bold';
-    titleText.height = '30px';
-    stack.addControl(titleText);
-
-    const rewardText = new TextBlock();
-    rewardText.text = `+${quest.experienceReward || 0} XP`;
-    rewardText.color = '#ffd700';
-    rewardText.fontSize = 18;
-    rewardText.height = '25px';
-    stack.addControl(rewardText);
-
-    this._advancedTexture.addControl(celebration);
-
-    // Auto-remove after 2.5 seconds
-    setTimeout(() => {
-      this._advancedTexture.removeControl(celebration);
-    }, 2500);
   }
 
   /**

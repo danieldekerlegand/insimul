@@ -94,6 +94,7 @@ function createMockEventBus(): GameEventBus & { emittedEvents: GameEvent[] } {
 function createMockGamificationTracker(): any {
   return {
     onQuestCompleted: vi.fn(),
+    onSkillRewardsApplied: vi.fn(),
     getState: vi.fn(() => ({ questsCompleted: 0, xp: { totalXP: 0, level: 1 } })),
   };
 }
@@ -144,8 +145,8 @@ describe('QuestCompletionManager', () => {
     manager.setGamificationTracker(mockGamification);
     manager.setQuestTracker(mockQuestTracker);
 
-    // Mock global fetch and requestAnimationFrame
-    global.fetch = vi.fn();
+    // Mock global fetch (default: server call fails gracefully)
+    global.fetch = vi.fn().mockResolvedValue({ ok: false });
     global.requestAnimationFrame = vi.fn(() => 0);
 
     // Mock AudioContext using class syntax
@@ -279,14 +280,14 @@ describe('QuestCompletionManager', () => {
   });
 
   describe('quest chain progression', () => {
-    it('should fetch and activate next quest in chain', async () => {
+    it('should activate next quest in chain via DataSource', async () => {
       const quest = createSampleQuest({
         questChainId: 'chain-1',
         questChainOrder: 0,
       });
 
       const chainQuests = [
-        { ...quest },
+        { ...quest, status: 'completed' },
         {
           id: 'quest-2',
           worldId: 'world-1',
@@ -295,27 +296,20 @@ describe('QuestCompletionManager', () => {
           experienceReward: 75,
           questChainId: 'chain-1',
           questChainOrder: 1,
+          status: 'pending',
         },
       ];
 
-      (global.fetch as any)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve(chainQuests),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({}),
-        });
+      const mockDataSource = {
+        loadQuests: vi.fn().mockResolvedValue(chainQuests),
+        updateQuest: vi.fn().mockResolvedValue(undefined),
+      };
+      manager.setDataSource(mockDataSource as any);
 
       await manager.completeQuest(quest);
 
-      // Should have fetched world quests and activated next quest
-      expect(global.fetch).toHaveBeenCalledWith('/api/worlds/world-1/quests');
-      expect(global.fetch).toHaveBeenCalledWith('/api/quests/quest-2', expect.objectContaining({
-        method: 'PUT',
-        body: JSON.stringify({ status: 'active' }),
-      }));
+      expect(mockDataSource.loadQuests).toHaveBeenCalledWith('world-1');
+      expect(mockDataSource.updateQuest).toHaveBeenCalledWith('quest-2', { status: 'active' });
     });
 
     it('should emit quest_accepted for next chain quest', async () => {
@@ -325,25 +319,22 @@ describe('QuestCompletionManager', () => {
       });
 
       const chainQuests = [
-        { ...quest },
+        { ...quest, status: 'completed' },
         {
           id: 'quest-2',
           worldId: 'world-1',
           title: 'Learn Farewells',
           questChainId: 'chain-1',
           questChainOrder: 1,
+          status: 'pending',
         },
       ];
 
-      (global.fetch as any)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve(chainQuests),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({}),
-        });
+      const mockDataSource = {
+        loadQuests: vi.fn().mockResolvedValue(chainQuests),
+        updateQuest: vi.fn().mockResolvedValue(undefined),
+      };
+      manager.setDataSource(mockDataSource as any);
 
       await manager.completeQuest(quest);
 
@@ -356,12 +347,16 @@ describe('QuestCompletionManager', () => {
 
     it('should not attempt chain progression for non-chain quests', async () => {
       const quest = createSampleQuest({ questChainId: null });
+      const mockDataSource = {
+        loadQuests: vi.fn(),
+        updateQuest: vi.fn(),
+      };
+      manager.setDataSource(mockDataSource as any);
 
       await manager.completeQuest(quest);
 
-      // fetch should NOT be called for chain quest lookup
-      // (the overlay and other things don't use fetch)
-      expect(global.fetch).not.toHaveBeenCalled();
+      // DataSource loadQuests should NOT be called for chain lookup
+      expect(mockDataSource.loadQuests).not.toHaveBeenCalled();
     });
   });
 
