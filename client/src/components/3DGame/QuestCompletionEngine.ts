@@ -126,7 +126,7 @@ export type CompletionEvent =
   | { type: 'inventory_check'; playerItemNames: string[]; questId?: string }
   | { type: 'enemy_defeat'; enemyType: string; questId?: string }
   | { type: 'item_crafted'; itemId: string; questId?: string }
-  | { type: 'location_discovery'; locationId: string; questId?: string }
+  | { type: 'location_discovery'; locationId: string; locationName?: string; questId?: string }
   | { type: 'arrival'; npcOrItemId: string; destinationReached: boolean; questId?: string }
   | { type: 'reputation_gain'; factionId: string; amount: number; questId?: string }
   | { type: 'listening_answer'; isCorrect: boolean; questId?: string }
@@ -212,7 +212,7 @@ export class QuestCompletionEngine {
         this.trackItemCrafted(event.itemId, event.questId);
         break;
       case 'location_discovery':
-        this.trackLocationDiscovery(event.locationId, event.questId);
+        this.trackLocationVisit(event.locationId, event.locationName || event.locationId, event.questId);
         break;
       case 'arrival':
         this.trackArrival(event.npcOrItemId, event.destinationReached, event.questId);
@@ -472,12 +472,25 @@ export class QuestCompletionEngine {
     });
   }
 
-  trackLocationDiscovery(locationId: string, questId?: string): void {
-    this.forEachObjective(questId, 'discover_location', (quest, obj) => {
-      if (obj.locationName === locationId) {
+  trackLocationVisit(locationId: string, locationName: string, questId?: string): void {
+    const lowerName = locationName.toLowerCase();
+    const lowerId = locationId.toLowerCase();
+
+    this.forEachObjective(questId, ['visit_location', 'discover_location'], (quest, obj) => {
+      const objName = (obj.locationName || '').toLowerCase();
+      if (!objName) return;
+
+      // Match against zone ID, zone name, or check if either contains the other
+      if (objName === lowerId || objName === lowerName ||
+          lowerName.includes(objName) || objName.includes(lowerName)) {
         this.completeObjective(quest.id, obj.id);
       }
     });
+  }
+
+  /** @deprecated Use trackLocationVisit instead */
+  trackLocationDiscovery(locationId: string, questId?: string): void {
+    this.trackLocationVisit(locationId, locationId, questId);
   }
 
   trackArrival(npcOrItemId: string, destinationReached: boolean, questId?: string): void {

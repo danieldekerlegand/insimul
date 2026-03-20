@@ -365,10 +365,114 @@ describe('QuestCompletionEngine', () => {
     });
   });
 
-  // ── trackLocationDiscovery ────────────────────────────────────────────
+  // ── trackLocationVisit ───────────────────────────────────────────────
 
-  describe('trackLocationDiscovery', () => {
-    it('completes when location matches', () => {
+  describe('trackLocationVisit', () => {
+    it('completes discover_location when location name matches', () => {
+      const obj = makeObjective({
+        id: 'o1', questId: 'q1', type: 'discover_location',
+        locationName: 'cave',
+      });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackLocationVisit('zone-abc', 'cave');
+      expect(obj.completed).toBe(true);
+    });
+
+    it('completes visit_location when location name matches', () => {
+      const obj = makeObjective({
+        id: 'o1', questId: 'q1', type: 'visit_location',
+        locationName: 'Coteau-Bas',
+      });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackLocationVisit('abc123', 'Coteau-Bas');
+      expect(obj.completed).toBe(true);
+    });
+
+    it('matches case-insensitively', () => {
+      const obj = makeObjective({
+        id: 'o1', questId: 'q1', type: 'visit_location',
+        locationName: 'coteau-bas',
+      });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackLocationVisit('abc123', 'Coteau-Bas');
+      expect(obj.completed).toBe(true);
+    });
+
+    it('matches when objective name is a substring of the zone name', () => {
+      const obj = makeObjective({
+        id: 'o1', questId: 'q1', type: 'discover_location',
+        locationName: 'Coteau',
+      });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackLocationVisit('abc123', 'Coteau-Bas');
+      expect(obj.completed).toBe(true);
+    });
+
+    it('matches when zone name is a substring of the objective name', () => {
+      const obj = makeObjective({
+        id: 'o1', questId: 'q1', type: 'visit_location',
+        locationName: 'the village of Coteau-Bas',
+      });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackLocationVisit('abc123', 'Coteau-Bas');
+      expect(obj.completed).toBe(true);
+    });
+
+    it('matches against zone ID directly', () => {
+      const obj = makeObjective({
+        id: 'o1', questId: 'q1', type: 'visit_location',
+        locationName: 'zone-abc',
+      });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackLocationVisit('zone-abc', 'Some Name');
+      expect(obj.completed).toBe(true);
+    });
+
+    it('does not complete when location does not match', () => {
+      const obj = makeObjective({
+        id: 'o1', questId: 'q1', type: 'visit_location',
+        locationName: 'Mountain Peak',
+      });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackLocationVisit('abc123', 'Coteau-Bas');
+      expect(obj.completed).toBe(false);
+    });
+
+    it('does not complete when locationName is empty', () => {
+      const obj = makeObjective({
+        id: 'o1', questId: 'q1', type: 'visit_location',
+      });
+      engine.addQuest(makeQuest('q1', [obj]));
+
+      engine.trackLocationVisit('abc123', 'Coteau-Bas');
+      expect(obj.completed).toBe(false);
+    });
+
+    it('completes both visit_location and discover_location in different quests', () => {
+      const o1 = makeObjective({
+        id: 'o1', questId: 'q1', type: 'visit_location',
+        locationName: 'Coteau-Bas',
+      });
+      const o2 = makeObjective({
+        id: 'o2', questId: 'q2', type: 'discover_location',
+        locationName: 'Coteau-Bas',
+      });
+      engine.addQuest(makeQuest('q1', [o1]));
+      engine.addQuest(makeQuest('q2', [o2]));
+
+      engine.trackLocationVisit('abc123', 'Coteau-Bas');
+      expect(o1.completed).toBe(true);
+      expect(o2.completed).toBe(true);
+    });
+
+    it('deprecated trackLocationDiscovery still works', () => {
       const obj = makeObjective({
         id: 'o1', questId: 'q1', type: 'discover_location',
         locationName: 'cave',
@@ -377,6 +481,23 @@ describe('QuestCompletionEngine', () => {
 
       engine.trackLocationDiscovery('cave');
       expect(obj.completed).toBe(true);
+    });
+
+    it('filters by questId when provided', () => {
+      const o1 = makeObjective({
+        id: 'o1', questId: 'q1', type: 'visit_location',
+        locationName: 'Coteau-Bas',
+      });
+      const o2 = makeObjective({
+        id: 'o2', questId: 'q2', type: 'visit_location',
+        locationName: 'Coteau-Bas',
+      });
+      engine.addQuest(makeQuest('q1', [o1]));
+      engine.addQuest(makeQuest('q2', [o2]));
+
+      engine.trackLocationVisit('abc123', 'Coteau-Bas', 'q1');
+      expect(o1.completed).toBe(true);
+      expect(o2.completed).toBe(false);
     });
   });
 

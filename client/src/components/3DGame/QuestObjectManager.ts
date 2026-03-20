@@ -1622,10 +1622,16 @@ export class QuestObjectManager {
   }
 
   /**
-   * Track location discovery for exploration quests
+   * Track location visit/discovery for exploration quests.
+   * Matches both visit_location and discover_location objectives.
    */
+  public trackLocationVisit(locationId: string, locationName: string, questId?: string) {
+    this.completionEngine.trackLocationVisit(locationId, locationName, questId);
+  }
+
+  /** @deprecated Use trackLocationVisit instead */
   public trackLocationDiscovery(locationId: string, questId?: string) {
-    this.completionEngine.trackLocationDiscovery(locationId, questId);
+    this.completionEngine.trackLocationVisit(locationId, locationId, questId);
   }
 
   /**

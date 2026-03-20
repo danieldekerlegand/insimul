@@ -6783,8 +6783,8 @@ export class BabylonGame {
 
       this.settlementSceneManager.enterSettlement(zone.id);
 
-      // Track location discovery for quest objectives
-      this.questObjectManager?.trackLocationDiscovery(zone.id);
+      // Track location visit/discovery for quest objectives
+      this.questObjectManager?.trackLocationVisit(zone.id, zone.name || zone.id);
       this.eventBus.emit({ type: 'settlement_entered', settlementId: zone.id, settlementName: zone.name || zone.id });
       this.reputationManager?.setCurrentSettlement(zone.id, zone.name || zone.id);
 
