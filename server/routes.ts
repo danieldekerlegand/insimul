@@ -40,6 +40,7 @@ import {
   insertActionSchema,
   insertTruthSchema,
   insertItemSchema,
+  insertContainerSchema,
   insertVisualAssetSchema,
   type InsertRule,
   type Rule
@@ -9439,6 +9440,171 @@ Respond with this JSON structure:
     } catch (error) {
       console.error('[ItemTranslation] Error:', error);
       res.status(500).json({ error: "Failed to translate items" });
+    }
+  });
+
+  // ============= CONTAINER ENDPOINTS =============
+
+  // Get all containers for a world
+  app.get("/api/worlds/:worldId/containers", async (req, res) => {
+    try {
+      const containers = await storage.getContainersByWorld(req.params.worldId);
+      res.json(containers);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch containers" });
+    }
+  });
+
+  // Get containers by location
+  app.get("/api/worlds/:worldId/containers/by-location", async (req, res) => {
+    try {
+      const { businessId, residenceId, lotId } = req.query;
+      const containers = await storage.getContainersByLocation(req.params.worldId, {
+        businessId: businessId as string | undefined,
+        residenceId: residenceId as string | undefined,
+        lotId: lotId as string | undefined,
+      });
+      res.json(containers);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch containers" });
+    }
+  });
+
+  // Get single container
+  app.get("/api/containers/:id", async (req, res) => {
+    try {
+      const container = await storage.getContainer(req.params.id);
+      if (!container) {
+        return res.status(404).json({ error: "Container not found" });
+      }
+      res.json(container);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch container" });
+    }
+  });
+
+  // Create container
+  app.post("/api/worlds/:worldId/containers", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const token = req.headers.authorization?.split(' ')[1];
+      const payload = token ? AuthService.verifyToken(token) : null;
+      if (!(await canEditWorld(payload?.userId, worldId))) {
+        return res.status(403).json({ error: "You don't have permission to edit this world" });
+      }
+      const containerData = { ...req.body, worldId };
+      const validatedData = insertContainerSchema.parse(containerData);
+      const container = await storage.createContainer(validatedData);
+      res.status(201).json(container);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid container data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create container" });
+    }
+  });
+
+  // Update container
+  app.put("/api/containers/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const existing = await storage.getContainer(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Container not found" });
+      }
+      const token = req.headers.authorization?.split(' ')[1];
+      const payload = token ? AuthService.verifyToken(token) : null;
+      if (!(await canEditWorld(payload?.userId, existing.worldId))) {
+        return res.status(403).json({ error: "You don't have permission to edit this world" });
+      }
+      const validatedData = insertContainerSchema.partial().parse(req.body);
+      const container = await storage.updateContainer(id, validatedData);
+      if (!container) {
+        return res.status(404).json({ error: "Container not found" });
+      }
+      res.json(container);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid container data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to update container" });
+    }
+  });
+
+  // Delete container
+  app.delete("/api/containers/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const existing = await storage.getContainer(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Container not found" });
+      }
+      const token = req.headers.authorization?.split(' ')[1];
+      const payload = token ? AuthService.verifyToken(token) : null;
+      if (!(await canEditWorld(payload?.userId, existing.worldId))) {
+        return res.status(403).json({ error: "You don't have permission to edit this world" });
+      }
+      const deleted = await storage.deleteContainer(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Container not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete container" });
+    }
+  });
+
+  // Transfer item to/from container
+  app.post("/api/containers/:id/transfer", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { itemId, itemName, quantity = 1, direction } = req.body;
+
+      if (!itemId || !direction || !['deposit', 'withdraw'].includes(direction)) {
+        return res.status(400).json({ error: "itemId and direction ('deposit' or 'withdraw') are required" });
+      }
+
+      const container = await storage.getContainer(id);
+      if (!container) {
+        return res.status(404).json({ error: "Container not found" });
+      }
+
+      if (container.locked) {
+        return res.status(403).json({ error: "Container is locked" });
+      }
+
+      const currentItems = container.items || [];
+
+      if (direction === 'deposit') {
+        if (currentItems.length >= (container.capacity || 10)) {
+          return res.status(400).json({ error: "Container is full" });
+        }
+        const existingSlot = currentItems.find(i => i.itemId === itemId);
+        if (existingSlot) {
+          existingSlot.quantity += quantity;
+        } else {
+          currentItems.push({ itemId, itemName: itemName || itemId, quantity });
+        }
+      } else {
+        const existingSlot = currentItems.find(i => i.itemId === itemId);
+        if (!existingSlot || existingSlot.quantity < quantity) {
+          return res.status(400).json({ error: "Not enough items in container" });
+        }
+        existingSlot.quantity -= quantity;
+        if (existingSlot.quantity <= 0) {
+          const idx = currentItems.indexOf(existingSlot);
+          currentItems.splice(idx, 1);
+        }
+      }
+
+      const updated = await storage.updateContainer(id, {
+        items: currentItems,
+        lastOpenedAt: new Date(),
+      });
+
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to transfer item" });
     }
   });
 

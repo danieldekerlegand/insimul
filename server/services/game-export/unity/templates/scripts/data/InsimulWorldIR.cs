@@ -233,6 +233,37 @@ namespace Insimul.Data
         public int sellValue;
     }
 
+    // ── Containers ────────────────────────────────────────────────────────
+
+    [Serializable] public class InsimulContainerItemData
+    {
+        public string itemId;
+        public string itemName;
+        public int quantity = 1;
+    }
+
+    [Serializable] public class InsimulContainerData
+    {
+        public string id;
+        public string name;
+        public string containerType;
+        public int capacity = 10;
+        public InsimulContainerItemData[] items;
+        public bool locked;
+        public int lockDifficulty;
+        public string keyItemId;
+        public string businessId;
+        public string residenceId;
+        public string lotId;
+        public float positionX;
+        public float positionY;
+        public float positionZ;
+        public float rotationY;
+        public string objectRole;
+        public bool respawns;
+        public int respawnTimeMinutes;
+    }
+
     // ── Truths / Grammars / Dialogue / Language ──────────────────────────
 
     [Serializable] public class InsimulTruthData

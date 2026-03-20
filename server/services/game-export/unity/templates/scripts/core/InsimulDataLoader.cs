@@ -101,6 +101,7 @@ namespace Insimul.Core
         public static T[] LoadSettlements<T>() => LoadArray<T>(DataRoot + "settlements");
         public static T[] LoadBuildings<T>() => LoadArray<T>(DataRoot + "buildings");
         public static T[] LoadItems<T>() => LoadArray<T>(DataRoot + "items");
+        public static T[] LoadContainers<T>() => LoadArray<T>(DataRoot + "containers");
         public static T[] LoadLootTables<T>() => LoadArray<T>(DataRoot + "loot_tables");
         public static T[] LoadTruths<T>() => LoadArray<T>(DataRoot + "truths");
         public static T[] LoadGrammars<T>() => LoadArray<T>(DataRoot + "grammars");

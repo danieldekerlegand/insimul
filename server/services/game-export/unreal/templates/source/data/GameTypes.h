@@ -258,6 +258,51 @@ struct FInsimulLootTable
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 GoldMax = 0;
 };
 
+// ─── Containers ──────────────────────────────────────────────────────────────
+
+/**
+ * An item stored inside a container.
+ * Mirrors ContainerItem from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulContainerItem
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ItemId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ItemName;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Quantity = 1;
+};
+
+/**
+ * A world container (chest, cupboard, barrel, etc.).
+ * Mirrors Container from types.ts.
+ */
+USTRUCT(BlueprintType)
+struct FInsimulContainer
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Id;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Name;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ContainerType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Capacity = 10;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) TArray<FInsimulContainerItem> Items;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bLocked = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 LockDifficulty = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString KeyItemId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString BusinessId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ResidenceId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString LotId;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float PositionX = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float PositionY = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float PositionZ = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float RotationY = 0.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString ObjectRole;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bRespawns = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 RespawnTimeMinutes = 0;
+};
+
 // ─── Resources ───────────────────────────────────────────────────────────────
 
 /**

@@ -39,6 +39,8 @@ import {
   type InsertGenerationJob,
   type Item,
   type InsertItem,
+  type Container,
+  type InsertContainer,
   type TerrainFeature,
   type InsertTerrainFeature
 } from "@shared/schema";
@@ -187,6 +189,14 @@ export interface IStorage {
   createItem(item: InsertItem): Promise<Item>;
   updateItem(id: string, item: Partial<InsertItem>): Promise<Item | undefined>;
   deleteItem(id: string): Promise<boolean>;
+
+  // Containers
+  getContainer(id: string): Promise<Container | undefined>;
+  getContainersByWorld(worldId: string): Promise<Container[]>;
+  getContainersByLocation(worldId: string, location: { businessId?: string; residenceId?: string; lotId?: string }): Promise<Container[]>;
+  createContainer(container: InsertContainer): Promise<Container>;
+  updateContainer(id: string, container: Partial<InsertContainer>): Promise<Container | undefined>;
+  deleteContainer(id: string): Promise<boolean>;
 
   // Quests
   getQuest(id: string): Promise<Quest | undefined>;
