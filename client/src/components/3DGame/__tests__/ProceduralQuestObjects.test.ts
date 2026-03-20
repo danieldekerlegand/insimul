@@ -326,6 +326,141 @@ function testDisposeIncludesPool() {
   assert(true, 'dispose with pooled meshes completes without error');
 }
 
+function testAllObjectRolesCovered() {
+  console.log('\n[objectRole coverage - all OBJECT_ROLE_TO_ASSET keys have registry entries]');
+  // Every objectRole used in asset-collection-templates and migrations must have
+  // a procedural fallback in OBJECT_REGISTRY (exposed via getObjectTypes)
+  const ALL_OBJECT_ROLES = [
+    // Weapons
+    'sword', 'dagger', 'saber', 'axe', 'hammer', 'mace', 'spear', 'staff',
+    'bow', 'pickaxe', 'blade', 'pistol', 'revolver', 'rifle', 'baton',
+    'grenade', 'wire_coil', 'dynamite',
+    // Armor & Equipment
+    'shield', 'helmet', 'armor_piece', 'chainmail', 'boots', 'quiver', 'saddle',
+    // Furniture
+    'bed', 'cabinet', 'commode', 'chair', 'table', 'shelf', 'bookshelf',
+    'bar_stool', 'register', 'clock', 'drawer', 'fire_pit', 'barrel_fire',
+    'chandelier',
+    // Containers
+    'barrel', 'crate', 'chest', 'bucket', 'sack', 'vase', 'pouch',
+    // Lighting
+    'lantern', 'lamp', 'torch', 'oil_lamp', 'candle', 'candleholder',
+    // Food & Drink
+    'food_loaf', 'food_plate', 'food_bowl', 'food_wedge', 'food_small',
+    'food_bar', 'bottle', 'jar', 'goblet', 'drink_can', 'can', 'potion', 'herb',
+    // Materials
+    'ore_chunk', 'ingot', 'plank', 'spool', 'rope', 'inkwell', 'small_block',
+    // Tools
+    'mortar', 'saw', 'shovel', 'rod', 'toolbox', 'tank', 'battery', 'blowtorch',
+    // Books & Documents
+    'book', 'books', 'scroll', 'wanted_poster', 'card',
+    // Jewelry & Collectibles
+    'ring', 'amulet', 'gemstone', 'crown', 'bell', 'small_prop', 'small_box',
+    'small_tool', 'plant', 'tableware',
+    // Electronics & Tech
+    'boombox', 'console', 'data_pad', 'energy_core', 'syringe', 'med_pack',
+    // Cooking
+    'pot', 'pan', 'tea_set',
+  ];
+
+  const registeredTypes = ProceduralQuestObjects.getObjectTypes();
+  const missing: string[] = [];
+  for (const role of ALL_OBJECT_ROLES) {
+    if (!registeredTypes.includes(role)) {
+      missing.push(role);
+    }
+  }
+  assert(missing.length === 0, `all ${ALL_OBJECT_ROLES.length} objectRoles in registry (missing: ${missing.join(', ') || 'none'})`);
+}
+
+function testAllObjectRolesHaveSizeMapping() {
+  console.log('\n[objectRole coverage - all objectRoles have size mappings]');
+  const ALL_OBJECT_ROLES = [
+    'sword', 'dagger', 'saber', 'axe', 'hammer', 'mace', 'spear', 'staff',
+    'bow', 'pickaxe', 'blade', 'pistol', 'revolver', 'rifle', 'baton',
+    'grenade', 'wire_coil', 'dynamite', 'shield', 'helmet', 'armor_piece',
+    'chainmail', 'boots', 'quiver', 'saddle', 'bed', 'cabinet', 'commode',
+    'chair', 'table', 'shelf', 'bookshelf', 'bar_stool', 'register', 'clock',
+    'drawer', 'fire_pit', 'barrel_fire', 'chandelier', 'barrel', 'crate',
+    'chest', 'bucket', 'sack', 'vase', 'pouch', 'lantern', 'lamp', 'torch',
+    'oil_lamp', 'candle', 'candleholder', 'food_loaf', 'food_plate',
+    'food_bowl', 'food_wedge', 'food_small', 'food_bar', 'bottle', 'jar',
+    'goblet', 'drink_can', 'can', 'potion', 'herb', 'ore_chunk', 'ingot',
+    'plank', 'spool', 'rope', 'inkwell', 'small_block', 'mortar', 'saw',
+    'shovel', 'rod', 'toolbox', 'tank', 'battery', 'blowtorch', 'book',
+    'books', 'scroll', 'wanted_poster', 'card', 'ring', 'amulet', 'gemstone',
+    'crown', 'bell', 'small_prop', 'small_box', 'small_tool', 'plant',
+    'tableware', 'boombox', 'console', 'data_pad', 'energy_core', 'syringe',
+    'med_pack', 'pot', 'pan', 'tea_set',
+  ];
+
+  const defaultSize = ItemSizeCategory.MEDIUM;
+  const unmapped: string[] = [];
+  for (const role of ALL_OBJECT_ROLES) {
+    // getSizeCategory returns MEDIUM for unknown types, so we check it's explicitly mapped
+    // by verifying the result is a valid size category (all are, but this confirms no crashes)
+    const size = ProceduralQuestObjects.getSizeCategory(role);
+    if (size === defaultSize) {
+      // Check if it's intentionally MEDIUM (weapons, tools) vs accidentally unmapped
+      const intentionallyMedium = [
+        'sword', 'shield', 'book', 'books', 'weapon', 'tool', 'stone',
+        'dagger', 'saber', 'axe', 'hammer', 'mace', 'spear', 'staff',
+        'bow', 'pickaxe', 'blade', 'pistol', 'revolver', 'rifle', 'baton',
+        'saw', 'shovel', 'rod', 'torch', 'helmet', 'armor_piece', 'chainmail',
+        'boots', 'quiver', 'food_loaf', 'food_plate', 'food_bowl', 'food_wedge',
+        'ore_chunk', 'ingot', 'plank', 'bucket', 'sack', 'pot', 'pan',
+        'toolbox', 'tank', 'console', 'boombox', 'lamp', 'vase', 'tea_set',
+        'crate', 'saddle', 'register', 'bread', 'meat', 'fish',
+      ];
+      if (!intentionallyMedium.includes(role)) {
+        unmapped.push(role);
+      }
+    }
+  }
+  assert(unmapped.length === 0, `all objectRoles have explicit size mappings (unmapped: ${unmapped.join(', ') || 'none'})`);
+}
+
+function testNewObjectRolesGenerate() {
+  console.log('\n[generate - new objectRoles all generate meshes]');
+  const scene = new Scene() as any;
+  const gen = new ProceduralQuestObjects(scene);
+  const newRoles = [
+    'dagger', 'saber', 'axe', 'hammer', 'mace', 'spear', 'staff', 'bow',
+    'pickaxe', 'blade', 'pistol', 'revolver', 'rifle', 'baton', 'grenade',
+    'dynamite', 'wire_coil', 'helmet', 'armor_piece', 'chainmail', 'boots',
+    'quiver', 'saddle', 'bed', 'cabinet', 'commode', 'shelf', 'bookshelf',
+    'bar_stool', 'register', 'clock', 'drawer', 'fire_pit', 'barrel_fire',
+    'chandelier', 'crate', 'bucket', 'sack', 'vase', 'pouch', 'lamp',
+    'torch', 'oil_lamp', 'candle', 'candleholder', 'food_loaf', 'food_plate',
+    'food_bowl', 'food_wedge', 'food_small', 'food_bar', 'jar', 'goblet',
+    'drink_can', 'can', 'potion', 'herb', 'ore_chunk', 'ingot', 'plank',
+    'spool', 'inkwell', 'small_block', 'mortar', 'saw', 'shovel', 'rod',
+    'toolbox', 'tank', 'battery', 'blowtorch', 'books', 'wanted_poster',
+    'card', 'amulet', 'gemstone', 'crown', 'bell', 'small_prop', 'small_box',
+    'small_tool', 'plant', 'tableware', 'boombox', 'console', 'data_pad',
+    'energy_core', 'syringe', 'med_pack', 'pot', 'pan', 'tea_set',
+  ];
+
+  const failures: string[] = [];
+  for (const role of newRoles) {
+    try {
+      const result = gen.generate(`new_${role}`, { objectType: role });
+      if (!result.mesh) failures.push(role);
+    } catch (e: any) {
+      failures.push(`${role}: ${e.message}`);
+    }
+  }
+  assert(failures.length === 0, `all ${newRoles.length} new objectRoles generate (failures: ${failures.join(', ') || 'none'})`);
+
+  gen.dispose();
+}
+
+function testObjectTypeCount() {
+  console.log('\n[object type count - minimum 90 types]');
+  const types = ProceduralQuestObjects.getObjectTypes();
+  assert(types.length >= 90, `has at least 90 object types (got ${types.length})`);
+}
+
 // ── Run all ──
 
 console.log('=== ProceduralQuestObjects Tests ===');
@@ -348,6 +483,10 @@ testMeshPoolRecycle();
 testMeshPoolCapLimit();
 testGlowMapMultipleObjects();
 testDisposeIncludesPool();
+testAllObjectRolesCovered();
+testAllObjectRolesHaveSizeMapping();
+testNewObjectRolesGenerate();
+testObjectTypeCount();
 
 console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
 if (failed > 0) process.exit(1);

@@ -41,6 +41,13 @@ const ITEM_SIZE_MAP: Record<string, ItemSizeCategory> = {
   coin: ItemSizeCategory.TINY,
   ring: ItemSizeCategory.TINY,
   gem: ItemSizeCategory.TINY,
+  amulet: ItemSizeCategory.TINY,
+  gemstone: ItemSizeCategory.TINY,
+  small_prop: ItemSizeCategory.TINY,
+  small_tool: ItemSizeCategory.TINY,
+  card: ItemSizeCategory.TINY,
+  inkwell: ItemSizeCategory.TINY,
+  data_pad: ItemSizeCategory.TINY,
 
   // Small
   apple: ItemSizeCategory.SMALL,
@@ -58,17 +65,91 @@ const ITEM_SIZE_MAP: Record<string, ItemSizeCategory> = {
   rope: ItemSizeCategory.SMALL,
   orb: ItemSizeCategory.SMALL,
   crystal: ItemSizeCategory.SMALL,
+  potion: ItemSizeCategory.SMALL,
+  herb: ItemSizeCategory.SMALL,
+  candle: ItemSizeCategory.SMALL,
+  bell: ItemSizeCategory.SMALL,
+  jar: ItemSizeCategory.SMALL,
+  goblet: ItemSizeCategory.SMALL,
+  pouch: ItemSizeCategory.SMALL,
+  syringe: ItemSizeCategory.SMALL,
+  grenade: ItemSizeCategory.SMALL,
+  food_small: ItemSizeCategory.SMALL,
+  food_bar: ItemSizeCategory.SMALL,
+  drink_can: ItemSizeCategory.SMALL,
+  can: ItemSizeCategory.SMALL,
+  small_box: ItemSizeCategory.SMALL,
+  small_block: ItemSizeCategory.SMALL,
+  spool: ItemSizeCategory.SMALL,
+  candleholder: ItemSizeCategory.SMALL,
+  oil_lamp: ItemSizeCategory.SMALL,
+  crown: ItemSizeCategory.SMALL,
+  battery: ItemSizeCategory.SMALL,
+  energy_core: ItemSizeCategory.SMALL,
+  med_pack: ItemSizeCategory.SMALL,
+  wire_coil: ItemSizeCategory.SMALL,
+  dynamite: ItemSizeCategory.SMALL,
+  plant: ItemSizeCategory.SMALL,
+  tableware: ItemSizeCategory.SMALL,
+  wanted_poster: ItemSizeCategory.SMALL,
+  mortar: ItemSizeCategory.SMALL,
+  blowtorch: ItemSizeCategory.SMALL,
 
   // Medium
   bread: ItemSizeCategory.MEDIUM,
   meat: ItemSizeCategory.MEDIUM,
   fish: ItemSizeCategory.MEDIUM,
   book: ItemSizeCategory.MEDIUM,
+  books: ItemSizeCategory.MEDIUM,
   weapon: ItemSizeCategory.MEDIUM,
   sword: ItemSizeCategory.MEDIUM,
   shield: ItemSizeCategory.MEDIUM,
   tool: ItemSizeCategory.MEDIUM,
   stone: ItemSizeCategory.MEDIUM,
+  dagger: ItemSizeCategory.MEDIUM,
+  saber: ItemSizeCategory.MEDIUM,
+  axe: ItemSizeCategory.MEDIUM,
+  hammer: ItemSizeCategory.MEDIUM,
+  mace: ItemSizeCategory.MEDIUM,
+  spear: ItemSizeCategory.MEDIUM,
+  staff: ItemSizeCategory.MEDIUM,
+  bow: ItemSizeCategory.MEDIUM,
+  pickaxe: ItemSizeCategory.MEDIUM,
+  blade: ItemSizeCategory.MEDIUM,
+  pistol: ItemSizeCategory.MEDIUM,
+  revolver: ItemSizeCategory.MEDIUM,
+  rifle: ItemSizeCategory.MEDIUM,
+  baton: ItemSizeCategory.MEDIUM,
+  saw: ItemSizeCategory.MEDIUM,
+  shovel: ItemSizeCategory.MEDIUM,
+  rod: ItemSizeCategory.MEDIUM,
+  torch: ItemSizeCategory.MEDIUM,
+  helmet: ItemSizeCategory.MEDIUM,
+  armor_piece: ItemSizeCategory.MEDIUM,
+  chainmail: ItemSizeCategory.MEDIUM,
+  boots: ItemSizeCategory.MEDIUM,
+  quiver: ItemSizeCategory.MEDIUM,
+  food_loaf: ItemSizeCategory.MEDIUM,
+  food_plate: ItemSizeCategory.MEDIUM,
+  food_bowl: ItemSizeCategory.MEDIUM,
+  food_wedge: ItemSizeCategory.MEDIUM,
+  ore_chunk: ItemSizeCategory.MEDIUM,
+  ingot: ItemSizeCategory.MEDIUM,
+  plank: ItemSizeCategory.MEDIUM,
+  bucket: ItemSizeCategory.MEDIUM,
+  sack: ItemSizeCategory.MEDIUM,
+  pot: ItemSizeCategory.MEDIUM,
+  pan: ItemSizeCategory.MEDIUM,
+  toolbox: ItemSizeCategory.MEDIUM,
+  tank: ItemSizeCategory.MEDIUM,
+  console: ItemSizeCategory.MEDIUM,
+  boombox: ItemSizeCategory.MEDIUM,
+  lamp: ItemSizeCategory.MEDIUM,
+  vase: ItemSizeCategory.MEDIUM,
+  tea_set: ItemSizeCategory.MEDIUM,
+  crate: ItemSizeCategory.MEDIUM,
+  saddle: ItemSizeCategory.MEDIUM,
+  register: ItemSizeCategory.MEDIUM,
 
   // Large
   box: ItemSizeCategory.LARGE,
@@ -77,6 +158,17 @@ const ITEM_SIZE_MAP: Record<string, ItemSizeCategory> = {
   table: ItemSizeCategory.LARGE,
   barrel: ItemSizeCategory.LARGE,
   door: ItemSizeCategory.LARGE,
+  bed: ItemSizeCategory.LARGE,
+  cabinet: ItemSizeCategory.LARGE,
+  commode: ItemSizeCategory.LARGE,
+  shelf: ItemSizeCategory.LARGE,
+  bookshelf: ItemSizeCategory.LARGE,
+  bar_stool: ItemSizeCategory.LARGE,
+  clock: ItemSizeCategory.LARGE,
+  drawer: ItemSizeCategory.LARGE,
+  fire_pit: ItemSizeCategory.LARGE,
+  barrel_fire: ItemSizeCategory.LARGE,
+  chandelier: ItemSizeCategory.LARGE,
 };
 
 /** Shape primitives used to compose quest objects */
@@ -162,7 +254,7 @@ function sizeOf(type: string): number {
 }
 
 const OBJECT_REGISTRY: Record<string, QuestObjectSpec> = {
-  // Food / consumables
+  // ── Food / consumables ──────────────────────────────────────────────────
   apple: spec('sphere', new Color3(0.85, 0.1, 0.1), sizeOf('apple'), { diameter: 1, segments: 16 }),
   bread: spec('box', new Color3(0.82, 0.65, 0.3), sizeOf('bread'), { width: 1.4, height: 0.6, depth: 0.8 }),
   cheese: spec('box', new Color3(0.95, 0.85, 0.2), sizeOf('cheese'), { width: 1, height: 0.5, depth: 0.8 }),
@@ -170,15 +262,42 @@ const OBJECT_REGISTRY: Record<string, QuestObjectSpec> = {
   water: spec('cylinder', new Color3(0.3, 0.6, 0.95), sizeOf('water'), { diameter: 0.45, height: 1.2, tessellation: 16 }),
   meat: spec('box', new Color3(0.65, 0.2, 0.15), sizeOf('meat'), { width: 1, height: 0.4, depth: 0.7 }),
   fish: spec('box', new Color3(0.5, 0.7, 0.8), sizeOf('fish'), { width: 1.4, height: 0.35, depth: 0.5 }),
+  food_loaf: spec('box', new Color3(0.82, 0.65, 0.3), sizeOf('food_loaf'), { width: 1.2, height: 0.5, depth: 0.6 }),
+  food_plate: spec('cylinder', new Color3(0.85, 0.75, 0.6), sizeOf('food_plate'), { diameter: 1, height: 0.12, tessellation: 20 }),
+  food_bowl: spec('cylinder', new Color3(0.7, 0.55, 0.3), sizeOf('food_bowl'), { diameter: 0.8, height: 0.4, tessellation: 16 }),
+  food_wedge: spec('box', new Color3(0.95, 0.85, 0.2), sizeOf('food_wedge'), { width: 0.8, height: 0.5, depth: 0.6 }),
+  food_small: spec('sphere', new Color3(0.8, 0.5, 0.2), sizeOf('food_small'), { diameter: 0.8, segments: 12 }),
+  food_bar: spec('box', new Color3(0.6, 0.45, 0.25), sizeOf('food_bar'), { width: 1.2, height: 0.25, depth: 0.4 }),
 
-  // Objects / tools
+  // ── Drinks / bottles ────────────────────────────────────────────────────
+  bottle: spec('cylinder', new Color3(0.2, 0.6, 0.3), sizeOf('bottle'), { diameter: 0.45, height: 1.3, tessellation: 16 }),
+  jar: spec('cylinder', new Color3(0.6, 0.5, 0.3), sizeOf('jar'), { diameter: 0.6, height: 0.9, tessellation: 16 }),
+  goblet: spec('composite', new Color3(0.85, 0.75, 0.15), sizeOf('goblet'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0.15, z: 0 }, scaling: { x: 0.5, y: 0.5, z: 0.5 } },
+    { shape: 'cylinder', position: { x: 0, y: -0.15, z: 0 }, scaling: { x: 0.2, y: 0.3, z: 0.2 } },
+  ]),
+  drink_can: spec('cylinder', new Color3(0.8, 0.15, 0.15), sizeOf('drink_can'), { diameter: 0.4, height: 0.8, tessellation: 16 }),
+  can: spec('cylinder', new Color3(0.6, 0.6, 0.6), sizeOf('can'), { diameter: 0.5, height: 0.7, tessellation: 16 }),
+  potion: spec('composite', new Color3(0.4, 0.1, 0.8), sizeOf('potion'), {}, [
+    { shape: 'sphere', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.5, y: 0.5, z: 0.5 } },
+    { shape: 'cylinder', position: { x: 0, y: 0.35, z: 0 }, scaling: { x: 0.2, y: 0.3, z: 0.2 } },
+  ]),
+  herb: spec('composite', new Color3(0.2, 0.7, 0.15), sizeOf('herb'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: -0.1, z: 0 }, scaling: { x: 0.06, y: 0.4, z: 0.06 }, color: new Color3(0.3, 0.5, 0.15) },
+    { shape: 'sphere', position: { x: 0, y: 0.15, z: 0 }, scaling: { x: 0.35, y: 0.25, z: 0.35 } },
+  ]),
+
+  // ── Objects / tools ─────────────────────────────────────────────────────
   key: spec('composite', new Color3(0.85, 0.75, 0.15), sizeOf('key'), {}, [
     { shape: 'torus', position: { x: 0, y: 0.3, z: 0 }, scaling: { x: 0.6, y: 0.6, z: 0.6 } },
     { shape: 'box', position: { x: 0, y: -0.2, z: 0 }, scaling: { x: 0.15, y: 0.7, z: 0.15 } },
   ]),
   book: spec('box', new Color3(0.4, 0.25, 0.12), sizeOf('book'), { width: 0.8, height: 1, depth: 0.2 }),
+  books: spec('composite', new Color3(0.4, 0.25, 0.12), sizeOf('books'), {}, [
+    { shape: 'box', position: { x: -0.15, y: 0, z: 0 }, scaling: { x: 0.2, y: 1, z: 0.7 } },
+    { shape: 'box', position: { x: 0.15, y: 0, z: 0 }, scaling: { x: 0.2, y: 0.9, z: 0.7 }, color: new Color3(0.3, 0.15, 0.1) },
+  ]),
   scroll: spec('cylinder', new Color3(0.9, 0.85, 0.7), sizeOf('scroll'), { diameter: 0.3, height: 1.2, tessellation: 16 }),
-  bottle: spec('cylinder', new Color3(0.2, 0.6, 0.3), sizeOf('bottle'), { diameter: 0.45, height: 1.3, tessellation: 16 }),
   box: spec('box', new Color3(0.6, 0.45, 0.25), sizeOf('box'), { width: 1, height: 0.8, depth: 1 }),
   chest: spec('box', new Color3(0.55, 0.35, 0.12), sizeOf('chest'), { width: 1.2, height: 0.7, depth: 0.8 }),
   lantern: spec('composite', new Color3(0.95, 0.8, 0.2), sizeOf('lantern'), {}, [
@@ -200,7 +319,86 @@ const OBJECT_REGISTRY: Record<string, QuestObjectSpec> = {
     { shape: 'box', position: { x: 0, y: 0.35, z: 0 }, scaling: { x: 0.5, y: 0.3, z: 0.1 } },
   ]),
 
-  // Furniture
+  // ── Weapons ─────────────────────────────────────────────────────────────
+  dagger: spec('composite', new Color3(0.7, 0.7, 0.75), sizeOf('dagger'), {}, [
+    { shape: 'box', position: { x: 0, y: 0.05, z: 0 }, scaling: { x: 0.06, y: 0.7, z: 0.03 } },
+    { shape: 'box', position: { x: 0, y: -0.3, z: 0 }, scaling: { x: 0.25, y: 0.06, z: 0.06 } },
+  ]),
+  saber: spec('composite', new Color3(0.75, 0.75, 0.78), sizeOf('saber'), {}, [
+    { shape: 'box', position: { x: 0, y: 0.1, z: 0 }, scaling: { x: 0.06, y: 1.1, z: 0.04 } },
+    { shape: 'cylinder', position: { x: 0, y: -0.45, z: 0 }, scaling: { x: 0.12, y: 0.25, z: 0.12 } },
+  ]),
+  axe: spec('composite', new Color3(0.55, 0.55, 0.6), sizeOf('axe'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: -0.1, z: 0 }, scaling: { x: 0.1, y: 1, z: 0.1 }, color: new Color3(0.55, 0.35, 0.18) },
+    { shape: 'box', position: { x: 0.15, y: 0.35, z: 0 }, scaling: { x: 0.4, y: 0.35, z: 0.06 } },
+  ]),
+  hammer: spec('composite', new Color3(0.5, 0.5, 0.55), sizeOf('hammer'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: -0.15, z: 0 }, scaling: { x: 0.1, y: 0.8, z: 0.1 }, color: new Color3(0.55, 0.35, 0.18) },
+    { shape: 'box', position: { x: 0, y: 0.3, z: 0 }, scaling: { x: 0.4, y: 0.25, z: 0.2 } },
+  ]),
+  mace: spec('composite', new Color3(0.5, 0.5, 0.55), sizeOf('mace'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: -0.15, z: 0 }, scaling: { x: 0.1, y: 0.8, z: 0.1 }, color: new Color3(0.55, 0.35, 0.18) },
+    { shape: 'sphere', position: { x: 0, y: 0.35, z: 0 }, scaling: { x: 0.35, y: 0.35, z: 0.35 } },
+  ]),
+  spear: spec('composite', new Color3(0.6, 0.6, 0.65), sizeOf('spear'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.08, y: 1.5, z: 0.08 }, color: new Color3(0.55, 0.35, 0.18) },
+    { shape: 'cone', position: { x: 0, y: 0.8, z: 0 }, scaling: { x: 0.12, y: 0.25, z: 0.12 } },
+  ]),
+  staff: spec('composite', new Color3(0.55, 0.35, 0.18), sizeOf('staff'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.08, y: 1.6, z: 0.08 } },
+    { shape: 'sphere', position: { x: 0, y: 0.85, z: 0 }, scaling: { x: 0.2, y: 0.2, z: 0.2 }, color: new Color3(0.4, 0.6, 1) },
+  ]),
+  bow: spec('composite', new Color3(0.55, 0.35, 0.18), sizeOf('bow'), {}, [
+    { shape: 'torus', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.5, y: 1.2, z: 0.1 } },
+    { shape: 'cylinder', position: { x: 0.3, y: 0, z: 0 }, scaling: { x: 0.02, y: 1.1, z: 0.02 }, color: new Color3(0.8, 0.8, 0.7) },
+  ]),
+  pickaxe: spec('composite', new Color3(0.5, 0.5, 0.55), sizeOf('pickaxe'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: -0.15, z: 0 }, scaling: { x: 0.1, y: 0.8, z: 0.1 }, color: new Color3(0.55, 0.35, 0.18) },
+    { shape: 'box', position: { x: 0, y: 0.3, z: 0 }, scaling: { x: 0.5, y: 0.12, z: 0.08 } },
+  ]),
+  blade: spec('composite', new Color3(0.7, 0.7, 0.75), sizeOf('blade'), {}, [
+    { shape: 'box', position: { x: 0, y: 0.1, z: 0 }, scaling: { x: 0.1, y: 1.1, z: 0.03 } },
+    { shape: 'box', position: { x: 0, y: -0.45, z: 0 }, scaling: { x: 0.3, y: 0.06, z: 0.06 } },
+  ]),
+  pistol: spec('composite', new Color3(0.3, 0.3, 0.35), sizeOf('pistol'), {}, [
+    { shape: 'box', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.12, y: 0.15, z: 0.5 } },
+    { shape: 'box', position: { x: 0, y: -0.15, z: -0.08 }, scaling: { x: 0.1, y: 0.3, z: 0.12 } },
+  ]),
+  revolver: spec('composite', new Color3(0.35, 0.35, 0.38), sizeOf('revolver'), {}, [
+    { shape: 'box', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.12, y: 0.15, z: 0.55 } },
+    { shape: 'cylinder', position: { x: 0, y: 0, z: -0.05 }, scaling: { x: 0.15, y: 0.14, z: 0.15 } },
+    { shape: 'box', position: { x: 0, y: -0.15, z: -0.1 }, scaling: { x: 0.1, y: 0.3, z: 0.12 } },
+  ]),
+  rifle: spec('composite', new Color3(0.35, 0.35, 0.38), sizeOf('rifle'), {}, [
+    { shape: 'box', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.08, y: 0.12, z: 1.4 } },
+    { shape: 'box', position: { x: 0, y: -0.12, z: -0.3 }, scaling: { x: 0.08, y: 0.25, z: 0.35 }, color: new Color3(0.55, 0.35, 0.18) },
+  ]),
+  baton: spec('composite', new Color3(0.25, 0.25, 0.3), sizeOf('baton'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.1, y: 0.9, z: 0.1 } },
+    { shape: 'sphere', position: { x: 0, y: 0.5, z: 0 }, scaling: { x: 0.14, y: 0.14, z: 0.14 } },
+  ]),
+  grenade: spec('composite', new Color3(0.3, 0.35, 0.25), sizeOf('grenade'), {}, [
+    { shape: 'sphere', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.5, y: 0.65, z: 0.5 } },
+    { shape: 'cylinder', position: { x: 0, y: 0.35, z: 0 }, scaling: { x: 0.08, y: 0.15, z: 0.08 } },
+  ]),
+  dynamite: spec('composite', new Color3(0.85, 0.15, 0.1), sizeOf('dynamite'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.15, y: 0.7, z: 0.15 } },
+    { shape: 'cylinder', position: { x: 0, y: 0.4, z: 0 }, scaling: { x: 0.03, y: 0.25, z: 0.03 }, color: new Color3(0.9, 0.85, 0.7) },
+  ]),
+  wire_coil: spec('torus', new Color3(0.5, 0.5, 0.55), sizeOf('wire_coil'), { diameter: 0.6, thickness: 0.06, tessellation: 16 }),
+
+  // ── Armor & Equipment ───────────────────────────────────────────────────
+  helmet: spec('sphere', new Color3(0.5, 0.5, 0.55), sizeOf('helmet'), { diameter: 0.9, segments: 12 }),
+  armor_piece: spec('box', new Color3(0.5, 0.5, 0.55), sizeOf('armor_piece'), { width: 0.8, height: 1, depth: 0.3 }),
+  chainmail: spec('box', new Color3(0.6, 0.6, 0.65), sizeOf('chainmail'), { width: 0.8, height: 1, depth: 0.15 }),
+  boots: spec('box', new Color3(0.4, 0.25, 0.12), sizeOf('boots'), { width: 0.5, height: 0.5, depth: 0.8 }),
+  quiver: spec('cylinder', new Color3(0.5, 0.3, 0.15), sizeOf('quiver'), { diameter: 0.3, height: 1.1, tessellation: 12 }),
+  saddle: spec('composite', new Color3(0.5, 0.3, 0.12), sizeOf('saddle'), {}, [
+    { shape: 'box', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.5, y: 0.2, z: 0.8 } },
+    { shape: 'box', position: { x: 0, y: 0.15, z: -0.3 }, scaling: { x: 0.4, y: 0.3, z: 0.15 } },
+  ]),
+
+  // ── Furniture ───────────────────────────────────────────────────────────
   chair: spec('composite', new Color3(0.55, 0.35, 0.18), sizeOf('chair'), {}, [
     { shape: 'box', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.7, y: 0.08, z: 0.7 } },
     { shape: 'box', position: { x: 0, y: 0.45, z: -0.3 }, scaling: { x: 0.7, y: 0.8, z: 0.08 } },
@@ -211,15 +409,171 @@ const OBJECT_REGISTRY: Record<string, QuestObjectSpec> = {
   ]),
   barrel: spec('cylinder', new Color3(0.5, 0.3, 0.12), sizeOf('barrel'), { diameter: 0.8, height: 1, tessellation: 12 }),
   door: spec('box', new Color3(0.45, 0.3, 0.15), sizeOf('door'), { width: 0.8, height: 1.6, depth: 0.1 }),
+  bed: spec('composite', new Color3(0.5, 0.3, 0.15), sizeOf('bed'), {}, [
+    { shape: 'box', position: { x: 0, y: 0, z: 0 }, scaling: { x: 1, y: 0.3, z: 1.6 } },
+    { shape: 'box', position: { x: 0, y: 0.3, z: -0.7 }, scaling: { x: 1, y: 0.5, z: 0.08 } },
+  ]),
+  cabinet: spec('box', new Color3(0.45, 0.28, 0.12), sizeOf('cabinet'), { width: 0.9, height: 1.4, depth: 0.5 }),
+  commode: spec('box', new Color3(0.5, 0.3, 0.15), sizeOf('commode'), { width: 0.8, height: 0.9, depth: 0.45 }),
+  shelf: spec('composite', new Color3(0.5, 0.35, 0.18), sizeOf('shelf'), {}, [
+    { shape: 'box', position: { x: 0, y: 0.3, z: 0 }, scaling: { x: 1, y: 0.06, z: 0.35 } },
+    { shape: 'box', position: { x: 0, y: 0, z: 0 }, scaling: { x: 1, y: 0.06, z: 0.35 } },
+    { shape: 'box', position: { x: 0, y: -0.3, z: 0 }, scaling: { x: 1, y: 0.06, z: 0.35 } },
+  ]),
+  bookshelf: spec('composite', new Color3(0.45, 0.28, 0.12), sizeOf('bookshelf'), {}, [
+    { shape: 'box', position: { x: 0, y: 0, z: 0 }, scaling: { x: 1, y: 1.4, z: 0.35 } },
+    { shape: 'box', position: { x: 0, y: 0.15, z: 0.05 }, scaling: { x: 0.85, y: 0.25, z: 0.2 }, color: new Color3(0.4, 0.25, 0.12) },
+  ]),
+  bar_stool: spec('composite', new Color3(0.55, 0.35, 0.18), sizeOf('bar_stool'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0.3, z: 0 }, scaling: { x: 0.45, y: 0.08, z: 0.45 } },
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.08, y: 0.6, z: 0.08 } },
+  ]),
+  register: spec('box', new Color3(0.4, 0.35, 0.3), sizeOf('register'), { width: 0.6, height: 0.5, depth: 0.5 }),
+  clock: spec('composite', new Color3(0.45, 0.28, 0.12), sizeOf('clock'), {}, [
+    { shape: 'box', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.5, y: 1.6, z: 0.35 } },
+    { shape: 'sphere', position: { x: 0, y: 0.5, z: 0.1 }, scaling: { x: 0.35, y: 0.35, z: 0.1 }, color: new Color3(0.9, 0.85, 0.7) },
+  ]),
+  drawer: spec('box', new Color3(0.5, 0.35, 0.18), sizeOf('drawer'), { width: 0.7, height: 1, depth: 0.45 }),
+  fire_pit: spec('composite', new Color3(0.5, 0.45, 0.4), sizeOf('fire_pit'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.9, y: 0.25, z: 0.9 } },
+    { shape: 'cone', position: { x: 0, y: 0.25, z: 0 }, scaling: { x: 0.3, y: 0.4, z: 0.3 }, color: new Color3(1, 0.5, 0.05) },
+  ]),
+  barrel_fire: spec('composite', new Color3(0.45, 0.3, 0.15), sizeOf('barrel_fire'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.7, y: 1, z: 0.7 } },
+    { shape: 'cone', position: { x: 0, y: 0.55, z: 0 }, scaling: { x: 0.35, y: 0.4, z: 0.35 }, color: new Color3(1, 0.5, 0.05) },
+  ]),
+  chandelier: spec('composite', new Color3(0.85, 0.75, 0.15), sizeOf('chandelier'), {}, [
+    { shape: 'torus', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.8, y: 0.8, z: 0.2 } },
+    { shape: 'cylinder', position: { x: 0, y: 0.3, z: 0 }, scaling: { x: 0.04, y: 0.5, z: 0.04 } },
+  ]),
 
-  // Collectibles
+  // ── Containers ──────────────────────────────────────────────────────────
+  crate: spec('box', new Color3(0.6, 0.45, 0.2), sizeOf('crate'), { width: 0.9, height: 0.7, depth: 0.9 }),
+  bucket: spec('cylinder', new Color3(0.5, 0.35, 0.18), sizeOf('bucket'), { diameter: 0.6, height: 0.7, tessellation: 12 }),
+  sack: spec('sphere', new Color3(0.7, 0.6, 0.4), sizeOf('sack'), { diameter: 0.9, segments: 10 }),
+  vase: spec('composite', new Color3(0.6, 0.4, 0.25), sizeOf('vase'), {}, [
+    { shape: 'sphere', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.6, y: 0.7, z: 0.6 } },
+    { shape: 'cylinder', position: { x: 0, y: 0.4, z: 0 }, scaling: { x: 0.25, y: 0.25, z: 0.25 } },
+  ]),
+  pouch: spec('sphere', new Color3(0.55, 0.35, 0.15), sizeOf('pouch'), { diameter: 0.7, segments: 10 }),
+
+  // ── Lighting ────────────────────────────────────────────────────────────
+  lamp: spec('composite', new Color3(0.4, 0.4, 0.45), sizeOf('lamp'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.1, y: 1.4, z: 0.1 } },
+    { shape: 'sphere', position: { x: 0, y: 0.75, z: 0 }, scaling: { x: 0.35, y: 0.35, z: 0.35 }, color: new Color3(1, 0.9, 0.4) },
+  ]),
+  torch: spec('composite', new Color3(0.55, 0.35, 0.18), sizeOf('torch'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.1, y: 0.9, z: 0.1 } },
+    { shape: 'cone', position: { x: 0, y: 0.55, z: 0 }, scaling: { x: 0.2, y: 0.3, z: 0.2 }, color: new Color3(1, 0.6, 0.1) },
+  ]),
+  oil_lamp: spec('composite', new Color3(0.6, 0.5, 0.2), sizeOf('oil_lamp'), {}, [
+    { shape: 'sphere', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.5, y: 0.35, z: 0.5 } },
+    { shape: 'cylinder', position: { x: 0.2, y: 0.15, z: 0 }, scaling: { x: 0.08, y: 0.2, z: 0.08 }, color: new Color3(1, 0.8, 0.2) },
+  ]),
+  candle: spec('composite', new Color3(0.95, 0.9, 0.8), sizeOf('candle'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.12, y: 0.6, z: 0.12 } },
+    { shape: 'cone', position: { x: 0, y: 0.35, z: 0 }, scaling: { x: 0.04, y: 0.1, z: 0.04 }, color: new Color3(1, 0.8, 0.2) },
+  ]),
+  candleholder: spec('composite', new Color3(0.85, 0.75, 0.15), sizeOf('candleholder'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: -0.1, z: 0 }, scaling: { x: 0.25, y: 0.05, z: 0.25 } },
+    { shape: 'cylinder', position: { x: 0, y: 0.1, z: 0 }, scaling: { x: 0.06, y: 0.4, z: 0.06 } },
+    { shape: 'cone', position: { x: 0, y: 0.35, z: 0 }, scaling: { x: 0.04, y: 0.08, z: 0.04 }, color: new Color3(1, 0.8, 0.2) },
+  ]),
+
+  // ── Materials & Crafting ────────────────────────────────────────────────
+  ore_chunk: spec('sphere', new Color3(0.45, 0.4, 0.35), sizeOf('ore_chunk'), { diameter: 0.8, segments: 6 }),
+  ingot: spec('box', new Color3(0.7, 0.65, 0.55), sizeOf('ingot'), { width: 0.8, height: 0.25, depth: 0.35 }),
+  plank: spec('box', new Color3(0.6, 0.45, 0.2), sizeOf('plank'), { width: 0.25, height: 0.08, depth: 1.4 }),
+  spool: spec('cylinder', new Color3(0.55, 0.35, 0.18), sizeOf('spool'), { diameter: 0.4, height: 0.35, tessellation: 16 }),
+  inkwell: spec('cylinder', new Color3(0.15, 0.1, 0.25), sizeOf('inkwell'), { diameter: 0.35, height: 0.35, tessellation: 12 }),
+  small_block: spec('box', new Color3(0.85, 0.8, 0.65), sizeOf('small_block'), { width: 0.5, height: 0.35, depth: 0.35 }),
+
+  // ── Tools ───────────────────────────────────────────────────────────────
+  mortar: spec('composite', new Color3(0.6, 0.55, 0.5), sizeOf('mortar'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.5, y: 0.4, z: 0.5 } },
+    { shape: 'cylinder', position: { x: 0.15, y: 0.25, z: 0 }, scaling: { x: 0.06, y: 0.5, z: 0.06 }, color: new Color3(0.55, 0.35, 0.18) },
+  ]),
+  saw: spec('composite', new Color3(0.6, 0.6, 0.65), sizeOf('saw'), {}, [
+    { shape: 'box', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.8, y: 0.4, z: 0.02 } },
+    { shape: 'box', position: { x: 0.45, y: 0, z: 0 }, scaling: { x: 0.15, y: 0.2, z: 0.08 }, color: new Color3(0.55, 0.35, 0.18) },
+  ]),
+  shovel: spec('composite', new Color3(0.5, 0.5, 0.55), sizeOf('shovel'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.08, y: 1.2, z: 0.08 }, color: new Color3(0.55, 0.35, 0.18) },
+    { shape: 'box', position: { x: 0, y: 0.65, z: 0 }, scaling: { x: 0.3, y: 0.35, z: 0.04 } },
+  ]),
+  rod: spec('cylinder', new Color3(0.55, 0.35, 0.18), sizeOf('rod'), { diameter: 0.06, height: 1.6, tessellation: 8 }),
+  toolbox: spec('box', new Color3(0.5, 0.45, 0.4), sizeOf('toolbox'), { width: 0.8, height: 0.45, depth: 0.45 }),
+  tank: spec('cylinder', new Color3(0.6, 0.6, 0.65), sizeOf('tank'), { diameter: 0.5, height: 1, tessellation: 16 }),
+  battery: spec('box', new Color3(0.2, 0.5, 0.2), sizeOf('battery'), { width: 0.35, height: 0.5, depth: 0.2 }),
+  blowtorch: spec('composite', new Color3(0.85, 0.75, 0.15), sizeOf('blowtorch'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.2, y: 0.5, z: 0.2 } },
+    { shape: 'cone', position: { x: 0, y: 0.35, z: 0 }, scaling: { x: 0.08, y: 0.15, z: 0.08 }, color: new Color3(0.3, 0.5, 1) },
+  ]),
+
+  // ── Collectibles / jewelry ──────────────────────────────────────────────
   gem: spec('sphere', new Color3(0.3, 0.8, 0.4), sizeOf('gem'), { diameter: 0.8, segments: 8 }),
   coin: spec('cylinder', new Color3(1, 0.84, 0), sizeOf('coin'), { diameter: 0.6, height: 0.08, tessellation: 24 }),
   crystal: spec('cone', new Color3(0.6, 0.4, 0.95), sizeOf('crystal'), { diameter: 0.5, height: 1.2, tessellation: 6 }),
   orb: spec('sphere', new Color3(0.4, 0.6, 1), sizeOf('orb'), { diameter: 1, segments: 24 }),
   ring: spec('torus', new Color3(0.9, 0.8, 0.2), sizeOf('ring'), { diameter: 0.6, thickness: 0.1, tessellation: 24 }),
+  amulet: spec('composite', new Color3(0.85, 0.75, 0.15), sizeOf('amulet'), {}, [
+    { shape: 'sphere', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.4, y: 0.4, z: 0.1 } },
+    { shape: 'torus', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.5, y: 0.5, z: 0.1 } },
+  ]),
+  gemstone: spec('sphere', new Color3(0.5, 0.2, 0.85), sizeOf('gemstone'), { diameter: 0.6, segments: 8 }),
+  crown: spec('composite', new Color3(1, 0.84, 0), sizeOf('crown'), {}, [
+    { shape: 'torus', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.6, y: 0.6, z: 0.25 } },
+    { shape: 'cone', position: { x: 0.2, y: 0.15, z: 0 }, scaling: { x: 0.08, y: 0.15, z: 0.08 } },
+    { shape: 'cone', position: { x: -0.2, y: 0.15, z: 0 }, scaling: { x: 0.08, y: 0.15, z: 0.08 } },
+  ]),
+  bell: spec('composite', new Color3(0.85, 0.75, 0.15), sizeOf('bell'), {}, [
+    { shape: 'sphere', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.5, y: 0.45, z: 0.5 } },
+    { shape: 'cylinder', position: { x: 0, y: 0.3, z: 0 }, scaling: { x: 0.06, y: 0.15, z: 0.06 } },
+  ]),
+  small_prop: spec('box', new Color3(0.6, 0.55, 0.5), sizeOf('small_prop'), { width: 0.5, height: 0.35, depth: 0.3 }),
+  small_box: spec('box', new Color3(0.55, 0.4, 0.2), sizeOf('small_box'), { width: 0.5, height: 0.35, depth: 0.4 }),
+  small_tool: spec('composite', new Color3(0.5, 0.5, 0.55), sizeOf('small_tool'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.06, y: 0.5, z: 0.06 } },
+    { shape: 'box', position: { x: 0, y: 0.3, z: 0 }, scaling: { x: 0.2, y: 0.12, z: 0.06 } },
+  ]),
+  wanted_poster: spec('box', new Color3(0.9, 0.85, 0.7), sizeOf('wanted_poster'), { width: 0.6, height: 0.8, depth: 0.02 }),
+  card: spec('box', new Color3(0.9, 0.9, 0.92), sizeOf('card'), { width: 0.5, height: 0.35, depth: 0.02 }),
+  plant: spec('composite', new Color3(0.2, 0.65, 0.15), sizeOf('plant'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: -0.15, z: 0 }, scaling: { x: 0.3, y: 0.25, z: 0.3 }, color: new Color3(0.5, 0.35, 0.2) },
+    { shape: 'sphere', position: { x: 0, y: 0.1, z: 0 }, scaling: { x: 0.45, y: 0.4, z: 0.45 } },
+  ]),
+  tableware: spec('cylinder', new Color3(0.85, 0.8, 0.75), sizeOf('tableware'), { diameter: 0.7, height: 0.08, tessellation: 20 }),
+  pot: spec('composite', new Color3(0.6, 0.5, 0.35), sizeOf('pot'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.6, y: 0.5, z: 0.6 } },
+    { shape: 'torus', position: { x: 0, y: 0.25, z: 0 }, scaling: { x: 0.6, y: 0.6, z: 0.1 } },
+  ]),
+  pan: spec('composite', new Color3(0.35, 0.35, 0.38), sizeOf('pan'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.7, y: 0.1, z: 0.7 } },
+    { shape: 'cylinder', position: { x: 0.45, y: 0, z: 0 }, scaling: { x: 0.08, y: 0.06, z: 0.08 } },
+  ]),
+  tea_set: spec('composite', new Color3(0.9, 0.88, 0.82), sizeOf('tea_set'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.3, y: 0.35, z: 0.3 } },
+    { shape: 'cylinder', position: { x: 0.3, y: 0, z: 0 }, scaling: { x: 0.2, y: 0.25, z: 0.2 } },
+  ]),
 
-  // Nature
+  // ── Electronics & Tech ──────────────────────────────────────────────────
+  boombox: spec('box', new Color3(0.2, 0.2, 0.22), sizeOf('boombox'), { width: 1.2, height: 0.5, depth: 0.4 }),
+  console: spec('composite', new Color3(0.3, 0.3, 0.35), sizeOf('console'), {}, [
+    { shape: 'box', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.8, y: 0.5, z: 0.4 } },
+    { shape: 'box', position: { x: 0, y: 0.15, z: 0.15 }, scaling: { x: 0.6, y: 0.3, z: 0.05 }, color: new Color3(0.1, 0.4, 0.3) },
+  ]),
+  data_pad: spec('box', new Color3(0.25, 0.25, 0.3), sizeOf('data_pad'), { width: 0.45, height: 0.6, depth: 0.04 }),
+  energy_core: spec('composite', new Color3(0.2, 0.6, 0.9), sizeOf('energy_core'), {}, [
+    { shape: 'sphere', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.4, y: 0.4, z: 0.4 } },
+    { shape: 'torus', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.55, y: 0.55, z: 0.15 } },
+  ]),
+  syringe: spec('composite', new Color3(0.8, 0.8, 0.85), sizeOf('syringe'), {}, [
+    { shape: 'cylinder', position: { x: 0, y: 0, z: 0 }, scaling: { x: 0.08, y: 0.6, z: 0.08 } },
+    { shape: 'cylinder', position: { x: 0, y: -0.35, z: 0 }, scaling: { x: 0.12, y: 0.1, z: 0.12 } },
+  ]),
+  med_pack: spec('box', new Color3(0.9, 0.9, 0.92), sizeOf('med_pack'), { width: 0.5, height: 0.35, depth: 0.15 }),
+
+  // ── Nature ──────────────────────────────────────────────────────────────
   flower: spec('composite', new Color3(0.9, 0.3, 0.5), sizeOf('flower'), {}, [
     { shape: 'cylinder', position: { x: 0, y: -0.15, z: 0 }, scaling: { x: 0.08, y: 0.5, z: 0.08 }, color: new Color3(0.2, 0.6, 0.15) },
     { shape: 'sphere', position: { x: 0, y: 0.15, z: 0 }, scaling: { x: 0.4, y: 0.3, z: 0.4 } },
