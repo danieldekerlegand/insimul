@@ -106,6 +106,17 @@ export class LanguageProgressTracker {
   }
 
   /**
+   * Check if a word appears in text using word boundary detection.
+   * Handles punctuation at word edges (e.g. "hello!" matches "hello").
+   */
+  private static matchesWord(text: string, word: string): boolean {
+    // Escape regex special characters in the word
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(?:^|[\\s.,!?;:'"()\\[\\]{}—–-])${escaped}(?:$|[\\s.,!?;:'"()\\[\\]{}—–-])`, 'i');
+    return regex.test(text);
+  }
+
+  /**
    * Analyze a player message for target language vocabulary usage
    */
   public analyzePlayerMessage(message: string): VocabularyUsage[] {
@@ -117,7 +128,7 @@ export class LanguageProgressTracker {
     // Check against known vocabulary (from conlang sample words)
     if (language.sampleWords) {
       for (const [english, conlang] of Object.entries(language.sampleWords)) {
-        if (message.toLowerCase().includes(conlang.toLowerCase())) {
+        if (LanguageProgressTracker.matchesWord(message, conlang)) {
           usages.push({
             word: conlang,
             meaning: english,
@@ -130,7 +141,7 @@ export class LanguageProgressTracker {
 
     // Check against already-learned vocabulary
     for (const entry of this.progress.vocabulary) {
-      if (message.toLowerCase().includes(entry.word.toLowerCase())) {
+      if (LanguageProgressTracker.matchesWord(message, entry.word)) {
         const alreadyCounted = usages.some(u => u.word === entry.word);
         if (!alreadyCounted) {
           usages.push({
@@ -176,7 +187,7 @@ export class LanguageProgressTracker {
 
     if (language.sampleWords) {
       for (const [english, conlang] of Object.entries(language.sampleWords)) {
-        if (response.includes(conlang)) {
+        if (LanguageProgressTracker.matchesWord(response, conlang)) {
           // Check if player already knows this word
           const existing = this.progress.vocabulary.find(v => v.word === conlang);
           if (existing) {

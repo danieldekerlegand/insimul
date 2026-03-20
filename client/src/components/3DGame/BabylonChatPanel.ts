@@ -1548,6 +1548,12 @@ export class BabylonChatPanel {
     placeholderMsg.content = cleanedResponse;
     this.updateMessagesDisplay();
 
+    // Track vocabulary usage — analyze every message exchange, not just when vocabHints are present
+    if (this.languageTracker) {
+      this.languageTracker.analyzePlayerMessage(userMessage);
+      this.languageTracker.analyzeNPCResponse(cleanedResponse);
+    }
+
     // Track vocabulary usage for quests
     this.trackQuestProgress(userMessage, cleanedResponse);
 
@@ -1627,10 +1633,6 @@ export class BabylonChatPanel {
           this.hoverTranslation.addVocabHints(metadata.vocabHints as VocabHint[]);
           // Rebuild NPC messages with interactive word hover
           this.rebuildMessagesWithTranslations();
-          if (this.languageTracker) {
-            this.languageTracker.analyzePlayerMessage(playerMessage);
-            this.languageTracker.analyzeNPCResponse(npcResponse);
-          }
         }
       })
       .catch(err => {
