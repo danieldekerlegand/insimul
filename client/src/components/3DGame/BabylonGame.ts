@@ -2325,6 +2325,8 @@ export class BabylonGame {
         description: event.reason,
         duration: 2000,
       });
+      // Update skill tree with latest stats on every XP gain
+      this.refreshSkillTreeStats();
     });
     this.gamificationTracker.setOnLevelUp((event) => {
       this.guiManager?.showToast({
@@ -2332,6 +2334,17 @@ export class BabylonGame {
         description: `${event.tier} tier reached`,
         duration: 5000,
       });
+      // Refresh skill tree on level-up
+      this.refreshSkillTreeStats();
+    });
+    this.gamificationTracker.setOnLevelRewards((rewards) => {
+      for (const reward of rewards) {
+        this.guiManager?.showToast({
+          title: 'Level Reward!',
+          description: reward.label,
+          duration: 3000,
+        });
+      }
     });
     this.gamificationTracker.setOnAchievementUnlocked((event) => {
       this.guiManager?.showToast({
@@ -9811,31 +9824,36 @@ export class BabylonGame {
     this.conversationHistoryPanel.toggle();
   }
 
-  private handleToggleSkillTree(): void {
+  private refreshSkillTreeStats(): void {
     if (!this.skillTreePanel) return;
 
     const tracker = this.chatPanel?.getLanguageTracker() || this.languageProgressTracker;
-    if (tracker) {
-      const progress = tracker.getProgress();
-      const conversations = progress.conversations || [];
-      const avgTLPct = conversations.length > 0
-        ? conversations.reduce((s, c) => s + c.targetLanguagePercentage, 0) / conversations.length
-        : 0;
-      const maxTurns = conversations.length > 0
-        ? Math.max(...conversations.map(c => c.turns))
-        : 0;
+    if (!tracker) return;
 
-      this.skillTreePanel.updateStats({
-        wordsLearned: progress.totalWordsLearned,
-        wordsMastered: progress.vocabulary.filter(v => v.masteryLevel === 'mastered').length,
-        conversations: progress.totalConversations,
-        grammarPatterns: progress.grammarPatterns.length,
-        avgTargetLanguagePct: avgTLPct,
-        fluency: progress.overallFluency,
-        maxSustainedTurns: maxTurns,
-        questsCompleted: this.gamificationTracker?.getState().questsCompleted || 0,
-      });
-    }
+    const progress = tracker.getProgress();
+    const conversations = progress.conversations || [];
+    const avgTLPct = conversations.length > 0
+      ? conversations.reduce((s, c) => s + c.targetLanguagePercentage, 0) / conversations.length
+      : 0;
+    const maxTurns = conversations.length > 0
+      ? Math.max(...conversations.map(c => c.turns))
+      : 0;
+
+    this.skillTreePanel.updateStats({
+      wordsLearned: progress.totalWordsLearned,
+      wordsMastered: progress.vocabulary.filter(v => v.masteryLevel === 'mastered').length,
+      conversations: progress.totalConversations,
+      grammarPatterns: progress.grammarPatterns.length,
+      avgTargetLanguagePct: avgTLPct,
+      fluency: progress.overallFluency,
+      maxSustainedTurns: maxTurns,
+      questsCompleted: this.gamificationTracker?.getState().questsCompleted || 0,
+    });
+  }
+
+  private handleToggleSkillTree(): void {
+    if (!this.skillTreePanel) return;
+    this.refreshSkillTreeStats();
     this.skillTreePanel.toggle();
   }
 

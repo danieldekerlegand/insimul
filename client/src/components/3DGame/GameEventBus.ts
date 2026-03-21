@@ -146,6 +146,9 @@ export type GameEvent =
   | { type: 'price_haggled'; itemId: string; itemName: string; merchantId: string; merchantName: string; typedWord: string; targetWord: string }
   // Text collection events
   | { type: 'text_collected'; textId: string; title: string; textType: string; difficulty: string; vocabularyWordCount: number }
+  // XP and level-up events
+  | { type: 'xp_gained'; amount: number; reason: string; newTotal: number; level: number }
+  | { type: 'level_up'; oldLevel: number; newLevel: number; tier: string; rewards: Array<{ type: string; value: number | string; label: string }> }
   // Vocabulary hover-lookup events
   | { type: 'vocabulary_lookup'; word: string; meaning: string; category?: string; source: 'hover_object' | 'hover_sign'; objectId: string; dwellMs: number };
 

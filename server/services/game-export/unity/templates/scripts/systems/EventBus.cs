@@ -94,7 +94,10 @@ namespace Insimul.Systems
         IdentificationPrompted,
         IdentificationCorrect,
         IdentificationIncorrect,
-        NpcRelationshipChanged
+        NpcRelationshipChanged,
+        // XP and level-up events
+        XpGained,
+        LevelUp
     }
 
     /// <summary>
@@ -778,6 +781,34 @@ namespace Insimul.Systems
         public string newTier;
         public string cause;
         public float delta;
+    }
+
+    // ── XP / Level-Up Events ──────────────────────────────────────────────────
+
+    [System.Serializable]
+    public class LevelRewardData
+    {
+        public string type;
+        public string value;
+        public string label;
+    }
+
+    public class XpGainedEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.XpGained;
+        public int amount;
+        public string reason;
+        public int newTotal;
+        public int level;
+    }
+
+    public class LevelUpEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.LevelUp;
+        public int oldLevel;
+        public int newLevel;
+        public string tier;
+        public LevelRewardData[] rewards;
     }
 
     // ── Event Bus ────────────────────────────────────────────────────────────
