@@ -75,6 +75,12 @@ export const KEY_QUICK_SAVE = 'F5';
 /** Quick load (slot 0) */
 export const KEY_QUICK_LOAD = 'F9';
 
+/** Toggle camera viewfinder (photography mode) */
+export const KEY_CAMERA_MODE = 'KeyC';
+
+/** Open/close photo book panel */
+export const KEY_PHOTO_BOOK = 'KeyP';
+
 // ─── Camera (CameraManager.handleKeyboardShortcut) ────────────────────────
 // These use KeyboardEvent.key (lowercase). Listed here for reference.
 //

@@ -1124,8 +1124,62 @@ export interface GameSaveState {
   reputationState?: SavedReputationState;
   relationshipDeltas?: SavedRelationshipDelta[];
   mainQuestState?: SavedMainQuestState;
+  /** Player's photo book */
+  photoBook?: SavedPhotoBookState;
   /** Trigger that caused this save (for diagnostics) */
   saveTrigger?: string;
+}
+
+// ─── Photography ────────────────────────────────────────────────────────────
+
+/** A noun label attached to a photo — identifies an object/NPC in the scene. */
+export interface PhotoNounLabel {
+  /** Unique id within the photo */
+  id: string;
+  /** Display name in the player's language */
+  name: string;
+  /** Target-language word (for language-learning worlds) */
+  targetWord?: string;
+  /** Target language code */
+  targetLanguage?: string;
+  /** Pronunciation guide */
+  pronunciation?: string;
+  /** Category (person, building, nature, item, animal, etc.) */
+  category: string;
+  /** Position within the photo as fraction 0-1 (x, y) */
+  x: number;
+  y: number;
+}
+
+/** A photo taken by the player. */
+export interface PlayerPhoto {
+  /** Unique photo id */
+  id: string;
+  /** Base64-encoded image data (data URL) */
+  imageData: string;
+  /** Thumbnail (smaller base64 data URL) */
+  thumbnail: string;
+  /** When the photo was taken (ISO string) */
+  takenAt: string;
+  /** Location where photo was taken */
+  location: {
+    settlementId?: string;
+    settlementName?: string;
+    buildingId?: string;
+    buildingName?: string;
+    position: Vec3;
+  };
+  /** Noun labels the player has added */
+  labels: PhotoNounLabel[];
+  /** Whether the player has marked this as a favorite */
+  favorite: boolean;
+  /** Optional player-written caption */
+  caption?: string;
+}
+
+/** Saved photo book state for GameSaveState */
+export interface SavedPhotoBookState {
+  photos: PlayerPhoto[];
 }
 
 // ─── UI Configuration ───────────────────────────────────────────────────────
