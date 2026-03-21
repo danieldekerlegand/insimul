@@ -12,3 +12,20 @@
 - Added cleanup: final sync + stopServerSync on BabylonChatPanel dispose
 - Wrote 17 tests covering all endpoints including error handling (server/__tests__/language-progress-persistence.test.ts)
 - All tests pass, TypeScript compiles cleanly
+
+## Agent 23: Add spending sinks and economic pressure so gold matters
+
+### Completed
+- Created server/services/spending-sinks.ts with recurring gold drains:
+  - Housing costs (rent scaled by residence quality, poverty-exempt)
+  - Food costs (flat per-tick sustenance cost everyone pays)
+  - Equipment maintenance (percentage of equipped item value)
+  - Progressive wealth tax (3 brackets: 2%/5%/8% above thresholds)
+  - Poverty exemption (characters below 50 gold skip rent and tax)
+  - Debt flagging when characters can't fully pay
+- Added 3 API endpoints in server/routes.ts:
+  - GET /api/worlds/:worldId/entities/:entityId/spending-sinks (preview breakdown)
+  - POST /api/worlds/:worldId/entities/:entityId/spending-sinks/apply (apply to one entity)
+  - POST /api/worlds/:worldId/economy/spending-sinks/process (batch process all characters)
+- Wrote 21 tests in server/__tests__/spending-sinks.test.ts covering all calculations and integration
+- All tests pass, TypeScript compiles cleanly
