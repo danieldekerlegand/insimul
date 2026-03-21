@@ -1,3 +1,17 @@
+## Agent 4: Expand business type definitions with specialized shop types and service businesses
+
+### Completed
+- Added 11 new business types to BusinessType union in shared/schema.ts:
+  - Specialized shops: Blacksmith, Tailor, Butcher, BookStore, HerbShop, PawnShop
+  - Service businesses: Barbershop, Bathhouse, Carpenter, Stables, Clinic
+- Added occupation activity profiles for all 11 new types in OccupationActivitySystem.ts
+- Added accepted item types for shop types in BabylonShopPanel.ts
+- Added business services for Barbershop, Bathhouse, Carpenter, Stables, Clinic, Blacksmith in NPCBusinessInteractionSystem.ts
+- Added 7 new mercantile business types (Blacksmith, Tailor, Butcher, BookStore, HerbShop, PawnShop, Carpenter)
+- Updated existing test to include new service business types
+- Wrote 28 new tests covering type validity, mercantile status, services, and interactions
+- All tests pass, TypeScript compiles cleanly
+
 ## Agent 11: Properly assign NPC occupations during world generation
 
 ### Completed

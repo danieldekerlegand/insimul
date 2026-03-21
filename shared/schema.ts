@@ -21,7 +21,7 @@ export type OccupationVocation =
   | 'Mortician' | 'Engineer' | 'Pharmacist' | 'Architect' | 'Optometrist'
   | 'Dentist' | 'PlasticSurgeon' | 'Professor' | 'Mayor';
 
-export type BusinessType = 
+export type BusinessType =
   | 'Generic' | 'LawFirm' | 'ApartmentComplex' | 'Bakery' | 'Hospital' | 'Bank'
   | 'Hotel' | 'Restaurant' | 'GroceryStore' | 'Bar' | 'Daycare' | 'School'
   | 'PoliceStation' | 'FireStation' | 'TownHall' | 'Church' | 'Farm' | 'Factory'
@@ -29,7 +29,9 @@ export type BusinessType =
   | 'TattoParlor' | 'Brewery' | 'Pharmacy' | 'DentalOffice' | 'OptometryOffice'
   | 'University'
   | 'Harbor' | 'Boatyard' | 'FishMarket' | 'CustomsHouse' | 'Lighthouse'
-  | 'Warehouse';
+  | 'Warehouse'
+  | 'Blacksmith' | 'Tailor' | 'Butcher' | 'BookStore' | 'HerbShop' | 'PawnShop'
+  | 'Barbershop' | 'Bathhouse' | 'Carpenter' | 'Stables' | 'Clinic';
 
 export type ShiftType = 'day' | 'night';
 

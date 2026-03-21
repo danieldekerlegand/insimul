@@ -216,6 +216,74 @@ const BUSINESS_SERVICES: Record<string, BusinessService[]> = {
       availableToRoles: ['owner', 'employee'],
     },
   ],
+  Barbershop: [
+    {
+      id: 'haircut',
+      name: 'Get a Haircut',
+      description: 'A fresh cut to boost your confidence',
+      cost: 10,
+      icon: '\u2702\uFE0F',
+      availableToRoles: ['owner', 'employee'],
+    },
+  ],
+  Bathhouse: [
+    {
+      id: 'bathe',
+      name: 'Take a Bath',
+      description: 'Relax and restore energy',
+      cost: 15,
+      icon: '\uD83D\uDEC1',
+      availableToRoles: ['owner', 'employee'],
+    },
+  ],
+  Carpenter: [
+    {
+      id: 'repair',
+      name: 'Repair Equipment',
+      description: 'Fix damaged tools and gear',
+      cost: 20,
+      icon: '\uD83D\uDD28',
+      availableToRoles: ['owner', 'employee'],
+    },
+  ],
+  Stables: [
+    {
+      id: 'stable_horse',
+      name: 'Stable a Horse',
+      description: 'Rest and feed your mount',
+      cost: 15,
+      icon: '\uD83D\uDC0E',
+      availableToRoles: ['owner', 'employee'],
+    },
+  ],
+  Clinic: [
+    {
+      id: 'heal',
+      name: 'Medical Treatment',
+      description: 'Restore health with basic care',
+      cost: 15,
+      icon: '\uD83E\uDE7A',
+      availableToRoles: ['owner', 'employee'],
+    },
+    {
+      id: 'cure_status',
+      name: 'Treat Ailments',
+      description: 'Remove minor negative effects',
+      cost: 25,
+      icon: '\uD83D\uDC8A',
+      availableToRoles: ['owner', 'employee'],
+    },
+  ],
+  Blacksmith: [
+    {
+      id: 'repair',
+      name: 'Repair Weapons & Armor',
+      description: 'Restore damaged equipment',
+      cost: 20,
+      icon: '\u2694\uFE0F',
+      availableToRoles: ['owner', 'employee'],
+    },
+  ],
 };
 
 /** Business types that support buying/selling via the shop panel */
@@ -233,6 +301,13 @@ const MERCANTILE_BUSINESS_TYPES = new Set([
   'Warehouse',
   'Hotel',
   'Hospital',
+  'Blacksmith',
+  'Tailor',
+  'Butcher',
+  'BookStore',
+  'HerbShop',
+  'PawnShop',
+  'Carpenter',
 ]);
 
 /** NPC proximity threshold for interaction (distance units) */

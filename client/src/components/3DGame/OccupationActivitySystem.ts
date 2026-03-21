@@ -342,6 +342,149 @@ const BUSINESS_ACTIVITY_PROFILES: Record<string, OccupationActivityProfile> = {
     breaksPerShift: [1, 2],
     isShopkeeper: false,
   },
+  Blacksmith: {
+    activities: [
+      { animation: 'work', minDurationMinutes: 40, maxDurationMinutes: 90, label: 'hammering metal' },
+      { animation: 'work', minDurationMinutes: 30, maxDurationMinutes: 60, label: 'stoking the forge' },
+      { animation: 'idle', minDurationMinutes: 15, maxDurationMinutes: 30, label: 'inspecting work' },
+    ],
+    breaks: [
+      { animation: 'sit', durationMinutes: 20, label: 'resting' },
+      { animation: 'eat', durationMinutes: 15, label: 'eating' },
+    ],
+    breaksPerShift: [1, 2],
+    isShopkeeper: true,
+  },
+  Tailor: {
+    activities: [
+      { animation: 'work', minDurationMinutes: 40, maxDurationMinutes: 90, label: 'sewing garments' },
+      { animation: 'work', minDurationMinutes: 20, maxDurationMinutes: 40, label: 'cutting fabric' },
+      { animation: 'idle', minDurationMinutes: 15, maxDurationMinutes: 30, label: 'arranging display' },
+    ],
+    breaks: [
+      { animation: 'sit', durationMinutes: 15, label: 'break' },
+      { animation: 'eat', durationMinutes: 15, label: 'eating' },
+    ],
+    breaksPerShift: [1, 2],
+    isShopkeeper: true,
+  },
+  Butcher: {
+    activities: [
+      { animation: 'work', minDurationMinutes: 40, maxDurationMinutes: 90, label: 'cutting meat' },
+      { animation: 'work', minDurationMinutes: 20, maxDurationMinutes: 40, label: 'preparing orders' },
+      { animation: 'idle', minDurationMinutes: 15, maxDurationMinutes: 30, label: 'minding the counter' },
+    ],
+    breaks: [
+      { animation: 'sit', durationMinutes: 15, label: 'break' },
+      { animation: 'eat', durationMinutes: 15, label: 'eating' },
+    ],
+    breaksPerShift: [1, 2],
+    isShopkeeper: true,
+  },
+  BookStore: {
+    activities: [
+      { animation: 'work', minDurationMinutes: 30, maxDurationMinutes: 60, label: 'shelving books' },
+      { animation: 'idle', minDurationMinutes: 20, maxDurationMinutes: 40, label: 'at the counter' },
+      { animation: 'sit', minDurationMinutes: 20, maxDurationMinutes: 40, label: 'reading' },
+    ],
+    breaks: [
+      { animation: 'sit', durationMinutes: 20, label: 'break' },
+      { animation: 'eat', durationMinutes: 15, label: 'eating' },
+    ],
+    breaksPerShift: [1, 2],
+    isShopkeeper: true,
+  },
+  HerbShop: {
+    activities: [
+      { animation: 'work', minDurationMinutes: 30, maxDurationMinutes: 60, label: 'grinding herbs' },
+      { animation: 'work', minDurationMinutes: 20, maxDurationMinutes: 40, label: 'mixing remedies' },
+      { animation: 'idle', minDurationMinutes: 15, maxDurationMinutes: 30, label: 'tending plants' },
+    ],
+    breaks: [
+      { animation: 'sit', durationMinutes: 15, label: 'break' },
+      { animation: 'eat', durationMinutes: 15, label: 'eating' },
+    ],
+    breaksPerShift: [1, 2],
+    isShopkeeper: true,
+  },
+  PawnShop: {
+    activities: [
+      { animation: 'work', minDurationMinutes: 30, maxDurationMinutes: 60, label: 'appraising items' },
+      { animation: 'idle', minDurationMinutes: 20, maxDurationMinutes: 40, label: 'minding the counter' },
+      { animation: 'work', minDurationMinutes: 20, maxDurationMinutes: 40, label: 'organizing inventory' },
+    ],
+    breaks: [
+      { animation: 'sit', durationMinutes: 20, label: 'break' },
+      { animation: 'eat', durationMinutes: 15, label: 'eating' },
+    ],
+    breaksPerShift: [1, 2],
+    isShopkeeper: true,
+  },
+  Barbershop: {
+    activities: [
+      { animation: 'work', minDurationMinutes: 30, maxDurationMinutes: 60, label: 'cutting hair' },
+      { animation: 'work', minDurationMinutes: 20, maxDurationMinutes: 40, label: 'trimming beards' },
+      { animation: 'idle', minDurationMinutes: 15, maxDurationMinutes: 30, label: 'cleaning tools' },
+    ],
+    breaks: [
+      { animation: 'sit', durationMinutes: 15, label: 'break' },
+      { animation: 'eat', durationMinutes: 15, label: 'eating' },
+    ],
+    breaksPerShift: [1, 2],
+    isShopkeeper: false,
+  },
+  Bathhouse: {
+    activities: [
+      { animation: 'work', minDurationMinutes: 30, maxDurationMinutes: 60, label: 'heating water' },
+      { animation: 'walk', minDurationMinutes: 15, maxDurationMinutes: 30, label: 'checking rooms' },
+      { animation: 'work', minDurationMinutes: 20, maxDurationMinutes: 40, label: 'preparing towels' },
+    ],
+    breaks: [
+      { animation: 'sit', durationMinutes: 15, label: 'break' },
+      { animation: 'eat', durationMinutes: 15, label: 'eating' },
+    ],
+    breaksPerShift: [1, 2],
+    isShopkeeper: false,
+  },
+  Carpenter: {
+    activities: [
+      { animation: 'work', minDurationMinutes: 40, maxDurationMinutes: 90, label: 'sawing wood' },
+      { animation: 'work', minDurationMinutes: 30, maxDurationMinutes: 60, label: 'assembling furniture' },
+      { animation: 'idle', minDurationMinutes: 10, maxDurationMinutes: 20, label: 'measuring timber' },
+    ],
+    breaks: [
+      { animation: 'sit', durationMinutes: 20, label: 'resting' },
+      { animation: 'eat', durationMinutes: 15, label: 'eating' },
+    ],
+    breaksPerShift: [1, 2],
+    isShopkeeper: true,
+  },
+  Stables: {
+    activities: [
+      { animation: 'work', minDurationMinutes: 30, maxDurationMinutes: 60, label: 'feeding horses' },
+      { animation: 'walk', minDurationMinutes: 20, maxDurationMinutes: 40, label: 'exercising horses' },
+      { animation: 'work', minDurationMinutes: 20, maxDurationMinutes: 40, label: 'mucking stalls' },
+    ],
+    breaks: [
+      { animation: 'sit', durationMinutes: 15, label: 'resting' },
+      { animation: 'eat', durationMinutes: 15, label: 'eating' },
+    ],
+    breaksPerShift: [1, 2],
+    isShopkeeper: false,
+  },
+  Clinic: {
+    activities: [
+      { animation: 'work', minDurationMinutes: 30, maxDurationMinutes: 60, label: 'examining patients' },
+      { animation: 'work', minDurationMinutes: 20, maxDurationMinutes: 40, label: 'preparing medicine' },
+      { animation: 'sit', minDurationMinutes: 15, maxDurationMinutes: 30, label: 'writing notes' },
+    ],
+    breaks: [
+      { animation: 'sit', durationMinutes: 15, label: 'break' },
+      { animation: 'eat', durationMinutes: 15, label: 'eating' },
+    ],
+    breaksPerShift: [1, 2],
+    isShopkeeper: false,
+  },
 };
 
 /** Default profile for business types not explicitly mapped */
