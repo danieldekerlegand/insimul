@@ -58,6 +58,8 @@ export interface ServerCompletionResult {
     hintPenalty: number;
     milestone: string | null;
     milestoneXP: number;
+    baseMoney: number;
+    totalMoney: number;
   };
   chainCompletion: {
     chainName: string;
@@ -167,8 +169,9 @@ export class QuestCompletionManager {
     this.playCompletionSound();
     this.playConfettiCelebration();
 
-    // 3. Distribute rewards (items, skills, gold)
-    const rewardSummary = this.distributeRewards(quest);
+    // 3. Distribute rewards (items, skills, gold) — prefer server-calculated money
+    const effectiveGold = serverResult?.bonus?.totalMoney ?? quest.goldReward ?? 0;
+    const rewardSummary = this.distributeRewards({ ...quest, goldReward: effectiveGold });
 
     // 4. Determine effective XP (use server bonus if available)
     const effectiveXP = serverResult?.bonus?.grandTotalXP ?? quest.experienceReward;

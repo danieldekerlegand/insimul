@@ -120,6 +120,8 @@ describe('calculateQuestBonus', () => {
     expect(result.totalXP).toBe(100);
     expect(result.bonusXP).toBe(0);
     expect(result.newStreakCount).toBe(1);
+    expect(result.baseMoney).toBe(0);
+    expect(result.totalMoney).toBe(0);
   });
 
   it('applies difficulty multiplier for advanced', () => {
@@ -208,6 +210,102 @@ describe('calculateQuestBonus', () => {
     expect(result.milestone).toBeNull();
     expect(result.milestoneXP).toBe(0);
     expect(result.grandTotalXP).toBe(100);
+  });
+});
+
+// ── Money Rewards ───────────────────────────────────────────────────────────
+
+describe('money rewards in calculateQuestBonus', () => {
+  it('defaults baseMoney to 0 when not provided', () => {
+    const result = calculateQuestBonus({
+      baseXP: 100,
+      streakCount: 0,
+      difficulty: 'beginner',
+      hintsUsed: 0,
+      isRecurring: false,
+    });
+    expect(result.baseMoney).toBe(0);
+    expect(result.totalMoney).toBe(0);
+  });
+
+  it('returns baseMoney unchanged for beginner difficulty', () => {
+    const result = calculateQuestBonus({
+      baseXP: 100,
+      baseMoney: 50,
+      streakCount: 0,
+      difficulty: 'beginner',
+      hintsUsed: 0,
+      isRecurring: false,
+    });
+    expect(result.baseMoney).toBe(50);
+    expect(result.totalMoney).toBe(50);
+  });
+
+  it('scales money with difficulty multiplier for intermediate', () => {
+    const result = calculateQuestBonus({
+      baseXP: 100,
+      baseMoney: 100,
+      streakCount: 0,
+      difficulty: 'intermediate',
+      hintsUsed: 0,
+      isRecurring: false,
+    });
+    expect(result.baseMoney).toBe(100);
+    expect(result.totalMoney).toBe(125); // 100 * 1.25
+  });
+
+  it('scales money with difficulty multiplier for advanced', () => {
+    const result = calculateQuestBonus({
+      baseXP: 100,
+      baseMoney: 100,
+      streakCount: 0,
+      difficulty: 'advanced',
+      hintsUsed: 0,
+      isRecurring: false,
+    });
+    expect(result.baseMoney).toBe(100);
+    expect(result.totalMoney).toBe(150); // 100 * 1.5
+  });
+
+  it('does not apply hint penalty to money', () => {
+    const result = calculateQuestBonus({
+      baseXP: 100,
+      baseMoney: 100,
+      streakCount: 0,
+      difficulty: 'beginner',
+      hintsUsed: 3,
+      isRecurring: false,
+    });
+    // Hint penalty affects XP but not money
+    expect(result.totalXP).toBe(70); // 100 * 0.7
+    expect(result.totalMoney).toBe(100); // unchanged
+  });
+
+  it('does not apply streak multiplier to money', () => {
+    const result = calculateQuestBonus({
+      baseXP: 100,
+      baseMoney: 100,
+      streakCount: 5,
+      difficulty: 'beginner',
+      hintsUsed: 0,
+      isRecurring: true,
+    });
+    // Streak affects XP for recurring quests but not money
+    expect(result.totalXP).toBe(150); // 100 * 1.5 streak
+    expect(result.totalMoney).toBe(100); // unchanged
+  });
+
+  it('rounds money to nearest integer', () => {
+    const result = calculateQuestBonus({
+      baseXP: 100,
+      baseMoney: 33,
+      streakCount: 0,
+      difficulty: 'intermediate',
+      hintsUsed: 0,
+      isRecurring: false,
+    });
+    // 33 * 1.25 = 41.25 → 41
+    expect(result.totalMoney).toBe(41);
   });
 });
 

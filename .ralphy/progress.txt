@@ -1,3 +1,16 @@
+## Agent 21: Expand XP and money rewards for all quest completions
+
+### Completed
+- Added `moneyReward` integer column to quest schema (shared/schema.ts) and Mongoose schema (server/db/mongo-storage.ts)
+- Added `gold` integer column to playerProgress schema (both Drizzle and Mongoose)
+- Expanded `quest-bonus-calculator.ts` with `baseMoney`/`totalMoney` fields — money scales with difficulty multiplier (no hint penalty or streak for money)
+- Fixed server quest completion endpoint to persist bonus-calculated `grandTotalXP` instead of base `experienceReward`
+- Added server-side gold persistence to playerProgress for both regular and recurring quest completions
+- Updated API responses to include `baseMoney` and `totalMoney` in bonus data
+- Updated client `QuestCompletionManager` to use server-calculated money rewards when available
+- Added 8 new money reward tests to quest-bonus-calculator.test.ts
+- All 115 quest-related tests pass
+
 ## Agent 12: Implement server-side persistence for vocabulary and grammar progress
 
 ### Completed

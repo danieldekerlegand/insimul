@@ -75,6 +75,8 @@ export function streakMultiplier(streakCount: number): number {
 export interface BonusInput {
   /** Base XP from the quest (experienceReward) */
   baseXP: number;
+  /** Base money from the quest (moneyReward), defaults to 0 */
+  baseMoney?: number;
   /** Current streak count (before this completion) */
   streakCount: number;
   /** Quest difficulty level */
@@ -110,6 +112,10 @@ export interface BonusResult {
   milestoneXP: number;
   /** Grand total including milestone bonus */
   grandTotalXP: number;
+  /** Base money reward */
+  baseMoney: number;
+  /** Total money after difficulty multiplier */
+  totalMoney: number;
   /** New streak count after this completion */
   newStreakCount: number;
 }
@@ -132,6 +138,10 @@ export function calculateQuestBonus(input: BonusInput): BonusResult {
   const milestone = getStreakMilestone(newStreakCount);
   const milestoneXP = milestone?.bonusXP ?? 0;
 
+  // Money scales with difficulty only (no hint penalty or streak for money)
+  const baseMoney = input.baseMoney ?? 0;
+  const totalMoney = Math.round(baseMoney * diffMult);
+
   return {
     baseXP: input.baseXP,
     difficultyMultiplier: diffMult,
@@ -144,6 +154,8 @@ export function calculateQuestBonus(input: BonusInput): BonusResult {
     milestone,
     milestoneXP,
     grandTotalXP: totalXP + milestoneXP,
+    baseMoney,
+    totalMoney,
     newStreakCount,
   };
 }

@@ -8751,8 +8751,12 @@ Respond with this JSON structure:
         ) - 1; // updatePlayerStreak returns new count; we want the pre-completion count
       }
 
+      // Resolve money reward from moneyReward column or rewards.gold fallback
+      const questMoney = (quest as any).moneyReward ?? (quest.rewards as any)?.gold ?? 0;
+
       const bonus = calculateQuestBonus({
         baseXP: quest.experienceReward ?? 0,
+        baseMoney: questMoney,
         streakCount: currentStreak,
         difficulty: quest.difficulty,
         hintsUsed,
@@ -8788,20 +8792,24 @@ Respond with this JSON structure:
         }
       }
 
-      // Persist XP to playerProgress
-      const xpAwarded = quest.experienceReward ?? 25;
-      if (xpAwarded > 0) {
-        const userId = (req as any).user?.id;
-        if (userId) {
-          const progress = await storage.getPlayerProgressByUser(userId, worldId);
-          if (progress) {
-            const newXP = (progress.experience ?? 0) + xpAwarded;
+      // Persist XP and gold to playerProgress (use bonus-calculated totals)
+      const xpAwarded = bonus.grandTotalXP;
+      const goldAwarded = bonus.totalMoney;
+      const userId = (req as any).user?.id;
+      if (userId && (xpAwarded > 0 || goldAwarded > 0)) {
+        const playerProg = await storage.getPlayerProgressByUser(userId, worldId);
+        if (playerProg) {
+          const updates: Record<string, any> = {};
+          if (xpAwarded > 0) {
+            const newXP = (playerProg.experience ?? 0) + xpAwarded;
             const { getLevelForXP } = await import('../shared/language/language-gamification.js');
-            await storage.updatePlayerProgress(progress.id, {
-              experience: newXP,
-              level: getLevelForXP(newXP),
-            });
+            updates.experience = newXP;
+            updates.level = getLevelForXP(newXP);
           }
+          if (goldAwarded > 0) {
+            updates.gold = (playerProg.gold ?? 0) + goldAwarded;
+          }
+          await storage.updatePlayerProgress(playerProg.id, updates);
         }
       }
 
@@ -8879,6 +8887,8 @@ Respond with this JSON structure:
           streak: bonus.newStreakCount,
           milestone: bonus.milestone,
           milestoneXP: bonus.milestoneXP,
+          baseMoney: bonus.baseMoney,
+          totalMoney: bonus.totalMoney,
         },
         chainCompletion,
         skillRewards: skillRewardsApplied,
@@ -9147,13 +9157,35 @@ Respond with this JSON structure:
       const progress = (quest.progress as Record<string, any>) ?? {};
       const hintsUsed = progress.hintsData ? getTotalHintsUsed(progress.hintsData) : 0;
 
+      const recurringMoney = (quest as any).moneyReward ?? (quest.rewards as any)?.gold ?? 0;
+
       const bonus = calculateQuestBonus({
         baseXP: quest.experienceReward ?? 0,
+        baseMoney: recurringMoney,
         streakCount: quest.streakCount ?? 0,
         difficulty: quest.difficulty,
         hintsUsed,
         isRecurring: true,
       });
+
+      // Persist XP and gold for recurring quest
+      const recurringUserId = (req as any).user?.id;
+      if (recurringUserId && (bonus.grandTotalXP > 0 || bonus.totalMoney > 0)) {
+        const playerProg = await storage.getPlayerProgressByUser(recurringUserId, worldId);
+        if (playerProg) {
+          const updates: Record<string, any> = {};
+          if (bonus.grandTotalXP > 0) {
+            const newXP = (playerProg.experience ?? 0) + bonus.grandTotalXP;
+            const { getLevelForXP } = await import('../shared/language/language-gamification.js');
+            updates.experience = newXP;
+            updates.level = getLevelForXP(newXP);
+          }
+          if (bonus.totalMoney > 0) {
+            updates.gold = (playerProg.gold ?? 0) + bonus.totalMoney;
+          }
+          await storage.updatePlayerProgress(playerProg.id, updates);
+        }
+      }
 
       res.json({
         quest: updated,
@@ -9168,6 +9200,8 @@ Respond with this JSON structure:
           grandTotalXP: bonus.grandTotalXP,
           milestone: bonus.milestone,
           milestoneXP: bonus.milestoneXP,
+          baseMoney: bonus.baseMoney,
+          totalMoney: bonus.totalMoney,
         },
         completionCount: updateData.completionCount,
       });

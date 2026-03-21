@@ -666,6 +666,7 @@ export const quests = pgTable("quests", {
   
   // Rewards and XP
   experienceReward: integer("experience_reward").default(0),
+  moneyReward: integer("money_reward").default(0),
   rewards: jsonb("rewards").$type<Record<string, any>>().default({}),
 
   // Enhanced rewards (for non-language-learning games)
@@ -1286,6 +1287,7 @@ export const playerProgress = pgTable("player_progress", {
   // Progress metrics
   level: integer("level").default(1),
   experience: integer("experience").default(0),
+  gold: integer("gold").default(0),
   playtime: integer("playtime").default(0), // in seconds
 
   // Game state
