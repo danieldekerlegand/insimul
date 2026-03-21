@@ -335,3 +335,33 @@
   - POST /api/worlds/:worldId/economy/spending-sinks/process (batch process all characters)
 - Wrote 21 tests in server/__tests__/spending-sinks.test.ts covering all calculations and integration
 - All tests pass, TypeScript compiles cleanly
+- [✓] 2026-03-20 18:40 - Scrape Polyhaven and Sketchfab for downloadable prop/furniture/container 3D assets
+- [✓] 2026-03-20 21:10 - Download and integrate top-priority 3D assets into the project
+- [✓] 2026-03-20 21:10 - Expand the base item catalog with new categories and items
+- [✓] 2026-03-20 21:10 - Expand business type definitions with specialized shop types and service businesses
+- [✓] 2026-03-20 23:03 - Add public building type with schools, city halls, libraries, and post offices
+- [✓] 2026-03-20 23:03 - Replace placeholder box furniture in interiors with actual 3D models
+- [✗] 2026-03-20 23:03 - Enlarge building interiors and add multi-room layouts for larger buildings
+- [✓] 2026-03-20 23:12 - Implement visual day/night cycle with lighting and sky color transitions
+- [✓] 2026-03-20 23:12 - Implement time-of-day HUD indicator and time controls
+- [✓] 2026-03-20 23:12 - Enforce NPC town boundary confinement and fix wilderness wandering
+- [✓] 2026-03-20 23:32 - Properly assign NPC occupations during world generation for all characters
+- [✓] 2026-03-20 23:32 - Enhance character detail view to show workplace, residence, and business ownership
+- [✓] 2026-03-20 23:32 - Enhance business detail view to show owner, employees, and inventory
+- [✓] 2026-03-20 23:32 - Create residence detail view showing residents and household information
+- [✓] 2026-03-20 23:51 - Fill businesses with correct owner and employee NPCs during operating hours
+- [✓] 2026-03-20 23:51 - Fill residences with residents during evening and night hours
+- [✓] 2026-03-21 00:07 - Implement player photography system with photo book and noun labeling
+- [✓] 2026-03-21 00:07 - Add photography quest objectives and integrate with quest system
+- [✓] 2026-03-21 00:07 - Implement a player vehicle (bicycle or horse) for faster travel
+- [✓] 2026-03-21 00:20 - Add quest objective fallback system for uncompletable objectives
+- [✓] 2026-03-21 00:20 - Expand XP and money rewards for all quest completions
+- [✓] 2026-03-21 00:20 - Wire XP gains to skill tree progression and level-up rewards
+- [✓] 2026-03-21 00:32 - Add spending sinks and economic pressure so gold matters
+- [✓] 2026-03-21 00:32 - Add ambient life behaviors: NPCs doing chores, eating, socializing contextually
+- [✓] 2026-03-21 00:32 - Add weather system with rain, clouds, and atmospheric effects
+- [✓] 2026-03-21 00:44 - Add animal NPCs (cats, dogs, birds) for world ambiance and vocabulary
+- [✓] 2026-03-21 00:44 - Add outdoor furniture and market stalls to settlement exteriors
+- [✓] 2026-03-21 00:44 - Add ambient sound system with environmental audio tied to location and time
+- [✓] 2026-03-21 00:52 - End-to-end validation: verify all new systems work together in world 69bba18ce2e6d5c1cb3c7a9f
+- [✓] 2026-03-21 01:39 - Enlarge building interiors and add multi-room layouts for larger buildings
