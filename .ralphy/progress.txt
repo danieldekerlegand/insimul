@@ -1,3 +1,27 @@
+## Agent 24: Add ambient life behaviors: NPCs doing chores, eating, socializing contextually
+
+### Completed
+- Created AmbientLifeBehaviorSystem (client/src/components/3DGame/AmbientLifeBehaviorSystem.ts):
+  - 10 contextual outdoor activities: sweeping, gardening, carrying_goods, eating_outdoor, drinking, people_watching, stretching, window_shopping, chatting, greeting_passerby
+  - Each activity has time-of-day windows, personality trait affinities, location requirements
+  - Weighted random selection using personality-influenced scoring (softmax-like)
+  - Activities map to existing animation states (idle, walk, work, eat, talk, wave)
+  - Face-target support: NPCs face buildings (for chores/shopping) or other NPCs (for social)
+  - Cooldown system prevents rapid activity cycling
+- Integrated into BabylonGame.ts NPC update loop:
+  - When NPCs are idle between goals, system assigns contextual ambient activities
+  - Gathers nearby buildings and NPCs for context-aware activity selection
+  - Plays appropriate animations and extends idle wait to match activity duration
+  - Clears activities when NPC starts moving to next goal
+  - Disposed on scene teardown
+- Wrote 20 tests (client/src/components/3DGame/__tests__/AmbientLifeBehaviorSystem.test.ts):
+  - Activity assignment, expiry, cooldown enforcement
+  - Time-of-day filtering (no sweeping at night, eating at mealtimes)
+  - Context filtering (no chatting without nearby NPCs, no shopping without businesses)
+  - Personality influence (conscientious = more chores, introverts avoid socializing)
+  - Face target positioning, animation state validation, dispose cleanup
+- All 20 tests pass, no lint or type errors
+
 ## Agent 21: Expand XP and money rewards for all quest completions
 
 ### Completed

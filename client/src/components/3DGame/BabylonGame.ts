@@ -128,6 +128,7 @@ import { VRAccessibilityManager } from "@/components/3DGame/VRAccessibilityManag
 import { NPCTalkingIndicator } from "@/components/3DGame/NPCTalkingIndicator.ts";
 import { NPCAmbientConversationManager } from "@/components/3DGame/NPCAmbientConversationManager.ts";
 import { VehicleSystem } from "@/components/3DGame/VehicleSystem.ts";
+import { AmbientLifeBehaviorSystem, type NearbyBuildingInfo, type NearbyNPCInfo } from "@/components/3DGame/AmbientLifeBehaviorSystem.ts";
 import { NPCInitiatedConversationController } from "@/components/3DGame/NPCInitiatedConversationController.ts";
 import { NPCSocializationController } from "@/components/3DGame/NPCSocializationController.ts";
 import type { SocializableNPC, ConversationResult } from "@/components/3DGame/NPCSocializationController.ts";
@@ -309,6 +310,8 @@ interface NPCInstance {
   volitionTargetNpcId?: string;
   // Escort quest — NPC follows the player
   isBeingEscorted?: boolean;
+  // Ambient life behavior — current animation override
+  ambientActivityAnimation?: string;
   // Debug
   _debugLogged?: boolean;
 }
@@ -674,6 +677,7 @@ export class BabylonGame {
 
   // NPC Schedule System — sidewalk pathfinding and goal-directed behavior
   private npcScheduleSystem: NPCScheduleSystem = new NPCScheduleSystem();
+  private ambientLifeSystem: AmbientLifeBehaviorSystem = new AmbientLifeBehaviorSystem();
 
   // Volition System — Ensemble-style spontaneous NPC goal formation
   private volitionSystem: VolitionSystem = new VolitionSystem({
@@ -8060,12 +8064,34 @@ export class BabylonGame {
       }
     }
 
-    // --- If waiting (idle pause), check if wait is over ---
+    // --- If waiting (idle pause), try ambient activity or stay idle ---
     if (instance.wanderWaitUntil && now < instance.wanderWaitUntil) {
       instance.controller.walk(false);
       instance.controller.turnLeft(false);
       instance.controller.turnRight(false);
+
+      // Try ambient life behavior instead of standing idle
+      if (characterId) {
+        const behavior = this.updateAmbientLifeBehavior(instance, characterId, now);
+        if (behavior?.faceTargetPosition && instance.mesh) {
+          // Smoothly face the activity target
+          const dx = behavior.faceTargetPosition.x - instance.mesh.position.x;
+          const dz = behavior.faceTargetPosition.z - instance.mesh.position.z;
+          if (dx * dx + dz * dz > 0.01) {
+            instance.mesh.rotation.y = Math.atan2(dx, dz);
+          }
+        }
+      }
       return;
+    }
+
+    // Clear ambient activity when NPC starts moving again
+    if (characterId) {
+      this.ambientLifeSystem.clearActivity(characterId);
+      if (instance.ambientActivityAnimation) {
+        this.playNPCAnimation(instance, 'idle');
+        instance.ambientActivityAnimation = undefined;
+      }
     }
 
     // --- Volition override: spontaneous behavior from VolitionSystem ---
@@ -8255,6 +8281,104 @@ export class BabylonGame {
    * Maps terminal actions to destinations: social actions → target NPC position,
    * commerce → random business, self-care → home, explore → random sidewalk.
    */
+  /**
+   * Try to assign an ambient life behavior to an idle NPC.
+   * Gathers nearby context (buildings, NPCs) and delegates to AmbientLifeBehaviorSystem.
+   */
+  private updateAmbientLifeBehavior(
+    instance: NPCInstance,
+    characterId: string,
+    now: number,
+  ): { faceTargetPosition?: { x: number; z: number } } | null {
+    if (!instance.mesh) return null;
+
+    const npcX = instance.mesh.position.x;
+    const npcZ = instance.mesh.position.z;
+    const gameHour = this.gameTimeManager.getState().hour;
+    const schedEntry = this.npcScheduleSystem.getEntry(characterId);
+    const personality = schedEntry?.personality;
+
+    // Gather nearby buildings
+    const nearbyBuildings: NearbyBuildingInfo[] = [];
+    this.buildingData.forEach((data, id) => {
+      const dx = data.position.x - npcX;
+      const dz = data.position.z - npcZ;
+      if (dx * dx + dz * dz < 225) { // 15^2
+        nearbyBuildings.push({
+          id,
+          buildingType: data.metadata?.buildingType ?? 'business',
+          doorX: data.position.x,
+          doorZ: data.position.z,
+          isHome: id === schedEntry?.homeBuildingId,
+          isWork: id === schedEntry?.workBuildingId,
+        });
+      }
+    });
+
+    // Gather nearby visible NPCs
+    const nearbyNPCs: NearbyNPCInfo[] = [];
+    this.npcMeshes.forEach((otherInstance, otherId) => {
+      if (otherId === characterId) return;
+      if (!otherInstance.mesh?.isEnabled()) return;
+      const dx = otherInstance.mesh.position.x - npcX;
+      const dz = otherInstance.mesh.position.z - npcZ;
+      if (dx * dx + dz * dz < 144) { // 12^2
+        nearbyNPCs.push({ id: otherId, x: otherInstance.mesh.position.x, z: otherInstance.mesh.position.z });
+      }
+    });
+
+    const behavior = this.ambientLifeSystem.update(
+      characterId, now, gameHour, npcX, npcZ,
+      personality, nearbyBuildings, nearbyNPCs
+    );
+
+    if (behavior) {
+      // Play the appropriate animation if it changed
+      if (instance.ambientActivityAnimation !== behavior.animation) {
+        instance.ambientActivityAnimation = behavior.animation;
+        this.playNPCAnimation(instance, behavior.animation);
+      }
+      // Extend the idle wait to cover the full activity duration
+      if (instance.wanderWaitUntil && instance.wanderWaitUntil < behavior.endTime) {
+        instance.wanderWaitUntil = behavior.endTime;
+      }
+      return behavior;
+    }
+    return null;
+  }
+
+  /**
+   * Play an animation on an NPC by searching its animation groups for a matching name.
+   */
+  private playNPCAnimation(instance: NPCInstance, animation: string): void {
+    if (!instance.animationGroups?.length) return;
+
+    const searchNames: Record<string, string[]> = {
+      idle: ['idle', 'Idle', 'standing', 'breathe'],
+      walk: ['walk', 'Walk', 'walking'],
+      run: ['run', 'Run', 'running'],
+      talk: ['talk', 'Talk', 'talking', 'speak', 'gesture'],
+      listen: ['listen', 'Listen', 'listening', 'nod'],
+      work: ['work', 'Work', 'working', 'work_standing'],
+      sit: ['sit', 'Sit', 'sitting', 'seated'],
+      eat: ['eat', 'Eat', 'eating', 'drink'],
+      wave: ['wave', 'Wave', 'waving', 'greet'],
+      sleep: ['sleep', 'Sleep', 'sleeping', 'lying'],
+    };
+
+    const names = searchNames[animation] || [animation];
+    const group = instance.animationGroups.find((ag: any) =>
+      names.some((n: string) => ag.name?.toLowerCase().includes(n.toLowerCase()))
+    );
+
+    if (group) {
+      for (const ag of instance.animationGroups) {
+        if (ag !== group) ag.stop();
+      }
+      group.start(true);
+    }
+  }
+
   private executeVolitionGoal(instance: NPCInstance, goal: VolitionGoal, now: number): void {
     if (!instance.mesh) return;
     const currentPos = instance.mesh.position;
@@ -12133,6 +12257,7 @@ export class BabylonGame {
     this.ambientConversationManager?.dispose();
     this.npcInitiatedConversationController?.dispose();
     this.socializationController?.dispose();
+    this.ambientLifeSystem.dispose();
     this.ambientConversationManager = null;
     this.socializationController = null;
     this.npcTalkingIndicator?.dispose();
