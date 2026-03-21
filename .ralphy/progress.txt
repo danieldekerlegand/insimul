@@ -90,4 +90,22 @@
 - Added inventory (containers) display to SettlementDetailView.tsx expanded business cards, fetching containers via /api/worlds/:worldId/containers/by-location endpoint
 - Added Package icon import and containers query (lazy-loaded on expand) to SettlementDetailView
 - Wrote 13 unit tests for helper logic (owner display, inventory totals, formatting) in BusinessDetailCard.test.ts
+
+## Agent 14: Create residence detail view showing residents and household information
+
+### Completed
+- Created ResidenceDetailView component (client/src/components/locations/ResidenceDetailView.tsx):
+  - Displays residence info (address, type, street, district, occupant count)
+  - Shows owners section with character avatars and click-to-view navigation
+  - Shows residents section with owner badges and click-to-view navigation
+  - Computes and displays household relationships (spouse, parent-child) among co-residents
+  - Deduplicates spouse relationships to avoid showing "A married to B" and "B married to A"
+- Integrated ResidenceDetailView into SettlementHub's building slide-over:
+  - Replaced inline residence details and occupant list with ResidenceDetailView component
+  - Business/lot detail cards still render as before; only residence uses the new view
+- Added onViewResidence callback prop to SettlementDetailView for future navigation support
+- Wrote 11 unit tests (client/src/components/locations/__tests__/ResidenceDetailView.test.ts):
+  - Character resolution from IDs
+  - Character name formatting (full name, missing parts, unknown)
+  - Household relationship detection (spouse dedup, parent-child, cross-residence filtering)
 - All tests pass, no new TypeScript errors introduced
