@@ -26,6 +26,22 @@
   - GET /api/asset-scraper/sketchfab — scrape Sketchfab only
   - GET /api/asset-scraper/download-info/:source/:sourceId — get download info for a specific asset
 - Wrote 17 tests covering classification, deduplication, error handling, filtering, and download info (server/__tests__/asset-scraper.test.ts)
+
+## Agent 12: Enhance character detail view to show workplace, residence, and business ownership
+
+### Completed
+- Added GET /api/residences/:id endpoint to server/routes.ts (was missing)
+- Enhanced CharacterDetailView.tsx with new data queries:
+  - Fetches residence details via currentResidenceId
+  - Fetches businesses owned by character via /api/characters/:id/businesses
+  - Fetches occupation history via /api/characters/:id/occupation-history
+  - Fetches workplace business details via /api/businesses/:id/summary
+- Added "Workplace & Living" card to Info tab showing:
+  - Workplace: business name, type, role/vocation, shift, start year
+  - Residence: address, type, co-residents
+  - Businesses Owned: list with name and type badges
+- Card only renders when data is available (progressive enhancement)
+- Wrote 16 tests covering data extraction, visibility logic, and co-resident filtering
 - All tests pass, TypeScript compiles cleanly
 
 ## Agent 11: Properly assign NPC occupations during world generation
