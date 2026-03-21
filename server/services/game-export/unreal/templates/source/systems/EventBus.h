@@ -129,7 +129,9 @@ enum class EInsimulEventType : uint8
     VocabularyLookup UMETA(DisplayName = "Vocabulary Lookup"),
     // Vehicle events
     VehicleMounted UMETA(DisplayName = "Vehicle Mounted"),
-    VehicleDismounted UMETA(DisplayName = "Vehicle Dismounted")
+    VehicleDismounted UMETA(DisplayName = "Vehicle Dismounted"),
+    // Photography events
+    PhotoTaken UMETA(DisplayName = "Photo Taken")
 };
 
 // ── String ↔ Enum conversion ─────────────────────────────────────────────────

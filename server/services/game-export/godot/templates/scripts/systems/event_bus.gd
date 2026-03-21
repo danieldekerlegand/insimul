@@ -128,6 +128,8 @@ const EVENT_VOCABULARY_LOOKUP := "vocabulary_lookup"
 # Vehicle events
 const EVENT_VEHICLE_MOUNTED := "vehicle_mounted"
 const EVENT_VEHICLE_DISMOUNTED := "vehicle_dismounted"
+# Photography events
+const EVENT_PHOTO_TAKEN := "photo_taken"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -205,6 +207,8 @@ const VALID_EVENT_TYPES: Array[String] = [
 	# Vehicle events
 	EVENT_VEHICLE_MOUNTED,
 	EVENT_VEHICLE_DISMOUNTED,
+	# Photography events
+	EVENT_PHOTO_TAKEN,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.

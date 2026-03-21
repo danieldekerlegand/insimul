@@ -302,6 +302,15 @@ export const ACHIEVABLE_OBJECTIVE_TYPES: ObjectiveTypeInfo[] = [
     countable: true,
   },
 
+  // ── Photography ─────────────────────────────────────────────────────────
+  {
+    type: 'photograph_subject',
+    description: 'Take a photograph of a specific subject (item, NPC, building, or nature feature)',
+    playerAction: 'Use the camera to photograph the target subject',
+    requiresTarget: 'none',
+    countable: true,
+  },
+
   // ── Teaching (player teaches NPC) ────────────────────────────────────────
   {
     type: 'teach_vocabulary',
@@ -623,6 +632,19 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'text_comprehension': 'comprehension_quiz',
   'book_quiz': 'comprehension_quiz',
   'answer_about_text': 'comprehension_quiz',
+
+  // Photography objective aliases
+  'photograph': 'photograph_subject',
+  'take_photo': 'photograph_subject',
+  'take_photograph': 'photograph_subject',
+  'photo': 'photograph_subject',
+  'snap_photo': 'photograph_subject',
+  'capture_photo': 'photograph_subject',
+  'photograph_item': 'photograph_subject',
+  'photograph_npc': 'photograph_subject',
+  'photograph_building': 'photograph_subject',
+  'photograph_nature': 'photograph_subject',
+  'photo_subject': 'photograph_subject',
 
   // Grammar-focused objective aliases (map to canonical types)
   'grammar_pattern': 'use_vocabulary',
