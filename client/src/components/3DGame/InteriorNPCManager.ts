@@ -36,6 +36,12 @@ export interface PlacedInteriorNPC {
   characterData?: any;
 }
 
+/** Employee entry with optional shift info */
+export interface EmployeeEntry {
+  id: string;
+  shift?: 'day' | 'night';
+}
+
 /** Building metadata from BabylonGame.buildingData */
 export interface BuildingMetadata {
   buildingId?: string;
@@ -43,7 +49,7 @@ export interface BuildingMetadata {
   businessType?: string;
   businessName?: string;
   ownerId?: string | null;
-  employees?: Array<string | { id: string }>;
+  employees?: Array<string | EmployeeEntry>;
   occupants?: Array<string | { id: string }>;
   residenceId?: string;
   businessId?: string;
@@ -90,6 +96,60 @@ export interface PersistentNPCAssignment {
   role: 'employee' | 'owner' | 'visitor';
   furnitureName: string;
   furnitureIndex: number;
+}
+
+/** Operating hours per business type: [openHour, closeHour] using 24-hour clock */
+export const BUSINESS_OPERATING_HOURS: Record<string, { open: number; close: number }> = {
+  Bakery:       { open: 6,  close: 18 },
+  Bar:          { open: 16, close: 2 },   // crosses midnight
+  Restaurant:   { open: 10, close: 22 },
+  Shop:         { open: 9,  close: 19 },
+  GroceryStore: { open: 7,  close: 21 },
+  Hospital:     { open: 0,  close: 24 },  // 24/7
+  Church:       { open: 7,  close: 20 },
+  School:       { open: 8,  close: 16 },
+};
+
+const DEFAULT_OPERATING_HOURS = { open: 7, close: 20 };
+
+/**
+ * Check if a business is open at a given hour, handling overnight ranges (e.g. bars).
+ */
+export function isBusinessOpen(businessType: string | undefined, gameHour: number): boolean {
+  const hours = (businessType && BUSINESS_OPERATING_HOURS[businessType]) || DEFAULT_OPERATING_HOURS;
+  if (hours.open < hours.close) {
+    // Normal range: e.g. 9-19
+    return gameHour >= hours.open && gameHour < hours.close;
+  }
+  // Overnight range: e.g. 16-2 (bar)
+  return gameHour >= hours.open || gameHour < hours.close;
+}
+
+/**
+ * Check if a given hour falls within the day shift (open to midpoint) or night shift (midpoint to close).
+ * For 24h businesses, day = 6-18, night = 18-6.
+ */
+export function isShiftActive(shift: 'day' | 'night', businessType: string | undefined, gameHour: number): boolean {
+  const hours = (businessType && BUSINESS_OPERATING_HOURS[businessType]) || DEFAULT_OPERATING_HOURS;
+
+  // 24h businesses split at 6/18
+  if (hours.open === 0 && hours.close === 24) {
+    return shift === 'day' ? (gameHour >= 6 && gameHour < 18) : (gameHour >= 18 || gameHour < 6);
+  }
+
+  // Non-overnight: day shift covers all hours, night shift not applicable
+  if (hours.open < hours.close) {
+    return shift === 'day';
+  }
+
+  // Overnight range (e.g. bar 16-2): day = 16-midpoint, night = midpoint-2
+  const midpoint = (hours.open + 24 + hours.close) / 2;
+  const normalizedMid = midpoint % 24;
+  if (shift === 'day') {
+    return gameHour >= hours.open && gameHour < normalizedMid;
+  }
+  // night shift
+  return gameHour >= normalizedMid || gameHour < hours.close;
 }
 
 /** Max NPCs to place in an interior for performance */
@@ -401,23 +461,26 @@ export class InteriorNPCManager {
     const addedIds = new Set<string>();
     const gameHour = this.callbacks.getGameHour?.() ?? 12;
 
-    // Check if within business hours (roughly 7-20)
-    const isBusinessHours = gameHour >= 7 && gameHour <= 20;
+    // Check if business is currently open based on its type-specific operating hours
+    const businessOpen = isBusinessOpen(metadata.businessType, gameHour);
 
-    // Add owner
+    // Add owner (present when business is open, or always for residences)
     if (metadata.ownerId && allNPCs.has(metadata.ownerId)) {
       const npc = allNPCs.get(metadata.ownerId)!;
-      if (isBusinessHours || metadata.buildingType === 'residence') {
+      if (businessOpen || metadata.buildingType === 'residence') {
         candidates.push({ id: metadata.ownerId, mesh: npc.mesh, characterData: npc.characterData, role: 'owner' });
         addedIds.add(metadata.ownerId);
       }
     }
 
-    // Add employees (during business hours)
-    if (metadata.employees && isBusinessHours) {
+    // Add employees whose shift matches the current time (only when business is open)
+    if (metadata.employees && businessOpen) {
       for (const emp of metadata.employees) {
         const empId = typeof emp === 'string' ? emp : emp.id;
+        const empShift: 'day' | 'night' = (typeof emp === 'object' && emp.shift) || 'day';
         if (addedIds.has(empId) || !allNPCs.has(empId)) continue;
+        // Only include employees whose shift is currently active
+        if (!isShiftActive(empShift, metadata.businessType, gameHour)) continue;
         const npc = allNPCs.get(empId)!;
         candidates.push({ id: empId, mesh: npc.mesh, characterData: npc.characterData, role: 'employee' });
         addedIds.add(empId);
@@ -452,7 +515,7 @@ export class InteriorNPCManager {
     // Add visitors: other NPCs who might be at this location
     // Prioritize by relationship strength with player
     const shouldAddVisitors = metadata.buildingType === 'business'
-      ? isBusinessHours
+      ? businessOpen
       : metadata.buildingType === 'residence';
     if (shouldAddVisitors) {
       const visitors: Array<{ id: string; mesh: Mesh; characterData?: any; relationshipScore: number }> = [];

@@ -33,6 +33,19 @@
 - Wrote 45 tests covering pure functions, species configs, vocabulary integration
 - All tests pass, no new TypeScript or lint errors
 
+## Agent 15: Fill businesses with correct owner and employee NPCs during operating hours
+
+### Completed
+- Added per-business-type operating hours (Bakery 6-18, Bar 16-2, Restaurant 10-22, Shop 9-19, etc.) to InteriorNPCManager
+- Server API now returns employee shift data (day/night) alongside character IDs
+- InteriorNPCManager filters employees by shift — day-shift workers appear during day hours, night-shift during night hours
+- Overnight businesses (bars) correctly handle cross-midnight hour ranges
+- 24/7 businesses (hospitals) split day/night shifts at 6AM/6PM
+- NPCScheduleSystem uses business-specific operating hours for work goals instead of hard-coded 9-17
+- Backward compatible: string employee entries still treated as day shift
+- Wrote 17 tests covering operating hours, shift filtering, and NPC placement
+- All tests pass, TypeScript compiles cleanly
+
 ## Agent 12: Implement server-side persistence for vocabulary and grammar progress
 
 ### Completed

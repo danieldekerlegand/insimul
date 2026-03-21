@@ -2201,15 +2201,15 @@ app.get("/api/rules", async (req, res) => {
     try {
       const businesses = await storage.getBusinessesBySettlement(req.params.settlementId);
 
-      // Enrich each business with employee character IDs from the occupations table
-      // so that the 3D game can place NPCs inside building interiors
+      // Enrich each business with employee character IDs and shift data from the occupations table
+      // so that the 3D game can place the correct NPCs inside building interiors per shift
       const enriched = await Promise.all(businesses.map(async (biz: any) => {
         try {
           const occupations = await storage.getOccupationsByBusiness(biz.id);
-          const employeeIds = occupations
+          const employees = occupations
             .filter((occ: any) => !occ.endYear && !occ.terminationReason)
-            .map((occ: any) => occ.characterId);
-          return { ...biz, employees: employeeIds };
+            .map((occ: any) => ({ id: occ.characterId, shift: occ.shift || 'day' }));
+          return { ...biz, employees };
         } catch {
           return { ...biz, employees: [] };
         }

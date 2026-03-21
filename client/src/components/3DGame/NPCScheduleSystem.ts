@@ -20,6 +20,7 @@
 
 import { Vector3 } from '@babylonjs/core';
 import type { StreetNetwork } from '../../../../shared/game-engine/types';
+import { BUSINESS_OPERATING_HOURS, isBusinessOpen } from './InteriorNPCManager';
 
 export interface NPCGoal {
   type: 'go_to_building' | 'wander_sidewalk' | 'idle_at_building' | 'visit_friend';
@@ -70,6 +71,7 @@ interface BuildingInfo {
   id: string;
   position: Vector3;
   buildingType: string;
+  businessType?: string;
   doorPosition: Vector3;
 }
 
@@ -112,12 +114,14 @@ export class NPCScheduleSystem {
     position: Vector3,
     rotation: number,
     depth: number,
-    buildingType: string
+    buildingType: string,
+    businessType?: string
   ): void {
     this.buildings.set(id, {
       id,
       position: position.clone(),
       buildingType,
+      businessType,
       doorPosition: computeDoorPosition(position, rotation, depth),
     });
   }
@@ -465,6 +469,15 @@ export class NPCScheduleSystem {
     return this.pickUnemployedGoal(entry, p, gameHour, now, seed0, seed1, seed2, seed3);
   }
 
+  /**
+   * Get the operating hours for an NPC's workplace.
+   */
+  private getWorkHours(workBuildingId: string): { open: number; close: number } {
+    const bld = this.buildings.get(workBuildingId);
+    const bType = bld?.businessType;
+    return (bType && BUSINESS_OPERATING_HOURS[bType]) || { open: 7, close: 20 };
+  }
+
   private pickEmployedGoal(
     entry: NPCScheduleEntry,
     p: Required<NPCPersonality>,
@@ -473,47 +486,63 @@ export class NPCScheduleSystem {
     seed0: number, seed1: number, seed2: number, seed3: number,
   ): NPCGoal {
     const hasHome = !!(entry.homeBuildingId && this.buildings.has(entry.homeBuildingId));
+    const workBld = this.buildings.get(entry.workBuildingId!);
+    const workOpen = isBusinessOpen(workBld?.businessType, gameHour);
+    const hours = this.getWorkHours(entry.workBuildingId!);
 
-    if (gameHour < 9) {
-      // Morning: high-C NPCs go straight to work; others may take a morning walk first
-      const takeMorningWalk = this.personalityCheck(0.2, p.openness, 0.4, seed0)
-        && !this.personalityCheck(0.5, p.conscientiousness, 0.6, seed0);
-      if (takeMorningWalk && gameHour < 7) {
+    // If the business is currently open, NPC should be at work
+    if (workOpen) {
+      // Check for pre-work morning walk (only within 2 hours before opening)
+      const preWorkWindow = (hours.open - 2 + 24) % 24;
+      const inPreWork = hours.open > preWorkWindow
+        ? (gameHour >= preWorkWindow && gameHour < hours.open)
+        : (gameHour >= preWorkWindow || gameHour < hours.open);
+
+      if (inPreWork) {
+        const takeMorningWalk = this.personalityCheck(0.2, p.openness, 0.4, seed0)
+          && !this.personalityCheck(0.5, p.conscientiousness, 0.6, seed0);
+        if (takeMorningWalk) {
+          return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
+        }
+      }
+
+      // Mid-shift lunch break (roughly halfway through shift)
+      const shiftMid = hours.open < hours.close
+        ? (hours.open + hours.close) / 2
+        : ((hours.open + hours.close + 24) / 2) % 24;
+      const nearLunch = Math.abs(gameHour - shiftMid) < 0.5;
+
+      if (nearLunch) {
+        const eatAtDesk = this.personalityCheck(0.3, p.conscientiousness, 0.5, seed1);
+        if (eatAtDesk) {
+          return this.makeBuildingGoal(entry.workBuildingId!, now, this.randRange(60000, 120000));
+        }
+        const shopId = p.neuroticism > 0.6
+          ? this.pickSeededBusiness(seed1, entry.workBuildingId)
+          : this.pickRandomBusiness(entry.workBuildingId);
+        if (shopId) {
+          return this.makeBuildingGoal(shopId, now, this.randRange(60000, 120000));
+        }
         return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
       }
-      return this.makeBuildingGoal(entry.workBuildingId!, now, this.randRange(180000, 300000));
 
-    } else if (gameHour < 12) {
-      // Work hours
-      return this.makeBuildingGoal(entry.workBuildingId!, now, this.randRange(180000, 300000));
+      // Low-C NPCs may leave early (in last 2 hours of shift)
+      const shiftEnd = hours.close;
+      const hoursUntilClose = hours.open < hours.close
+        ? shiftEnd - gameHour
+        : (shiftEnd + 24 - gameHour) % 24;
+      if (hoursUntilClose <= 2) {
+        const leaveEarly = this.personalityCheck(0.15, 1 - p.conscientiousness, 0.4, seed2);
+        if (leaveEarly) {
+          return this.pickEveningGoal(entry, p, now, seed2, seed3);
+        }
+      }
 
-    } else if (gameHour < 13) {
-      // Lunch: high-C may eat at work (skip going out); open NPCs explore new places
-      const eatAtDesk = this.personalityCheck(0.3, p.conscientiousness, 0.5, seed1);
-      if (eatAtDesk) {
-        return this.makeBuildingGoal(entry.workBuildingId!, now, this.randRange(60000, 120000));
-      }
-      // Neurotic NPCs prefer familiar places — use seed to pick consistently
-      const shopId = p.neuroticism > 0.6
-        ? this.pickSeededBusiness(seed1, entry.workBuildingId)
-        : this.pickRandomBusiness(entry.workBuildingId);
-      if (shopId) {
-        return this.makeBuildingGoal(shopId, now, this.randRange(60000, 120000));
-      }
-      return { type: 'wander_sidewalk', expiresAt: now + this.randRange(30000, 60000) };
-
-    } else if (gameHour < 17) {
-      // Afternoon work: low-C NPCs may leave early on some days
-      const leaveEarly = gameHour >= 15
-        && this.personalityCheck(0.15, 1 - p.conscientiousness, 0.4, seed2);
-      if (leaveEarly) {
-        // Do what they'd do in the evening, early
-        return this.pickEveningGoal(entry, p, now, seed2, seed3);
-      }
+      // Normal work hours
       return this.makeBuildingGoal(entry.workBuildingId!, now, this.randRange(180000, 300000));
 
     } else {
-      // Evening (17-bedtime): personality-driven social/solo activities
+      // Business is closed — personality-driven free time
       return this.pickEveningGoal(entry, p, now, seed2, seed3);
     }
   }
