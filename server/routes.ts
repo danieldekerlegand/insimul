@@ -13102,6 +13102,63 @@ Make the action names thematic and immersive.`;
     }
   });
 
+  // ============= ASSET SCRAPER =============
+
+  const assetScraper = await import('./services/asset-scraper.js');
+
+  // Scrape Polyhaven and Sketchfab for prop/furniture/container 3D assets
+  app.get("/api/asset-scraper/scrape", async (req, res) => {
+    try {
+      const { categories } = req.query;
+      const categoryFilter = categories
+        ? (categories as string).split(',').filter(Boolean) as any[]
+        : undefined;
+
+      const result = await assetScraper.scrapeAllSources(categoryFilter);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Asset scrape failed:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Scrape only Polyhaven
+  app.get("/api/asset-scraper/polyhaven", async (_req, res) => {
+    try {
+      const result = await assetScraper.scrapePolyhaven();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Polyhaven scrape failed:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Scrape only Sketchfab
+  app.get("/api/asset-scraper/sketchfab", async (_req, res) => {
+    try {
+      const result = await assetScraper.scrapeSketchfab();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Sketchfab scrape failed:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get download info for a specific scraped asset
+  app.get("/api/asset-scraper/download-info/:source/:sourceId", async (req, res) => {
+    try {
+      const { source, sourceId } = req.params;
+      if (source !== 'polyhaven' && source !== 'sketchfab') {
+        return res.status(400).json({ error: "source must be 'polyhaven' or 'sketchfab'" });
+      }
+      const info = await assetScraper.getAssetDownloadInfo(source, sourceId);
+      res.json(info);
+    } catch (error: any) {
+      console.error("Download info failed:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ============= ASSET MARKETPLACE CATALOG =============
 
   app.get("/api/asset-marketplaces", async (_req, res) => {

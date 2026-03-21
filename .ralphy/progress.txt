@@ -10,6 +10,22 @@
 - Added 7 new mercantile business types (Blacksmith, Tailor, Butcher, BookStore, HerbShop, PawnShop, Carpenter)
 - Updated existing test to include new service business types
 - Wrote 28 new tests covering type validity, mercantile status, services, and interactions
+
+## Agent 1: Scrape Polyhaven and Sketchfab for downloadable prop/furniture/container 3D assets
+
+### Completed
+- Created asset scraper service (server/services/asset-scraper.ts):
+  - scrapePolyhaven() — queries all Polyhaven models, filters to prop/furniture/container by category+tag mapping
+  - scrapeSketchfab() — searches Sketchfab with 9 targeted queries (3 per category), deduplicates results
+  - scrapeAllSources() — unified catalog from both sources, optional category filter, sorted by popularity
+  - getAssetDownloadInfo() — returns download URLs for Polyhaven or auth instructions for Sketchfab
+  - Classifies assets into prop/furniture/container categories via tag and category mapping
+- Added 4 API routes (server/routes.ts):
+  - GET /api/asset-scraper/scrape — scrape both sources with optional category filter
+  - GET /api/asset-scraper/polyhaven — scrape Polyhaven only
+  - GET /api/asset-scraper/sketchfab — scrape Sketchfab only
+  - GET /api/asset-scraper/download-info/:source/:sourceId — get download info for a specific asset
+- Wrote 17 tests covering classification, deduplication, error handling, filtering, and download info (server/__tests__/asset-scraper.test.ts)
 - All tests pass, TypeScript compiles cleanly
 
 ## Agent 11: Properly assign NPC occupations during world generation
