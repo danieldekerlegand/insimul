@@ -127,6 +127,7 @@ import {
 import { VRAccessibilityManager } from "@/components/3DGame/VRAccessibilityManager.ts";
 import { NPCTalkingIndicator } from "@/components/3DGame/NPCTalkingIndicator.ts";
 import { NPCAmbientConversationManager } from "@/components/3DGame/NPCAmbientConversationManager.ts";
+import { VehicleSystem } from "@/components/3DGame/VehicleSystem.ts";
 import { NPCInitiatedConversationController } from "@/components/3DGame/NPCInitiatedConversationController.ts";
 import { NPCSocializationController } from "@/components/3DGame/NPCSocializationController.ts";
 import type { SocializableNPC, ConversationResult } from "@/components/3DGame/NPCSocializationController.ts";
@@ -184,6 +185,7 @@ import {
   KEY_EAVESDROP,
   KEY_QUICK_SAVE,
   KEY_QUICK_LOAD,
+  KEY_CYCLE_VEHICLE,
 } from "@/components/3DGame/KeyboardMap.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 import {
@@ -480,6 +482,7 @@ export class BabylonGame {
   private npcTalkingIndicator: NPCTalkingIndicator | null = null;
   private ambientConversationManager: NPCAmbientConversationManager | null = null;
   private socializationController: NPCSocializationController | null = null;
+  private vehicleSystem: VehicleSystem | null = null;
   private npcInitiatedConversationController: NPCInitiatedConversationController | null = null;
   private vrManager: VRManager | null = null;
   private gameMenuSystem: GameMenuSystem | null = null;
@@ -5961,6 +5964,17 @@ export class BabylonGame {
 
         this.playerController = controller;
 
+        // Initialize vehicle system for faster travel (bicycle / horse)
+        this.vehicleSystem = new VehicleSystem(
+          this.scene,
+          playerMesh,
+          controller,
+          2.5,  // base walk speed
+          5.0,  // base run speed
+          60,   // base turn speed (degrees)
+          this.eventBus,
+        );
+
         // Connect camera manager to player and controller
         if (this.cameraManager) {
           this.cameraManager.setCharacterController(controller);
@@ -8766,6 +8780,18 @@ export class BabylonGame {
     if (event.code === KEY_EXAMINE_OBJECT && !event.repeat) {
       event.preventDefault();
       this.handleExamineObject();
+    }
+
+    // B - Cycle vehicle (on foot → bicycle → horse → on foot)
+    if (event.code === KEY_CYCLE_VEHICLE && !event.repeat) {
+      event.preventDefault();
+      if (this.vehicleSystem) {
+        this.vehicleSystem.cycleVehicle();
+        this.guiManager?.showToast({
+          title: this.vehicleSystem.getLabel(),
+          duration: 1500,
+        });
+      }
     }
   }
   
@@ -11839,6 +11865,9 @@ export class BabylonGame {
   }
 
   private disposePlayer(): void {
+    this.vehicleSystem?.dispose();
+    this.vehicleSystem = null;
+
     this.playerController?.stop();
     this.playerController = null;
 

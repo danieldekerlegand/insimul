@@ -108,6 +108,9 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("text_collected"),                    EInsimulEventType::TextCollected },
         // Vocabulary hover-lookup events
         { TEXT("vocabulary_lookup"),                 EInsimulEventType::VocabularyLookup },
+        // Vehicle events
+        { TEXT("vehicle_mounted"),                   EInsimulEventType::VehicleMounted },
+        { TEXT("vehicle_dismounted"),                EInsimulEventType::VehicleDismounted },
     };
     return Map;
 }
