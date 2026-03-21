@@ -82,3 +82,12 @@
   - Replaced food placeholder mappings (wooden_bucket → croissant/carrot_cake/carved_wooden_plate)
 - Wrote integration tests (220 assertions, all passing) verifying: files on disk, GLTF validity, companion textures, asset collection references
 - Total models on disk: 193 (up from 151)
+
+## Agent 13: Enhance business detail view to show owner, employees, and inventory
+
+### Completed
+- Enhanced BusinessDetailCard.tsx to display owner name (with crown icon), employee list with vocation/shift badges, and inventory section showing containers with item contents
+- Added inventory (containers) display to SettlementDetailView.tsx expanded business cards, fetching containers via /api/worlds/:worldId/containers/by-location endpoint
+- Added Package icon import and containers query (lazy-loaded on expand) to SettlementDetailView
+- Wrote 13 unit tests for helper logic (owner display, inventory totals, formatting) in BusinessDetailCard.test.ts
+- All tests pass, no new TypeScript errors introduced

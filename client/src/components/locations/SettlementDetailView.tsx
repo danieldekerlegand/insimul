@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MapPinned, MapPin, Building2, Users, Home, Trash2, ChevronRight, Plus, Sparkles, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Layers, BarChart3 } from 'lucide-react';
+import { MapPinned, MapPin, Building2, Users, Home, Trash2, ChevronRight, Plus, Sparkles, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Layers, BarChart3, Package } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
@@ -589,6 +589,16 @@ export function SettlementDetailView({
               enabled: expandedBusinessId === business.id,
             });
 
+            // Fetch containers/inventory for this business
+            const { data: businessContainers = [] } = useQuery<any[]>({
+              queryKey: ['business-containers', business.worldId, business.id],
+              queryFn: async () => {
+                const response = await apiRequest('GET', `/api/worlds/${business.worldId}/containers/by-location?businessId=${business.id}`);
+                return response.json();
+              },
+              enabled: expandedBusinessId === business.id,
+            });
+
             const exterior = businessAssets.find(a => a.assetType === 'building_exterior');
             const isExpanded = expandedBusinessId === business.id;
 
@@ -683,6 +693,39 @@ export function SettlementDetailView({
                     )}
                     {businessEmployees.length === 0 && (
                       <div className="flex justify-between"><span className="text-muted-foreground">Employees</span><span>None</span></div>
+                    )}
+                    {/* Inventory Section */}
+                    {businessContainers.length > 0 && (
+                      <div className="border-t pt-2 mt-2">
+                        <span className="text-muted-foreground font-semibold flex items-center gap-1">
+                          <Package className="w-3 h-3" /> Inventory ({businessContainers.length} containers)
+                        </span>
+                        <div className="mt-1 space-y-1">
+                          {businessContainers.map((container: any) => {
+                            const items = container.items as Array<{ itemId: string; itemName: string; quantity: number }> | null;
+                            return (
+                              <div key={container.id} className="pl-2">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs font-medium">{container.name}</span>
+                                  <Badge variant="outline" className="text-xs">{container.containerType}</Badge>
+                                </div>
+                                {items && items.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-0.5">
+                                    {items.map((item) => (
+                                      <Badge key={item.itemId} variant="secondary" className="text-xs">
+                                        {item.itemName} x{item.quantity}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {businessContainers.length === 0 && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">Inventory</span><span>None</span></div>
                     )}
                   </CardContent>
                 )}
