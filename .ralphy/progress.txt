@@ -1,3 +1,22 @@
+## Agent 26: Add animal NPCs (cats, dogs, birds) for world ambiance and vocabulary
+
+### Completed
+- Created AnimalNPCSystem.ts: procedural spawning of cats, dogs, and birds with wandering/flying behaviors
+  - Procedural mesh builders for each species (body, head, limbs, wings, etc.)
+  - Multiple color variants per species for visual variety
+  - Behavior system: idle, wander, sit (ground animals), fly (birds)
+  - Vocabulary integration: each animal tagged with word and category for language learning
+  - Helper functions: getAnimalsNear(), getAnimalVocabulary() for game system integration
+- Added AnimalIR type to shared/game-engine/ir-types.ts for engine-agnostic export
+- Expanded animals vocabulary corpus (shared/language/vocabulary-corpus.ts):
+  - Added animal body parts: tail, wing, feather, paw, beak, nest
+  - Added behavior verbs: to fly, to run, to sit, to bark, to sing, to purr, to wander
+  - Added descriptors: small, fast, wild, tame
+  - Added young animals: puppy, kitten
+- Integrated AnimalNPCSystem into BabylonGame.ts (init, spawn, per-frame update, dispose)
+- Wrote 45 tests covering pure functions, species configs, vocabulary integration
+- All tests pass, no new TypeScript or lint errors
+
 ## Agent 12: Implement server-side persistence for vocabulary and grammar progress
 
 ### Completed

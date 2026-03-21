@@ -329,21 +329,47 @@ export const VOCABULARY_CORPUS: Record<VocabularyCategory, VocabularyCorpusEntry
     { english: 'mirror', partOfSpeech: 'noun', difficulty: 'intermediate', category: 'household' },
   ],
   animals: [
+    // Common animals (beginner)
     { english: 'dog', partOfSpeech: 'noun', difficulty: 'beginner', category: 'animals' },
     { english: 'cat', partOfSpeech: 'noun', difficulty: 'beginner', category: 'animals' },
+    { english: 'bird', partOfSpeech: 'noun', difficulty: 'beginner', category: 'animals' },
     { english: 'horse', partOfSpeech: 'noun', difficulty: 'beginner', category: 'animals' },
     { english: 'cow', partOfSpeech: 'noun', difficulty: 'beginner', category: 'animals' },
     { english: 'sheep', partOfSpeech: 'noun', difficulty: 'beginner', category: 'animals' },
     { english: 'pig', partOfSpeech: 'noun', difficulty: 'beginner', category: 'animals' },
     { english: 'chicken', partOfSpeech: 'noun', difficulty: 'beginner', category: 'animals' },
-    { english: 'bird', partOfSpeech: 'noun', difficulty: 'beginner', category: 'animals' },
     { english: 'fish', partOfSpeech: 'noun', difficulty: 'beginner', category: 'animals' },
+    { english: 'animal', partOfSpeech: 'noun', difficulty: 'beginner', category: 'animals' },
+    // Animal parts and features (beginner)
+    { english: 'tail', partOfSpeech: 'noun', difficulty: 'beginner', category: 'animals' },
+    { english: 'wing', partOfSpeech: 'noun', difficulty: 'beginner', category: 'animals' },
+    { english: 'feather', partOfSpeech: 'noun', difficulty: 'beginner', category: 'animals' },
+    { english: 'paw', partOfSpeech: 'noun', difficulty: 'beginner', category: 'animals' },
+    // Animal behaviors (beginner verbs)
+    { english: 'to fly', partOfSpeech: 'verb', difficulty: 'beginner', category: 'animals' },
+    { english: 'to run', partOfSpeech: 'verb', difficulty: 'beginner', category: 'animals' },
+    { english: 'to sit', partOfSpeech: 'verb', difficulty: 'beginner', category: 'animals' },
+    // Intermediate animals
     { english: 'wolf', partOfSpeech: 'noun', difficulty: 'intermediate', category: 'animals' },
     { english: 'deer', partOfSpeech: 'noun', difficulty: 'intermediate', category: 'animals' },
     { english: 'bear', partOfSpeech: 'noun', difficulty: 'intermediate', category: 'animals' },
     { english: 'rabbit', partOfSpeech: 'noun', difficulty: 'intermediate', category: 'animals' },
     { english: 'snake', partOfSpeech: 'noun', difficulty: 'intermediate', category: 'animals' },
     { english: 'dragon', partOfSpeech: 'noun', difficulty: 'intermediate', category: 'animals' },
+    { english: 'puppy', partOfSpeech: 'noun', difficulty: 'intermediate', category: 'animals' },
+    { english: 'kitten', partOfSpeech: 'noun', difficulty: 'intermediate', category: 'animals' },
+    { english: 'nest', partOfSpeech: 'noun', difficulty: 'intermediate', category: 'animals' },
+    { english: 'beak', partOfSpeech: 'noun', difficulty: 'intermediate', category: 'animals' },
+    // Intermediate behaviors
+    { english: 'to bark', partOfSpeech: 'verb', difficulty: 'intermediate', category: 'animals' },
+    { english: 'to sing', partOfSpeech: 'verb', difficulty: 'intermediate', category: 'animals' },
+    { english: 'to purr', partOfSpeech: 'verb', difficulty: 'intermediate', category: 'animals' },
+    { english: 'to wander', partOfSpeech: 'verb', difficulty: 'intermediate', category: 'animals' },
+    // Descriptors
+    { english: 'small', partOfSpeech: 'adjective', difficulty: 'beginner', category: 'animals' },
+    { english: 'fast', partOfSpeech: 'adjective', difficulty: 'beginner', category: 'animals' },
+    { english: 'wild', partOfSpeech: 'adjective', difficulty: 'intermediate', category: 'animals' },
+    { english: 'tame', partOfSpeech: 'adjective', difficulty: 'intermediate', category: 'animals' },
   ],
   shopping: [
     { english: 'money', partOfSpeech: 'noun', difficulty: 'beginner', category: 'shopping' },

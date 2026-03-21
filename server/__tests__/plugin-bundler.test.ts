@@ -110,6 +110,7 @@ function createMockIR(): WorldIR {
       businesses: [],
       roads: [],
       natureObjects: [],
+      animals: [],
       dungeons: [],
       questObjects: [],
       items: [],

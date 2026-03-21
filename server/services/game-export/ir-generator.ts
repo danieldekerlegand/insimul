@@ -1273,6 +1273,7 @@ export async function generateWorldIR(
       businesses: businessIRs,
       roads: allRoadIRs,
       natureObjects: [], // Populated by engine at runtime from biome data
+      animals: [],       // Populated by engine at runtime (ambient animal NPCs)
       dungeons: [],      // Populated on demand per genre
       questObjects: [],  // Populated from quest objective data
     },
