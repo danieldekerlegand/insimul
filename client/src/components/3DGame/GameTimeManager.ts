@@ -88,6 +88,9 @@ export class GameTimeManager {
   get msPerGameHour(): number { return this._msPerGameHour; }
   get isDaytime(): boolean { return this._hour >= 6 && this._hour < 18; }
 
+  /** Fractional hour (0–24), e.g. 8.5 = 8:30 AM. Used for smooth interpolation. */
+  get fractionalHour(): number { return this._hour + this._minute / 60; }
+
   /** Formatted "HH:MM". */
   get timeString(): string {
     return `${String(this._hour).padStart(2, '0')}:${String(this.minute).padStart(2, '0')}`;

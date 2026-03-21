@@ -1,3 +1,17 @@
+## Agent 8: Implement visual day/night cycle with lighting and sky color transitions
+
+### Completed
+- Added `fractionalHour` getter to GameTimeManager for smooth interpolation
+- Created DayNightCycle system (`client/src/components/3DGame/DayNightCycle.ts`):
+  - 8 lighting keyframes (midnight, pre-dawn, sunrise, morning, midday, afternoon, sunset, dusk)
+  - Smooth interpolation of sun direction/intensity/color, hemisphere light, sky shader colors, and fog
+  - World theme-aware: midday sky colors derive from the world's base sky color
+  - Sun rotates through altitude/azimuth arc across the day
+- Integrated into BabylonGame: initialized after scene setup, updated each frame in render loop, disposed on cleanup
+- Replaced static sky color assignment with DayNightCycle-driven per-frame updates
+- Wrote 33 tests covering keyframe pair finding, interpolation, edge cases (wrap-around, normalization), and fractionalHour
+- All tests pass, TypeScript and ESLint clean
+
 ## Agent 24: Add ambient life behaviors: NPCs doing chores, eating, socializing contextually
 
 ### Completed
