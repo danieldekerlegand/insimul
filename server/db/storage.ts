@@ -21,6 +21,8 @@ import {
   type InsertBusiness,
   type Residence,
   type InsertResidence,
+  type PublicBuilding,
+  type InsertPublicBuilding,
   type Occupation,
   type InsertOccupation,
   type Simulation,
@@ -125,6 +127,14 @@ export interface IStorage {
   createResidence(residence: InsertResidence): Promise<Residence>;
   updateResidence(id: string, residence: Partial<InsertResidence>): Promise<Residence | undefined>;
   deleteResidence(id: string): Promise<boolean>;
+
+  // Public Buildings
+  getPublicBuilding(id: string): Promise<PublicBuilding | undefined>;
+  getPublicBuildingsBySettlement(settlementId: string): Promise<PublicBuilding[]>;
+  getPublicBuildingsByWorld(worldId: string): Promise<PublicBuilding[]>;
+  createPublicBuilding(building: InsertPublicBuilding): Promise<PublicBuilding>;
+  updatePublicBuilding(id: string, building: Partial<InsertPublicBuilding>): Promise<PublicBuilding | undefined>;
+  deletePublicBuilding(id: string): Promise<boolean>;
 
   // Occupations (TotT)
   getOccupation(id: string): Promise<Occupation | undefined>;

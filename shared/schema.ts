@@ -51,9 +51,12 @@ export type ActivityOccasion =
 
 export type LocationType = 'home' | 'work' | 'leisure' | 'school';
 
-export type BuildingType = 'residence' | 'business' | 'vacant';
+export type BuildingType = 'residence' | 'business' | 'public' | 'vacant';
 
-export type ResidenceType = 
+export type PublicBuildingType =
+  | 'School' | 'CityHall' | 'Library' | 'PostOffice';
+
+export type ResidenceType =
   | 'house' | 'apartment' | 'mansion' | 'cottage' | 'townhouse' | 'mobile_home';
 
 export type PersonalityStrength = 
@@ -933,6 +936,30 @@ export const residences = pgTable("residences", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Public Buildings - civic/government structures
+export const publicBuildings = pgTable("public_buildings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  worldId: varchar("world_id").notNull(),
+  settlementId: varchar("settlement_id").notNull(),
+  lotId: varchar("lot_id").notNull(),
+
+  name: text("name").notNull(),
+  publicBuildingType: text("public_building_type").notNull(), // School, CityHall, Library, PostOffice
+  address: text("address").notNull(),
+
+  // Operational details
+  foundedYear: integer("founded_year"),
+  isOperational: boolean("is_operational").default(true),
+  capacity: integer("capacity"), // max occupants
+  employeeIds: jsonb("employee_ids").$type<string[]>().default([]),
+
+  // Building-specific data (e.g., school subjects, library collections)
+  buildingData: jsonb("building_data").$type<Record<string, any>>().default({}),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Whereabouts - tracks character location history
 export const whereabouts = pgTable("whereabouts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1663,6 +1690,20 @@ export const insertResidenceSchema = createInsertSchema(residences).pick({
   residenceType: true,
 });
 
+export const insertPublicBuildingSchema = createInsertSchema(publicBuildings).pick({
+  worldId: true,
+  settlementId: true,
+  lotId: true,
+  name: true,
+  publicBuildingType: true,
+  address: true,
+  foundedYear: true,
+  isOperational: true,
+  capacity: true,
+  employeeIds: true,
+  buildingData: true,
+});
+
 export const insertWhereaboutsSchema = createInsertSchema(whereabouts).pick({
   worldId: true,
   characterId: true,
@@ -1726,6 +1767,9 @@ export type InsertLot = z.infer<typeof insertLotSchema>;
 
 export type Residence = typeof residences.$inferSelect;
 export type InsertResidence = z.infer<typeof insertResidenceSchema>;
+
+export type PublicBuilding = typeof publicBuildings.$inferSelect;
+export type InsertPublicBuilding = z.infer<typeof insertPublicBuildingSchema>;
 
 export type Whereabouts = typeof whereabouts.$inferSelect;
 export type InsertWhereabouts = z.infer<typeof insertWhereaboutsSchema>;

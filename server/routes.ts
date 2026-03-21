@@ -2567,6 +2567,83 @@ app.get("/api/rules", async (req, res) => {
     }
   });
 
+  // ============= PUBLIC BUILDINGS =============
+
+  app.get("/api/settlements/:settlementId/public-buildings", async (req, res) => {
+    try {
+      const buildings = await storage.getPublicBuildingsBySettlement(req.params.settlementId);
+      res.json(buildings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch public buildings" });
+    }
+  });
+
+  app.get("/api/worlds/:worldId/public-buildings", async (req, res) => {
+    try {
+      const buildings = await storage.getPublicBuildingsByWorld(req.params.worldId);
+      res.json(buildings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch public buildings" });
+    }
+  });
+
+  app.get("/api/public-buildings/:id", async (req, res) => {
+    try {
+      const building = await storage.getPublicBuilding(req.params.id);
+      if (!building) {
+        return res.status(404).json({ error: "Public building not found" });
+      }
+      res.json(building);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch public building" });
+    }
+  });
+
+  app.post("/api/public-buildings", async (req, res) => {
+    try {
+      const building = await storage.createPublicBuilding(req.body);
+      res.status(201).json(building);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create public building" });
+    }
+  });
+
+  app.patch("/api/public-buildings/:id", async (req, res) => {
+    try {
+      const building = await storage.updatePublicBuilding(req.params.id, req.body);
+      if (!building) {
+        return res.status(404).json({ error: "Public building not found" });
+      }
+      res.json(building);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update public building" });
+    }
+  });
+
+  app.delete("/api/public-buildings/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const building = await storage.getPublicBuilding(id);
+      if (!building) {
+        return res.status(404).json({ error: "Public building not found" });
+      }
+
+      const token = req.headers.authorization?.split(' ')[1];
+      const payload = token ? AuthService.verifyToken(token) : null;
+      if (!(await canEditWorld(payload?.userId, building.worldId))) {
+        return res.status(403).json({ error: "You don't have permission to edit this world" });
+      }
+
+      const success = await storage.deletePublicBuilding(id);
+      if (!success) {
+        return res.status(404).json({ error: "Public building not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete public building" });
+    }
+  });
+
   // Event System endpoints (TotT Event System)
   app.post("/api/events", async (req, res) => {
     try {

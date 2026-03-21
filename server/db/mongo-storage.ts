@@ -1042,6 +1042,22 @@ const ResidenceSchema = new Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
+const PublicBuildingSchema = new Schema({
+  worldId: { type: String, required: true },
+  settlementId: { type: String, required: true },
+  lotId: { type: String, required: true },
+  name: { type: String, required: true },
+  publicBuildingType: { type: String, required: true },
+  address: { type: String, required: true },
+  foundedYear: { type: Number, default: null },
+  isOperational: { type: Boolean, default: true },
+  capacity: { type: Number, default: null },
+  employeeIds: { type: [String], default: [] },
+  buildingData: { type: Schema.Types.Mixed, default: {} },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
 const BusinessMongoSchema = new Schema({
   worldId: { type: String, required: true },
   settlementId: { type: String, required: true },
@@ -1333,6 +1349,7 @@ const PlaythroughRelationshipModel = mongoose.model<PlaythroughRelationshipDoc>(
 const WorldLanguageModel = mongoose.model<WorldLanguageDoc>('WorldLanguage', WorldLanguageSchema);
 const LotModel = mongoose.model('Lot', LotSchema);
 const ResidenceModel = mongoose.model('Residence', ResidenceSchema);
+const PublicBuildingModel = mongoose.model('PublicBuilding', PublicBuildingSchema);
 const BusinessMongoModel = mongoose.model('Business', BusinessMongoSchema);
 const OccupationModel = mongoose.model('Occupation', OccupationSchema);
 const VersionAlertModel = mongoose.model<VersionAlertDoc>('VersionAlert', VersionAlertSchema);
@@ -2171,6 +2188,43 @@ export class MongoStorage implements IStorage {
     await this.connect();
     const docs = await ResidenceModel.insertMany(residences);
     return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+  }
+
+  // Public Building operations
+  async getPublicBuilding(id: string): Promise<any | undefined> {
+    await this.connect();
+    const doc = await PublicBuildingModel.findById(id);
+    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
+  }
+
+  async getPublicBuildingsBySettlement(settlementId: string): Promise<any[]> {
+    await this.connect();
+    const docs = await PublicBuildingModel.find({ settlementId });
+    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+  }
+
+  async getPublicBuildingsByWorld(worldId: string): Promise<any[]> {
+    await this.connect();
+    const docs = await PublicBuildingModel.find({ worldId });
+    return docs.map(d => ({ ...d.toObject(), id: d._id.toString() }));
+  }
+
+  async createPublicBuilding(building: any): Promise<any> {
+    await this.connect();
+    const doc = await new PublicBuildingModel(building).save();
+    return { ...doc.toObject(), id: doc._id.toString() };
+  }
+
+  async updatePublicBuilding(id: string, building: any): Promise<any | undefined> {
+    await this.connect();
+    const doc = await PublicBuildingModel.findByIdAndUpdate(id, { ...building, updatedAt: new Date() }, { new: true });
+    return doc ? { ...doc.toObject(), id: doc._id.toString() } : undefined;
+  }
+
+  async deletePublicBuilding(id: string): Promise<boolean> {
+    await this.connect();
+    const result = await PublicBuildingModel.findByIdAndDelete(id);
+    return !!result;
   }
 
   // Occupation operations

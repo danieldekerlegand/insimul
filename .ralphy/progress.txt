@@ -1,3 +1,18 @@
+## Agent 5: Add public building type with schools, city halls, libraries, and post offices
+
+### Completed
+- Added `PublicBuildingType` union type (`School | CityHall | Library | PostOffice`) and updated `BuildingType` to include `'public'` (shared/schema.ts)
+- Added `publicBuildings` Drizzle table with name, type, address, capacity, employees, operational status, and buildingData fields (shared/schema.ts)
+- Added `insertPublicBuildingSchema` and exported `PublicBuilding` / `InsertPublicBuilding` types (shared/schema.ts)
+- Added Mongoose `PublicBuildingSchema` and `PublicBuildingModel` (server/db/mongo-storage.ts)
+- Added 6 storage interface methods: get, getBySettlement, getByWorld, create, update, delete (server/db/storage.ts)
+- Implemented all 6 CRUD methods in MongoStorage (server/db/mongo-storage.ts)
+- Added 6 REST endpoints: GET by settlement, GET by world, GET by id, POST, PATCH, DELETE (server/routes.ts)
+- Wrote 14 tests covering types, CRUD operations, and all 4 building subtypes (server/__tests__/public-buildings.test.ts)
+- All tests pass, TypeScript compiles cleanly
+
+---
+
 ## Agent 4: Expand business type definitions with specialized shop types and service businesses
 
 ### Completed
