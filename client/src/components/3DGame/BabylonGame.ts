@@ -131,6 +131,7 @@ import { NPCInitiatedConversationController } from "@/components/3DGame/NPCIniti
 import { NPCSocializationController } from "@/components/3DGame/NPCSocializationController.ts";
 import type { SocializableNPC, ConversationResult } from "@/components/3DGame/NPCSocializationController.ts";
 import { BuildingInteriorGenerator, InteriorLayout } from "@/components/3DGame/BuildingInteriorGenerator.ts";
+import { OutdoorFurnitureGenerator, getFurnitureSet, FURNITURE_ROLE_MAP, FURNITURE_SIZE_MAP, type OutdoorFurnitureType } from "@/components/3DGame/OutdoorFurnitureGenerator.ts";
 import { InteriorItemManager } from "@/components/3DGame/InteriorItemManager.ts";
 import { GameMenuSystem, GameMenuCallbacks, SaveSlotInfo, type MenuJournalData } from "@/components/3DGame/GameMenuSystem.ts";
 import { MainMenuScreen, type PlaythroughInfo } from "@/components/3DGame/MainMenuScreen.ts";
@@ -622,6 +623,7 @@ export class BabylonGame {
 
   // Shared material cache for furniture props (avoids duplicate materials)
   private furnitureMaterialCache: Map<string, StandardMaterial> = new Map();
+  private outdoorFurnitureGenerator: OutdoorFurnitureGenerator | null = null;
 
   // Audio
   private zoneEnterSound: Sound | null = null;
@@ -4958,21 +4960,9 @@ export class BabylonGame {
   ): void {
     if (!this.scene || buildingPositions.length === 0) return;
     const scene = this.scene;
-    const wt = (worldType || '').toLowerCase();
 
-    // Determine furniture set based on world type
-    type FurnitureType = 'lamp_post' | 'bench' | 'well' | 'barrel' | 'crate' | 'market_stall' | 'streetlight' | 'terminal' | 'planter';
-    let furnitureSet: FurnitureType[];
-
-    if (wt.includes('medieval') || wt.includes('fantasy')) {
-      furnitureSet = ['lamp_post', 'bench', 'well', 'barrel', 'crate', 'market_stall'];
-    } else if (wt.includes('cyberpunk') || wt.includes('sci-fi') || wt.includes('modern')) {
-      furnitureSet = ['streetlight', 'bench', 'terminal', 'planter', 'crate'];
-    } else if (wt.includes('western') || wt.includes('frontier')) {
-      furnitureSet = ['barrel', 'crate', 'lamp_post', 'bench', 'well'];
-    } else {
-      furnitureSet = ['lamp_post', 'bench', 'barrel', 'planter'];
-    }
+    // Determine furniture set based on world type (includes new outdoor types)
+    const furnitureSet = getFurnitureSet(worldType);
 
     // Place 1-2 props per building, along the "street" side
     const maxProps = Math.min(buildingPositions.length * 2, 20);
@@ -5021,19 +5011,7 @@ export class BabylonGame {
     scene: Scene
   ): Mesh | null {
     // Try to use collection objectModel template if available
-    const furnitureToRoleMap: Record<string, string[]> = {
-      'lamp_post': ['lamp', 'lamp_table'],
-      'streetlight': ['lamp', 'lamp_table'],
-      'barrel': ['storage', 'storage_alt'],
-      'crate': ['chest', 'storage'],
-      'bench': ['furniture_stool', 'furniture_chair'],
-      'well': ['prop', 'decoration'],
-      'market_stall': ['furniture_table'],
-      'terminal': ['electronics', 'prop'],
-      'planter': ['decoration', 'prop'],
-    };
-
-    const roles = furnitureToRoleMap[type] || [];
+    const roles = FURNITURE_ROLE_MAP[type] || [];
     for (const role of roles) {
       const template = this.objectModelTemplates.get(role);
       if (template) {
@@ -5061,18 +5039,7 @@ export class BabylonGame {
           if (furnScaleHint != null && furnScaleHint > 0) {
             furnAbsScale = furnScaleHint;
           } else {
-            const furnitureSizeMap: Record<string, number> = {
-              'lamp_post': 2.5,
-              'streetlight': 3.0,
-              'bench': 0.8,
-              'well': 1.2,
-              'barrel': 0.8,
-              'crate': 0.6,
-              'market_stall': 2.0,
-              'terminal': 1.2,
-              'planter': 0.6,
-            };
-            const targetSize = furnitureSizeMap[type] || 1.0;
+            const targetSize = FURNITURE_SIZE_MAP[type] || 1.0;
             const furnOrigH = this.objectModelOriginalHeights.get(role) || 1;
             furnAbsScale = targetSize / furnOrigH;
           }
@@ -5080,6 +5047,16 @@ export class BabylonGame {
           return cloned;
         }
       }
+    }
+
+    // Try outdoor furniture generator for new and enhanced types (market_stall, picnic_table, etc.)
+    if (!this.outdoorFurnitureGenerator) {
+      this.outdoorFurnitureGenerator = new OutdoorFurnitureGenerator(this.furnitureMaterialCache);
+    }
+    const outdoorMesh = this.outdoorFurnitureGenerator.createOutdoorFurniture(type, name, scene);
+    if (outdoorMesh) {
+      createDebugLabel(scene, outdoorMesh, `FURNITURE: ${type}`, 5);
+      return outdoorMesh;
     }
 
     // Fallback to procedural primitives with shared materials
@@ -5170,28 +5147,6 @@ export class BabylonGame {
       crate.material = getFurnMat('furn_crate_wood', () => {
         const m = new StandardMaterial('furn_crate_wood', scene);
         m.diffuseColor = new Color3(0.55, 0.4, 0.25);
-        m.specularColor = Color3.Black();
-        return m;
-      });
-
-    } else if (type === 'market_stall') {
-      const woodMat = getFurnMat('furn_stall_wood', () => {
-        const m = new StandardMaterial('furn_stall_wood', scene);
-        m.diffuseColor = new Color3(0.5, 0.35, 0.2);
-        m.specularColor = Color3.Black();
-        return m;
-      });
-      const table = MeshBuilder.CreateBox(`${name}_table`, { width: 2.5, height: 0.1, depth: 1.2 }, scene);
-      table.position.y = 1;
-      table.parent = parent;
-      table.material = woodMat;
-
-      const awning = MeshBuilder.CreateBox(`${name}_awning`, { width: 2.8, height: 0.05, depth: 1.5 }, scene);
-      awning.position.y = 2.5;
-      awning.parent = parent;
-      awning.material = getFurnMat('furn_awning', () => {
-        const m = new StandardMaterial('furn_awning', scene);
-        m.diffuseColor = new Color3(0.7, 0.2, 0.15);
         m.specularColor = Color3.Black();
         return m;
       });
