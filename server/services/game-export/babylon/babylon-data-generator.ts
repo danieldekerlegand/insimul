@@ -107,6 +107,14 @@ export function generateDataFiles(ir: WorldIR): GeneratedFile[] {
     content: JSON.stringify(ir.entities.natureObjects, null, 2),
   });
 
+  // Animals (ambient NPCs)
+  if (ir.entities.animals.length > 0) {
+    files.push({
+      path: 'public/data/animals.json',
+      content: JSON.stringify(ir.entities.animals, null, 2),
+    });
+  }
+
   // Dungeons
   if (ir.entities.dungeons.length > 0) {
     files.push({

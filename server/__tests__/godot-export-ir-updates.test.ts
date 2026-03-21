@@ -158,6 +158,7 @@ function makeMinimalIR(overrides?: Partial<WorldIR>): WorldIR {
       businesses: [],
       roads: [],
       natureObjects: [],
+      animals: [],
       dungeons: [],
       questObjects: [],
     },

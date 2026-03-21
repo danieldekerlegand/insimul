@@ -182,6 +182,7 @@ function makeMinimalIR(): WorldIR {
       roads: [],
       businesses: [],
       natureObjects: [],
+      animals: [],
     },
     systems: {
       rules: [],

@@ -55,6 +55,7 @@ import { ListeningComprehensionManager } from "@/components/3DGame/ListeningComp
 import { ProceduralBuildingGenerator, BuildingStyle } from "@/components/3DGame/ProceduralBuildingGenerator.ts";
 import { computeFoundationData } from "@/components/3DGame/TerrainFoundationRenderer.ts";
 import { ProceduralNatureGenerator, BiomeStyle } from "@/components/3DGame/ProceduralNatureGenerator.ts";
+import { AnimalNPCSystem } from "@/components/3DGame/AnimalNPCSystem.ts";
 import { RoadGenerator } from "@/components/3DGame/RoadGenerator.ts";
 import { RiverGenerator } from "@/components/3DGame/RiverGenerator.ts";
 import { WaterRenderer } from "@/components/3DGame/WaterRenderer.ts";
@@ -453,6 +454,7 @@ export class BabylonGame {
   private listeningComprehensionManager: ListeningComprehensionManager | null = null;
   private buildingGenerator: ProceduralBuildingGenerator | null = null;
   private natureGenerator: ProceduralNatureGenerator | null = null;
+  private animalNPCSystem: AnimalNPCSystem | null = null;
   private roadGenerator: RoadGenerator | null = null;
   private riverGenerator: RiverGenerator | null = null;
   private waterRenderer: WaterRenderer | null = null;
@@ -2886,6 +2888,7 @@ export class BabylonGame {
     // Initialize procedural generators
     this.buildingGenerator = new ProceduralBuildingGenerator(scene);
     this.natureGenerator = new ProceduralNatureGenerator(scene);
+    this.animalNPCSystem = new AnimalNPCSystem(scene);
     this.roadGenerator = new RoadGenerator(scene);
     this.riverGenerator = new RiverGenerator(scene);
     this.waterRenderer = new WaterRenderer(scene);
@@ -4664,6 +4667,21 @@ export class BabylonGame {
     if (biome.hasFlowers) {
       const flowerCount = Math.floor((terrainSize / 10) * vegetationScale);
       natureGenerator.generateFlowers(biome, worldBounds, flowerCount, sampleHeight);
+    }
+
+    // Ambient animals (cats, dogs, birds) for world ambiance
+    if (this.animalNPCSystem) {
+      const animalScale = Math.max(0.5, vegetationScale);
+      this.animalNPCSystem.spawnAnimals({
+        worldBounds,
+        avoidPositions,
+        sampleHeight,
+        counts: {
+          cats: Math.floor(4 * animalScale),
+          dogs: Math.floor(3 * animalScale),
+          birds: Math.floor(6 * animalScale),
+        },
+      });
     }
 
     // Lake generation disabled — lakes were overlapping with settlements.
@@ -7771,6 +7789,12 @@ export class BabylonGame {
     // Accumulates time and processes NPCs round-robin within a 2ms budget per frame.
     this._npcBehaviorObserver = this.scene.onBeforeRenderObservable.add(() => {
       const dt = this.scene?.getEngine().getDeltaTime() || 16;
+
+      // Update ambient animals every frame (lightweight)
+      if (this.animalNPCSystem) {
+        this.animalNPCSystem.update(dt / 1000);
+      }
+
       this._npcBehaviorAccum += dt;
       if (this._npcBehaviorAccum < 100) return; // Check at most every 100ms
       this._npcBehaviorAccum = 0;
@@ -12072,6 +12096,11 @@ export class BabylonGame {
     if (this.npcSimulationLOD) {
       this.npcSimulationLOD.dispose();
       this.npcSimulationLOD = null;
+    }
+    // Clean up animal NPC system
+    if (this.animalNPCSystem) {
+      this.animalNPCSystem.dispose();
+      this.animalNPCSystem = null;
     }
     // Clean up NPC accessory system
     if (this.npcAccessorySystem) {

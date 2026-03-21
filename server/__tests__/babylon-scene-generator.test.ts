@@ -231,6 +231,7 @@ function createTestIR(): WorldIR {
           elevationZone: 'midland',
         },
       ],
+      animals: [],
       dungeons: [],
       questObjects: [],
     },

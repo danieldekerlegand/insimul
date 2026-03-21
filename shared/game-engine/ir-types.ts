@@ -251,6 +251,7 @@ export interface EntitiesIR {
   businesses: BusinessIR[];
   roads: RoadIR[];
   natureObjects: NatureObjectIR[];
+  animals: AnimalIR[];
   dungeons: DungeonIR[];
   questObjects: QuestObjectIR[];
 }
@@ -480,6 +481,28 @@ export interface NatureObjectIR {
   moistureLevel?: string;
   /** Plant species ID from the vegetation zone system */
   plantSpeciesId?: string;
+}
+
+export interface AnimalIR {
+  id: string;
+  species: 'cat' | 'dog' | 'bird';
+  position: Vec3;
+  /** Y-axis rotation in radians */
+  rotation: number;
+  /** Home position for wander behavior */
+  homePosition: Vec3;
+  /** Wander radius from home */
+  wanderRadius: number;
+  /** Movement speed */
+  speed: number;
+  /** Color tint (RGB 0–1) */
+  color: Color3;
+  /** Scale multiplier */
+  scale: number;
+  /** Associated vocabulary word for language learning */
+  vocabularyWord: string;
+  /** Vocabulary category */
+  vocabularyCategory: string;
 }
 
 export interface DungeonIR {
