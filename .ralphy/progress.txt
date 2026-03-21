@@ -1,3 +1,18 @@
+## Agent 11: Properly assign NPC occupations during world generation
+
+### Completed
+- Fixed assignInitialEmployment to exclude business founders/owners from the hiring pool (prevents double-assignment)
+- Extracted occupation assignment logic into standalone module (server/generators/occupation-assignment.ts)
+- Added assignDefaultOccupations: assigns occupations to ALL characters based on age and context:
+  - Children (6-17) → Student
+  - Elderly (65+) → Retired (with retired flag set)
+  - Working-age adults → terrain-appropriate occupation (Farmer, Miner, Carpenter, etc.)
+  - Personality-driven overrides for characters with strong personality signals
+  - Toddlers (< 6) → skipped, dead characters → skipped, already-employed → skipped
+- Wired assignDefaultOccupations into world generation flow (runs after business employment)
+- Wrote 18 tests covering all occupation assignment logic (server/__tests__/npc-occupation-assignment.test.ts)
+- All tests pass, TypeScript compiles cleanly
+
 ## Agent 28: Add ambient sound system with environmental audio tied to location and time
 
 ### Completed
