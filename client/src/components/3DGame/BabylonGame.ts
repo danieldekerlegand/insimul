@@ -143,6 +143,7 @@ import { SettlementSceneManager, SettlementZone } from "@/components/3DGame/Sett
 import { GamePrologEngine } from "@/components/3DGame/GamePrologEngine.ts";
 import { GameEventBus } from "@/components/3DGame/GameEventBus.ts";
 import { GameTimeManager } from "@/components/3DGame/GameTimeManager.ts";
+import { WeatherSystem } from "@/components/3DGame/WeatherSystem.ts";
 import { BuildingCollisionSystem } from "@/components/3DGame/BuildingCollisionSystem.ts";
 import { BuildingEntrySystem } from "@/components/3DGame/BuildingEntrySystem.ts";
 import { InteriorNPCManager } from "@/components/3DGame/InteriorNPCManager.ts";
@@ -464,6 +465,7 @@ export class BabylonGame {
   private prologEngine: GamePrologEngine | null = null;
   private eventBus: GameEventBus = new GameEventBus();
   private gameTimeManager: GameTimeManager = new GameTimeManager();
+  private weatherSystem: WeatherSystem | null = null;
   private combatSystem: CombatSystem | null = null;
   private equipmentManager: EquipmentManager | null = null;
   private rangedCombat: RangedCombatSystem | null = null;
@@ -1384,6 +1386,9 @@ export class BabylonGame {
     skyMat.setColor3("horizonColor", horizon);
     skyMat.setColor3("groundColor", ground);
     skyDome.material = skyMat;
+
+    // Initialize weather system (rain, clouds, fog, atmospheric effects)
+    this.weatherSystem = new WeatherSystem(scene);
 
     // Create ground and wait for it to be ready
     await this.createGround(scene, this.terrainSize, theme);
@@ -7464,6 +7469,14 @@ export class BabylonGame {
     this.renderObserver = this.scene.onBeforeRenderObservable.add(() => {
       const dt = this.scene?.getEngine().getDeltaTime() || 16;
 
+      // Update weather system (rain, clouds, fog)
+      if (this.weatherSystem) {
+        if (this.playerMesh) {
+          this.weatherSystem.setPlayerPosition(this.playerMesh.position);
+        }
+        this.weatherSystem.update(dt);
+      }
+
       // Clamp player to terrain bounds so they can't walk off the edge
       if (this.playerMesh && !this.isInsideBuilding) {
         const half = (this.terrainSize || 512) / 2 - 2; // 2-unit margin from edge
@@ -11737,6 +11750,11 @@ export class BabylonGame {
     if (this.scene && this._npcBehaviorObserver) {
       this.scene.onBeforeRenderObservable.remove(this._npcBehaviorObserver);
       this._npcBehaviorObserver = null;
+    }
+    // Clean up weather system
+    if (this.weatherSystem) {
+      this.weatherSystem.dispose();
+      this.weatherSystem = null;
     }
     // Clean up NPC simulation LOD
     if (this.npcSimulationLOD) {
