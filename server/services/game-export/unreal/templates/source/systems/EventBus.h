@@ -125,6 +125,9 @@ enum class EInsimulEventType : uint8
     PriceHaggled UMETA(DisplayName = "Price Haggled"),
     // Text collection events
     TextCollected UMETA(DisplayName = "Text Collected"),
+    // XP and level-up events
+    XpGained UMETA(DisplayName = "XP Gained"),
+    LevelUp UMETA(DisplayName = "Level Up"),
     // Vocabulary hover-lookup events
     VocabularyLookup UMETA(DisplayName = "Vocabulary Lookup"),
     // Vehicle events
@@ -368,6 +371,13 @@ struct FInsimulGameEvent
     UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Timestep = 0;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString From;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString To;
+
+    // ── XP / level-up fields ────────────────────────────────
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Amount = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Reason;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 NewTotal = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 OldLevel = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 NewLevel = 0;
 
     // ── Vocabulary lookup fields ─────────────────────────────
     UPROPERTY(EditAnywhere, BlueprintReadWrite) FString Meaning;

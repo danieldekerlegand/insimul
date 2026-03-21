@@ -148,6 +148,9 @@ export type GameEvent =
   | { type: 'text_collected'; textId: string; title: string; textType: string; difficulty: string; vocabularyWordCount: number }
   // Photography events
   | { type: 'photo_taken'; subjectId: string; subjectName: string; subjectCategory: 'item' | 'npc' | 'building' | 'nature'; location?: string }
+  // XP and level-up events
+  | { type: 'xp_gained'; amount: number; reason: string; newTotal: number; level: number }
+  | { type: 'level_up'; oldLevel: number; newLevel: number; tier: string; rewards: Array<{ type: string; value: number | string; label: string }> }
   // Vocabulary hover-lookup events
   | { type: 'vocabulary_lookup'; word: string; meaning: string; category?: string; source: 'hover_object' | 'hover_sign'; objectId: string; dwellMs: number }
   // Vehicle events

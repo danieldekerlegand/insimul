@@ -123,6 +123,9 @@ const EVENT_FOOD_ORDERED := "food_ordered"
 const EVENT_PRICE_HAGGLED := "price_haggled"
 # Text collection events
 const EVENT_TEXT_COLLECTED := "text_collected"
+# XP and level-up events
+const EVENT_XP_GAINED := "xp_gained"
+const EVENT_LEVEL_UP := "level_up"
 # Vocabulary hover-lookup events
 const EVENT_VOCABULARY_LOOKUP := "vocabulary_lookup"
 # Vehicle events

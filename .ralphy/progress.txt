@@ -44,6 +44,21 @@
 - NPCScheduleSystem uses business-specific operating hours for work goals instead of hard-coded 9-17
 - Backward compatible: string employee entries still treated as day shift
 - Wrote 17 tests covering operating hours, shift filtering, and NPC placement
+
+## Agent 22: Wire XP gains to skill tree progression and level-up rewards
+
+### Completed
+- Added `xp_gained` and `level_up` event types to GameEventBus (client/src/components/3DGame/GameEventBus.ts)
+- Created level-up rewards module (shared/language/level-rewards.ts):
+  - Inventory slots every 3 levels, merchant discounts every 5 levels
+  - Scaling skill points per level (1-4 based on tier)
+  - Conversation topic and quest tier unlocks at milestone levels (5, 10, 15, 20)
+- Wired LanguageGamificationTracker to emit events through event bus on XP gain and level-up
+- Added `onLevelRewards` callback for level-up reward notifications
+- Extracted `refreshSkillTreeStats()` method in BabylonGame for reuse
+- Skill tree now auto-updates on every XP gain (not just when toggled)
+- Level-up rewards displayed as toast notifications
+- Wrote 21 tests covering level rewards and XP-to-skill-tree wiring
 - All tests pass, TypeScript compiles cleanly
 
 ## Agent 12: Implement server-side persistence for vocabulary and grammar progress

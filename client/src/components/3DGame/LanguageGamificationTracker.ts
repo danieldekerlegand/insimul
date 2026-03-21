@@ -32,6 +32,7 @@ import type { Achievement, DailyChallenge } from '@shared/language/language-gami
 import type { GamificationState as GenericGamificationState } from '@shared/feature-modules/gamification/types';
 import type { FluencyGainResult, VocabularyEntry, GrammarFeedback } from '@shared/language/language-progress';
 import type { SkillReward } from '@shared/language/quest-skill-rewards';
+import { getRewardsForLevel, type LevelReward } from '@shared/language/level-rewards';
 import {
   isPeriodicAssessmentLevel,
   isPeriodicAssessmentCooldownMet,
@@ -86,6 +87,7 @@ export class LanguageGamificationTracker {
   private onDailyChallengeCompleted: ((challenge: DailyChallenge) => void) | null = null;
   private onSkillRewardsAppliedCb: ((event: SkillRewardsAppliedEvent) => void) | null = null;
   private onPeriodicAssessmentTriggered: ((event: PeriodicAssessmentEvent) => void) | null = null;
+  private onLevelRewards: ((rewards: LevelReward[]) => void) | null = null;
 
   constructor() {
     this.state = createDefaultGamificationState();
@@ -177,16 +179,41 @@ export class LanguageGamificationTracker {
       newTotal: this.state.xp.totalXP,
     });
 
+    // Emit xp_gained event through the bus
+    this.eventBus?.emit({
+      type: 'xp_gained',
+      amount,
+      reason,
+      newTotal: this.state.xp.totalXP,
+      level: this.state.xp.level,
+    });
+
     // Debounced sync to server
     this.syncToServer();
 
     if (this.state.xp.level > oldLevel) {
       const tier = getLevelTier(this.state.xp.level);
+      const rewards = getRewardsForLevel(this.state.xp.level);
+
       this.onLevelUp?.({
         oldLevel,
         newLevel: this.state.xp.level,
         tier,
       });
+
+      // Emit level_up event with rewards through the bus
+      this.eventBus?.emit({
+        type: 'level_up',
+        oldLevel,
+        newLevel: this.state.xp.level,
+        tier,
+        rewards: rewards.map(r => ({ type: r.type, value: r.value, label: r.label })),
+      });
+
+      // Notify reward listeners
+      if (rewards.length > 0) {
+        this.onLevelRewards?.(rewards);
+      }
 
       // Trigger periodic assessment at milestone levels
       this.checkPeriodicAssessment(this.state.xp.level, tier);
@@ -659,6 +686,7 @@ export class LanguageGamificationTracker {
   public setOnDailyChallengeCompleted(cb: (challenge: DailyChallenge) => void): void { this.onDailyChallengeCompleted = cb; }
   public setOnSkillRewardsApplied(cb: (event: SkillRewardsAppliedEvent) => void): void { this.onSkillRewardsAppliedCb = cb; }
   public setOnPeriodicAssessmentTriggered(cb: (event: PeriodicAssessmentEvent) => void): void { this.onPeriodicAssessmentTriggered = cb; }
+  public setOnLevelRewards(cb: (rewards: LevelReward[]) => void): void { this.onLevelRewards = cb; }
 
   public dispose(): void {
     if (this.syncTimer) {
@@ -674,6 +702,7 @@ export class LanguageGamificationTracker {
     this.onDailyChallengeCompleted = null;
     this.onSkillRewardsAppliedCb = null;
     this.onPeriodicAssessmentTriggered = null;
+    this.onLevelRewards = null;
   }
 
   // ── Generic Module Type Export ──────────────────────────────────────────

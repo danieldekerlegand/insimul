@@ -106,6 +106,9 @@ static const TMap<FString, EInsimulEventType>& GetStringToEventTypeMap()
         { TEXT("price_haggled"),                     EInsimulEventType::PriceHaggled },
         // Text collection events
         { TEXT("text_collected"),                    EInsimulEventType::TextCollected },
+        // XP and level-up events
+        { TEXT("xp_gained"),                        EInsimulEventType::XpGained },
+        { TEXT("level_up"),                         EInsimulEventType::LevelUp },
         // Vocabulary hover-lookup events
         { TEXT("vocabulary_lookup"),                 EInsimulEventType::VocabularyLookup },
         // Vehicle events
