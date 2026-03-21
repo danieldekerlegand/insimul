@@ -20,6 +20,7 @@ import type {
   SavedReputationState,
   SavedRelationshipDelta,
   SavedMainQuestState,
+  SavedPhotoBookState,
   InventoryItem,
   Vec3,
 } from '@shared/game-engine/types';
@@ -64,6 +65,7 @@ export interface GameStateSource {
   getReputationState?(): SavedReputationState;
   getRelationshipDeltas?(): SavedRelationshipDelta[];
   getMainQuestState?(): SavedMainQuestState;
+  getPhotoBookState?(): SavedPhotoBookState;
 }
 
 /** Minimal interface for restoring state back into the game. */
@@ -95,6 +97,7 @@ export interface GameStateTarget {
   restoreReputationState?(data: SavedReputationState): void;
   restoreRelationshipDeltas?(data: SavedRelationshipDelta[]): void;
   restoreMainQuestState?(data: SavedMainQuestState): void;
+  restorePhotoBookState?(data: SavedPhotoBookState): void;
 }
 
 /** Events that trigger an auto-save. */
@@ -136,6 +139,7 @@ const SUBSYSTEM_KEYS: Array<keyof GameSaveState> = [
   'reputationState',
   'relationshipDeltas',
   'mainQuestState',
+  'photoBook',
 ];
 
 export interface SaveStateAuditResult {
@@ -332,6 +336,7 @@ export class WorldStateManager {
       reputationState: src.getReputationState?.() ?? undefined,
       relationshipDeltas: src.getRelationshipDeltas?.() ?? undefined,
       mainQuestState: src.getMainQuestState?.() ?? undefined,
+      photoBook: src.getPhotoBookState?.() ?? undefined,
       saveTrigger: trigger,
     };
   }
@@ -357,7 +362,7 @@ export class WorldStateManager {
       // v3 fields
       'interiorState', 'timeState', 'questActiveState',
       'languageProgressDetailed', 'reputationState',
-      'relationshipDeltas', 'mainQuestState',
+      'relationshipDeltas', 'mainQuestState', 'photoBook',
     ];
 
     for (const field of fieldsToCompare) {
@@ -564,6 +569,9 @@ export class WorldStateManager {
     }
     if (state.mainQuestState != null) {
       target.restoreMainQuestState?.(state.mainQuestState);
+    }
+    if (state.photoBook != null) {
+      target.restorePhotoBookState?.(state.photoBook);
     }
   }
 

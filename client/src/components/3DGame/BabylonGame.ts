@@ -186,7 +186,11 @@ import {
   KEY_EAVESDROP,
   KEY_QUICK_SAVE,
   KEY_QUICK_LOAD,
+  KEY_CAMERA_MODE,
+  KEY_PHOTO_BOOK,
 } from "@/components/3DGame/KeyboardMap.ts";
+import { BabylonPhotographySystem, type SceneObject } from "@/components/3DGame/BabylonPhotographySystem.ts";
+import { BabylonPhotoBookPanel } from "@/components/3DGame/BabylonPhotoBookPanel.ts";
 import type { VisualAsset } from "@shared/schema.ts";
 import {
   PLAYER_MODEL_URL,
@@ -462,6 +466,8 @@ export class BabylonGame {
   private noticeBoardPanel: BabylonNoticeBoardPanel | null = null;
   private settlementNoticeBoard: SettlementNoticeBoard | null = null;
   private contentGatingManager: ContentGatingManager | null = null;
+  private photographySystem: BabylonPhotographySystem | null = null;
+  private photoBookPanel: BabylonPhotoBookPanel | null = null;
   private ruleEnforcer: RuleEnforcer | null = null;
   private prologEngine: GamePrologEngine | null = null;
   private eventBus: GameEventBus = new GameEventBus();
@@ -977,6 +983,10 @@ export class BabylonGame {
       },
       getWorldId: () => this.config.worldId,
       getPlaythroughId: () => this.playthroughId,
+      getPhotoBookState: () => {
+        const photos = this.photographySystem?.getPhotos();
+        return photos && photos.length > 0 ? { photos } : undefined as any;
+      },
     };
   }
 
@@ -1037,6 +1047,12 @@ export class BabylonGame {
         const hour = Math.floor((encoded % 10000) / 100);
         const minute = encoded % 100;
         this.gameTimeManager.setTime(hour, minute, day || 1);
+      },
+      restorePhotoBookState: (data) => {
+        if (data?.photos && this.photographySystem) {
+          this.photographySystem.setPhotos(data.photos);
+          this.photoBookPanel?.setPhotos(data.photos);
+        }
       },
     };
   }
@@ -2183,6 +2199,37 @@ export class BabylonGame {
     this.vocabularyPanel.setOnWordSpeak((word: string) => {
       // Use TTS to pronounce the word
       this.chatPanel?.speakWord(word);
+    });
+
+    // Initialize photography system (C key) and photo book (P key)
+    this.photographySystem = new BabylonPhotographySystem(
+      scene,
+      this.guiManager.advancedTexture,
+      {
+        onPhotoTaken: (photo) => {
+          this.photoBookPanel?.setPhotos(this.photographySystem?.getPhotos() || []);
+        },
+        getPlayerPosition: () => {
+          const pos = this.playerMesh?.position;
+          return pos ? { x: pos.x, y: pos.y, z: pos.z } : { x: 0, y: 0, z: 0 };
+        },
+        getLocationInfo: () => ({
+          settlementId: this.currentZone?.id,
+          settlementName: this.currentZone?.name,
+          buildingId: this.isInsideBuilding ? this.currentBuildingBusinessType : undefined,
+          buildingName: this.isInsideBuilding ? this.currentBuildingBusinessType : undefined,
+        }),
+        getVisibleSceneObjects: () => this.getVisibleSceneObjectsForPhoto(),
+        showToast: (title, description) => {
+          this.guiManager?.showToast({ title, description, duration: 2000 });
+        },
+      },
+    );
+
+    this.photoBookPanel = new BabylonPhotoBookPanel(this.guiManager.advancedTexture, {
+      onDeletePhoto: (id) => this.photographySystem?.deletePhoto(id),
+      onToggleFavorite: (id) => this.photographySystem?.toggleFavorite(id),
+      onRemoveLabel: (photoId, labelId) => this.photographySystem?.removeLabel(photoId, labelId),
     });
 
     // Initialize conversation history panel (H key)
@@ -7263,6 +7310,53 @@ export class BabylonGame {
     }
   }
 
+  /** Gather nearby NPCs and world props as SceneObjects for photo labeling. */
+  private getVisibleSceneObjectsForPhoto(): SceneObject[] {
+    const objects: SceneObject[] = [];
+    if (!this.playerMesh) return objects;
+
+    const playerPos = this.playerMesh.position;
+    const maxDist = 30;
+
+    // NPCs
+    this.npcMeshes.forEach((instance, npcId) => {
+      if (!instance.mesh) return;
+      const dist = Vector3.Distance(playerPos, instance.mesh.position);
+      if (dist > maxDist) return;
+      const npcInfo = this.npcInfos.find(n => n.id === npcId);
+      objects.push({
+        id: npcId,
+        name: npcInfo?.name || 'Person',
+        category: 'person',
+        position: instance.mesh.position,
+      });
+    });
+
+    // World props
+    for (const propMesh of this.worldPropMeshes) {
+      if (!propMesh || propMesh.isDisposed()) continue;
+      const dist = Vector3.Distance(playerPos, propMesh.position);
+      if (dist > maxDist) continue;
+
+      const objectRole = (propMesh.metadata?.objectRole || propMesh.name || '').toLowerCase();
+      const dbItem = this.resolveWorldItem(objectRole);
+      const langData = dbItem?.languageLearningData;
+      const name = dbItem?.name || objectRole.split(/[_\s]+/).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+
+      objects.push({
+        id: dbItem?.id || objectRole,
+        name,
+        category: langData?.category || 'item',
+        position: propMesh.position,
+        targetWord: langData?.targetWord,
+        targetLanguage: langData?.targetLanguage,
+        pronunciation: langData?.pronunciation,
+      });
+    }
+
+    return objects;
+  }
+
   private createInventoryItemForObjectRole(objectRole: string): InventoryItem {
     const role = (objectRole || "").toLowerCase();
     const id = `prop_${role || "generic"}`;
@@ -8768,6 +8862,32 @@ export class BabylonGame {
     if (event.code === KEY_EXAMINE_OBJECT && !event.repeat) {
       event.preventDefault();
       this.handleExamineObject();
+    }
+
+    // C - Toggle camera viewfinder (photography mode)
+    if (event.code === KEY_CAMERA_MODE && !event.repeat) {
+      event.preventDefault();
+      if (this.photographySystem?.active) {
+        this.photographySystem.toggleViewfinder();
+      } else {
+        this.photographySystem?.toggleViewfinder();
+      }
+    }
+
+    // Space while in photo mode - take photo
+    if (event.code === 'Space' && this.photographySystem?.active && !event.repeat) {
+      event.preventDefault();
+      this.photographySystem.capturePhoto();
+    }
+
+    // P - Toggle photo book panel
+    if (event.code === KEY_PHOTO_BOOK && !event.repeat) {
+      event.preventDefault();
+      if (this.photographySystem?.active) {
+        this.photographySystem.toggleViewfinder(); // close viewfinder first
+      }
+      this.photoBookPanel?.setPhotos(this.photographySystem?.getPhotos() || []);
+      this.photoBookPanel?.toggle();
     }
   }
   
