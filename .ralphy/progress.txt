@@ -1,3 +1,22 @@
+## Agent 20: Add quest objective fallback system for uncompletable objectives
+
+### Completed
+- Created `shared/quest-objective-fallbacks.ts` with:
+  - Detection of uncompletable objectives by checking NPC/location/item availability against world state
+  - Broken dependency chain detection (objectives depending on uncompletable ones)
+  - Fallback mapping for all 53 objective types with ordered alternatives
+  - `applyObjectiveFallbacks()` pipeline that detects and replaces uncompletable objectives
+  - Case-insensitive target matching
+- Created `shared/__tests__/quest-objective-fallbacks.test.ts` with 33 tests covering:
+  - Single objective detection (NPC, location, item missing/present)
+  - Batch detection with dependency chain analysis
+  - Fallback type selection and generation
+  - Full pipeline with multiple fallbacks per quest
+  - Edge cases (completed objectives, unknown types, missing targets)
+- All 33 tests pass, TypeScript compiles cleanly
+
+---
+
 ## Agent 16: Fill residences with residents during evening and night hours
 
 ### Completed
