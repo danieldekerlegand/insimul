@@ -1,3 +1,14 @@
+## Agent 16: Fill residences with residents during evening and night hours
+
+### Completed
+- Modified `updateAllWhereabouts` in `server/extensions/tott/routine-system.ts` to default characters without explicit routines to their residence during evening (17–21) and night (22–5) hours
+- Added `isEveningOrNight(hour)` helper to determine if a given hour falls in the evening/night window
+- Added `defaultHomeOccasion(hour)` helper that returns 'sleeping' for night hours and 'relaxing' for evening hours
+- Dead characters are now skipped during whereabouts updates
+- Characters without a `currentResidenceId` are not placed anywhere (graceful skip)
+- Wrote 12 tests covering all edge cases (server/__tests__/residence-evening-filling.test.ts)
+- All tests pass, TypeScript compiles cleanly
+
 ## Agent 3: Expand the base item catalog with new categories and items
 
 ### Completed
