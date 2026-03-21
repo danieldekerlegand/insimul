@@ -1,14 +1,10 @@
-## Agent 12: Implement server-side persistence for vocabulary and grammar progress
+## Agent 3: Expand the base item catalog with new categories and items
 
 ### Completed
-- Added vocabulary/grammar/progress storage methods to IStorage interface (server/db/storage.ts)
-- Added individual REST endpoints for vocabulary and grammar CRUD (server/routes/telemetry-routes.ts):
-  - GET /api/vocabulary/:playerId/:worldId
-  - PUT /api/vocabulary/:playerId/:worldId/:word
-  - GET /api/grammar-patterns/:playerId/:worldId
-  - PUT /api/grammar-patterns/:playerId/:worldId/:pattern
-- Added loadFromServer() method to LanguageProgressTracker (client) to restore persisted progress on initialization
-- Wired up startServerSync (60s periodic sync) and loadFromServer in BabylonChatPanel initialization
-- Added cleanup: final sync + stopServerSync on BabylonChatPanel dispose
-- Wrote 17 tests covering all endpoints including error handling (server/__tests__/language-progress-persistence.test.ts)
+- Created migration 026 (server/migrations/026-expand-item-catalog-categories.ts) adding 105 new universal base items
+- Added 10 new item categories: instrument, clothing, kitchen, garden, stationery, toy, hygiene, ceremonial, fishing/hunting, textile/sewing
+- Also added decorative items, furniture, and miscellaneous useful items
+- All items are universal (worldType: null) so they appear in all world types
+- Furniture items properly marked as non-possessable with lootWeight 0
+- Wrote 26 tests (server/__tests__/expand-item-catalog-categories.test.ts) covering structure validation, category coverage, uniqueness, loot weight distribution
 - All tests pass, TypeScript compiles cleanly
