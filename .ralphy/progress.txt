@@ -1,3 +1,17 @@
+## Agent 28: Add ambient sound system with environmental audio tied to location and time
+
+### Completed
+- Created AmbientSoundSystem (client/src/components/3DGame/AmbientSoundSystem.ts):
+  - Manages layered ambient soundscapes based on environment type (wilderness/settlement/indoor) and time of day (dawn/morning/midday/afternoon/evening/night)
+  - 18 default profiles covering all environment × time combinations with appropriate sound layers (birds, wind, crickets, town bustle, indoor ambience, etc.)
+  - Layer diffing: smoothly transitions between profiles by stopping removed layers, starting new ones, and adjusting volumes on shared layers
+  - Integrates with GameEventBus (time_of_day_changed, settlement_entered events)
+  - Callback-based playback delegation (onLayerStart/onLayerStop/onLayerVolumeChange) for clean separation from audio backend
+- Wrote 19 tests (client/src/components/3DGame/__tests__/AmbientSoundSystem.test.ts) covering initialization, start/stop, environment transitions, time transitions, layer diffing, profile resolution, event bus integration, dispose, and full profile coverage
+- All tests pass, linting clean
+
+---
+
 ## Agent 20: Add quest objective fallback system for uncompletable objectives
 
 ### Completed
