@@ -7,7 +7,7 @@
  */
 
 import { Vector3, Mesh } from '@babylonjs/core';
-import type { InteriorLayout } from './BuildingInteriorGenerator';
+import type { InteriorLayout, RoomZone } from './BuildingInteriorGenerator';
 import type { AnimationState } from './NPCAnimationController';
 
 /** NPC data needed for interior placement */
@@ -64,6 +64,8 @@ interface FurnitureRole {
   forRoles: Array<'employee' | 'owner' | 'visitor'>;
   /** Animation to play at this position */
   animation: AnimationState;
+  /** Which room zone this furniture belongs to (for multi-room interiors) */
+  roomFunction?: string;
 }
 
 /** Source of NPC schedule data for dynamic entry/exit */
@@ -161,46 +163,50 @@ const MAX_INTERIOR_NPCS = 6;
  */
 const BUSINESS_FURNITURE_ROLES: Record<string, FurnitureRole[]> = {
   Bakery: [
-    { name: 'counter', offset: new Vector3(0, 0, 2), forRoles: ['owner', 'employee'], animation: 'work' },
-    { name: 'display', offset: new Vector3(-2, 0, 0), forRoles: ['employee'], animation: 'idle' },
-    { name: 'table', offset: new Vector3(2, 0, -2), forRoles: ['visitor'], animation: 'sit' },
+    { name: 'counter', offset: new Vector3(0, 0, -2), forRoles: ['owner', 'employee'], animation: 'work', roomFunction: 'shop' },
+    { name: 'kitchen', offset: new Vector3(0, 0, 4), forRoles: ['employee'], animation: 'work', roomFunction: 'kitchen' },
+    { name: 'display', offset: new Vector3(-3, 0, 0), forRoles: ['employee'], animation: 'idle', roomFunction: 'shop' },
+    { name: 'table', offset: new Vector3(3, 0, -3), forRoles: ['visitor'], animation: 'sit', roomFunction: 'shop' },
   ],
   Bar: [
-    { name: 'bar', offset: new Vector3(0, 0, 2.5), forRoles: ['owner', 'employee'], animation: 'work' },
-    { name: 'stool1', offset: new Vector3(-2, 0, 1), forRoles: ['visitor'], animation: 'sit' },
-    { name: 'stool2', offset: new Vector3(2, 0, 1), forRoles: ['visitor'], animation: 'sit' },
-    { name: 'table', offset: new Vector3(-3, 0, -2), forRoles: ['visitor'], animation: 'sit' },
+    { name: 'bar', offset: new Vector3(0, 0, 1.5), forRoles: ['owner', 'employee'], animation: 'work', roomFunction: 'tavern_main' },
+    { name: 'kitchen', offset: new Vector3(0, 0, 5), forRoles: ['employee'], animation: 'work', roomFunction: 'tavern_kitchen' },
+    { name: 'stool1', offset: new Vector3(-3, 0, -1), forRoles: ['visitor'], animation: 'sit', roomFunction: 'tavern_main' },
+    { name: 'stool2', offset: new Vector3(3, 0, -1), forRoles: ['visitor'], animation: 'sit', roomFunction: 'tavern_main' },
+    { name: 'table', offset: new Vector3(-4, 0, -3), forRoles: ['visitor'], animation: 'sit', roomFunction: 'tavern_main' },
   ],
   Restaurant: [
-    { name: 'kitchen', offset: new Vector3(0, 0, 3), forRoles: ['owner', 'employee'], animation: 'work' },
-    { name: 'table1', offset: new Vector3(-2, 0, -1), forRoles: ['visitor'], animation: 'sit' },
-    { name: 'table2', offset: new Vector3(2, 0, -1), forRoles: ['visitor'], animation: 'sit' },
-    { name: 'serving', offset: new Vector3(0, 0, 0), forRoles: ['employee'], animation: 'walk' },
+    { name: 'kitchen', offset: new Vector3(0, 0, 5), forRoles: ['owner', 'employee'], animation: 'work', roomFunction: 'tavern_kitchen' },
+    { name: 'table1', offset: new Vector3(-3, 0, -2), forRoles: ['visitor'], animation: 'sit', roomFunction: 'tavern_main' },
+    { name: 'table2', offset: new Vector3(3, 0, -2), forRoles: ['visitor'], animation: 'sit', roomFunction: 'tavern_main' },
+    { name: 'serving', offset: new Vector3(0, 0, 0), forRoles: ['employee'], animation: 'walk', roomFunction: 'tavern_main' },
   ],
   Shop: [
-    { name: 'counter', offset: new Vector3(0, 0, 2), forRoles: ['owner', 'employee'], animation: 'idle' },
-    { name: 'shelf1', offset: new Vector3(-3, 0, 0), forRoles: ['employee'], animation: 'work' },
-    { name: 'browsing', offset: new Vector3(2, 0, -1), forRoles: ['visitor'], animation: 'idle' },
+    { name: 'counter', offset: new Vector3(0, 0, -2), forRoles: ['owner', 'employee'], animation: 'idle', roomFunction: 'shop' },
+    { name: 'shelf1', offset: new Vector3(-4, 0, 0), forRoles: ['employee'], animation: 'work', roomFunction: 'shop' },
+    { name: 'storage', offset: new Vector3(0, 0, 5), forRoles: ['employee'], animation: 'work', roomFunction: 'storage' },
+    { name: 'browsing', offset: new Vector3(3, 0, -2), forRoles: ['visitor'], animation: 'idle', roomFunction: 'shop' },
   ],
   GroceryStore: [
-    { name: 'counter', offset: new Vector3(0, 0, 2), forRoles: ['owner', 'employee'], animation: 'idle' },
-    { name: 'aisle', offset: new Vector3(-2, 0, 0), forRoles: ['visitor'], animation: 'walk' },
-    { name: 'shelf', offset: new Vector3(2, 0, 1), forRoles: ['employee'], animation: 'work' },
+    { name: 'counter', offset: new Vector3(0, 0, -2), forRoles: ['owner', 'employee'], animation: 'idle', roomFunction: 'shop' },
+    { name: 'aisle', offset: new Vector3(-3, 0, 0), forRoles: ['visitor'], animation: 'walk', roomFunction: 'shop' },
+    { name: 'storage', offset: new Vector3(0, 0, 5), forRoles: ['employee'], animation: 'work', roomFunction: 'storage' },
+    { name: 'shelf', offset: new Vector3(3, 0, 1), forRoles: ['employee'], animation: 'work', roomFunction: 'shop' },
   ],
   Hospital: [
-    { name: 'desk', offset: new Vector3(0, 0, 2), forRoles: ['owner', 'employee'], animation: 'work' },
-    { name: 'bed1', offset: new Vector3(-3, 0, -1), forRoles: ['visitor'], animation: 'idle' },
-    { name: 'bed2', offset: new Vector3(3, 0, -1), forRoles: ['visitor'], animation: 'idle' },
+    { name: 'desk', offset: new Vector3(0, 0, -2), forRoles: ['owner', 'employee'], animation: 'work' },
+    { name: 'bed1', offset: new Vector3(-4, 0, -1), forRoles: ['visitor'], animation: 'idle' },
+    { name: 'bed2', offset: new Vector3(4, 0, -1), forRoles: ['visitor'], animation: 'idle' },
   ],
   Church: [
-    { name: 'altar', offset: new Vector3(0, 0, 3), forRoles: ['owner', 'employee'], animation: 'talk' },
-    { name: 'pew1', offset: new Vector3(-2, 0, -1), forRoles: ['visitor'], animation: 'sit' },
-    { name: 'pew2', offset: new Vector3(2, 0, -1), forRoles: ['visitor'], animation: 'sit' },
+    { name: 'altar', offset: new Vector3(0, 0, 8), forRoles: ['owner', 'employee'], animation: 'talk', roomFunction: 'temple' },
+    { name: 'pew1', offset: new Vector3(-3, 0, -2), forRoles: ['visitor'], animation: 'sit', roomFunction: 'temple' },
+    { name: 'pew2', offset: new Vector3(3, 0, -2), forRoles: ['visitor'], animation: 'sit', roomFunction: 'temple' },
   ],
   School: [
-    { name: 'desk', offset: new Vector3(0, 0, 3), forRoles: ['owner', 'employee'], animation: 'talk' },
-    { name: 'seat1', offset: new Vector3(-2, 0, -1), forRoles: ['visitor'], animation: 'sit' },
-    { name: 'seat2', offset: new Vector3(2, 0, -1), forRoles: ['visitor'], animation: 'sit' },
+    { name: 'desk', offset: new Vector3(0, 0, 4), forRoles: ['owner', 'employee'], animation: 'talk' },
+    { name: 'seat1', offset: new Vector3(-3, 0, -2), forRoles: ['visitor'], animation: 'sit' },
+    { name: 'seat2', offset: new Vector3(3, 0, -2), forRoles: ['visitor'], animation: 'sit' },
   ],
 };
 
@@ -210,11 +216,19 @@ const DEFAULT_FURNITURE_ROLES: FurnitureRole[] = [
   { name: 'corner', offset: new Vector3(-2, 0, -2), forRoles: ['visitor'], animation: 'idle' },
 ];
 
-/** Residence furniture roles */
-const RESIDENCE_FURNITURE_ROLES: FurnitureRole[] = [
-  { name: 'chair', offset: new Vector3(0, 0, 0), forRoles: ['owner', 'visitor'], animation: 'sit' },
-  { name: 'table', offset: new Vector3(-1.5, 0, 1), forRoles: ['visitor'], animation: 'idle' },
-  { name: 'bed', offset: new Vector3(2, 0, 2), forRoles: ['owner'], animation: 'idle' },
+/** Residence furniture roles — daytime positions (living room / kitchen) */
+const RESIDENCE_FURNITURE_ROLES_DAY: FurnitureRole[] = [
+  { name: 'chair', offset: new Vector3(0, 0, -1), forRoles: ['owner', 'visitor'], animation: 'sit', roomFunction: 'living' },
+  { name: 'kitchen_table', offset: new Vector3(0, 0, 3), forRoles: ['owner', 'visitor'], animation: 'idle', roomFunction: 'kitchen' },
+  { name: 'living_bench', offset: new Vector3(-2, 0, -2), forRoles: ['visitor'], animation: 'sit', roomFunction: 'living' },
+  { name: 'cooking', offset: new Vector3(0, 0, 4.5), forRoles: ['owner'], animation: 'work', roomFunction: 'kitchen' },
+];
+
+/** Residence furniture roles — nighttime positions (bedroom upstairs if available) */
+const RESIDENCE_FURNITURE_ROLES_NIGHT: FurnitureRole[] = [
+  { name: 'bed', offset: new Vector3(-2, 0, 2), forRoles: ['owner'], animation: 'idle', roomFunction: 'bedroom' },
+  { name: 'bed2', offset: new Vector3(2, 0, 2), forRoles: ['owner'], animation: 'idle', roomFunction: 'bedroom' },
+  { name: 'chair', offset: new Vector3(0, 0, -1), forRoles: ['visitor'], animation: 'sit', roomFunction: 'living' },
 ];
 
 /** Greeting templates by business type */
@@ -553,9 +567,14 @@ export class InteriorNPCManager {
 
   /**
    * Get furniture role positions for a building type.
+   * For residences, returns different roles based on time of day.
    */
   private getFurnitureRoles(buildingType: string, businessType?: string): FurnitureRole[] {
-    if (buildingType === 'residence') return RESIDENCE_FURNITURE_ROLES;
+    if (buildingType === 'residence') {
+      const gameHour = this.callbacks.getGameHour?.() ?? 12;
+      const isNight = gameHour >= 21 || gameHour < 6;
+      return isNight ? RESIDENCE_FURNITURE_ROLES_NIGHT : RESIDENCE_FURNITURE_ROLES_DAY;
+    }
     if (businessType && BUSINESS_FURNITURE_ROLES[businessType]) {
       return BUSINESS_FURNITURE_ROLES[businessType];
     }

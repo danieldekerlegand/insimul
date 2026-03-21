@@ -17,6 +17,22 @@ import {
 } from '@babylonjs/core';
 import type { FurnitureModelLoader } from './FurnitureModelLoader';
 
+/** Describes a sub-room within a multi-room interior */
+export interface RoomZone {
+  name: string;
+  /** Function of the room (living, kitchen, bedroom, shop, storage, office) */
+  function: string;
+  /** Offset from interior position */
+  offsetX: number;
+  offsetZ: number;
+  /** Y offset for upper floors */
+  offsetY: number;
+  width: number;
+  depth: number;
+  /** Floor index: 0 = ground, 1 = upstairs */
+  floor: number;
+}
+
 export interface InteriorLayout {
   id: string;
   buildingId: string;
@@ -30,6 +46,10 @@ export interface InteriorLayout {
   furniture: Mesh[];
   doorPosition: Vector3;
   exitPosition: Vector3;
+  /** Sub-room zones within this interior */
+  rooms: RoomZone[];
+  /** Number of floors */
+  floorCount: number;
 }
 
 export interface FurnitureSpec {
@@ -48,6 +68,17 @@ const CONTAINER_TYPES = new Set(['chest', 'barrel', 'crate']);
 
 /** Furniture types best represented by a cylinder rather than a box */
 const CYLINDER_TYPES = new Set(['barrel', 'pillar', 'stool']);
+
+/** Partition wall thickness */
+const PARTITION_THICKNESS = 0.25;
+
+/** Doorway dimensions in partition walls */
+const PARTITION_DOOR_WIDTH = 2.0;
+const PARTITION_DOOR_HEIGHT = 3.0;
+
+/** Staircase dimensions */
+const STAIR_WIDTH = 2.0;
+const STAIR_STEP_COUNT = 10;
 
 export class BuildingInteriorGenerator {
   private scene: Scene;
@@ -84,18 +115,38 @@ export class BuildingInteriorGenerator {
 
     // Determine room dimensions based on building type
     const dims = this.getRoomDimensions(buildingType, businessType);
+    const floorCount = this.getFloorCount(buildingType, businessType);
 
     // Calculate position for this interior (Y-offset slot)
+    // Extra slot spacing for multi-floor buildings
+    const slotsNeeded = floorCount > 1 ? 2 : 1;
     const slotY = BuildingInteriorGenerator.BASE_Y_OFFSET +
       this.nextSlotIndex * BuildingInteriorGenerator.SLOT_SPACING;
     const position = new Vector3(0, slotY, 0);
-    this.nextSlotIndex++;
+    this.nextSlotIndex += slotsNeeded;
+
+    // Generate room zones for multi-room layout
+    const rooms = this.generateRoomZones(buildingType, businessType, dims.width, dims.depth, dims.height, floorCount);
 
     // Build the room shell (floor, walls, ceiling)
     const roomMesh = this.buildRoom(buildingId, position, dims.width, dims.depth, dims.height, buildingType, businessType);
 
-    // Generate furniture based on building/business type
-    const furniture = this.generateFurniture(buildingId, position, dims.width, dims.depth, dims.height, buildingType, businessType);
+    // Build partition walls between rooms
+    this.buildPartitions(buildingId, position, rooms, dims.height, buildingType, businessType);
+
+    // Build staircase if multi-floor
+    const furniture: Mesh[] = [];
+    if (floorCount > 1) {
+      const stairMesh = this.buildStaircase(buildingId, position, dims.width, dims.depth, dims.height);
+      if (stairMesh) furniture.push(stairMesh);
+
+      // Build upstairs floor and ceiling
+      this.buildUpperFloor(buildingId, position, dims.width, dims.depth, dims.height, buildingType, businessType);
+    }
+
+    // Generate furniture for each room zone
+    const roomFurniture = this.generateMultiRoomFurniture(buildingId, position, rooms, dims.height, buildingType, businessType);
+    furniture.push(...roomFurniture);
 
     // Door position (center of south wall, at floor level)
     const doorPosition = new Vector3(
@@ -121,7 +172,9 @@ export class BuildingInteriorGenerator {
       roomMesh,
       furniture,
       doorPosition,
-      exitPosition
+      exitPosition,
+      rooms,
+      floorCount,
     };
 
     this.interiors.set(buildingId, layout);
@@ -145,27 +198,27 @@ export class BuildingInteriorGenerator {
     const bt = (businessType || buildingType || '').toLowerCase();
 
     if (bt.includes('tavern') || bt.includes('inn') || bt.includes('bar')) {
-      return { width: 14, depth: 12, height: 5 };
+      return { width: 18, depth: 16, height: 5 };
     } else if (bt.includes('shop') || bt.includes('store') || bt.includes('market')) {
-      return { width: 10, depth: 10, height: 4.5 };
+      return { width: 14, depth: 14, height: 4.5 };
     } else if (bt.includes('blacksmith') || bt.includes('forge') || bt.includes('workshop')) {
-      return { width: 12, depth: 10, height: 5 };
+      return { width: 16, depth: 14, height: 5 };
     } else if (bt.includes('temple') || bt.includes('church') || bt.includes('shrine')) {
-      return { width: 16, depth: 20, height: 8 };
+      return { width: 20, depth: 24, height: 8 };
     } else if (bt.includes('guild') || bt.includes('hall') || bt.includes('office')) {
-      return { width: 14, depth: 14, height: 5 };
+      return { width: 18, depth: 18, height: 5 };
     } else if (bt.includes('residence_large') || bt.includes('mansion')) {
-      return { width: 12, depth: 12, height: 4.5 };
+      return { width: 16, depth: 16, height: 4.5 };
     } else if (bt.includes('residence_medium')) {
-      return { width: 8, depth: 8, height: 4 };
+      return { width: 12, depth: 12, height: 4 };
     } else if (bt.includes('residence') || bt.includes('house') || bt.includes('home')) {
-      return { width: 6, depth: 6, height: 3.5 };
+      return { width: 9, depth: 9, height: 3.5 };
     } else if (bt.includes('warehouse') || bt.includes('storage')) {
-      return { width: 16, depth: 12, height: 6 };
+      return { width: 20, depth: 16, height: 6 };
     }
 
     // Default
-    return { width: 8, depth: 8, height: 4 };
+    return { width: 10, depth: 10, height: 4 };
   }
 
   /**
@@ -331,6 +384,586 @@ export class BuildingInteriorGenerator {
   }
 
   /**
+   * Determine how many floors a building should have.
+   */
+  private getFloorCount(buildingType: string, businessType?: string): number {
+    const bt = (businessType || buildingType || '').toLowerCase();
+    if (bt.includes('residence_large') || bt.includes('mansion')) return 2;
+    if (bt.includes('residence_medium')) return 2;
+    if (bt.includes('tavern') || bt.includes('inn')) return 2;
+    if (bt.includes('shop') || bt.includes('store') || bt.includes('market')) return 2;
+    if (bt.includes('guild') || bt.includes('hall')) return 2;
+    // Single floor: small residences, temples, blacksmiths, warehouses
+    return 1;
+  }
+
+  /**
+   * Generate room zones for a multi-room interior layout.
+   */
+  private generateRoomZones(
+    buildingType: string,
+    businessType: string | undefined,
+    width: number,
+    depth: number,
+    height: number,
+    floorCount: number,
+  ): RoomZone[] {
+    const bt = (businessType || buildingType || '').toLowerCase();
+    const rooms: RoomZone[] = [];
+
+    // Partition depth: front room gets 60%, back room gets 40%
+    const frontDepth = depth * 0.6;
+    const backDepth = depth * 0.4;
+    const frontCenterZ = -depth / 2 + frontDepth / 2;
+    const backCenterZ = depth / 2 - backDepth / 2;
+
+    if (bt.includes('residence_large') || bt.includes('mansion') || bt.includes('residence_medium')) {
+      // Ground floor: living room (front) + kitchen (back)
+      rooms.push({
+        name: 'living_room', function: 'living',
+        offsetX: 0, offsetZ: frontCenterZ, offsetY: 0,
+        width, depth: frontDepth, floor: 0,
+      });
+      rooms.push({
+        name: 'kitchen', function: 'kitchen',
+        offsetX: 0, offsetZ: backCenterZ, offsetY: 0,
+        width, depth: backDepth, floor: 0,
+      });
+      if (floorCount > 1) {
+        // Upstairs: bedroom(s)
+        rooms.push({
+          name: 'bedroom', function: 'bedroom',
+          offsetX: -width / 4, offsetZ: 0, offsetY: height,
+          width: width / 2, depth, floor: 1,
+        });
+        rooms.push({
+          name: 'bedroom2', function: 'bedroom',
+          offsetX: width / 4, offsetZ: 0, offsetY: height,
+          width: width / 2, depth, floor: 1,
+        });
+      }
+    } else if (bt.includes('residence') || bt.includes('house') || bt.includes('home')) {
+      // Small residence: single floor, living area + kitchen nook
+      rooms.push({
+        name: 'living_room', function: 'living',
+        offsetX: 0, offsetZ: frontCenterZ, offsetY: 0,
+        width, depth: frontDepth, floor: 0,
+      });
+      rooms.push({
+        name: 'kitchen', function: 'kitchen',
+        offsetX: 0, offsetZ: backCenterZ, offsetY: 0,
+        width, depth: backDepth, floor: 0,
+      });
+    } else if (bt.includes('shop') || bt.includes('store') || bt.includes('market')) {
+      // Ground floor: shop area (front) + storage (back)
+      rooms.push({
+        name: 'shop_floor', function: 'shop',
+        offsetX: 0, offsetZ: frontCenterZ, offsetY: 0,
+        width, depth: frontDepth, floor: 0,
+      });
+      rooms.push({
+        name: 'storage', function: 'storage',
+        offsetX: 0, offsetZ: backCenterZ, offsetY: 0,
+        width, depth: backDepth, floor: 0,
+      });
+      if (floorCount > 1) {
+        // Upstairs: living quarters
+        rooms.push({
+          name: 'living_quarters', function: 'living',
+          offsetX: 0, offsetZ: 0, offsetY: height,
+          width, depth, floor: 1,
+        });
+      }
+    } else if (bt.includes('tavern') || bt.includes('inn') || bt.includes('bar')) {
+      // Ground floor: common room (front) + kitchen/bar back (back)
+      rooms.push({
+        name: 'common_room', function: 'tavern_main',
+        offsetX: 0, offsetZ: frontCenterZ, offsetY: 0,
+        width, depth: frontDepth, floor: 0,
+      });
+      rooms.push({
+        name: 'kitchen', function: 'tavern_kitchen',
+        offsetX: 0, offsetZ: backCenterZ, offsetY: 0,
+        width, depth: backDepth, floor: 0,
+      });
+      if (floorCount > 1) {
+        // Upstairs: guest rooms
+        rooms.push({
+          name: 'guest_room1', function: 'bedroom',
+          offsetX: -width / 4, offsetZ: 0, offsetY: height,
+          width: width / 2, depth, floor: 1,
+        });
+        rooms.push({
+          name: 'guest_room2', function: 'bedroom',
+          offsetX: width / 4, offsetZ: 0, offsetY: height,
+          width: width / 2, depth, floor: 1,
+        });
+      }
+    } else if (bt.includes('guild') || bt.includes('hall') || bt.includes('office')) {
+      rooms.push({
+        name: 'main_hall', function: 'guild_main',
+        offsetX: 0, offsetZ: frontCenterZ, offsetY: 0,
+        width, depth: frontDepth, floor: 0,
+      });
+      rooms.push({
+        name: 'office', function: 'office',
+        offsetX: 0, offsetZ: backCenterZ, offsetY: 0,
+        width, depth: backDepth, floor: 0,
+      });
+      if (floorCount > 1) {
+        rooms.push({
+          name: 'library', function: 'library',
+          offsetX: 0, offsetZ: 0, offsetY: height,
+          width, depth, floor: 1,
+        });
+      }
+    } else if (bt.includes('blacksmith') || bt.includes('forge') || bt.includes('workshop')) {
+      rooms.push({
+        name: 'workshop', function: 'workshop',
+        offsetX: 0, offsetZ: frontCenterZ, offsetY: 0,
+        width, depth: frontDepth, floor: 0,
+      });
+      rooms.push({
+        name: 'storage', function: 'storage',
+        offsetX: 0, offsetZ: backCenterZ, offsetY: 0,
+        width, depth: backDepth, floor: 0,
+      });
+    } else if (bt.includes('temple') || bt.includes('church') || bt.includes('shrine')) {
+      // Temples are a single large nave — no partition
+      rooms.push({
+        name: 'nave', function: 'temple',
+        offsetX: 0, offsetZ: 0, offsetY: 0,
+        width, depth, floor: 0,
+      });
+    } else if (bt.includes('warehouse') || bt.includes('storage')) {
+      rooms.push({
+        name: 'main_storage', function: 'warehouse',
+        offsetX: 0, offsetZ: 0, offsetY: 0,
+        width, depth, floor: 0,
+      });
+    } else {
+      // Default: single room
+      rooms.push({
+        name: 'main', function: 'general',
+        offsetX: 0, offsetZ: 0, offsetY: 0,
+        width, depth, floor: 0,
+      });
+    }
+
+    return rooms;
+  }
+
+  /**
+   * Build partition walls between room zones with doorway cutouts.
+   */
+  private buildPartitions(
+    buildingId: string,
+    position: Vector3,
+    rooms: RoomZone[],
+    height: number,
+    buildingType: string,
+    businessType?: string,
+  ): void {
+    const prefix = `interior_${buildingId}`;
+    const colors = this.getRoomColors(buildingType, businessType);
+    const wallMat = new StandardMaterial(`${prefix}_partition_mat`, this.scene);
+    wallMat.diffuseColor = colors.wall;
+    wallMat.specularColor = new Color3(0.05, 0.05, 0.05);
+
+    // Find ground floor rooms — if there are exactly 2 on floor 0, build a partition
+    const groundRooms = rooms.filter(r => r.floor === 0);
+    if (groundRooms.length === 2) {
+      const front = groundRooms[0];
+      const back = groundRooms[1];
+      // Partition runs along Z boundary between front and back rooms
+      const partitionZ = front.offsetZ + front.depth / 2;
+      const totalWidth = Math.max(front.width, back.width);
+
+      this.buildPartitionWall(
+        prefix, position, totalWidth, height, partitionZ, 'z', wallMat
+      );
+    }
+
+    // Build partition between upstairs rooms if there are 2 on floor 1
+    const upperRooms = rooms.filter(r => r.floor === 1);
+    if (upperRooms.length === 2) {
+      // Vertical partition along X center dividing left/right rooms
+      const partitionX = (upperRooms[0].offsetX + upperRooms[0].width / 2 +
+                          upperRooms[1].offsetX - upperRooms[1].width / 2) / 2;
+      const totalDepth = Math.max(upperRooms[0].depth, upperRooms[1].depth);
+
+      this.buildPartitionWall(
+        prefix, new Vector3(position.x, position.y + height, position.z),
+        totalDepth, height, partitionX, 'x', wallMat
+      );
+    }
+  }
+
+  /**
+   * Build a single partition wall with a doorway cutout.
+   * @param axis 'z' for east-west wall (spans width), 'x' for north-south wall (spans depth)
+   */
+  private buildPartitionWall(
+    prefix: string,
+    position: Vector3,
+    span: number,
+    height: number,
+    offset: number,
+    axis: 'x' | 'z',
+    material: StandardMaterial,
+  ): void {
+    const leftPanelWidth = (span - PARTITION_DOOR_WIDTH) / 2;
+    const rightPanelWidth = leftPanelWidth;
+
+    if (axis === 'z') {
+      // Wall runs east-west at Z=offset
+      // Left panel
+      const left = MeshBuilder.CreateBox(
+        `${prefix}_partition_left`, {
+          width: leftPanelWidth,
+          height,
+          depth: PARTITION_THICKNESS,
+        }, this.scene
+      );
+      left.position = new Vector3(
+        position.x - (PARTITION_DOOR_WIDTH / 2 + leftPanelWidth / 2),
+        position.y + height / 2,
+        position.z + offset,
+      );
+      left.material = material;
+      left.checkCollisions = true;
+
+      // Right panel
+      const right = MeshBuilder.CreateBox(
+        `${prefix}_partition_right`, {
+          width: rightPanelWidth,
+          height,
+          depth: PARTITION_THICKNESS,
+        }, this.scene
+      );
+      right.position = new Vector3(
+        position.x + (PARTITION_DOOR_WIDTH / 2 + rightPanelWidth / 2),
+        position.y + height / 2,
+        position.z + offset,
+      );
+      right.material = material;
+      right.checkCollisions = true;
+
+      // Lintel above door
+      const lintelH = height - PARTITION_DOOR_HEIGHT;
+      if (lintelH > 0) {
+        const lintel = MeshBuilder.CreateBox(
+          `${prefix}_partition_lintel`, {
+            width: PARTITION_DOOR_WIDTH,
+            height: lintelH,
+            depth: PARTITION_THICKNESS,
+          }, this.scene
+        );
+        lintel.position = new Vector3(
+          position.x,
+          position.y + PARTITION_DOOR_HEIGHT + lintelH / 2,
+          position.z + offset,
+        );
+        lintel.material = material;
+        lintel.checkCollisions = true;
+      }
+    } else {
+      // Wall runs north-south at X=offset
+      const left = MeshBuilder.CreateBox(
+        `${prefix}_partition_x_left`, {
+          width: PARTITION_THICKNESS,
+          height,
+          depth: leftPanelWidth,
+        }, this.scene
+      );
+      left.position = new Vector3(
+        position.x + offset,
+        position.y + height / 2,
+        position.z - (PARTITION_DOOR_WIDTH / 2 + leftPanelWidth / 2),
+      );
+      left.material = material;
+      left.checkCollisions = true;
+
+      const right = MeshBuilder.CreateBox(
+        `${prefix}_partition_x_right`, {
+          width: PARTITION_THICKNESS,
+          height,
+          depth: rightPanelWidth,
+        }, this.scene
+      );
+      right.position = new Vector3(
+        position.x + offset,
+        position.y + height / 2,
+        position.z + (PARTITION_DOOR_WIDTH / 2 + rightPanelWidth / 2),
+      );
+      right.material = material;
+      right.checkCollisions = true;
+
+      const lintelH = height - PARTITION_DOOR_HEIGHT;
+      if (lintelH > 0) {
+        const lintel = MeshBuilder.CreateBox(
+          `${prefix}_partition_x_lintel`, {
+            width: PARTITION_THICKNESS,
+            height: lintelH,
+            depth: PARTITION_DOOR_WIDTH,
+          }, this.scene
+        );
+        lintel.position = new Vector3(
+          position.x + offset,
+          position.y + PARTITION_DOOR_HEIGHT + lintelH / 2,
+          position.z,
+        );
+        lintel.material = material;
+        lintel.checkCollisions = true;
+      }
+    }
+  }
+
+  /**
+   * Build a staircase connecting ground floor to upper floor.
+   * Placed against the east wall to minimize obstruction.
+   */
+  private buildStaircase(
+    buildingId: string,
+    position: Vector3,
+    width: number,
+    _depth: number,
+    height: number,
+  ): Mesh | null {
+    const prefix = `interior_${buildingId}`;
+    const parent = new Mesh(`${prefix}_staircase`, this.scene);
+
+    const stairMat = new StandardMaterial(`${prefix}_stair_mat`, this.scene);
+    stairMat.diffuseColor = new Color3(0.4, 0.3, 0.18);
+    stairMat.specularColor = new Color3(0.05, 0.05, 0.05);
+
+    const stepHeight = height / STAIR_STEP_COUNT;
+    const stepDepth = (height * 0.8) / STAIR_STEP_COUNT; // stairs span 80% of height horizontally
+
+    for (let i = 0; i < STAIR_STEP_COUNT; i++) {
+      const step = MeshBuilder.CreateBox(
+        `${prefix}_step_${i}`,
+        { width: STAIR_WIDTH, height: stepHeight, depth: stepDepth },
+        this.scene,
+      );
+      step.position = new Vector3(
+        position.x + width / 2 - STAIR_WIDTH / 2 - 0.5,
+        position.y + stepHeight * (i + 0.5),
+        position.z - (STAIR_STEP_COUNT / 2 - i) * stepDepth,
+      );
+      step.material = stairMat;
+      step.checkCollisions = true;
+      step.parent = parent;
+    }
+
+    // Stair railing (thin box along the open side)
+    const railingHeight = 1.0;
+    const railingLength = Math.sqrt(height * height + (STAIR_STEP_COUNT * stepDepth) * (STAIR_STEP_COUNT * stepDepth));
+    const railing = MeshBuilder.CreateBox(
+      `${prefix}_railing`,
+      { width: 0.08, height: railingHeight, depth: railingLength * 0.6 },
+      this.scene,
+    );
+    railing.position = new Vector3(
+      position.x + width / 2 - STAIR_WIDTH - 0.5,
+      position.y + height / 2 + railingHeight / 2,
+      position.z,
+    );
+    railing.material = stairMat;
+    railing.checkCollisions = true;
+    railing.parent = parent;
+
+    return parent;
+  }
+
+  /**
+   * Build the upper floor platform, ceiling, and walls for a multi-story building.
+   */
+  private buildUpperFloor(
+    buildingId: string,
+    position: Vector3,
+    width: number,
+    depth: number,
+    height: number,
+    buildingType: string,
+    businessType?: string,
+  ): void {
+    const prefix = `interior_${buildingId}`;
+    const colors = this.getRoomColors(buildingType, businessType);
+
+    const floorMat = new StandardMaterial(`${prefix}_upper_floor_mat`, this.scene);
+    floorMat.diffuseColor = colors.floor;
+    floorMat.specularColor = new Color3(0.1, 0.1, 0.1);
+
+    // Upper floor (with stairwell hole near east wall)
+    const stairwellWidth = STAIR_WIDTH + 1.0;
+    const stairwellDepth = (height * 0.8) + 1.0;
+    const floorWithoutStairwell = width - stairwellWidth;
+
+    // Main floor section (west side, full depth)
+    const mainFloor = MeshBuilder.CreateGround(
+      `${prefix}_upper_floor_main`,
+      { width: floorWithoutStairwell, height: depth },
+      this.scene,
+    );
+    mainFloor.position = new Vector3(
+      position.x - stairwellWidth / 2,
+      position.y + height,
+      position.z,
+    );
+    mainFloor.material = floorMat;
+    mainFloor.checkCollisions = true;
+
+    // Small floor strip north of stairwell
+    const stripDepth = (depth - stairwellDepth) / 2;
+    if (stripDepth > 0.5) {
+      const northStrip = MeshBuilder.CreateGround(
+        `${prefix}_upper_floor_north`,
+        { width: stairwellWidth, height: stripDepth },
+        this.scene,
+      );
+      northStrip.position = new Vector3(
+        position.x + (width - stairwellWidth) / 2,
+        position.y + height,
+        position.z + (depth - stripDepth) / 2,
+      );
+      northStrip.material = floorMat;
+      northStrip.checkCollisions = true;
+
+      const southStrip = MeshBuilder.CreateGround(
+        `${prefix}_upper_floor_south`,
+        { width: stairwellWidth, height: stripDepth },
+        this.scene,
+      );
+      southStrip.position = new Vector3(
+        position.x + (width - stairwellWidth) / 2,
+        position.y + height,
+        position.z - (depth - stripDepth) / 2,
+      );
+      southStrip.material = floorMat;
+      southStrip.checkCollisions = true;
+    }
+
+    // Upper ceiling
+    const ceilingMat = new StandardMaterial(`${prefix}_upper_ceiling_mat`, this.scene);
+    ceilingMat.diffuseColor = colors.ceiling;
+
+    const upperCeiling = MeshBuilder.CreateGround(
+      `${prefix}_upper_ceiling`,
+      { width, height: depth },
+      this.scene,
+    );
+    upperCeiling.position = new Vector3(
+      position.x,
+      position.y + height * 2,
+      position.z,
+    );
+    upperCeiling.rotation.x = Math.PI;
+    upperCeiling.material = ceilingMat;
+    upperCeiling.checkCollisions = true;
+
+    // Extend outer walls up for the upper floor
+    const wallMat = new StandardMaterial(`${prefix}_upper_wall_mat`, this.scene);
+    wallMat.diffuseColor = colors.wall;
+    wallMat.specularColor = new Color3(0.05, 0.05, 0.05);
+
+    const upperWalls = [
+      { name: 'back', pos: new Vector3(0, height + height / 2, depth / 2), w: width, h: height },
+      { name: 'left', pos: new Vector3(-width / 2, height + height / 2, 0), w: depth, h: height, rotY: Math.PI / 2 },
+      { name: 'right', pos: new Vector3(width / 2, height + height / 2, 0), w: depth, h: height, rotY: -Math.PI / 2 },
+      { name: 'front', pos: new Vector3(0, height + height / 2, -depth / 2), w: width, h: height, rotY: Math.PI },
+    ];
+
+    for (const w of upperWalls) {
+      const wall = MeshBuilder.CreatePlane(
+        `${prefix}_upper_wall_${w.name}`,
+        { width: w.w, height: w.h },
+        this.scene,
+      );
+      wall.position = new Vector3(
+        position.x + w.pos.x,
+        position.y + w.pos.y,
+        position.z + w.pos.z,
+      );
+      if (w.rotY) wall.rotation.y = w.rotY;
+      wall.material = wallMat;
+      wall.checkCollisions = true;
+    }
+  }
+
+  /**
+   * Generate furniture for all room zones in the multi-room layout.
+   */
+  private generateMultiRoomFurniture(
+    buildingId: string,
+    position: Vector3,
+    rooms: RoomZone[],
+    height: number,
+    buildingType: string,
+    businessType?: string,
+  ): Mesh[] {
+    const allFurniture: Mesh[] = [];
+    const prefix = `interior_${buildingId}`;
+
+    for (const room of rooms) {
+      const specs = this.getFurnitureForRoom(room);
+      const roomPos = new Vector3(
+        position.x + room.offsetX,
+        position.y + room.offsetY,
+        position.z + room.offsetZ,
+      );
+
+      for (let i = 0; i < specs.length; i++) {
+        const spec = specs[i];
+        const meshName = `${prefix}_${room.name}_furn_${i}_${spec.type}`;
+        const mesh = this.createFurnitureMesh(meshName, spec);
+        mesh.position = new Vector3(
+          roomPos.x + spec.offsetX,
+          roomPos.y + spec.height / 2,
+          roomPos.z + spec.offsetZ,
+        );
+        if (spec.rotationY) {
+          mesh.rotation.y = spec.rotationY;
+        }
+        if (mesh.metadata?.isContainer) {
+          mesh.metadata.buildingId = buildingId;
+          mesh.metadata.businessType = businessType;
+          mesh.metadata.containerId = `${prefix}_${room.name}_container_${i}`;
+          mesh.metadata.roomName = room.name;
+        }
+        allFurniture.push(mesh);
+      }
+    }
+
+    return allFurniture;
+  }
+
+  /**
+   * Get furniture specs for a specific room based on its function.
+   */
+  private getFurnitureForRoom(room: RoomZone): FurnitureSpec[] {
+    const w = room.width;
+    const d = room.depth;
+
+    switch (room.function) {
+      case 'living': return this.getLivingRoomFurniture(w, d);
+      case 'kitchen': return this.getKitchenFurniture(w, d);
+      case 'bedroom': return this.getBedroomFurniture(w, d);
+      case 'shop': return this.getShopFloorFurniture(w, d);
+      case 'storage': return this.getStorageRoomFurniture(w, d);
+      case 'office': return this.getOfficeFurniture(w, d);
+      case 'library': return this.getLibraryFurniture(w, d);
+      case 'tavern_main': return this.getTavernMainFurniture(w, d);
+      case 'tavern_kitchen': return this.getTavernKitchenFurniture(w, d);
+      case 'guild_main': return this.getGuildMainFurniture(w, d);
+      case 'workshop': return this.getWorkshopRoomFurniture(w, d);
+      case 'temple': return this.getTempleFurniture(w, d);
+      case 'warehouse': return this.getWarehouseFurniture(w, d);
+      default: return this.getLivingRoomFurniture(w, d);
+    }
+  }
+
+  /**
    * Get room color palette based on building type.
    */
   private getRoomColors(
@@ -391,64 +1024,7 @@ export class BuildingInteriorGenerator {
     };
   }
 
-  /**
-   * Generate furniture for the interior based on building/business type.
-   */
-  private generateFurniture(
-    buildingId: string,
-    position: Vector3,
-    width: number,
-    depth: number,
-    height: number,
-    buildingType: string,
-    businessType?: string
-  ): Mesh[] {
-    const bt = (businessType || buildingType || '').toLowerCase();
-    let specs: FurnitureSpec[] = [];
-
-    if (bt.includes('tavern') || bt.includes('inn') || bt.includes('bar')) {
-      specs = this.getTavernFurniture(width, depth);
-    } else if (bt.includes('shop') || bt.includes('store') || bt.includes('market')) {
-      specs = this.getShopFurniture(width, depth);
-    } else if (bt.includes('blacksmith') || bt.includes('forge') || bt.includes('workshop')) {
-      specs = this.getWorkshopFurniture(width, depth);
-    } else if (bt.includes('temple') || bt.includes('church') || bt.includes('shrine')) {
-      specs = this.getTempleFurniture(width, depth);
-    } else if (bt.includes('guild') || bt.includes('hall') || bt.includes('office')) {
-      specs = this.getGuildFurniture(width, depth);
-    } else if (bt.includes('residence')) {
-      specs = this.getResidenceFurniture(width, depth);
-    } else if (bt.includes('warehouse') || bt.includes('storage')) {
-      specs = this.getWarehouseFurniture(width, depth);
-    } else {
-      specs = this.getResidenceFurniture(width, depth);
-    }
-
-    const furniture: Mesh[] = [];
-    const prefix = `interior_${buildingId}`;
-
-    for (let i = 0; i < specs.length; i++) {
-      const spec = specs[i];
-      const mesh = this.createFurnitureMesh(`${prefix}_furn_${i}_${spec.type}`, spec);
-      mesh.position = new Vector3(
-        position.x + spec.offsetX,
-        position.y + spec.height / 2,
-        position.z + spec.offsetZ
-      );
-      if (spec.rotationY) {
-        mesh.rotation.y = spec.rotationY;
-      }
-      // Enrich container metadata with building context
-      if (mesh.metadata?.isContainer) {
-        mesh.metadata.buildingId = buildingId;
-        mesh.metadata.businessType = businessType;
-        mesh.metadata.containerId = `${prefix}_container_${i}`;
-      }
-      furniture.push(mesh);
-    }
-
-    return furniture;
-  }
+  // (furniture generation handled by generateMultiRoomFurniture + getFurnitureForRoom)
 
   /**
    * Create a single furniture mesh from spec.
@@ -642,27 +1218,268 @@ export class BuildingInteriorGenerator {
     }
   }
 
-  // ── Furniture layouts per building type ──
+  // ── Room-function-based furniture layouts ──
 
-  private getTavernFurniture(w: number, d: number): FurnitureSpec[] {
+  private getLivingRoomFurniture(w: number, d: number): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const wood = new Color3(0.45, 0.35, 0.25);
+
+    // Sofa/bench along back wall
+    specs.push({
+      type: 'bench', offsetX: 0, offsetZ: d / 2 - 1,
+      width: w * 0.4, height: 0.7, depth: 1.0, color: new Color3(0.5, 0.35, 0.25)
+    });
+
+    // Coffee table in center
+    specs.push({
+      type: 'table', offsetX: 0, offsetZ: 0,
+      width: 1.5, height: 0.5, depth: 1.0, color: wood
+    });
+
+    // Chairs flanking the table
+    specs.push({
+      type: 'chair', offsetX: -w * 0.2, offsetZ: 0,
+      width: 0.5, height: 0.9, depth: 0.5, color: wood
+    });
+    specs.push({
+      type: 'chair', offsetX: w * 0.2, offsetZ: 0,
+      width: 0.5, height: 0.9, depth: 0.5, color: wood
+    });
+
+    // Bookshelf on side wall
+    specs.push({
+      type: 'bookshelf', offsetX: -w / 2 + 0.5, offsetZ: d * 0.1,
+      width: 0.6, height: 2.2, depth: 1.5, color: new Color3(0.35, 0.25, 0.15)
+    });
+
+    // Chest in corner
+    specs.push({
+      type: 'chest', offsetX: w / 2 - 0.8, offsetZ: d / 2 - 0.8,
+      width: 1.0, height: 0.6, depth: 0.7, color: new Color3(0.4, 0.3, 0.15)
+    });
+
+    return specs;
+  }
+
+  private getKitchenFurniture(w: number, d: number): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const wood = new Color3(0.45, 0.35, 0.25);
+    const metal = new Color3(0.35, 0.35, 0.38);
+
+    // Stove/hearth against back wall
+    specs.push({
+      type: 'forge', offsetX: 0, offsetZ: d / 2 - 1,
+      width: 1.5, height: 1.0, depth: 1.0, color: new Color3(0.5, 0.2, 0.1)
+    });
+
+    // Kitchen table
+    specs.push({
+      type: 'table', offsetX: 0, offsetZ: -d * 0.15,
+      width: 2.0, height: 0.85, depth: 1.2, color: wood
+    });
+
+    // Chairs around table
+    specs.push({
+      type: 'chair', offsetX: -1.2, offsetZ: -d * 0.15,
+      width: 0.5, height: 0.9, depth: 0.5, color: wood
+    });
+    specs.push({
+      type: 'chair', offsetX: 1.2, offsetZ: -d * 0.15,
+      width: 0.5, height: 0.9, depth: 0.5, color: wood
+    });
+
+    // Shelves with dishes on side wall
+    specs.push({
+      type: 'shelf', offsetX: -w / 2 + 0.5, offsetZ: 0,
+      width: 0.5, height: 2.0, depth: d * 0.5, color: wood
+    });
+
+    // Barrel (water/food storage)
+    specs.push({
+      type: 'barrel', offsetX: w / 2 - 0.8, offsetZ: d / 2 - 0.8,
+      width: 0.7, height: 1.0, depth: 0.7, color: new Color3(0.3, 0.25, 0.18)
+    });
+
+    return specs;
+  }
+
+  private getBedroomFurniture(w: number, d: number): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const wood = new Color3(0.45, 0.35, 0.25);
+
+    // Bed against back wall
+    specs.push({
+      type: 'bed', offsetX: -w * 0.2, offsetZ: d / 2 - 1.2,
+      width: 1.8, height: 0.6, depth: 2.2, color: new Color3(0.55, 0.4, 0.3)
+    });
+
+    // Nightstand beside bed
+    specs.push({
+      type: 'table', offsetX: -w * 0.2 + 1.5, offsetZ: d / 2 - 0.8,
+      width: 0.5, height: 0.6, depth: 0.5, color: wood
+    });
+
+    // Wardrobe against side wall
+    specs.push({
+      type: 'wardrobe', offsetX: w / 2 - 0.6, offsetZ: 0,
+      width: 0.8, height: 2.2, depth: 1.5, color: wood
+    });
+
+    // Small chest at foot of bed
+    specs.push({
+      type: 'chest', offsetX: -w * 0.2, offsetZ: d / 2 - 2.5,
+      width: 1.2, height: 0.5, depth: 0.6, color: new Color3(0.4, 0.3, 0.15)
+    });
+
+    return specs;
+  }
+
+  private getShopFloorFurniture(w: number, d: number): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const wood = new Color3(0.5, 0.4, 0.3);
+
+    // Display counter near entrance
+    specs.push({
+      type: 'counter', offsetX: 0, offsetZ: -d * 0.25,
+      width: w * 0.5, height: 1.0, depth: 0.8, color: wood
+    });
+
+    // Shelves along both side walls with merchandise
+    specs.push({
+      type: 'shelf', offsetX: -w / 2 + 0.5, offsetZ: 0,
+      width: 0.6, height: 2.0, depth: d * 0.6, color: wood
+    });
+    specs.push({
+      type: 'shelf', offsetX: w / 2 - 0.5, offsetZ: 0,
+      width: 0.6, height: 2.0, depth: d * 0.6, color: wood
+    });
+
+    // Display table center
+    specs.push({
+      type: 'display_table', offsetX: 0, offsetZ: d * 0.15,
+      width: 2.0, height: 0.9, depth: 1.5, color: new Color3(0.45, 0.35, 0.25)
+    });
+
+    return specs;
+  }
+
+  private getStorageRoomFurniture(w: number, d: number): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const wood = new Color3(0.4, 0.32, 0.2);
+
+    // Crates and barrels
+    specs.push({
+      type: 'crate', offsetX: -w * 0.25, offsetZ: 0,
+      width: 1.0, height: 1.0, depth: 1.0, color: wood
+    });
+    specs.push({
+      type: 'crate', offsetX: -w * 0.25, offsetZ: d * 0.25,
+      width: 0.8, height: 0.8, depth: 0.8, color: wood
+    });
+    specs.push({
+      type: 'barrel', offsetX: w * 0.2, offsetZ: 0,
+      width: 0.8, height: 1.2, depth: 0.8, color: new Color3(0.35, 0.22, 0.1)
+    });
+    specs.push({
+      type: 'barrel', offsetX: w * 0.2, offsetZ: d * 0.25,
+      width: 0.7, height: 1.0, depth: 0.7, color: new Color3(0.3, 0.25, 0.18)
+    });
+
+    // Shelf along back wall
+    specs.push({
+      type: 'shelf', offsetX: 0, offsetZ: d / 2 - 0.5,
+      width: w * 0.6, height: 2.0, depth: 0.5, color: wood
+    });
+
+    return specs;
+  }
+
+  private getOfficeFurniture(w: number, d: number): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const wood = new Color3(0.4, 0.3, 0.2);
+
+    // Desk
+    specs.push({
+      type: 'workbench', offsetX: 0, offsetZ: d * 0.2,
+      width: w * 0.5, height: 0.85, depth: 1.0, color: wood
+    });
+
+    // Chair behind desk
+    specs.push({
+      type: 'chair', offsetX: 0, offsetZ: d * 0.2 + 0.8,
+      width: 0.5, height: 1.0, depth: 0.5, color: wood
+    });
+
+    // Bookshelf on wall
+    specs.push({
+      type: 'bookshelf', offsetX: -w / 2 + 0.5, offsetZ: 0,
+      width: 0.6, height: 2.5, depth: d * 0.6, color: new Color3(0.35, 0.25, 0.15)
+    });
+
+    // Chest
+    specs.push({
+      type: 'chest', offsetX: w / 2 - 0.8, offsetZ: d / 2 - 0.8,
+      width: 1.0, height: 0.6, depth: 0.7, color: new Color3(0.4, 0.3, 0.15)
+    });
+
+    return specs;
+  }
+
+  private getLibraryFurniture(w: number, d: number): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const wood = new Color3(0.35, 0.25, 0.15);
+
+    // Bookshelves along walls
+    specs.push({
+      type: 'bookshelf', offsetX: -w / 2 + 0.5, offsetZ: 0,
+      width: 0.6, height: 2.5, depth: d * 0.7, color: wood
+    });
+    specs.push({
+      type: 'bookshelf', offsetX: w / 2 - 0.5, offsetZ: 0,
+      width: 0.6, height: 2.5, depth: d * 0.7, color: wood
+    });
+    specs.push({
+      type: 'bookshelf', offsetX: 0, offsetZ: d / 2 - 0.5,
+      width: w * 0.5, height: 2.5, depth: 0.6, color: wood
+    });
+
+    // Reading table
+    specs.push({
+      type: 'table', offsetX: 0, offsetZ: -d * 0.1,
+      width: 2.0, height: 0.85, depth: 1.2, color: new Color3(0.45, 0.35, 0.25)
+    });
+
+    // Chairs
+    specs.push({
+      type: 'chair', offsetX: -1.2, offsetZ: -d * 0.1,
+      width: 0.5, height: 1.0, depth: 0.5, color: wood
+    });
+    specs.push({
+      type: 'chair', offsetX: 1.2, offsetZ: -d * 0.1,
+      width: 0.5, height: 1.0, depth: 0.5, color: wood
+    });
+
+    return specs;
+  }
+
+  private getTavernMainFurniture(w: number, d: number): FurnitureSpec[] {
     const specs: FurnitureSpec[] = [];
     const wood = new Color3(0.4, 0.28, 0.15);
     const darkWood = new Color3(0.3, 0.2, 0.1);
 
-    // Bar counter along back wall
+    // Bar counter along the partition wall side
     specs.push({
-      type: 'counter', offsetX: 0, offsetZ: d / 2 - 1.5,
+      type: 'counter', offsetX: 0, offsetZ: d / 2 - 1.2,
       width: w * 0.6, height: 1.2, depth: 1.0, color: darkWood
     });
 
-    // Tables with stools (2 rows)
+    // Tables with stools (2x2 grid)
     for (let i = -1; i <= 1; i += 2) {
       for (let j = -1; j <= 1; j += 2) {
         specs.push({
           type: 'table', offsetX: i * (w * 0.2), offsetZ: j * (d * 0.15),
           width: 1.5, height: 0.8, depth: 1.5, color: wood
         });
-        // Stools around each table
         specs.push({
           type: 'stool', offsetX: i * (w * 0.2) + 1, offsetZ: j * (d * 0.15),
           width: 0.4, height: 0.5, depth: 0.4, color: wood
@@ -674,7 +1491,7 @@ export class BuildingInteriorGenerator {
       }
     }
 
-    // Barrel in corner
+    // Barrels in corners
     specs.push({
       type: 'barrel', offsetX: w / 2 - 1, offsetZ: d / 2 - 1,
       width: 0.8, height: 1.2, depth: 0.8, color: new Color3(0.35, 0.22, 0.1)
@@ -687,44 +1504,73 @@ export class BuildingInteriorGenerator {
     return specs;
   }
 
-  private getShopFurniture(w: number, d: number): FurnitureSpec[] {
+  private getTavernKitchenFurniture(w: number, d: number): FurnitureSpec[] {
     const specs: FurnitureSpec[] = [];
-    const wood = new Color3(0.5, 0.4, 0.3);
+    const wood = new Color3(0.4, 0.28, 0.15);
 
-    // Counter near front
+    // Hearth/stove
     specs.push({
-      type: 'counter', offsetX: 0, offsetZ: -d * 0.2,
-      width: w * 0.5, height: 1.0, depth: 0.8, color: wood
+      type: 'forge', offsetX: 0, offsetZ: d / 2 - 1,
+      width: 1.8, height: 1.0, depth: 1.2, color: new Color3(0.5, 0.2, 0.1)
     });
 
-    // Shelves along side walls
+    // Prep table
     specs.push({
-      type: 'shelf', offsetX: -w / 2 + 0.5, offsetZ: 0,
-      width: 0.6, height: 2.0, depth: d * 0.6, color: wood,
-      rotationY: 0
+      type: 'workbench', offsetX: -w * 0.2, offsetZ: -d * 0.1,
+      width: 2.0, height: 0.9, depth: 1.0, color: wood
     });
+
+    // Shelves
     specs.push({
       type: 'shelf', offsetX: w / 2 - 0.5, offsetZ: 0,
-      width: 0.6, height: 2.0, depth: d * 0.6, color: wood,
-      rotationY: 0
+      width: 0.5, height: 2.0, depth: d * 0.6, color: wood
     });
 
-    // Display table in center-back
+    // Barrels
     specs.push({
-      type: 'display_table', offsetX: 0, offsetZ: d * 0.2,
-      width: 2, height: 0.9, depth: 1.5, color: new Color3(0.45, 0.35, 0.25)
+      type: 'barrel', offsetX: -w / 2 + 0.8, offsetZ: d / 2 - 0.8,
+      width: 0.8, height: 1.2, depth: 0.8, color: new Color3(0.35, 0.22, 0.1)
     });
-
-    // Crate
     specs.push({
-      type: 'crate', offsetX: w / 2 - 1.2, offsetZ: d / 2 - 1,
-      width: 0.8, height: 0.8, depth: 0.8, color: new Color3(0.4, 0.32, 0.2)
+      type: 'barrel', offsetX: -w / 2 + 0.8, offsetZ: d * 0.1,
+      width: 0.7, height: 1.0, depth: 0.7, color: new Color3(0.3, 0.25, 0.18)
     });
 
     return specs;
   }
 
-  private getWorkshopFurniture(w: number, d: number): FurnitureSpec[] {
+  private getGuildMainFurniture(w: number, d: number): FurnitureSpec[] {
+    const specs: FurnitureSpec[] = [];
+    const wood = new Color3(0.45, 0.32, 0.2);
+
+    // Large meeting table
+    specs.push({
+      type: 'table', offsetX: 0, offsetZ: 0,
+      width: w * 0.5, height: 0.85, depth: d * 0.35, color: wood
+    });
+
+    // Chairs around table
+    for (let i = -2; i <= 2; i++) {
+      specs.push({
+        type: 'chair', offsetX: i * 1.5, offsetZ: -d * 0.25,
+        width: 0.5, height: 1.0, depth: 0.5, color: wood
+      });
+      specs.push({
+        type: 'chair', offsetX: i * 1.5, offsetZ: d * 0.25,
+        width: 0.5, height: 1.0, depth: 0.5, color: wood
+      });
+    }
+
+    // Bookshelf along back
+    specs.push({
+      type: 'bookshelf', offsetX: 0, offsetZ: d / 2 - 0.5,
+      width: w * 0.7, height: 2.5, depth: 0.6, color: new Color3(0.35, 0.25, 0.15)
+    });
+
+    return specs;
+  }
+
+  private getWorkshopRoomFurniture(w: number, d: number): FurnitureSpec[] {
     const specs: FurnitureSpec[] = [];
     const metal = new Color3(0.35, 0.35, 0.38);
     const wood = new Color3(0.35, 0.25, 0.15);
@@ -747,13 +1593,13 @@ export class BuildingInteriorGenerator {
       width: 0.3, height: 2.0, depth: 2.0, color: wood
     });
 
-    // Barrel of water
+    // Barrel
     specs.push({
       type: 'barrel', offsetX: w / 2 - 1, offsetZ: -d * 0.2,
       width: 0.8, height: 1.0, depth: 0.8, color: new Color3(0.3, 0.25, 0.18)
     });
 
-    // Forge (represented as a glowing truncated cone)
+    // Forge
     specs.push({
       type: 'forge', offsetX: w / 2 - 1.5, offsetZ: d / 2 - 1,
       width: 1.5, height: 1.2, depth: 1.5, color: new Color3(0.6, 0.25, 0.1)
@@ -798,71 +1644,6 @@ export class BuildingInteriorGenerator {
     return specs;
   }
 
-  private getGuildFurniture(w: number, d: number): FurnitureSpec[] {
-    const specs: FurnitureSpec[] = [];
-    const wood = new Color3(0.45, 0.32, 0.2);
-
-    // Large meeting table in center
-    specs.push({
-      type: 'table', offsetX: 0, offsetZ: 0,
-      width: w * 0.5, height: 0.85, depth: d * 0.35, color: wood
-    });
-
-    // Chairs around the table
-    for (let i = -2; i <= 2; i++) {
-      specs.push({
-        type: 'chair', offsetX: i * 1.5, offsetZ: -d * 0.25,
-        width: 0.5, height: 1.0, depth: 0.5, color: wood
-      });
-      specs.push({
-        type: 'chair', offsetX: i * 1.5, offsetZ: d * 0.25,
-        width: 0.5, height: 1.0, depth: 0.5, color: wood
-      });
-    }
-
-    // Bookshelf along back wall
-    specs.push({
-      type: 'bookshelf', offsetX: 0, offsetZ: d / 2 - 0.5,
-      width: w * 0.7, height: 2.5, depth: 0.6, color: new Color3(0.35, 0.25, 0.15)
-    });
-
-    return specs;
-  }
-
-  private getResidenceFurniture(w: number, d: number): FurnitureSpec[] {
-    const specs: FurnitureSpec[] = [];
-    const wood = new Color3(0.45, 0.35, 0.25);
-
-    // Bed against back wall
-    specs.push({
-      type: 'bed', offsetX: -w * 0.25, offsetZ: d / 2 - 1.2,
-      width: 1.8, height: 0.6, depth: 2.2, color: new Color3(0.55, 0.4, 0.3)
-    });
-
-    // Table with chair
-    specs.push({
-      type: 'table', offsetX: w * 0.2, offsetZ: 0,
-      width: 1.2, height: 0.8, depth: 1.0, color: wood
-    });
-    specs.push({
-      type: 'chair', offsetX: w * 0.2, offsetZ: -0.8,
-      width: 0.5, height: 0.9, depth: 0.5, color: wood
-    });
-
-    // Chest
-    specs.push({
-      type: 'chest', offsetX: w / 2 - 1, offsetZ: d / 2 - 0.8,
-      width: 1.0, height: 0.6, depth: 0.7, color: new Color3(0.4, 0.3, 0.15)
-    });
-
-    // Wardrobe / cabinet
-    specs.push({
-      type: 'wardrobe', offsetX: -w / 2 + 0.6, offsetZ: 0,
-      width: 0.8, height: 2.2, depth: 1.5, color: wood
-    });
-
-    return specs;
-  }
 
   private getWarehouseFurniture(w: number, d: number): FurnitureSpec[] {
     const specs: FurnitureSpec[] = [];

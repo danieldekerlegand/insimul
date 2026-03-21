@@ -41,62 +41,69 @@ interface ItemPlacement {
  */
 const INTERIOR_ITEM_PLACEMENTS: Record<string, ItemPlacement[]> = {
   tavern: [
-    { offsetX: 0, offsetZ: 0, height: 1.3 },        // on bar counter
-    { offsetX: -2, offsetZ: -1.5, height: 0.9 },     // on table
-    { offsetX: 2, offsetZ: -1.5, height: 0.9 },      // on table
-    { offsetX: -2, offsetZ: 1.5, height: 0.9 },      // on table
-    { offsetX: 2, offsetZ: 1.5, height: 0.9 },       // on table
-    { offsetX: -5, offsetZ: 4.5, height: 0 },         // near barrel
-    { offsetX: 5, offsetZ: 4.5, height: 0 },          // near barrel
-    { offsetX: 3, offsetZ: 0, height: 0 },            // floor
+    { offsetX: 0, offsetZ: 2.5, height: 1.3 },       // on bar counter (front room)
+    { offsetX: -3, offsetZ: -2, height: 0.9 },        // on table
+    { offsetX: 3, offsetZ: -2, height: 0.9 },         // on table
+    { offsetX: -3, offsetZ: 1, height: 0.9 },         // on table
+    { offsetX: 3, offsetZ: 1, height: 0.9 },          // on table
+    { offsetX: -7, offsetZ: 6, height: 0 },           // back room near barrel
+    { offsetX: 7, offsetZ: 6, height: 0 },            // back room near barrel
+    { offsetX: 0, offsetZ: 6, height: 1.1 },          // kitchen prep table
+    { offsetX: 4, offsetZ: 0, height: 0 },            // floor common room
   ],
   shop: [
-    { offsetX: 0, offsetZ: -2, height: 1.1 },        // on counter
-    { offsetX: -4, offsetZ: 0, height: 0.8 },         // on shelf
-    { offsetX: 4, offsetZ: 0, height: 0.8 },          // on shelf
-    { offsetX: -4, offsetZ: 1.5, height: 1.4 },       // upper shelf
-    { offsetX: 4, offsetZ: 1.5, height: 1.4 },        // upper shelf
-    { offsetX: 0, offsetZ: 2, height: 1.0 },          // on display table
-    { offsetX: 3, offsetZ: 4, height: 0 },            // near crate
-    { offsetX: -2, offsetZ: 3, height: 0 },           // floor
+    { offsetX: 0, offsetZ: -3, height: 1.1 },        // on counter (front shop)
+    { offsetX: -5, offsetZ: -1, height: 0.8 },        // on shelf
+    { offsetX: 5, offsetZ: -1, height: 0.8 },         // on shelf
+    { offsetX: -5, offsetZ: 1, height: 1.4 },         // upper shelf
+    { offsetX: 5, offsetZ: 1, height: 1.4 },          // upper shelf
+    { offsetX: 0, offsetZ: -1, height: 1.0 },         // on display table
+    { offsetX: -2, offsetZ: 5, height: 0 },           // storage crate
+    { offsetX: 2, offsetZ: 5, height: 0 },            // storage barrel
+    { offsetX: 0, offsetZ: 4, height: 0.8 },          // storage shelf
   ],
   blacksmith: [
-    { offsetX: 0, offsetZ: 1.5, height: 0.9 },       // on anvil
-    { offsetX: 0, offsetZ: 4, height: 1.1 },          // on workbench
-    { offsetX: -5, offsetZ: 1, height: 0.5 },         // on tool rack
-    { offsetX: 4, offsetZ: -2, height: 0 },           // near barrel
-    { offsetX: -3, offsetZ: -2, height: 0 },          // floor
-    { offsetX: 2, offsetZ: 3, height: 1.1 },          // on workbench
+    { offsetX: 0, offsetZ: -1, height: 0.9 },        // on anvil (workshop)
+    { offsetX: 0, offsetZ: 2, height: 1.1 },          // on workbench
+    { offsetX: -6, offsetZ: 0, height: 0.5 },         // on tool rack
+    { offsetX: 5, offsetZ: -2, height: 0 },           // near barrel
+    { offsetX: -3, offsetZ: -3, height: 0 },          // floor workshop
+    { offsetX: -2, offsetZ: 5, height: 0 },           // storage crate
+    { offsetX: 2, offsetZ: 5, height: 0 },            // storage barrel
   ],
   temple: [
-    { offsetX: 0, offsetZ: 8, height: 1.3 },         // on altar
-    { offsetX: -3, offsetZ: 6, height: 0 },           // near altar
-    { offsetX: 3, offsetZ: 6, height: 0 },            // near altar
+    { offsetX: 0, offsetZ: 10, height: 1.3 },        // on altar
+    { offsetX: -4, offsetZ: 8, height: 0 },           // near altar
+    { offsetX: 4, offsetZ: 8, height: 0 },            // near altar
     { offsetX: 0, offsetZ: 0, height: 0 },            // center aisle
+    { offsetX: -3, offsetZ: -4, height: 0 },          // near pews
   ],
   guild: [
-    { offsetX: 0, offsetZ: 0, height: 0.9 },         // on meeting table
-    { offsetX: -2, offsetZ: 0, height: 0.9 },         // on meeting table
-    { offsetX: 2, offsetZ: 0, height: 0.9 },          // on meeting table
-    { offsetX: 0, offsetZ: 6.5, height: 0.8 },        // on bookshelf
-    { offsetX: -3, offsetZ: 6.5, height: 1.2 },       // on bookshelf
-    { offsetX: 3, offsetZ: 6.5, height: 1.2 },        // on bookshelf
+    { offsetX: 0, offsetZ: -1, height: 0.9 },        // meeting table (main hall)
+    { offsetX: -3, offsetZ: -1, height: 0.9 },        // meeting table
+    { offsetX: 3, offsetZ: -1, height: 0.9 },         // meeting table
+    { offsetX: 0, offsetZ: 5, height: 0.85 },         // office desk
+    { offsetX: -3, offsetZ: 5, height: 0.8 },         // office bookshelf
+    { offsetX: 3, offsetZ: 5, height: 1.2 },          // office bookshelf
   ],
   residence: [
-    { offsetX: 1, offsetZ: 0, height: 0.9 },         // on table
-    { offsetX: 2, offsetZ: 2, height: 0 },            // near chest
-    { offsetX: -2, offsetZ: 0, height: 0 },           // near wardrobe
-    { offsetX: 0, offsetZ: -1, height: 0 },           // floor center
+    { offsetX: 0, offsetZ: -2, height: 0.6 },        // living room table
+    { offsetX: -2, offsetZ: -3, height: 0 },          // living room floor
+    { offsetX: 3, offsetZ: -3, height: 0 },           // near chest
+    { offsetX: 0, offsetZ: 3, height: 0.9 },          // kitchen table
+    { offsetX: -3, offsetZ: 3, height: 0 },           // kitchen barrel
+    { offsetX: 0, offsetZ: 0, height: 0 },            // center hallway
   ],
   warehouse: [
-    { offsetX: -3, offsetZ: -1, height: 0 },          // near crates
-    { offsetX: 0, offsetZ: 1.5, height: 0 },          // near barrels
-    { offsetX: 3, offsetZ: 3, height: 0 },            // near crates
-    { offsetX: -3, offsetZ: 3, height: 0 },           // near barrels
-    { offsetX: 0, offsetZ: -2, height: 0 },           // floor
-    { offsetX: -6, offsetZ: 0, height: 0.8 },         // on shelf
-    { offsetX: -6, offsetZ: 2, height: 1.4 },         // upper shelf
-    { offsetX: 3, offsetZ: -3, height: 0 },           // floor
+    { offsetX: -4, offsetZ: -2, height: 0 },          // near crates
+    { offsetX: 0, offsetZ: 2, height: 0 },            // near barrels
+    { offsetX: 4, offsetZ: 4, height: 0 },            // near crates
+    { offsetX: -4, offsetZ: 4, height: 0 },           // near barrels
+    { offsetX: 0, offsetZ: -3, height: 0 },           // floor
+    { offsetX: -8, offsetZ: 0, height: 0.8 },         // on shelf
+    { offsetX: -8, offsetZ: 3, height: 1.4 },         // upper shelf
+    { offsetX: 4, offsetZ: -4, height: 0 },           // floor
+    { offsetX: 0, offsetZ: 0, height: 0 },            // center
   ],
 };
 
