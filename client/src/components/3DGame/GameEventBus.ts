@@ -147,7 +147,10 @@ export type GameEvent =
   // Text collection events
   | { type: 'text_collected'; textId: string; title: string; textType: string; difficulty: string; vocabularyWordCount: number }
   // Vocabulary hover-lookup events
-  | { type: 'vocabulary_lookup'; word: string; meaning: string; category?: string; source: 'hover_object' | 'hover_sign'; objectId: string; dwellMs: number };
+  | { type: 'vocabulary_lookup'; word: string; meaning: string; category?: string; source: 'hover_object' | 'hover_sign'; objectId: string; dwellMs: number }
+  // Vehicle events
+  | { type: 'vehicle_mounted'; vehicleType: 'bicycle' | 'horse' }
+  | { type: 'vehicle_dismounted'; vehicleType: 'bicycle' | 'horse' };
 
 export type GameEventType = GameEvent['type'];
 

@@ -125,6 +125,9 @@ const EVENT_PRICE_HAGGLED := "price_haggled"
 const EVENT_TEXT_COLLECTED := "text_collected"
 # Vocabulary hover-lookup events
 const EVENT_VOCABULARY_LOOKUP := "vocabulary_lookup"
+# Vehicle events
+const EVENT_VEHICLE_MOUNTED := "vehicle_mounted"
+const EVENT_VEHICLE_DISMOUNTED := "vehicle_dismounted"
 
 ## Valid event types for validation.
 const VALID_EVENT_TYPES: Array[String] = [
@@ -199,6 +202,9 @@ const VALID_EVENT_TYPES: Array[String] = [
 	# Text collection events
 	EVENT_TEXT_COLLECTED,
 	EVENT_VOCABULARY_LOOKUP,
+	# Vehicle events
+	EVENT_VEHICLE_MOUNTED,
+	EVENT_VEHICLE_DISMOUNTED,
 ]
 
 ## Handlers keyed by event type. Each value is an Array of Callables.

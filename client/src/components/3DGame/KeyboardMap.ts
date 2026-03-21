@@ -69,6 +69,9 @@ export const KEY_EAVESDROP = 'KeyY';
 /** Open/close game menu */
 export const KEY_GAME_MENU = 'KeyM';
 
+/** Cycle vehicle (on foot → bicycle → horse → on foot) */
+export const KEY_CYCLE_VEHICLE = 'KeyB';
+
 /** Quick save (slot 0) */
 export const KEY_QUICK_SAVE = 'F5';
 
