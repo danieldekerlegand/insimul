@@ -98,6 +98,11 @@ export interface CompletionObjective {
   pronunciationBestScore?: number;
   targetPhrase?: string;
 
+  // photograph_subject
+  targetSubject?: string;
+  targetCategory?: 'item' | 'npc' | 'building' | 'nature';
+  photographedSubjects?: string[];
+
   // teach_vocabulary / teach_phrase
   wordsTaught?: string[];
   phrasesTaught?: string[];
@@ -166,7 +171,8 @@ export type CompletionEvent =
   | { type: 'price_haggled'; itemName: string; merchantId: string; typedWord: string; questId?: string }
   | { type: 'text_found'; textId: string; textName: string; questId?: string }
   | { type: 'text_read'; textId: string; questId?: string }
-  | { type: 'comprehension_answer'; isCorrect: boolean; questId?: string };
+  | { type: 'comprehension_answer'; isCorrect: boolean; questId?: string }
+  | { type: 'photo_taken'; subjectName: string; subjectCategory: 'item' | 'npc' | 'building' | 'nature'; questId?: string };
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
@@ -306,6 +312,9 @@ export class QuestCompletionEngine {
         break;
       case 'comprehension_answer':
         this.trackComprehensionAnswer(event.isCorrect, event.questId);
+        break;
+      case 'photo_taken':
+        this.trackPhotoTaken(event.subjectName, event.subjectCategory, event.questId);
         break;
     }
   }
@@ -905,6 +914,29 @@ export class QuestCompletionEngine {
     });
   }
 
+  trackPhotoTaken(subjectName: string, subjectCategory: 'item' | 'npc' | 'building' | 'nature', questId?: string): void {
+    const lowerName = subjectName.toLowerCase();
+
+    this.forEachObjective(questId, 'photograph_subject', (quest, obj) => {
+      // If objective specifies a category, it must match
+      if (obj.targetCategory && obj.targetCategory !== subjectCategory) return;
+
+      // If objective specifies a target subject, it must match
+      if (obj.targetSubject && obj.targetSubject.toLowerCase() !== lowerName) return;
+
+      // Track unique subjects photographed
+      obj.photographedSubjects = obj.photographedSubjects || [];
+      if (obj.photographedSubjects.includes(lowerName)) return;
+
+      obj.photographedSubjects.push(lowerName);
+      obj.currentCount = (obj.currentCount || 0) + 1;
+
+      if (obj.currentCount >= (obj.requiredCount || 1)) {
+        this.completeObjective(quest.id, obj.id);
+      }
+    });
+  }
+
   // ── Serialization ──────────────────────────────────────────────────────
 
   /** Progress-relevant fields that change at runtime and need persistence. */
@@ -917,6 +949,7 @@ export class QuestCompletionEngine {
     'translationsCorrect', 'waypointsReached', 'stepsCompleted',
     'wordsTaught', 'phrasesTaught', 'startedAt', 'itemsPurchased',
     'textsFound', 'textsRead', 'quizAnswered', 'quizCorrect',
+    'photographedSubjects',
   ];
 
   /**

@@ -1,3 +1,17 @@
+## Agent 18: Add photography quest objectives and integrate with quest system
+
+### Completed
+- Added `photograph_subject` canonical objective type to quest-objective-types.ts (countable, no required target)
+- Added 11 normalization aliases (photograph, take_photo, photo, snap_photo, etc.)
+- Added `photo_taken` event type to GameEventBus with subjectId, subjectName, subjectCategory, location fields
+- Added photography fields to CompletionObjective: targetSubject, targetCategory, photographedSubjects
+- Added `photo_taken` CompletionEvent and trackPhotoTaken() method to QuestCompletionEngine
+  - Tracks unique subjects (case-insensitive dedup)
+  - Filters by targetCategory and targetSubject when specified
+  - Added photographedSubjects to PROGRESS_FIELDS for serialization
+- Wrote 23 tests covering: type registration, normalization, single/multi photo completion, duplicate filtering, category/subject filtering, quest completion, mixed-objective quests
+- All tests pass
+
 ## Agent 12: Implement server-side persistence for vocabulary and grammar progress
 
 ### Completed

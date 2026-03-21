@@ -94,7 +94,9 @@ namespace Insimul.Systems
         IdentificationPrompted,
         IdentificationCorrect,
         IdentificationIncorrect,
-        NpcRelationshipChanged
+        NpcRelationshipChanged,
+        // Photography events
+        PhotoTaken
     }
 
     /// <summary>
@@ -778,6 +780,15 @@ namespace Insimul.Systems
         public string newTier;
         public string cause;
         public float delta;
+    }
+
+    public class PhotoTakenEvent : GameEvent
+    {
+        public override GameEventType EventType => GameEventType.PhotoTaken;
+        public string subjectId;
+        public string subjectName;
+        public string subjectCategory; // "item", "npc", "building", "nature"
+        public string location;
     }
 
     // ── Event Bus ────────────────────────────────────────────────────────────
