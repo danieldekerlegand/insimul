@@ -76,9 +76,21 @@
 ### 3.3 Building Interiors
 - [ ] Player can enter buildings (BuildingEntrySystem)
 - [ ] Interior rooms generate procedurally
-- [ ] Furniture and objects populate interiors
+- [ ] Furniture and objects populate interiors (actual 3D models replacing placeholder boxes)
 - [ ] NPCs appear inside buildings doing occupation-appropriate activities
 - [ ] Player can exit buildings back to exterior
+- [ ] Multi-room layouts generate for larger buildings (shops, restaurants, public buildings)
+- [ ] Interior size scales appropriately with building exterior footprint
+- [ ] Enlarged building interiors with multi-room layouts for larger buildings (taverns, shops, public buildings)
+- [ ] Containers (chests, cupboards, barrels, crates) spawn in interiors with contextual contents
+- [ ] Container system: chests, cupboards, barrels, crates with typed contents
+- [ ] Container browsing UI panel shows container contents with take/place actions
+- [ ] Containers spawn in building interiors based on building type and room context
+- [ ] Containers spawn in outdoor locations (market stalls, town squares, docks)
+- [ ] Persistent NPC interior assignments: NPCs assigned to correct business interiors
+- [ ] Quest location markers work correctly with building interiors
+- [ ] Building interiors populated with appropriate item props (furniture, decorations, goods)
+- [ ] French-language signs and labels placed throughout building interiors
 - [ ] NPCs physically enter/exit buildings based on schedules (door animation, fade in/out)
 - [ ] Building occupancy tracked: Map<buildingId, Set<npcId>>
 - [ ] Player entering a building sees all NPCs currently flagged as inside (not just owner)
@@ -86,6 +98,13 @@
 - [ ] Notification when NPC enters/exits building player is in: '[NPC Name] has entered/left [Building]'
 - [ ] InteriorNPCManager.addNPCToInterior() called when NPC enters while player is inside
 - [ ] InteriorNPCManager.removeNPCFromInterior() called when NPC leaves while player is inside
+
+### 3.3b Expanded Business & Public Building Types
+- [ ] Specialized shop types: cafe, bookstore, hardware store, art supply shop, florist, jeweler
+- [ ] Service businesses: barber, tailor, cobbler, notary, courier
+- [ ] Public building types: schools, city halls, libraries, post offices
+- [ ] Public buildings have appropriate interiors, NPCs, and schedules
+- [ ] Each business type has unique interior layout, items, and NPC behaviors
 
 ### 3.4 Business Interior Behaviors
 - [ ] BusinessBehaviorSystem defines per-business-type operational behaviors
@@ -165,8 +184,11 @@
 - [ ] NPCs spawn in settlement
 - [ ] NPCs have unique names, appearances, personalities
 - [ ] NPC count appropriate for settlement size
-- [ ] NPCs have assigned occupations
+- [ ] NPCs have assigned occupations (properly assigned during world generation for all characters)
 - [ ] NPCs have assigned residences
+- [ ] Animal NPCs (cats, dogs, birds) spawn for world ambiance and vocabulary practice
+- [ ] Animal NPCs wander settlement areas with species-appropriate movement patterns
+- [ ] Animals provide target-language vocabulary opportunities (species names, sounds, behaviors)
 
 ### 5.2 NPC Daily Schedules
 - [ ] NPCs follow morning routine
@@ -181,6 +203,9 @@
 - [ ] Spontaneous activity injection: 15% chance (scaled by openness) to replace schedule phase
 - [ ] Social interrupts: NPCs with high mutual relationship stop to chat when passing within 3 units
 - [ ] Daily schedule stored in Map<npcId, DailySchedule> and regenerates each game day
+- [ ] Ambient life behaviors: NPCs perform contextual chores, eating, and socializing activities
+- [ ] Businesses filled with correct owner and employee NPCs during operating hours
+- [ ] Residences filled with residents during evening and night hours
 
 ### 5.3 NPC Movement & Pathfinding
 - [ ] NPCs walk along streets/paths
@@ -202,6 +227,8 @@
 - [ ] Building avoidance via raycasting and corner waypoints
 - [ ] Crosswalk connections at every intersection connecting both sides
 - [ ] Path caching for common origin-destination pairs (home→work, work→tavern)
+- [ ] NPC town boundary confinement: NPCs stay within settlement bounds
+- [ ] No wilderness wandering: NPCs do not path into uninhabited terrain outside town limits
 
 ### 5.4 NPC Conversations (Player-Initiated)
 - [ ] Player can approach and talk to NPC
@@ -298,6 +325,9 @@
 - [ ] Quest objectives listed with completion status
 - [ ] Quest waypoints/markers guide player to objectives
 - [ ] Quest progress updates in real-time
+- [ ] Quest-driven minimap markers derived from quest objective data
+- [ ] Dynamic quest waypoints point toward objective targets
+- [ ] locationPosition on quests that reference specific locations works correctly
 
 ### 6.3 Quest Completion
 - [ ] Quest objectives can be completed
@@ -305,7 +335,17 @@
 - [ ] Post-condition validation (Prolog) functions
 - [ ] Completion overlay/notification appears
 - [ ] Sound effects play on completion
-- [ ] Rewards are granted
+- [ ] Rewards are granted (expanded XP and money rewards for all quest completions)
+- [ ] visit_location and discover_location objective completion detection works
+- [ ] collect_item, deliver_item, and give_gift objectives wired to inventory system
+- [ ] identify_object, examine_object, point_and_name, read_sign wired to world objects
+- [ ] defeat_enemies and escort_npc quest mechanics functional
+- [ ] gain_reputation objective tracking works
+- [ ] Conversation-only quest objectives have proper completion wiring
+- [ ] Quest-giving NPC indicators visible (exclamation mark or equivalent)
+- [ ] Quest accept/decline flow works when speaking with quest-giving NPCs
+- [ ] Quest completion rewards and turn-in flow functional
+- [ ] Quest objective fallback system handles uncompletable objectives with visual indicator
 
 ### 6.4 Quest Types
 - [ ] Standard fetch/deliver quests work
@@ -395,7 +435,14 @@
 - [ ] Point-and-identify action works for any knowledge type (vocabulary, species, resources, lore)
 - [ ] **Language-learning specialization**: entries are vocabulary words with translation, pronunciation, example sentences
 - [ ] Spaced repetition review intervals trigger for due entries (`vocabulary-review.ts`)
+- [ ] Spaced repetition review prompts appear at appropriate intervals during gameplay
+- [ ] Vocabulary practice mini-games accessible from knowledge collection panel
 - [ ] MongoDB collection: `knowledgeentries` (migrated from `vocabularyentries`)
+- [ ] Vocabulary tracking captures all words encountered in NPC conversations
+- [ ] Server-side persistence for vocabulary progress (survives page refresh)
+- [ ] French vocabulary corpus with 2000+ common words loaded for comprehensive tracking
+- [ ] Hover-to-translate word lookup tracking records which words player looks up
+- [ ] NPC conversation prompts incorporate vocabulary review and grammar focus
 
 ### 7.3 Proficiency Module (formerly Language Proficiency / CEFR)
 - [ ] Proficiency tracker (`ProficiencyTracker`) displays current tier and dimension scores
@@ -404,11 +451,16 @@
 - [ ] **Language-learning specialization**: dimensions are vocabulary, grammar, pronunciation, listening, communication; tiers map to CEFR (A1–B2)
 - [ ] Adaptive difficulty driven by proficiency scores (not hardcoded to speech complexity)
 - [ ] MongoDB collection: `proficiencyprogress` (migrated from `languageprogress`)
+- [ ] Server-side persistence for grammar progress (survives page refresh)
+- [ ] Language Progress page displays vocabulary and grammar data correctly
 
 ### 7.4 Pattern Recognition Module (formerly Grammar Patterns)
 - [ ] Patterns tracked with usage counts and examples
 - [ ] Contextual coaching feedback displayed for any pattern type
 - [ ] **Language-learning specialization**: grammar patterns with corrections via `QuestLanguageFeedbackPanel`
+- [ ] Structured grammar feedback added to NPC responses
+- [ ] Grammar pattern definitions with explanations and examples for French loaded
+- [ ] Grammar tracking captures patterns from NPC conversation interactions
 
 ### 7.5 Performance Scoring Module (formerly Pronunciation Scoring)
 - [ ] Performance analysis compares player output against expected output
@@ -502,6 +554,7 @@
 - [ ] Skill tree unlocks trigger on level-up
 - [ ] Session XP counter maintained in playerSessions
 - [ ] XP persists server-side and survives page refresh
+- [ ] XP gains wired to skill tree progression and level-up rewards
 
 ### 7.16 Achievement Detection
 - [ ] Achievement detection monitors GameEventBus events (npc_talked, object_examined, npc_exam_completed, etc.)
@@ -670,6 +723,13 @@
 - [ ] Businesses have revenue/expenses
 - [ ] Salary payments to employees
 - [ ] Business statistics accessible
+
+### 13.5 Mercantile System & Economic Pressure
+- [ ] Basic mercantile system with player gold and item prices
+- [ ] Mercantile system connected to quest objectives (purchase/sell requirements)
+- [ ] Spending sinks: repair costs, consumables, lodging, transport fees
+- [ ] Economic pressure so gold matters: items have meaningful costs, limited free resources
+- [ ] Expanded XP and money rewards balanced across all quest completions
 
 ---
 
@@ -868,7 +928,13 @@
 - [ ] Collections populatable from templates
 - [ ] Collection export works
 
-### 21.6 External Asset Providers
+### 21.6 Asset Scaling Management
+- [ ] Asset scale management in Admin Panel Assets manager
+- [ ] NPC reference preview shows model at configured scale
+- [ ] Stored asset scales applied throughout the rendering pipeline
+- [ ] Per-asset scale overrides persist and load correctly
+
+### 21.7 External Asset Providers
 - [ ] PolyHaven search works
 - [ ] PolyHaven auto-select works
 - [ ] PolyHaven download and register works
@@ -923,6 +989,8 @@
 - [ ] Business storefronts display name in genre-appropriate labeling (target language for language-learning)
 - [ ] Clicking floating label triggers mini-interaction (hear pronunciation, see example, view lore entry)
 - [ ] Labels toggleable in settings (default on for low proficiency tiers)
+- [ ] Hover-to-translate for all target-language text in the game (signs, labels, speech bubbles)
+- [ ] Hover-to-translate interactions tracked for vocabulary word lookup analytics
 
 ---
 
@@ -964,6 +1032,9 @@
 - [ ] Ambient soundscapes play (wind, birds, water)
 - [ ] Sound varies by location (forest, city, coast)
 - [ ] Audio fades with distance
+- [ ] Ambient sound system with environmental audio tied to location and time of day
+- [ ] Different ambient audio for interiors vs exteriors
+- [ ] Time-of-day audio transitions (night crickets, morning birds, daytime bustle)
 
 ### 25.3 Speech Audio
 - [ ] TTS plays for NPC dialogue
@@ -1315,6 +1386,9 @@
 - [ ] Placed items recorded as truths (item X at building Y, position Z)
 - [ ] Placed items interactable (examine, pick up if takeable)
 - [ ] Shop items have prices and are purchasable via merchant system
+- [ ] Item spawns placed in exterior world locations for collection quests
+- [ ] French-language signs and labels placed throughout exterior settlement areas
+- [ ] Outdoor furniture and market stalls placed in settlement exteriors
 
 ---
 
@@ -1327,6 +1401,10 @@
 - [ ] Narrative follows 3-act structure (Introduction → Rising Action → Climax/Resolution)
 - [ ] Target: 20-30 chapters with 2-5 subquests each
 - [ ] Each chapter introduces new vocabulary themes and grammar patterns
+- [ ] Missing Writer main quest narrative framework implemented
+- [ ] Main quest NPCs: the writer's associates who provide leads and context
+- [ ] Main quest entries stored as proper quest records in the quest system
+- [ ] Text collection drives main quest chapter progression
 
 ### 31.2 Narrative Template System
 - [ ] Library of narrative templates (Lost Heritage, Festival Planner, New Neighbor, Mystery, Apprentice)
@@ -1350,6 +1428,7 @@
 - [ ] Current chapter's subquests with completion status
 - [ ] Narrative log of key story events as journal entries in target language
 - [ ] Translation toggle for lower-level players
+- [ ] Journal tab shows investigation progress with clue board for Missing Writer quest
 
 ### 31.5 Main Quest Completion
 - [ ] Completion ceremony: congratulations, statistics (vocabulary learned, conversations held, time played)
@@ -1583,6 +1662,11 @@
 - [ ] Character edit dialog saves changes
 - [ ] Character chat dialog opens conversation
 - [ ] Hierarchical character view works
+- [ ] Character detail view shows workplace, residence, and business ownership
+
+### 30.2b Business & Residence Detail Views
+- [ ] Business detail view shows owner, employees, and inventory
+- [ ] Residence detail view shows residents and household information
 
 ### 30.3 Quest Management UI
 - [ ] Quest create dialog works
@@ -1614,6 +1698,13 @@
 - [ ] Genealogy viewer shows family trees
 - [ ] History timeline view works
 - [ ] Simulation timeline view works
+
+### 30.8b Texts Management UI
+- [ ] Texts section in Content editor for managing and generating texts
+- [ ] Texts CRUD operations (create, read, update, delete)
+- [ ] Procedural text generation via Gemini API from Texts editor
+- [ ] Text category filtering (books, journals, letters, flyers, recipes)
+- [ ] Text preview with target-language content and translation
 
 ### 30.9 Asset Management UI
 - [ ] Asset browser dialog works
@@ -1703,8 +1794,10 @@
 - [ ] Default real-time ratio: 1 real minute = 1 game hour (configurable via world settings)
 - [ ] Exposes: getCurrentGameHour(), getCurrentGameMinute(), getCurrentDay(), getCurrentTimestep(), getTimeOfDay()
 - [ ] Time-of-day lighting: dawn (5-7) warm orange, morning (7-10) bright, midday (10-14) full sun, afternoon (14-17) warm, evening (17-20) golden hour, night (20-5) dark blue
+- [ ] Visual day/night cycle with smooth lighting and sky color transitions
 - [ ] Day/night cycle skybox transition
 - [ ] HUD clock display showing current game time and day number
+- [ ] Time-of-day HUD indicator and time controls (pause, 2x, 4x)
 - [ ] Time pause for menus, conversations, assessments
 - [ ] Time acceleration (2x, 4x for waiting)
 - [ ] GameEventBus events: 'hour_changed', 'day_changed', 'timestep_advanced', 'time_of_day_changed'
@@ -1841,6 +1934,81 @@
 
 ---
 
+## 40. TEXTS & LIBRARY SYSTEM
+
+### 40.1 Texts Schema & Backend
+- [ ] Texts schema, collection, and CRUD endpoints functional
+- [ ] Texts categories supported: books, journals, letters, flyers, recipes
+- [ ] Procedural text generation using Gemini API produces valid content
+- [ ] Texts seeded for world 69bba18ce2e6d5c1cb3c7a9f via procedural generation
+- [ ] Texts associated with target language and contain translation data
+
+### 40.2 Collectible Texts in World
+- [ ] 3D assets sourced for each text category (book model, journal model, letter model, etc.)
+- [ ] Collectible texts placed in world locations (libraries, homes, shops, outdoor areas)
+- [ ] Player can pick up and collect texts from the world
+- [ ] Collected texts appear in Library
+
+### 40.3 Library Page
+- [ ] Library menu page overhauled to display all text categories
+- [ ] Reading interface displays text content in target language
+- [ ] Reading progress persisted to server per text
+- [ ] Comprehension quiz available after reading a text
+- [ ] Quiz completion persisted to server
+- [ ] Existing Library notice content uses Texts system (filler content removed)
+
+### 40.4 Text-Related Quest Objectives
+- [ ] Find text objectives: locate and pick up specific texts
+- [ ] Read text objectives: read through a text in the Library
+- [ ] Comprehension quiz objectives: complete quiz after reading
+- [ ] Text collection drives main quest chapter progression
+
+---
+
+## 41. PHOTOGRAPHY SYSTEM
+
+### 41.1 Photo Mode
+- [ ] First-person photo mode activatable (camera key/button)
+- [ ] Photo capture saves screenshot to player's photo book
+- [ ] Photo book accessible from game menu
+- [ ] Photos display with timestamp and location metadata
+
+### 41.2 Noun Labeling
+- [ ] Photos can be labeled with target-language nouns
+- [ ] Labeling correct nouns awards XP and vocabulary credit
+- [ ] Labeling interface shows photo with taggable objects
+
+### 41.3 Photography Quest Objectives
+- [ ] Photography quest objectives integrated with quest system
+- [ ] Take photo of specific object/location/NPC objectives functional
+- [ ] Photo quality or content validated for quest completion
+
+---
+
+## 42. PLAYER VEHICLE
+
+### 42.1 Vehicle System
+- [ ] Player vehicle (bicycle or horse) available for faster travel
+- [ ] Vehicle mountable/dismountable with animation
+- [ ] Movement speed increased while mounted
+- [ ] Vehicle visible as 3D model when mounted
+- [ ] Vehicle stored/parked when not in use
+- [ ] Vehicle cannot enter building interiors
+
+---
+
+## 43. WEATHER SYSTEM
+
+### 43.1 Weather Effects
+- [ ] Weather system with rain, clouds, and atmospheric effects
+- [ ] Rain particles render and interact with terrain
+- [ ] Cloud cover affects lighting and sky appearance
+- [ ] Weather transitions smoothly between states
+- [ ] Weather state affects NPC behavior (seeking shelter in rain)
+- [ ] Weather vocabulary available for language practice
+
+---
+
 ## TESTING PRIORITY ORDER
 
 ### P0 — Core Gameplay Loop
@@ -1857,13 +2025,15 @@
 9. Assessment & NPC exam modules (Section 8)
 10. Performance scoring & voice modules (Section 7.5, 7.6)
 11. Proficiency & adaptive difficulty modules (Section 7.3, 7.9, 38.12)
-12. Shopping/economy and business transactions (Section 11.3, 13, 3.6)
+12. Shopping/economy, mercantile system, and business transactions (Section 11.3, 13, 3.6)
 13. Combat (Section 9)
 14. Crafting/resources (Section 10)
 15. Playthrough overlay, save/load, and data isolation (Section 29)
 16. Base items default inclusion and world placement (Section 30)
-17. Main quest system and progression (Section 31)
-18. Game time management and day/night cycle (Section 37)
+17. Main quest system, Missing Writer narrative, and progression (Section 31)
+18. Game time management, day/night cycle, and weather (Section 37, 43)
+19. Texts and Library system (Section 40)
+20. Container system and browsing UI (Section 3.3)
 
 ### P2 — Social Simulation
 19. NPC schedules, variety, and volition (Section 5.2, 5.9)
@@ -1885,11 +2055,13 @@
 33. Puzzles (Section 23)
 34. VR (Section 27)
 35. Export (Section 28)
-36. Asset generation (Section 21)
+36. Asset generation and scaling (Section 21)
+37. Photography system (Section 41)
+38. Player vehicle (Section 42)
 
 ### P4 — Analytics & Research
-37. Playthrough analytics dashboard — all tabs (Section 38)
-38. Assessment analytics — pre/post, learning gains (Section 38.5)
+39. Playthrough analytics dashboard — all tabs (Section 38)
+40. Assessment analytics — pre/post, learning gains (Section 38.5)
 39. Player action tracking and conversation data (Section 38.9, 38.10)
 40. Research data export (Section 38.11)
 41. Playthrough comparison and cohort analysis (Section 38.8)
