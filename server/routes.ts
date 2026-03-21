@@ -12,6 +12,7 @@ import { enrichHistoricalEvents, type WorldContext } from './services/llm-event-
 import { prologAutoSync } from './engines/prolog/prolog-auto-sync';
 import * as PlaythroughOverlay from './services/playthrough-overlay';
 import * as Mercantile from './services/mercantile';
+import * as SpendingSinks from './services/spending-sinks';
 import { convertActionToProlog } from '../shared/prolog/action-converter';
 import { convertQuestToProlog } from '../shared/prolog/quest-converter';
 import { extractAllMetadata, extractActionMetadata } from '../shared/prolog/prolog-metadata-extractor';
@@ -3665,6 +3666,52 @@ Alternate speakers. Start with ${char1Name}. Every single word must be in ${targ
       res.json({ unemploymentRate: rate });
     } catch (error) {
       res.status(500).json({ error: "Failed to get unemployment rate", details: (error as Error).message });
+    }
+  });
+
+  // ── Spending Sinks (economic pressure) ─────────────────────────────────
+
+  // Get spending sink breakdown for a single entity
+  app.get("/api/worlds/:worldId/entities/:entityId/spending-sinks", async (req, res) => {
+    try {
+      const { worldId, entityId } = req.params;
+      const residenceQuality = parseFloat(req.query.residenceQuality as string) || 0.5;
+      const equippedItemsTotalValue = parseInt(req.query.equippedItemsTotalValue as string, 10) || 0;
+      const currentGold = await Mercantile.getGold(worldId, entityId, req.query.playthroughId as string | undefined);
+      const breakdown = SpendingSinks.calculateSpendingSinks(currentGold, residenceQuality, equippedItemsTotalValue);
+      res.json({ entityId, currentGold, breakdown });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to calculate spending sinks", details: (error as Error).message });
+    }
+  });
+
+  // Apply spending sinks for a single entity (deducts gold)
+  app.post("/api/worlds/:worldId/entities/:entityId/spending-sinks/apply", async (req, res) => {
+    try {
+      const { worldId, entityId } = req.params;
+      const { residenceQuality = 0.5, equippedItemsTotalValue = 0, playthroughId, timestep = 0 } = req.body;
+      const result = await SpendingSinks.applySpendingSinks(
+        { entityId, worldId, residenceQuality, equippedItemsTotalValue, playthroughId },
+        timestep,
+      );
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to apply spending sinks", details: (error as Error).message });
+    }
+  });
+
+  // Process spending sinks for all provided characters in a world
+  app.post("/api/worlds/:worldId/economy/spending-sinks/process", async (req, res) => {
+    try {
+      const { worldId } = req.params;
+      const { characters, timestep = 0 } = req.body;
+      if (!Array.isArray(characters)) {
+        return res.status(400).json({ error: "characters array is required" });
+      }
+      const result = await SpendingSinks.processWorldSpendingSinks(worldId, characters, timestep);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to process spending sinks", details: (error as Error).message });
     }
   });
 
