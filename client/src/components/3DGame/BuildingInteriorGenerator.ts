@@ -3,6 +3,7 @@
  *
  * Generates building interior rooms at a Y-offset (Y=500+) within the same Babylon scene.
  * Each interior has walls, floor, ceiling, and furniture based on the building type.
+ * Furniture uses glTF 3D models when available, falling back to procedural geometry.
  * Used by the door/portal system in BabylonGame.ts.
  */
 
@@ -14,6 +15,7 @@ import {
   StandardMaterial,
   Color3,
 } from '@babylonjs/core';
+import type { FurnitureModelLoader } from './FurnitureModelLoader';
 
 export interface InteriorLayout {
   id: string;
@@ -44,10 +46,14 @@ export interface FurnitureSpec {
 /** Furniture types that are interactive containers */
 const CONTAINER_TYPES = new Set(['chest', 'barrel', 'crate']);
 
+/** Furniture types best represented by a cylinder rather than a box */
+const CYLINDER_TYPES = new Set(['barrel', 'pillar', 'stool']);
+
 export class BuildingInteriorGenerator {
   private scene: Scene;
   private interiors: Map<string, InteriorLayout> = new Map();
   private nextSlotIndex: number = 0;
+  private furnitureLoader: FurnitureModelLoader | null = null;
 
   // Interior offset: each interior is placed at Y=500 + slotIndex * 50
   // to keep them separated vertically
@@ -56,6 +62,11 @@ export class BuildingInteriorGenerator {
 
   constructor(scene: Scene) {
     this.scene = scene;
+  }
+
+  /** Set the furniture model loader for glTF-based furniture. */
+  public setFurnitureLoader(loader: FurnitureModelLoader): void {
+    this.furnitureLoader = loader;
   }
 
   /**
@@ -441,17 +452,173 @@ export class BuildingInteriorGenerator {
 
   /**
    * Create a single furniture mesh from spec.
+   * Tries to use a glTF model from the furniture loader first,
+   * then falls back to procedural geometry (cylinders for round objects, boxes otherwise).
    */
   private createFurnitureMesh(name: string, spec: FurnitureSpec): Mesh {
-    const mesh = MeshBuilder.CreateBox(
-      name,
-      { width: spec.width, height: spec.height, depth: spec.depth },
-      this.scene
+    // Try glTF model first
+    const modelMesh = this.tryCreateFromModel(name, spec);
+    if (modelMesh) {
+      this.applyFurnitureProperties(modelMesh, spec);
+      return modelMesh;
+    }
+
+    // Procedural fallback with shape-appropriate geometry
+    const mesh = this.createProceduralFurniture(name, spec);
+    this.applyFurnitureProperties(mesh, spec);
+    return mesh;
+  }
+
+  /** Attempt to clone a glTF model for the furniture type. */
+  private tryCreateFromModel(name: string, spec: FurnitureSpec): Mesh | null {
+    if (!this.furnitureLoader) return null;
+    return this.furnitureLoader.cloneForFurniture(
+      spec.type, name, spec.width, spec.height, spec.depth,
     );
+  }
+
+  /** Create procedural geometry matching the furniture shape. */
+  private createProceduralFurniture(name: string, spec: FurnitureSpec): Mesh {
+    let mesh: Mesh;
+
+    if (CYLINDER_TYPES.has(spec.type)) {
+      // Cylinders for barrels, pillars, stools
+      const diameter = Math.min(spec.width, spec.depth);
+      mesh = MeshBuilder.CreateCylinder(
+        name,
+        { diameter, height: spec.height, tessellation: 16 },
+        this.scene,
+      );
+    } else if (spec.type === 'forge') {
+      // Forge: truncated cone with emissive glow
+      mesh = MeshBuilder.CreateCylinder(
+        name,
+        {
+          diameterTop: Math.min(spec.width, spec.depth) * 0.7,
+          diameterBottom: Math.min(spec.width, spec.depth),
+          height: spec.height,
+          tessellation: 12,
+        },
+        this.scene,
+      );
+      const mat = new StandardMaterial(`${name}_mat`, this.scene);
+      mat.diffuseColor = spec.color;
+      mat.emissiveColor = new Color3(0.4, 0.1, 0.02);
+      mat.specularColor = new Color3(0.1, 0.05, 0.02);
+      mesh.material = mat;
+      return mesh;
+    } else if (spec.type === 'anvil') {
+      // Anvil: a T-shape built from two merged boxes
+      const base = MeshBuilder.CreateBox(
+        `${name}_base`,
+        { width: spec.width, height: spec.height * 0.5, depth: spec.depth },
+        this.scene,
+      );
+      const top = MeshBuilder.CreateBox(
+        `${name}_top`,
+        { width: spec.width * 1.3, height: spec.height * 0.5, depth: spec.depth * 0.6 },
+        this.scene,
+      );
+      top.position.y = spec.height * 0.5;
+      mesh = Mesh.MergeMeshes([base, top], true, true, undefined, false, true) as Mesh;
+      mesh.name = name;
+    } else if (spec.type === 'altar') {
+      // Altar: stepped platform
+      const base = MeshBuilder.CreateBox(
+        `${name}_base`,
+        { width: spec.width, height: spec.height * 0.4, depth: spec.depth },
+        this.scene,
+      );
+      const top = MeshBuilder.CreateBox(
+        `${name}_top`,
+        { width: spec.width * 0.7, height: spec.height * 0.6, depth: spec.depth * 0.7 },
+        this.scene,
+      );
+      top.position.y = spec.height * 0.5;
+      mesh = Mesh.MergeMeshes([base, top], true, true, undefined, false, true) as Mesh;
+      mesh.name = name;
+    } else if (spec.type === 'pew') {
+      // Pew: bench seat with a backrest
+      const seat = MeshBuilder.CreateBox(
+        `${name}_seat`,
+        { width: spec.width, height: spec.height * 0.4, depth: spec.depth },
+        this.scene,
+      );
+      const back = MeshBuilder.CreateBox(
+        `${name}_back`,
+        { width: spec.width, height: spec.height * 0.6, depth: spec.depth * 0.15 },
+        this.scene,
+      );
+      back.position.y = spec.height * 0.5;
+      back.position.z = -spec.depth * 0.4;
+      mesh = Mesh.MergeMeshes([seat, back], true, true, undefined, false, true) as Mesh;
+      mesh.name = name;
+    } else if (spec.type === 'bed') {
+      // Bed: mattress slab with headboard
+      const mattress = MeshBuilder.CreateBox(
+        `${name}_mattress`,
+        { width: spec.width, height: spec.height * 0.5, depth: spec.depth },
+        this.scene,
+      );
+      const headboard = MeshBuilder.CreateBox(
+        `${name}_headboard`,
+        { width: spec.width, height: spec.height * 0.8, depth: spec.depth * 0.08 },
+        this.scene,
+      );
+      headboard.position.y = spec.height * 0.3;
+      headboard.position.z = spec.depth * 0.46;
+      mesh = Mesh.MergeMeshes([mattress, headboard], true, true, undefined, false, true) as Mesh;
+      mesh.name = name;
+    } else if (spec.type === 'chair') {
+      // Chair: seat + backrest
+      const seat = MeshBuilder.CreateBox(
+        `${name}_seat`,
+        { width: spec.width, height: spec.height * 0.45, depth: spec.depth },
+        this.scene,
+      );
+      const back = MeshBuilder.CreateBox(
+        `${name}_back`,
+        { width: spec.width, height: spec.height * 0.55, depth: spec.depth * 0.15 },
+        this.scene,
+      );
+      back.position.y = spec.height * 0.5;
+      back.position.z = -spec.depth * 0.42;
+      mesh = Mesh.MergeMeshes([seat, back], true, true, undefined, false, true) as Mesh;
+      mesh.name = name;
+    } else if (spec.type === 'workbench' || spec.type === 'counter') {
+      // Workbench/counter: thick top slab on a slightly recessed base
+      const top = MeshBuilder.CreateBox(
+        `${name}_top`,
+        { width: spec.width, height: spec.height * 0.2, depth: spec.depth },
+        this.scene,
+      );
+      top.position.y = spec.height * 0.4;
+      const base = MeshBuilder.CreateBox(
+        `${name}_base`,
+        { width: spec.width * 0.9, height: spec.height * 0.8, depth: spec.depth * 0.9 },
+        this.scene,
+      );
+      mesh = Mesh.MergeMeshes([base, top], true, true, undefined, false, true) as Mesh;
+      mesh.name = name;
+    } else {
+      // Default box for any other type
+      mesh = MeshBuilder.CreateBox(
+        name,
+        { width: spec.width, height: spec.height, depth: spec.depth },
+        this.scene,
+      );
+    }
+
+    // Apply material
     const mat = new StandardMaterial(`${name}_mat`, this.scene);
     mat.diffuseColor = spec.color;
     mat.specularColor = new Color3(0.05, 0.05, 0.05);
     mesh.material = mat;
+    return mesh;
+  }
+
+  /** Apply collision and interactivity properties to a furniture mesh. */
+  private applyFurnitureProperties(mesh: Mesh, spec: FurnitureSpec): void {
     mesh.checkCollisions = true;
 
     // Tag container-type furniture as interactive
@@ -461,11 +628,18 @@ export class BuildingInteriorGenerator {
         isContainer: true,
         containerType: spec.type,
       };
+      // Propagate to child meshes (for glTF hierarchies)
+      mesh.getChildMeshes().forEach((child) => {
+        child.isPickable = true;
+        child.metadata = {
+          ...(child.metadata || {}),
+          isContainer: true,
+          containerType: spec.type,
+        };
+      });
     } else {
       mesh.isPickable = false;
     }
-
-    return mesh;
   }
 
   // ── Furniture layouts per building type ──
@@ -579,7 +753,7 @@ export class BuildingInteriorGenerator {
       width: 0.8, height: 1.0, depth: 0.8, color: new Color3(0.3, 0.25, 0.18)
     });
 
-    // Forge (represented as a glowing box)
+    // Forge (represented as a glowing truncated cone)
     specs.push({
       type: 'forge', offsetX: w / 2 - 1.5, offsetZ: d / 2 - 1,
       width: 1.5, height: 1.2, depth: 1.5, color: new Color3(0.6, 0.25, 0.1)

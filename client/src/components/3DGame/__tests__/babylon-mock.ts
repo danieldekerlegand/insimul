@@ -69,13 +69,24 @@ export class Mesh {
       }
     };
   }
+  rotation = new Vector3();
+  checkCollisions = false;
   clone(name: string) {
     const m = new Mesh(name);
     m.material = this.material;
     return m;
   }
-  instantiateHierarchy() { return new Mesh('hierarchy'); }
+  instantiateHierarchy(_parent?: any, _opts?: any, _onNewClone?: (source: any, clone: any) => void) {
+    const root = new Mesh('hierarchy');
+    if (_onNewClone) _onNewClone(this, root);
+    return root;
+  }
   dispose() {}
+  static MergeMeshes(meshes: Mesh[], _disposeSource?: boolean, _allow32?: boolean, _target?: any, _subdivide?: boolean, _multiMat?: boolean): Mesh | null {
+    if (!meshes || meshes.length === 0) return null;
+    const merged = new Mesh(meshes[0].name + '_merged');
+    return merged;
+  }
 }
 
 export const MeshBuilder = {
@@ -83,6 +94,8 @@ export const MeshBuilder = {
   CreateBox: (name: string, _opts: any, _scene: any) => new Mesh(name),
   CreateCylinder: (name: string, _opts: any, _scene: any) => new Mesh(name),
   CreateTorus: (name: string, _opts: any, _scene: any) => new Mesh(name),
+  CreateGround: (name: string, _opts: any, _scene: any) => new Mesh(name),
+  CreatePlane: (name: string, _opts: any, _scene: any) => new Mesh(name),
 };
 
 export class StandardMaterial {

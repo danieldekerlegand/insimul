@@ -1,3 +1,22 @@
+## Agent 6: Replace placeholder box furniture in interiors with actual 3D models
+
+### Completed
+- Created FurnitureModelLoader (client/src/components/3DGame/FurnitureModelLoader.ts):
+  - Maps 12 furniture types to existing Polyhaven glTF models (table, chair, stool, bed, shelf, bookshelf, wardrobe, counter, barrel, crate, chest, display_table)
+  - Loads all templates in parallel, measures bounding boxes for proper scaling
+  - Clones templates with dimension-based scaling for each furniture instance
+- Updated BuildingInteriorGenerator to use glTF models with procedural fallback:
+  - Tries model clone first via FurnitureModelLoader
+  - Falls back to shape-appropriate procedural geometry: cylinders for barrels/pillars/stools, composite meshes for anvils/altars/pews/beds/chairs/counters, emissive truncated cones for forges
+  - Preserves all container metadata and interactivity on model-based furniture
+- Wired FurnitureModelLoader into BabylonGame.ts:
+  - Loads furniture models during applyWorld3DConfig (after quest object models)
+  - Sets loader on interiorGenerator via setFurnitureLoader()
+  - Proper dispose cleanup
+- Updated babylon-mock.ts with CreateGround, CreatePlane, MergeMeshes, rotation, checkCollisions
+- Wrote 30 tests (BuildingInteriorFurniture.test.ts) covering model integration, fallback, container metadata, all building types, partial model coverage, dispose
+- All tests pass (30 new + 23 existing), TypeScript compiles cleanly
+
 ## Agent 8: Implement visual day/night cycle with lighting and sky color transitions
 
 ### Completed
