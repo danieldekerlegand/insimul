@@ -67,3 +67,18 @@
 - Furniture items properly marked as non-possessable with lootWeight 0
 - Wrote 26 tests (server/__tests__/expand-item-catalog-categories.test.ts) covering structure validation, category coverage, uniqueness, loot weight distribution
 - All tests pass, TypeScript compiles cleanly
+
+## Agent 2: Download and integrate top-priority 3D assets into the project
+
+### Completed
+- Created download script (scripts/download-polyhaven-assets.ts) that fetches 1K GLTF models from Polyhaven API
+- Downloaded 43 new 3D model assets (22 furniture, 21 props) from Polyhaven:
+  - Furniture: 4 tables (WoodenTable_03, CoffeeTable_01, coffee_table_round_01, chinese_tea_table), 6 chairs (WoodenChair_01, dining_chair_02, SchoolChair_01, chinese_armchair, chinese_stool, BarberShopChair_01), 2 bedroom pieces (ClassicNightstand_01, GothicCommode_01), 3 seating (Sofa_01, Ottoman_01, chinese_sofa), 3 storage/shelving (chinese_cabinet, chinese_console_table, chinese_screen_panels), 1 desk (SchoolDesk_01), 3 lighting (Chandelier_02, Chandelier_03, desk_lamp_arm_01)
+  - Props: 4 kitchen (brass_pan_01, brass_pot_01, brass_pot_02, carved_wooden_plate), 3 food (croissant, carrot_cake, CheeseBox_01), 9 decorative (antique_ceramic_vase_01, brass_vase_01, ceramic_vase_01, ceramic_vase_02, chess_set, carved_wooden_elephant, brass_diya_lantern, alarm_clock_01, concrete_cat_statue), 2 containers (Barrel_02, cardboard_box_01), 2 tools (bench_vice_01, crowbar_01)
+- Created migration (server/migrations/026-register-new-prop-assets.ts) to register all new assets in visual_assets collection
+- Updated data/base-asset-collections.json:
+  - Added 22 new entries to medieval-fantasy objects array
+  - Added 21 new semantic role mappings to config3D.objectModels
+  - Replaced food placeholder mappings (wooden_bucket → croissant/carrot_cake/carved_wooden_plate)
+- Wrote integration tests (220 assertions, all passing) verifying: files on disk, GLTF validity, companion textures, asset collection references
+- Total models on disk: 193 (up from 151)
