@@ -1391,32 +1391,6 @@ export const achievements = pgTable("achievements", {
 
 // ============= TEXTS (procedurally generated reading content) =============
 
-export const texts = pgTable("texts", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  worldId: varchar("world_id").notNull(),
-
-  title: text("title").notNull(),
-  body: text("body").notNull(),
-  textType: text("text_type").notNull(), // sign, book, letter, notice, scroll, newspaper, journal
-  language: text("language"), // target language code, null = world default
-  difficulty: text("difficulty").default("beginner"), // beginner, intermediate, advanced
-
-  // Where in the world the text appears
-  locationId: text("location_id"), // settlement, building, etc.
-  characterId: text("character_id"), // author or owner NPC
-
-  // Language-learning metadata
-  vocabularyWords: jsonb("vocabulary_words").$type<string[]>().default([]),
-  grammarNotes: text("grammar_notes"),
-  translation: text("translation"), // translation in player's native language
-
-  tags: jsonb("tags").$type<string[]>().default([]),
-  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
-
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
 // ============= PLAYTHROUGHS AND PLAYER ISOLATION =============
 
 // Playthroughs - player-specific instances of a world
@@ -2062,12 +2036,6 @@ export const insertPlayerSessionSchema = createInsertSchema(playerSessions).omit
 });
 
 export const insertAchievementSchema = createInsertSchema(achievements).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export const insertTextSchema = createInsertSchema(texts).omit({
   id: true,
   createdAt: true,
   updatedAt: true,

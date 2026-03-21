@@ -509,9 +509,7 @@ const NORMALIZATION_MAP: Record<string, string> = {
   'collect_journal': 'collect_text',
   'collect_scroll': 'collect_text',
   'find_text': 'collect_text',
-  'find_book': 'collect_text',
   'pick_up_text': 'collect_text',
-  'read_book': 'collect_text',
   'gather_text': 'collect_text',
   'text_collected': 'collect_text',
 

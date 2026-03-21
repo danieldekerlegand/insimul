@@ -228,13 +228,15 @@ function logEndpoints(app: any, port: number): void {
     '👥 Characters': [],
     '📜 Rules & Actions': [],
     '🎯 Quests': [],
-    '📖 Truth & History': [],
+    '📖 Truth, History & Narrative': [],
     '🎨 Grammars': [],
     '🤖 AI Generation': [],
+    '💬 Conversations & Gemini': [],
     '🗣️  Speech (TTS/STT)': [],
     '💼 Businesses': [],
+    '🏛️  Public Buildings': [],
     '🏘️  Community': [],
-    '💬 Conversations': [],
+    '🏠 Residences': [],
     '💰 Economy': [],
     '📅 Events': [],
     '📁 Files': [],
@@ -242,30 +244,54 @@ function logEndpoints(app: any, port: number): void {
     '🔍 Predicates': [],
     '⚙️  Prolog': [],
     '🤝 Relationships': [],
-    '🏠 Residences': [],
     '⭐ Salience': [],
     '👫 Social': [],
     '✅ Validation': [],
     '🎓 Experience (XP)': [],
-    '🔧 Utilities': [],
+    '🖼️  Assets & Marketplace': [],
+    '📦 Items & Containers': [],
+    '📚 Texts & Library': [],
+    '🗺️  Lots & Water Features': [],
+    '🌐 Languages': [],
+    '🔐 Auth': [],
+    '🎮 Playthroughs': [],
+    '📋 Assessments & Evaluations': [],
     '🎮 Simulation': [],
+    '🔧 Utilities': [],
     '📝 Other': []
   };
-  
-  // Categorize routes based on path patterns
+
+  // Categorize routes based on path patterns (order matters — more specific patterns first)
   routes.forEach(route => {
     const path = route.path;
-    
-    if (path.includes('/database')) {
+
+    if (path === '*') {
+      // skip catch-all
+    } else if (path.includes('/database')) {
       categories['🗄️  Database Management'].push(route);
-    } else if (path.includes('/speech') || path.includes('/tts') || path.includes('/stt')) {
+    } else if (path.includes('/asset-collection') || path.includes('/asset-scraper') ||
+               path.includes('/assets') || path.includes('/asset-marketplace') ||
+               path.includes('/polyhaven') || path.includes('/sketchfab') ||
+               path.includes('/freesound') || path.includes('/asset-history') ||
+               path.includes('/textures')) {
+      categories['🖼️  Assets & Marketplace'].push(route);
+    } else if (path.includes('/texts')) {
+      categories['📚 Texts & Library'].push(route);
+    } else if (path.includes('/container')) {
+      categories['📦 Items & Containers'].push(route);
+    } else if (path.includes('/items') || path.includes('/items/base')) {
+      categories['📦 Items & Containers'].push(route);
+    } else if (path.includes('/public-building')) {
+      categories['🏛️  Public Buildings'].push(route);
+    } else if (path.includes('/speech') || path.includes('/tts') || path.includes('/stt') ||
+               path.includes('/pronunciation')) {
       categories['🗣️  Speech (TTS/STT)'].push(route);
+    } else if (path.includes('/gemini') || path.includes('/conversation')) {
+      categories['💬 Conversations & Gemini'].push(route);
     } else if (path.includes('/business')) {
       categories['💼 Businesses'].push(route);
     } else if (path.includes('/community')) {
       categories['🏘️  Community'].push(route);
-    } else if (path.includes('/conversation')) {
-      categories['💬 Conversations'].push(route);
     } else if (path.includes('/econom')) {
       categories['💰 Economy'].push(route);
     } else if (path.includes('/event')) {
@@ -290,8 +316,24 @@ function logEndpoints(app: any, port: number): void {
       categories['✅ Validation'].push(route);
     } else if (path.includes('/xp')) {
       categories['🎓 Experience (XP)'].push(route);
-    } else if (path.includes('/world') || path.includes('/countries') || 
-               path.includes('/states') || path.includes('/settlements')) {
+    } else if (path.includes('/language')) {
+      categories['🌐 Languages'].push(route);
+    } else if (path.includes('/auth') || path.includes('/login') || path.includes('/register') ||
+               path.includes('/logout') || path.includes('/user')) {
+      categories['🔐 Auth'].push(route);
+    } else if (path.includes('/playthrough') || path.includes('/play-trace') || path.includes('/save') ||
+               path.includes('/engagement') || path.includes('/migrate-playthrough') ||
+               path.includes('/session')) {
+      categories['🎮 Playthroughs'].push(route);
+    } else if (path.includes('/assessment') || path.includes('/evaluation') || path.includes('/exam') ||
+               path.includes('/reading-progress') || path.includes('/vocabulary') ||
+               path.includes('/npc-exam')) {
+      categories['📋 Assessments & Evaluations'].push(route);
+    } else if (path.includes('/lots') || path.includes('/water-feature')) {
+      categories['🗺️  Lots & Water Features'].push(route);
+    } else if (path.includes('/world') || path.includes('/countries') ||
+               path.includes('/states') || path.includes('/settlements') ||
+               path.includes('/settlement-history')) {
       categories['🌍 Worlds & Geography'].push(route);
     } else if (path.includes('/character')) {
       categories['👥 Characters'].push(route);
@@ -299,17 +341,18 @@ function logEndpoints(app: any, port: number): void {
       categories['📜 Rules & Actions'].push(route);
     } else if (path.includes('/quest')) {
       categories['🎯 Quests'].push(route);
-    } else if (path.includes('/truth')) {
-      categories['📖 Truth & History'].push(route);
+    } else if (path.includes('/truth') || path.includes('/narrative')) {
+      categories['📖 Truth, History & Narrative'].push(route);
     } else if (path.includes('/grammar')) {
       categories['🎨 Grammars'].push(route);
-    } else if (path.includes('/generate') || path.includes('/edit-rule')) {
+    } else if (path.includes('/generate') || path.includes('/edit-rule') || path.includes('/generation-job')) {
       categories['🤖 AI Generation'].push(route);
     } else if (path.includes('/simulation') || path.includes('/execute')) {
       categories['🎮 Simulation'].push(route);
-    } else if (path.includes('/health') || path.includes('/progress')) {
+    } else if (path.includes('/health') || path.includes('/progress') || path.includes('/telemetry') ||
+               path.includes('/version-alert')) {
       categories['🔧 Utilities'].push(route);
-    } else if (path !== '*') {
+    } else {
       categories['📝 Other'].push(route);
     }
   });

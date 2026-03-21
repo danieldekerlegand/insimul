@@ -1388,12 +1388,8 @@ function docToAssessmentSession(doc: any): AssessmentSession {
 function docToRule(doc: RuleDoc | any): Rule {
   // Check if it's a lean document (plain object) or Mongoose document
   if (doc.toObject) {
-    // Mongoose document
-    console.log(`[docToRule] Processing Mongoose document, has content:`, !!doc.content);
     return { ...doc.toObject(), id: doc._id.toString() };
   } else {
-    // Lean document (plain object)
-    console.log(`[docToRule] Processing lean document, has content:`, !!doc.content);
     return { ...doc, id: doc._id.toString() };
   }
 }
